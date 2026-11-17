@@ -1,4 +1,4 @@
-// Tests of the guard of a run's tool calls, modules/core/hooks/tool-guard.js, with the hook
+// Tests of the guard of a run's tool calls, modules/core/hooks/tool-guard.cjs, with the hook
 // input of Claude Code and of Codex. The Codex inputs are those that Codex 0.167.2 wrote to a
 // PreToolUse hook in a probe run: session_id, turn_id, cwd, tool_name and tool_input, and no
 // agent_id in the main session. scripts/check.sh runs them.
@@ -15,7 +15,7 @@ const test = require('node:test');
 const MODULES = path.join(__dirname, '../modules');
 const HOOKS = path.join(MODULES, 'core', 'hooks');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
-const guardModule = require(path.join(HOOKS, 'tool-guard.js'));
+const guardModule = require(path.join(HOOKS, 'tool-guard.cjs'));
 const { lockedFiles, patchPaths, countsAsWrite } = guardModule;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tool-guard-test-')));
@@ -219,7 +219,7 @@ test('a path is read through its links before each .., as the system reads it', 
 
 test('a command whose writes the guard does not read is denied when it reaches a locked file',
   () => {
-    const opaque = 'Run the checks with no file path or `checks.js run locked`; read a locked ' +
+    const opaque = 'Run the checks with no file path or `checks.cjs run locked`; read a locked ' +
       'file with `cat <file>`.';
     // The first line names the forms that pass, and the next line the command and the file.
     const reason = firstLine(guard(codex('Bash', { command: `npx vitest run ${CHECK_PATH}` },
@@ -253,7 +253,7 @@ test('a command whose writes the guard does not read is denied when it reaches a
     }
     // Each step of the skills that runs the checks passes with a file locked; a locked check
     // runs through `run locked`.
-    const checks = '$QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js';
+    const checks = '$QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.cjs';
     for (const step of ['run locked', 'run locked ac-1 ac-2', 'run targeted src/reply.test.ts',
       'run lint', 'run types', 'run build', 'scope 3', 'freeze 3', 'diff --from 1a2b3c4',
       'lock --verify', 'fixes',
@@ -288,8 +288,8 @@ test('a command whose writes the guard does not read is denied when it reaches a
     // A read-only command keeps only its read-only options: any other option, such as one
     // that runs a command, makes it opaque.
     // The value of such an option is no subcommand, in the form --option value too: each
-    // command of READ_ONLY in tool-guard.js with an option outside its list.
-    const source = fs.readFileSync(path.join(HOOKS, 'tool-guard.js'), 'utf8');
+    // command of READ_ONLY in tool-guard.cjs with an option outside its list.
+    const source = fs.readFileSync(path.join(HOOKS, 'tool-guard.cjs'), 'utf8');
     const list = source.slice(source.indexOf('const READ_ONLY = new Map('));
     const names = [...list.slice(0, list.indexOf('}));')).matchAll(
       /^ {2}(?:'([^']+)'|([\w-]+)): \{ short: '([^']*)'/gm)]
@@ -353,7 +353,7 @@ test('an agent in the background is denied on Claude Code; spawn_agent runs on C
 
 test('no rule covers qory.yaml, .qory/ outside .qory/build/, the hooks or the modules', () => {
   for (const file of ['qory.yaml', '.qory/harness/claude/settings.json', '.qory/artifacts/a.md',
-    'hooks/tool-guard.js', 'modules/core/hooks/tool-guard.js', 'modules/x/qory-module.yaml']) {
+    'hooks/tool-guard.cjs', 'modules/core/hooks/tool-guard.cjs', 'modules/x/qory-module.yaml']) {
     assert.equal(guard(claude('Write', { file_path: path.join(WORK, file) }, 'implementer')), null,
       file);
     assert.equal(guard(codex('apply_patch', patch(file), 'default')), null, file);
@@ -476,10 +476,10 @@ function harnessHome() {
   fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
   // The hooks are a copy whose artifact folder of a run is RUN_FOLDER.
   fs.cpSync(HOOKS, path.join(home, 'hooks'), { recursive: true });
-  const gate = path.join(home, 'hooks', 'end-gate.js');
+  const gate = path.join(home, 'hooks', 'end-gate.cjs');
   const text = fs.readFileSync(gate, 'utf8');
   const line = "const RUN_FOLDER = '/tmp/qory-artifacts';";
-  assert.ok(text.includes(line), 'end-gate.js sets the artifact folder of a run');
+  assert.ok(text.includes(line), 'end-gate.cjs sets the artifact folder of a run');
   fs.writeFileSync(gate, text.replace(line, `const RUN_FOLDER = ${JSON.stringify(RUN_FOLDER)};`));
   for (const module of ['core', 'software-factory']) {
     fs.symlinkSync(path.join(MODULES, module), path.join(home, 'modules', module));
@@ -527,9 +527,9 @@ echo '${store}'
     QORY_RUN_ID: 'run-1', QORY_RUN_REPOSITORIES: 'example-org/shop' };
 }
 
-test('lockedFiles reads the files of the lock with the reader of checks.js', () => {
+test('lockedFiles reads the files of the lock with the reader of checks.cjs', () => {
   const home = harnessHome();
-  const script = path.join(home, 'hooks', 'tool-guard-claude.js');
+  const script = path.join(home, 'hooks', 'tool-guard-claude.cjs');
   const env = fakeQory(server());
   assert.deepEqual(lockedFiles({ root: WORK, env, script }),
     { what: 'acceptance-lock version 1', files: [LOCKED] });
@@ -552,7 +552,7 @@ test('each adapter prints the deny of its runtime', () => {
     // Claude Code gives the working folder in CLAUDE_PROJECT_DIR, and Codex runs the hook in
     // it.
     const ran = childProcess.spawnSync(process.execPath,
-      [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+      [path.join(home, 'hooks', `tool-guard-${runtime}.cjs`)],
       { input: JSON.stringify(input), env: { ...env, CLAUDE_PROJECT_DIR: WORK }, cwd: WORK,
         encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stderr);
@@ -578,19 +578,19 @@ test('each adapter prints the deny of its runtime', () => {
   denied(run('codex', codex('apply_patch', patch('/tmp/qory-artifacts/.reports/starts.json'),
     'default')), 'Write no file under .reports/');
   denied(run('codex', codex('Bash', { command: 'rm /tmp/qory-artifacts/.reports/end.json' })),
-    'Write to .reports/ only through checks.js.');
+    'Write to .reports/ only through checks.cjs.');
   // On Claude Code, decide runs reports-guard too, for each tool.
   for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
     'rm -rf .qory/artifacts/.reports']) {
     denied(run('claude', claude('Bash', { command }, 'implementer')),
-      'Write to .reports/ only through checks.js.');
+      'Write to .reports/ only through checks.cjs.');
   }
   denied(run('claude', claude('Write', { file_path: `${RUN_FOLDER}/.reports/findings.json`,
     content: '{}' }, 'implementer')), 'Write no file under .reports/');
   denied(run('claude', claude('Edit', { file_path: `${RUN_FOLDER}/.reports/starts.json.lock` },
     'implementer')), 'Write no file under .reports/');
-  // checks.js of the harness alone is the one command that reaches .reports/.
-  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
+  // checks.cjs of the harness alone is the one command that reaches .reports/.
+  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.cjs');
   for (const runtime of ['claude', 'codex']) {
     const input = (runtime === 'claude' ? claude : codex)('Bash',
       { command: `node ${checks} findings ${RUN_FOLDER}/.reports/findings.json` }, 'implementer');
@@ -598,10 +598,10 @@ test('each adapter prints the deny of its runtime', () => {
   }
 });
 
-// The step limit of step-limit.js, with the hook inputs of Claude Code and Codex. Claude Code
+// The step limit of step-limit.cjs, with the hook inputs of Claude Code and Codex. Claude Code
 // ends a step with PostToolBatch, whose tool_calls list every call of the step; Codex starts
 // a step with PreModelRequest, and PreToolUse appends each call of the step.
-const steps = require(path.join(HOOKS, 'step-limit.js'));
+const steps = require(path.join(HOOKS, 'step-limit.cjs'));
 
 // stepRun returns a folder that stands for the working folder of a run, a harness home, and
 // hook(runtime, input), which runs the adapter of runtime on input and returns its deny
@@ -615,7 +615,7 @@ function stepRun() {
   const env = { ...fakeQory(server()), QORY_HARNESS_HOME: home, CLAUDE_PROJECT_DIR: root };
   const hook = (runtime, input) => {
     const ran = childProcess.spawnSync(process.execPath,
-      [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+      [path.join(home, 'hooks', `tool-guard-${runtime}.cjs`)],
       { input: JSON.stringify({ cwd: root, ...input }), env, cwd: root, encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stderr);
     assert.equal(ran.stderr, '');
@@ -802,7 +802,7 @@ test('a hook that ends while it reads the calls of a step still counts the step'
     const real = fs.realpathSync.native;
     fs.realpathSync.native = (full, ...rest) => { stop(full); return real(full, ...rest); };\n`);
   const crash = (runtime, input) => childProcess.spawnSync(process.execPath,
-    ['-r', preload, path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+    ['-r', preload, path.join(home, 'hooks', `tool-guard-${runtime}.cjs`)],
     { input: JSON.stringify({ cwd: root, ...input }), env, cwd: root, encoding: 'utf8' });
   const call = { tool_name: 'Write', tool_input: { file_path: 'crash-here/a.ts', content: 'x' },
     tool_use_id: 't9' };
@@ -886,7 +886,7 @@ test('each agent has a separate count file, and the end check removes them', () 
     null);
   // The end check of session s-1 ends it, with no artifact folder, and removes its counts.
   const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks',
-    'end-gate-claude.js')], { input: JSON.stringify({ session_id: 's-1', cwd: root,
+    'end-gate-claude.cjs')], { input: JSON.stringify({ session_id: 's-1', cwd: root,
     hook_event_name: 'Stop' }), env: { ...env, QORY_RUN_ID: '' }, encoding: 'utf8' });
   assert.equal(ran.status, 0, ran.stderr);
   assert.deepEqual(fs.readdirSync(folder).sort(),
@@ -994,7 +994,7 @@ test('in a run, hook input that is not JSON denies the call', () => {
   const home = harnessHome();
   for (const runtime of ['claude', 'codex']) {
     const ran = (env) => childProcess.spawnSync(process.execPath,
-      [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+      [path.join(home, 'hooks', `tool-guard-${runtime}.cjs`)],
       { input: 'not json', env: { ...process.env, ...env }, encoding: 'utf8' });
     const inRun = ran({ QORY_RUN_ID: 'run-1' });
     assert.equal(inRun.status, 0, inRun.stderr);
@@ -1008,7 +1008,7 @@ test('a guard that throws denies the call and asks the agent to report the error
   // An adapter whose check before the guard throws.
   const script = path.join(next('adapter'), 'tool-guard-broken.js');
   fs.mkdirSync(path.dirname(script));
-  fs.writeFileSync(script, `require(${JSON.stringify(path.join(HOOKS, 'tool-guard.js'))})` +
+  fs.writeFileSync(script, `require(${JSON.stringify(path.join(HOOKS, 'tool-guard.cjs'))})` +
     ".run({ runtime: 'codex', before: () => { throw new Error('a fault of the guard'); } });\n");
   const ran = childProcess.spawnSync(process.execPath, [script], { encoding: 'utf8',
     input: JSON.stringify(codex('Bash', { command: 'ls' })),
@@ -1033,8 +1033,8 @@ test('a lost count, a failed step end and a Codex step with no call still count'
   const script = path.join(next('adapter'), 'tool-guard-failing.js');
   fs.mkdirSync(path.dirname(script));
   fs.writeFileSync(script, `const steps = require(${JSON.stringify(path.join(HOOKS,
-    'step-limit.js'))});\nsteps.takeDenied = () => { throw new Error('a lost file'); };\n` +
-    `require(${JSON.stringify(path.join(HOOKS, 'tool-guard.js'))}).run({ runtime: 'claude' });\n`);
+    'step-limit.cjs'))});\nsteps.takeDenied = () => { throw new Error('a lost file'); };\n` +
+    `require(${JSON.stringify(path.join(HOOKS, 'tool-guard.cjs'))}).run({ runtime: 'claude' });\n`);
   const ran = childProcess.spawnSync(process.execPath, [script], { encoding: 'utf8', env,
     input: JSON.stringify({ cwd: root, ...fresh, hook_event_name: 'PostToolBatch',
       tool_calls: [{ ...WRITE, tool_response: 'ok' }] }) });
@@ -1082,7 +1082,7 @@ test('only a write below the working folder outside .qory/, or a push, resets th
 });
 
 test('a writer at the limit writes its draft in the artifact folder, and the count resets', () => {
-  const { folder } = require(path.join(HOOKS, 'end-gate.js'));
+  const { folder } = require(path.join(HOOKS, 'end-gate.cjs'));
   const { root, env, hook } = stepRun();
   const artifacts = folder(root, env, RUN_FOLDER);
   const place = { cwd: root, root,
@@ -1112,7 +1112,7 @@ test('on Codex, the working folder is the folder of the hook, not the cwd of a c
   // as cwd.
   const run = (runtime, input, extra = {}) => {
     const ran = childProcess.spawnSync(process.execPath,
-      [path.join(home, 'hooks', `tool-guard-${runtime}.js`)],
+      [path.join(home, 'hooks', `tool-guard-${runtime}.cjs`)],
       { input: JSON.stringify(input), env: { ...env, ...extra }, cwd: WORK, encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stderr);
     return ran.stdout === '' ? null : JSON.parse(ran.stdout).hookSpecificOutput
@@ -1384,8 +1384,8 @@ test('a ~ at the start of a word is the home folder, as the shell expands it', (
 });
 
 test('a call that reaches .reports/ is denied on Claude Code and on Codex', () => {
-  const shell = 'Write to .reports/ only through checks.js.';
-  const hidden = 'Leave .reports/ to checks.js, and name other files with no `$`, backtick, ' +
+  const shell = 'Write to .reports/ only through checks.cjs.';
+  const hidden = 'Leave .reports/ to checks.cjs, and name other files with no `$`, backtick, ' +
     'eval or glob.';
   const starts = (reason, start) => firstLine(reason, start);
   for (const make of [claude, codex]) {
@@ -1416,7 +1416,7 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
     }
     // A * matches no leading dot, so it reaches no .reports folder.
     for (const command of ['ls .qory/artifacts/*', 'rm x{a,b}', 'cat src/*.ts',
-      "cat > notes.md <<'EOF'\nClean .reports/ with checks.js.\nEOF"]) {
+      "cat > notes.md <<'EOF'\nClean .reports/ with checks.cjs.\nEOF"]) {
       assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
     }
   }
@@ -1457,7 +1457,7 @@ test('a write through a dangling link into .qory/build/ is denied', () => {
 });
 
 test('the first line of each deny has at most 100 characters and says what to do', () => {
-  const reports = require(path.join(HOOKS, 'reports-guard.js'));
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const texts = { ...guardModule.REASONS, WRITE_REASON: reports.WRITE_REASON,
     SHELL_REASON: reports.SHELL_REASON, HIDDEN_REASON: reports.HIDDEN_REASON,
     STEPS: steps.REASON, UNWRITABLE: steps.UNWRITABLE };
@@ -1473,7 +1473,7 @@ test('the first line of each deny has at most 100 characters and says what to do
 
 test('a read-only command with a variable setting is opaque', () => {
   const opaque = 'Run the checks with no file path or';
-  const reports = 'Write to .reports/ only through checks.js.';
+  const reports = 'Write to .reports/ only through checks.cjs.';
   const set = (target) => [`printf '\\x2d-pre=rm' | RIPGREP_CONFIG_PATH=/dev/stdin rg x ${target}`,
     `export RIPGREP_CONFIG_PATH=/dev/stdin; rg x ${target}`,
     `env RIPGREP_CONFIG_PATH=/dev/stdin rg x ${target}`, `declare -x R=1; rg x ${target}`,
@@ -1845,7 +1845,7 @@ test('many commands with paths end in under 2 seconds in under 300 MB of heap', 
   // The heap limit ends the process when the guard keeps a list per command, as it did with
   // a copy of the paths made before each command.
   const script = `
-    const guard = require(${JSON.stringify(path.join(HOOKS, 'tool-guard.js'))});
+    const guard = require(${JSON.stringify(path.join(HOOKS, 'tool-guard.cjs'))});
     const [root, locked, runFolder] = process.argv.slice(1);
     const out = [];
     for (const command of ['A=1 B=2 rg -n x src ; '.repeat(40000),

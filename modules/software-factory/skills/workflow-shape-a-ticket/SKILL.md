@@ -93,7 +93,7 @@ Follow `write-specs` at most three times in a run and each other workflow twice,
 `shape-reviewer` at most three times. Before each follow and each start, run `starts` of
 `running-a-workflow`'s section "Checks" with `<run>`, the workflow's name or
 `shape-reviewer`, and the limit, such as
-`<skill folder>/checks.js starts <run> write-specs 3`. Run no `starts` before a start that
+`<skill folder>/checks.cjs starts <run> write-specs 3`. Run no `starts` before a start that
 fixes only a report, as "Check each report" of `running-a-workflow` lists. That start does
 not count toward the agent's start limit. `<run>` is `run.id`, or `local` with no `run.id`,
 as "Count the starts" of `running-a-workflow` lists. In a run, the script keeps the counts

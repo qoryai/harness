@@ -8,7 +8,7 @@ description: >-
   checking-proposals and exploring-code; the agents code-explorer, proposal-writer and
   proposal-reviewer; the workflow-write-specs skill, which orchestrates one ticket's spec and
   acceptance criteria; the skill running-a-software-workflow, which a small workflow's session
-  loads after running-a-workflow of core, and whose workflow-checks.js adds the checks of the
+  loads after running-a-workflow of core, and whose workflow-checks.cjs adds the checks of the
   software documents and of the types of Build and Verify, and is the program of each push
   check; the skill running-checks, with the verbs run, scope, freeze, diff, probe and
   prove of the checks script, where prove takes --inputs, --base and --artifacts; the skills
@@ -29,44 +29,44 @@ provides:
     spec-review: spec-reviewer
 push_checks:
   - type: proposal
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, proposal]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, proposal]
   - type: spec
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, spec]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, spec]
   - type: acceptance-criteria
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, acceptance-criteria]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, acceptance-criteria]
   - type: decision-record
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, decision-record]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, decision-record]
     reads: [acceptance-criteria, questions]
   - type: demo-scenarios
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-scenarios]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-scenarios]
     reads: [acceptance-criteria]
   - type: submission
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, submission]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, submission]
   - type: build-plan
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, build-plan]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-plan]
     reads: [acceptance-criteria]
   - type: build-report
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, build-report]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-report]
   - type: build-ledger
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, build-ledger]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-ledger]
   - type: acceptance-lock
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, acceptance-lock]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, acceptance-lock]
     reads: [acceptance-criteria]
   - type: demo-script
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-script]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-script]
     reads: [demo-scenarios]
   - type: demo-evidence
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-evidence]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-evidence]
     reads: [demo-script]
   - type: demo-video
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-video]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-video]
     reads: [demo-script]
   - type: screenshot
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, screenshot]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, screenshot]
     reads: [demo-script]
   - type: verification
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, verification]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, verification]
     reads: [acceptance-criteria]
   - type: explainer
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, explainer]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, explainer]
     reads: [verification, acceptance-criteria]

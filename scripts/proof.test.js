@@ -1,7 +1,7 @@
-// Tests of the proof of the fast track (lib/proof.js, lib/proof-text.js, verbs/prove.js). scripts/
-// check.sh runs them. Each test makes a git checkout with a base commit and the commits of a
-// change, an inputs.json with the start commit, and a pulled proposal on the fast track, then
-// calls the checks script as a session does.
+// Tests of the proof of the fast track (lib/proof.cjs, lib/proof-text.cjs, verbs/prove.cjs).
+// scripts/check.sh runs them. Each test makes a git checkout with a base commit and the commits
+// of a change, an inputs.json with the start commit, and a pulled proposal on the fast track,
+// then calls the checks script as a session does.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -13,14 +13,14 @@ const zlib = require('node:zlib');
 const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
-const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
+const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs'));
 const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const SAMPLES = require('./testdata/build-verify-samples.json');
-const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
-const proofComments = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/proof-comments.js'));
+const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.cjs'));
+const proofComments = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/proof-comments.cjs'));
 if (process.env.PROOF_TEST_PYTHON) proofComments.TOOLS.python = process.env.PROOF_TEST_PYTHON;
-const proofLib = require(path.join(SKILL, 'workflow-checks.js'))(LIBRARY).proof;
+const proofLib = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY).proof;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'proof-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -777,7 +777,7 @@ test('prove: a partial clone with a planted transport or upload program runs not
 });
 
 test('the proof takes linear time on a long text', () => {
-  const deny = require(path.join(SKILL, 'lib/text-deny.js'));
+  const deny = require(path.join(SKILL, 'lib/text-deny.cjs'));
   const started = Date.now();
   const size = 1024 * 1024;
   for (const text of ['a'.repeat(size), 'a.'.repeat(size / 2), 'a-'.repeat(size / 2),
@@ -799,7 +799,7 @@ test('the proof takes linear time on a long text', () => {
 });
 
 test('a child process stops at the time that is left of the budget', () => {
-  const comments = require(path.join(SKILL, 'lib/proof-comments.js'));
+  const comments = require(path.join(SKILL, 'lib/proof-comments.cjs'));
   const started = Date.now();
   const ran = comments.spawn(Error, '/bin/sh', ['-c', 'while :; do :; done'], undefined, tmp, 1000);
   assert.match(ran.problem, /did not finish the parse within 1 s/);
@@ -817,7 +817,7 @@ test('prove: git allows no protocol, whatever the config says', () => {
   childProcess.spawnSync('git', ['-C', run.dir, 'ls-remote', `ext::${program}`], { env: ENV });
   assert.ok(fs.existsSync(ran), 'the probe must run the program');
   fs.rmSync(ran);
-  const git = require(path.join(SKILL, 'lib/git.js'));
+  const git = require(path.join(SKILL, 'lib/git.cjs'));
   git.git(run.dir, ['ls-remote', `ext::${program}`], { env: ENV });
   assert.ok(!fs.existsSync(ran), 'the planted transport ran');
 });
@@ -911,7 +911,7 @@ test('prove: a translation file with invalid UTF-8 or a deep nesting is a findin
 test('the deny list reads a string the same in JavaScript and in Python', {
   skip: !fs.existsSync(proofComments.TOOLS.python) && 'python3 is missing',
 }, () => {
-  const deny = require(path.join(SKILL, 'lib/text-deny.js'));
+  const deny = require(path.join(SKILL, 'lib/text-deny.cjs'));
   const inputs = ['Saved.', 'Hello, world.', 'Note: saved', 'Total: 5 items', 'Save (optional)',
     'evil.com', 'evil\u200b.com', 'evil\u00ad.com', 'evil\u2060.com', 'evil\ufeff.com',
     'evil\u3002com', 'evil\uff61com', 'evil\u180e.com', 'a\u00a0;\u00a0b', 'a\u2028b|c',
@@ -940,7 +940,7 @@ test('the deny list reads a string the same in JavaScript and in Python', {
 });
 
 test('the ignorable code points of the deny list are those of Unicode', () => {
-  const deny = require(path.join(SKILL, 'lib/text-deny.js'));
+  const deny = require(path.join(SKILL, 'lib/text-deny.cjs'));
   for (let code = 0; code <= 0x10ffff; code += 1) {
     if (code >= 0xd800 && code <= 0xdfff) continue;
     const unicode = /\p{Default_Ignorable_Code_Point}/u.test(String.fromCodePoint(code));

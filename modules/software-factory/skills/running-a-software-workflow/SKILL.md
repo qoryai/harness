@@ -62,15 +62,15 @@ record" for `decision-record`, "mockups" for `mockup`, and "demo scenarios" for
 ## The build ledger
 
 In a Build session, these steps add to "What you do" of `running-a-workflow`. Run each
-command with `<skill folder>/checks.js`, the checks script of `running-a-workflow`. When it
+command with `<skill folder>/checks.cjs`, the checks script of `running-a-workflow`. When it
 exits 3 with a first line "Run <verb> again after the other call finishes", another call
 held the ledger: when that call has ended, run the same command again, once. When it exits
 with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
 
-1. After the artifact pull, and before the first step, run `checks.js resume` once. A line
+1. After the artifact pull, and before the first step, run `checks.cjs resume` once. A line
    "Run <id> again" names a step whose session stopped while it ran: that step runs again.
 2. Before each step, run
-   `checks.js step begin <id> <workflow> --inputs <path> <file>...`, with the id of the
+   `checks.cjs step begin <id> <workflow> --inputs <path> <file>...`, with the id of the
    step, such as `deliverable:d-2`, the name of your workflow, the path of the run's
    inputs, the file that ends in `/in/inputs.json` in the prompt, and the files that your
    workflow lists for the step: its inputs, its skill file and its role's agent file.
@@ -83,7 +83,7 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
      a change or a commit: run that command, then the same `step begin` again. Both
      commands keep the step's files: in a stash, and in the reflog of git.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
-3. After the step, run `checks.js step end <id> done`, or `failed` when the step failed.
+3. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
    Add `--report <file>` with the agent's last report under `.reports`, one
    `--attempt <agent>,<role>,<tier>,<model>` per agent start, one
    `--pushed <type>/<name>/<version>` per version the step stored, and, for a step

@@ -5,26 +5,26 @@ description: Load before you run a check of code or a locked check, check the wr
 
 # Running checks
 
-The checks script of `running-a-workflow`, `checks.js`, runs every check of code. You run no
-test, linter or build command in another way: the script runs the command that the build
+The checks script of `running-a-workflow`, `checks.cjs`, runs every check of code. You run
+no test, linter or build command in another way: the script runs the command that the build
 plan lists, records the result, and judges it by the same rules for every run. Run the
 script as the section "Checks" of `running-a-workflow` describes, with these forms:
 
 ```
-<skill folder>/checks.js run targeted [<path>...] [--inputs <path>] [--artifacts <folder>]
-<skill folder>/checks.js run lint [--inputs <path>] [--artifacts <folder>]
-<skill folder>/checks.js run types [--inputs <path>] [--artifacts <folder>]
-<skill folder>/checks.js run build [--inputs <path>] [--artifacts <folder>]
-<skill folder>/checks.js run locked [<criterion>...] [--inputs <path>]
+<skill folder>/checks.cjs run targeted [<path>...] [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.cjs run lint [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.cjs run types [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.cjs run build [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.cjs run locked [<criterion>...] [--inputs <path>]
     [--artifacts <folder>]
-<skill folder>/checks.js scope <step> | --plan [--base <commit>] [--inputs <path>]
+<skill folder>/checks.cjs scope <step> | --plan [--base <commit>] [--inputs <path>]
     [--artifacts <folder>]
-<skill folder>/checks.js freeze <step> | --plan [--base <commit>] [--inputs <path>]
+<skill folder>/checks.cjs freeze <step> | --plan [--base <commit>] [--inputs <path>]
     [--artifacts <folder>]
-<skill folder>/checks.js diff --from <commit>
-<skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>]
+<skill folder>/checks.cjs diff --from <commit>
+<skill folder>/checks.cjs probe <patch> targeted <path> [--inputs <path>]
     [--artifacts <folder>]
-<skill folder>/checks.js prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]
+<skill folder>/checks.cjs prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in

@@ -8,14 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- A guard of tool calls in a run, `hooks/tool-guard-claude.js` on Claude Code and
-  `hooks/tool-guard-codex.js` on Codex, run by a `PreToolUse` hook of the settings of
+- A guard of tool calls in a run, `hooks/tool-guard-claude.cjs` on Claude Code and
+  `hooks/tool-guard-codex.cjs` on Codex, run by a `PreToolUse` hook of the settings of
   `core`. It denies an agent in the background on Claude Code, a write to `.qory/build/`, a
   `chmod`, `chown`, `chgrp` or `chflags` of `.qory/` or a folder above it, a write below
   `$QORY_HARNESS_HOME` when it lies below the working folder, a write to a file that the
   lock lists, and a write from the main session outside the artifact folder. The Codex hook
   reads Codex's tool names, `apply_patch` and `Bash`, lets `spawn_agent` run, because Codex
-  starts no agent in the foreground. On both runtimes the guard runs `reports-guard.js`, so
+  starts no agent in the foreground. On both runtimes the guard runs `reports-guard.cjs`, so
   a direct write to `.reports/`, in a shell command too, is denied; a call of read-only
   commands reads it. The guard reads a shell command as text and gives a message for each
   form in which a locked path or `.qory/build/` appears literally in the call, also after
@@ -38,7 +38,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   settings of `core` also sets `onFailure: "block"`, so on Claude Code 2.1.295 or later a
   guard that times out blocks the call too. Earlier builds drop the key and run a call whose
   guard timed out, as Codex does.
-- `checks.js prove [--inputs <path>] [--base <commit>]` proves the commits of a fast-track
+- `checks.cjs prove [--inputs <path>] [--base <commit>]` proves the commits of a fast-track
   run: the commits from `--base`, else `qory.start_commits` of `inputs.json`, to HEAD,
   against the kind that `## Track` of the pulled proposal declares. `scope --plan`, which
   qory's push step runs, calls it when that proposal is on the fast track, in place of the
@@ -90,7 +90,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   stop; a design-token file that nests more than 64 levels is the finding "Propose the
   standard track"; "a document" excludes `agents/**/*.md`, `AGENTS.local.md` and
   `GEMINI.local.md`.
-- The build ledger of a Build session, in the verbs `step` and `resume` of `checks.js`.
+- The build ledger of a Build session, in the verbs `step` and `resume` of `checks.cjs`.
   `core` keeps the rows: the pass of each id, the state, the agent starts, the report, the
   replays, the 101st row and the escalation `ledger-full`; `running-a-software-workflow`
   adds the type `build-ledger`, the members `base`, `commit` and `script_sha256`, and the
@@ -129,7 +129,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   pushes nothing and exits 3 with "Run <verb> again after the other call finishes: another
   call held the ledger lock for 10 s."
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
-  `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
+  `checks.cjs check points` checks by the rules of the text of a point. qory 4314dbb8
   refuses a point with `fix` until its verdict schema adds the member.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
@@ -145,9 +145,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   typography, spacing, borders, corner radius and shadows, and never layout). A work item
   that fits no kind, touches one of the eight sensitive areas of that file, or about which
   the writer is unsure, takes the standard track. `short-path.json` sets the id of the fast
-  track, `fast`, and `checks.js` applies the kinds and the sensitive areas only to a
+  track, `fast`, and `checks.cjs` applies the kinds and the sensitive areas only to a
   proposal of that track. `proposal-reviewer` checks the fast track, its change and its
-  reason against the two lists and each changed file. `checks.js` checks the form of
+  reason against the two lists and each changed file. `checks.cjs` checks the form of
   `## Track`, that `sources.json` lists each changed file, and, in `check`, that the
   newest report of `proposal-reviewer`, which passed `report`, records the exact `## Track`
   it read with the result "clean".
@@ -156,7 +156,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   code explorer's report, unchanged, and a changed file outside the places of that report
   is a finding on the fast track.
 - Each sensitive area of `short-path.json` has file patterns, globs from the repository
-  root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses the fast track with a
+  root, such as `**/migrations/**` or `**/*.pem`. `checks.cjs` refuses the fast track with a
   changed file that matches a pattern, and names the file, the area and the pattern.
   `proposal-reviewer` judges a file that no pattern matches by the names of the areas.
 - A repository changes the lists of the fast track in its `qory.yaml`, under
@@ -193,14 +193,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   have no shell.
 - The Explore session sends the track with its verdict, as
   `run verdict passed --track <id> --track-reason "<reason>"`: the id of `## Track`, and on
-  the fast track the text after "Reason: ". `checks.js end` compares `## Track` of
+  the fast track the text after "Reason: ". `checks.cjs end` compares `## Track` of
   `proposal.md` at the top of the artifact folder with the `track` of the newest verdict
   that the run stored, and `end --offline` with that of its `--verdict` body, also when
   `proposal.md` is unchanged. A verdict with no `track`, another id or, on the fast track,
   another reason is a finding of the proposal draft. An `escalate` verdict compares
   nothing. A run that ended with `points.json` and a stored verdict is compared too, and a
   lookup of the verdict that fails is a finding. The end hook of a session runs
-  `checks.js end` with `--inputs $QORY_HARNESS_HOME/inputs.json` when that file exists, the
+  `checks.cjs end` with `--inputs $QORY_HARNESS_HOME/inputs.json` when that file exists, the
   copy of the run's `inputs.json` that qory writes in the harness home, else with no
   `--inputs`, so it reads `.qory/harness-report.json`. A run without a wall can push a
   proposal with no push check, so the checks of the fast track bind only walled runs.
@@ -214,7 +214,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   later round judges each closure of its findings under "Earlier findings:", as `holds`
   with a closing proof, or `open` with a new proof, which may raise the severity to
   `break`.
-- `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
+- `checks.cjs findings add <round> <agent> <file>`, `findings close <agent> <file>` and
   `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
   folder, under a lock file, so that calls at once lose no finding; a call removes a lock
   whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
@@ -231,10 +231,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
-  type. `workflow-checks.js` checks these types, `demo-video`, `screenshot` and `explainer`
+  type. `workflow-checks.cjs` checks these types, `demo-video`, `screenshot` and `explainer`
   before each review and in each type's push check. A type of the checks script may set its
   file size limit and mark files that the check does not read as text.
-- `checks.js lock <file>` and `checks.js lock --verify [--version <N>]`, the lock on the
+- `checks.cjs lock <file>` and `checks.cjs lock --verify [--version <N>]`, the lock on the
   acceptance checks. `lock` writes the SHA-256 of each check and support file that the draft
   `acceptance-lock.json` lists into it, checks it, and pushes it. The push check of
   `acceptance-lock` refuses a second lock for the same approval, however the lock is
@@ -260,7 +260,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session
-  checks before each review. Its `workflow-checks.js` adds the types `proposal`, `spec`,
+  checks before each review. Its `workflow-checks.cjs` adds the types `proposal`, `spec`,
   `acceptance-criteria`, `decision-record` and `demo-scenarios` to the checks script, and
   is the program of each push check of `software-factory`.
 - The check runners of `software-factory`, the verbs `run`, `scope`, `freeze`, `diff` and
@@ -311,7 +311,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
   off the list.
-- `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
+- `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]]`: the end check after the session, for qory to run
   in a new container from a copy of the artifact folder, the store pulled at the end of the
   run, this run's id, the ids of the paused runs it continues and the recorded verdict. A
@@ -325,7 +325,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `4314dbb8` runs no `end --offline`.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
-  `hooks/end-gate-codex.js`. Exit 2 with the findings on stderr keeps a `codex exec` turn
+  `hooks/end-gate-codex.cjs`. Exit 2 with the findings on stderr keeps a `codex exec` turn
   going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `4314dbb8` writes no
   `trusted_hash` and does not pass `--dangerously-bypass-hook-trust`, so Codex does not
   run the hook in a run. The file sets no model, provider, sandbox or approval mode.
@@ -335,7 +335,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   through one. `writing-proposals` uses web search and web fetch where the runtime has them.
 - A round after a verdict `changes-requested` of the current stage with `run_again` points
   fixes those points first. Following `running-a-workflow`, the session of a run alone runs
-  `checks.js fixes` once, after `qory work-item show`: the script reads the work item's
+  `checks.cjs fixes` once, after `qory work-item show`: the script reads the work item's
   newest verdict and prints "Fix first: <text>" for each such point. The session passes
   those lines ahead of the notes. Each writer fixes first the points about its drafts, and
   each reviewer checks that they are fixed. A round after `passed`, `escalate`, no verdict,
@@ -526,7 +526,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   ids with `ac-N` ids.
 - The `make-mockups` workflow in the `software` stack, with `access: read`:
   the skills `workflow-make-mockups`, `designing-mockups`, with the render
-  script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
+  script `render-mockups.cjs`, and `checking-mockups`, and the agents `designer` and
   `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
   JavaScript and the network off, and reads files only in the working folder and the
   artifact folder. A run with no browser escalates. Rule 2 of `scripts/check.sh` checks
@@ -564,15 +564,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `test-features`, which "Changed" replaces with `demo-scenarios`, `index.json` and
   `notes.json`.
 - `scripts/check.sh` checks the testdata of the `software-factory` module with the push
-  form of `checks.js`, as rule 9 in `docs/modules.md` lists. Before, no script read the
+  form of `checks.cjs`, as rule 9 in `docs/modules.md` lists. Before, no script read the
   testdata, so a format change could leave it behind unnoticed.
   `modules/software-factory/testdata/index.json` lists the proposal versions 1 and 2,
   which the review comments are on.
-- Rule 10 of `scripts/check.sh` checks each citation of a skill in `checks.js`: the skill
+- Rule 10 of `scripts/check.sh` checks each citation of a skill in `checks.cjs`: the skill
   exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
   in one of the ranges. A citation that no longer matches its skill fails the rule, and so
   does a citation that crosses a line break, which the rule would otherwise skip.
-- `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
+- `checks.cjs panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
   members of a group role that start for the paths of a change. It reads the group's rows
   from `$QORY_HARNESS_HOME/roles.json`. The names pair with the rows by position, and it
   exits 3 when a name is neither the row's agent nor `<prefix>:<agent>`. A member starts
@@ -582,8 +582,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   twice the size of the copy of the working folder for a reviewer, without `.git` and
   `.qory`, for each; the rest wait, and `--after` lists the next batch. It exits 1 when the
   disk has room for no member, and writes no file.
-- `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
-  one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
+- `checks.cjs starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer
+  on one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
   fourth exits 1. Both forms of `starts` read and write the counts under the lock
   `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
   once. A call makes the lock with the flag `wx` and writes its process id. It removes a
@@ -591,11 +591,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once,
   unless two calls both remove an old break file. The deny rules of `.reports` protect each
   file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
-  path. `checks.js end` prints a finding for each reviewer that such a start counts and
+  path. `checks.cjs end` prints a finding for each reviewer that such a start counts and
   that has no report.
 
 ### Changed
 
+- Each script of `core` and `software-factory` ends in `.cjs` in place of `.js`: the
+  hooks, `checks.cjs` with `lib/`, `verbs/` and `types/`, `versions.cjs`, `push-check.cjs`,
+  `workflow-checks.cjs` with its files, and the scripts of `designing-mockups`. Node loads a
+  `.js` file as an ES module below a `package.json` that sets `"type": "module"`, so in such
+  a repository each hook and checks script stopped with `require is not defined`. Node
+  loads a `.cjs` file as CommonJS under any `package.json`. Rule 12 of `scripts/check.sh`
+  fails on a `.js` file under `modules/`.
 - The fast-track proof of "a text value in a code file" now lets a changed string pass only
   when the string is itself in a display position: JSX text, an HTML or JSX attribute
   (`title`, `alt`, `placeholder`, `label`, `aria-label`, `aria-description`), a JSX
@@ -621,30 +628,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   withdrawal needs that version in the push store, and exits 3 with a line for a member
   without it. A withdrawal itself is no version that a review comment cites, that a member
   approves, or that needs a reviewer's report in `end --offline`.
-- `checks.js` prints a finding as a first line with the fix, then lines indented by two
+- `checks.cjs` prints a finding as a first line with the fix, then lines indented by two
   spaces with the cause and the values. The findings of the track, the lists of the fast
   track, `--inputs`, the harness report and the verdict keep that first line within 100
   characters, also with a long path or value.
-- Each finding of `checks.js` and its verbs starts with the fix, in the imperative, on a
+- Each finding of `checks.cjs` and its verbs starts with the fix, in the imperative, on a
   first line of at most 100 characters, also with an agent name of 64 characters or a long
   path; the cause prints indented below it. The `Start:` and `Wait:` lines of `panel` keep
   the whole name of the member, so a module prefix can take them past 100 characters. Two
   lines of information among the findings have no fix and keep their words: "The output and
   the record are in .reports/runs/, as <id>." of `run` and `probe`, and "Scanned <N> commits
   ... for keys: ..." of `scope`. `panel` prints "The member has no free place." on the line
-  after a `Wait:` line. The tests of `checks.js` assert this rule on each first line that
+  after a `Wait:` line. The tests of `checks.cjs` assert this rule on each first line that
   `main` prints.
-- `checks.js` prints its findings in at most 200 lines, the line that counts the findings
+- `checks.cjs` prints its findings in at most 200 lines, the line that counts the findings
   not shown included, because qory keeps at most 200 lines of the stdout of a push check.
   That line reads "Fix the findings above and run the check again: <N> more are not shown."
   A finding prints whole or not at all, and the first finding prints whole even past 200
   lines. Until this change, the only limit was 50 findings.
-- `checks.js check`, `push`, `end` and `end --offline` print the line of what they checked
+- `checks.cjs check`, `push`, `end` and `end --offline` print the line of what they checked
   on stderr and print only the findings on stdout, because qory reads each non-empty line
   of the stdout of a push check as a finding. A run with no finding prints nothing on
   stdout.
 - `check proposal`, the push check and the end check read the keys of `software-factory`
-  with `check` of `lib/repository-settings.js`, the check that the runners use, so
+  with `check` of `lib/repository-settings.cjs`, the check that the runners use, so
   `extensions.schema.json` has one check. They print every finding of it, and every bad name
   and every bad area of the lists of `short-path.json`. Each finding has its fix on the
   first line, at most 100 characters, and the cause on the line after it, such as "Remove
@@ -659,8 +666,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   does not read stops it with the fix, not each value. A harness report whose `extensions`
   is no map gives "Write harness.extensions in qory.yaml as a map." and, on the next line,
   the cause.
-- The two readers of `inputs.json`, `lib/context.js` of core and
-  `lib/repository-settings.js` of `software-factory`, give the same fix: "Give --inputs the
+- The two readers of `inputs.json`, `lib/context.cjs` of core and
+  `lib/repository-settings.cjs` of `software-factory`, give the same fix: "Give --inputs the
   inputs.json that qory wrote for the run."
 - A record that a module adds to a report may list its `fields`, such as "Track review:",
   which its check covers. For an agent whose Expected output has the heading of the record,
@@ -713,7 +720,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   spec reviewer returned no reports, so the run has none of their work, and another round
   starts them again." The end check still writes one point for each kind of problem.
 - The checks of a point and a question count as an id only a question id such as `q4` and
-  an id whose prefix a module gives as `ids` in its `workflow-checks.js`, with a number, in
+  an id whose prefix a module gives as `ids` in its `workflow-checks.cjs`, with a number, in
   either case: `software-factory` gives `ac-`, `d-`, `step-`, `scenario-` and `decision-`.
   A name such as `GPT-4`, and an id inside a path such as
   `docs/step-1.md`, pass. The words beside an id need a letter, and quotes around the id
@@ -742,10 +749,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   allow rules as before. `scripts/check.sh` composes the `core` stack on Claude Code, Gemini
   CLI, Cursor and Copilot CLI, and checks these settings and hooks. Rule 2 checks the Bash
   rules of each of the two settings files, and rule 6 reads both.
-- `checks.js` splits into a frame of about 230 lines, its verbs under `verbs/`, its shared
+- `checks.cjs` splits into a frame of about 230 lines, its verbs under `verbs/`, its shared
   code under `lib/` and its types `questions`, `review-comments` and `points` under
   `types/`. The script loads the types, "Blocked:" lines and commands that each skill adds
-  with a file `workflow-checks.js`. A stack without `software-factory` checks `questions`
+  with a file `workflow-checks.cjs`. A stack without `software-factory` checks `questions`
   and `review-comments`. The checks and their messages are unchanged, except three:
   - The finding on a "Blocked:" line that no skill lists now reads "with a stop line that
     the skills of its workflow list".
@@ -759,23 +766,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "no".
 - The comments of the Copilot CLI and Cursor hooks name no code forge and no `git` command.
 - `core` declares the push checks of `questions` and `review-comments`, which
-  `software-factory` declared. Their program is `modules/core/scripts/push-check.js`, a file
-  outside every entry of `core`, so a stack that composes only some entries of `core`, such
-  as `authoring`, still has it. A stack with `core` alone checks each push of these types.
-  `scripts/check.sh` runs the testdata's questions and review comments through it, and
-  checks `push-checks.json` of the `core`, `software` and `authoring` stacks.
-- The checks script loads a `workflow-checks.js` only from a skill folder whose sha256 is in
-  `running-a-workflow/trusted-checks.json`, the list that `core` ships. Before, it loaded
-  the `workflow-checks.js` of every skill in the home, so a module that a checkout appends
+  `software-factory` declared. Their program is `modules/core/scripts/push-check.cjs`, a
+  file outside every entry of `core`, so a stack that composes only some entries of `core`,
+  such as `authoring`, still has it. A stack with `core` alone checks each push of these
+  types. `scripts/check.sh` runs the testdata's questions and review comments through it,
+  and checks `push-checks.json` of the `core`, `software` and `authoring` stacks.
+- The checks script loads a `workflow-checks.cjs` only from a skill folder whose sha256 is
+  in `running-a-workflow/trusted-checks.json`, the list that `core` ships. Before, it loaded
+  the `workflow-checks.cjs` of every skill in the home, so a module that a checkout appends
   to a stack could change or skip the checks in each verb, in the end check's hook and in
   each push check. The script hashes the real folder, refuses a folder with a link, a FIFO
   or another entry that is neither a file nor a folder, a name with a control character, or
   a file over 1 MiB, and loads the file from the real folder. A refused folder stops the
   verb with exit 3, or `end --offline` with exit 4, before any of its code runs: "Remove
-  skills/<x>/workflow-checks.js from <module>: only the stack's modules add checks." The
+  skills/<x>/workflow-checks.cjs from <module>: only the stack's modules add checks." The
   list guards against a repository's modules; a session can change it wherever the home is
   writable, which is anywhere but a walled run with push checks. `scripts/check.sh` composes
-  checkouts that append such a module, one with a linked `workflow-checks.js`, and checks
+  checkouts that append such a module, one with a linked `workflow-checks.cjs`, and checks
   that the checks script and both push checks refuse them.
 - Rule 11 of `scripts/check.sh` also refuses `git`, `GitHub`, `pull_request`, `branching`,
   `diffing`, `specification` and their forms in any case, and `PR` and `PRs` in upper case.
@@ -784,7 +791,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the list why it is off.
 - Rule 8 of `scripts/check.sh` allows a workflow's skill to refer to every `running-a-*`
   skill, and checks each `running-a-*` skill as it checked `running-a-workflow`. Rule 10
-  reads every `.js` file of a `running-a-*workflow` skill, and rule 9 runs the push
+  reads every `.cjs` file of a `running-a-*workflow` skill, and rule 9 runs the push
   program.
 - An agent sets a tier, `model: ${qory:light}`, `${qory:fast}` or `${qory:thinking}`, and
   the person who composes the harness maps each tier to a model with `--tier` or
@@ -809,9 +816,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   finding's point, so the texts of `points.json` follow `simple-communication` while the
   session loads no further skill. A planner's fact at a Shape limit gets a fixed point, and
   the end line that lists the pushed versions has a fixed form, such as "The run pushed
-  version 3 of the spec and version 2 of the questions." `checks.js report` checks that each
-  finding of a reviewer has one `Point:` line, on one line, that passes the rules of the
-  text of a point, so a fix of the report, which counts no start, repairs a bad line.
+  version 3 of the spec and version 2 of the questions." `checks.cjs report` checks that
+  each finding of a reviewer has one `Point:` line, on one line, that passes the rules of
+  the text of a point, so a fix of the report, which counts no start, repairs a bad line.
   `check points` refuses `Point:` in the text of a point, as it refuses the other labels of
   a finding.
 - Each agent of a run that writes or reviews a text that members read loads
@@ -836,7 +843,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   reason. Explore keeps no such finding before the third start either. The session skips
   that start when another finding left fails the push: nothing is pushed, so the fix
   would be lost, and the next round's review finds the sentence again.
-- A proposal follows a template with limits that `checks.js` checks. The summary states
+- A proposal follows a template with limits that `checks.cjs` checks. The summary states
   the outcome in 1 or 2 sentences of at most 40 words. The background opens with at most
   40 words on why the work exists, then today's facts in at most 100. The proposed
   solution opens with the recommendation in 1 sentence of at most 30 words, then at most 3
@@ -871,19 +878,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A mockup version is `screens.json` and one self-contained HTML page per screen, in place
   of one picture per screen. `designer` writes the pages as before, then runs
-  `pack-mockups.js`. The script puts the target's sheets and images into each page, makes
+  `pack-mockups.cjs`. The script puts the target's sheets and images into each page, makes
   each `data-to` a link to its screen's page, and fails on a page with a script or an
   address outside the version. It writes `screens.json` as
   `{start, screens: [{id, title, file, criteria, links: [{to, label}]}]}`, with no
-  coordinates and no page source. `render-mockups.js` renders each packed page to a picture
+  coordinates and no page source. `render-mockups.cjs` renders each packed page to a picture
   in `mockup-render/` for `mockup-reviewer` and runs the styling tests. The run pushes no
   picture, and `compare` compares every file of a mockup version. A later version starts
-  with `pack-mockups.js --unpack` on the newest version's folder, in place of
-  `render-mockups.js --unpack` on its `screens.json`. `mockup-reviewer` reads the pictures,
+  with `pack-mockups.cjs --unpack` on the newest version's folder, in place of
+  `render-mockups.cjs --unpack` on its `screens.json`. `mockup-reviewer` reads the pictures,
   the pages in `mockup-pages/` and `screens.json`. `shape-reviewer` reads `screens.json`
   and searches the page of each screen, and its `pictures` stop goes. `designing-mockups`
   lists what a page may contain. The settings of `software-factory` allow Bash for
-  `pack-mockups.js`, and deny `Edit` under `mockup-render/` as under `mockup-draft/`. Rule
+  `pack-mockups.cjs`, and deny `Edit` under `mockup-render/` as under `mockup-draft/`. Rule
   2 of `scripts/check.sh` checks both allow rules, both denies and the exact Bash exception
   of `designer.md`, and the check runs the pack script's tests. Those tests run every case
   of `scripts/testdata/mockup-cases.md`, a byte copy of the cases that Qory Apiary checks
@@ -911,28 +918,28 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `run_again`. So does every other finding of a small workflow, also one marked `writer`
   and `direction`. Explore keeps one marked `writer`, `direction` and `no break` with a
   reason and adds no point for it. `shape-a-ticket` passes a small workflow's
-  `points.json` on. `checks.js check points` checks the file, and `checks.js end` writes
+  `points.json` on. `checks.cjs check points` checks the file, and `checks.cjs end` writes
   it.
 
 - A review comment from **Run another round** is on the whole round: its `on` is
   `{"run": N}`, the run whose round the member commented on, next to the output form
-  `{"artifact": "<type>", "version": N}`. The push check of `review-comments` in `checks.js`
-  accepts `on.run` as a whole number of 1 or more with no other key, and refuses
-  `{"run": 0}` and `{"run": 1, "artifact": "proposal"}`. Before, it refused every push of
-  replies while one round comment existed. An output form whose `artifact` is not text or
-  whose `version` is not a whole number is a finding that names the key. Agents read round
-  comments first, as the member's instruction for every output of the round, and follow the
-  newer comment by `at` when an output comment conflicts with it. When they cannot tell
-  which one applies, they add one question and reply `asked` to both comments.
+  `{"artifact": "<type>", "version": N}`. The push check of `review-comments` in
+  `checks.cjs` accepts `on.run` as a whole number of 1 or more with no other key, and
+  refuses `{"run": 0}` and `{"run": 1, "artifact": "proposal"}`. Before, it refused every
+  push of replies while one round comment existed. An output form whose `artifact` is not
+  text or whose `version` is not a whole number is a finding that names the key. Agents read
+  round comments first, as the member's instruction for every output of the round, and
+  follow the newer comment by `at` when an output comment conflicts with it. When they
+  cannot tell which one applies, they add one question and reply `asked` to both comments.
   `reading-the-work`, `replying-to-comments`, `reply-writer`, `planning-shape`,
   `checking-shape` and `docs/modules.md` describe both forms.
 
 - The 450 words of a proposal leave out the first line of each item under `## Sources`
   and the line "No public page and no file.", so a long list of sources no longer pushes a
   writer to cut settled outcomes. Each later line of an item counts, a nested item
-  included. `checks.js` counts the proposal that way, and 450 stays a hard limit. A spec
+  included. `checks.cjs` counts the proposal that way, and 450 stays a hard limit. A spec
   and a decision record count as before.
-- `checks.js` refuses a proposal whose `## Sources` has a paragraph, a code block or any
+- `checks.cjs` refuses a proposal whose `## Sources` has a paragraph, a code block or any
   other line that is not a list item, a line indented into an item, or a blank line, unless
   the section is only the line "No public page and no file.". A paragraph between the items
   no longer escapes the 450-word limit.
@@ -943,17 +950,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `writer`, `no direction` and `no break`. An edge case or a field that the ticket or an
   answer settles, or that a decision rests on, stays in the proposal and is no such
   finding.
-- A format failure no longer ends a run at once. When `checks.js report` finds fault with an
-  agent's report, the session starts that agent again with the check's output, to fix only
-  its report, at most twice in a row; the last line of `report` states the fix number. That
-  start does not count toward the agent's start limit. The session runs no `checks.js
+- A format failure no longer ends a run at once. When `checks.cjs report` finds fault with
+  an agent's report, the session starts that agent again with the check's output, to fix
+  only its report, at most twice in a row; the last line of `report` states the fix number.
+  That start does not count toward the agent's start limit. The session runs no `checks.cjs
   starts` before it. A third failure ends the run with `escalate`, as before. A draft that
-  `checks.js check` finds fault with, or a push that qory's checks refuse, goes back to its
+  `checks.cjs check` finds fault with, or a push that qory's checks refuse, goes back to its
   writer at most twice, where before it went once. `report` records each result with the
   report's SHA-256 in `.reports/results.json`.
 - After the proposal writer changes the sections or cuts words, it checks that each outcome
   the ticket or an answer settles is still stated in the proposal.
-- A hook checks the run's drafts and reports before the session ends. `checks.js end
+- A hook checks the run's drafts and reports before the session ends. `checks.cjs end
   <folder>` checks each draft at the top of the artifact folder as `check` does, except a
   copy that has the bytes of its newest version, and that the newest report of each agent
   passed `report`, as that agent, with the text it has now, and that each agent that
@@ -977,7 +984,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `.reports/*.json`, so an agent cannot change the counts and results, and set
   `disableAllHooks` to `false`, so a user's settings file cannot switch off the hook. On
   Gemini CLI, Cursor and Copilot CLI, a hook before each tool call denies a write of
-  `.reports/*.json` and a shell command on `.reports` other than `checks.js`, also as text
+  `.reports/*.json` and a shell command on `.reports` other than `checks.cjs`, also as text
   that Copilot CLI's `write_bash` types into a running shell. On Gemini CLI, the settings
   keep `QORY_RUN_ID`, `QORY_RUN_API`, `QORY_HARNESS_HOME` and the proxy variables in the
   hooks' environment, which Gemini CLI otherwise clears when `GITHUB_SHA` is set. `report`
@@ -999,7 +1006,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that states the recommendation, then a table with the columns "Alternative" and "Why
   not" for each alternative that the writer weighed. `writing-proposals` lists the rule
   and its example, `checking-proposals` lists it for the reviewer, and no rule of
-  `checks.js` checks it. The proposal of the testdata follows it.
+  `checks.cjs` checks it. The proposal of the testdata follows it.
 - An `explore-a-ticket` run that pushes no proposal because of a failure records the
   verdict `escalate`. Before, such a run recorded no verdict. The ends before the first
   push, the end after a refused push of the proposal, the end on review findings that the
@@ -1115,14 +1122,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   workflow's type that its writer left open.
 - In a later round of Explore and Shape, a writer changes only the parts that an answer, a
   review comment, a note or a finding concerns. Before the writer starts, the session runs
-  `versions.js copy <type> <N>`, which copies the newest version's files to the top of the
-  artifact folder. `versions.js` is a script in the folder of the `running-a-workflow`
+  `versions.cjs copy <type> <N>`, which copies the newest version's files to the top of the
+  artifact folder. `versions.cjs` is a script in the folder of the `running-a-workflow`
   skill. The writer edits the copies in place, as `reading-the-work` and `artifact-text`
   list: it keeps every other line byte for byte, and never reads a file only to write it out
   again. When the run's copy fails, the writer copies the files and lists each copy in its
   report. Before, `writing-proposals` asked for the whole proposal again, and a writer could
   draft each file anew. A proposal keeps each copied wireframe that still applies and never
-  redraws it. Before each push, the session runs `versions.js compare <type> <N>` with the
+  redraws it. Before each push, the session runs `versions.cjs compare <type> <N>` with the
   files of the push. The script lists each changed, added and dropped file, so a dropped
   wireframe counts as a change, and the session pushes an output only when the list has a
   file. `write-specs` checks the spec and the acceptance criteria apart, and `make-mockups`
@@ -1162,15 +1169,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   cost unless only a person can accept that cost. The core questions texts name "the draft
   that the questions rest on" in place of the proposal. `modules/software-factory/testdata/`
   has a decided question, `q6`, that `decision-record.md` cites.
-- One script, `checks.js` beside `versions.js`, checks what needs no judgment in the drafts
-  of Explore and Shape, so a model's prose no longer decides it and a run cannot skip it.
-  The session runs `checks.js check <type> <file>...` on each draft before each start of a
-  reviewer, passes the output under "Checks:", and runs it again before each push, where a
-  finding goes back to the writer. `reviewing-drafts` turns each line into a finding marked
-  `writer`, and `direction` only where the checking skill marks the rule so, as for the
-  points and images of a proposed solution. Each checking skill lists for its reviewer what
-  the script checks, and a reviewer with no "Checks:" checks those rules too. The checks:
-  the sections and form of each draft; the limits of 450 words, a summary of 1 to 3
+- One script, `checks.cjs` beside `versions.cjs`, checks what needs no judgment in the
+  drafts of Explore and Shape, so a model's prose no longer decides it and a run cannot skip
+  it. The session runs `checks.cjs check <type> <file>...` on each draft before each start
+  of a reviewer, passes the output under "Checks:", and runs it again before each push,
+  where a finding goes back to the writer. `reviewing-drafts` turns each line into a finding
+  marked `writer`, and `direction` only where the checking skill marks the rule so, as for
+  the points and images of a proposed solution. Each checking skill lists for its reviewer
+  what the script checks, and a reviewer with no "Checks:" checks those rules too. The
+  checks: the sections and form of each draft; the limits of 450 words, a summary of 1 to 3
   sentences, 3 points per part, a criterion of 1 sentence and 25 words, 8 steps and 12
   scenarios, a `question` of 1 sentence and 1 to 500 characters, a `title` of 1 to 200, an
   `explanation` of 1 to 2000 and a `context` of 1 to 20000 characters, 120 words of a new
@@ -1180,11 +1187,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Qory Apiary's rules for a push; the ids that a draft cites; the proposal's sources against
   `sources.json`; and the refused and control characters, links, `.qory/repositories` and
   paths of the machine the run is on. A reviewer still judges that no criterion is
-  renumbered, because that needs judgment. `checks.js report <agent> <file>` checks each
+  renumbered, because that needs judgment. `checks.cjs report <agent> <file>` checks each
   agent's report: its last word, its lists and its `Blocked:` line.
-  `checks.js starts <run> <name> <limit>` counts the starts of each reviewer and each Shape
+  `checks.cjs starts <run> <name> <limit>` counts the starts of each reviewer and each Shape
   follow per run in the artifact folder, so a lost session loses no start. `<run>` is the
-  run's `run.id`, or `local` with no `run.id`: then the session runs `checks.js begin` once
+  run's `run.id`, or `local` with no `run.id`: then the session runs `checks.cjs begin` once
   before its first `starts`, which makes a new key, so a lost session counts from 0 again. A
   small workflow's reviewer counts under `<workflow>-<n>-<reviewer>`, such as
   `write-specs-1-questions-reviewer`, where `<n>` is the number of the follow. After a check
@@ -1192,10 +1199,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   lines that the findings quote or name, and adds a section that a finding names as missing.
   The check must pass before the push, also after the reviewer's last start. When the script
   exits with 2 or 3, or cannot run, the run ends with `escalate`: a check that cannot run
-  never passes. `checks.js push <type> <file>...` is the form for qory's `push_checks`.
+  never passes. `checks.cjs push <type> <file>...` is the form for qory's `push_checks`.
   `core` declares it for `questions` and `review-comments`, and `software-factory` for its
   five types, in `qory-module.yaml`, so qory runs the check on each push of a walled run,
-  before the push reaches the run API. The settings allow `checks.js` with one rule, and
+  before the push reaches the run API. The settings allow `checks.cjs` with one rule, and
   `scripts/checks.test.js` breaks each rule in a copy of the testdata and watches the check
   fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 
@@ -1206,7 +1213,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   folder, so a folder that an earlier pull left, and that `index.json` does not list,
   decided the version that a push was compared with. Only with no `index.json`, or one that
   does not list the name of the type, the highest version folder counts.
-- `checks.js report` reads and writes `.reports/results.json` under the lock
+- `checks.cjs report` reads and writes `.reports/results.json` under the lock
   `.reports/results.json.lock`, as `findings` does with its lock, so that reports checked
   at once lose no entry. Before, two checks at once could drop an entry, and a reviewer
   could fix its report more than 2 times in a row. `report` exits 3 when the lock still
@@ -1215,10 +1222,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   order mark as they read the same file without it. Before, rules 1, 2 and 8 read the front
   matter of such a file as its body, and rule 4 missed a list item or a code fence on its
   first line.
-- A crash of `checks.js` in the end check, at load or while it runs, ends the session on
+- A crash of `checks.cjs` in the end check, at load or while it runs, ends the session on
   every runtime, with "Send this error to the harness maintainers: the end check crashed,
   so the session ended without checking its drafts and reports." first, then the error and
-  its stack. `end-gate.js` runs `checks.js` through a runner that exits 4 on the crash.
+  its stack. `end-gate.cjs` runs `checks.cjs` through a runner that exits 4 on the crash.
   Before, node exited 1 for a script that did not load, the status of findings, so the
   session went on and ran the same check again at each end, with no count.
 - On Gemini CLI, Cursor and Copilot CLI, the guard of `.reports/*.json` also denies a shell
@@ -1233,17 +1240,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   timeout of 10 seconds lets the call run on Cursor and Copilot CLI.
 - On Cursor, the guard of `.reports/*.json` prints nothing and exits 0 on a call that it
   does not deny, and never prints `permission: allow`. A deny exits 2.
-- `checks.js proposal` takes no heading and no list item from a line in a code block when it
-  compares `## Sources` with `sources.json`, and takes only the first line of each top item
-  as a source, as the check of the form of `## Sources` reads them. Before, a `#` line in a
-  code block ended the list early, a fenced `## Sources` line before the section started a
-  false list, and a nested item or a break such as `* * *` became a source, so the check
-  reported "Add … to sources.json" or "List … under ## Sources" for a proposal that lists
-  the same sources in both. `checks.js` also takes no heading from a line in a code block
-  when it counts the sentences of `## Summary`. Before, a `#` line in a code block ended
-  the summary there, so the check counted the sentences of only a part of it.
-- `checks.js report` reads the last line that is only one of the agent's last words, such as
-  `done`, with no indent, and with a blank line or the end of the report after it, as the
+- `checks.cjs proposal` takes no heading and no list item from a line in a code block when
+  it compares `## Sources` with `sources.json`, and takes only the first line of each top
+  item as a source, as the check of the form of `## Sources` reads them. Before, a `#` line
+  in a code block ended the list early, a fenced `## Sources` line before the section
+  started a false list, and a nested item or a break such as `* * *` became a source, so the
+  check reported "Add … to sources.json" or "List … under ## Sources" for a proposal that
+  lists the same sources in both. `checks.cjs` also takes no heading from a line in a code
+  block when it counts the sentences of `## Summary`. Before, a `#` line in a code block
+  ended the summary there, so the check counted the sentences of only a part of it.
+- `checks.cjs report` reads the last line that is only one of the agent's last words, such
+  as `done`, with no indent, and with a blank line or the end of the report after it, as the
   report's last word. A line in a code block is no last word. Before, a proposal writer's
   report with a list of sources after `done` failed the check, and the run pushed no
   proposal. Lines after the last word are no finding, and the check reads their lists and
@@ -1258,29 +1265,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "Further repositories: yes" or "Further repositories: no". `exploring-code` and
   `checking-questions` search or list the folder only with "yes", and drop the claims that
   an empty Glob or a failed `ls` shows that there is no further repository.
-- `render-mockups.js` measures each area of a page taller than 800 px where the picture
+- `render-mockups.cjs` measures each area of a page taller than 800 px where the picture
   shows it. Before, the browser laid out such a page 15 px narrower, beside a scrollbar
   that the picture of the whole page lacks, so each area was off by up to 15 px. The browser
   now starts with `--hide-scrollbars`. Found in the first render in Chromium 153.
-- `render-mockups.js` accepts a marked element that ends less than 1 px past the foot or
+- `render-mockups.cjs` accepts a marked element that ends less than 1 px past the foot or
   the right edge of the picture, and cuts its area at that edge. Before, a link at the foot
   of a page failed the render with "has no box inside the picture", because Chromium gives
   the page's height in whole pixels and the link's box in fractions of a pixel.
-- The warning of `render-mockups.js` for a missing file under the checkout or the artifact
+- The warning of `render-mockups.cjs` for a missing file under the checkout or the artifact
   folder states "no such file". Before, it stated "outside the allowed files", so a designer
   looked for a wrong folder instead of a wrong name. A missing file outside them still gets
   "outside the allowed files", so that a page learns nothing about the files there.
-- `render-mockups.js --unpack` checks every screen of `screens.json` before it writes a
+- `render-mockups.cjs --unpack` checks every screen of `screens.json` before it writes a
   page, and on a file that is no JSON or has no list of screens states "Write each page
   anew, with no --unpack". Before, such a file ended the script with a JavaScript stack
   trace, and a bad screen after a good one left the good one's page behind, with the advice
   to render again from pages that did not exist.
-- The styling test of `render-mockups.js` also compares the text colour and the underline
+- The styling test of `render-mockups.cjs` also compares the text colour and the underline
   with the browser's defaults. Before, a menu link that the target's loaded sheet styled
   only by colour and underline failed the render with "default computed styles", and the
   skill forbids the one line that turns the test off. `designing-mockups` lists the two
   properties.
-- Each failure of `render-mockups.js` about a marked element names it by its tag, its
+- Each failure of `render-mockups.cjs` about a marked element names it by its tag, its
   `data-to` and its label, such as `<a data-to="settings"> "Back" has no box inside the
   picture`, and the styling test lists each element with default styles. Before, a failure
   named only the `data-to`, so two links to the same screen could not be told apart, and the

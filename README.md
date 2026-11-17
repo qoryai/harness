@@ -90,12 +90,12 @@ agents, and the hooks of the end check with their settings:
   commands, failures, the points of an escalation, and the handover. A point is one sentence
   for a member on what is wrong or missing, with the action `answer`, which has the id of an
   open question that the run pushes before the verdict, or `run_again`. The checks script,
-  `checks.js`, checks the types `questions` and `review-comments`, and
-  `scripts/push-check.js` runs its push form for those types. A skill of another
+  `checks.cjs`, checks the types `questions` and `review-comments`, and
+  `scripts/push-check.cjs` runs its push form for those types. A skill of another
   module adds its types, the "Blocked:" lines of its workflows and its commands with a file
-  `workflow-checks.js` in its folder, which the script loads from each skill folder that
+  `workflow-checks.cjs` in its folder, which the script loads from each skill folder that
   `running-a-workflow/trusted-checks.json` lists.
-- `hooks/`: the hooks that run `checks.js end` when a session tries to end, on Claude Code,
+- `hooks/`: the hooks that run `checks.cjs end` when a session tries to end, on Claude Code,
   Gemini CLI, Cursor, Copilot CLI and Codex, and that deny a write of the `.json` files
   under `.reports/` by any other tool on Gemini CLI, Cursor and Copilot CLI. `settings/` has
   the settings of each runtime that run them. On Claude Code, the settings set
@@ -127,12 +127,12 @@ for a run of those workflows:
   `running-a-workflow` and, for files, the read forms of `run-artifacts`, starts agents,
   decides on each finding, and ends the run. The checks script checks each draft before
   its review and its push, checks each agent's report, and counts each reviewer's starts
-  per run: `checks.js check <type> <file>...`, `checks.js report <agent> <file>` and
-  `checks.js starts <run> <name> <limit>`. When a check before a push finds something, or
+  per run: `checks.cjs check <type> <file>...`, `checks.cjs report <agent> <file>` and
+  `checks.cjs starts <run> <name> <limit>`. When a check before a push finds something, or
   qory's checks refuse a push, the writer changes only the lines that the findings quote,
   at most twice, and the check must pass before the push. A report that fails its check
   goes back to its agent, to fix only the report, at most twice. When the session tries to
-  end, a hook runs `checks.js end <folder>` on the drafts and reports, and the session goes
+  end, a hook runs `checks.cjs end <folder>` on the drafts and reports, and the session goes
   on with its findings; at the third failed check, the hook ends the run with `escalate`.
   When the script cannot run, the run ends with `escalate`. The agents
   read the ticket, its comments and the instruction from `in/inputs.json`, the work item's
@@ -152,7 +152,7 @@ for a run of those workflows:
     values, of 2 to 6 rows that each change something. At most three short points
     follow, for what the picture cannot show. The 450 words count the tables, the whole
     background, the code blocks and the reasons of the decided questions, and leave out
-    Mermaid diagrams, wireframes and `## Sources`. `checks.js` checks the counts and tables
+    Mermaid diagrams, wireframes and `## Sources`. `checks.cjs` checks the counts and tables
     of these limits before the proposal reviewer starts. The run writes the proposed
     solution before the questions, with a solution for each part of the work. A part that an
     open question covers follows the question's recommended option, and only a question with
@@ -243,9 +243,9 @@ for a run of those workflows:
 - `running-a-software-workflow`: the main session of a small workflow of this module loads
   it after `running-a-workflow`, and no agent does. The skill contains the `find` of further
   repositories, the "Blocked:" lines on the spec, and the checks of each type. Its
-  `workflow-checks.js` adds the types `proposal`, `spec`, `acceptance-criteria`,
+  `workflow-checks.cjs` adds the types `proposal`, `spec`, `acceptance-criteria`,
   `decision-record`, `demo-scenarios` and the 11 types of Build and Verify to the checks
-  script. Each push check of the module runs `workflow-checks.js push <type> <file>...`.
+  script. Each push check of the module runs `workflow-checks.cjs push <type> <file>...`.
 - `running-checks`: load it before you run a check of code, check a step's write scope,
   freeze a step, read the diff of a change or probe a planted fault. The skill contains the
   verbs `run`, `scope`, `freeze`, `diff` and `probe` of the checks script, what counts as
@@ -332,11 +332,11 @@ modules/core/skills/writing-questions/     the skill: SKILL.md
 modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
-modules/core/skills/running-a-workflow/    the skill: SKILL.md, versions.js and checks.js
+modules/core/skills/running-a-workflow/    the skill: SKILL.md, versions.cjs and checks.cjs
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
 modules/core/hooks/                        the end check and the guard of .reports/
 modules/core/settings/                     the settings of each runtime that run the hooks
-modules/core/scripts/push-check.js         the push program of questions and review-comments
+modules/core/scripts/push-check.cjs        the push program of questions and review-comments
 modules/software-factory/                  the software-factory module and its testdata/
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills

@@ -8,7 +8,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const script = path.join(__dirname,
-  '../modules/software-factory/skills/designing-mockups/pack-mockups.js');
+  '../modules/software-factory/skills/designing-mockups/pack-mockups.cjs');
 const pack = require(script);
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pack-test-')));

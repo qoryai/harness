@@ -1,4 +1,4 @@
-// Tests of the lock on the acceptance checks: `checks.js lock`, `checks.js lock --verify`, and
+// Tests of the lock on the acceptance checks: `checks.cjs lock`, `checks.cjs lock --verify`, and
 // the rule of the acceptance-lock check that a lock of a cancelled run counts for nothing.
 // scripts/check.sh runs them. A fake qory on PATH records each call: its push prints a stored
 // version, and its pull copies a folder that stands for Qory Apiary into the store.
@@ -13,7 +13,7 @@ const test = require('node:test');
 const childProcess = require('node:child_process');
 
 const MODULES = path.join(__dirname, '../modules');
-const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.js');
+const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
 const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
@@ -260,9 +260,9 @@ test('lock of acceptance-lock runs only in the top folder of the repository', ()
   assert.deepEqual(below.calls, []);
   // The whole line, from the type: the output cuts a line after 200 characters, and the
   // length of the paths depends on TMPDIR.
-  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
   const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
-    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+    'workflow-checks.cjs'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
   const sub = path.join(work, 'checks');
   assert.deepEqual(type.lock.folder(sub, process.env), [TOP_LINE,
     `The top folder is ${work}, and lock ran in ${sub}.`]);
@@ -295,9 +295,9 @@ test('lock of acceptance-lock runs only in the top folder of the repository', ()
 });
 
 test('lock of acceptance-lock gives a fix for each failure of git, and the line of git', () => {
-  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
   const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
-    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+    'workflow-checks.cjs'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
   // A .git file that is no git file: git exits 128, and a move of folder fixes nothing.
   const broken = next('broken');
   writeJson(path.join(broken, '.git'), 'no git file\n');
@@ -327,9 +327,9 @@ test('lock of acceptance-lock gives a fix for each failure of git, and the line 
 });
 
 test('lock of acceptance-lock reads no global or system git config', () => {
-  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
   const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
-    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+    'workflow-checks.cjs'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
   // A git on PATH that reports another owner of every repository and reads a system config.
   // Both configs mark every folder safe: git reads that setting only from them.
   const real = childProcess.execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
@@ -348,9 +348,9 @@ test('lock of acceptance-lock reads no global or system git config', () => {
 });
 
 test('lock --verify of acceptance-lock names lock --verify in each line on the folder', () => {
-  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
   const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
-    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+    'workflow-checks.cjs'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
   const VERIFY = 'lock --verify';
   const empty = next('empty');
   fs.mkdirSync(empty);
@@ -393,9 +393,9 @@ test('lock of acceptance-lock reads the line of git in English in any locale', (
     t.skip('git here prints no German line, or a folder above TMPDIR is a repository');
     return;
   }
-  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
   const type = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
-    'workflow-checks.js'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
+    'workflow-checks.cjs'))(LIBRARY).types.find((one) => one.type === 'acceptance-lock');
   const lines = type.lock.folder(bare, german);
   assert.equal(lines[0], NO_REPOSITORY);
   assert.match(lines[1], /^fatal: not a git repository/);
@@ -426,13 +426,13 @@ function notesPlugin() {
   fs.cpSync(path.join(MODULES, 'core', 'agents'), path.join(plugin, 'agents'), { recursive: true });
   fs.mkdirSync(path.join(plugin, 'skills', 'notes'), { recursive: true });
   fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
-  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'),
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.cjs'),
     "'use strict';\nmodule.exports = () => ({ types: [{ type: 'notes-lock', " +
     "main: 'notes-lock.json', words: 'notes lock', reviewer: null, check() {}, lock: { files: " +
     '(data) => (Array.isArray(data && data.files) ? data.files.map((entry) => ({ folder: ' +
     "'', path: entry.path, entry, ...(entry.problem === undefined ? {} : { problem: " +
     'entry.problem }) })) : null) } }] });\n');
-  const { readTrusted, treeHash } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+  const { readTrusted, treeHash } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
   return { plugin, trusted: [...readTrusted(), treeHash(path.join(plugin, 'skills', 'notes'))] };
 }
 
@@ -1294,18 +1294,18 @@ test('lock pushes the next lock of the approval after a cancelled run\'s lock', 
 
 // ---- The versions that a cancelled run wrote, in the reads of every type -------------------
 
-// library returns the library of the types of software-factory, as workflow-checks.js builds it.
+// library returns the library of the types of software-factory, as workflow-checks.cjs builds it.
 function library() {
   const core = path.join(MODULES, 'core/skills/running-a-workflow/lib');
   const skill = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
   const lib = { ...['base', 'context', 'markdown', 'plugin']
-    .reduce((all, name) => ({ ...all, ...require(path.join(core, `${name}.js`)) }), {}) };
-  Object.assign(lib, require(path.join(skill, 'lib/documents.js'))(lib));
-  const spec = require(path.join(skill, 'types/spec.js'))(lib);
+    .reduce((all, name) => ({ ...all, ...require(path.join(core, `${name}.cjs`)) }), {}) };
+  Object.assign(lib, require(path.join(skill, 'lib/documents.cjs'))(lib));
+  const spec = require(path.join(skill, 'types/spec.cjs'))(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
-  const scenarios = require(path.join(skill, 'types/demo-scenarios.js'))(lib);
+  const scenarios = require(path.join(skill, 'types/demo-scenarios.cjs'))(lib);
   Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
-  return Object.assign(lib, require(path.join(skill, 'lib/build.js'))(lib));
+  return Object.assign(lib, require(path.join(skill, 'lib/build.cjs'))(lib));
 }
 
 const LIB = library();

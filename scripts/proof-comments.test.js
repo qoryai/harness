@@ -1,4 +1,4 @@
-// Tests of the proof of the kind "a comment" for shell and Python files (lib/proof-comments.js).
+// Tests of the proof of the kind "a comment" for shell and Python files (lib/proof-comments.cjs).
 // scripts/check.sh runs them. Each case makes a git checkout with a base commit and a head
 // commit, and runs `prove` as a session does, expecting exit 0 for a change of comments only
 // and exit 1 for any other. The cases of shell and Python are those that the first trial of
@@ -17,10 +17,10 @@ const path = require('node:path');
 const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
-const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
+const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs'));
 const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
-const proofComments = require(path.join(SKILL, 'lib/proof-comments.js'));
+const proofComments = require(path.join(SKILL, 'lib/proof-comments.cjs'));
 
 if (process.env.PROOF_TEST_BASH) proofComments.TOOLS.bash = process.env.PROOF_TEST_BASH;
 if (process.env.PROOF_TEST_PYTHON) proofComments.TOOLS.python = process.env.PROOF_TEST_PYTHON;

@@ -181,9 +181,9 @@ Track review: clean
 clean
 ```
 
-`checks.js report` refuses a report of the proposal reviewer without this record, so the
+`checks.cjs report` refuses a report of the proposal reviewer without this record, so the
 reviewer writes it again. `check proposal` refuses the fast track unless the newest report
-of the proposal reviewer passed `checks.js report` with its text as it is now, and its
+of the proposal reviewer passed `checks.cjs report` with its text as it is now, and its
 record has the lines of `## Track` as the draft has them now and the result "clean". So
 `check proposal` passes the fast track only when the newest review read exactly that track
 and found nothing wrong with it; the push reads no report of the reviewer. Otherwise the

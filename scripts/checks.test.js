@@ -9,11 +9,11 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const SCRIPT = path.join(__dirname, '../modules/core/skills/running-a-workflow/checks.js');
+const SCRIPT = path.join(__dirname, '../modules/core/skills/running-a-workflow/checks.cjs');
 const TESTDATA = path.join(__dirname, '../modules/software-factory/testdata');
 const MODULES = path.join(__dirname, '../modules');
 // The plugin folder of a call that gives none: a module, so that the registry reads the
-// workflow-checks.js of the skills of every module beside it.
+// workflow-checks.cjs of the skills of every module beside it.
 const SOURCE_PLUGIN = path.join(MODULES, 'core');
 const { main } = require(SCRIPT);
 const { watch, CHILD } = require('./first-line.js');
@@ -393,10 +393,10 @@ test('proposal: the skills list the kinds and the sensitive areas of short-path.
   }
 });
 
-// TRACK_LIB is the library of short-path.json, as workflow-checks.js loads it.
+// TRACK_LIB is the library of short-path.json, as workflow-checks.cjs loads it.
 const TRACK_LIB = require(path.join(MODULES,
-  'software-factory/skills/running-a-software-workflow/lib/short-path.js'))(
-  require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js')).LIBRARY);
+  'software-factory/skills/running-a-software-workflow/lib/short-path.cjs'))(
+  require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.cjs')).LIBRARY);
 
 test('proposal: a file pattern matches by its parts, any depth for **/, and braces', () => {
   const { globRegExp } = TRACK_LIB;
@@ -656,7 +656,7 @@ test('proposal: a harness report with changes in another form is refused', () =>
   const draft = () => fastWith('docs/opening-hours.md');
   const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
   for (const [changes, pattern] of [
-    // The shape of each key is the check of lib/repository-settings.js, with its texts.
+    // The shape of each key is the check of lib/repository-settings.cjs, with its texts.
     ['a list', /^Write harness\.extensions\.software-factory in qory\.yaml as a map\. It is text\.$/],
     [{ add_kinds: ['a picture'] }, /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml\. The schema has no such key\. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes\.$/],
     [{ remove_kinds: 'a comment' }, /^Write remove_kinds in qory\.yaml as a list\. It is text\.$/],
@@ -2038,7 +2038,7 @@ test('wrong arguments exit 2, with the usage on stderr', () => {
   ]) {
     const result = call({ cwd: root, artifacts: [root] }, argv);
     assert.equal(result.status, 2, argv.join(' '));
-    assert.match(result.err, /Usage: checks.js/);
+    assert.match(result.err, /Usage: checks.cjs/);
     assert.equal(result.out, '');
   }
 });
@@ -2216,6 +2216,7 @@ test('points: each text is plain text for a person, on one line', () => {
   // agent name; a lower-case file name and a hyphenated agent name are.
   passes(text('The spec names Node.js, which the designer must confirm.'));
   fails(text('The draft points.json breaks a rule.'), /^Remove the file name from the text of point 1/);
+  fails(text('Run checks.cjs again.'), /^Remove the file name from the text of point 1/);
   fails(text('The review by questions-reviewer stopped.'), /^Remove the agent name questions-reviewer from the text of point 1/);
 });
 
@@ -2309,7 +2310,7 @@ test('points: a point states its action, and the words of each id beside it', ()
 });
 
 test('points: core alone checks only question ids, and a module gives the other ids', () => {
-  const { bareId } = require(path.join(path.dirname(SCRIPT), 'lib', 'markdown.js'));
+  const { bareId } = require(path.join(path.dirname(SCRIPT), 'lib', 'markdown.cjs'));
   assert.equal(bareId('The run could not meet AC-3 as approved.'), null);
   assert.equal(bareId('The run could not meet AC-3 as approved.', { prefixes: ['ac'] }), 'AC-3');
   assert.equal(bareId('The answer to q3 is missing.'), 'q3');
@@ -2800,7 +2801,7 @@ test('starts --subject: starts at once in several processes count each start onc
 
 test('starts: a lock that stays exits 3 with a line to report it, and a stale lock is removed', () => {
   const { spawnSync } = require('node:child_process');
-  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.cjs');
   const root = path.join(tmp, `starts-${++folders}`);
   const reports = path.join(root, '.reports');
   const lock = path.join(reports, 'starts.json.lock');
@@ -2817,7 +2818,7 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
     const result = start();
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
-      'Report to a member: checks.js starts cannot run, because its lock file still exists.',
+      'Report to a member: checks.cjs starts cannot run, because its lock file still exists.',
       `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
@@ -2847,7 +2848,7 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
 
 test('withLock: a stale lock that is back on every try ends after the wait', () => {
   const { spawnSync } = require('node:child_process');
-  const { withLock } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const { withLock } = require('../modules/core/skills/running-a-workflow/lib/base.cjs');
   const root = path.join(tmp, `lock-${++folders}`);
   fs.mkdirSync(root, { recursive: true });
   const file = path.join(root, 'starts.json');
@@ -2870,7 +2871,7 @@ test('withLock: a stale lock that is back on every try ends after the wait', () 
   };
   try {
     assert.throws(() => withLock({ lockWait: 0 }, file, 'starts', () => assert.fail('work ran')),
-      { message: 'Report to a member: checks.js starts cannot run, because its lock file still exists.' });
+      { message: 'Report to a member: checks.cjs starts cannot run, because its lock file still exists.' });
   } finally {
     fs.openSync = openSync;
   }
@@ -2951,7 +2952,7 @@ function panelSetup({
 
 const FIVE = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer', 'e-reviewer'];
 
-const { folderBytes } = require('../modules/core/skills/running-a-workflow/verbs/panel.js');
+const { folderBytes } = require('../modules/core/skills/running-a-workflow/verbs/panel.cjs');
 
 const panelCall = (deps, names, ...more) => call(deps,
   ['panel', '--names', names.join(', '), ...(more.includes('--files') ? [] : ['--files', 'files.txt']), ...more]);
@@ -3251,7 +3252,7 @@ test('panel: a line of the file of the change may end in CR LF', () => {
 });
 
 test('globs: the dialect of the paths of an agent', () => {
-  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
+  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.cjs');
   for (const [glob, file, matches] of [
     ['**/*.py', 'a.py', true], ['**/*.py', 'a/b/c.py', true], ['*.py', 'a/b.py', false],
     ['src/**', 'src/a/b', true], ['src/**', 'srcx/a', false],
@@ -3274,7 +3275,7 @@ test('globs: the dialect of the paths of an agent', () => {
 });
 
 test('globs: a glob with many stars matches a long path in a bounded time', () => {
-  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
+  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.cjs');
   // As a RegExp, the first glob took 11 s on the first path.
   const cases = [
     ['*a*a*a*a*a*a*a*b', 'a'.repeat(60), false],
@@ -3399,13 +3400,13 @@ test('at most 50 findings, then one line with the number left out', () => {
   assert.ok(left && total && Number(left[1]) + 50 === Number(total[1]) && Number(left[1]) >= 10, result.out);
 });
 
-// printMany returns what checks.js prints for a verb that refuses with each finding of sizes,
+// printMany returns what checks.cjs prints for a verb that refuses with each finding of sizes,
 // a finding of n lines for each n: the fix, then n - 1 cause lines.
 function printMany(sizes) {
   const plugin = corePlugin();
   const skill = path.join(plugin, 'skills', 'many');
   fs.mkdirSync(skill);
-  fs.writeFileSync(path.join(skill, 'workflow-checks.js'), `
+  fs.writeFileSync(path.join(skill, 'workflow-checks.cjs'), `
 module.exports = () => ({ types: [], verbs: { many: { usage: ['many'], args: () => null,
   run(io) {
     io.print(${JSON.stringify(sizes)}.map((size, at) => [\`Fix finding \${at + 1}.\`,
@@ -3955,20 +3956,20 @@ function corePlugin() {
   return plugin;
 }
 
-const { readTrusted, treeHash } = require('../modules/core/skills/running-a-workflow/lib/registry.js');
+const { readTrusted, treeHash } = require('../modules/core/skills/running-a-workflow/lib/registry.cjs');
 
 // trusting returns the hashes of the list that core ships and of each skill folder of
-// folders, for the dependency trusted of a call: the registry loads their workflow-checks.js.
+// folders, for the dependency trusted of a call: the registry loads their workflow-checks.cjs.
 function trusting(...folders) {
   return [...readTrusted(), ...folders.map(treeHash)];
 }
 
-// scriptFiles returns every .js file under dir, at any depth.
+// scriptFiles returns every .cjs file under dir, at any depth.
 function scriptFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const file = path.join(dir, entry.name);
     if (entry.isDirectory()) return scriptFiles(file);
-    return entry.name.endsWith('.js') ? [file] : [];
+    return entry.name.endsWith('.cjs') ? [file] : [];
   });
 }
 
@@ -4007,7 +4008,7 @@ test('registry: a type that two skills add stops each verb that reads the regist
   const plugin = corePlugin();
   for (const skill of ['one', 'two']) {
     fs.mkdirSync(path.join(plugin, 'skills', skill));
-    fs.writeFileSync(path.join(plugin, 'skills', skill, 'workflow-checks.js'),
+    fs.writeFileSync(path.join(plugin, 'skills', skill, 'workflow-checks.cjs'),
       "module.exports = () => ({ types: [{ type: 'notes', main: 'notes.md', words: 'notes', " +
       "reviewer: null, check() {} }] });\n");
   }
@@ -4020,11 +4021,11 @@ test('registry: a type that two skills add stops each verb that reads the regist
 });
 
 test('registry: only a list of ids adds prefixes', () => {
-  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.js'));
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.cjs'));
   for (const [ids, expected] of [["'ac'", []], ["['ac']", ['ac']]]) {
     const plugin = corePlugin();
     fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
-    fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'),
+    fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.cjs'),
       `module.exports = () => ({ types: [], ids: ${ids} });\n`);
     assert.deepEqual(loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'notes'))).ids,
       expected);
@@ -4034,7 +4035,7 @@ test('registry: only a list of ids adds prefixes', () => {
 test('registry: a skill adds a type and a verb', () => {
   const plugin = corePlugin();
   fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
-  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'), `
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.cjs'), `
 module.exports = (lib) => ({
   types: [{ type: 'notes', main: 'notes.md', words: 'meeting notes', reviewer: null,
     check(run, files) { run.did('lines'); if (!lib.words(files.get('notes.md'))) run.find('Write notes.'); } }],
@@ -4047,14 +4048,14 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.js lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume and hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.cjs lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume and hello\./);
 });
 
-test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
+test('workflow-checks.cjs push runs the push of checks.cjs from the harness home', () => {
   const { spawnSync } = require('node:child_process');
   const home = harnessHome();
   const program = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
-    'workflow-checks.js');
+    'workflow-checks.cjs');
   const root = fixture();
   const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   const good = run('push', 'spec', path.join(root, 'spec.md'));
@@ -4078,7 +4079,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
   const { spawnSync } = require('node:child_process');
   const home = harnessHome();
   const program = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
-    'workflow-checks.js');
+    'workflow-checks.cjs');
   const root = fixture();
   write(root, 'notes.md', 'x');
   const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
@@ -4104,7 +4105,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
   const work = fixture();
   fs.mkdirSync(path.join(work, '.qory'));
   fs.renameSync(root, path.join(work, '.qory', 'artifacts'));
-  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
+  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.cjs');
   const checked = spawnSync(process.execPath, [checks, 'check', 'spec', path.join(work, '.qory', 'artifacts', 'notes.md')],
     { cwd: work, encoding: 'utf8', env: { PATH: process.env.PATH } });
   assert.equal(checked.status, 1, checked.stdout + checked.stderr);
@@ -4143,13 +4144,13 @@ test('check, push, end and end --offline print only the findings on stdout, and 
   assert.equal(clean.stderr, 'Checked the drafts and reports after the session: 0 findings.\n');
 });
 
-test('push-check.js of core runs the push of checks.js for questions and review-comments only', () => {
+test('push-check.cjs of core runs the push of checks.cjs for questions and review-comments only', () => {
   const { spawnSync } = require('node:child_process');
   // A home with core alone, as the core stack composes it.
   const home = path.join(tmp, `core-home-${++folders}`);
   fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
   fs.symlinkSync(path.join(MODULES, 'core'), path.join(home, 'modules', 'core'));
-  const program = path.join(home, 'modules', 'core', 'scripts', 'push-check.js');
+  const program = path.join(home, 'modules', 'core', 'scripts', 'push-check.cjs');
   const root = fixture();
   const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   const questions = run('push', 'questions', path.join(root, 'questions.json'));
@@ -4162,7 +4163,7 @@ test('push-check.js of core runs the push of checks.js for questions and review-
     path.join(root, 'questions.json')], ['push', 'questions']]) {
     const wrong = run(...argv);
     assert.equal(wrong.status, 2, argv.join(' '));
-    assert.equal(wrong.stderr, 'Give push questions|review-comments <file>...: push-check.js runs ' +
+    assert.equal(wrong.stderr, 'Give push questions|review-comments <file>...: push-check.cjs runs ' +
       'only the push checks of core.\n');
   }
 });
@@ -4171,7 +4172,7 @@ test('report through the link that the compose writes reads the agents of every 
   const { spawnSync } = require('node:child_process');
   const plugin = path.join(tmp, `linked-${++folders}`, 'plugin');
   fs.mkdirSync(path.join(plugin, 'skills', 'running-a-workflow'), { recursive: true });
-  fs.symlinkSync(SCRIPT, path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'));
+  fs.symlinkSync(SCRIPT, path.join(plugin, 'skills', 'running-a-workflow', 'checks.cjs'));
   fs.cpSync(path.join(PLUGIN, 'agents'), path.join(plugin, 'agents'), { recursive: true });
   fs.cpSync(path.join(PLUGIN, 'skills', 'reviewing-drafts'), path.join(plugin, 'skills', 'reviewing-drafts'),
     { recursive: true });
@@ -4182,7 +4183,7 @@ test('report through the link that the compose writes reads the agents of every 
     const file = path.join(reports, `${agent}-1.md`);
     fs.writeFileSync(file, 'What you read:\n- a\n\nclean\n');
     const result = spawnSync(process.execPath,
-      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'report', agent, file],
+      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.cjs'), 'report', agent, file],
       { cwd: work, encoding: 'utf8' });
     assert.equal(result.status, 0, `${agent}: ${result.stdout}${result.stderr}`);
   }
@@ -4195,7 +4196,7 @@ test('begin makes a new key, and starts local counts under it', () => {
   const start = () => call(deps, ['starts', 'local', 'proposal-reviewer', '1']);
   const missing = start();
   assert.equal(missing.status, 3);
-  assert.match(missing.lines[0], /^Run checks.js begin once when the session has no run id/);
+  assert.match(missing.lines[0], /^Run checks.cjs begin once when the session has no run id/);
   const first = call(deps, ['begin']);
   assert.equal(first.status, 0);
   assert.match(first.out, /^local-\d{14}-[0-9a-f]{8}\n$/);
@@ -4581,7 +4582,7 @@ test('report: a check of unchanged bytes adds no entry and counts no fix', () =>
 
 test('report: record calls in parallel processes lose no entry of results.json', async () => {
   const { spawn } = require('node:child_process');
-  const reports = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/reports.js');
+  const reports = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/reports.cjs');
   const root = path.join(tmp, `results-${++folders}`);
   fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
   const PROCESSES = 8;
@@ -4626,7 +4627,7 @@ test('report: a lock of a process that no longer runs is taken over', () => {
 
 test('withLock: 8 processes on a lock of a dead process never hold it at once', async () => {
   const { spawn, spawnSync } = require('node:child_process');
-  const base = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.js');
+  const base = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.cjs');
   const PROCESSES = 8;
   const ROUNDS = 15;
   for (let round = 0; round < ROUNDS; round += 1) {
@@ -4664,7 +4665,7 @@ withLock({}, ${JSON.stringify(file)}, 'starts', () => {
 });
 
 test('report: exits 3 within the wait on an old lock of a live pid or with no pid', () => {
-  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.cjs');
   const root = path.join(tmp, `results-${++folders}`);
   const lock = path.join(root, '.reports', 'results.json.lock');
   const file = path.join(root, '.reports', 'spec-reviewer-1.md');
@@ -4683,7 +4684,7 @@ test('report: exits 3 within the wait on an old lock of a live pid or with no pi
     assert.ok(Date.now() - begin < WAIT + 1000, text);
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
-      'Report to a member: checks.js report cannot run, because its lock file still exists.',
+      'Report to a member: checks.cjs report cannot run, because its lock file still exists.',
       `  ${plainLine(`${lock} still exists after 0.2 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
@@ -4692,7 +4693,7 @@ test('report: exits 3 within the wait on an old lock of a live pid or with no pi
 });
 
 test('report: exits 3 after the wait on a new lock of a live process, and records nothing', () => {
-  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.cjs');
   const root = path.join(tmp, `results-${++folders}`);
   const lock = path.join(root, '.reports', 'results.json.lock');
   const file = path.join(root, '.reports', 'spec-reviewer-1.md');
@@ -4704,7 +4705,7 @@ test('report: exits 3 after the wait on a new lock of a live process, and record
       ['report', 'spec-reviewer', file]);
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
-      'Report to a member: checks.js report cannot run, because its lock file still exists.',
+      'Report to a member: checks.cjs report cannot run, because its lock file still exists.',
       `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
@@ -5138,11 +5139,11 @@ test('end: each report finding', () => {
   // A report that passed as another agent's report counts as not checked.
   passes(reportIn(root, 'questions-reviewer', 'shape-reviewer-1.md', CLEAN));
   const result = end(root);
-  fails(result, /^Run checks\.js report on \.reports\/spec-writer-1\.md\. No check of \.reports\/spec-writer-1\.md as the report of spec-writer is recorded\.$/);
-  fails(result, /^Run checks\.js report on \.reports\/shape-reviewer-1\.md\. No check of \.reports\/shape-reviewer-1\.md as the report of shape-reviewer/);
+  fails(result, /^Run checks\.cjs report on \.reports\/spec-writer-1\.md\. No check of \.reports\/spec-writer-1\.md as the report of spec-writer is recorded\.$/);
+  fails(result, /^Run checks\.cjs report on \.reports\/shape-reviewer-1\.md\. No check of \.reports\/shape-reviewer-1\.md as the report of shape-reviewer/);
   fails(result, /^Start decision-writer again to fix the report that failed its check\. \.reports\/decision-writer-1\.md failed its report check\. Give decision-writer the findings of that check\.$/);
-  fails(result, /^Run checks\.js report on \.reports\/spec-reviewer-1\.md again\. The report of spec-reviewer changed/);
-  fails(result, /^Write the report of questions-reviewer, and run checks\.js report on it\. starts\.json counts a start of questions-reviewer, and the agent has no report\. The report goes to \.reports\/questions-reviewer-<n>\.md\.$/);
+  fails(result, /^Run checks\.cjs report on \.reports\/spec-reviewer-1\.md again\. The report of spec-reviewer changed/);
+  fails(result, /^Write the report of questions-reviewer, and run checks\.cjs report on it\. starts\.json counts a start of questions-reviewer, and the agent has no report\. The report goes to \.reports\/questions-reviewer-<n>\.md\.$/);
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
@@ -5150,7 +5151,7 @@ test('end: a start on a subject needs the report of its reviewer', () => {
   const root = fixture();
   started(root, { 'change/questions-reviewer': 1, 'change/no-such-reviewer': 1 });
   const result = end(root);
-  fails(result, /^Write the report of questions-reviewer, and run checks\.js report on it\. /);
+  fails(result, /^Write the report of questions-reviewer, and run checks\.cjs report on it\. /);
   assert.ok(!result.out.includes('no-such-reviewer'), result.out);
 });
 
@@ -5231,8 +5232,69 @@ function harnessHome() {
   return home;
 }
 
+// A target repository whose package.json sets "type": "module" makes Node load each .js file
+// below it as an ES module, where require is not defined. The scripts of the modules end in
+// .cjs, so Node loads them as CommonJS there too.
+test('the scripts and hooks run in a repository whose package.json sets "type": "module"', () => {
+  const { spawnSync } = require('node:child_process');
+  const repo = path.join(tmp, `module-type-${++folders}`);
+  const home = path.join(repo, '.qory', 'harness');
+  for (const module of ['core', 'software-factory']) {
+    fs.cpSync(path.join(MODULES, module), path.join(home, 'modules', module), { recursive: true });
+  }
+  fs.cpSync(path.join(MODULES, 'core', 'hooks'), path.join(home, 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'package.json'), '{ "type": "module" }\n');
+  const work = path.join(repo, 'work');
+  fs.mkdirSync(path.join(work, '.qory', 'artifacts'), { recursive: true });
+  fs.mkdirSync(path.join(work, '.git'));
+  const artifacts = path.join(repo, 'artifacts');
+  fs.cpSync(TESTDATA, artifacts, { recursive: true });
+  for (const [type, file] of [['acceptance-criteria', 'acceptance-criteria.md'],
+    ['questions', 'questions.json']]) {
+    fs.mkdirSync(path.join(artifacts, type, 'main', 'v1'), { recursive: true });
+    fs.copyFileSync(path.join(TESTDATA, file), path.join(artifacts, type, 'main', 'v1', file));
+  }
+  // With no QORY_RUN_ID, no script reads or writes /tmp/qory-artifacts, and each hook still
+  // loads every file that it requires.
+  const env = { PATH: process.env.PATH, QORY_HARNESS_HOME: home, CLAUDE_PROJECT_DIR: work };
+  const node = (script, args, input, cwd = artifacts) => spawnSync(process.execPath,
+    [path.join(home, script), ...args], { cwd, env, input, encoding: 'utf8' });
+  // The same code in a .js file does not load.
+  fs.copyFileSync(path.join(home, 'hooks', 'end-gate.cjs'), path.join(home, 'hooks', 'control.js'));
+  assert.match(node('hooks/control.js', []).stderr, /require is not defined in ES module scope/);
+  const skills = 'modules/software-factory/skills/running-a-software-workflow';
+  for (const [script, args] of [
+    ['modules/core/skills/running-a-workflow/checks.cjs', ['push', 'questions', 'questions.json']],
+    ['modules/core/scripts/push-check.cjs', ['push', 'review-comments', 'review-comments.json']],
+    [`${skills}/workflow-checks.cjs`, ['push', 'spec', 'spec.md']]]) {
+    const ran = node(script, args);
+    assert.equal(ran.status, 0, `${script}: ${ran.stdout}${ran.stderr}`);
+  }
+  const input = JSON.stringify({ cwd: work, hook_event_name: 'PreToolUse', tool_name: 'Read',
+    tool_input: { file_path: path.join(work, 'a.md') } });
+  const hooks = fs.readdirSync(path.join(home, 'hooks'))
+    .filter((name) => /^(end-gate|tool-guard|reports-guard)-[a-z]+\.cjs$/.test(name));
+  assert.equal(hooks.length, 10, hooks.join(', '));
+  for (const name of hooks) {
+    const ran = node(`hooks/${name}`, [], input, work);
+    assert.equal(ran.status, 0, `${name}: ${ran.stdout}${ran.stderr}`);
+    assert.doesNotMatch(`${ran.stdout}${ran.stderr}`, /crashed|did not run|ES module/, name);
+  }
+  // With no argument, each other script prints its usage and exits 2, and reads or writes
+  // no file.
+  for (const script of ['modules/core/skills/running-a-workflow/versions.cjs',
+    'modules/software-factory/skills/designing-mockups/pack-mockups.cjs',
+    'modules/software-factory/skills/designing-mockups/render-mockups.cjs']) {
+    const ran = node(script, []);
+    const out = `${ran.stdout}${ran.stderr}`;
+    assert.equal(ran.status, 2, `${script}: ${out}`);
+    assert.match(ran.stderr, new RegExp(`^Usage: ${path.basename(script)} `, 'm'), script);
+    assert.doesNotMatch(out, /ES module|require is not defined/, script);
+  }
+});
+
 test('end-gate takes .qory/artifacts of the project folder, also from a subfolder', () => {
-  const { base, folder } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'));
+  const { base, folder } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.cjs'));
   const work = path.join(tmp, `project-${++folders}`);
   const sub = path.join(work, 'src', 'deep');
   fs.mkdirSync(sub, { recursive: true });
@@ -5257,8 +5319,8 @@ test('end-gate reads the lists from inputs.json of the harness home, else the re
     t.skip('/tmp/qory-artifacts exists, so a run checks that folder');
     return;
   }
-  const { check } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'));
-  const script = path.join(harnessHome(), 'hooks', 'end-gate.js');
+  const { check } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.cjs'));
+  const script = path.join(harnessHome(), 'hooks', 'end-gate.cjs');
   const billing = /sensitive area "billing"/;
   // gate runs the hook in a new checkout with a fast track on BILLING_FILE, the harness
   // report report under it when given, and the harness home home when given.
@@ -5292,7 +5354,7 @@ test('end-gate reads the lists from inputs.json of the harness home, else the re
   assert.doesNotMatch(gate({ report: REMOVE_BILLING, home: home() }).text, billing);
   // A relative QORY_HARNESS_HOME is ignored, also when the file exists under it.
   const relative = path.relative(process.cwd(), home(removed));
-  assert.equal(require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'))
+  assert.equal(require(path.join(MODULES, 'core', 'hooks', 'end-gate.cjs'))
     .inputsFile({ QORY_HARNESS_HOME: relative }), null);
   assert.match(gate({ report: {}, home: relative }).text, billing);
   // A file that is no valid JSON is a finding, with no fallback to the report.
@@ -5320,7 +5382,7 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   delete env.CLAUDE_PROJECT_DIR;
   const gate = (runtime, input, failures = 0, environment = env) => {
     fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
-    return spawnSync(process.execPath, [path.join(home, 'hooks', `end-gate-${runtime}.js`)],
+    return spawnSync(process.execPath, [path.join(home, 'hooks', `end-gate-${runtime}.cjs`)],
       { input: JSON.stringify(input), env: environment, encoding: 'utf8' });
   };
   const finding = /^Fix the \d+ findings? of the spec draft/;
@@ -5353,7 +5415,7 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   fs.rmSync(path.join(root, 'points.json'));
   // A check that fails itself ends the session: Claude Code with exit 1 and the text on
   // stderr, Codex with the text as systemMessage. A crash, at load or in main, a missing
-  // checks.js included, exits 4 with the fix on the first line.
+  // checks.cjs included, exits 4 with the fix on the first line.
   const crashed = 'Send this error to the harness maintainers: the end check crashed, so the ' +
     'session ended without checking its drafts and reports.';
   const killed = 'process.kill(process.pid, \'SIGKILL\');\n';
@@ -5362,7 +5424,7 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     [killed, 'A signal ended the end check, and it printed nothing.'],
     ['exports.main = (;\n', /^Error: Unexpected token/],
     ['exports.main = () => { throw new Error(\'boom\\nsecond line\'); };\n', /^Error: boom\nError: boom\nsecond line\n    at /],
-    [null, /^Error: Cannot find module '.*checks\.js'/],
+    [null, /^Error: Cannot find module '.*checks\.cjs'/],
     ['exports.main = () => { throw \'plain\'; };\n', /^Error: plain\nplain$/],
     ['exports.main = () => { throw Object.create(null); };\n',
       /^Error: unprintable error\nunprintable error$/],
@@ -5377,9 +5439,9 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
     for (const file of fs.readdirSync(path.join(MODULES, 'core', 'hooks'))) {
       fs.copyFileSync(path.join(MODULES, 'core', 'hooks', file), path.join(broken, 'hooks', file));
     }
-    if (script) fs.writeFileSync(path.join(running, 'checks.js'), script);
+    if (script) fs.writeFileSync(path.join(running, 'checks.cjs'), script);
     const run = (runtime, input = { cwd: work }) => spawnSync(process.execPath,
-      [path.join(broken, 'hooks', `end-gate-${runtime}.js`)],
+      [path.join(broken, 'hooks', `end-gate-${runtime}.cjs`)],
       { input: JSON.stringify(input), env, encoding: 'utf8' });
     // Gemini CLI, Copilot CLI and Cursor end the turn on {} and show stderr.
     for (const [runtime, input] of [['gemini'], ['copilot'],
@@ -5425,12 +5487,12 @@ test('each end-gate adapter turns the end check into what its runtime reads', (t
   }
 });
 
-test('reports-guard denies writes of .reports/*.json in a run, except through checks.js', () => {
-  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.js'));
+test('reports-guard denies writes of .reports/*.json in a run, except through checks.cjs', () => {
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.cjs'));
   const home = harnessHome();
-  const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
+  const script = path.join(home, 'hooks', 'reports-guard-gemini.cjs');
   const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
-  const checks = `${home}/modules/core/skills/running-a-workflow/checks.js`;
+  const checks = `${home}/modules/core/skills/running-a-workflow/checks.cjs`;
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
@@ -5449,24 +5511,24 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   }
   for (const command of [`echo '{}' > /tmp/qory-artifacts/.reports/end.json`, 'rm -f .reports/end.json',
     'cd /tmp/qory-artifacts/.reports', `${checks} report a .reports/a-1.md; rm .reports/end.json`,
-    `node /tmp/fake/running-a-workflow/checks.js report a .reports/a-1.md`,
+    `node /tmp/fake/running-a-workflow/checks.cjs report a .reports/a-1.md`,
     `${checks} report a $(rm .reports/end.json)`]) {
-    assert.match(denied('shell', { command }), /^Write to \.reports\/ only through checks\.js\.\n/,
+    assert.match(denied('shell', { command }), /^Write to \.reports\/ only through checks\.cjs\.\n/,
       command);
   }
   for (const command of [`${checks} report spec-reviewer /tmp/qory-artifacts/.reports/spec-reviewer-1.md`,
-    `node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
-    `$\{QORY_HARNESS_HOME}/modules/core/skills/running-a-workflow/checks.js end /w/.reports`,
+    `node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.cjs" report a .reports/a-1.md 2>&1`,
+    `$\{QORY_HARNESS_HOME}/modules/core/skills/running-a-workflow/checks.cjs end /w/.reports`,
     'ls /tmp/qory-artifacts']) {
     assert.equal(denied('shell', { command }), null, command);
   }
-  // A copy of checks.js, as a compose with copies writes, runs; another script does not.
+  // A copy of checks.cjs, as a compose with copies writes, runs; another script does not.
   const copy = path.join(tmp, `copy-${++folders}`);
   fs.mkdirSync(copy);
-  fs.copyFileSync(path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.js'),
-    path.join(copy, 'checks.js'));
+  fs.copyFileSync(path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.cjs'),
+    path.join(copy, 'checks.cjs'));
   fs.writeFileSync(path.join(copy, 'fake.js'), 'require("fs").writeFileSync(".reports/end.json", "{}");\n');
-  assert.equal(denied('shell', { command: `${copy}/checks.js report a .reports/a-1.md` }), null);
+  assert.equal(denied('shell', { command: `${copy}/checks.cjs report a .reports/a-1.md` }), null);
   assert.ok(denied('shell', { command: `node ${copy}/fake.js .reports/a-1.md` }));
   // Outside a run, and for any other tool, it denies nothing.
   assert.equal(decide({ kind: 'write', args: { file_path: '.reports/end.json' }, env: {}, script }), null);
@@ -5474,9 +5536,9 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
 });
 
 test('reports-guard denies a shell command that reaches .reports through a glob, a quote or a variable', () => {
-  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.js'));
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.cjs'));
   const home = harnessHome();
-  const script = path.join(home, 'hooks', 'reports-guard-gemini.js');
+  const script = path.join(home, 'hooks', 'reports-guard-gemini.cjs');
   const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
   const cwd = path.join(tmp, `glob-${++folders}`);
   fs.mkdirSync(path.join(cwd, '.reports'), { recursive: true });
@@ -5484,7 +5546,7 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
   for (const file of ['.reports/starts.json', 'a.md', 'src/b.md']) fs.writeFileSync(path.join(cwd, file), '{}');
   const shell = (command, from = cwd) => decide({ kind: 'shell', args: { command }, env: { ...env, HOME: cwd }, script,
     cwd: from });
-  const first = /^Leave \.reports\/ to checks\.js, and name other files with no `\$`, backtick, eval or glob\.\n/;
+  const first = /^Leave \.reports\/ to checks\.cjs, and name other files with no `\$`, backtick, eval or glob\.\n/;
   for (const [command, part] of [
     ['cat .rep*/starts.json', 'The glob .rep*/starts.json matches .reports/starts.json.'],
     ['rm .r?ports/starts.json', 'The glob .r?ports/starts.json matches .reports/starts.json.'],
@@ -5541,7 +5603,7 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
   }
   // The literal check keeps its reason.
   assert.match(shell('rm .reports/starts.json'),
-    /^Write to \.reports\/ only through checks\.js\.\n/);
+    /^Write to \.reports\/ only through checks\.cjs\.\n/);
   // A glob that matches nothing under .reports, a quoted glob character and a $ without .r pass.
   for (const command of ['ls *.md', 'cat */*.md', 'grep -r foo src', 'ls $HOME', 'cat "$HOME/notes.md"',
     `grep '.rep*' a.md`, `awk '{print}' a.md`, '[ -f a.md ] && echo yes', 'ls src/*',
@@ -5549,8 +5611,9 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     'grep -n "foo$" src/b.rs', 'cat foo.rs $X', "awk '{print $1}' notes.rst", 'echo `date` > foo.rb']) {
     assert.equal(shell(command), null, command);
   }
-  // checks.js alone runs, though its path has $.
-  assert.equal(shell('node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" ' +
+  // checks.cjs alone runs, though its path has $.
+  assert.equal(shell('node ' +
+    '"$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.cjs" ' +
     'report a .reports/a-1.md'), null);
 });
 
@@ -5559,7 +5622,7 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   const home = harnessHome();
   const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
   const guard = (runtime, input) => {
-    const ran = spawnSync(process.execPath, [path.join(home, 'hooks', `reports-guard-${runtime}.js`)],
+    const ran = spawnSync(process.execPath, [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)],
       { input: JSON.stringify(input), env, encoding: 'utf8' });
     // The Cursor adapter exits 2 on a deny, and prints nothing and exits 0 on a pass.
     if (runtime === 'cursor') {
@@ -5616,7 +5679,7 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   }
   for (const command of ['npm test', 'git status', 'ls src']) assert.doesNotMatch(command, matcher, command);
   assert.match(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'cat $d/.rx' }).agent_message,
-    /^Leave \.reports\/ to checks\.js/);
+    /^Leave \.reports\/ to checks\.cjs/);
   assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'ls *.md' }), null);
   assert.equal(guard('cursor', { hook_event_name: 'beforeShellExecution', command: 'grep -n "foo$" src/b.rs' }), null);
 });
@@ -5628,7 +5691,7 @@ const { endList } = require(SCRIPT);
 // The checks script as qory starts it after the session: from the composed harness home.
 const OFFLINE_HOME = harnessHome();
 const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'core');
-const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.js');
+const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.cjs');
 // The reviewers of the drafts that differ from the store in the testdata.
 const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'scenario-reviewer'];
 // REVIEW_NONE returns the point of end --offline for a draft with no report of its reviewer.
@@ -5966,7 +6029,7 @@ test('end --offline: takes changes-requested, passed and no verdict alike', () =
 });
 
 test('end: each point of end states what failed, why, and another round as the step', () => {
-  const end = require(path.join(path.dirname(SCRIPT), 'lib', 'end.js'));
+  const end = require(path.join(path.dirname(SCRIPT), 'lib', 'end.cjs'));
   const one = ['questions-writer'];
   const two = ['scenario-writer', 'proposal-reviewer'];
   // Twelve agents: the first 5 by name, the others counted, within 500 characters.
@@ -6290,24 +6353,24 @@ test('end --offline: a bad questions.json with the bytes of the base is still a 
 
 // ---- The registry and a stack without software-factory ------------------------------------
 
-// brokenPlugin returns a core plugin whose skill broken has a workflow-checks.js with text.
+// brokenPlugin returns a core plugin whose skill broken has a workflow-checks.cjs with text.
 function brokenPlugin(text) {
   const plugin = corePlugin();
   fs.mkdirSync(path.join(plugin, 'skills', 'broken'));
-  fs.writeFileSync(path.join(plugin, 'skills', 'broken', 'workflow-checks.js'), text);
+  fs.writeFileSync(path.join(plugin, 'skills', 'broken', 'workflow-checks.cjs'), text);
   return plugin;
 }
 
 const BROKEN = [
-  ['throws', "throw new Error('boom');\n", /^Fix .*workflow-checks\.js: loading it threw: boom/],
+  ['throws', "throw new Error('boom');\n", /^Fix .*workflow-checks\.cjs: loading it threw: boom/],
   ['exports no function', 'module.exports = { types: [] };\n',
-    /^Fix .*workflow-checks\.js: export a function that takes the library, not an object\./],
+    /^Fix .*workflow-checks\.cjs: export a function that takes the library, not an object\./],
   ['returns no object', 'module.exports = () => 3;\n',
-    /^Fix .*workflow-checks\.js: return \{ types, stops, verbs \} from its function, not a number\./],
+    /^Fix .*workflow-checks\.cjs: return \{ types, stops, verbs \} from its function, not a number\./],
 ];
 
 for (const [name, text, pattern] of BROKEN) {
-  test(`registry: a workflow-checks.js that ${name} stops check, push, report and end --offline`, () => {
+  test(`registry: a workflow-checks.cjs that ${name} stops check, push, report and end --offline`, () => {
     const plugin = brokenPlugin(text);
     const trusted = trusting(path.join(plugin, 'skills', 'broken'));
     const root = fixture();
@@ -6325,10 +6388,10 @@ for (const [name, text, pattern] of BROKEN) {
     // exits 3 with the error on stderr.
     const { spawnSync } = require('node:child_process');
     const ran = spawnSync(process.execPath,
-      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'check', 'questions',
+      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.cjs'), 'check', 'questions',
         path.join(root, 'questions.json')], { cwd: tmp, encoding: 'utf8' });
     assert.equal(ran.status, 3, ran.stderr);
-    assert.match(ran.stderr, /^Error: Remove skills\/broken\/workflow-checks\.js from .*: only the stack's modules add checks\./);
+    assert.match(ran.stderr, /^Error: Remove skills\/broken\/workflow-checks\.cjs from .*: only the stack's modules add checks\./);
     // end --offline crashes: exit 4, with the fix first on stderr.
     const run = offlineRun();
     const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp', trusted }, run.args);
@@ -6346,15 +6409,15 @@ test('registry: a fault of the registry is a crash of step and resume, with exit
   for (const argv of [['step', 'begin', 'plan', 'plan-the-build', 'x'], ['resume']]) {
     const result = call({ cwd: tmp, artifacts: [], plugin, trusted }, argv);
     assert.equal(result.status, 4, result.out);
-    assert.match(result.err, new RegExp('^Send this error to the harness maintainers\\.\n  checks\\.js ' +
+    assert.match(result.err, new RegExp('^Send this error to the harness maintainers\\.\n  checks\\.cjs ' +
       `${argv[0]} crashed, so the ledger may lack its last change\\.\nError: Fix .*workflow-checks` +
-      '\\.js: loading it threw: boom'));
+      '\\.cjs: loading it threw: boom'));
     // Started as a program, with the list that core ships, the refusal is a crash too.
     const ran = spawnSync(process.execPath,
-      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), ...argv],
+      [path.join(plugin, 'skills', 'running-a-workflow', 'checks.cjs'), ...argv],
       { cwd: tmp, encoding: 'utf8' });
     assert.equal(ran.status, 4, ran.stderr);
-    assert.match(ran.stderr.split('\n')[2], /^Error: Remove skills\/broken\/workflow-checks\.js from /);
+    assert.match(ran.stderr.split('\n')[2], /^Error: Remove skills\/broken\/workflow-checks\.cjs from /);
   }
 });
 
@@ -6381,24 +6444,24 @@ test('registry: starts, begin, panel, fixes and end outside a run do not load it
   assert.match(none.err, /<type> is a type of the registry, and for check also points\./);
 });
 
-test('registry: a verb that is no verb of checks.js fails with the error of the registry', () => {
+test('registry: a verb that is no verb of checks.cjs fails with the error of the registry', () => {
   const { spawnSync } = require('node:child_process');
   const plugin = brokenPlugin("throw new Error('boom');\n");
   const deps = { cwd: tmp, artifacts: [], plugin, trusted: trusting(path.join(plugin, 'skills', 'broken')) };
-  assert.throws(() => call(deps, ['nothing']), { message: /^Fix .*workflow-checks\.js: loading it threw: boom/ });
+  assert.throws(() => call(deps, ['nothing']), { message: /^Fix .*workflow-checks\.cjs: loading it threw: boom/ });
   // Started as a program, it exits 3 with the error on stderr and no usage: the list that
   // core ships refuses the file.
   const ran = spawnSync(process.execPath,
-    [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), 'nothing'],
+    [path.join(plugin, 'skills', 'running-a-workflow', 'checks.cjs'), 'nothing'],
     { cwd: tmp, encoding: 'utf8' });
   assert.equal(ran.status, 3, ran.stderr);
-  assert.match(ran.stderr, /^Error: Remove skills\/broken\/workflow-checks\.js from /);
+  assert.match(ran.stderr, /^Error: Remove skills\/broken\/workflow-checks\.cjs from /);
   assert.doesNotMatch(ran.stderr, /Start with|Usage:/);
   // A type that two skills add is an error of the registry too: exit 3, with the error.
   const twice = corePlugin();
   for (const skill of ['one', 'two']) {
     fs.mkdirSync(path.join(twice, 'skills', skill));
-    fs.writeFileSync(path.join(twice, 'skills', skill, 'workflow-checks.js'),
+    fs.writeFileSync(path.join(twice, 'skills', skill, 'workflow-checks.cjs'),
       "module.exports = (lib) => ({ types: [{ type: 'notes', check: () => [] }] });\n");
   }
   const result = call({ ...deps, plugin: twice, trusted: trusting(path.join(twice, 'skills', 'one')) },
@@ -6414,7 +6477,7 @@ test('registry: the folders beside the plugin folder count only in the modules o
   const plugin = corePlugin();
   const beside = path.join(path.dirname(plugin), 'other', 'skills', 'bad');
   fs.mkdirSync(beside, { recursive: true });
-  fs.writeFileSync(path.join(beside, 'workflow-checks.js'), "throw new Error('boom');\n");
+  fs.writeFileSync(path.join(beside, 'workflow-checks.cjs'), "throw new Error('boom');\n");
   const root = fixture();
   passes(call({ cwd: tmp, artifacts: [root], plugin },
     ['check', 'questions', path.join(root, 'questions.json')]));
@@ -6428,7 +6491,7 @@ test('registry: the folders beside the plugin folder count only in the modules o
   for (const name of ['zeta', 'alpha']) {
     const skill = path.join(modules, name, 'skills', 'notes');
     fs.mkdirSync(skill, { recursive: true });
-    fs.writeFileSync(path.join(skill, 'workflow-checks.js'), "module.exports = () => ({ types: [{ type: " +
+    fs.writeFileSync(path.join(skill, 'workflow-checks.cjs'), "module.exports = () => ({ types: [{ type: " +
       `'notes-${name}', main: 'notes.md', words: 'notes', reviewer: null, check() {} }] });\n`);
   }
   const trusted = trusting(...['zeta', 'alpha'].map((name) => path.join(modules, name, 'skills', 'notes')));
@@ -6436,12 +6499,12 @@ test('registry: the folders beside the plugin folder count only in the modules o
   assert.match(usage, /<type> is one of notes-alpha, questions, review-comments,/);
 });
 
-test('registry: the list that core ships has the hash of each skill with workflow-checks.js', () => {
+test('registry: the list that core ships has the hash of each skill with workflow-checks.cjs', () => {
   const folders = fs.readdirSync(MODULES).flatMap((module) => {
     const skills = path.join(MODULES, module, 'skills');
     if (!fs.existsSync(skills)) return [];
     return fs.readdirSync(skills).map((skill) => path.join(skills, skill))
-      .filter((folder) => fs.existsSync(path.join(folder, 'workflow-checks.js')));
+      .filter((folder) => fs.existsSync(path.join(folder, 'workflow-checks.cjs')));
   });
   assert.ok(folders.length > 0);
   const wanted = folders.map(treeHash).sort();
@@ -6450,24 +6513,24 @@ test('registry: the list that core ships has the hash of each skill with workflo
     `the hashes of ${folders.join(', ')}.`);
 });
 
-// markedSkill writes skills/<skill>/workflow-checks.js under folder, whose code at the top
+// markedSkill writes skills/<skill>/workflow-checks.cjs under folder, whose code at the top
 // writes the file marker, and returns the marker's path.
 function markedSkill(folder, skill) {
   const marker = path.join(tmp, `marker-${++folders}`);
   fs.mkdirSync(path.join(folder, 'skills', skill), { recursive: true });
-  fs.writeFileSync(path.join(folder, 'skills', skill, 'workflow-checks.js'),
+  fs.writeFileSync(path.join(folder, 'skills', skill, 'workflow-checks.cjs'),
     `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran');\n` +
     "module.exports = () => ({ types: [] });\n");
   return marker;
 }
 
-test('registry: a workflow-checks.js outside the list stops each verb before its code runs', () => {
+test('registry: a workflow-checks.cjs off the list stops each verb before its code runs', () => {
   const { spawnSync } = require('node:child_process');
   const home = harnessHome();
   const marker = markedSkill(path.join(home, 'modules', 'team'), 'x');
   fs.writeFileSync(path.join(home, 'modules', 'team', 'qory-module.yaml'), 'name: team\n');
   const root = fixture();
-  const refused = /^Remove skills\/x\/workflow-checks\.js from team: only the stack's modules add checks\.$/;
+  const refused = /^Remove skills\/x\/workflow-checks\.cjs from team: only the stack's modules add checks\.$/;
   const plugin = path.join(home, 'modules', 'core');
   fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
   const report = path.join(root, '.reports', 'questions-reviewer-1.md');
@@ -6480,21 +6543,21 @@ test('registry: a workflow-checks.js outside the list stops each verb before its
   }
   // The push checks of core and of software-factory refuse it too, with exit 3.
   const programs = [
-    [path.join(plugin, 'scripts', 'push-check.js'), 'questions', 'questions.json'],
+    [path.join(plugin, 'scripts', 'push-check.cjs'), 'questions', 'questions.json'],
     [path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
-      'workflow-checks.js'), 'spec', 'spec.md'],
+      'workflow-checks.cjs'), 'spec', 'spec.md'],
   ];
   for (const [program, type, file] of programs) {
     const ran = spawnSync(program, ['push', type, path.join(root, file)],
       { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
     assert.equal(ran.status, 3, ran.stdout + ran.stderr);
-    assert.match(ran.stderr.split('\n')[0], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
+    assert.match(ran.stderr.split('\n')[0], /^Error: Remove skills\/x\/workflow-checks\.cjs from team: /);
   }
   // end --offline crashes: exit 4, with the fix first.
   const run = offlineRun();
   const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
   assert.equal(result.status, 4, result.out);
-  assert.match(result.err.split('\n')[2], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
+  assert.match(result.err.split('\n')[2], /^Error: Remove skills\/x\/workflow-checks\.cjs from team: /);
   assert.equal(fs.existsSync(marker), false, 'the code of the refused file ran');
 });
 
@@ -6507,7 +6570,7 @@ test('registry: a skill folder written or changed in the home is refused, not lo
   const marker = markedSkill(plugin, 'later');
   assert.throws(() => call({ cwd: root, artifacts: [root], plugin },
     ['check', 'questions', path.join(root, 'questions.json')]),
-  { message: /^Remove skills\/later\/workflow-checks\.js from .*: only the stack's modules add checks\.$/ });
+  { message: /^Remove skills\/later\/workflow-checks\.cjs from .*: only the stack's modules add checks\.$/ });
   assert.equal(fs.existsSync(marker), false, 'the code of the written file ran');
   fs.rmSync(path.join(plugin, 'skills', 'later'), { recursive: true });
   // A copy of the trusted skill loads, and a copy with one more file or one changed file is
@@ -6518,15 +6581,15 @@ test('registry: a skill folder written or changed in the home is refused, not lo
   passes(call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]));
   fs.writeFileSync(path.join(skill, 'SKILL.md'), 'changed\n');
   passes(call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]));
-  const spec = path.join(skill, 'types', 'spec.js');
+  const spec = path.join(skill, 'types', 'spec.cjs');
   fs.appendFileSync(spec, `\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran');\n`);
   assert.throws(() => call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]),
-    { message: /^Remove skills\/running-a-software-workflow\/workflow-checks\.js from / });
+    { message: /^Remove skills\/running-a-software-workflow\/workflow-checks\.cjs from / });
   fs.writeFileSync(spec, fs.readFileSync(path.join(MODULES, 'software-factory', 'skills',
-    'running-a-software-workflow', 'types', 'spec.js')));
+    'running-a-software-workflow', 'types', 'spec.cjs')));
   fs.writeFileSync(path.join(skill, 'lib', 'extra.json'), '{}\n');
   assert.throws(() => call({ cwd: root, artifacts: [root], plugin }, ['check', 'spec', path.join(root, 'spec.md')]),
-    { message: /^Remove skills\/running-a-software-workflow\/workflow-checks\.js from / });
+    { message: /^Remove skills\/running-a-software-workflow\/workflow-checks\.cjs from / });
   assert.equal(fs.existsSync(marker), false, 'the changed file ran');
 });
 
@@ -6545,18 +6608,18 @@ test('registry: a link, a FIFO, a control character or a large file in a skill f
   };
   const check = (plugin) => call({ cwd: root, artifacts: [root], plugin },
     ['check', 'spec', path.join(root, 'spec.md')]);
-  const refused = /^Remove skills\/x\/workflow-checks\.js from .*: only the stack's modules add checks\.$/;
+  const refused = /^Remove skills\/x\/workflow-checks\.cjs from .*: only the stack's modules add checks\.$/;
   passes(check(newPlugin()));
-  // workflow-checks.js links to a byte-identical copy whose lib/documents.js differs: require
-  // would load the documents.js beside the copy.
+  // workflow-checks.cjs links to a byte-identical copy whose lib/documents.cjs differs: require
+  // would load the documents.cjs beside the copy.
   const marker = path.join(tmp, `marker-${++folders}`);
   let plugin = newPlugin();
   const evil = path.join(path.dirname(plugin), 'evil');
   fs.cpSync(source, evil, { recursive: true });
-  fs.writeFileSync(path.join(evil, 'lib', 'documents.js'),
+  fs.writeFileSync(path.join(evil, 'lib', 'documents.cjs'),
     `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran');\nmodule.exports = () => ({});\n`);
-  fs.rmSync(path.join(plugin, 'skills', 'x', 'workflow-checks.js'));
-  fs.symlinkSync(path.join(evil, 'workflow-checks.js'), path.join(plugin, 'skills', 'x', 'workflow-checks.js'));
+  fs.rmSync(path.join(plugin, 'skills', 'x', 'workflow-checks.cjs'));
+  fs.symlinkSync(path.join(evil, 'workflow-checks.cjs'), path.join(plugin, 'skills', 'x', 'workflow-checks.cjs'));
   assert.throws(() => check(plugin), { message: refused });
   // A linked folder below the skill folder is refused too.
   plugin = newPlugin();
@@ -6582,12 +6645,12 @@ test('registry: the refusal prints the names of the skill and module as plain te
   fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
   const skill = path.join(plugin, 'skills', 'x\u001b[31mred');
   fs.mkdirSync(skill);
-  fs.writeFileSync(path.join(skill, 'workflow-checks.js'), 'module.exports = () => ({});\n');
+  fs.writeFileSync(path.join(skill, 'workflow-checks.cjs'), 'module.exports = () => ({});\n');
   const root = fixture();
   assert.throws(() => call({ cwd: root, artifacts: [root], plugin },
     ['check', 'questions', path.join(root, 'questions.json')]), (error) => {
     assert.doesNotMatch(error.message, /[\u0000-\u001f\u007f]/);
-    assert.match(error.message, /^Remove skills\/x \[31mred\/workflow-checks\.js from /);
+    assert.match(error.message, /^Remove skills\/x \[31mred\/workflow-checks\.cjs from /);
     return true;
   });
 });
@@ -6596,11 +6659,11 @@ test('registry: the hash is the sha256 of the JSON of the sorted pairs of path a
   const crypto = require('node:crypto');
   const folder = path.join(tmp, `hash-${++folders}`);
   fs.mkdirSync(path.join(folder, 'lib'), { recursive: true });
-  fs.writeFileSync(path.join(folder, 'workflow-checks.js'), 'a');
+  fs.writeFileSync(path.join(folder, 'workflow-checks.cjs'), 'a');
   fs.writeFileSync(path.join(folder, 'lib', 'b.js'), 'b');
   fs.writeFileSync(path.join(folder, 'SKILL.md'), 'not hashed');
   const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
-  assert.equal(treeHash(folder), sha(JSON.stringify([['lib/b.js', sha('b')], ['workflow-checks.js', sha('a')]])));
+  assert.equal(treeHash(folder), sha(JSON.stringify([['lib/b.js', sha('b')], ['workflow-checks.cjs', sha('a')]])));
 });
 
 test('core alone: end and end --offline check only questions and review-comments', () => {
@@ -6632,7 +6695,7 @@ test('core alone: fixes prints the points of a verdict as with every module', ()
     'work item: changes-requested, so the round fixes 1 point first.']);
 });
 
-test('workflow-checks.js push runs checks.js beside its folder, in a flat skills folder', () => {
+test('workflow-checks.cjs push runs checks.cjs beside its folder, in a flat skills folder', () => {
   const { spawnSync } = require('node:child_process');
   const plugin = path.join(tmp, `flat-${++folders}`, 'plugin');
   fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
@@ -6640,7 +6703,7 @@ test('workflow-checks.js push runs checks.js beside its folder, in a flat skills
   fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
     path.join(plugin, 'skills', 'running-a-software-workflow'));
   const root = fixture();
-  const ran = spawnSync(path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js'),
+  const ran = spawnSync(path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.cjs'),
     ['push', 'spec', path.join(root, 'spec.md')], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
   assert.equal(ran.stdout, '');
@@ -6750,14 +6813,14 @@ test('push and check: the inputs.json of --inputs replaces the harness report', 
   }
 });
 
-test('the push programs pass --inputs before the files to checks.js', () => {
+test('the push programs pass --inputs before the files to checks.cjs', () => {
   const { spawnSync } = require('node:child_process');
   const plugin = path.join(tmp, `flat-${++folders}`, 'plugin');
   fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
   fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
   fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
     path.join(plugin, 'skills', 'running-a-software-workflow'));
-  const program = path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js');
+  const program = path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.cjs');
   const root = fastWith(BILLING_FILE);
   const files = FILES.proposal.map((f) => path.join(root, f));
   const run = (file) => spawnSync(program, ['push', 'proposal', '--inputs', file, ...files],
@@ -6768,7 +6831,7 @@ test('the push programs pass --inputs before the files to checks.js', () => {
   assert.equal(kept.status, 1, kept.stdout + kept.stderr);
   assert.match(kept.stdout, /sensitive area "billing"/);
   const questions = fixture();
-  const core = spawnSync(path.join(MODULES, 'core', 'scripts', 'push-check.js'),
+  const core = spawnSync(path.join(MODULES, 'core', 'scripts', 'push-check.cjs'),
     ['push', 'questions', '--inputs', inputsFile({}), path.join(questions, 'questions.json')],
     { cwd: questions, encoding: 'utf8', env: { PATH: process.env.PATH } });
   assert.equal(core.status, 0, core.stdout + core.stderr);
@@ -6917,8 +6980,8 @@ test('the findings of the track keep their first line within 100 characters', ()
     [ended(null), /^Run end again: the lookup of the run's verdict failed\.$/],
     [offline(offlineRun({ verdict: { verdict: 'passed', track: { id: long } } })), /^Record the verdict again/],
     // The keys of software-factory: a shape or a key of the schema gives the text of
-    // lib/repository-settings.js, a list name or an area of short-path.json the fix of
-    // lib/extensions.js. A long key is cut inside its quotes, and a place counts from 1.
+    // lib/repository-settings.cjs, a list name or an area of short-path.json the fix of
+    // lib/extensions.cjs. A long key is cut inside its quotes, and a place counts from 1.
     ...[
       [{ [long.replace(/ /g, '_')]: 1 }, /^Remove the key "and_the_words[^"]*\.\.\."/],
       [{ remove_kinds: long }, /^Write remove_kinds in qory\.yaml as a list\.$/],
@@ -6977,8 +7040,8 @@ test('check and end: every finding of the extensions is reported, each with its 
 });
 
 test('end: the header of a draft counts the findings that follow, and the lines of a finding stay after it', () => {
-  const { endDrafts } = require('../modules/core/skills/running-a-workflow/lib/end.js');
-  const { Missing } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const { endDrafts } = require('../modules/core/skills/running-a-workflow/lib/end.cjs');
+  const { Missing } = require('../modules/core/skills/running-a-workflow/lib/base.cjs');
   const root = path.join(tmp, `drafts-${++folders}`);
   fs.mkdirSync(root);
   const names = Array.from({ length: 6 }, (_, at) => `${'a-long-file-name-'.repeat(3)}${at}.md`);
@@ -7099,7 +7162,7 @@ test('first lines: a long agent name and long paths keep each first line to 100 
 });
 
 test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
-  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.cjs');
   for (const [name, key] of [['control character', '\u0001'.repeat(60)], ['line break', '\n'.repeat(60)],
     ['emoji', '\u{1F600}'.repeat(60)], ['letter', 'k'.repeat(300)],
     ['bidirectional mark', '\u202e'.repeat(60)], ['line separator', '\u2028'.repeat(60)],
@@ -7121,7 +7184,7 @@ test('extensions: a long key is cut by its printed length, in a key and in a mem
 });
 
 test('extensions: the schema stops at load for a keyword form that check does not read', () => {
-  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.cjs');
   const good = JSON.parse(fs.readFileSync(settings.LOADED.file, 'utf8'));
   const load = (edit) => {
     const copy = JSON.parse(JSON.stringify(good));
@@ -7146,7 +7209,7 @@ test('extensions: the schema stops at load for a keyword form that check does no
     [(copy) => { area(copy).properties.name.pattern = '('; }, /write pattern at .* as a regular expression/],
     [(copy) => { copy.properties = []; }, /write properties at # as a map/],
     [(copy) => { copy.properties.remove_kinds.items = 'string'; }, /is no schema object/],
-    [(copy) => { copy.properties.remove_kinds.enum = ['a']; }, /has the keyword enum, which lib\/repository-settings\.js does not check/],
+    [(copy) => { copy.properties.remove_kinds.enum = ['a']; }, /has the keyword enum, which lib\/repository-settings\.cjs does not check/],
   ]) {
     assert.throws(load(edit), (error) => error.message.startsWith('Fix ') && form.test(error.message), String(form));
   }
@@ -7191,7 +7254,7 @@ test('proposal: every bad name and every bad area of the extensions is reported'
 });
 
 test('extensions: a pattern other than the one line has the file on the first line when it fits', () => {
-  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.cjs');
   const schema = JSON.parse(JSON.stringify(settings.LOADED.schema));
   schema.properties.remove_kinds.items.pattern = '^a+$';
   const loaded = { file: settings.LOADED.file, schema };
@@ -7212,10 +7275,10 @@ test('extensions: a pattern other than the one line has the file on the first li
 // `qory artifact push <type> --name <name> --withdraw` stores a withdrawal: a version with
 // `withdrawn` set to true and no files. While the newest version of a name that no cancelled
 // run wrote is a withdrawal, a check acts as if index.json did not list the name.
-const { Context, baseVersions } = require(path.join(path.dirname(SCRIPT), 'lib/context.js'));
-const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+const { Context, baseVersions } = require(path.join(path.dirname(SCRIPT), 'lib/context.cjs'));
+const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
 const build = require(path.join(MODULES,
-  'software-factory/skills/running-a-software-workflow/lib/build.js'))(LIBRARY);
+  'software-factory/skills/running-a-software-workflow/lib/build.cjs'))(LIBRARY);
 
 // entry returns an artifact of index.json of type and name with versions, each [number,
 // fields], newest first, written by run_7c3k1 unless fields has another writer.
@@ -7372,7 +7435,7 @@ test('scenarios: a withdrawal of the criteria takes no planned demo away', () =>
 test('withdrawal: each first line for a member is at most 100 characters', () => {
   // The longest type whose check reads the version before a withdrawal, and the lock.
   const types = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
-    'workflow-checks.js'))(LIBRARY).types;
+    'workflow-checks.cjs'))(LIBRARY).types;
   const longest = [...types.filter((def) => def.history).map((def) => def.type),
     'acceptance-lock'].reduce((a, b) => (b.length > a.length ? b : a));
   assert.equal(longest, 'acceptance-criteria');
@@ -7383,8 +7446,8 @@ test('withdrawal: each first line for a member is at most 100 characters', () =>
   const root = withdrawnStore([criteria], []);
   const lines = [new Context(root, 'push', tmp).lacksBefore(longest, 999).message];
   const run = (context) => ({ context, did() {}, find(line) { lines.push(line); } });
-  // The words of the three types that read the criteria, as build-plan.js, verification.js
-  // and explainer.js pass them.
+  // The words of the three types that read the criteria, as build-plan.cjs, verification.cjs
+  // and explainer.cjs pass them.
   for (const what of ['the build plan', 'the verification', 'the explainer']) {
     assert.equal(build.liveCriteria(run(new Context(root, 'push', tmp)), what), null);
   }
@@ -7427,7 +7490,7 @@ test('index.json: an approval of a withdrawal is no approval', () => {
 });
 
 test('index.json: a withdrawal is no version to cite, and no newest copy of a draft', () => {
-  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.cjs'));
   // Version 1 of the spec is stored, with the bytes of spec.md at the top.
   const make = (versions) => {
     const root = withdrawnStore([entry('spec', 'main', versions)], ['spec/main/v1/spec.md']);
@@ -7442,7 +7505,7 @@ test('index.json: a withdrawal is no version to cite, and no newest copy of a dr
 });
 
 test('end: a store with version folders and an index.json that cannot be read exits 3', () => {
-  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.cjs'));
   // The spec copy at the top has the bytes of version 1, and index.json does not parse, so
   // whether the spec is withdrawn is unclear.
   const root = fixture();

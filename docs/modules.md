@@ -32,8 +32,8 @@ modules/core/
       SKILL.md
     running-a-workflow/
       SKILL.md
-      versions.js
-      checks.js
+      versions.cjs
+      checks.cjs
       lib/
       types/
       verbs/
@@ -42,12 +42,12 @@ modules/core/
     questions-reviewer.md
     reply-writer.md
   hooks/
-    end-gate.js
-    end-gate-<runtime>.js
-    reports-guard.js
-    reports-guard-<runtime>.js
-    tool-guard.js
-    tool-guard-<runtime>.js
+    end-gate.cjs
+    end-gate-<runtime>.cjs
+    reports-guard.cjs
+    reports-guard-<runtime>.cjs
+    tool-guard.cjs
+    tool-guard-<runtime>.cjs
   settings/
     claude/settings.json
     codex/config.toml
@@ -55,8 +55,14 @@ modules/core/
     cursor/hooks.json
     gemini/settings.json
   scripts/
-    push-check.js
+    push-check.cjs
 ```
+
+Name each script of a module `.cjs`, never `.js`. Node loads a `.js` file as an ES module
+when the nearest `package.json` above it sets `"type": "module"`, as a target repository
+may. There `require` is not defined, so the script stops at its first `require`. Node
+loads a `.cjs` file as CommonJS under any `package.json`, and no module ships a
+`package.json`. Rule 12 of `scripts/check.sh` fails on each `.js` file under `modules/`.
 
 `qory.yaml` lists the module under `exports.modules`, so another repository selects it
 by the name `core`.
@@ -71,7 +77,7 @@ by the name `core`.
 - `description`, which the report contains and `qory harness inspect` prints beside the
   module.
 - `push_checks`, the checks that qory runs on a push of `questions` or `review-comments`,
-  with the program `scripts/push-check.js`, as the section "Small workflows" lists.
+  with the program `scripts/push-check.cjs`, as the section "Small workflows" lists.
 
 A directory without `qory-module.yaml` is not a module. The manifest can contain more keys;
 [the module
@@ -188,11 +194,11 @@ An agent that the table does not list sets no `model` key.
   keep their exclusion.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
   `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/*.json.lock*` there,
-  the locks of `checks.js findings` and `checks.js starts` and their `.break` files, so that
-  no agent makes a lock that makes `findings` or `starts` wait and exit 3. An Edit rule
+  the locks of `checks.cjs findings` and `checks.cjs starts` and their `.break` files, so
+  that no agent makes a lock that makes `findings` or `starts` wait and exit 3. An Edit rule
   covers the Write tool and shell redirects too, so an agent cannot change the counts of
   `starts`, the results of `report`, the count of `end` or the findings of a change in
-  `findings.json`. `checks.js` writes them itself, which no Edit rule covers. The reports,
+  `findings.json`. `checks.cjs` writes them itself, which no Edit rule covers. The reports,
   `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
@@ -251,7 +257,7 @@ background, code blocks and headings count, and so does the reason of each decid
 because members read those reasons right under the proposal. The section "Limits" of
 `writing-proposals` lists these limits, and its section "Refused phrases" lists the phrases
 of a reply to a comment, such as "you are correct", that the proposal never contains outside
-code and text in double quotes. `checks.js` checks the counts and tables of these limits;
+code and text in double quotes. `checks.cjs` checks the counts and tables of these limits;
 the writer and the reviewer judge the rest, such as one outcome per point. The proposal
 states the outcome and the decisions that a person approves, in short plain points. Each
 screen state, each field and each edge case belongs in the spec that Shape writes, and
@@ -434,7 +440,7 @@ decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
 `running-a-workflow`.
 
 A round that follows a verdict `changes-requested` of the current stage with `run_again`
-points fixes those points first. The session of a run alone runs `checks.js fixes` once,
+points fixes those points first. The session of a run alone runs `checks.cjs fixes` once,
 after a `qory work-item show` that exited with 0 and before the first agent starts, and
 again only when it lost the output. After an exit with 1, the session passes each line that
 starts with "Fix first:", quoted, ahead of the notes, wherever it passes the notes. Each
@@ -451,7 +457,7 @@ the same problem again. Explore loads no `running-a-workflow`, so its rounds run
 In a later round, a writer changes only the parts that a word concerns, because a writer
 that drafts every file anew spends tokens on text that did not change. Before the writer's
 first start, the session copies the newest version of each type that the writer drafts to
-the top of the artifact folder, with `versions.js copy <type> <N>`, where `<N>` is the
+the top of the artifact folder, with `versions.cjs copy <type> <N>`, where `<N>` is the
 type's `newest_version` in `index.json`. The writer edits those files in place, as
 `reading-the-work` lists: it changes only what an answer, a review comment, a note or a
 finding concerns, keeps every other line byte for byte, and never reads a file only to write
@@ -460,10 +466,10 @@ files with Read and Write, and its report lists each such file under "What you r
 a copy can differ from the version in a byte, such as a line end, so the run may then push a
 version with no change that a member sees. A proposal lists each copied wireframe that still
 applies, because a version contains only the files of its push. `make-mockups` copies
-nothing, because `designer` edits the pages that `pack-mockups.js --unpack` wrote.
+nothing, because `designer` edits the pages that `pack-mockups.cjs --unpack` wrote.
 
-Before each push, the session runs `versions.js compare <type> <N> <file>...` with each file
-that the push would send. The script prints each file that changed, was added or was
+Before each push, the session runs `versions.cjs compare <type> <N> <file>...` with each
+file that the push would send. The script prints each file that changed, was added or was
 dropped, and exits with 0 only when the draft and the version have the same files with the
 same bytes, so a dropped wireframe counts as a change. The session pushes the output when
 the script exits with another status or cannot run, or when the type has no version. For a
@@ -478,13 +484,13 @@ artifact: the run API of Qory Apiary, `/v1/runs/:run_id` in `lib/apiary_web/rout
 apiary-core `962c97fa`, has calls that read and push artifacts, and no call that removes
 one.
 
-`versions.js` is in the folder of `running-a-workflow`. It takes `<type>` only as lower-case
-letters and hyphens and `<N>` only as digits, works only in `/tmp/qory-artifacts`, the
-artifact folder of a read run (`preparation.TempStore` in qory). It exits with 1 for a
-missing folder, a file outside the folder, two files with the same name, and a link where a
-copy would write. `scripts/versions.test.js` tests it. The settings of `core` allow it
-with one rule in the form of the render script's,
-`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)`, because
+`versions.cjs` is in the folder of `running-a-workflow`. It takes `<type>` only as
+lower-case letters and hyphens and `<N>` only as digits, works only in
+`/tmp/qory-artifacts`, the artifact folder of a read run (`preparation.TempStore` in qory).
+It exits with 1 for a missing folder, a file outside the folder, two files with the same
+name, and a link where a copy would write. `scripts/versions.test.js` tests it. The settings
+of `core` allow it with one rule in the form of the render script's,
+`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.cjs *)`, because
 `dontAsk` denies a command that no rule allows. The Explore session takes the folder of
 `workflow-explore-a-ticket` and puts `running-a-workflow` in place of its last name.
 Untested: no run and no Claude Code test has matched this rule yet. When `compare` fails,
@@ -493,7 +499,7 @@ tokens, not a result. Outside a run, the artifact folder is `.qory/artifacts`, s
 session runs no versions script: the writer copies the files, and the session pushes each
 output.
 
-`checks.js`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
+`checks.cjs`, in the folder of `running-a-workflow`, checks what needs no judgment, so a
 script, not an agent's prose, decides it, and a run cannot skip it. It reads no network;
 only `end`, `fixes`, `lock` and the verbs `step` and `resume` reach it, through qory:
 `lock` pushes the lock, and `lock --verify` pulls it in a run. Of the environment it reads
@@ -511,31 +517,31 @@ from the verbs `step` and `resume`, the files that the build ledger lists below.
 and `push` exit 3 for a file that is a link, and `report` for a report whose real path is
 outside `.reports`. A draft file above 256 KB gets one finding, so that no check runs long.
 
-`checks.js` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
+`checks.cjs` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
 shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
-under `types/`. `lib/registry.js` adds what another module checks: it loads
-`workflow-checks.js` from each skill folder beside `running-a-workflow`, and, when that
+under `types/`. `lib/registry.cjs` adds what another module checks: it loads
+`workflow-checks.cjs` from each skill folder beside `running-a-workflow`, and, when that
 skill is in a module of the harness home, from the skills of each module beside it, as
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
-name, it loads the first. The file exports a function that takes the library of `checks.js`,
-the exports of its `lib/` files and `lockReader`, the reader of the lock of `verbs/lock.js`,
-and returns `types`, the patterns of "Blocked:" lines as `stops`, the prefixes of its item
-ids as `ids`, such as `ac` of `ac-3`, `verbs`, and `ledger`, the rules of the build ledger.
-Only `check`, `push`, `report`, `end`, `step`, `resume`, a verb of the registry and the
-usage read the registry; `starts`, `begin` and `fixes` never load it. A type that two skills
-add stops each verb that reads the registry with exit 3. A `workflow-checks.js` that throws,
-exports no function or returns no object is a fault of the harness: the verb stops with an
-error that names the file and exit 3, and `end --offline`, `step` and `resume` exit 4 with
-the fix on stderr. A verb outside the verbs of `checks.js` stops the same way when the
-registry fails, and prints no usage. In `software-factory`,
-`running-a-software-workflow/workflow-checks.js` adds the types `proposal`, `spec`,
-`acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11 types of Build and
-Verify, the lines that start with `needs a change to criterion`, `needs a new criterion` or
-`needs a change to the spec`, and the rules of the build ledger that the verbs `step` and
-`resume` apply. A stack without that module, such as `core`, checks `questions` and
-`review-comments`, and `report` accepts only `needs <type>`.
+name, it loads the first. The file exports a function that takes the library of
+`checks.cjs`, the exports of its `lib/` files and `lockReader`, the reader of the lock of
+`verbs/lock.cjs`, and returns `types`, the patterns of "Blocked:" lines as `stops`, the
+prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `verbs`, and `ledger`, the rules
+of the build ledger. Only `check`, `push`, `report`, `end`, `step`, `resume`, a verb of the
+registry and the usage read the registry; `starts`, `begin` and `fixes` never load it. A
+type that two skills add stops each verb that reads the registry with exit 3. A
+`workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
+the harness: the verb stops with an error that names the file and exit 3, and `end
+--offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
+`checks.cjs` stops the same way when the registry fails, and prints no usage. In
+`software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
+`proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
+types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
+new criterion` or `needs a change to the spec`, and the rules of the build ledger that the
+verbs `step` and `resume` apply. A stack without that module, such as `core`, checks
+`questions` and `review-comments`, and `report` accepts only `needs <type>`.
 
-The registry loads a `workflow-checks.js` only from a skill folder whose hash is in
+The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
 real path of the skill folder, because a compose may place the folder as a link, and reads
 every entry below it with `lstat`. It refuses the folder when an entry is a link, a FIFO, a
@@ -544,17 +550,17 @@ control character, a tab or a newline, and when the folder is more than 8 folder
 more than 2,000 entries or a file of more than 1 MiB. The hash is the sha256 of the JSON of
 the sorted pairs of path and sha256 of each file that `require` can load, `.js`, `.cjs`,
 `.mjs`, `.json` and `.node`. A change to `SKILL.md` keeps the hash, and one changed, added
-or removed script changes it. The registry then loads `workflow-checks.js` from that real
+or removed script changes it. The registry then loads `workflow-checks.cjs` from that real
 folder, so `require` resolves each relative path inside the files that the hash covers.
 
 Before any file loads, the registry checks every folder. A folder outside the list stops
-each verb that reads the registry: "Remove skills/<x>/workflow-checks.js from <module>: only
-the stack's modules add checks.", with the names as plain text, and exit 3; `end --offline`
-exits 4 with that error. Its code never runs. A module that a checkout appends to a stack
-ships skills, and qory places them beside the stack's skills, in
+each verb that reads the registry: "Remove skills/<x>/workflow-checks.cjs from <module>:
+only the stack's modules add checks.", with the names as plain text, and exit 3; `end
+--offline` exits 4 with that error. Its code never runs. A module that a checkout appends to
+a stack ships skills, and qory places them beside the stack's skills, in
 `<home>/modules/<name>/skills/` and in each runtime's skills folder. Without the list, its
-`workflow-checks.js` would change or skip the checks of every type, in each verb, in the end
-check's hook and in each push check. The list is the source of truth, for these reasons,
+`workflow-checks.cjs` would change or skip the checks of every type, in each verb, in the
+end check's hook and in each push check. The list is the source of truth, for these reasons,
 from qory at `4314dbb8`:
 
 - The report, `<home>-report.json`, marks the base stack's modules with `base`, but lies
@@ -574,14 +580,14 @@ modules declare push checks, qory requires the home outside the checkout
 (`pushChecksWritable` in `cmd/harness.go`). So the home is sure to be read-only only in a
 walled run whose modules declare push checks. `core` declares push checks, so this holds for
 each walled run of a stack with `core`. Anywhere else a session can write the home, and can
-change the list or `checks.js` with the tools that write files. So the list guards against a
-repository's modules, not against a session that can write the home. A checkout that appends
-a skill folder whose files, read as the registry reads them, match a hash of the list gets
-those checks, because the registry then loads only those files. A change to a script of a
-skill with `workflow-checks.js` needs the new hash in the list: `scripts/checks.test.js`
-prints the hashes that the list must contain.
+change the list or `checks.cjs` with the tools that write files. So the list guards against
+a repository's modules, not against a session that can write the home. A checkout that
+appends a skill folder whose files, read as the registry reads them, match a hash of the
+list gets those checks, because the registry then loads only those files. A change to a
+script of a skill with `workflow-checks.cjs` needs the new hash in the list:
+`scripts/checks.test.js` prints the hashes that the list must contain.
 
-- `checks.js check <type> <file>...`: the session runs it on each draft before each start
+- `checks.cjs check <type> <file>...`: the session runs it on each draft before each start
   of a reviewer, and passes the output under "Checks:". It runs it again on the files of
   each push. Its files are under the artifact folder: `/tmp/qory-artifacts` in a run, else
   `.qory/artifacts`. The script takes the folder from the files' real path, so a
@@ -600,7 +606,7 @@ prints the hashes that the list must contain.
   that file, and `check questions` reports the error. `push proposal` counts `proposal.md`
   alone: qory gives that check no questions folder, and the run pushes its questions after
   the proposal, so the newest version would be out of date.
-- `checks.js check points <folder>/points.json`: the session runs it before
+- `checks.cjs check points <folder>/points.json`: the session runs it before
   `qory run verdict escalate`. It checks a JSON list of 1 to 20 points, each with only
   `text`, `action`, `question` and `fix`. `fix`, the step for the person, is only on a point
   `run_again`, by the rules of the text, as one sentence that states the step. The text is
@@ -615,7 +621,7 @@ prints the hashes that the list must contain.
   after it, with at least one letter, such as `AC-3, "A member exports a list"`; quotes
   around the id alone are no words. An id is a question id such as `q4` in lower case, or a
   prefix that a module gives and a number, in either case. Each module gives its prefixes as
-  `ids` in its `workflow-checks.js`: `software-factory` gives `ac-`, `d-`, `step-`,
+  `ids` in its `workflow-checks.cjs`: `software-factory` gives `ac-`, `d-`, `step-`,
   `scenario-` and `decision-`, and core alone checks only question ids. An
   id in a path is no id: a word with a slash that ends in a file extension or has a part
   with a letter that is no id, such as `docs/step-1.md` or `src/ac-3/`. Ids joined by a
@@ -627,14 +633,14 @@ prints the hashes that the list must contain.
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
   verdict; only this check reads the questions and the words of the text. At qory 4314dbb8
   that schema has no `fix`, so qory refuses a point with one until qory adds it.
-- `checks.js push <type> <file>...`: the form that qory runs on a push, through
-  `scripts/push-check.js push <type> <file>...` of `core` for `questions` and
-  `review-comments`, and `workflow-checks.js push <type> <file>...` of
+- `checks.cjs push <type> <file>...`: the form that qory runs on a push, through
+  `scripts/push-check.cjs push <type> <file>...` of `core` for `questions` and
+  `review-comments`, and `workflow-checks.cjs push <type> <file>...` of
   `running-a-software-workflow` for the other types. The working
   folder has the pull layout, `index.json` and `<type>/<name>/v<N>/`, and the files may lie
   in another folder, under their version names.
 - `--inputs <file>`: `check`, `push` and `end <folder>` take it right after their
-  arguments, before the files, such as `checks.js push proposal --inputs
+  arguments, before the files, such as `checks.cjs push proposal --inputs
   <in>/inputs.json <file>...`, the form that qory runs on a push; `end --offline` takes it
   among its flags. The file is the run's `inputs.json`, and the checks read the extensions
   of the harness from its member `qory.harness_extensions`, `{}` for a harness with none.
@@ -645,7 +651,7 @@ prints the hashes that the list must contain.
   file `$QORY_HARNESS_HOME/inputs.json`, the copy of the run's `inputs.json` that qory
   writes in the harness home, when `QORY_HARNESS_HOME` is an absolute path and that file
   exists.
-- `checks.js report <agent> <file>`: after each agent returns, the session writes its
+- `checks.cjs report <agent> <file>`: after each agent returns, the session writes its
   report to `<artifact folder>/.reports/<agent>-<n>.md` and checks it: the last word, each
   list that the agent's "Expected output" requires, and a `Blocked:` line that starts with
   `needs` against the lines that `running-a-workflow` and the registry list. The last word
@@ -672,7 +678,7 @@ prints the hashes that the list must contain.
   again to fix only its report. That start does not count toward the agent's start limit.
   The session runs no `starts` before it. After the third failure in a row, the line
   starts its fix part with "Start no fix", and the start counts as failed.
-- `checks.js starts <run> <name> <limit>`: the session runs it before each start of a
+- `checks.cjs starts <run> <name> <limit>`: the session runs it before each start of a
   reviewer, each follow of a Shape workflow and each start of `shape-reviewer`, except a
   start that fixes only a report. `<run>` is the run's id, such as `run_9f4n2`, or
   `local` when the session has none. It keeps the count of each run apart in
@@ -683,7 +689,7 @@ prints the hashes that the list must contain.
   so that starts at once in several processes count each start once. When the lock still
   exists after 10 s, it exits 3, and the first line is the fix: report to a member. The
   second line contains the path of the lock.
-- `checks.js begin`: a session with no `run.id` runs it once, before its first `starts`.
+- `checks.cjs begin`: a session with no `run.id` runs it once, before its first `starts`.
   That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
   new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
   writes it to `.reports/local.json` of the artifact folder and prints it. `starts local`
@@ -691,13 +697,13 @@ prints the hashes that the list must contain.
   exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
-- `checks.js starts <run> <reviewer> --subject <subject>`: the session runs it before each
+- `checks.cjs starts <run> <reviewer> --subject <subject>`: the session runs it before each
   start of a reviewer on a subject in a workflow's skill, such as `change`. It
   allows 3 starts of one reviewer on one subject in a run, and counts them under
   `<subject>/<agent>` in `.reports/starts.json`. `<reviewer>` may have the prefix of the
   runtime, such as `harness:code-reviewer`; the count leaves it out, so `end` prints a
   finding when `code-reviewer` has no report. It exits with 1 at the fourth start.
-- `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
+- `checks.cjs panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
   session runs it before it starts the members of a group role, `reviewers` when `--group`
   is left out. It reads the group's rows from `$QORY_HARNESS_HOME/roles.json`, which qory
   writes. `--names` is the group's reference as the workflow's skill has it, so the names
@@ -715,7 +721,7 @@ prints the hashes that the list must contain.
   path of the change. It exits with 1 when the disk has room for no member, and its first
   line is the fix: start no member, and end the run as "Failures" of `running-a-workflow`
   lists. It writes no file.
-- `checks.js fixes`: the session of a run alone runs it once, after a `qory work-item show`
+- `checks.cjs fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when
   `index.json` of the artifact folder, which the session's pull wrote, lists its
@@ -731,10 +737,10 @@ prints the hashes that the list must contain.
   string or a `points` value other than a list or null gives exit 3. An absent `verdict`
   counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
-- `checks.js findings add <round> <agent> <file>`,
-  `checks.js findings close <agent> <file>` and `checks.js findings show`: the record of
+- `checks.cjs findings add <round> <agent> <file>`,
+  `checks.cjs findings close <agent> <file>` and `checks.cjs findings show`: the record of
   the findings of the review of a change, in `.reports/findings.json` of the artifact
-  folder, where only `checks.js` writes. A reviewer of a change reports by
+  folder, where only `checks.cjs` writes. A reviewer of a change reports by
   `reviewing-changes`: each finding has Quote, Problem, Fix and Point, as in
   `reviewing-drafts`, and in place of Marks a `Proof:` line and a `Severity:` line,
   `break` or `no break`. A proof is one line of at most 1,000 characters: its form, a
@@ -787,7 +793,7 @@ prints the hashes that the list must contain.
   that no review judged. It exits 1 while a finding with the severity `break` is open, or
   closed with `closure.held` set to null, else 0: only a break finding starts another
   round. A `findings.json` in another form exits 3.
-- `checks.js lock <file>`: the session runs it once, to lock the files that the draft
+- `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
   of each check and each support file. The working folder is the working directory, where
@@ -829,7 +835,7 @@ prints the hashes that the list must contain.
   printed. qory indents each line after its error line by two spaces; without them, a line
   at column 0 is a finding, and an indented line prints indented as the cause of the finding
   before it.
-- `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
+- `checks.cjs lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
   <N>`, the version that a member approved, which may not be older than that version. An
@@ -872,7 +878,7 @@ prints the hashes that the list must contain.
   list of its repositories, so lock cannot check them." and a second line with the value,
   such as "QORY_RUN_REPOSITORIES is not set.". Outside a run, they leave the test of
   `repository` out.
-- `checks.js end <folder>`: a hook runs it when the session tries to end. Outside a run,
+- `checks.cjs end <folder>`: a hook runs it when the session tries to end. Outside a run,
   when `QORY_RUN_ID` is not set, or when the folder does not exist, it checks nothing and
   exits 0. With `points.json`, it runs `work-item show` for the run's id and
   `artifact pull verdict`. When the pulled `index.json` lists a version of `verdict` that
@@ -920,7 +926,7 @@ prints the hashes that the list must contain.
   200 characters as each line. `end --offline` cuts its points the same way. These
   commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
-- `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
+- `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
   result that the agent writes changes the outcome. Besides the agents and skills of the
@@ -976,19 +982,19 @@ prints the hashes that the list must contain.
   with no finding; 1 with findings and `points.json`; 2 for a missing or wrong argument, an
   empty `--run` included; 3 when an input is missing or unreadable, such as an `index.json`
   of the store that contradicts itself or a verdict file with another verdict; 4 when the
-  script crashes, with the fix and the error on stderr. When Node cannot load `checks.js`,
+  script crashes, with the fix and the error on stderr. When Node cannot load `checks.cjs`,
   it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json` as
   4. qory at `4314dbb8` runs no `end --offline`.
 
-The hook runs `checks.js end` through an adapter in `modules/core/hooks/`,
-which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.js` picks the folder:
+The hook runs `checks.cjs end` through an adapter in `modules/core/hooks/`,
+which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.cjs` picks the folder:
 `/tmp/qory-artifacts` when `QORY_RUN_ID` is set and the folder exists, else the first
 `.qory/artifacts` up to the folder with `.git`. The walk starts at `CLAUDE_PROJECT_DIR`
 when it is set, else at the session's working folder, so a session in a subfolder checks
 the checkout's folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project folder, and
 Gemini CLI sets it to the session's working folder.
-`end-gate.js` loads `checks.js` and runs its `end` in a separate node process. When
-`checks.js` throws, at load or while it runs, a missing file included, that process exits 4
+`end-gate.cjs` loads `checks.cjs` and runs its `end` in a separate node process. When
+`checks.cjs` throws, at load or while it runs, a missing file included, that process exits 4
 and prints the fix first: "Send this error to the harness maintainers: the end check
 crashed, so the session ended without checking its drafts and reports.", then the error's
 first line and its stack. A crash writes no `points.json`. Without exit 4, node exits 1
@@ -1029,7 +1035,7 @@ the checkout, which a compose with links writes. OpenCode has no hook that keeps
 headless `opencode run` going, and Amp and Goose render no hooks, so these runtimes end
 with no check.
 
-Only `checks.js` writes the `.json` files under `.reports/`, the locks
+Only `checks.cjs` writes the `.json` files under `.reports/`, the locks
 `.reports/findings.json.lock`, `.reports/starts.json.lock` and `.reports/results.json.lock`,
 and their `.break` files. On Claude Code, the settings deny `Edit` of
 `//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
@@ -1038,8 +1044,8 @@ rule that starts with `/` is relative to its settings source: for the project's
 `.claude/settings.json` and for the settings that qory passes inline in a run, that is the
 folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). Those rules cover no shell
-command, so on Claude Code and on Codex the tool guard, `tool-guard.js`, runs
-`reports-guard.js` for each `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch` and
+command, so on Claude Code and on Codex the tool guard, `tool-guard.cjs`, runs
+`reports-guard.cjs` for each `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch` and
 shell call, with the same rules and deny texts, except that a shell command whose simple
 commands are each a read-only command with the options of its list in `READ_ONLY`, and
 write no file, reads `.reports/` and passes, as in `ls .reports` or
@@ -1051,10 +1057,10 @@ not run `fs.globSync`,
 which has no limit on its work: it reads a word after brace expansion, and a word with a
 wildcard reaches `.reports` when it can match the `.reports` folder of the artifact folder,
 or of `.qory/artifacts/`, or a path below it. On the other three runtimes,
-`reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
+`reports-guard-<runtime>.cjs` runs before each tool call, through `reports-guard.cjs`, and
 only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
 `.json` or whose name has `.json.lock`, and a shell command that reaches `.reports` and does
-more than run `checks.js`. The guard splits the command into words in Node and runs no
+more than run `checks.cjs`. The guard splits the command into words in Node and runs no
 shell. A command reaches `.reports` when:
 
 
@@ -1078,7 +1084,7 @@ expands, and when the word starts with another `~name`, such as `~alex`. It deni
 that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
 older Node, the guard denies each word with a glob.
 
-The first line of a deny for the last three cases is "Leave .reports/ to checks.js, and
+The first line of a deny for the last three cases is "Leave .reports/ to checks.cjs, and
 name other files with no `$`, backtick, eval or glob." The second line contains the part of
 the command that reaches `.reports`. A command still reaches the folder past the guard
 through a variable built without `.r`, or with a `.r` after a letter, digit or `_`, as in
@@ -1114,16 +1120,16 @@ Gemini CLI removes from a hook's environment each variable that is not on an all
 `GITHUB_SHA` is set or `SURFACE` is `Github`
 ([configuration](https://geminicli.com/docs/reference/configuration)). So
 `settings/gemini/settings.json` adds to `security.environmentVariableRedaction.allowed` the
-variables that the hooks, `checks.js` and qory read in a run: `QORY_RUN_ID`, `QORY_RUN_API`,
-`QORY_SESSION`, `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both
-cases, through which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by
-default.
+variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
+`QORY_RUN_API`, `QORY_SESSION`, `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and
+`NO_PROXY` in both cases, through which qory reaches the gateway. Gemini CLI passes `PATH`
+and `HOME` by default.
 
-In a run, a guard runs before each tool call: `tool-guard-claude.js` on Claude Code and
-`tool-guard-codex.js` on Codex, through `tool-guard.js`. The `PreToolUse` hooks of
+In a run, a guard runs before each tool call: `tool-guard-claude.cjs` on Claude Code and
+`tool-guard-codex.cjs` on Codex, through `tool-guard.cjs`. The `PreToolUse` hooks of
 `settings/claude/settings.json` and `settings/codex/config.toml` match every tool (`*`),
-because the step limit of `step-limit.js` reads every call. Each call costs about 30 ms, the
-start of `node`: on a Mac with Node 24, a call that the guard lets run took 30.5 ms, and
+because the step limit of `step-limit.cjs` reads every call. Each call costs about 30 ms,
+the start of `node`: on a Mac with Node 24, a call that the guard lets run took 30.5 ms, and
 `node -e 0` 27.4 ms. Codex writes `apply_patch` and `Bash` into the hook's input for its
 write and shell tools. Both adapters deny a call with
 `permissionDecision: deny` on stdout, and the runtime sends the reason to the model as the
@@ -1141,7 +1147,7 @@ tool's error. The first line of each reason starts with what to do. The guard de
   also through a glob such as `.qory/b*/steps`, and any such command whose text contains
   `.qory`, so that an agent cannot stop the step limit from writing its counts.
 - a write to a file that the lock lists. The guard reads the lock with the reader of
-  `checks.js lock --verify`, so in a run it pulls the lock that counts before each write
+  `checks.cjs lock --verify`, so in a run it pulls the lock that counts before each write
   below the working folder, and before each shell command that writes. So a lock that a
   step stores during the session counts from the next write on. A stack with no type with
   a lock, or with no version of the lock that counts, locks no file. When the lock cannot
@@ -1229,7 +1235,7 @@ with `-delete`, or with `-exec`, `-execdir`, `-ok`
 or `-okdir` of a command that writes, writes the files below each folder it starts from that
 its `-name` and `-iname` tests match, or all of them with no such test. On a disk that
 ignores case, the guard compares paths in any case. A shell command of the main session is
-no edit, so the main session runs `qory` and `checks.js`. The guard covers no write to
+no edit, so the main session runs `qory` and `checks.cjs`. The guard covers no write to
 `qory.yaml`, to `.qory/` outside `.qory/build/` and a harness home below the working folder,
 or to a hook or a module of the harness source: agents may change those files, and qory
 composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID` is not set, the
@@ -1244,7 +1250,7 @@ folder, the guard denies each call with "Start the session through qory: the too
 found no working folder of the run." An artifact folder that is a link is no artifact
 folder: the main session cannot write in it, and a write in it does not reset a count.
 
-The guard also limits the steps of an agent that writes files, through `step-limit.js`. A
+The guard also limits the steps of an agent that writes files, through `step-limit.cjs`. A
 step is one answer of the model with its calls, however many run at once. A step writes when
 one of its calls writes a file, by the rules above, below the working folder outside
 `.qory/`, or in the artifact folder (`.qory/artifacts` or `/tmp/qory-artifacts`), or runs
@@ -1312,7 +1318,7 @@ the count, and `PreToolUse` only reads it:
   and removes the file. A step with no call, such as the first request of a turn, counts as
   a step that wrote nothing; the first request of a new agent sets its count to 0.
 
-`end-gate-claude.js` and `end-gate-codex.js` remove the counts of the session each time it
+`end-gate-claude.cjs` and `end-gate-codex.cjs` remove the counts of the session each time it
 ends. On Codex, the end check of the main session also removes the counts of agents that
 still run, which sets their counts back to 0, because Codex gives each agent the session id
 of the main session (`core/src/session/session.rs:700-703` of Codex 0.167.2). A call that
@@ -1356,7 +1362,7 @@ The limits of the guard:
   `restore`, `checkout`, `rm` or `mv`, which the guard reads, and the read-only commands are
   not: `cat`, `grep`, `rg`, `ls`, `head`, `tail`, `wc`, `cmp`, `sed` that only prints,
   `find` with no opaque `-exec`, `sort`, and a few more. A read-only command stays read-only
-  only with the options of its list in `READ_ONLY` of `tool-guard.js`; any other option,
+  only with the options of its list in `READ_ONLY` of `tool-guard.cjs`; any other option,
   such as `rg --pre`, `sort -o` or `find -delete`, makes it opaque. So does a variable
   setting, as a variable can change what the command runs (`RIPGREP_CONFIG_PATH`,
   `LESSOPEN`, `PAGER`, `GREP_OPTIONS`): a `NAME=value` before the command or after `env`, or
@@ -1379,7 +1385,7 @@ The limits of the guard:
   The text includes each here-document body that the call does not give to `cat`, `tee` or
   `apply_patch`. So `npm run check -- checks/a.check.ts` and `git add checks/a.check.ts` are
   denied, and `git add .` and `npx eslint .` pass. The first line of the deny is "Run the
-  checks with no file path or `checks.js run locked`; read a locked file with
+  checks with no file path or `checks.cjs run locked`; read a locked file with
   `cat <file>`.", as `cat` is a read-only command. A `cd` folder reaches no file. After
   `eval`, `source`, `.` or a `cd` to a vague folder, where the folder is unknown, the guard
   reads a relative word as if the command ran in the working folder of the call, as well as
@@ -1393,7 +1399,7 @@ The limits of the guard:
 - The guard reads the calls of `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch`
   and the shell. A tool of an MCP server that writes files passes without a check; Verify's
   `lock --verify --version <N>` keeps the lock for its writes.
-- On Claude Code and on Codex, `decide` runs `reports-guard.js` first, within the work
+- On Claude Code and on Codex, `decide` runs `reports-guard.cjs` first, within the work
   budget of the call: it denies a direct write to `.reports/` as on Gemini CLI. No guard
   records which agent wrote a report, on any runtime. A report needs no such record, because
   each reviewer runs in a separate session.
@@ -1498,7 +1504,7 @@ the target: the approved version, or the newest version that a person stored aft
 writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
 a version counts neither, because `index.json` has no time of a decision to compare with
 the newest lock. One function, `criteriaTarget` of
-`running-a-software-workflow/lib/build.js`, computes the target for the four types. A check
+`running-a-software-workflow/lib/build.cjs`, computes the target for the four types. A check
 and a push read the versions in `index.json`, not the folders of the store, so that they
 agree. The three Markdown types read the target before any other check of the type, so that
 a finding of the read is the only finding of that check. A finding on the files that a
@@ -1659,10 +1665,10 @@ find:
 
 A Build session records each step it runs in the build ledger, so that a session that stops
 resumes where it stopped, and a step that is done replays and does not run again. The verbs
-`step` and `resume` of `checks.js` keep the rows, in `verbs/ledger.js` of
+`step` and `resume` of `checks.cjs` keep the rows, in `verbs/ledger.cjs` of
 `running-a-workflow`: the pass of each id, the state, the agent starts, the report, the
 replays, the 101st row and the escalation `ledger-full`. `ledger` of
-`running-a-software-workflow/workflow-checks.js`, in `lib/ledger.js`, adds the type
+`running-a-software-workflow/workflow-checks.cjs`, in `lib/ledger.cjs`, adds the type
 `build-ledger` and its schema, the ids, the members `base`, `commit` and `script_sha256`,
 and the checks of edits made outside a step. In a stack with no such rules, the verbs `step`
 and `resume` exit 3.
@@ -1671,7 +1677,7 @@ Each change of the ledger pushes a new `build-ledger` version with
 `qory artifact push build-ledger`, from a file in a new temporary folder that the verb
 removes, and then writes the same bytes to `build-ledger.json` at the top of the artifact
 folder, the draft, and to `.reports/build-ledger.json`, its copy. A failed push leaves both
-as they were, exits 3, and its line starts "Run checks.js resume, then <verb> again",
+as they were, exits 3, and its line starts "Run checks.cjs resume, then <verb> again",
 because the push may have stored the version. `step begin` and `step end` read the copy,
 else the version that `resume` reads, else an empty ledger. The push stores the version
 outside the artifact folder, so the newest version there is the one that `resume` pulled.
@@ -1682,14 +1688,14 @@ and `points.json` at the 101st row. The mark contains the id of the session, the
 which the session started, and the rows that crashed in a session of the same run. The id
 is the pair of `QORY_RUN_ID`, the run id that every session of a run shares, and
 `QORY_SESSION`, the number of the session in the run, 1 for the first. An unset or empty
-`QORY_SESSION` counts as 1, because qory 4314dbb8 sets none. Only `checks.js` writes the
+`QORY_SESSION` counts as 1, because qory 4314dbb8 sets none. Only `checks.cjs` writes the
 mark: the guard of `.reports/*.json` denies an agent any write to it.
 Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1 to 999999,
 `step` and `resume` exit 3. The line of a failed command shows the name of the program,
 `qory`, not its path.
 
 The copy and the mark each have a lock, `.reports/build-ledger.json.lock` and
-`.reports/ledger.json.lock`, which `withLock` of `lib/base.js` takes, as `report` takes the
+`.reports/ledger.json.lock`, which `withLock` of `lib/base.cjs` takes, as `report` takes the
 lock of `results.json`. `step begin`, `step end` and `resume` each take both locks, the
 copy's first and the mark's second. A call waits while another call holds a lock, and the
 fixed order means that no two calls each hold the lock that the other waits for. Each holds
@@ -1699,15 +1705,15 @@ and each of them that exits 0 is in the newest stored version. Calls in two arti
 share no lock, and the push check, which ignores `replays`, does not refuse a push that
 loses a `replays` count of the other folder. A lock is taken over only when the process
 whose id it contains no longer runs, or when it is empty and older than 5 s, `EMPTY_AGE` of
-`lib/base.js`: a call writes its id into the lock right after it makes it. A lock with an id
-of a running process is never taken over by its age, so a long push keeps its lock. A call
-that waits for a lock longer than 10 s, `LOCK_WAIT` of `lib/base.js`, pushes nothing,
+`lib/base.cjs`: a call writes its id into the lock right after it makes it. A lock with an
+id of a running process is never taken over by its age, so a long push keeps its lock. A
+call that waits for a lock longer than 10 s, `LOCK_WAIT` of `lib/base.cjs`, pushes nothing,
 exits 3, and its first line is "Run <verb> again after the other call finishes: another
 call held the ledger lock for 10 s.", followed by the lock that still exists. So two calls
 at once, such as from the session and from an agent with a shell, lose no row or mark of a
 call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.
 
-- `checks.js resume`: once, at the start of each Build session. It runs
+- `checks.cjs resume`: once, at the start of each Build session. It runs
   `qory artifact pull build-ledger`, which at qory 4314dbb8 exits 0 and writes no folder of
   the type when the work item has no version, so the ledger then starts empty. It writes the
   newest version as the draft and its copy, marks each `running` row `failed`, because its
@@ -1727,9 +1733,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   each such row it prints "Run <id> again." and the line "Its pass <N> of <id> stopped
   while it ran, so step begin starts pass <N+1>.", then a line with the counts of rows,
   done rows and escalations.
-- `checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>]
+- `checks.cjs step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>]
   <file>...`: before each step, after `resume`. With no mark, or a mark of an earlier
-  session, it exits 3 with "Run checks.js resume first". `--inputs` and `--artifacts` may
+  session, it exits 3 with "Run checks.cjs resume first". `--inputs` and `--artifacts` may
   stand anywhere after `<workflow>`, each once. Before any change, `step begin` takes the
   build plan of the point of the full ledger from the folder of `--artifacts`, or of
   `qory.start_artifacts` in the inputs.json of `--inputs`, the build plans that qory pulled
@@ -1774,9 +1780,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   text of the point it removed. It records the escalation `ledger-full` once per session,
   while the ledger has fewer than 20 escalations; a failed push of it is a finding line
   before the refusal. A step that replays adds no row, and replays with a full ledger too.
-- `checks.js step end <id> done|failed`: after each step, on the `running` row of `<id>`. It
-  sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last report,
-  a file under `.reports` of the artifact folder and no link, as `report`;
+- `checks.cjs step end <id> done|failed`: after each step, on the `running` row of `<id>`.
+  It sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last
+  report, a file under `.reports` of the artifact folder and no link, as `report`;
   `--attempt <agent>,<role>,<tier>,<model>`, once per agent start, at most 3 times;
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
   `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
@@ -1872,7 +1878,7 @@ writer. A finding of the checks left after the last review start ends the run li
 marked `break`, because a push with it fails. Each checking skill lists what the checks
 cover, and its reviewer judges the rest. `scripts/checks.test.js` breaks each rule in a copy
 of the testdata and watches the check fail. The settings of `core` allow the script with one
-rule, `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`.
+rule, `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.cjs *)`.
 Untested: no run has matched this rule yet.
 
 A module states the checks that qory runs on a push under `push_checks`: one entry per
@@ -1881,7 +1887,7 @@ type, with the command and the types that the check reads. For `demo-scenarios`:
 ```yaml
 push_checks:
   - type: demo-scenarios
-    command: [skills/running-a-software-workflow/workflow-checks.js, push, demo-scenarios]
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-scenarios]
     reads: [acceptance-criteria]
 ```
 
@@ -1891,20 +1897,21 @@ push_checks:
 `demo-video` and `screenshot` read `[demo-script]`, `explainer` reads
 `[verification, acceptance-criteria]`, and the other types read nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
-`review-comments`, with the program `scripts/push-check.js`. `software-factory` declares the
-entries of its 16 types, with the program `workflow-checks.js`. Neither declares one for
-`verdict`, which qory refuses. Each program runs `checks.js push` of `running-a-workflow` in
-`modules/core`. `scripts/push-check.js` lies outside every entry of `core`, as one of the
-module's other files, which a compose places at `$QORY_HARNESS_HOME/modules/core/` whatever
-an `exclude` or `only` leaves out. qory stops a compose whose push program is in an entry
-that an `exclude` or `only` leaves out, and the `authoring` stack composes only
-`simple-communication` of `core`. `scripts/check.sh` checks that the `push-checks.json` of
-the `core` and `authoring` stacks has the two checks of `core`, and that of the `software`
-stack all 18, each with the types that it reads. qory runs the checks in a walled run only.
-A push that they refuse exits with 4, with the findings, and the session sends them to the
-writer and pushes once more. `review-comments` reads only the questions folder, because qory
-writes the whole `index.json` for every check. `approved_version` in `index.json` is a
-version id, such as `av_prop2`, as the run API sets it.
+`review-comments`, with the program `scripts/push-check.cjs`. `software-factory` declares
+the entries of its 16 types, with the program `workflow-checks.cjs`. Neither declares one
+for `verdict`, which qory refuses. Each program runs `checks.cjs push` of
+`running-a-workflow` in `modules/core`. `scripts/push-check.cjs` lies outside every entry of
+`core`, as one of the module's other files, which a compose places at
+`$QORY_HARNESS_HOME/modules/core/` whatever an `exclude` or `only` leaves out. qory stops a
+compose whose push program is in an entry that an `exclude` or `only` leaves out, and the
+`authoring` stack composes only `simple-communication` of `core`. `scripts/check.sh` checks
+that the `push-checks.json` of the `core` and `authoring` stacks has the two checks of
+`core`, and that of the `software` stack all 18, each with the types that it reads. qory
+runs the checks in a walled run only. A push that they refuse exits with 4, with the
+findings, and the session sends them to the writer and pushes once more. `review-comments`
+reads only the questions folder, because qory writes the whole `index.json` for every check.
+`approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
+it.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -1980,7 +1987,7 @@ clickable mockup. `code-explorer` reports the target's styles, and `designer` wr
 HTML page per screen in `mockup-pages/` by `designing-mockups`. Then `designer` runs two
 scripts of that skill:
 
-1. `pack-mockups.js` writes the version to `mockup-draft/`: one self-contained page per
+1. `pack-mockups.cjs` writes the version to `mockup-draft/`: one self-contained page per
    screen, `<screen id>.html`, and `screens.json`. It puts each `.css` sheet of the
    checkout into a `<style>`, and each PNG, JPEG, GIF or WebP picture and each font into
    the page as a `data:` address, when the file's extension and first bytes name the same
@@ -2007,7 +2014,7 @@ scripts of that skill:
    1 on findings, 2 on a wrong argument or folder, and 3 when a file cannot be read;
    `designer` then stops with `blocked`. `--unpack` writes the pages of a version back to
    an empty `mockup-pages/`, and `--check=<dir>` checks a packed version.
-2. `render-mockups.js` renders each packed page to a picture in `mockup-render/`, with
+2. `render-mockups.cjs` renders each packed page to a picture in `mockup-render/`, with
    JavaScript and the network off, and runs the styling tests. The pictures are for
    `mockup-reviewer` only, and the run pushes none. The script exits with 3 when the run's
    image has no Chromium at `/usr/bin/chromium`, and the run then escalates with the text
@@ -2162,7 +2169,7 @@ again after a small workflow's stop, and when the session lost the list.
   `escalate`: a finding becomes a point with its `Point:` line as the text, as for a finding
   left, and a planner's fact becomes the point "This run had no round left for a needed
   change to the <output>." The session counts each follow and start with
-  `checks.js starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local` when the
+  `checks.cjs starts <run> <name> <limit>`, where `<run>` is `run.id`, or `local` when the
   session has none. A start that fixes only a report does not count toward the agent's
   start limit. The script keeps the counts of each run in the artifact folder, so a lost log
   loses no start. The number of a follow names the reviewers' counts for that follow, such
@@ -2202,7 +2209,7 @@ prints `stage.state`, but qory's documentation lists no values for it, and on Qo
 ## The check runners
 
 The skill `running-checks` of `software-factory` lists the verbs that run every check of
-code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
+code in a Build workflow. `running-a-software-workflow/workflow-checks.cjs` adds them to the
 checks script, each in a file of `verbs/`. Each reads its commands and its write scope from
 the newest version of `build-plan` that the session pulled, never from a draft. Each prints
 each finding with its fix on line 1, at most 100 characters, and the reason on lines
@@ -2243,7 +2250,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 - `run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]`: runs the checks
   of the acceptance lock that counts, the newest `acceptance-lock` version that no
   cancelled run wrote, which it reads with `lockReader.readLock` of core's
-  `verbs/lock.js`, the reader of `lock --verify`; with criteria, the checks of those
+  `verbs/lock.cjs`, the reader of `lock --verify`; with criteria, the checks of those
   criteria only, and a criterion that the lock does not have exits 3. Before any run, each
   file of a check and each support file must have the SHA-256 of the lock, by
   `lockReader.changedFiles`: a missing or changed file is red, and no check runs. The file
@@ -2370,7 +2377,7 @@ a key in the `qory.yaml` of the checkout sets no limit. Without `--inputs`, the 
 `.qory/harness-report.json` at the top of the checkout, and takes the defaults when the
 report or the key is missing. The settings of `software-factory` set `BASH_MAX_TIMEOUT_MS`
 to 60 minutes, so that a Bash call of Claude Code lasts as long as the longest limit.
-`lib/runner.js` stops every command of a call 60 seconds before those 60 minutes, counted
+`lib/runner.cjs` stops every command of a call 60 seconds before those 60 minutes, counted
 from the start of the process, with the limit of its kind as the other end, so a command
 whose limit is 60 minutes still ends with its record and its red line. The supervisor's wait
 of 10 seconds after a limit ends within those 60 seconds. The commands of one call share
@@ -2379,7 +2386,7 @@ locked`, of which each check that the call has no time left for is red with "not
 call ran out of time" and does not run. Every key under
 `harness.extensions.software-factory` is in
 `running-a-software-workflow/extensions.schema.json`. `check` of
-`lib/repository-settings.js` checks a parsed object against it and returns each finding as
+`lib/repository-settings.cjs` checks a parsed object against it and returns each finding as
 a fix of at most 100 characters, then the cause on the next line, with no file read, so
 another script can call it. A place in a finding counts from 1, such as "area 1 of
 add_sensitive_areas", and a key that is too long is cut inside its quotes, so that the first
@@ -2430,7 +2437,7 @@ Before it pushes, qory clones the commits to a new folder outside the agent's co
 runs, in that clone:
 
 ```
-node <harness home>/modules/core/skills/running-a-workflow/checks.js \
+node <harness home>/modules/core/skills/running-a-workflow/checks.cjs \
   scope --plan --base <start commit> --artifacts <folder of the pulled build plans>
 ```
 
@@ -2664,7 +2671,7 @@ The proofs, in order:
    the class "<class>" is not a look-only class."
 10. The parsers are TypeScript 5.9.3, libpg-query 18.2.4, parse5 8.1.1, postcss 8.5.33 and
    postcss-scss 4.0.9, which qory's agent image holds in `/opt/qory/parsers/node_modules`
-   (qory `images/agent/Dockerfile`, with `parsers/package-lock.json`). `lib/parse-dump.js`
+   (qory `images/agent/Dockerfile`, with `parsers/package-lock.json`). `lib/parse-dump.cjs`
    loads each with `require()` by its absolute path there, in a process with the
    environment `PATH=/nonexistent` and `LC_ALL=C` and an empty working folder, so a
    `node_modules` of the checkout is never read. No variable and no flag changes that
@@ -2822,10 +2829,10 @@ the rule passes on that file.
    Skill.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
-   `designer`'s exception for Bash states `pack-mockups.js` and `render-mockups.js`, and
+   `designer`'s exception for Bash states `pack-mockups.cjs` and `render-mockups.cjs`, and
    the settings of `software-factory` allow Bash only for those scripts and deny `Edit`
    under `mockup-draft/` and `mockup-render/`. The settings of `core` allow Bash only for
-   `versions.js` and `checks.js`, the versions and checks scripts of `running-a-workflow`.
+   `versions.cjs` and `checks.cjs`, the versions and checks scripts of `running-a-workflow`.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
    `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
    other value fail. The tier is the one that the tier table of the section "Agents" lists
@@ -2894,18 +2901,18 @@ the rule passes on that file.
    fence except `run-artifacts` and `running-a-*`, and no agent loads it. The rule reads the
    skill, and checks no runtime.
 9. The testdata in `modules/software-factory/testdata/` passes the push program of each
-   type, `scripts/push-check.js push` of `core` for `questions` and `review-comments` and
-   `workflow-checks.js push` of `software-factory` for the other five, in a copy that has
+   type, `scripts/push-check.cjs push` of `core` for `questions` and `review-comments` and
+   `workflow-checks.cjs push` of `software-factory` for the other five, in a copy that has
    version 1 of the acceptance criteria and the questions. The questions also pass in a copy
    whose version 1 has only `q1`, `q2` and `q4`, so that the limits of new questions run on
    the others. `scripts/checks.test.js` also checks that each note of `notes.json` has
    `null` or a version id of `index.json`.
-10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in a checks script, each `.js`
-    file of a `running-a-*workflow` skill, names a skill under `modules/`, each range lies
-    inside that skill's `SKILL.md`, and the quote is in one of the ranges. The rule joins
-    the lines of a range with single spaces, so a quote may cross a line break. A citation
-    with no quote fails the rule, and so does each `(SKILL.md:` that is no whole citation on
-    one line.
+10. Each citation `<skill> (SKILL.md:<from>-<to>: "<quote>")` in a checks script, each
+    `.cjs` file of a `running-a-*workflow` skill, names a skill under `modules/`, each range
+    lies inside that skill's `SKILL.md`, and the quote is in one of the ranges. The rule
+    joins the lines of a range with single spaces, so a quote may cross a line break. A
+    citation with no quote fails the rule, and so does each `(SKILL.md:` that is no whole
+    citation on one line.
 11. No file of `modules/core`, except those of the skill `simple-communication`, contains a
     word of software work, in any case, as a whole word: `software`, also in
     `software-factory`; `repository`, `repositories`, `repo` and `repos`; `git` and
@@ -2925,6 +2932,9 @@ the rule passes on that file.
     above `CORE_WORDS`. `simple-communication` is exempt, because it holds the writing rules
     for every kind of text, including commit messages and pull requests. No file of it
     contains `software-factory`.
+12. No file under `modules/` ends in `.js`. The finding of each file starts with its fix,
+    "Rename <path> to .cjs.", and the reason follows: a module's scripts must load as
+    CommonJS in a repository whose `package.json` sets `"type": "module"`.
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

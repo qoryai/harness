@@ -1,6 +1,6 @@
-// The rule for the first line of each finding of checks.js: it starts with the fix, a verb in
+// The rule for the first line of each finding of checks.cjs: it starts with the fix, a verb in
 // the imperative, and has at most 100 characters, because a log viewer or an agent often reads
-// only that line. Each test wrapper of main passes watch().firstLine to main of checks.js,
+// only that line. Each test wrapper of main passes watch().firstLine to main of checks.cjs,
 // which calls it on the first line of each finding that it prints, so that a new text is
 // covered too; the wrapper then calls check with the exit status and stderr.
 'use strict';

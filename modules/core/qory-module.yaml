@@ -3,7 +3,7 @@ name: core
 description: The module the core stack composes
 push_checks:
   - type: questions
-    command: [scripts/push-check.js, push, questions]
+    command: [scripts/push-check.cjs, push, questions]
   - type: review-comments
-    command: [scripts/push-check.js, push, review-comments]
+    command: [scripts/push-check.cjs, push, review-comments]
     reads: [questions]

@@ -4,14 +4,14 @@
     "preToolUse": [
       {
         "type": "command",
-        "bash": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-copilot.js\"",
+        "bash": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-copilot.cjs\"",
         "timeoutSec": 10
       }
     ],
     "agentStop": [
       {
         "type": "command",
-        "bash": "node \"$QORY_HARNESS_HOME/hooks/end-gate-copilot.js\"",
+        "bash": "node \"$QORY_HARNESS_HOME/hooks/end-gate-copilot.cjs\"",
         "timeoutSec": 180
       }
     ]

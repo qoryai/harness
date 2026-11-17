@@ -16,7 +16,7 @@ ENTRY=skills/simple-communication
 VISUALS_ENTRY=skills/visuals
 SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
-CORE_ENTRIES="hooks/end-gate.js hooks/reports-guard.js hooks/tool-guard.js skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
+CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
 SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer"
 # The entries that only a compose of the authoring stack lists.
@@ -275,17 +275,17 @@ rule_tools() {
 }
 
 # The Bash rules for the two mockup scripts, which the settings of software-factory allow.
-RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.js *)"'
-PACK_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/pack-mockups.js *)"'
+RENDER_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/render-mockups.cjs *)"'
+PACK_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/designing-mockups/pack-mockups.cjs *)"'
 # The two Bash rules that the settings of core allow: the main session runs the versions
 # script, which copies the newest version and compares a draft with it, and the checks
 # script, which checks drafts and reports and counts the starts of each agent.
-VERSIONS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.js *)"'
-CHECKS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)"'
+VERSIONS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/versions.cjs *)"'
+CHECKS_RULE='"Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.cjs *)"'
 DRAFT_DENY='"Edit(//tmp/qory-artifacts/**/mockup-draft/**)"'
 RENDER_DENY='"Edit(//tmp/qory-artifacts/**/mockup-render/**)"'
 # The line of designer's Bash exception, which names both mockup scripts.
-DESIGNER_EXCEPTION='Tool exception: Bash, because you run only `pack-mockups.js` and `render-mockups.js`.'
+DESIGNER_EXCEPTION='Tool exception: Bash, because you run only `pack-mockups.cjs` and `render-mockups.cjs`.'
 
 # rule_designer DIR: rule 2, the exception for designer. Its Bash exception is
 # DESIGNER_EXCEPTION, the settings of software-factory allow Bash only for the two mockup
@@ -1106,8 +1106,24 @@ $OUT"
 	return 1
 }
 
+# rule_cjs DIR: rule 12, no file under DIR/modules ends in .js. Node loads a .js file as an
+# ES module when the nearest package.json above it sets "type": "module", as a target
+# repository may, and there require is not defined. Node loads a .cjs file as CommonJS under
+# any package.json. Each finding is a line with its fix and the path under modules/.
+rule_cjs() {
+	OUT=$(CDPATH= cd -- "$1/modules" 2>/dev/null &&
+		find . -type f -name '*.js' | sort | while IFS= read -r file; do
+			printf 'Rename modules/%s to .cjs.\n' "${file#./}"
+		done)
+	[ -z "$OUT" ] && return 0
+	reason="A module's scripts must load as CommonJS in a repository whose package.json"
+	OUT="$OUT
+$reason sets \"type\": \"module\"."
+	return 1
+}
+
 # rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
-# checks scripts, each .js file under a skill running-a-*workflow of DIR/modules, names a skill
+# checks scripts, each .cjs file under a skill running-a-*workflow of DIR/modules, names a skill
 # of DIR/modules, each range lies inside its SKILL.md (from 1 up to the last line, with from at
 # most to), and the quote is in one of the ranges. The rule joins the lines of a range with
 # single spaces before it looks for the quote, so a quote may cross a line break. A citation
@@ -1115,7 +1131,7 @@ $OUT"
 # not match, such as a citation across two lines.
 rule_citations() {
 	OUT=
-	find "$1"/modules/*/skills -path '*/skills/running-a-*workflow/*' -name '*.js' -type f \
+	find "$1"/modules/*/skills -path '*/skills/running-a-*workflow/*' -name '*.cjs' -type f \
 		2>/dev/null | sort >"$TMP/scripts"
 	[ -s "$TMP/scripts" ] || {
 		add "Add the checks script under $1/modules/*/skills/running-a-workflow: the rule reads its citations."
@@ -1426,8 +1442,8 @@ done
 CODEX_CONFIG="$TMP/software/.qory/harness/codex/config.toml"
 expect "checkout extending software by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --runtime codex
-for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.js' \
-	'[[hooks.PreToolUse]]' 'matcher = "*"' 'hooks/tool-guard-codex.js' \
+for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.cjs' \
+	'[[hooks.PreToolUse]]' 'matcher = "*"' 'hooks/tool-guard-codex.cjs' \
 	'[[hooks.PreModelRequest]]'; do
 	if grep -Fq -- "$line" "$CODEX_CONFIG" 2>/dev/null; then
 		pass "harness compose --runtime codex writes $line into config.toml"
@@ -1438,8 +1454,8 @@ done
 CORE_CODEX="$TMP/consumer/.qory/harness/codex/config.toml"
 expect "checkout extending core by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/consumer" "$QORY" harness compose --runtime codex
-for line in '[[hooks.Stop]]' 'hooks/end-gate-codex.js' '[[hooks.PreToolUse]]' \
-	'matcher = "*"' 'hooks/tool-guard-codex.js' '[[hooks.PreModelRequest]]'; do
+for line in '[[hooks.Stop]]' 'hooks/end-gate-codex.cjs' '[[hooks.PreToolUse]]' \
+	'matcher = "*"' 'hooks/tool-guard-codex.cjs' '[[hooks.PreModelRequest]]'; do
 	grep -Fq -- "$line" "$CORE_CODEX" 2>/dev/null ||
 		fail "core: harness compose --runtime codex writes $line into $CORE_CODEX"
 	pass "core: harness compose --runtime codex writes $line into config.toml"
@@ -1604,11 +1620,11 @@ expect_broken "rule 2 fails on another Bash allow rule in the settings of core" 
 	'Bash(node *)' rule_designer "$FIX"
 designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES, $VERSIONS_RULE"
 expect_broken "rule 2 fails on the versions script's rule in the settings of software-factory" \
-	'running-a-workflow/versions.js' rule_designer "$FIX"
+	'running-a-workflow/versions.cjs' rule_designer "$FIX"
 designer_fixture 'Tool exception: Bash, because the role needs it.' "$MOCKUP_RULES"
 expect_broken "rule 2 fails on a designer exception that does not name both mockup scripts" \
 	"Write this line as the Bash exception" rule_designer "$FIX"
-designer_fixture 'Tool exception: Bash, because you run only the render script, `render-mockups.js`.' \
+designer_fixture 'Tool exception: Bash, because you run only the render script, `render-mockups.cjs`.' \
 	"$MOCKUP_RULES"
 expect_broken "rule 2 fails on the designer exception that names only the render script" \
 	"Write this line as the Bash exception" rule_designer "$FIX"
@@ -1617,7 +1633,7 @@ expect_broken "rule 2 fails on designer with no allow rule for the mockup script
 	"Add" rule_designer "$FIX"
 designer_fixture "$DESIGNER_EXCEPTION" "$RENDER_RULE"
 expect_broken "rule 2 fails on designer with no allow rule for the pack script" \
-	'pack-mockups.js' rule_designer "$FIX"
+	'pack-mockups.cjs' rule_designer "$FIX"
 designer_fixture "$DESIGNER_EXCEPTION" "$MOCKUP_RULES, \"Bash(node *)\""
 expect_broken "rule 2 fails on another Bash allow rule beside the mockup scripts'" \
 	'Bash(node *)' rule_designer "$FIX"
@@ -2274,11 +2290,11 @@ printf '%s\n' 'Run the Tests before you push.' >>"$SKILL"
 expect_broken "rule 11 fails on a planted software word in a core skill, in any case" \
 	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
 fixture
-printf '%s\n' '// Write the spec.' >"$FIX/modules/core/skills/sample/check.js"
+printf '%s\n' '// Write the spec.' >"$FIX/modules/core/skills/sample/check.cjs"
 expect_broken "rule 11 fails on a software word in a script of core" \
-	'core/skills/sample/check.js:1:// Write the spec.' rule_core_words "$FIX"
+	'core/skills/sample/check.cjs:1:// Write the spec.' rule_core_words "$FIX"
 fixture
-printf '%s\n' 'if (/^x/.test(line)) process.exit(1);' >"$FIX/modules/core/skills/sample/check.js"
+printf '%s\n' 'if (/^x/.test(line)) process.exit(1);' >"$FIX/modules/core/skills/sample/check.cjs"
 mkdir -p "$FIX/modules/core/skills/simple-communication" "$FIX/modules/software-factory/skills/plain" ||
 	exit 1
 printf '%s\n' 'Write the commit message in the imperative.' \
@@ -2296,7 +2312,7 @@ done
 fixture
 printf '%s\n' 'Leave out .git, and read `.git` and '"'"'.git'"'"' as folders.' >>"$SKILL"
 printf '%s\n' "if (fs.existsSync(path.join(at, '.git'))) return start;" \
-	>"$FIX/modules/core/skills/sample/check.js"
+	>"$FIX/modules/core/skills/sample/check.cjs"
 expect_passes "rule 11 passes on the folder name .git in a core skill and a script" \
 	rule_core_words "$FIX"
 fixture
@@ -2387,7 +2403,7 @@ printf '%s\n' '- ${qory:skills/sample}: before you write.' >"$FIX/modules/sample
 expect_passes "rule 8 passes on a skill that is not a workflow's" rule_orchestrators "$FIX"
 
 mkdir -p "$FIX/modules/core/skills/running-a-workflow" || exit 1
-CITING=$FIX/modules/core/skills/running-a-workflow/checks.js
+CITING=$FIX/modules/core/skills/running-a-workflow/checks.cjs
 printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules of a sample"): a rule.' \
 	'// sample (SKILL.md:8-9: "with ${qory:skills/another}"): a quote across a line break.' \
 	>"$CITING"
@@ -2405,13 +2421,24 @@ printf '// gone (SKILL.md:1: "name"): a rule.\n' >"$CITING"
 expect_broken "rule 10 fails on a skill that does not exist" "gone (SKILL.md:1" rule_citations "$FIX"
 printf '%s\n' '// sample (SKILL.md:1-2, 3: "Contains the rules' '// of a sample"): a rule.' >"$CITING"
 expect_broken "rule 10 fails on a citation across two lines" \
-	"line 1 of running-a-workflow/checks.js" rule_citations "$FIX"
+	"line 1 of running-a-workflow/checks.cjs" rule_citations "$FIX"
 printf '// sample (SKILL.md:1: "name"): a rule.\n' >"$CITING"
 mkdir -p "$FIX/modules/sample/skills/running-a-sample-workflow/types" || exit 1
 printf '// sample (SKILL.md:1-2: "Contains the rules"): a rule.\n' \
-	>"$FIX/modules/sample/skills/running-a-sample-workflow/types/sample.js"
+	>"$FIX/modules/sample/skills/running-a-sample-workflow/types/sample.cjs"
 expect_broken "rule 10 fails on a citation in a script of another running-a-* skill" \
-	"in running-a-sample-workflow/types/sample.js: the quote is in none" rule_citations "$FIX"
+	"in running-a-sample-workflow/types/sample.cjs: the quote is in none" rule_citations "$FIX"
+
+fixture
+printf '%s\n' "'use strict';" >"$FIX/modules/core/skills/sample/check.js"
+expect_broken_first "rule 12 fails on a .js script under modules/" \
+	'Rename modules/core/skills/sample/check.js to .cjs.' rule_cjs "$FIX"
+printf '%s\n' "$OUT" | grep -Fq 'package.json sets "type": "module"' ||
+	fail "rule 12 states why a module's scripts end in .cjs"
+pass "rule 12 states why a module's scripts end in .cjs"
+fixture
+printf '%s\n' "'use strict';" >"$FIX/modules/core/skills/sample/check.cjs"
+expect_passes "rule 12 passes on a .cjs script under modules/" rule_cjs "$FIX"
 
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
@@ -2437,6 +2464,8 @@ rule_citations "$ROOT" || fail "rule 10: each citation of the checks script quot
 pass "rule 10: each citation of the checks script quotes its skill"
 rule_core_words "$ROOT" || fail "rule 11: no text of core contains a word of software work"
 pass "rule 11: no text of core contains a word of software work"
+rule_cjs "$ROOT" || fail "rule 12: each script under modules/ ends in .cjs"
+pass "rule 12: each script under modules/ ends in .cjs"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
@@ -2478,8 +2507,8 @@ expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.te
 # decision record, the demo scenarios and the replies read. $TMP/questions is a copy whose
 # questions version 1 has only q1, q2 and q4, so that the limits of new questions run on the
 # other questions.
-PUSH=$ROOT/modules/software-factory/skills/running-a-software-workflow/workflow-checks.js
-CORE_PUSH=$ROOT/modules/core/scripts/push-check.js
+PUSH=$ROOT/modules/software-factory/skills/running-a-software-workflow/workflow-checks.cjs
+CORE_PUSH=$ROOT/modules/core/scripts/push-check.cjs
 cp -R "$TESTDATA" "$TMP/artifacts" || exit 1
 for type in acceptance-criteria questions; do
 	case $type in
@@ -2558,26 +2587,26 @@ expect "checkout extending authoring by path: harness compose --no-links --runti
 	fail "the authoring stack's push-checks.json has the checks of questions and review-comments"
 pass "the authoring stack's push-checks.json has the checks of questions and review-comments"
 expect "the push program of core in the authoring stack's home passes the testdata's questions" \
-	0 "$TMP/artifacts" node "$TMP/authoring/.qory/harness/modules/core/scripts/push-check.js" \
+	0 "$TMP/artifacts" node "$TMP/authoring/.qory/harness/modules/core/scripts/push-check.cjs" \
 	push questions questions.json
 
-# The checks script loads a workflow-checks.js only from a skill folder whose hash is in
+# The checks script loads a workflow-checks.cjs only from a skill folder whose hash is in
 # modules/core/skills/running-a-workflow/trusted-checks.json. Each runtime's skills folder
 # of the software stack loads the checks of software-factory.
 for runtime in codex gemini cursor copilot claude; do
 	expect "checkout extending software by path: harness compose --no-links --runtime $runtime exits 0" \
 		0 "$TMP/software" "$QORY" harness compose --no-links --runtime "$runtime"
 done
-find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.js' 2>/dev/null |
+find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||
-	fail "the software stack's home has checks.js in the skills folder of each runtime: $(cat "$TMP/checks-scripts")"
+	fail "the software stack's home has checks.cjs in the skills folder of each runtime: $(cat "$TMP/checks-scripts")"
 while IFS= read -r script; do
 	expect "the software stack's ${script#"$TMP/software/.qory/harness/"} checks the testdata's spec" \
 		0 "$TMP/artifacts" node "$script" push spec spec.md
 done <"$TMP/checks-scripts"
 # $TMP/layer extends the software stack and appends the module team from the checkout. Its
-# skill x has a workflow-checks.js whose code writes $TMP/marker when it loads.
+# skill x has a workflow-checks.cjs whose code writes $TMP/marker when it loads.
 LAYER=$TMP/layer
 mkdir -p "$LAYER/team/skills/x" || exit 1
 run "$LAYER" git init -q
@@ -2590,13 +2619,13 @@ marked_checks() {
 	printf '%s\n' "require('node:fs').writeFileSync('$MARKER', 'ran');" \
 		'module.exports = () => ({ types: [] });' >"$1"
 }
-marked_checks "$LAYER/team/skills/x/workflow-checks.js" || exit 1
+marked_checks "$LAYER/team/skills/x/workflow-checks.cjs" || exit 1
 printf "harness:\n  extends: {path: '%s', stack: software}\n  modules:\n    - name: team\n      source: {path: ./team}\n" \
 	"$QROOT" >"$LAYER/qory.yaml" || exit 1
 expect "checkout appending a module to software: harness compose --no-links --runtime claude exits 0" \
 	0 "$LAYER" "$QORY" harness compose --no-links --runtime claude
 LHOME=$LAYER/.qory/harness
-REFUSED="Remove skills/x/workflow-checks.js from team: only the stack's modules add checks."
+REFUSED="Remove skills/x/workflow-checks.cjs from team: only the stack's modules add checks."
 # refused TEXT DIR COMMAND...: COMMAND, run in DIR, exits 3 with REFUSED, and the marker does
 # not exist.
 refused() {
@@ -2607,18 +2636,18 @@ refused() {
 	[ ! -e "$MARKER" ] || fail "$text: the code of the refused file ran"
 	pass "$text: the code of the refused file did not run"
 }
-refused "a module of the checkout stops checks.js push in claude's skills folder" \
-	"$TMP/artifacts" node "$LHOME/claude/plugin/skills/running-a-workflow/checks.js" \
+refused "a module of the checkout stops checks.cjs push in claude's skills folder" \
+	"$TMP/artifacts" node "$LHOME/claude/plugin/skills/running-a-workflow/checks.cjs" \
 	push questions questions.json
 refused "a module of the checkout stops the push check of core" \
-	"$TMP/artifacts" node "$LHOME/modules/core/scripts/push-check.js" push questions questions.json
+	"$TMP/artifacts" node "$LHOME/modules/core/scripts/push-check.cjs" push questions questions.json
 refused "a module of the checkout stops the push check of software-factory" \
 	"$TMP/artifacts" node \
-	"$LHOME/modules/software-factory/skills/running-a-software-workflow/workflow-checks.js" \
+	"$LHOME/modules/software-factory/skills/running-a-software-workflow/workflow-checks.cjs" \
 	push spec spec.md
 # $TMP/linked appends the module team, whose skill x is a copy of running-a-software-workflow
-# with workflow-checks.js as a link to a byte-identical copy in team/evil. require would load
-# the lib/documents.js beside the link's target, which writes the marker.
+# with workflow-checks.cjs as a link to a byte-identical copy in team/evil. require would load
+# the lib/documents.cjs beside the link's target, which writes the marker.
 TRUSTED_SKILL=$ROOT/modules/software-factory/skills/running-a-software-workflow
 LINKED=$TMP/linked
 mkdir -p "$LINKED/team/skills" || exit 1
@@ -2629,26 +2658,26 @@ cp "$LAYER/team/qory-module.yaml" "$LINKED/team/" &&
 	cp -R "$TRUSTED_SKILL" "$LINKED/team/evil" &&
 	sed 's/^name: running-a-software-workflow$/name: x/' "$TRUSTED_SKILL/SKILL.md" \
 		>"$LINKED/team/skills/x/SKILL.md" &&
-	marked_checks "$LINKED/team/evil/lib/documents.js" &&
-	rm "$LINKED/team/skills/x/workflow-checks.js" &&
-	ln -s ../../evil/workflow-checks.js "$LINKED/team/skills/x/workflow-checks.js" &&
+	marked_checks "$LINKED/team/evil/lib/documents.cjs" &&
+	rm "$LINKED/team/skills/x/workflow-checks.cjs" &&
+	ln -s ../../evil/workflow-checks.cjs "$LINKED/team/skills/x/workflow-checks.cjs" &&
 	cp "$LAYER/qory.yaml" "$LINKED/" || exit 1
 for links in --no-links ''; do
-	expect "checkout appending a linked workflow-checks.js: harness compose $links --runtime claude exits 0" \
+	expect "checkout appending a linked workflow-checks.cjs: harness compose $links --runtime claude exits 0" \
 		0 "$LINKED" "$QORY" harness compose $links --runtime claude
-	refused "a linked workflow-checks.js (compose $links) stops checks.js push in claude's skills folder" \
-		"$TMP/artifacts" node "$LINKED/.qory/harness/claude/plugin/skills/running-a-workflow/checks.js" \
+	refused "a linked workflow-checks.cjs (compose $links) stops checks.cjs push in claude's skills folder" \
+		"$TMP/artifacts" node "$LINKED/.qory/harness/claude/plugin/skills/running-a-workflow/checks.cjs" \
 		push questions questions.json
-	refused "a linked workflow-checks.js (compose $links) stops the push check of core" \
-		"$TMP/artifacts" node "$LINKED/.qory/harness/modules/core/scripts/push-check.js" \
+	refused "a linked workflow-checks.cjs (compose $links) stops the push check of core" \
+		"$TMP/artifacts" node "$LINKED/.qory/harness/modules/core/scripts/push-check.cjs" \
 		push questions questions.json
 done
 # A skill that a session writes into the composed home is refused too.
-REFUSED="Remove skills/later/workflow-checks.js from "
+REFUSED="Remove skills/later/workflow-checks.cjs from "
 mkdir -p "$TMP/software/.qory/harness/claude/plugin/skills/later" || exit 1
-marked_checks "$TMP/software/.qory/harness/claude/plugin/skills/later/workflow-checks.js" || exit 1
-refused "a skill written into the software stack's home stops checks.js push" \
-	"$TMP/artifacts" node "$TMP/software/.qory/harness/claude/plugin/skills/running-a-workflow/checks.js" \
+marked_checks "$TMP/software/.qory/harness/claude/plugin/skills/later/workflow-checks.cjs" || exit 1
+refused "a skill written into the software stack's home stops checks.cjs push" \
+	"$TMP/artifacts" node "$TMP/software/.qory/harness/claude/plugin/skills/running-a-workflow/checks.cjs" \
 	push questions questions.json
 rm -rf "$TMP/software/.qory/harness/claude/plugin/skills/later"
 # This compose writes into $TMP/software, so that the check can read the composed settings.
@@ -2684,8 +2713,8 @@ const blocks = pre.every((group) => (group.hooks || []).every((hook) =>
 	hook.type !== "command" || hook.onFailure === "block"));
 const guard = blocks && pre.some((group) =>
 	group.matcher === "*" &&
-	JSON.stringify(group.hooks || []).includes("hooks/tool-guard-claude.js")) &&
-	JSON.stringify((settings.hooks || {}).PostToolBatch || []).includes("hooks/tool-guard-claude.js");
+	JSON.stringify(group.hooks || []).includes("hooks/tool-guard-claude.cjs")) &&
+	JSON.stringify((settings.hooks || {}).PostToolBatch || []).includes("hooks/tool-guard-claude.cjs");
 const deny = (settings.permissions || {}).deny || [];
 const allow = (settings.permissions || {}).allow || [];
 const reports = deny.filter((rule) => rule.includes(".reports/**/*.json"));
@@ -2694,7 +2723,7 @@ const locks = deny.filter((rule) => rule.endsWith(".reports/*.json.lock*)"));
 const wanted = process.argv.slice(2).map((rule) => JSON.parse(rule).split("$QORY_HARNESS_HOME"));
 const allowed = wanted.every(([start, end = ""]) =>
 	allow.some((rule) => rule.startsWith(start) && rule.endsWith(end)));
-process.exit(stop.includes("hooks/end-gate-claude.js") && guard && reports.length === 3 &&
+process.exit(stop.includes("hooks/end-gate-claude.cjs") && guard && reports.length === 3 &&
 	locks.length === 3 && allowed ? 0 : 1);
 ' "$1" '"Skill(harness:running-a-workflow)"' "$VERSIONS_RULE" "$CHECKS_RULE"
 }
@@ -2752,7 +2781,7 @@ pass "the settings composed for the software stack on claude have each allow rul
 for pair in gemini:gemini/settings.json cursor:cursor/hooks.json copilot:copilot/hooks/qory-hooks.json; do
 	runtime=${pair%%:*}
 	file=$TMP/consumer/.qory/harness/${pair#*:}
-	grep -Fq "hooks/end-gate-$runtime.js" "$file" ||
-		fail "core: the hooks composed on $runtime run end-gate-$runtime.js ($file)"
-	pass "core: the hooks composed on $runtime run end-gate-$runtime.js"
+	grep -Fq "hooks/end-gate-$runtime.cjs" "$file" ||
+		fail "core: the hooks composed on $runtime run end-gate-$runtime.cjs ($file)"
+	pass "core: the hooks composed on $runtime run end-gate-$runtime.cjs"
 done
