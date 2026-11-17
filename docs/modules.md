@@ -180,8 +180,8 @@ An agent that the table does not list sets no `model` key.
 - On Codex, the `tools` key only turns the shell off: at qory `91f02f0`, the compose writes
   `name`, `description` and `developer_instructions` into an agent's file, and
   `shell_tool = false` under `[features]` when the key lists neither `Bash` nor `PowerShell`
-  (`keepsShell` in `internal/render/codex/codex.go`). So an agent whose key lists no Bash
-  runs no command on Codex either. Codex has no setting for any other tool of an agent. The
+  (`keepsShell` in `internal/render/codex/codex.go`). Whether Codex then runs no command for
+  that agent is untested. Codex has no setting for any other tool of an agent. The
   documentation of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and
   approval settings, so no sandbox per agent exists. A reviewer's read-only rule, a writer's
   limit to the artifact folder and the rule on web tools are only in the agent's text. On
@@ -571,10 +571,10 @@ from qory at `91f02f0`:
   the home, the working folder, the pushed files and a copy of the run's `inputs.json` when
   one exists, each mounted read-only, with `--network none` and `--cap-drop ALL`
   (`internal/pushcheck/pushcheck.go`, `run` and `bindMount`). A walled run from a run code
-  stops when a mount or the home is or contains the report (`reportExposed` in
-  `cmd/rundocs.go`), and a read-only run stops when its checkout or working folder is or
-  contains it (`readExposed`, called from `cmd/run.go`). A write run works in a copy and
-  mounts neither. So the agent's container has no report.
+  stops when a mount that the run adds is or contains the report (`reportExposed` in
+  `cmd/rundocs.go`). A read-only run also stops when its checkout or working folder is or
+  contains the report (`readExposed` there); a write run works in a copy and mounts neither.
+  `cmd/run.go` calls both, so the agent's container has no report.
 - An appended module may ship files outside its entries and may declare `push_checks`, so
   neither a place in the home nor `push-checks.json` marks a module of the stack. A checkout
   cannot replace the module `core`: the compose stops with "List module core with its name

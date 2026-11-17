@@ -806,8 +806,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   does not except, on two patterns of different tiers that match a common name, on a name
   listed under two tiers, and on a name that a row of its tier also excepts.
   `writing-agents` and `harness-reviewer` follow the same rule.
-- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
-  Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
+- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `91f02f0`,
+  Forager at `b6bf9042` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
   files of `simple-communication`.
 - Each finding of a reviewer has a `Point:` line: one sentence that a member reads when the
