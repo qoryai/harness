@@ -264,6 +264,15 @@ test('a command whose writes the guard does not read is denied when it reaches a
     }
     firstLine(guard(codex('Bash', { command: `${checks} run targeted ${file}` }, 'implementer')),
       opaque);
+    // An opaque command is read after the shell removes quotes and expands braces.
+    for (const command of [`python3 -c 'x' ch''ecks`, `python3 -c 'x' $'\\x63hecks'`,
+      'node x.js {c..c}hecks', `node x.js checks/corrected-reply.check.{s..u}s`]) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), opaque);
+    }
+    firstLine(guard(codex('Bash', { command: "node x.js .q''ory/build" }, 'implementer')),
+      'Leave .qory/build/ as it is');
+    firstLine(guard(codex('Bash', { command: 'rm -rf {c..c}hecks' }, 'implementer')),
+      'Leave the locked file as it is');
     // A read-only command keeps only its read-only options: any other option, such as one
     // that runs a command, makes it opaque.
     for (const command of ['rg --pre=rm x checks', `rg --pre=sh x ${file}`,

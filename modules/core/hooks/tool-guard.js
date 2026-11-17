@@ -588,8 +588,9 @@ const BRACED = 64;
 
 // braceGroups returns the top-level brace groups of word that the shell expands, each as
 // { start, end, parts, nested }: a { outside quotes, not after $ or a backslash, whose }
-// closes it with a comma at its level between them. parts are the texts between those commas,
-// and nested reports whether a group holds another group. One pass with a stack of open
+// closes it with a comma at its level between them, or with a sequence of sequence between
+// them. parts are the texts between those commas, or the words of the sequence, and nested
+// reports whether a group holds another group. One pass with a stack of open
 // braces finds them, so the time grows in a line with the length of word.
 function braceGroups(word) {
   const groups = [];
@@ -607,21 +608,47 @@ function braceGroups(word) {
     } else if (char === ',' && open.length) open[open.length - 1].commas.push(at);
     else if (char === '}' && open.length) {
       const group = open.pop();
-      if (group.commas.length && open.length) open[open.length - 1].nested = true;
+      const range = group.commas.length ? null : sequence(word.slice(group.start + 1, at));
+      if ((group.commas.length || range) && open.length) open[open.length - 1].nested = true;
       if (group.commas.length && !open.length) {
         const cuts = [group.start, ...group.commas, at];
         groups.push({ start: group.start, end: at, nested: group.nested,
           parts: cuts.slice(1).map((cut, k) => word.slice(cuts[k] + 1, cut)) });
+      } else if (range && !open.length) {
+        groups.push({ start: group.start, end: at, nested: false, parts: range });
       }
     }
   }
   return groups;
 }
 
+// sequence returns the words of body, the text in the braces of a sequence such as {1..5},
+// {01..10..3} or {a..e}, as the shell makes them, up to BRACED + 1 words, or null when body
+// is no sequence. A number with a leading 0 pads every number to the widest of the two.
+function sequence(body) {
+  const numbers = /^(-?\d+)\.\.(-?\d+)(?:\.\.(-?\d+))?$/.exec(body);
+  const letters = /^([A-Za-z])\.\.([A-Za-z])(?:\.\.(-?\d+))?$/.exec(body);
+  const match = numbers || letters;
+  if (!match) return null;
+  const [from, to] = numbers ? [Number(match[1]), Number(match[2])]
+    : [match[1].charCodeAt(0), match[2].charCodeAt(0)];
+  const step = Math.abs(Number(match[3] || 1)) || 1;
+  const pad = numbers && [match[1], match[2]].some((one) => /^-?0\d/.test(one))
+    ? Math.max(match[1].length, match[2].length) : 0;
+  const out = [];
+  for (let at = from; (from <= to ? at <= to : at >= to) && out.length <= BRACED;
+    at += from <= to ? step : -step) {
+    if (letters) out.push(String.fromCharCode(at));
+    else if (at < 0) out.push(`-${String(-at).padStart(pad - 1, '0')}`);
+    else out.push(String(at).padStart(pad, '0'));
+  }
+  return out;
+}
+
 // braces returns the words of word after the shell expands its braces, as in `rm {a,b}`, up to
 // BRACED words. When word would have more, or has a group in a group, it also returns word
 // with each group as *, so that the guard reads every path that the shell could make. A brace
-// with no comma, such as {} or ${x}, stays.
+// with no comma and no sequence, such as {} or ${x}, stays.
 function braces(word) {
   const groups = braceGroups(word);
   if (!groups.length) return [word];
@@ -1681,9 +1708,10 @@ function reaches(parts, files, folder, root, { realOf, fold, spend }) {
   const longest = Math.max(0, ...[...named.keys()].map((name) => name.length));
   const full = fold(folder);
   const hit = (at) => reached.get(at) || (under(at, full) ? folder : null);
-  for (const one of parts) {
-    if (one.words.length && CD.has(path.basename(one.words[0]))) continue;
-    const text = fold(one.text);
+  // reachedIn returns { word, file } of the first word of raw, a text of the command one,
+  // that reaches a file, or null. With plain, raw is a word without quotes, read as it is.
+  const reachedIn = (raw, plain, one) => {
+    const text = fold(raw);
     // A name reaches where no word character or . comes before it and no word character
     // after it: it starts a run of word characters, dots and dashes, and a dot or the end of
     // the run follows it.
@@ -1705,22 +1733,32 @@ function reaches(parts, files, folder, root, { realOf, fold, spend }) {
         }
       }
     }
-    for (const token of one.text.match(TOKEN) || []) {
+    for (const token of raw.match(TOKEN) || []) {
       if (vague(token)) continue;
       for (const cwd of one.lost ? [] : one.cwds) {
         spend();
         if (!wild(token)) {
-          const file = hit(fold(realOf(joined(cwd, unquote(token)))));
+          const file = hit(fold(realOf(joined(cwd, plain ? token : unquote(token)))));
           if (file) return { word: token, file };
           continue;
         }
-        const pattern = path.resolve(cwd, patternOf(token));
+        const pattern = path.resolve(cwd, plain ? token : patternOf(token));
         // A wildcard reaches a file that it matches, or a folder above one below root.
         if (pattern.split(path.sep).filter(Boolean).length <= depth) continue;
         const file = [...files, folder].find((each) => ['equal', 'above'].includes(
           globReach(pattern, fold(each), fold, true)));
         if (file) return { word: token, file };
       }
+    }
+    return null;
+  };
+  for (const one of parts) {
+    if (one.words.length && CD.has(path.basename(one.words[0]))) continue;
+    // The text of the command, and each of its words after the shell removes quotes and
+    // expands braces, as in ch''ecks, $'\x63hecks' or {c..c}hecks.
+    for (const [index, raw] of [one.text, ...plainWords(one.words)].entries()) {
+      const found = reachedIn(raw, index > 0, one);
+      if (found) return found;
     }
   }
   return null;
