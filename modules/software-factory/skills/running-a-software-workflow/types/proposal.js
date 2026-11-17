@@ -10,7 +10,7 @@ module.exports = (lib) => {
     address, areaOf, BadQuestions, blank, characters, codeSpans, factoryExtensions, fenceLine,
     firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind, lines,
     markdownText, Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
-    results, same, sections, sentences, sha256, table, topSections, TRACK_LISTS, trackLists,
+    results, same, sections, sentences, sha256, table, topSections, TRACK_LISTS, trackLine, trackLists,
     trackRecordOf, words,
   } = lib;
 
@@ -698,13 +698,9 @@ module.exports = (lib) => {
   // after "Reason: " as the reason, compared exactly. A proposal with no ## Track, or one
   // whose first line starts with no track, gives none: the check of the draft reports it.
   function verdictTrack(text, verdict) {
-    const part = sections(lines(text), 2).slice(1).find((one) => one.title === 'Track');
-    if (!part) return [];
-    const body = part.lines.filter((line) => !blank(line) && !line.fenced)
-      .map((line) => line.text.trim());
-    const named = /^([A-Za-z][A-Za-z0-9-]*) track(?=[.:])/.exec(body[0] || '');
-    if (!named) return [];
-    const id = named[1].toLowerCase();
+    const found = trackLine(text);
+    if (!found) return [];
+    const { id, body } = found;
     const reason = id === TRACK_LISTS.track && /^Reason: (\S.*)$/.exec(body[1] || '');
     // The id of a track is one word of ## Track; a long one goes on the line of the cause.
     const flag = id.length > 20 ? '--track <id>' : `--track ${id}`;

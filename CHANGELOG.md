@@ -8,6 +8,58 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `checks.js prove [--inputs <path>] [--base <commit>]` proves the commits of a fast-track
+  run: the commits from `--base`, else `qory.start_commits` of `inputs.json`, to HEAD,
+  against the kind that `## Track` of the pulled proposal declares. `scope --plan`, which
+  qory's push step runs, calls it when that proposal is on the fast track, in place of the
+  Files of a build plan, and a failed proof stops the push. `check submission` and the end
+  check run the same proof, and with the parsers missing they write one line on stderr and
+  leave the proof to `scope --plan`. No path that a commit touches is in a sensitive area;
+  "a document" changes documents only; "a text that the product shows" changes the wording
+  of entries of JSON translation files, with the same keys and placeholders, in files that
+  every language has; a change that only adds or removes white space fails; "a comment"
+  changes comments of shell, Python, TypeScript, JavaScript, SQL and HTML files, "a text
+  value in a code file" changes text values of those files except shell, and "a look-only
+  change" changes values of colour, typography, spacing, border, corner radius and shadow
+  in CSS, SCSS, design tokens, CSS-in-JS and Tailwind classes, so that the two commits
+  have the same tree once those are masked. A shell file that closes the function wrapper
+  of its parse fails, and nothing of a file runs. TypeScript, SQL, HTML and CSS are read
+  by the parsers in `/opt/qory/parsers/node_modules`, loaded by absolute path; without
+  them, `prove` has the finding to propose the standard track. A file of another language,
+  and a class that the Tailwind table lacks, have the same finding. `short-path.json` has
+  the file patterns, placeholders and tables in `kind_data`, next to the kinds.
+- The proof of the fast track hashes each commit, tree and blob that it reads, and sets
+  `log.showSignature=false` and the gpg programs to `/dev/null` for every git call, so a
+  session that owns `.git` cannot forge an object or run a planted program. A change of a
+  comment, a text value or a look value that also changes white space outside them fails.
+  "a text value in a code file" never changes a string with a link, markup, a template,
+  SQL, shell syntax or a path, an operand of a comparison or a `case` label, a key, a
+  type, a selector, a test id, or an argument of `eval`, `exec`, `query`, `fetch` and
+  `require`, and SQL files have no such proof. "a document" has no `.txt` file but
+  `README.txt`, `LICENSE.txt` and the like, no `.mdx` file, and none of the files that
+  steer an agent (`CLAUDE.md`, `AGENTS.md`, `.claude/**`). A look value calls only colour,
+  number and length functions. The sensitive areas match file names such as `session.ts`
+  and `GNUmakefile`. The proof takes at most 200 files and 60 s.
+- The proof of the fast track runs no program from the config of a checkout in a partial
+  clone (no transport, no upload program, no lazy fetch), reads an HTML text that is no
+  `<!--` comment, such as `<?php ?>` and `<![CDATA[ ]]>`, as code, counts a comment with a
+  word of suppression (`ignore`, `skip`, `disable`, `suppress` and the like) as code,
+  denies more shell characters, host names, call shapes and `..` parts in a text value,
+  excludes more files that steer an agent from "a document", fails a blob that is no
+  UTF-8, matches its patterns in linear time, and stops each step at the time that is left
+  of its 60 s.
+- The proof of the fast track allows no git transport (an empty `GIT_ALLOW_PROTOCOL`),
+  refuses a git older than 2.44, names a partial clone, matches the exclude list and the
+  sensitive areas with Unicode case folding (so `AGENTſ.md` is `AGENTS.md`), excludes more
+  files that steer an agent, tests a text value in its NFKC form and without tabs and line
+  breaks, denies a `scheme:` followed by a non-space, reads a translation file as strict
+  UTF-8 with at most 64 levels of nesting, and runs the Python `pragma` pattern in linear
+  time.
+- The deny list of text values reads ASCII the same way in TypeScript and Python, and
+  tests a string without its ignorable code points and with U+3002 and U+FF61 as a full
+  stop; a design-token file that nests more than 64 levels is the finding "Propose the
+  standard track"; "a document" excludes `agents/**/*.md`, `AGENTS.local.md` and
+  `GEMINI.local.md`.
 - The build ledger of a Build session, in the verbs `step` and `resume` of `checks.js`.
   `core` keeps the rows: the pass of each id, the state, the agent starts, the report, the
   replays, the 101st row and the escalation `ledger-full`; `running-a-software-workflow`

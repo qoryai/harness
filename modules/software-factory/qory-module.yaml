@@ -10,8 +10,9 @@ description: >-
   acceptance criteria; the skill running-a-software-workflow, which a small workflow's session
   loads after running-a-workflow of core, and whose workflow-checks.js adds the checks of the
   software documents and of the types of Build and Verify, and is the program of each push
-  check; the skill running-checks, with the verbs run, scope, freeze, diff and probe of the
-  checks script; the skills writing-specs and checking-specs; the agents spec-writer and
+  check; the skill running-checks, with the verbs run, scope, freeze, diff, probe and
+  prove of the checks script, where prove takes --inputs, --base and --artifacts; the skills
+  writing-specs and checking-specs; the agents spec-writer and
   spec-reviewer; the workflow-write-technical-decisions skill, which orchestrates one ticket's
   decision record; the skills writing-decisions and checking-decisions; the agents
   decision-writer and decision-reviewer; the workflow-make-mockups skill, which orchestrates

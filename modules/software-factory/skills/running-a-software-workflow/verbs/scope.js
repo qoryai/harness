@@ -14,7 +14,9 @@
 // each commit since the base for keys: its files, its message and its headers. Without one,
 // freeze scans every commit that no remote branch has. freeze requests no push: qory pushes
 // after each session. On a checkout with no change, such as qory's clean copy of the commits,
-// freeze makes no commit, and exits by the checks of the commits alone.
+// freeze makes no commit, and exits by the checks of the commits alone. When the proposal in the
+// pulled artifacts is on the fast track, scope --plan proves the commits against the kind of its
+// ## Track, in place of the Files of a build plan (lib/proof.js).
 'use strict';
 
 const fs = require('node:fs');
@@ -207,7 +209,59 @@ module.exports = (lib) => {
   // on no remote branch.
   const since = (base) => (base ? `since ${base.slice(0, 12)}` : 'on no remote branch');
 
+  // fastTrack returns what the pulled proposal says about the fast track for scope --plan: the
+  // track as lib.proposalTrack returns it when the proposal is on the fast track, else null. The
+  // proposal is the newest one in the folder of --artifacts or of qory.start_artifacts, the same
+  // folder that the build plan comes from. Another call, and a folder with no proposal, give
+  // null.
+  function fastTrack(io, given) {
+    if (!given.plan) return null;
+    const start = starts.readStart(io.cwd, given.inputs, io.env);
+    const planned = starts.planIo(io, given.artifacts, start);
+    if (!planned.pinned) return null;
+    const folder = planned.artifacts[0];
+    const context = new lib.Context(folder, 'check', io.home, folder);
+    context.inputs = given.inputs === undefined ? null : path.resolve(io.cwd, given.inputs);
+    context.workingFolder = git.top(Missing, io.cwd, io.env);
+    const track = lib.proposalTrack(context);
+    return track && track.fast ? track : null;
+  }
+
+  // scopeFast is scope --plan for a run on the fast track: the commits are judged by the proof
+  // of the declared kind, not by the Files of a build plan, which the fast track has none of, and
+  // each commit is scanned for keys as scope does. The start commit is --base, or the start commit
+  // of inputs.json.
+  function scopeFast(io, given, track) {
+    const work = git.checkout(Missing, io);
+    const start = starts.readStart(io.cwd, given.inputs, io.env);
+    const base = starts.baseOf(io, 'scope', work, given.base, start);
+    if (!base) {
+      throw new Missing('Give scope --plan --base, or --inputs: the proof of the fast track ' +
+        'needs the start commit.');
+    }
+    const done = track.kind
+      ? lib.prove({ cwd: io.cwd, env: io.env, base,
+        inputs: given.inputs === undefined ? undefined : path.resolve(io.cwd, given.inputs),
+        kind: track.kind, lists: track.lists })
+      : { findings: ['Propose the standard track: ## Track names no kind of the fast track.'],
+        count: 0 };
+    const keys = scanHistory(io, work.top, base, 'scope');
+    const scanned = `Scanned ${plural(keys.commits, 'commit')} ${since(base)} for keys: ` +
+      `${plural(keys.lines.length, 'finding')}.`;
+    if (!done.findings.length && !keys.lines.length && !work.excluded) {
+      io.print([], `Passed: ${plural(done.count, 'changed path')} prove ${quote(track.kind)}, ` +
+        `${plural(keys.commits, 'commit')} with no key.`);
+      return 0;
+    }
+    io.print([...(work.excluded ? [git.EXCLUDED] : []), ...done.findings, ...keys.lines,
+      scanned], `Checked ${plural(done.count, 'changed path')} against ${quote(track.kind || '')}: ` +
+      `${plural(done.findings.length, 'finding')}.`);
+    return 1;
+  }
+
   function scope(io, given) {
+    const fast = fastTrack(io, given);
+    if (fast) return scopeFast(io, given, fast);
     const found = inScope(io, 'scope', given);
     const keys = found.base ? scanHistory(io, found.work.top, found.base, 'scope') : null;
     const red = found.outside.length || found.work.excluded || (keys && keys.lines.length);

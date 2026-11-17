@@ -1,14 +1,18 @@
 // The lists of the fast track: the id of the track, the kinds and the sensitive areas of
 // short-path.json in this skill's folder, each area with its name and the file patterns of
 // its files, the changes that a repository makes to them, and the match of a file against the
-// patterns.
+// patterns. kind_data of short-path.json has the data of the proofs of two kinds: the file
+// patterns of a document, and the file patterns and placeholders of a text that the product
+// shows. trackLine reads the first line of ## Track of a proposal.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
 module.exports = (lib) => {
-  const { extensionsFix, factoryExtensions, isObject, jsonKind, Missing, quote } = lib;
+  const {
+    blank, extensionsFix, factoryExtensions, isObject, jsonKind, lines, Missing, quote, sections,
+  } = lib;
 
   // A character that no name or pattern of an area contains: a control character (C0, C1 and
   // DEL), a line or paragraph separator, or a bidirectional control or mark, as
@@ -108,7 +112,7 @@ module.exports = (lib) => {
       }
     }
     if (brace) throw new Error('it has { with no } after it');
-    return new RegExp(`^${out}$`, 'i');
+    return new RegExp(`^${out}$`, 'iu');
   }
 
   // plainRef returns a ref of sources.json as a path from the repository root: each \ a /,
@@ -170,10 +174,131 @@ module.exports = (lib) => {
     return null;
   }
 
-  // moduleLists returns the track id, the kinds and the areas of short-path.json. The track
-  // id is one word in lower case, which a proposal writes with a capital first letter, such
-  // as fast in "Fast track". A file in another form is a fault of the module: the Error
-  // contains the file.
+  // The kinds whose proofs read data, with the members of their entry in kind_data. A pattern
+  // of a translation file has <lang> once, where the code of the language is.
+  const KIND_DATA = {
+    'a document': ['files', 'exclude'],
+    'a text that the product shows': ['files', 'placeholders'],
+    'a look-only change': ['token_files', 'token_types', 'properties', 'variable_words',
+      'tailwind'],
+  };
+  const LANG = '<lang>';
+
+  // listOfTexts returns why value is no list of texts on one line, with at least min of them,
+  // or null.
+  const listOfTexts = (value, min = 1) => (!Array.isArray(value) || value.length < min ||
+    !value.every((item) => typeof item === 'string' && !CONTROL.test(item))
+    ? 'is no list of texts on one line' : null);
+
+  // filePatterns returns why the list of file patterns cannot be read by globRegExp, with
+  // <lang> in each pattern wants times, or null.
+  function filePatterns(list, wants) {
+    const why = listOfTexts(list);
+    if (why) return why;
+    for (const item of list) {
+      const count = item.split(LANG).length - 1;
+      if (!item || count !== wants) {
+        return `has the pattern ${quote(item)}, with ${LANG} ${count} times, not ${wants}`;
+      }
+      try {
+        globRegExp(item);
+      } catch (error) {
+        return `has the pattern ${quote(item)}, which cannot be read: ${error.message}`;
+      }
+    }
+    return null;
+  }
+
+  // tailwindForm returns why value is no table of Tailwind classes, or null: lists of values,
+  // and utilities, each a prefix, the values (a list, or the name of a list), the property that
+  // the class sets and, optionally, opacity and negative as true.
+  function tailwindForm(value) {
+    if (!isObject(value)) return 'is no object';
+    const lists = Object.keys(value).filter((key) => key !== 'utilities');
+    for (const key of lists) {
+      if (!Array.isArray(value[key]) || !value[key].every((item) => typeof item === 'string')) {
+        return `has ${quote(key)}, which is no list of texts`;
+      }
+    }
+    if (!Array.isArray(value.utilities) || !value.utilities.length) return 'has no utilities';
+    for (const row of value.utilities) {
+      if (!isObject(row) || typeof row.prefix !== 'string' || !row.prefix ||
+        typeof row.property !== 'string' || !row.property ||
+        Object.keys(row).some((key) => !['prefix', 'values', 'property', 'opacity', 'negative']
+          .includes(key))) {
+        return 'has a utility with no prefix and property, or with another member';
+      }
+      const known = row.values === 'colors' || (typeof row.values === 'string' &&
+        Array.isArray(value[row.values])) || (Array.isArray(row.values) &&
+        row.values.every((item) => typeof item === 'string'));
+      if (!known) return `has the utility ${quote(row.prefix)} with values that name no list`;
+    }
+    return null;
+  }
+
+  // lookForm returns why the entry of a look-only change is in no form that the proof reads, or
+  // null.
+  function lookForm(entry) {
+    const files = filePatterns(entry.token_files, 0);
+    if (files) return `token_files ${files}`;
+    const types = listOfTexts(entry.token_types);
+    if (types) return `token_types ${types}`;
+    if (!isObject(entry.properties) || !Object.values(entry.properties)
+      .every((list) => !listOfTexts(list))) return 'properties is no object of lists of texts';
+    if (!isObject(entry.variable_words) || !Object.values(entry.variable_words)
+      .every((word) => typeof word === 'string')) return 'variable_words is no object of texts';
+    const table = tailwindForm(entry.tailwind);
+    return table ? `tailwind ${table}` : null;
+  }
+
+  // kindDataForm returns why value, the kind_data of short-path.json for the kinds in kinds, is
+  // in no form that the proofs read, or null. Each kind of KIND_DATA has an entry with its
+  // members and no other; files is a list of file patterns that globRegExp reads, one line
+  // each, and for a text that the product shows each has <lang> once; placeholders is a list
+  // of regular expressions that compile and match no empty text.
+  function kindDataForm(value, kinds) {
+    if (!isObject(value)) return `kind_data is ${jsonKind(value)}, not an object`;
+    for (const key of Object.keys(value)) {
+      if (!Object.hasOwn(KIND_DATA, key)) {
+        return `kind_data has the key ${quote(key)}, a kind with no data`;
+      }
+    }
+    for (const [kind, members] of Object.entries(KIND_DATA)) {
+      if (!kinds.includes(kind)) continue;
+      const entry = value[kind];
+      if (!isObject(entry)) return `kind_data has no entry for ${quote(kind)}`;
+      const other = Object.keys(entry).find((key) => !members.includes(key));
+      if (other !== undefined) return `the entry ${quote(kind)} has the key ${quote(other)}`;
+      const missing = members.find((key) => entry[key] === undefined);
+      if (missing) return `the entry ${quote(kind)} has no ${missing}`;
+      let why = null;
+      if (kind === 'a document') {
+        why = filePatterns(entry.files, 0) || (filePatterns(entry.exclude, 0) &&
+          `has exclude that ${filePatterns(entry.exclude, 0)}`);
+      } else if (kind === 'a text that the product shows') {
+        why = filePatterns(entry.files, 1);
+        for (const item of why ? [] : entry.placeholders) {
+          try {
+            if (new RegExp(item, 'u').test('')) throw new Error('it matches the empty text');
+          } catch (error) {
+            why = `has the placeholder ${quote(item)}, no regular expression for a non-empty ` +
+              `text: ${error.message}`;
+            break;
+          }
+        }
+        why = why || listOfTexts(entry.placeholders);
+      } else {
+        why = lookForm(entry);
+      }
+      if (why) return `the entry ${quote(kind)} ${why}`;
+    }
+    return null;
+  }
+
+  // moduleLists returns the track id, the kinds, the areas and the kind data of
+  // short-path.json. The track id is one word in lower case, which a proposal writes with a
+  // capital first letter, such as fast in "Fast track". A file in another form is a fault of
+  // the module: the Error contains the file.
   function moduleLists() {
     const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
     const why = typeof data.track !== 'string' || !/^[a-z][a-z0-9-]*$/.test(data.track)
@@ -181,9 +306,13 @@ module.exports = (lib) => {
       : !Array.isArray(data.kinds) || !data.kinds.every((kind) => typeof kind === 'string')
         ? 'kinds is no list of texts'
         : !Array.isArray(data.sensitive_areas) ? 'sensitive_areas is no list'
-          : data.sensitive_areas.map(areaForm).find(Boolean);
+          : kindDataForm(data.kind_data, data.kinds) ||
+            data.sensitive_areas.map(areaForm).find(Boolean);
     if (why) throw new Error(`Fix ${FILE}: ${why}.`);
-    return { track: data.track, kinds: data.kinds, areas: data.sensitive_areas, removedKinds: [] };
+    return {
+      track: data.track, kinds: data.kinds, areas: data.sensitive_areas,
+      kindData: data.kind_data, removedKinds: [],
+    };
   }
 
   const MODULE = moduleLists();
@@ -264,9 +393,27 @@ module.exports = (lib) => {
       track: MODULE.track,
       kinds: MODULE.kinds.filter((kind) => !removedKinds.includes(kind)),
       areas: [...kept, ...added],
+      kindData: MODULE.kindData,
       removedKinds,
     };
   }
 
-  return { TRACK_LISTS: MODULE, areaForm, areaOf, folderRef, globRegExp, trackLists };
+  // trackLine returns { id, rest, body } for the proposal text: id is the id of the track that
+  // the first line of ## Track names, in lower case, such as fast for "Fast track"; rest is
+  // what follows "<Name> track" on that line; body is the lines of the section that are not
+  // blank or fenced, each trimmed. It returns null for a proposal with no ## Track, or one
+  // whose first line starts with no track.
+  function trackLine(text) {
+    const part = sections(lines(text), 2).slice(1).find((one) => one.title === 'Track');
+    if (!part) return null;
+    const body = part.lines.filter((line) => !blank(line) && !line.fenced)
+      .map((line) => line.text.trim());
+    const named = /^([A-Za-z][A-Za-z0-9-]*) track(?=[.:])/.exec(body[0] || '');
+    if (!named) return null;
+    return { id: named[1].toLowerCase(), rest: body[0].slice(named[0].length), body };
+  }
+
+  return {
+    TRACK_LISTS: MODULE, areaForm, areaOf, folderRef, globRegExp, trackLists, trackLine,
+  };
 };

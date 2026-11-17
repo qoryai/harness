@@ -24,7 +24,7 @@
 // demo-scenarios.
 //
 // It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
-// suite, scope, freeze, diff and probe, each in verbs/.
+// suite, scope, freeze, diff, probe and prove, each in verbs/.
 'use strict';
 
 const fs = require('node:fs');
@@ -50,6 +50,7 @@ function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
   Object.assign(lib, require('./lib/extensions.js')(lib));
   Object.assign(lib, require('./lib/short-path.js')(lib));
+  Object.assign(lib, require('./lib/proof.js')(lib));
   Object.assign(lib, require('./lib/track-record.js')(lib));
   const spec = require('./types/spec.js')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
@@ -62,6 +63,7 @@ function workflowChecks(core) {
       ...require('./verbs/run.js')(lib), ...require('./verbs/suite.js')(lib),
       ...require('./verbs/scope.js')(lib),
       ...require('./verbs/diff.js')(lib), ...require('./verbs/probe.js')(lib),
+      ...require('./verbs/prove.js')(lib),
     },
     types: [
       require('./types/proposal.js')(lib),
@@ -83,6 +85,8 @@ function workflowChecks(core) {
     // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
     // checks of a point and a question read.
     ids: ['ac', 'd', 'step', 'scenario', 'decision'],
+    // The proof of the fast track, for a test that gives it the folder of the parsers.
+    proof: { prove: lib.prove, trackLists: lib.trackLists },
   };
 }
 

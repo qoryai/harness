@@ -3,7 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { jsonFile, lines, sections } = lib;
+  const { checkTrack, jsonFile, lines, sections } = lib;
 
   // The four parts of a description, as ## headings in this order: the problem, the change,
   // how it was tested, and what is disclosed.
@@ -21,6 +21,8 @@ module.exports = (lib) => {
   ];
 
   function submission(run, files) {
+    // On the fast track, the commits of the run must prove their kind (lib/proof.js).
+    checkTrack(run);
     const data = jsonFile(run, 'submission', 'submission.json', files.get('submission.json'));
     if (!data) return;
     run.did('text');
