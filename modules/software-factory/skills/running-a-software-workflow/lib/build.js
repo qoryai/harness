@@ -12,7 +12,7 @@ const schema = require('./schema.js');
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines,
+    topSections, lines, lacks, sentenceParts,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -36,9 +36,12 @@ module.exports = (lib) => {
   }
 
   // newestNamed returns the number and the text of file in the newest version of the name of
-  // type, from <type>/<name>/v<N>/, or null when that name has no version. It reads the same
-  // folders as Context.newest, for a type that has several names and no main.
+  // type, from <type>/<name>/v<N>/, or null when that name has no version or is withdrawn. It
+  // reads the same folders as Context.newest, for a type that has several names and no main,
+  // and skips a version that a cancelled run wrote, and exits 3 on a store that lacks the
+  // newest version that counts, as Context.newest does.
   function newestNamed(context, type, name, file) {
+    if (context.withdrawn(type, name)) return null;
     const dir = path.join(context.store, type, name);
     let number = -1;
     if (context.offline) {
@@ -50,10 +53,13 @@ module.exports = (lib) => {
       } catch {
         return null;
       }
+      const skipped = context.cancelled(type, name);
       for (const entry of entries) {
         const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-        if (match) number = Math.max(number, Number(match[1]));
+        if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
+      const top = context.counted(type, name);
+      if (top !== null && top > number) throw lacks(type, top);
     }
     if (number < 0) return null;
     const found = path.join(dir, `v${number}`, file);
@@ -145,14 +151,18 @@ module.exports = (lib) => {
   }
 
   // approvedNumber returns the number of the version of the main artifact of type that
-  // approved_version in index.json is set to, or null with no index.json or no approval.
+  // approved_version in index.json is set to, or null with no index.json, no approval, an
+  // approval of a version that a cancelled run wrote, or a withdrawn main: a stage input takes
+  // nothing of a withdrawn name. An approval of a withdrawal is no approval either: a
+  // withdrawal is no version that a person can approve.
   function approvedNumber(context, type) {
-    if (!context.index) return null;
+    if (!context.index || context.withdrawn(type)) return null;
     const artifact = context.index.artifacts.find((one) => one.type === type &&
       (one.name || 'main') === 'main');
     if (!artifact || artifact.approved_version === null) return null;
     const version = artifact.versions.find((one) => one.id === artifact.approved_version);
-    return version ? version.number : null;
+    return version && version.cancelled !== true && version.withdrawn !== true
+      ? version.number : null;
   }
 
   // approved returns the number and the text of file in the approved version of type, when the
@@ -187,6 +197,12 @@ module.exports = (lib) => {
     return artifact ? artifact.versions : [];
   }
 
+  // countedOf returns the versions of versionsOf that count, as counts of Context returns
+  // them: none for a withdrawn main, else those that no cancelled run wrote and that are no
+  // withdrawal. The run API (docs/contract/run-api.md of Qory Apiary, "GET artifacts") sets
+  // `cancelled` to true on each version that a cancelled run wrote.
+  const countedOf = (context, type) => context.counts(type);
+
   // pullAgain returns the error that exits 3 with the line to pull the artifacts and check
   // again. words is the type in words, such as "the build plan".
   const pullAgain = (words) => new Missing(`Run \`qory artifact pull\`, then check ${words} ` +
@@ -195,10 +211,11 @@ module.exports = (lib) => {
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
   // build-plan, verification and explainer read: the approved version, or the newest version
   // that a person stored after it. It returns null with no index.json or no approved version.
-  // A run's version never counts, and a `decision` of a version counts neither, because
-  // index.json has no time of a decision to compare with the newest lock. Two criteria
-  // versions of one number in index.json exit 3 with the line of pullAgain for words,
-  // because a number then matches two versions.
+  // A run's version never counts, nor a version that a cancelled run wrote, as in countedOf.
+  // A `decision` of a version counts neither, because index.json has no time of a decision
+  // to compare with the newest lock. An approval of a version that a cancelled run wrote is
+  // no approval. Two criteria versions of one number in index.json exit 3 with the line of
+  // pullAgain for words, because a number then matches two versions.
   function criteriaTarget(context, words) {
     const versions = versionsOf(context.index, 'acceptance-criteria');
     if (new Set(versions.map((one) => one.number)).size !== versions.length) {
@@ -206,36 +223,40 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const persons = versions.filter(byPerson).map((one) => one.number);
+    const persons = countedOf(context, 'acceptance-criteria').filter(byPerson)
+      .map((one) => one.number);
     return Math.max(approvedVersion, ...persons);
   }
 
-  // newestCriteria returns the number of the newest criteria version in index.json, the one
-  // version that qory mounts for a push, or null when index.json lists none. A check reads
-  // the number from index.json, not from the folders of the store, so that a check and a push
-  // agree. In end --offline, it is the newest version of the base, as Context.newest reads it.
+  // newestCriteria returns the number of the newest criteria version in index.json that no
+  // cancelled run wrote, the one version that qory mounts for a push once its push folder
+  // holds the newest version that counts, or null when index.json lists none.
+  // A check reads the number from index.json, not from the folders of the store, so that a
+  // check and a push agree. In end --offline, it is the newest version of the base, as
+  // Context.newest reads it.
   function newestCriteria(context) {
     if (context.offline) {
       return context.base ? context.base.get('acceptance-criteria/main') ?? null : null;
     }
-    const numbers = versionsOf(context.index, 'acceptance-criteria').map((one) => one.number);
+    const numbers = countedOf(context, 'acceptance-criteria').map((one) => one.number);
     return numbers.length ? Math.max(...numbers) : null;
   }
 
   // askAbove returns the line when index.json lists criteria version newest above target:
   // the push gets that version in place of the target, so a check gets the line too. No
   // person stored newest, because the target is the newest version that a person stored, or
-  // the approved version above it. step ends the first sentence, such as "lock that version".
+  // the approved version above it. step ends the action, such as "lock that version". The
+  // line opens with the action of the member, so that the run can pass it to a member.
   function askAbove(context, step, target, newest) {
     const why = target === approvedNumber(context, 'acceptance-criteria')
-      ? `Version ${num(target)} is approved` : `A person stored version ${num(target)}`;
+      ? `the approved version ${num(target)}` : `version ${num(target)}, a member's upload`;
     const entry = versionsOf(context.index, 'acceptance-criteria')
       .find((one) => one.number === newest);
     const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
-    const got = byRun ? `the run's version ${num(newest)}`
-      : `version ${num(newest)}, which no person stored`;
-    return `Ask a member to store the criteria they accept as a new version, then ${step}. ` +
-      `${why}; the push gets ${got}.`;
+    const reason = byRun ? `the run stored version ${num(newest)} after ${why}`
+      : `no member uploaded the newer criteria version ${num(newest)}`;
+    return 'Ask a member to upload the acceptance criteria they accept as a new version, then ' +
+      `${step}: ${reason}.`;
   }
 
   // noCriteria returns the line of a push of what, such as "the build plan", whose store has
@@ -264,7 +285,10 @@ module.exports = (lib) => {
     if (!context.index) throw pullAgain(what);
     const target = criteriaTarget(context, what);
     if (target === null) {
-      run.find(`Write ${what} after a person approves the acceptance criteria.`);
+      run.find(context.withdrawn('acceptance-criteria')
+        ? `Write ${what} after a member uploads the acceptance criteria again: they are ` +
+          'withdrawn.'
+        : `Write ${what} after a person approves the acceptance criteria.`);
       return null;
     }
     const newest = newestCriteria(context);
@@ -282,9 +306,86 @@ module.exports = (lib) => {
       .replace(/\r\n?/g, '\n') };
   }
 
-  // criterionList returns the ids of a Criteria cell, such as "ac-1, ac-2".
-  const criterionList = (cell) => cell.split(',').map((id) => id.replace(/`/g, '').trim())
-    .filter(Boolean);
+  // criterionList returns the criteria of a Criteria cell, each as the id and the criterion's
+  // first sentence in quotes, with "; " between them, such as AC-1, "Export saves a CSV file";
+  // AC-2, "One row per item". Each entry has its id in lower case, as the criteria have it,
+  // the text of its part of the cell and the words in quotes. A part of another form, such as
+  // ac-1, ac-2, has form false and gives an entry per comma, and a value with no id, such as
+  // TBD, stays as it is.
+  function criterionList(cell) {
+    const parts = cell.replace(/`/g, '').split(/;\s*(?=[A-Za-z]+-[0-9]+\s*(?:,|$))/)
+      .map((part) => part.trim()).filter(Boolean);
+    return parts.flatMap((part) => {
+      const match = /^([A-Za-z]+-[0-9]+), +"(.+)"$/.exec(part);
+      if (match) {
+        return [{ id: match[1].toLowerCase(), text: part, form: true, quoted: match[2] }];
+      }
+      return part.split(',').map((one) => one.trim()).filter(Boolean)
+        .map((one) => ({ id: /^[A-Za-z]+-[0-9]+$/.test(one) ? one.toLowerCase() : one,
+          text: part, form: false }));
+    });
+  }
+
+  // A text in quotes and the words of a criterion compare with no backtick, with each run of
+  // spaces as one space, and with no space at either end.
+  const flat = (text) => text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
+
+  // criterionWords returns the words of criterion that a Criteria cell, a Criterion cell and
+  // an explainer heading have in quotes: its first sentence, as the check of the criteria
+  // counts its sentences, so after e.g. it goes on, with no full stop at the end.
+  function criterionWords(criterion) {
+    return flat(sentenceParts(criterion.text)[0] || '');
+  }
+
+  // quotes reports whether text, the flat text after the opening quote beside the id of a
+  // criterion, starts with words, the criterion's words, then at most one `.`, `!` or `?`,
+  // then the closing quote. A quote ends after the criterion's words, so a quote inside the
+  // words, as in The "Export" button, stays in them.
+  const quotes = (text, words) => text.startsWith(words) &&
+    /^[.!?]?"/.test(text.slice(words.length));
+
+  // quoteFix returns the finding of a quote of criterion in where, such as "d-1 of
+  // build-plan.md", that differs from its words. The line starts with the fix and gives the
+  // words; when the line with the words has more than 200 characters, LINE of core's
+  // lib/base.js, it names the place in the criteria in place of the words. It is the one
+  // finding of these types that may pass 196 characters.
+  function quoteFix(criterion, where) {
+    const id = criterion.id.toUpperCase();
+    const line = `Quote ${id} in ${where} as its first sentence: "${criterionWords(criterion)}".`;
+    return [...line].length <= 200 ? line
+      : `Copy the first sentence of ${id} in the criteria into ${where}.`;
+  }
+
+  // wrongWords returns the finding of quoteFix when quoted, the whole text in quotes beside
+  // the id of criterion in a cell or a heading, is not the words of criterion and at most one
+  // `.`, `!` or `?`, else null.
+  function wrongWords(quoted, criterion, where) {
+    const text = `${flat(quoted)}"`;
+    const words = criterionWords(criterion);
+    return quotes(text, words) && /^[.!?]?"$/.test(text.slice(words.length)) ? null
+      : quoteFix(criterion, where);
+  }
+
+  // START matches the id of a criterion and the opening quote after it, such as AC-3, " in
+  // AC-3, "Export saves a file". The id has no letter, digit or - before it, so _AC-3 of
+  // Markdown counts, and xac-3 or foo-AC-3 do not.
+  const START = /(?<![\p{L}\p{N}-])(ac-[0-9]+), +"/giu;
+
+  // wrongQuotes adds the finding of quoteFix for each id in text of a criterion of byId whose
+  // quote, as quotes reads it, is not the criterion's words, once per line. where locates
+  // text, such as "## Lowered of verification.md". Wrapped lines count as one line.
+  function wrongQuotes(run, text, byId, where) {
+    const found = new Set();
+    const plain = flat(text);
+    for (const match of plain.matchAll(START)) {
+      const criterion = byId.get(match[1].toLowerCase());
+      if (criterion && !quotes(plain.slice(match.index + match[0].length),
+        criterionWords(criterion))) {
+        found.add(quoteFix(criterion, where));
+      }
+    }
+    for (const line of found) run.find(line);
+  }
 
   // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
   // per id, as criterionMap keeps them.
@@ -304,7 +405,7 @@ module.exports = (lib) => {
   return {
     COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
     sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria, pullCriteria,
-    criterionList, liveIn, liveCriteria,
+    versionsOf, countedOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria,
+    pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
   };
 };

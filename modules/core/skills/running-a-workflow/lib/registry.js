@@ -10,23 +10,36 @@ const base = require('./base.js');
 const context = require('./context.js');
 const markdown = require('./markdown.js');
 const plugin = require('./plugin.js');
+const { REPORT_FILE } = require('./end.js');
+const { results } = require('./reports.js');
 const questions = require('../types/questions.js');
 const reviewComments = require('../types/review-comments.js');
 
 // The file of a skill that adds to the registry. It exports a function that takes LIBRARY and
 // returns { types, stops, verbs, ledger }, each of which may be left out:
 // - types: the types, each { type, main, words, reviewer, check(run, files) }, and
-//   optionally allowed(name), draft(names) and mainOptional, as lib/drafts.js and lib/end.js
-//   read them;
+//   optionally allowed(name), draft(names), mainOptional and verdict(text, body), the fixes
+//   for the recorded verdict body against the text of the main file, as lib/drafts.js and
+//   lib/end.js read them, and history, true for a type whose check reads the version that
+//   Context.history reads, which end --offline needs in --store;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
+// - records: the records at the end of a report, each { heading, fields, what, check(text) }:
+//   an agent whose Expected output has the heading writes the record, and check returns why a
+//   report breaks it, or null. fields, which may be left out, lists the lines of the record,
+//   such as "Track review:", that check covers, so the report check looks for no such line;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }, and
 //   optionally crash, the fix that a crash of the verb prints before it exits 4;
 // - ledger: the rules of the ledger of steps, which verbs/ledger.js lists. One skill at most
 //   adds them.
 const FILE = 'workflow-checks.js';
 
-// What a workflow-checks.js gets: everything that the lib files export.
-const LIBRARY = Object.freeze({ ...base, ...context, ...markdown, ...plugin });
+// What a workflow-checks.js gets: everything that the lib files base, context, markdown and
+// plugin export, the reports' file name and check results, and the reader of the lock of
+// verbs/lock.js.
+const LIBRARY = Object.freeze({
+  ...base, ...context, ...markdown, ...plugin, REPORT_FILE, results,
+  lockReader: require('../verbs/lock.js').lockReader,
+});
 
 // The types that this skill checks: they need the words of no kind of work.
 const CORE_TYPES = [questions, reviewComments];
@@ -190,7 +203,7 @@ function part(file) {
 // folders have counts once, from the first. A type that two files add, or that this skill
 // checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
-  const registry = { types: [], stops: [], verbs: {}, ledger: null };
+  const registry = { types: [], stops: [], verbs: {}, records: [], ids: [], ledger: null };
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -212,6 +225,9 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     const added = part(file);
     registry.types.push(...(added.types || []));
     registry.stops.push(...(added.stops || []));
+    registry.records.push(...(added.records || []));
+    // Only a list adds prefixes: the string 'ac' would add a and c.
+    if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {
       throw new base.Missing('Remove one of the two rules of the ledger: two skills add them ' +

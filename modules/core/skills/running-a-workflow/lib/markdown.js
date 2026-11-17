@@ -168,15 +168,16 @@ const NAMED = new Set([
 const goesOn = (word) => NAMED.has(word.toLowerCase()) || /^\p{Lu}{2,}$/u.test(word);
 
 const ENDS = '.!?';
-const CLOSERS = '"\'’”)]*_`';
-const OPENERS = '"\'‘“([*_`';
+const CLOSERS = '"\'’\u201d)]*_`';
+const OPENERS = '"\'‘\u201c([*_`';
 
 // A sentence ends at `.`, `!` or `?` with white space or the end after it, also when a
 // quote, a bracket or a Markdown mark comes between, but not after a word of abbreviations,
 // by default e.g. and i.e. It ends after a word of unlessCapital only when the next word
 // starts with a capital letter and goesOn returns false for it. Text after the last end is
-// one more. A scan, so the time grows with the length of the text.
-function sentences(text, { abbreviations = ABBREVIATIONS, unlessCapital = new Set() } = {}) {
+// one more. A scan, so the time grows with the length of the text. sentenceParts returns the
+// text of each sentence, without the mark that ends it, and sentences their count.
+function sentenceParts(text, { abbreviations = ABBREVIATIONS, unlessCapital = new Set() } = {}) {
   const source = plain(text);
   const parts = [];
   let start = 0;
@@ -205,12 +206,15 @@ function sentences(text, { abbreviations = ABBREVIATIONS, unlessCapital = new Se
         if (goesOn((/^[\p{L}]+/u.exec(source.slice(next)) || [''])[0])) continue;
       }
     }
-    parts.push(source.slice(start, mark));
+    // The sentence keeps its closers, such as the quote in "Closed.", and loses its end marks.
+    parts.push(`${source.slice(start, mark)}${source.slice(mark, index).replace(/[.!?]/g, '')}`);
     start = index;
   }
   parts.push(source.slice(start));
-  return parts.filter((part) => /[\p{L}\p{N}]/u.test(part)).length;
+  return parts.filter((part) => /[\p{L}\p{N}]/u.test(part));
 }
+
+const sentences = (text, options) => sentenceParts(text, options).length;
 
 // fenceLine reports whether a line of a code block opens or closes it.
 const fenceLine = (text) => Boolean(fence(text)) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(text);
@@ -266,6 +270,82 @@ function characters(run, file, where, text, { oneLine = false } = {}) {
   // characters.
   const refused = REFUSED.exec(text);
   if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${at}.`);
+}
+
+// The ids of items: the id of a question, such as q4, which core writes, in lower case, since
+// Q1 is also a quarter of a year; and each prefix that a module gives, then a hyphen and a
+// number, in either case, such as step-2 for the prefix step. A name such as UTF-8, GPT-4 or
+// top-10 is no id unless a module gives its prefix, and neither is a match with a file
+// extension after it, such as step-1.md. idPatterns returns the pattern of a match in text
+// and of a whole id, for the prefixes, each of letters.
+const PATTERNS = new Map();
+function idPatterns(prefixes) {
+  const key = [...prefixes].sort().join('|');
+  if (!PATTERNS.has(key)) {
+    const named = prefixes.filter((prefix) => /^\p{L}+$/u.test(prefix));
+    const id = `${named.length ? `(?:${named.join('|')})-[0-9]{1,6}|` : ''}q[0-9]{1,6}`;
+    PATTERNS.set(key, {
+      item: new RegExp(`(?:^|[^\\p{L}\\p{N}_-])(${id})(?![\\p{L}\\p{N}_-]|\\.[\\p{L}\\p{N}])`,
+        'giu'),
+      whole: new RegExp(`^(?:${id})$`, 'iu'),
+    });
+  }
+  return PATTERNS.get(key);
+}
+
+// paths returns the start and end of each word of text that is a path, where a word runs up
+// to a space, a quote or a bracket: a word with a slash that ends in a file extension or has
+// a part between slashes with a letter that is no id, by whole, as docs/step-1 has. An empty
+// part and a part of digits count as no such part, so ac-3/ac-4, AC-3/4 and ac-3/ are no path
+// when ac is a prefix. One pass over the text.
+function paths(text, whole) {
+  const found = [];
+  for (const match of text.matchAll(/[^\s"'\u201c\u201d()]+/g)) {
+    const word = match[0].replace(/[.,;:!?]+$/, '');
+    if (word.includes('/') && (/\.[\p{L}\p{N}]+$/u.test(word) ||
+      word.split('/').some((part) => /\p{L}/u.test(part) && !whole.test(part)))) {
+      found.push({ from: match.index, to: match.index + match[0].length });
+    }
+  }
+  return found;
+}
+
+// QUOTED_AFTER and QUOTED_BEFORE match words in quotes right after an id, such as
+// AC-3, "A member exports a list" or step-2 ("Send the refund"), and right before it.
+const QUOTED_AFTER = /^`?[,:]?\s*\(?\s*["\u201c]([^"\u201c\u201d]*)["\u201d]/;
+const QUOTED_BEFORE = /["\u201c]([^"\u201c\u201d]*)["\u201d]\s*[,:(]?\s*`?$/;
+
+// bareId returns the first id of an item in text that has no words in quotes beside it, or
+// null. The words in quotes come right after the id or right before it, and contain a
+// letter. Quotes around the id alone, as in "AC-3", are no words. A link address and a web
+// address count as no text. prefixes are the prefixes of ids that the modules give, as
+// idPatterns reads them. With questions false, the id of a question counts as no id.
+function bareId(text, { prefixes = [], questions = true } = {}) {
+  const { item, whole } = idPatterns(prefixes);
+  const shown = plain(text).replace(/\b(?:https?|ftp|file):\/\/\S*/gi, ' ');
+  const inPaths = paths(shown, whole);
+  let next = 0;
+  for (const match of shown.matchAll(item)) {
+    const id = match[1];
+    const question = /^q[0-9]+$/i.test(id);
+    if (question && (id.startsWith('Q') || !questions)) continue;
+    let start = match.index + match[0].length - id.length;
+    let end = match.index + match[0].length;
+    // The matches come in order, so the paths before this id stay behind.
+    while (next < inPaths.length && inPaths[next].to <= start) next += 1;
+    if (next < inPaths.length && inPaths[next].from <= start) continue;
+    // Quotes around the id alone belong to the id.
+    if (/["\u201c]$/.test(shown.slice(0, start)) && /^["\u201d]/.test(shown.slice(end))) {
+      start -= 1;
+      end += 1;
+    }
+    const words = (found) => Boolean(found) && /\p{L}/u.test(found[1]);
+    if (!words(QUOTED_AFTER.exec(shown.slice(end))) &&
+      !words(QUOTED_BEFORE.exec(shown.slice(0, start)))) {
+      return id;
+    }
+  }
+  return null;
 }
 
 // address returns what breaks the link rule of
@@ -454,6 +534,6 @@ function points(run, file, list, title) {
 module.exports = {
   lineList, headingLevel, fence, lines, sections, blank, isRow, isPoint, cells, table, delimiter,
   firstFilled, same, headings, INLINE, plain, codeSpans, withoutCode, words, ABBREVIATIONS,
-  sentences, fenceLine, counted, MARKDOWN, characters, address, links, machinePattern,
-  machinePaths, topSections, summary, wordLimit, points,
+  sentences, sentenceParts, fenceLine, counted, MARKDOWN, characters, address, links,
+  machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId,
 };

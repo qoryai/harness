@@ -29,8 +29,21 @@ start.
 This line adds to the lines of "Failures" for a "Blocked:" line before the first push:
 
 - One that starts with `needs a change to criterion`, `needs a new criterion` or
-  `needs a change to the spec`, with an `answer` point: "The spec needs a change before the
-  run can write the <output>."
+  `needs a change to the spec`, with an `answer` point:
+  - criterion: "<ID>, "<criterion text>", needs a change before the run can write the
+    <output>: <the change>." Example: "AC-3, "A member exports up to 50,000 rows to CSV",
+    needs a change before the run can write the demo scenarios: the feedback asks for an
+    export of the filtered rows only."
+  - new criterion: "The acceptance criteria need a new criterion before the run can write
+    the <output>: <the change>."
+  - spec: "The spec needs a change before the run can write the <output>: <the change>."
+
+  `<ID>` is the id on the "Blocked:" line in upper case, and `<criterion text>` is the first
+  sentence of that criterion in the newest acceptance criteria, without its full stop: read
+  that line with a read form of `run-artifacts`, besides what "What you do" of
+  `running-a-workflow` lets you read. `<the change>` is the change that the "Blocked:"
+  line states after the colon that follows its start. When the line states none, end the
+  text after `<output>`.
 
 ## Checks per type
 

@@ -11,7 +11,7 @@ const path = require('node:path');
 
 const {
   LIMIT, MAX_BYTES, Missing, NAME, artifactFolder, folderOf, inside, isObject, jsonKind,
-  parseJson, plural, readFile, sha256, writeJson,
+  parseJson, plural, readFile, sha256, withLock, writeJson,
 } = require('../lib/base.js');
 const {
   BREAK_PROOFS, FINDING_ID, PROOFS, SEVERITIES, proofForm, readClosed, readEarlier, readFindings,
@@ -30,81 +30,9 @@ const RECORD = 'findings.json';
 
 const recordFile = (root) => path.join(root, '.reports', RECORD);
 
-// The most milliseconds that add and close try to take the lock of the record, and the
-// pause between two tries.
-const LOCK_WAIT = 10000;
-const LOCK_PAUSE = 20;
-
-const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-
-// staleText returns the text of lock when it is the id of a process that no longer runs,
-// else null. A lock of a process whose id the system gave to a new process counts as live.
-function staleText(lock) {
-  let text;
-  try {
-    text = fs.readFileSync(lock, 'utf8');
-  } catch {
-    return null;
-  }
-  const pid = Number(text.trim());
-  if (!Number.isInteger(pid) || pid < 1) return null;
-  try {
-    process.kill(pid, 0);
-    return null;
-  } catch (error) {
-    return error.code === 'ESRCH' ? text : null;
-  }
-}
-
-// locked runs work while this call has the lock of the record of root, the file
-// findings.json.lock that it makes with the flag wx, writes its process id into, and removes
-// at the end, so that two calls never read and write the record at once. A lock whose
-// process no longer runs, as after a kill, is removed, and the call tries again: the guards
-// of .reports deny a shell rm of the lock in a run. Before the remove, the call reads the
-// lock again and removes it only when its text is unchanged; two calls can still both remove
-// it between that read and the remove. io.lockWait replaces LOCK_WAIT.
-function locked(io, root, work) {
-  const lock = `${recordFile(root)}.lock`;
-  const wait = io.lockWait ?? LOCK_WAIT;
-  const start = Date.now();
-  let handle;
-  for (;;) {
-    try {
-      handle = fs.openSync(lock, 'wx');
-      fs.writeSync(handle, String(process.pid));
-      break;
-    } catch (error) {
-      if (handle !== undefined) {
-        fs.closeSync(handle);
-        fs.rmSync(lock, { force: true });
-        throw new Missing(`Make ${path.dirname(lock)} writable: ${lock} cannot be written.`);
-      }
-      if (error.code !== 'EEXIST') {
-        throw new Missing(`Make ${path.dirname(lock)} writable: ${lock} cannot be made.`);
-      }
-      const stale = staleText(lock);
-      if (stale !== null) {
-        try {
-          if (fs.readFileSync(lock, 'utf8') === stale) fs.rmSync(lock, { force: true });
-        } catch {
-          // Another call removed the lock first.
-        }
-        continue;
-      }
-      if (Date.now() - start >= wait) {
-        throw new Missing(`Remove ${lock} if no other checks.js findings call runs: the file ` +
-          `still exists after ${wait / 1000} s of tries.`);
-      }
-      pause(LOCK_PAUSE);
-    }
-  }
-  try {
-    return work();
-  } finally {
-    fs.closeSync(handle);
-    fs.rmSync(lock, { force: true });
-  }
-}
+// locked runs work while this call has the lock of the record of root,
+// .reports/findings.json.lock, as withLock of lib/base.js takes it.
+const locked = (io, root, work) => withLock(io, recordFile(root), 'findings', work);
 
 // ids joins ids for a line, such as "f1, f2 and f4".
 function ids(list) {
@@ -175,7 +103,7 @@ function reportOf(io, agent, file) {
     throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${file} is ` +
       `not there.`);
   }
-  const shape = expected(io.plugin, agent);
+  const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
   const problems = size > MAX_BYTES

@@ -10,15 +10,15 @@ const {
 } = require('./base.js');
 const { Context } = require('./context.js');
 const {
-  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList,
+  REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList, leftLine,
 } = require('./end.js');
 const { agentNames, pluginFolders } = require('./plugin.js');
 const { expected, reportCheck } = require('./reports.js');
 
 // The arguments of end --offline, each once with a value. --suite is reserved: it takes a
-// path, and the script reads nothing from it.
+// path, and the script reads nothing from it. --inputs is the path of the run's inputs.json.
 const OFFLINE_NEEDED = ['--artifacts', '--store', '--verdict', '--out', '--run'];
-const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite'];
+const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite', '--inputs'];
 
 // The verdicts of qory contracts/harness/v1/verdict.schema.json, and null for none.
 const VERDICTS = ['passed', 'changes-requested', 'escalate', null];
@@ -65,8 +65,9 @@ function folderArg(io, args, flag) {
   throw new Missing(`Give ${flag} a folder that exists: ${args[flag]} is none.`);
 }
 
-// verdictArg returns the verdict of the file that --verdict gives, or exits 3: a verdict body,
-// as qory runapi.VerdictBody writes it, or {"verdict":null} when the run recorded none.
+// verdictArg returns the body of the file that --verdict gives, or exits 3: a verdict body,
+// as qory runapi.VerdictBody writes it, with track { id, reason } when the run sent one, or
+// {"verdict":null} when the run recorded none.
 function verdictArg(io, args) {
   const file = path.resolve(io.cwd, args['--verdict']);
   const data = parseJson(readFile(file, file), file, null);
@@ -74,7 +75,7 @@ function verdictArg(io, args) {
     throw new Missing(`Write ${file} as a verdict body, such as {"verdict":"passed"}, or as ` +
       `{"verdict":null}: its verdict is ${valueText(isObject(data) ? data.verdict : data)}.`);
   }
-  return data.verdict;
+  return data;
 }
 
 // offlineReports runs the report check on the newest report <agent>-<n>.md under
@@ -104,6 +105,7 @@ function offlineReports(root, folders, needed, registry) {
     const file = path.join(dir, name);
     const stat = fs.lstatSync(file);
     let lines;
+    let more = [];
     try {
       if (!stat.isFile()) lines = [`Write .reports/${name} as a regular file: it is not one.`];
       else if (stat.size > MAX_BYTES) {
@@ -111,26 +113,30 @@ function offlineReports(root, folders, needed, registry) {
           `${stat.size} bytes.`];
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
-          expected(folders[0], agent, folders), agents, registry.stops);
+          expected(folders[0], agent, folders, registry.records), agents, registry.stops,
+          registry);
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       lines = [error.message];
+      more = error.more || [];
     }
     if (lines.length) {
       found.push({
         line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
           `${agent}, in the lines after this one:`,
         point: REPORT_BROKEN,
-      }, ...lines.map((line) => ({ line, point: null })));
+        item: agent,
+      }, ...[...lines, ...more].map((line) => ({ line, point: null })));
     }
   }
-  for (const { type, reviewer } of registry.types) {
+  for (const { type, reviewer, words } of registry.types) {
     if (!needed.has(type) || !reviewer || newest.has(reviewer)) continue;
     found.push({
       line: `Start ${reviewer} on the ${type} draft, and write its report to ` +
         `.reports/${reviewer}-<n>.md: the folder has no report of ${reviewer}.`,
       point: REVIEW_NONE,
+      item: { draft: words || type, reviewer },
     });
   }
   return found;
@@ -161,11 +167,13 @@ function sameFiles(root, names, version) {
 // reviewNeeded returns the types whose reviewer's report end --offline needs: each type that
 // the run current wrote a version of, and each type of checked whose top files match no
 // version that a run of earlier wrote. The reports of an earlier run are lost with its
-// session, so a version that it pushed needs none. types are the types of the registry.
+// session, so a version that it pushed needs none. A withdrawal has no files to review, so
+// it counts as no version here. types are the types of the registry.
 function reviewNeeded(root, index, current, earlier, checked, types) {
   const byRun = (type, ofRun) => index.artifacts.filter((artifact) => artifact.type === type)
     .flatMap((artifact) => artifact.versions)
-    .filter((version) => version.writer.kind === 'run' && ofRun(version.writer.run_id));
+    .filter((version) => version.writer.kind === 'run' && ofRun(version.writer.run_id) &&
+      version.withdrawn !== true);
   const needed = new Set();
   for (const { type } of types) {
     if (byRun(type, (id) => id === current).length) needed.add(type);
@@ -181,7 +189,8 @@ function offline(io, args) {
   const root = folderArg(io, args, '--artifacts');
   const store = folderArg(io, args, '--store');
   const out = folderArg(io, args, '--out');
-  const recorded = verdictArg(io, args);
+  const body = verdictArg(io, args);
+  const recorded = body.verdict;
   if (!fs.existsSync(path.join(store, 'index.json'))) {
     throw new Missing(`Pull the artifacts into ${store}: it has no index.json.`);
   }
@@ -199,13 +208,24 @@ function offline(io, args) {
     const [type, name] = key.split('/');
     if (number !== null && known.has(type) &&
       !fs.existsSync(path.join(store, type, name, `v${number}`))) {
-      throw new Missing(`Pull version ${number} of ${key} into ${store}: it is the newest ` +
-        `version that neither --run nor a run of --continues wrote.`);
+      throw new Missing(`Run \`qory artifact pull ${type} --version ${number}\`, then end ` +
+        'again.', [`The --store folder lacks ${type} version ${number}, the newest version ` +
+        'from before the run.']);
+    }
+  }
+  // A type whose check reads the version before a withdrawal of main needs that version too.
+  for (const { type } of registry.types.filter((def) => def.history)) {
+    const number = context.withdrawn(type) ? context.before(type) : null;
+    if (number !== null && !fs.existsSync(path.join(store, type, 'main', `v${number}`))) {
+      throw context.lacksBefore(type, number);
     }
   }
   const checked = new Map();
+  const inputs = args['--inputs'] ? path.resolve(io.cwd, args['--inputs']) : null;
   const drafts = endDrafts(root, io.home, registry.types,
-    { store, view, base: context.base, checked });
+    { store, view, base: context.base, checked, plugin: io.plugin,
+      place: { workingFolder: path.resolve(io.cwd), inputs },
+      verdict: () => (recorded === null ? null : body) });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,
@@ -215,9 +235,11 @@ function offline(io, args) {
     `${plural(findings.length, 'finding')}`;
   if (!findings.length) return { status: 0, findings, last: `${what}.` };
   const points = path.join(out, 'points.json');
-  const { list } = endList([], found);
+  const { list, left } = endList([], found);
   writeJson(points, list, `the folder of --out`);
-  return { status: 1, findings, last: `${what}; wrote ${plural(list.length, 'point')} to ` +
+  // The points left out come first, so that the limit of lines in the output keeps them.
+  return { status: 1, findings: [...left.map(leftLine), ...findings],
+    last: `${what}; wrote ${plural(list.length, 'point')} to ` +
     `points.json of --out.` };
 }
 

@@ -4,7 +4,7 @@
 const {
   isObject, jsonKind, parseJson, quote, sized, valueText,
 } = require('../lib/base.js');
-const { MARKDOWN, characters, sentences } = require('../lib/markdown.js');
+const { MARKDOWN, bareId, characters, sentences } = require('../lib/markdown.js');
 const { agentNames } = require('../lib/plugin.js');
 
 // The form of a point, as contracts/harness/v1/verdict.schema.json of qory defines it: qory
@@ -27,15 +27,62 @@ const FINDING_LABEL = /\b(?:Quote|Problem|Fix|Point|Marks):/;
 const QUESTION_REF = /(?:^|[^\w-])q[0-9]+(?![\w-])/;
 
 // A file name of a run is in lower case, such as questions.json, so "Node.js" is no file name.
-const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg)(?![\w-])/;
+// The first group is the folders before the name, and the second group the name, such as
+// .reports/ and end.json of .reports/end.json.
+const FILE_NAME =
+  /(?:^|[^\w./-])((?:[\w.-]*\/)*)([a-z0-9][a-z0-9_-]*\.(?:md|json|js|svg))(?![\w/-])/g;
+
+// The folders where a run keeps its files: ./ alone, .reports/ and .qory/artifacts/ after any
+// ./ and ../ parts, and an absolute path, such as /tmp/qory-artifacts/. A file name in other
+// folders, such as docs/questions.json, is the path of a file of the target, which may stay.
+const RUN_FOLDER = /^(?:\/|~\/|\.\/$|(?:\.\.?\/)*(?:\.reports|\.qory\/artifacts)\/)/;
+
+// The files that a run writes besides the files of the types, and its scripts.
+const RUN_FILES = new Set([
+  'points.json', 'index.json', 'inputs.json', 'findings.json', 'end.json', 'checks.js',
+  'versions.js', 'workflow-checks.js', 'trusted-checks.json',
+]);
+
+// A report of an agent, such as reviewer-2.md.
+const REPORT_NAME = /^[a-z0-9][a-z0-9-]*-[0-9]{1,9}\.md$/;
+
+// runFiles returns a function of a file name and its folders, such as .reports/, that
+// returns true for a name that the run writes, with no folders or in RUN_FOLDER: a file of
+// a type of types, as each type allows its names, a file of RUN_FILES, or the report of an
+// agent, which is in .reports/ when it has folders.
+function runFiles(types = []) {
+  return (name, folders = '') => (!folders || RUN_FOLDER.test(folders)) && (
+    RUN_FILES.has(name) ||
+    (REPORT_NAME.test(name) && (!folders || /(?:^|\/)\.reports\/$/.test(folders))) ||
+    types.some((def) => (def.allowed ? def.allowed(name) : name === def.main)));
+}
+
+// registryOf returns the registry of plugin, or one with no types and no ids when it cannot
+// load.
+function registryOf(plugin) {
+  const none = { types: [], ids: [] };
+  if (!plugin) return none;
+  try {
+    return require('../lib/registry.js').loadRegistry(plugin);
+  } catch {
+    return none;
+  }
+}
+
+// pointRules returns what the check of a point reads from registry: isRunFile, as runFiles
+// returns it for the types, and ids, the prefixes of the ids of items that the modules give.
+function pointRules(registry = {}) {
+  return { isRunFile: runFiles(registry.types || []), ids: registry.ids || [] };
+}
 
 // pointText checks text, the text of a point, by the rules of the text that a member reads.
 // subject is what each finding names, such as "the text of point 2", file and where locate a
-// character, linked states how the point links to its question, and agents has the agent
-// names. step is true for the fix of a point, which states the step for the person. check
-// points and report both run it, so a reviewer's Point: line that passes report also passes
-// as the text of a point.
-function pointText(run, text, { subject, file, where, linked, step = false }, agents) {
+// character, linked states how the point links to its question, agents has the agent names,
+// and rules is what pointRules returns. step is true for the fix of a point, which states the
+// step for the person. check points and report both run it, so a reviewer's Point: line that
+// passes report also passes as the text of a point.
+function pointText(run, text, { subject, file, where, linked, step = false }, agents,
+  rules = pointRules()) {
   sized(run, text, subject, POINT_TEXT);
   if (typeof text !== 'string') return;
   characters(run, file, where, text, { oneLine: true });
@@ -54,8 +101,17 @@ function pointText(run, text, { subject, file, where, linked, step = false }, ag
   if (QUESTION_REF.test(text)) {
     run.find(`Remove the question id from ${subject}: ${linked}.`);
   }
-  if (FILE_NAME.test(text)) {
+  // running-a-workflow (SKILL.md:221-227: "write the item's words in quotes"): no name of a
+  // file of the run, and words in quotes beside the id of an item.
+  const name = [...text.matchAll(FILE_NAME)]
+    .find((match) => rules.isRunFile(match[2], match[1]));
+  if (name) {
     run.find(`Remove the file name from ${subject}: name what the file contains.`);
+  }
+  // The id of a question has the finding of QUESTION_REF, so it gets no second one here.
+  const id = bareId(text, { prefixes: rules.ids, questions: false });
+  if (id) {
+    run.find(`Quote the words of ${id} beside it in ${subject}.`);
   }
   // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
   const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
@@ -67,8 +123,8 @@ function pointText(run, text, { subject, file, where, linked, step = false }, ag
 }
 
 // pointCheck checks one point, which "point <place>" names in each finding, against the open
-// question ids in open and the agent names in agents.
-function pointCheck(run, point, place, open, agents) {
+// question ids in open, the agent names in agents and rules of pointRules.
+function pointCheck(run, point, place, open, agents, rules = pointRules()) {
   const which = `point ${place}`;
   if (!isObject(point)) {
     run.find(`Write ${which} of points.json as an object: it is ${jsonKind(point)}.`);
@@ -80,14 +136,15 @@ function pointCheck(run, point, place, open, agents) {
       run.find(`Remove ${key} from ${which}: a point has only text, action, question and fix.`);
     }
   }
-  // running-a-workflow (SKILL.md:208-212: "one line of 1 to 500 characters"): the text is
+  // running-a-workflow (SKILL.md:218-229: "one line of 1 to 500 characters"): the text is
   // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary shows the
   // step for the action.
   run.did('texts');
   const { text, action, question } = point;
   pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
-    where: `text of ${which}`, linked: 'question links the point to its question' }, agents);
-  // running-a-workflow (SKILL.md:213-217: "the id of an open question"): an answer point
+    where: `text of ${which}`, linked: 'question links the point to its question' }, agents,
+    rules);
+  // running-a-workflow (SKILL.md:230-234: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
@@ -114,7 +171,7 @@ function pointCheck(run, point, place, open, agents) {
   }
   pointText(run, point.fix, { subject: `the fix of ${which}`, file: 'points.json',
     where: `fix of ${which}`, linked: 'question links the point to its question', step: true },
-  agents);
+  agents, rules);
 }
 
 // openQuestions returns the ids of the open questions of the run: questions.json at the top
@@ -139,7 +196,8 @@ function pointsCheck(run, files) {
     ? openQuestions(run.context)
     : new Set();
   const agents = run.context.plugin ? agentNames(run.context.plugin) : new Set();
-  list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents));
+  const rules = pointRules(registryOf(run.context.plugin));
+  list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents, rules));
 }
 
 // The type of points.json, which only check takes.
@@ -147,5 +205,6 @@ const pointsType = { type: 'points', main: 'points.json', check: pointsCheck };
 
 module.exports = {
   pointsType,
-  POINT_TEXT, MAX_POINTS, pointText, pointCheck, openQuestions, pointsCheck,
+  POINT_TEXT, MAX_POINTS, pointText, pointCheck, openQuestions, pointsCheck, runFiles,
+  pointRules, registryOf,
 };

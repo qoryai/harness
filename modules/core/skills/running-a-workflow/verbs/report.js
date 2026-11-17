@@ -24,12 +24,13 @@ function report(io, agent, file) {
     throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${file} is ` +
       `not there.`);
   }
-  const shape = expected(io.plugin, agent);
+  const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
   const findings = size > MAX_BYTES
     ? [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
-    : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops);
+    : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops,
+      io.registry());
   let checked = 'last word, lists and Blocked: line';
   if (size > MAX_BYTES) {
     checked = 'its size';
@@ -42,7 +43,7 @@ function report(io, agent, file) {
   } else if (shape.lists.includes('Closed:')) {
     checked = 'last word, lists, Blocked: line and closures';
   }
-  const failed = record(root, agent, real, text, !findings.length);
+  const failed = record(io, root, agent, real, text, !findings.length);
   let next = '';
   if (failed > REPORT_FIXES) {
     next = ` Start no fix: the report of ${agent} failed ${failed} checks in a row.`;

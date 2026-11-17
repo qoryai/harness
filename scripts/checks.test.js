@@ -81,7 +81,29 @@ function call(deps, argv) {
     plugin: SOURCE_PLUGIN,
     ...deps,
   });
-  return { status, out, err, lines: out.split('\n').filter(Boolean) };
+  // check, push and end print the line of what they checked first on stderr and nothing else on
+  // stdout but the findings. out has both, the summary last, as a session reads them; stdout
+  // has the stdout alone, and err the rest of stderr.
+  const stdout = out;
+  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
+    const at = err.indexOf('\n') + 1;
+    out += err.slice(0, at);
+    err = err.slice(at);
+  }
+  const lines = out.split('\n').filter(Boolean);
+  return { status, out, stdout, err, lines, findings: findingsOf(lines) };
+}
+
+// findingsOf joins each line that starts with two spaces, the cause and the values of a
+// finding, to the line before it with one space, so that a pattern can match the whole
+// finding. The last line, what the script checked, stays a separate line.
+function findingsOf(lines) {
+  const out = [];
+  for (const line of lines) {
+    if (line.startsWith('  ') && out.length) out[out.length - 1] += ` ${line.trim()}`;
+    else out.push(line);
+  }
+  return out;
 }
 
 // push runs the push form of type in root, on the files of that type in root.
@@ -97,10 +119,16 @@ function check(root, ...argv) {
 // fails asserts exit 1 and a finding that matches pattern.
 function fails(result, pattern) {
   assert.equal(result.status, 1, result.out);
-  assert.ok(result.lines.slice(0, -1).some((line) => pattern.test(line)), result.out);
+  assert.ok(result.findings.slice(0, -1).some((line) => pattern.test(line)), result.out);
 }
 
 const passes = (result) => assert.equal(result.status, 0, result.out);
+
+// exactly asserts exit 1 and line as the one finding.
+function exactly(result, line) {
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines.slice(0, -1), [line], result.out);
+}
 const many = (count, word = 'word') => Array(count).fill(word).join(' ');
 
 // ---- The testdata -------------------------------------------------------------------------
@@ -126,9 +154,587 @@ test('each note of the testdata has null or a version id of index.json', () => {
 
 // ---- Sections and parts -------------------------------------------------------------------
 
-test('proposal: its four sections, in order', () => {
+test('proposal: its five sections, in order', () => {
   const root = fixture(['proposal.md', '## Proposed solution', '## Solution']);
   fails(push(root, 'proposal'), /^Give proposal.md the sections .* it has .*## Solution/);
+});
+
+// trackLines returns the edit of a proposal fixture whose ## Track has the given lines.
+const FAST_FILE = 'replies/delayed-order.md';
+const FAST_CHANGE = 'The hours "9:00 to 17:00" become "8:00 to 20:00" in the text of the saved ' +
+  `reply \`${FAST_FILE}\`.`;
+const FAST_REASON = 'Reason: only the words of the reply change, and no code reads them.';
+// fastLine returns the first line of the fast track with change and kind; fastLines returns
+// that line and the line of the reason.
+const fastLine = (change = FAST_CHANGE, kind = 'a text that the product shows') =>
+  `Fast track: ${kind}. ${change}`;
+const fastLines = (change, kind) => [fastLine(change, kind), FAST_REASON];
+const FAST_LINE = fastLine();
+// FAST_TRACK is the track that a run sends with its verdict for a proposal with FAST_REASON.
+const FAST_TRACK = { id: 'fast', reason: FAST_REASON.slice('Reason: '.length) };
+const trackLines = (...lines) => ['proposal.md', '## Track\n\nStandard track.\n',
+  `## Track\n\n${lines.join('\n')}\n`];
+// FAST_SOURCE lists FAST_FILE under ## Sources; fastSource adds it to sources.json.
+const FAST_SOURCE = ['proposal.md', 'No public page and no file.', `- ${FAST_FILE}`];
+function fastSource(root) {
+  write(root, 'sources.json', { sources: [{ kind: 'file', ref: FAST_FILE, why: 'Has the reply.' }] });
+  return root;
+}
+const fast = (...lines) => fastSource(fixture(trackLines(...lines), FAST_SOURCE));
+const checkFiles = (root) => check(root, 'proposal', ...FILES.proposal.map((f) => path.join(root, f)));
+
+test('proposal: ## Track sits between ## Proposed solution and ## Sources', () => {
+  fails(push(fixture(['proposal.md', '## Track\n\nStandard track.\n\n', '']), 'proposal'),
+    /^Give proposal.md the sections ## Summary, ## Background, ## Proposed solution, ## Track, ## Sources/);
+});
+
+test('proposal: a track that takes no kind is the line "<Name> track." alone', () => {
+  passes(push(fixture(), 'proposal'));
+  passes(push(fixture(trackLines('   Standard track.  ')), 'proposal'));
+  passes(push(fixture(trackLines('', 'Standard track.', '')), 'proposal'));
+  // The standard track has no reason and no other line.
+  fails(push(fixture(trackLines('Standard track.', '', FAST_REASON)), 'proposal'),
+    /^Remove each line after the first from ## Track of proposal\.md\. "Standard track\." takes no other line\. Line 2 is "Reason: only the words/);
+  fails(push(fixture(trackLines('Standard track.', 'It is safer.')), 'proposal'),
+    /^Remove each line after the first from ## Track of proposal\.md\. "Standard track\." takes no other line\. Line 2 is "It is safer\."\.$/);
+  fails(push(fixture(trackLines('Standard track: a comment. More.')), 'proposal'),
+    /^Write the name of the track alone, such as "Standard track\.", under ## Track of proposal\.md\. Only "Fast track" takes a kind and a change\. The line is "Standard track: a comment\. More\."\.$/);
+  for (const first of ['Full.', 'Short: a comment.', 'Standard.', 'track.', '```']) {
+    fails(push(fixture(trackLines(first)), 'proposal'),
+      /^Start ## Track of proposal\.md with "Standard track\." or "Fast track: <kind>\. <change>"\.$/);
+  }
+});
+
+test('proposal: the fast track states one kind, the exact change and the reason', () => {
+  for (const kind of ['a document', 'a text that the product shows', 'a comment',
+    'a text value in a code file', 'a look-only change']) {
+    passes(push(fast(...fastLines(FAST_CHANGE, kind)), 'proposal'));
+  }
+  // Spaces around a line, blank lines between them, as under ## Sources, and the id read
+  // without regard to case.
+  passes(push(fast(`  ${FAST_LINE} `, '', ` ${FAST_REASON} `), 'proposal'));
+  passes(push(fast(FAST_LINE.replace('Fast', 'FAST'), FAST_REASON), 'proposal'));
+  for (const first of ['Fast track.', 'Fast track:', 'Fast track: a comment',
+    'Fast track: ']) {
+    fails(push(fast(first, FAST_REASON), 'proposal'),
+      /^Write ## Track as "Fast track: <kind>\. <exact change>" in proposal\.md\. The line has no kind and change after "Fast track:"\. The kinds: "a document", /);
+  }
+  for (const first of [fastLine(FAST_CHANGE, 'a translation'), fastLine(FAST_CHANGE, 'A comment')]) {
+    fails(push(fast(first, FAST_REASON), 'proposal'),
+      /^Name a kind of the list after "Fast track: " under ## Track of proposal\.md\. "(a translation|A comment)" is none of them\. The kinds: "a document"/);
+  }
+  for (const first of ['Fast track: a comment.', 'Fast track: a comment .  More.',
+    'Fast track:a comment. More.', 'Fast track:  a comment. More.', 'Fast track: a comment.More.']) {
+    fails(push(fast(first, FAST_REASON), 'proposal'),
+      /^Write ## Track as "Fast track: <kind>\. <exact change>" in proposal\.md\. The line (is |has no kind)/);
+  }
+  // The reason is required, on the second line, and nothing follows it.
+  const reason = /^End ## Track of proposal\.md with one line "Reason: <why>": it has /;
+  fails(push(fast(FAST_LINE), 'proposal'), new RegExp(`${reason.source}no line 2\\.$`));
+  for (const second of ['Reason:', 'Reason:  ', 'Why: no code reads them.', FAST_CHANGE]) {
+    fails(push(fast(FAST_LINE, second), 'proposal'), reason);
+  }
+  fails(push(fast(FAST_LINE, FAST_REASON, 'More.'), 'proposal'),
+    new RegExp(`${reason.source}2 lines after the first\\.$`));
+  // A wrong first line and a missing reason are two findings.
+  const both = push(fast('Fast track: a translation. More.'), 'proposal');
+  fails(both, /^Name a kind of the list/);
+  fails(both, reason);
+});
+
+test('proposal: a fast track names each changed file in a code span, as sources.json lists it', () => {
+  passes(push(fast(...fastLines(FAST_CHANGE)), 'proposal'));
+  fails(push(fixture(trackLines(...fastLines(FAST_CHANGE))), 'proposal'),
+    /^List each changed file in sources\.json and ## Sources, or remove it from ## Track\. "replies\/delayed-order\.md" is no file of sources\.json\.$/);
+  const bare = FAST_CHANGE.replace(`\`${FAST_FILE}\``, FAST_FILE);
+  fails(push(fast(...fastLines(bare)), 'proposal'),
+    /^Write each changed file in a code span in the change under ## Track of proposal\.md\.$/);
+  const two = FAST_CHANGE.replace('`.', '` and `replies/other.md`.');
+  fails(push(fast(...fastLines(two)), 'proposal'),
+    /^List each changed file in sources\.json .* "replies\/other\.md" is no file of sources\.json\.$/);
+});
+
+// trackRecord returns the record of the track that a review writes, with the lines it read and
+// its result.
+const trackRecord = (read, result) => ['Track read:', '```text', ...read, '```',
+  `Track review: ${result}`];
+// withRecord returns a report of agent with the record of a review of "Standard track." before
+// its last word, when agent is proposal-reviewer, and the report unchanged otherwise.
+function withRecord(text, agent) {
+  if (agent !== 'proposal-reviewer') return text;
+  return text.replace(/\n(clean|changes-needed)\n?$/,
+    `\n${trackRecord(['Standard track.'], 'clean').join('\n')}\n\n$1\n`);
+}
+// reviewerReport returns a report of proposal-reviewer with the given findings, quoted words
+// each, and record lines before the last word.
+function reviewerReport(findings, record) {
+  const items = findings.flatMap((words, at) => [`${at + 1}. Quote: "${words}"`,
+    '   Problem: The draft breaks a rule of checking-proposals.', '   Fix: Change the draft.',
+    '   Point: The proposal needs a change before a member reads it.',
+    '   Marks: writer, direction, no break']);
+  return ['What you read:', '- proposal.md', '',
+    ...(findings.length ? ['Findings:', ...items, ''] : []),
+    ...record, '', findings.length ? 'changes-needed' : 'clean', ''].join('\n');
+}
+// trackReviewed writes report number of proposal-reviewer to root, and runs the report check
+// on it, which records its result in results.json, unless checked is false.
+function trackReviewed(root, number, findings, record, checked = true) {
+  const name = `proposal-reviewer-${number}.md`;
+  const text = typeof findings === 'string' ? findings : reviewerReport(findings, record);
+  if (checked) return reportIn(root, 'proposal-reviewer', name, text);
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.reports', name), text);
+  return null;
+}
+const FAST_READ = fastLines();
+
+test('proposal: check passes a fast track only when the newest review read it and found nothing', () => {
+  const draft = () => fast(...fastLines(FAST_CHANGE));
+  const refused = (end) => new RegExp('^Write "Standard track\\." in proposal\\.md: the fast ' +
+    `track has no clean review\\. \\.reports/proposal-reviewer-[\\d<>n]+\\.md ${end}`);
+  // Before the first review, no report and no result of its check exist.
+  passes(checkFiles(draft()));
+  // A clean review of this exact ## Track, with a finding in another section, passes.
+  const clean = draft();
+  trackReviewed(clean, 1, [FAST_REASON], trackRecord(['Standard track.'], 'clean'));
+  trackReviewed(clean, 2, ['Change the hours in the text of the saved reply'],
+    trackRecord(FAST_READ, 'clean'));
+  passes(checkFiles(clean));
+  // A finding on the path, whatever its quote says.
+  const found = draft();
+  trackReviewed(found, 1, ['the hours change'], trackRecord(FAST_READ, 'changes-needed'));
+  fails(checkFiles(found), refused('has a finding on the fast track\\.$'));
+  // A ## Track reworded after the review has no review.
+  const reworded = draft();
+  trackReviewed(reworded, 1, [], trackRecord(fastLines(FAST_CHANGE.replace('hours', 'times')), 'clean'));
+  fails(checkFiles(reworded), refused('reviewed another ## Track'));
+  // So has a ## Track whose reason changed after the review.
+  const reasoned = draft();
+  trackReviewed(reasoned, 1, [], trackRecord([FAST_LINE, FAST_REASON.replace('words', 'hours')],
+    'clean'));
+  fails(checkFiles(reasoned), refused('reviewed another ## Track'));
+  // A push reads no report, and the standard track needs no record.
+  passes(push(found, 'proposal'));
+  const full = fixture();
+  trackReviewed(full, 1, ['Standard track.'], trackRecord(['Standard track.'], 'changes-needed'));
+  passes(checkFiles(full));
+});
+
+test('proposal: check takes the record only from the newest report that passed its check', () => {
+  const draft = () => fast(...fastLines(FAST_CHANGE));
+  const unchecked = /has no passed report check of its text\.$/;
+  // A newest report with no check, such as one that the writer wrote.
+  const plain = draft();
+  trackReviewed(plain, 1, ['Standard track.'], trackRecord(['Standard track.'], 'clean'));
+  trackReviewed(plain, 2, [], trackRecord(FAST_READ, 'clean'), false);
+  fails(checkFiles(plain), unchecked);
+  // A report that changed after its check.
+  const changed = draft();
+  trackReviewed(changed, 1, [], trackRecord(FAST_READ, 'changes-needed'));
+  fs.writeFileSync(path.join(changed, '.reports', 'proposal-reviewer-1.md'),
+    reviewerReport([], trackRecord(FAST_READ, 'clean')));
+  fails(checkFiles(changed), unchecked);
+  // Two records, an indented record, or a record before a finding fail the report check, so
+  // check refuses the fast track.
+  const two = [...trackRecord(FAST_READ, 'changes-needed'), '', ...trackRecord(FAST_READ, 'clean')];
+  const indented = trackRecord(FAST_READ, 'clean').map((line) => `  ${line}`);
+  const early = ['What you read:', '- proposal.md', '', ...trackRecord(FAST_READ, 'clean'), '',
+    'Findings:', '1. Quote: "the hours change"', '   Problem: The reply text is read by code.',
+    '   Fix: "Standard track."', '   Point: The change can alter what the product does.',
+    '   Marks: writer, direction, no break', '', 'changes-needed', ''].join('\n');
+  for (const [text, finding] of [[reviewerReport([], two), /the report has 2 lines "Track read:"\.$/],
+    [reviewerReport([], indented), /no line "Track review: clean" or "Track review: changes-needed"/],
+    [early, /no line "Track review: clean" or "Track review: changes-needed"/]]) {
+    const root = draft();
+    fails(trackReviewed(root, 1, text), finding);
+    fails(checkFiles(root), unchecked);
+  }
+  // No report while the report check recorded one of proposal-reviewer.
+  const gone = draft();
+  trackReviewed(gone, 1, [], trackRecord(FAST_READ, 'clean'));
+  fs.rmSync(path.join(gone, '.reports', 'proposal-reviewer-1.md'));
+  fails(checkFiles(gone), /proposal-reviewer-<n>.md does not exist\.$/);
+});
+
+test('proposal: report requires the record of the track from proposal-reviewer', () => {
+  passes(report(reviewerReport([], trackRecord(FAST_READ, 'clean')), 'proposal-reviewer'));
+  passes(report(reviewerReport(['the hours change'], trackRecord(FAST_READ, 'changes-needed')),
+    'proposal-reviewer'));
+  fails(report(reviewerReport([], []), 'proposal-reviewer'),
+    /^End the report with the record of the track, then its last word\. The report is that of proposal-reviewer\. Its Expected output lists the record, and the report has no line "Track review: clean"/);
+  fails(report(reviewerReport([], trackRecord(FAST_READ, 'fine')), 'proposal-reviewer'),
+    /^End the report with the record of the track/);
+  // Another reviewer needs no record, and a blocked report has none.
+  passes(report(reviewerReport([], []), 'spec-reviewer'));
+  passes(report('What you read:\n- a\n\nBlocked: the draft is missing\nblocked\n', 'proposal-reviewer'));
+});
+
+test('proposal: the skills list the kinds and the sensitive areas of short-path.json', () => {
+  const lists = JSON.parse(fs.readFileSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/short-path.json'), 'utf8'));
+  assert.deepEqual(lists.kinds, ['a document', 'a text that the product shows', 'a comment',
+    'a text value in a code file', 'a look-only change']);
+  assert.equal(lists.sensitive_areas.length, 8);
+  const names = lists.sensitive_areas.map((area) => area.name);
+  for (const name of ['writing-proposals', 'checking-proposals']) {
+    const text = fs.readFileSync(path.join(MODULES, 'software-factory/skills', name, 'SKILL.md'), 'utf8');
+    const section = text.split(/^## /m).find((part) => part.startsWith('The track\n'));
+    assert.ok(section, name);
+    const read = (heading) => {
+      const after = section.split(`${heading}\n\n`)[1];
+      assert.ok(after, `${name}: ${heading}`);
+      return after.split('\n\n')[0].split('\n').map((line) => /^- `([^`]+)`/.exec(line)?.[1]);
+    };
+    assert.deepEqual(read('The kinds:'), lists.kinds, name);
+    assert.deepEqual(read('The sensitive areas:'), names, name);
+  }
+});
+
+// TRACK_LIB is the library of short-path.json, as workflow-checks.js loads it.
+const TRACK_LIB = require(path.join(MODULES,
+  'software-factory/skills/running-a-software-workflow/lib/short-path.js'))(
+  require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js')).LIBRARY);
+
+test('proposal: a file pattern matches by its parts, any depth for **/, and braces', () => {
+  const { globRegExp } = TRACK_LIB;
+  const matches = (pattern, file) => globRegExp(pattern).test(file);
+  assert.ok(matches('**/auth/**', 'auth/login.ts'));
+  assert.ok(matches('**/auth/**', 'apps/web/src/auth/login.ts'));
+  assert.ok(!matches('**/auth/**', 'apps/author/login.ts'));
+  assert.ok(!matches('**/auth/**', 'auth'));
+  assert.ok(matches('**/*.tf', 'main.tf'));
+  assert.ok(matches('**/*.tf', 'infra/net/main.tf'));
+  assert.ok(!matches('**/*.tf', 'main.tfvars'));
+  assert.ok(matches('**/*flag*.{json,yaml,yml,toml}', 'config/flags.yml'));
+  assert.ok(matches('**/*flag*.{json,yaml,yml,toml}', 'feature-flag.toml'));
+  assert.ok(!matches('**/*flag*.{json,yaml,yml,toml}', 'flags.md'));
+  assert.ok(matches('.github/actions/**', '.github/actions/setup/action.yml'));
+  assert.ok(!matches('.github/actions/**', 'web/.github/actions/setup/action.yml'));
+  assert.ok(matches('.gitmodules', '.gitmodules'));
+  assert.ok(!matches('.gitmodules', 'web/.gitmodules'));
+  assert.ok(matches('**/session*/**', 'src/sessions/store.ts'));
+  assert.ok(!matches('**/session*/**', 'src/session.ts'));
+  assert.ok(matches('**/Dockerfile*', 'docker/dockerfile.dev'), 'a match ignores case');
+  assert.ok(matches('**/id_rsa?', 'keys/id_rsa2'));
+  assert.ok(!matches('**/schema.*', 'db/schemaxjson'), 'a dot matches only a dot');
+  for (const [pattern, why] of [['/secrets/**', /starts with \//], ['**auth/**', /\*\*/],
+    ['a/**b', /\*\*/], ['*.{json,{yml}}', /inside braces/], ['*.{json', /no \}/],
+    ['*.json}', /no \{/], ['', /empty/]]) {
+    assert.throws(() => globRegExp(pattern), why, pattern);
+  }
+});
+
+test('proposal: an area of short-path.json has no control or bidirectional character', () => {
+  const { areaForm } = TRACK_LIB;
+  assert.equal(areaForm({ name: 'billing', patterns: ['**/billing/**'] }), null);
+  for (const char of ['\t', '\u0085', '\u2028', '\u202e', '\u2066', '\u200e', '\u200f', '\u061c']) {
+    assert.match(areaForm({ name: `bill${char}ing`, patterns: ['**/billing/**'] }), /has no name/);
+    assert.match(areaForm({ name: 'billing', patterns: [`**/bill${char}ing/**`] }),
+      /not a text on one line/);
+  }
+});
+
+test('proposal: every pattern of short-path.json can be read', () => {
+  for (const area of TRACK_LIB.TRACK_LISTS.areas) {
+    assert.ok(area.patterns.length, area.name);
+    for (const pattern of area.patterns) assert.doesNotThrow(() => TRACK_LIB.globRegExp(pattern));
+  }
+  const { areaOf, TRACK_LISTS } = TRACK_LIB;
+  assert.equal(areaOf('docs/guide.md', TRACK_LISTS.areas), null);
+  assert.equal(areaOf('locales/en.json', TRACK_LISTS.areas), null);
+  assert.deepEqual(areaOf('./db/migrations/0042_orders.sql', TRACK_LISTS.areas),
+    { name: 'migrations and data models', pattern: '**/migrations/**' });
+  assert.deepEqual(areaOf('package.json', TRACK_LISTS.areas),
+    { name: 'dependencies', pattern: '**/package.json' });
+  assert.deepEqual(areaOf('web: .github/workflows/ci.yml', TRACK_LISTS.areas), null,
+    'areaOf takes the ref, not the item of ## Sources');
+});
+
+test('proposal: a ref is matched as a path from the root, with / for \\ and no // or leading /', () => {
+  const { areaOf, TRACK_LISTS } = TRACK_LIB;
+  const area = (ref) => areaOf(ref, TRACK_LISTS.areas)?.name ?? null;
+  assert.equal(area('/.gitmodules'), 'infrastructure and pipelines');
+  assert.equal(area('.//.gitmodules'), 'infrastructure and pipelines');
+  assert.equal(area('/.github/actions/setup/action.yml'), 'infrastructure and pipelines');
+  assert.equal(area('.github//dependabot.yml'), 'infrastructure and pipelines');
+  assert.equal(area('src\\billing\\invoice-text.md'), 'billing');
+  assert.equal(area('./docs//guide.md'), null);
+  // A part . is left out, also inside the ref.
+  assert.equal(area('.github/./dependabot.yml'), 'infrastructure and pipelines');
+  assert.equal(area('./src/./././billing/invoice-text.md'), 'billing');
+  assert.equal(area('src/.\\billing\\invoice-text.md'), 'billing');
+  fails(push(fastWith('.github/./dependabot.yml'), 'proposal'),
+    /"\.github\/\.\/dependabot\.yml" is in the sensitive area "infrastructure and pipelines"/);
+});
+
+test('proposal: the fast track refuses a ref that is or may be a folder', () => {
+  const { folderRef } = TRACK_LIB;
+  // No file is at hand in push and end --offline, so the ref alone decides: a file has a name
+  // and an extension in its last part.
+  for (const ref of ['src', '.', './', '.github', 'config', 'src/billing/', 'docs\\', 'db/migrations',
+    'Dockerfile', 'src/.', 'a.', '']) {
+    assert.equal(folderRef(ref), true, ref);
+  }
+  for (const ref of ['en.json', 'docs/guide.md', '.env.production', 'a/./b.md', 'src\\a.md']) {
+    assert.equal(folderRef(ref), false, ref);
+  }
+  const folder = (ref) => new RegExp('^List each changed file under ## Track of proposal\\.md, ' +
+    `not a folder\\. "${ref.replace(/[.\\/]/g, '\\$&')}" has no extension, so it may be a folder\\.$`);
+  for (const ref of ['src', '.github', 'config', 'docs', 'db/migrations']) {
+    for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
+      call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' },
+        offlineFast(ref).args)]) {
+      fails(result, folder(ref));
+    }
+  }
+  // The folder is refused even when no sensitive area matches anything under it.
+  const docs = push(fastWith('docs'), 'proposal');
+  assert.ok(!/sensitive area/.test(docs.out), docs.out);
+  passes(push(fastWith('docs/opening-hours.md'), 'proposal'));
+});
+
+test('proposal: only the ref itself is matched, so a file named like a folder is no area', () => {
+  const { areaOf, TRACK_LISTS } = TRACK_LIB;
+  const area = (ref) => areaOf(ref, TRACK_LISTS.areas)?.name ?? null;
+  // **/session*/**, **/polic*/** and the patterns of billing match folders, not these files.
+  for (const ref of ['docs/session-guide.md', 'docs/policies.md', 'src/payments.md']) {
+    assert.equal(area(ref), null, ref);
+  }
+  passes(push(fastWith('docs/session-guide.md'), 'proposal'));
+  // A file under such a folder is in its area.
+  assert.equal(area('src/session/store.ts'), 'sign-in and permissions');
+});
+
+test('proposal: the fast track refuses a ref with .. or a character of a glob', () => {
+  // .. written with \ is a .. part too, in check, push and end --offline.
+  const up = 'docs\\..\\.github\\dependabot.yml';
+  const offline = (ref) => call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' },
+    home: '/tmp' }, offlineFast(ref).args);
+  for (const result of [push(fastWith(up), 'proposal'), checkFiles(fastWith(up)), offline(up)]) {
+    fails(result, /^Remove the \.\. part from the ref of source 1 in sources\.json\. The ref is "docs\\\.\.\\\.github\\dependabot\.yml"\.$/);
+  }
+  for (const ref of ['docs/*.md', 'docs/guide?.md', 'docs/{a,b}.md', 'docs/[ab].md',
+    'docs/a}.md']) {
+    for (const result of [push(fastWith(ref), 'proposal'), checkFiles(fastWith(ref)),
+      offline(ref)]) {
+      fails(result, /^List each changed file by its exact path under ## Track of proposal\.md\. ".*" has \*, \?, \{, \}, \[ or \]\.$/);
+    }
+  }
+});
+
+test('proposal: an added pattern that no file can match is refused', () => {
+  const { globRegExp } = TRACK_LIB;
+  for (const [pattern, why] of [['./search-index/**', /starts with \.\//],
+    ['search-index/', /ends with \//], ['config/[ab].yaml', /\[ or \]/],
+    ['config/a].yaml', /\[ or \]/], ['config//ranking.yaml', /has \/\//],
+    ['config/./ranking.yaml', /a part \. or \.\./], ['config/../ranking.yaml', /a part \. or \.\./],
+    ['../config/ranking.yaml', /a part \. or \.\./], ['config\\ranking.yaml', /has \\/],
+    // The paths that the braces give are checked by their parts too.
+    ['config/{.}/ranking.yaml', /a part \. or \.\./], ['{.,src}/auth/**', /a part \. or \.\./],
+    ['{../a,b}/**', /a part \. or \.\./], ['{a/,b}/x', /leaves an empty part/],
+    ['{/a,b}/x', /leaves an empty part/], ['config/{,a}.yaml', /empty alternative/],
+    ['config/{a,}.yaml', /empty alternative/]]) {
+    assert.throws(() => globRegExp(pattern), why, pattern);
+    const result = inFolder(fastWith('docs/opening-hours.md'),
+      factory({ add_sensitive_areas: [{ name: 'search ranking', patterns: [pattern] }] }));
+    refused(result, /^Fix harness\.extensions\.software-factory in qory\.yaml: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, /);
+    assert.match(result.findings[0], why, `${pattern}: ${result.findings[0]}`);
+  }
+  // A pattern with no / before its last part matches only at the root.
+  assert.ok(globRegExp('*.sql').test('seed.sql'));
+  assert.ok(!globRegExp('*.sql').test('db/seed.sql'));
+  assert.ok(globRegExp('**/*.sql').test('db/seed.sql'));
+});
+
+// fastWith returns a proposal fixture whose fast track changes file, which sources.json lists.
+function fastWith(file) {
+  const change = FAST_CHANGE.replace(FAST_FILE, file);
+  const root = fixture(trackLines(...fastLines(change)),
+    ['proposal.md', 'No public page and no file.', `- ${file}`]);
+  write(root, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
+  return root;
+}
+
+test('proposal: a fast track that changes a file of a sensitive area fails', () => {
+  passes(push(fastWith('docs/opening-hours.md'), 'proposal'));
+  fails(push(fastWith('src/billing/invoice-text.md'), 'proposal'),
+    /^Write "Standard track." in proposal.md: a changed file is in a sensitive area\. "src\/billing\/invoice-text.md" is in the sensitive area "billing" \("\*\*\/billing\/\*\*"\)\.$/);
+  fails(checkFiles(fastWith('app/.env.production')),
+    /is in the sensitive area "production configuration and feature flags" \("\*\*\/\*\.env\*"\)/);
+  // A file of a further repository is matched by its ref, from the root of that repository.
+  const root = fixture(trackLines(...fastLines(FAST_CHANGE.replace(FAST_FILE, 'web: Dockerfile'))), ['proposal.md', 'No public page and no file.', '- web: Dockerfile']);
+  write(root, 'sources.json',
+    { sources: [{ kind: 'file', container: 'web', ref: 'Dockerfile', why: 'Builds the image.' }] });
+  fails(push(root, 'proposal'),
+    /"web: Dockerfile" is in the sensitive area "infrastructure and pipelines" \("\*\*\/Dockerfile\*"\)/);
+  // The standard track changes nothing that the patterns read.
+  const full = fixture(['proposal.md', 'No public page and no file.', '- src/billing/invoice-text.md']);
+  write(full, 'sources.json',
+    { sources: [{ kind: 'file', ref: 'src/billing/invoice-text.md', why: 'Has the text.' }] });
+  passes(push(full, 'proposal'));
+});
+
+// inFolder runs check proposal on root with a working folder whose harness report has
+// extensions, or no report when extensions is undefined, or the text of the report when
+// extensions is a string.
+function inFolder(root, extensions) {
+  const folder = fs.mkdtempSync(path.join(tmp, 'working-'));
+  if (extensions !== undefined) {
+    fs.mkdirSync(path.join(folder, '.qory'));
+    const report = typeof extensions === 'string' ? extensions
+      : JSON.stringify({ version: 1, modules: [], entries: [], excludes: [], extensions });
+    fs.writeFileSync(path.join(folder, '.qory', 'harness-report.json'), report);
+  }
+  return call({ cwd: folder, artifacts: [root] },
+    ['check', 'proposal', ...FILES.proposal.map((f) => path.join(root, f))]);
+}
+// refused asserts exit 3 with a first line that matches pattern.
+function refused(result, pattern) {
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.findings[0], pattern);
+}
+const factory = (changes) => ({ 'software-factory': changes });
+const SEARCH = { name: 'search ranking', patterns: ['**/search-index/**', 'config/{ranking,synonyms}.yaml'] };
+
+test('proposal: the lists of short-path.json apply with no harness report or no changes', () => {
+  passes(inFolder(fastWith('docs/opening-hours.md'), undefined));
+  passes(inFolder(fastWith('docs/opening-hours.md'), {}));
+  passes(inFolder(fastWith('docs/opening-hours.md'), { other: { any: ['shape'] } }));
+  fails(inFolder(fastWith('src/billing/invoice-text.md'), undefined), /sensitive area "billing"/);
+  fails(inFolder(fastWith('src/billing/invoice-text.md'), { other: 1 }), /sensitive area "billing"/);
+  passes(inFolder(fastWith('src/search-index/weights.md'), factory({})));
+});
+
+test('proposal: a repository adds a sensitive area that refuses a fast track', () => {
+  const changes = factory({ add_sensitive_areas: [SEARCH] });
+  passes(inFolder(fastWith('docs/opening-hours.md'), changes));
+  fails(inFolder(fastWith('src/search-index/weights.md'), changes),
+    /^Write "Standard track." in proposal.md: a changed file is in a sensitive area\. "src\/search-index\/weights.md" is in the sensitive area "search ranking" \("\*\*\/search-index\/\*\*"\)\.$/);
+  fails(inFolder(fastWith('config/synonyms.yaml'), changes), /sensitive area "search ranking"/);
+  // The areas of short-path.json stay.
+  fails(inFolder(fastWith('src/billing/invoice-text.md'), changes), /sensitive area "billing"/);
+  // A push in a folder with no harness report uses the lists of short-path.json alone.
+  passes(push(fastWith('src/search-index/weights.md'), 'proposal'));
+});
+
+test('proposal: a repository removes a kind, and a fast track of that kind fails', () => {
+  const changes = factory({ remove_kinds: ['a text that the product shows'] });
+  fails(inFolder(fastWith('docs/opening-hours.md'), changes),
+    /^Write "Standard track\." in proposal\.md: qory\.yaml removes the kind of the fast track\. The kind is "a text that the product shows"\.$/);
+  const comment = fixture(trackLines(...fastLines(FAST_CHANGE, 'a comment')),
+    FAST_SOURCE);
+  passes(inFolder(fastSource(comment), changes));
+  // The standard track reads no list, so a removed kind changes nothing for it.
+  passes(inFolder(fixture(), changes));
+});
+
+test('proposal: a repository removes a sensitive area, or replaces its patterns', () => {
+  const removed = factory({ remove_sensitive_areas: ['billing'] });
+  // A repository where payments/ is normal work removes billing.
+  passes(inFolder(fastWith('src/payments/receipt-text.md'), removed));
+  passes(inFolder(fastWith('src/billing/invoice-text.md'), removed));
+  fails(inFolder(fastWith('keys/server.pem'), removed), /sensitive area "secrets"/);
+  // Replaced: removed, then added with other patterns.
+  const replaced = factory({ remove_sensitive_areas: ['billing'],
+    add_sensitive_areas: [{ name: 'billing', patterns: ['**/invoices/**'] }] });
+  passes(inFolder(fastWith('src/billing/invoice-text.md'), replaced));
+  fails(inFolder(fastWith('src/invoices/footer.md'), replaced),
+    /"src\/invoices\/footer.md" is in the sensitive area "billing" \("\*\*\/invoices\/\*\*"\)/);
+});
+
+test('proposal: a harness report with changes in another form is refused', () => {
+  const draft = () => fastWith('docs/opening-hours.md');
+  const fix = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
+  for (const [changes, pattern] of [
+    // The shape of each key is the check of lib/repository-settings.js, with its texts.
+    ['a list', /^Write harness\.extensions\.software-factory in qory\.yaml as a map\. It is text\.$/],
+    [{ add_kinds: ['a picture'] }, /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml\. The schema has no such key\. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes\.$/],
+    [{ remove_kinds: 'a comment' }, /^Write remove_kinds in qory\.yaml as a list\. It is text\.$/],
+    [{ remove_kinds: null }, /^Write remove_kinds in qory\.yaml as a list\. It is null\.$/],
+    [{ remove_sensitive_areas: null }, /^Write remove_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
+    [{ add_sensitive_areas: null }, /^Write add_sensitive_areas in qory\.yaml as a list\. It is null\.$/],
+    [{ remove_kinds: ['a picture'] }, /: remove the name not in short-path\.json\. remove_kinds has "a picture", which is not a kind in short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/],
+    [{ remove_kinds: [3] }, /^Write item 1 of remove_kinds in qory\.yaml as text\. It is a whole number\.$/],
+    [{ remove_sensitive_areas: ['search ranking'] }, /\. remove_sensitive_areas has "search ranking", which is not a sensitive area in short-path\.json\./],
+    [{ remove_sensitive_areas: ['Billing'] }, /\. remove_sensitive_areas has "Billing", which is not a sensitive area/],
+    [{ add_sensitive_areas: SEARCH }, /^Write add_sensitive_areas in qory\.yaml as a list\. It is an object\.$/],
+    [{ add_sensitive_areas: ['search ranking'] }, /^Write area 1 of add_sensitive_areas in qory\.yaml as an object\. It is text\.$/],
+    [{ add_sensitive_areas: [{ patterns: ['**/payments/**'] }] }, /^Add the member name to area 1 of add_sensitive_areas in qory\.yaml\. The schema requires it\.$/],
+    [{ add_sensitive_areas: [{ name: ' ', patterns: ['**/payments/**'] }] }, /: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, it has no name/],
+    [{ add_sensitive_areas: [{ name: 'payments' }] }, /^Add the member patterns to area 1 of add_sensitive_areas in qory\.yaml\. The schema requires it\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [] }] }, /^Give patterns of area 1 of add_sensitive_areas in qory\.yaml at least 1 entry\. It has 0 entries\.$/],
+    [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
+    // The schema refuses a line break or a control character in a name or a pattern.
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "pay\\nments"\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "\*\*\/pay\\tments\/\*\*"\.$/],
+    // C1 controls, the line and paragraph separators and the bidirectional controls too.
+    ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069', '\u200e',
+      '\u200f', '\u061c'].flatMap((char) => [
+      [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. /],
+      [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. /]]),
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
+    [{ add_sensitive_areas: [{ ...SEARCH, owner: 'finance' }] }, /^Remove the member "owner" from area 1 of add_sensitive_areas in qory\.yaml\. The schema has no such member\. Its members are name, patterns\.$/],
+    [{ add_sensitive_areas: [SEARCH, SEARCH] }, /: rename area 2 of add_sensitive_areas\. An earlier added area has the name "search ranking"\.$/],
+    [{ add_sensitive_areas: [{ name: 'Billing', patterns: ['**/invoices/**'] }] }, /: rename area 1 of add_sensitive_areas\. Area 1 of add_sensitive_areas has the name "Billing", which is already the name of an area in short-path\.json\. To replace that area, add the name to remove_sensitive_areas\.$/],
+  ]) {
+    const result = inFolder(draft(), factory(changes));
+    refused(result, pattern);
+  }
+  refused(inFolder(draft(), '{"version": 1, "extensions": '), /^Compose the harness again\. \.qory\/harness-report\.json is no valid JSON\.$/);
+  refused(inFolder(draft(), '[]'), /^Compose the harness again\. \.qory\/harness-report\.json is a list, not an object\.$/);
+  refused(inFolder(draft(), JSON.stringify({ extensions: [] })), /^Compose the harness again\. \.qory\/harness-report\.json has extensions as a list, not a map\.$/);
+  // The standard track stops on the same extensions, in check and in push.
+  const unlisted = /^Remove the key "add_kinds" from harness\.extensions\.software-factory in qory\.yaml\. The schema has no such key\. /;
+  refused(inFolder(fixture(), factory({ add_kinds: ['a picture'] })), unlisted);
+  refused(push(withReport(fixture(), { add_kinds: ['a picture'] }), 'proposal'), unlisted);
+  refused(push(withReport(fixture(), { remove_kinds: ['a picture'] }), 'proposal'), fix);
+  refused(pushIn(fixture(), inputsFile('{"qory": {}}')),
+    /^Give --inputs the inputs\.json that qory wrote for the run\. ".*" has no member qory\.harness_extensions\.$/);
+});
+
+test('proposal: the keys of software-factory are checked against extensions.schema.json', () => {
+  const limits = { full_suite: 30, fast_checks: 5, targeted_checks: 10 };
+  passes(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: limits })));
+  passes(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: {} })));
+  fails(inFolder(fastWith('src/billing/invoice-text.md'),
+    factory({ command_limits_minutes: { fast_checks: 60 } })),
+    /sensitive area "billing"/);
+  for (const [value, pattern] of [
+    [0, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1\. It is 0\.$/],
+    [-1, /^Set command_limits_minutes\.full_suite in qory\.yaml to at least 1\. It is -1\.$/],
+    [61, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60\. It is 61\.$/],
+    [1.5, /^Round command_limits_minutes\.full_suite in qory\.yaml to a whole number\. It is 1\.5\.$/],
+    ['5', /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number\. It is text\.$/],
+    [null, /^Write command_limits_minutes\.full_suite in qory\.yaml as a whole number\. It is null\.$/],
+  ]) {
+    refused(inFolder(fastWith('docs/opening-hours.md'),
+      factory({ command_limits_minutes: { full_suite: value } })), pattern);
+  }
+  refused(inFolder(fastWith('docs/opening-hours.md'),
+    factory({ command_limits_minutes: { full_suite: 5, lint: 2 } })),
+  /^Remove the member "lint" from command_limits_minutes in qory\.yaml\. The schema has no such member\. Its members are full_suite, fast_checks, targeted_checks\.$/);
+  refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits_minutes: 30 })),
+    /^Write command_limits_minutes in qory\.yaml as an object\. It is a whole number\.$/);
+  refused(inFolder(fastWith('docs/opening-hours.md'), factory({ command_limits: {} })),
+    /^Remove the key "command_limits" from harness\.extensions\.software-factory in qory\.yaml\. The schema has no such key\. /);
+});
+
+test('proposal: Explore gives proposal-reviewer the report of code-explorer', () => {
+  const module = path.join(MODULES, 'software-factory');
+  const workflow = fs.readFileSync(path.join(module, 'skills/workflow-explore-a-ticket/SKILL.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  assert.match(workflow, /Give only the proposal reviewer the code explorer's report, unchanged/);
+  const agent = fs.readFileSync(path.join(module, 'agents/proposal-reviewer.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  assert.match(agent, /You get the paths of the input file and the artifact folder, the run's number, the code explorer's report/);
+  // The session passes the Extensions line of check proposal to the writer and the reviewer,
+  // which read no file of the extensions.
+  assert.match(workflow, /give each start of either the line of the newest `check proposal`, unchanged/);
+  assert.match(agent, /the line that starts with `Extensions:`/);
+  for (const skill of ['checking-proposals', 'writing-proposals']) {
+    const text = fs.readFileSync(path.join(module, 'skills', skill, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(text, /--inputs|harness-report/, skill);
+  }
 });
 
 test('spec: its four sections, in order', () => {
@@ -241,19 +847,20 @@ function withScenarios(...edits) {
   return root;
 }
 
-// emptyVersion adds version 2 of demo-scenarios to root with 0 bytes, and note as its note in
-// index.json, or no note member when note is undefined. name is the artifact's name.
-function emptyVersion(root, note, name = 'main') {
-  const dir = path.join(root, 'demo-scenarios', name, 'v2');
+// emptyVersion adds version number, 2 by default, of demo-scenarios to root with 0 bytes, and
+// note as its note in index.json, or no note member when note is undefined. name is the
+// artifact's name.
+function emptyVersion(root, note, name = 'main', number = 2) {
+  const dir = path.join(root, 'demo-scenarios', name, `v${number}`);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), '');
   const file = path.join(root, 'index.json');
   const index = JSON.parse(fs.readFileSync(file, 'utf8'));
   const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
   artifact.name = name;
-  artifact.newest_version = 2;
-  const added = { ...artifact.versions[0], id: 'av_demo2', number: 2, note,
-    files: [{ ...artifact.versions[0].files[0], size: 0 }] };
+  artifact.newest_version = number;
+  const added = { ...artifact.versions[0], id: `av_demo${number}`, number, note,
+    cancelled: false, files: [{ ...artifact.versions[0].files[0], size: 0 }] };
   if (note === undefined) delete added.note;
   artifact.versions.unshift(added);
   fs.writeFileSync(file, JSON.stringify(index));
@@ -322,6 +929,58 @@ test('scenarios: an empty newest version whose note lists no id', () => {
     fails(push(lost, 'demo-scenarios'),
       /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
   }
+});
+
+// cancelledVersion adds version number of demo-scenarios main to root with text, and marks it
+// in index.json with `cancelled` set to true, as the run API marks a cancelled run's version.
+function cancelledVersion(root, number, text) {
+  version(root, 'demo-scenarios', number, 'demo-scenarios.md', text);
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const artifact = index.artifacts.find((one) => one.type === 'demo-scenarios');
+  artifact.newest_version = Math.max(artifact.newest_version, number);
+  artifact.versions.unshift({ ...artifact.versions[0], id: `av_cancelled${number}`, number,
+    note: null, cancelled: true });
+  fs.writeFileSync(file, JSON.stringify(index));
+}
+
+test('scenarios: an empty newest version skips a cancelled version with scenarios', () => {
+  // Version 2 of a cancelled run has scenario-3 and scenario-4; version 1 has scenario-1 and
+  // scenario-2. The empty version 3, whose note lists no id, removes the ids of version 1.
+  const root = withScenarios();
+  cancelledVersion(root, 2, SCENARIOS.replace('### scenario-2:', '### scenario-4:')
+    .replace('### scenario-1:', '### scenario-3:'));
+  emptyVersion(root, undefined, 'main', 3);
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  assert.ok(!result.lines.some((line) => /scenario-[34]|version 2/.test(line)), result.out);
+});
+
+test('scenarios: an empty newest version with only cancelled versions below it', () => {
+  const root = withScenarios();
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  index.artifacts.find((one) => one.type === 'demo-scenarios').versions[0].cancelled = true;
+  fs.writeFileSync(file, JSON.stringify(index));
+  emptyVersion(root, undefined);
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result,
+    /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
+  assert.ok(!result.lines.some((line) => line.startsWith('Keep scenario-')), result.out);
+});
+
+test('scenarios: an empty newest version with no index.json reads each older version', () => {
+  // With no index.json, no note is read and no version is marked cancelled, so the ids of
+  // version 1 are removed: scenario-2 too, which the note of version 2 does not list.
+  const root = withScenarios();
+  emptyVersion(root, 'scenario-1, "Read the new hours": removed.');
+  fs.rmSync(path.join(root, 'index.json'));
+  write(root, 'demo-scenarios.md', SCENARIOS);
+  const result = push(root, 'demo-scenarios');
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 1 removed it/);
 });
 
 test('scenarios: the ids of an empty version are read from a note of one line', () => {
@@ -452,8 +1111,9 @@ test('words: a spec counts as before: no table, Mermaid block or background afte
 // words, to add before ## Sources.
 const parts = (count, size = 100) => Array.from({ length: count },
   (_, at) => `### Part ${at + 1}\n\n- ${many(size)}.\n\n`).join('');
-// beforeSources returns the edit of a proposal fixture that adds text before ## Sources.
-const beforeSources = (text) => ['proposal.md', '## Sources', `${text}## Sources`];
+// beforeSources returns the edit of a proposal fixture that adds text before ## Track, the
+// section before ## Sources.
+const beforeSources = (text) => ['proposal.md', '## Track', `${text}## Track`];
 // total returns the words of proposal.md that the finding on the 450 words states.
 function total(result) {
   const found = /^Cut proposal.md to 450 words: it has (\d+)\.$/m.exec(result.out);
@@ -519,7 +1179,7 @@ test('words: a one-line source item does not count', () => {
   const root = fixture(long);
   sources(root);
   passes(push(root, 'proposal'));
-  const code = fixture(long, ['proposal.md', '## Sources', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Sources`]);
+  const code = fixture(long, ['proposal.md', '## Track', `\`\`\`text\n${many(300)}\n\`\`\`\n\n## Track`]);
   sources(code);
   fails(push(code, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
 });
@@ -786,8 +1446,8 @@ test('words: the sources of a proposal end at the next heading of any level', ()
 });
 
 test('words: a ## Sources heading in a code block starts no sources', () => {
-  const fenced = `\`\`\`text\n## Sources\n${many(200)}\n\`\`\`\n\n${many(200)}\n\n## Sources`;
-  const root = fixture(['proposal.md', '## Sources', fenced]);
+  const fenced = `\`\`\`text\n## Sources\n${many(200)}\n\`\`\`\n\n${many(200)}\n\n## Track`;
+  const root = fixture(['proposal.md', '## Track', fenced]);
   fails(push(root, 'proposal'), /^Cut proposal.md to 450 words: it has \d+\./);
 });
 
@@ -908,6 +1568,59 @@ test('decision record: no id renumbered or reused against the newest version', (
   version(root, 'decision-record', 3, 'decision-record.md', text);
   write(root, 'decision-record.md', text.replace('`decision-1`', '`decision-2`'));
   fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*version 3 has it/);
+});
+
+// withdrawIn lists version number of type in index.json of root as a withdrawal of main, as
+// `qory artifact push --withdraw` stores it: `withdrawn` set to true and no files. With
+// withdraw false, it lists a push of files instead.
+function withdrawIn(root, type, number, withdraw = true) {
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const artifact = index.artifacts.find((one) => one.type === type);
+  artifact.versions.unshift({ id: `av_${type}_withdrawn${number}`, number,
+    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, withdrawn: withdraw,
+    stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z', files: [], approvals: [] });
+  artifact.newest_version = number;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+}
+
+test('ids: a withdrawal and a new push drop no id of the version before it', () => {
+  for (const [type, file, from, to, finding] of [
+    ['acceptance-criteria', 'acceptance-criteria.md', /\| ac-4 .*\n?/, '',
+      /^Keep ac-4 in acceptance-criteria.md.*version 1 has it/],
+    ['decision-record', 'decision-record.md', '`decision-1`', '`decision-2`',
+      /^Keep decision-1 in decision-record.md.*version 1 has it/],
+    ['demo-scenarios', 'demo-scenarios.md', '### scenario-2:', '### scenario-3:',
+      /^Keep scenario-2 in demo-scenarios.md.*version 1 has it/],
+  ]) {
+    const root = fixture();
+    const text = fs.readFileSync(path.join(root, file), 'utf8');
+    version(root, type, 1, file, text);
+    withdrawIn(root, type, 2);
+    write(root, file, text.replace(from, to));
+    fails(push(root, type), finding);
+    // qory mounts version 1, the version before the withdrawal, in a push store. A push
+    // store that still lacks it exits 3 with the line for a member, and a check with the
+    // line to pull that version.
+    fs.rmSync(path.join(root, type), { recursive: true });
+    const lacking = push(root, type);
+    assert.equal(lacking.status, 3, `${type}: ${lacking.out}`);
+    assert.equal(lacking.lines[0], `Report to a member: the push store lacks ${type} version 1 ` +
+      'from before the withdrawal.', type);
+    const checked = check(root, type, path.join(root, file));
+    assert.equal(checked.status, 3, `${type}: ${checked.out}`);
+    assert.deepEqual(checked.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version ` +
+      '1`, then check again.', `The store lacks ${type} version 1, the version before the ` +
+      'withdrawal.'], type);
+    // Version 3, a push after the withdrawal, is the version that a third push keeps.
+    const again = fixture();
+    version(again, type, 1, file, text);
+    withdrawIn(again, type, 2);
+    version(again, type, 3, file, text);
+    withdrawIn(again, type, 3, false);
+    write(again, file, text.replace(from, to));
+    fails(push(again, type), new RegExp(finding.source.replace('version 1', 'version 3')));
+  }
 });
 
 test('questions: each id once, and follows lists only earlier ids', () => {
@@ -1160,8 +1873,8 @@ test('proposal: a heading or item in a code block under ## Sources lists no sour
 });
 
 test('proposal: a ## Sources heading in a code block before ## Sources lists no source', () => {
-  const block = '```md\n## Sources\n\n- web: src/other.ts\n```\n\n## Sources';
-  const root = fixture(['proposal.md', '## Sources', block],
+  const block = '```md\n## Sources\n\n- web: src/other.ts\n```\n\n## Track';
+  const root = fixture(['proposal.md', '## Track', block],
     ['proposal.md', 'No public page and no file.', `${PAGE}\n${FILE}`]);
   write(root, 'sources.json', {
     sources: [
@@ -1186,7 +1899,7 @@ test('proposal: a break such as * * * under ## Sources lists no source', () => {
 test('proposal: a file ref has no .qory/repositories, .. part or machine path', () => {
   const root = fixture(['proposal.md', 'No public page and no file.', '- ../a.ts']);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: '../a.ts', why: 'A.' }] });
-  fails(push(root, 'proposal'), /^Remove the \.\. part from the ref "\.\.\/a\.ts"/);
+  fails(push(root, 'proposal'), /^Remove the \.\. part from the ref of .* in sources\.json\. The ref is "\.\.\/a\.ts"\.$/);
   write(root, 'sources.json', { sources: [{ kind: 'file', ref: '.qory/repositories/web/a.ts', why: 'A.' }] });
   fails(push(root, 'proposal'), /^Remove \.qory\/repositories from ref of source 1 of sources.json/);
 });
@@ -1480,6 +2193,90 @@ test('points: an answer point names an open question, and a run_again point none
   fails(checkPoints([{ ...AGAIN, question: 'q3' }]), /^Remove question from point 1: a point with the action run_again has none\.$/);
 });
 
+test('points: a point states its action, and the words of each id beside it', () => {
+  // A point with no action names the field and its fix first.
+  exactly(checkPoints([{ text: ANSWER.text }]),
+    'Set the action of point 1 to answer or run_again: it is missing.');
+  // The point of a criterion that cannot be met, with its id and its text in quotes.
+  passes(checkPoints([{ ...ANSWER, text: 'AC-3, "A member exports up to 50,000 rows to CSV", ' +
+    'cannot be met as approved: the export service returns at most 10,000 rows.' }]));
+  const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
+  for (const id of ['AC-3', 'ac-3', 'd-2', 'scenario-1']) {
+    exactly(text(`The run could not meet ${id} as approved.`), `Quote the words of ${id} ` +
+      'beside it in the text of point 1.');
+  }
+  passes(text('The decision d-2 ("Keep the hours in the reply") breaks an answer.'));
+  passes(text('The answer "Keep the hours in the reply" (d-2) breaks a rule.'));
+  // Only the ids that the harness writes count: a name such as UTF-8, GPT-4 or top-10 is no id.
+  passes(text('The export file is not UTF-8.'));
+  passes(text('The keys use AES-256 and RSA-2048, the model is GPT-4 on Node-20, and the ' +
+    'COVID-19 report of Jan-2026 lists the top-10 items of grade A-1.'));
+  passes(text('The Q1 report has no total.'));
+  for (const id of ['Step-2', 'decision-1', 'SCENARIO-4']) {
+    exactly(text(`The run could not meet ${id} as approved.`), `Quote the words of ${id} ` +
+      'beside it in the text of point 1.');
+  }
+  // Quotes around the id alone, or quotes with no letter, are no words of the id.
+  for (const value of ['Fix "AC-3" before the build.', '"AC-3" asks for more rows.',
+    'The run could not meet AC-3, "".', 'The run could not meet AC-3, "12".']) {
+    exactly(text(value), 'Quote the words of AC-3 beside it in the text of point 1.');
+  }
+  passes(text('The run could not meet "AC-3", "A member exports up to 50,000 rows".'));
+  // A text over the limit gets the finding of its length and of each other rule it breaks.
+  const long = 'The run could not meet AC-3 as approved, and the file index.json is ';
+  assert.deepEqual(text(`${long}${'a'.repeat(500 - long.length)}.`).lines.slice(0, -1), [
+    'Write the text of point 1 as text of 1 to 500 characters: it has 501 characters.',
+    'Remove the file name from the text of point 1: name what the file contains.',
+    'Quote the words of AC-3 beside it in the text of point 1.']);
+  // A question id has one finding: remove it.
+  exactly(text('The run left q4 open.'), 'Remove the question id from the text of point 1: ' +
+    'question links the point to its question.');
+  // An id in the path of a file of the target is part of the path, but ids joined by a slash
+  // are no path.
+  passes(text('Edit docs/step-1.md so that it lists the refund.'));
+  passes(text('The file tests/ac-3.test.ts has no case for an empty list.'));
+  passes(text('The folder src/ac-3/ has no test.'));
+  exactly(text('The run could not meet the ac-3/ac-4 pair as approved.'), 'Quote the words of ' +
+    'ac-3 beside it in the text of point 1.');
+  // An empty part and a part of digits make no path.
+  for (const value of ['The run could not meet AC-3/4 as approved.',
+    'The run could not meet AC-3/ as approved.']) {
+    exactly(text(value), 'Quote the words of AC-3 beside it in the text of point 1.');
+  }
+  // A file that the member changes in the target may stay; a file of the run may not, in any
+  // folder.
+  passes(text('The file config/hours.json has no entry for public holidays.'));
+  passes(text('The file package.json has no start command.'));
+  fails(text('The run left index.json as it was.'), /^Remove the file name from the text of point 1/);
+  fails(text('The report reviewer-2.md is missing.'), /^Remove the file name from the text of point 1/);
+  // A file of the target with the name of a file of the run, in a folder of the target, may
+  // stay.
+  passes(text('The file docs/spec.md lacks a rule.'));
+  passes(text('The file src/checks.js has a bug.'));
+  passes(text('The file public/index.json is stale.'));
+  for (const value of ['The file .reports/end.json is missing.',
+    'The file /tmp/qory-artifacts/spec.md is empty.', 'The run left .qory/artifacts/points.json empty.',
+    'The report .reports/reviewer-2.md is missing.', 'The file ./points.json is broken.',
+    'The file ../.reports/end.json is missing.']) {
+    exactly(text(value), 'Remove the file name from the text of point 1: name what the file ' +
+      'contains.');
+  }
+});
+
+test('points: core alone checks only question ids, and a module gives the other ids', () => {
+  const { bareId } = require(path.join(path.dirname(SCRIPT), 'lib', 'markdown.js'));
+  assert.equal(bareId('The run could not meet AC-3 as approved.'), null);
+  assert.equal(bareId('The run could not meet AC-3 as approved.', { prefixes: ['ac'] }), 'AC-3');
+  assert.equal(bareId('The answer to q3 is missing.'), 'q3');
+  // A plugin with only the skills of core passes the id of a software factory.
+  const core = path.join(tmp, 'core-only');
+  fs.cpSync(path.join(MODULES, 'core', 'skills'), path.join(core, 'skills'), { recursive: true });
+  const root = fixture();
+  write(root, 'points.json', [{ ...AGAIN, text: 'The run could not meet AC-3 as approved.' }]);
+  passes(call({ cwd: tmp, artifacts: [root], plugin: core },
+    ['check', 'points', path.join(root, 'points.json')]));
+});
+
 test('points: the questions are questions.json at the top, else the newest version', () => {
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
@@ -1670,6 +2467,10 @@ test('report: each finding of a reviewer has one Point: line that a point can co
     /^Remove the question id from the "Point:" line of finding 1 of spec-reviewer: the run links the point to its question\.$/);
   fails(report(reviewed('The spec-writer left out the time of a refund.'), 'spec-reviewer'),
     /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/);
+  fails(report(reviewed('The spec does not meet AC-3 as approved.'), 'spec-reviewer'),
+    /^Quote the words of AC-3 beside it in the "Point:" line of finding 1 of spec-reviewer\.$/);
+  passes(report(reviewed('The spec does not meet AC-3, "A refund takes at most 5 days".'),
+    'spec-reviewer'));
   fails(report(reviewed(''), 'spec-reviewer'),
     /^Write the "Point:" line of finding 1 of spec-reviewer as text of 1 to 500 characters: it has 0/);
   // Two Point: lines, and a Point: line that wraps onto a second line.
@@ -1708,8 +2509,9 @@ test('report: every reviewer that a run starts needs a Point: line in each findi
     .replace('\nchanges-needed', 'Unverified:\n- none\n\nchanges-needed');
   for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',
     'mockup-reviewer', 'scenario-reviewer', 'shape-reviewer']) {
-    passes(report(shaped(reviewed(GOOD_POINT)), agent));
-    fails(report(shaped(reviewed(null)), agent), new RegExp(`^Add a "Point:" line to finding 1 of ${agent}`));
+    passes(report(withRecord(shaped(reviewed(GOOD_POINT)), agent), agent));
+    fails(report(withRecord(shaped(reviewed(null)), agent), agent),
+      new RegExp(`^Add a "Point:" line to finding 1 of ${agent}`));
   }
 });
 
@@ -1725,7 +2527,7 @@ test('report passes a finding with the fourth mark sentence', () => {
   assert.match(marked, /Marks: writer, no direction, no break, sentence\n/);
   for (const agent of ['questions-reviewer', 'proposal-reviewer', 'spec-reviewer', 'decision-reviewer',
     'mockup-reviewer', 'scenario-reviewer']) {
-    passes(report(marked, agent));
+    passes(report(withRecord(marked, agent), agent));
   }
 });
 
@@ -1735,7 +2537,8 @@ test('report: a Point: line that passes report passes check points as the text o
   const texts = [GOOD_POINT, 'The spec of version 1.2 names Node.js, which the designer must confirm.',
     'The `spec` has a gap.', 'The spec has a gap. Run another round.', 'The draft spec.md has a gap.',
     'The answer to q3 is missing.', 'The questions-reviewer stopped.', 'Fix: the spec has a gap.',
-    'The spec has a gap', `${'a'.repeat(500)}.`];
+    'The spec has a gap', `${'a'.repeat(500)}.`, 'The spec does not meet AC-3 as approved.',
+    'The spec does not meet "AC-3".', 'The file .reports/end.json is missing.'];
   for (const text of texts) {
     const fromReport = report(reviewed(text), 'spec-reviewer').status;
     const fromPoints = checkPoints([{ text, action: 'run_again' }]).status;
@@ -1749,6 +2552,23 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
   passes(report('Blocked: needs a change to criterion ac-3\nblocked\n', 'decision-writer'));
   passes(report('Blocked: needs a change to criterion `ac-3`\nblocked\n', 'decision-writer'));
   passes(report('Blocked: input file: it does not parse\nblocked\n', 'spec-writer'));
+  // A stop on the spec states the change after a colon, and the session copies it to the point.
+  const changes = [
+    ['decision-writer', 'needs a change to criterion ac-3: the feedback asks to export only the filtered rows'],
+    ['decision-writer', 'needs a new criterion: the feedback asks for a reply in French'],
+    ['decision-writer', 'needs a change to the spec: the answer lets the reply go out by text message'],
+    ['scenario-writer', 'needs a change to criterion `ac-2`: no step can show "every day" in one film'],
+    ['scenario-writer', 'needs a new criterion: the feedback asks for a demo of the closed day'],
+    ['designer', 'needs a change to criterion ac-3: the feedback asks to list each closed day'],
+  ];
+  for (const [agent, line] of changes) passes(report(`Blocked: ${line}\nblocked\n`, agent));
+  // Each agent's form has the change.
+  for (const file of ['agents/scenario-writer.md', 'agents/designer.md',
+    'skills/writing-decisions/SKILL.md']) {
+    const text = fs.readFileSync(path.join(MODULES, 'software-factory', file), 'utf8');
+    assert.ok(!/`Blocked: needs a (?:change to criterion <ac-N>|new criterion|change to the spec)`/
+      .test(text), `${file} has a stop with no change`);
+  }
   fails(report('Blocked: needs the moon\nblocked\n', 'spec-writer'),
     /^Start "Blocked:" of spec-writer with a stop line that the skills of its workflow list: "needs the moon"/);
   fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
@@ -1836,6 +2656,578 @@ test('starts: a count that is not a whole number of 0 or more exits 3', () => {
     assert.match(result.lines[0], /^Write counts in .*starts.json as an object of runs/);
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { counts }, 'the file stays as it is');
   }
+});
+
+test('starts --subject: counts 3 starts of a reviewer per subject, and refuses the fourth', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const start = (run, reviewer, subject) => call({ cwd: tmp, artifacts: [root] },
+    ['starts', run, reviewer, '--subject', subject]);
+  assert.equal(start('r1', 'harness:code-reviewer', 'change').out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.equal(start('r1', 'code-reviewer', 'change').out, 'code-reviewer on change: start 2 of 3.\n');
+  assert.equal(start('r1', 'harness:code-reviewer', 'change').out,
+    'code-reviewer on change: start 3 of 3. This is the last start.\n');
+  const fourth = start('r1', 'harness:code-reviewer', 'change');
+  assert.equal(fourth.status, 1);
+  assert.equal(fourth.out, 'Start no more code-reviewer on change: it has had 3 starts, and the limit is 3.\n');
+  // Another subject, and another reviewer on the same subject, have their counts.
+  assert.equal(start('r1', 'harness:code-reviewer', 'plan').status, 0);
+  assert.equal(start('r1', 'test-reviewer', 'change').status, 0);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, {
+    counts: { r1: { 'change/code-reviewer': 3, 'plan/code-reviewer': 1, 'change/test-reviewer': 1 } },
+  });
+});
+
+test('starts --subject: local counts under the key of begin', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const deps = { cwd: tmp, artifacts: [root] };
+  const key = call(deps, ['begin']).lines[0];
+  assert.equal(call(deps, ['starts', 'local', 'code-reviewer', '--subject', 'change']).status, 0);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, { counts: { [key]: { 'change/code-reviewer': 1 } } });
+});
+
+// startsChild runs starts in a new process, with root as the artifact folder, and resolves to
+// its exit status and output. With at, a time in ms, the process loads the script and then
+// waits until that time, so that calls of several processes start at the same moment.
+function startsChild(root, argv, at = 0) {
+  const { spawn } = require('node:child_process');
+  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}] }`;
+  const code = `const { main } = require(${JSON.stringify(SCRIPT)}); ` +
+    `while (Date.now() < ${at}) {} ` +
+    `process.exitCode = main(${JSON.stringify(['starts', ...argv])}, ${deps});`;
+  return new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', (data) => { out += data; });
+    proc.stderr.on('data', (data) => { out += data; });
+    proc.on('close', (status) => resolve({ status, out }));
+  });
+}
+
+test('starts --subject: starts at once in several processes count each start once', async () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const reviewers = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer'];
+  // Four starts of each reviewer, all at once: three pass and the fourth exits 1.
+  const calls = reviewers.flatMap((reviewer) => [1, 2, 3, 4].map(() => reviewer));
+  const results = await Promise.all(calls.map((reviewer) =>
+    startsChild(root, ['r1', `harness:${reviewer}`, '--subject', 'change'])));
+  for (const reviewer of reviewers) {
+    const mine = results.filter((_, at) => calls[at] === reviewer);
+    assert.deepEqual(mine.map((one) => one.status).sort(), [0, 0, 0, 1], JSON.stringify(mine));
+    assert.deepEqual(mine.filter((one) => one.status === 0).map((one) => one.out).sort(), [
+      `${reviewer} on change: start 1 of 3.\n`,
+      `${reviewer} on change: start 2 of 3.\n`,
+      `${reviewer} on change: start 3 of 3. This is the last start.\n`,
+    ]);
+    assert.equal(mine.find((one) => one.status === 1).out,
+      `Start no more ${reviewer} on change: it has had 3 starts, and the limit is 3.\n`);
+  }
+  // Three starts of each of eight reviewers, all at once in another run: all 24 count.
+  const eight = 'abcdefgh'.split('').map((letter) => `${letter}-reviewer`);
+  const more = await Promise.all(eight.flatMap((reviewer) => [1, 2, 3].map(() =>
+    startsChild(root, ['r2', reviewer, '--subject', 'change']))));
+  assert.deepEqual(more.filter((one) => one.status !== 0), []);
+  assert.equal(more.filter((one) => one.out.endsWith('This is the last start.\n')).length, 8);
+  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
+  assert.deepEqual(counts, {
+    counts: {
+      r1: Object.fromEntries(reviewers.map((reviewer) => [`change/${reviewer}`, 3])),
+      r2: Object.fromEntries(eight.map((reviewer) => [`change/${reviewer}`, 3])),
+    },
+  });
+  assert.deepEqual(fs.readdirSync(path.join(root, '.reports')), ['starts.json']);
+});
+
+test('starts: a lock that stays exits 3 with a line to report it, and a stale lock is removed', () => {
+  const { spawnSync } = require('node:child_process');
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `starts-${++folders}`);
+  const reports = path.join(root, '.reports');
+  const lock = path.join(reports, 'starts.json.lock');
+  fs.mkdirSync(reports, { recursive: true });
+  const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
+    ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
+  // A lock of a process that runs stays, also when it is old, and so does an empty lock 1 s
+  // old, whose call may still write its id. After the wait, the call exits 3.
+  const old = new Date(Date.now() - 60000);
+  const recent = new Date(Date.now() - 1000);
+  for (const [text, time] of [[String(process.pid), old], ['', recent]]) {
+    fs.writeFileSync(lock, text);
+    fs.utimesSync(lock, time, time);
+    const result = start();
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: checks.js starts cannot run, because its lock file still exists.',
+      plainLine(`${lock} still exists after 0.05 s of tries.`),
+    ]);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.deepEqual(fs.readdirSync(reports), ['starts.json.lock']);
+  }
+  // An empty lock older than 5 s, of a call that was killed before it wrote its id, is
+  // removed.
+  fs.writeFileSync(lock, '');
+  fs.utimesSync(lock, old, old);
+  assert.equal(start().out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  // A lock with the id of a process that no longer runs is removed.
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  fs.writeFileSync(lock, String(dead));
+  assert.equal(start().out, 'code-reviewer on change: start 2 of 3.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  // A break file of a call that was killed while it removed a stale lock stays until it is
+  // older than 5 s; then the next call removes it, and the stale lock after it.
+  fs.writeFileSync(lock, String(dead));
+  fs.writeFileSync(`${lock}.break`, '');
+  assert.equal(start().status, 3);
+  fs.utimesSync(`${lock}.break`, old, old);
+  assert.equal(start().out, 'code-reviewer on change: start 3 of 3. This is the last start.\n');
+  assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+});
+
+test('withLock: a stale lock that is back on every try ends after the wait', () => {
+  const { spawnSync } = require('node:child_process');
+  const { withLock } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `lock-${++folders}`);
+  fs.mkdirSync(root, { recursive: true });
+  const file = path.join(root, 'starts.json');
+  const lock = `${file}.lock`;
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  // Each try to make the lock finds a new lock of a process that no longer runs, so each
+  // removal of the stale lock succeeds. After 100 tries, the stub throws ELOOP, which
+  // withLock reports as a lock that cannot be made.
+  const openSync = fs.openSync;
+  let tries = 0;
+  fs.openSync = (target, flags, ...rest) => {
+    if (target !== lock || flags !== 'wx') return openSync(target, flags, ...rest);
+    tries += 1;
+    if (tries > 100) throw Object.assign(new Error('too many tries'), { code: 'ELOOP' });
+    const handle = openSync(lock, 'w');
+    fs.writeSync(handle, String(dead));
+    fs.closeSync(handle);
+    throw Object.assign(new Error('the lock exists'), { code: 'EEXIST' });
+  };
+  try {
+    assert.throws(() => withLock({ lockWait: 0 }, file, 'starts', () => assert.fail('work ran')),
+      { message: 'Report to a member: checks.js starts cannot run, because its lock file still exists.' });
+  } finally {
+    fs.openSync = openSync;
+  }
+  assert.equal(tries, 1);
+  assert.deepEqual(fs.readdirSync(root), []);
+});
+
+test('starts: with a stale lock, starts at once in several processes count each once', async () => {
+  const { spawnSync } = require('node:child_process');
+  for (let round = 0; round < 5; round += 1) {
+    const root = path.join(tmp, `starts-${++folders}`);
+    const reports = path.join(root, '.reports');
+    fs.mkdirSync(reports, { recursive: true });
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    fs.writeFileSync(path.join(reports, 'starts.json.lock'), String(dead));
+    const at = Date.now() + 600;
+    const results = await Promise.all(Array.from({ length: 12 }, () =>
+      startsChild(root, ['r1', 'x-reviewer', '99'], at)));
+    assert.deepEqual(results.filter((one) => one.status !== 0), []);
+    assert.deepEqual(results.map((one) => one.out).sort(), Array.from({ length: 12 },
+      (_, at) => `x-reviewer: start ${at + 1} of 99.\n`).sort());
+    const counts = JSON.parse(fs.readFileSync(path.join(reports, 'starts.json'), 'utf8'));
+    assert.deepEqual(counts, { counts: { r1: { 'x-reviewer': 12 } } });
+    assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
+  }
+});
+
+test('starts --subject: a wrong reviewer, subject or count of arguments exits 2', () => {
+  const root = path.join(tmp, `starts-${++folders}`);
+  fs.mkdirSync(root);
+  const start = (...argv) => call({ cwd: tmp, artifacts: [root] }, ['starts', 'r1', ...argv]);
+  for (const [argv, why] of [
+    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>: Bad Name\n/],
+    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change: Change\n/],
+    [['code-reviewer', '--subject'], /^Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer and --subject <subject>\.\n/],
+    [['code-reviewer', '--subject', 'change', 'more'], /^Give starts a run, a name and a limit/],
+  ]) {
+    const result = start(...argv);
+    assert.equal(result.status, 2, argv.join(' '));
+    assert.match(result.err, why);
+  }
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'starts.json')), false);
+});
+
+// ---- panel --------------------------------------------------------------------------------
+
+// panelSetup writes a home with roles.json: a single role first, which the panel leaves out,
+// then one member row per entry of members, [agent, paths]. It writes files, one path per
+// line, as the file of the change, and returns the deps of a call with free and size as the
+// free bytes and the bytes of the working folder. under is the folder of the home.
+function panelSetup({
+  members, files = ['src/app.py'], free = 100 * 2 ** 30, size = 2 ** 20, roles, under = tmp,
+}) {
+  const root = path.join(under, `panel-${++folders}`);
+  const home = path.join(root, 'home');
+  const work = path.join(root, 'work');
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(path.join(work, '.git'), { recursive: true });
+  const rows = [{ role: 'agents/developer', agent: 'software-developer', from: 'base' },
+    ...members.map(([agent, paths]) => ({
+      role: 'agents/reviewers', agent, from: 'provides factory', group: true,
+      ...(paths ? { paths } : {}),
+    }))];
+  fs.writeFileSync(path.join(home, 'roles.json'), roles ?? JSON.stringify({ roles: rows }));
+  fs.writeFileSync(path.join(work, 'files.txt'), files.map((one) => `${one}\n`).join(''));
+  return {
+    home,
+    work,
+    deps: {
+      cwd: work,
+      artifacts: [],
+      env: { ...process.env, QORY_HARNESS_HOME: home },
+      freeBytes: () => free,
+      folderBytes: () => size,
+    },
+  };
+}
+
+const FIVE = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer', 'e-reviewer'];
+
+const { folderBytes } = require('../modules/core/skills/running-a-workflow/verbs/panel.js');
+
+const panelCall = (deps, names, ...more) => call(deps,
+  ['panel', '--names', names.join(', '), ...(more.includes('--files') ? [] : ['--files', 'files.txt']), ...more]);
+
+test('panel: a fifth reviewer waits for a free place, and --after starts it', () => {
+  const { deps } = panelSetup({ members: FIVE.map((agent) => [agent]) });
+  const names = FIVE.map((agent) => `harness:${agent}`);
+  const first = panelCall(deps, names);
+  assert.equal(first.status, 0, first.out);
+  assert.deepEqual(first.lines, [
+    'Start: harness:a-reviewer, 1 file of the change.',
+    'Start: harness:b-reviewer, 1 file of the change.',
+    'Start: harness:c-reviewer, 1 file of the change.',
+    'Start: harness:d-reviewer, 1 file of the change.',
+    'Wait: harness:e-reviewer, 1 file of the change: no free place.',
+    'Run panel again with --after 4 when the 4 members above have returned: 1 waits for a ' +
+      'free place.',
+    'Checked the group reviewers: 5 members, 5 with a file of the change, 4 places; the disk ' +
+      'has 100.0 GiB free, and each member needs 2 MiB.',
+  ]);
+  const second = panelCall(deps, names, '--after', '4');
+  assert.equal(second.status, 0, second.out);
+  assert.deepEqual(second.lines, [
+    'Start: harness:e-reviewer, 1 file of the change.',
+    'Checked the group reviewers: 5 members, 5 with a file of the change, 1 place; the disk ' +
+      'has 100.0 GiB free, and each member needs 2 MiB.',
+  ]);
+  const done = panelCall(deps, names, '--after', '5');
+  assert.equal(done.status, 0);
+  assert.deepEqual(done.lines, ['Checked the group reviewers: 5 members, 5 with a file of the change, all started.']);
+});
+
+test('panel: the disk sets fewer places, and none exits 1', () => {
+  const members = FIVE.map((agent) => [agent]);
+  const size = 2 ** 30;
+  const two = panelSetup({ members, free: 5 * size, size });
+  const result = panelCall(two.deps, FIVE);
+  assert.equal(result.status, 0, result.out);
+  assert.equal(result.lines.filter((line) => line.startsWith('Start: ')).length, 2);
+  assert.equal(result.lines.filter((line) => line.startsWith('Wait: ')).length, 3);
+  assert.match(result.out, /Run panel again with --after 2 when the 2 members above have returned: 3 wait for a free place\./);
+  const none = panelSetup({ members, free: size, size });
+  const full = panelCall(none.deps, FIVE);
+  assert.equal(full.status, 1, full.out);
+  assert.deepEqual(full.lines.slice(0, 2), [
+    'Start no member, and end the run as "Failures" lists: the disk has no room.',
+    'The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the copy of ' +
+      'the working folder for a reviewer.',
+  ]);
+  assert.equal(full.lines.filter((line) => line.startsWith('Wait: ')).length, 5);
+  assert.match(full.lines.at(-1), /, 0 places; /);
+  const empty = panelSetup({ members, free: 0, size: 0 });
+  assert.equal(panelCall(empty.deps, FIVE).lines.filter((line) => line.startsWith('Start: ')).length, 4);
+});
+
+test('panel: the disk of the working folder, without a caller\'s numbers', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer']] });
+  delete deps.freeBytes;
+  fs.mkdirSync(path.join(work, 'sub'));
+  fs.writeFileSync(path.join(work, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(work, 'sub', 'b'), 'x'.repeat(2000));
+  const big = path.join(tmp, `big-${++folders}`);
+  fs.writeFileSync(big, 'x'.repeat(100000));
+  fs.symlinkSync(big, path.join(work, 'link'));
+  const bytes = folderBytes(work);
+  assert.ok(bytes >= 3000 && bytes < 100000, String(bytes));
+  // From a folder under the top, the folder with .git, the size check reads the top.
+  const used = [];
+  deps.folderBytes = (top) => {
+    used.push(top);
+    return folderBytes(top);
+  };
+  fs.copyFileSync(path.join(work, 'files.txt'), path.join(work, 'sub', 'files.txt'));
+  const top = panelCall({ ...deps, cwd: path.join(work, 'sub') }, ['a-reviewer']);
+  assert.equal(top.status, 0, top.out);
+  assert.equal(top.lines[0], 'Start: a-reviewer, 1 file of the change.');
+  assert.deepEqual(used, [work]);
+  // With no folder that has .git, the size check reads the working directory.
+  const plain = path.join(tmp, `plain-${++folders}`);
+  fs.mkdirSync(plain);
+  fs.copyFileSync(path.join(work, 'files.txt'), path.join(plain, 'files.txt'));
+  used.length = 0;
+  assert.equal(panelCall({ ...deps, cwd: plain }, ['a-reviewer']).status, 0);
+  assert.deepEqual(used, [plain]);
+});
+
+test('panel: the size check leaves out a folder it cannot read and another device', () => {
+  const root = path.join(tmp, `size-${++folders}`);
+  fs.mkdirSync(path.join(root, 'shut'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'other'));
+  fs.writeFileSync(path.join(root, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(root, 'shut', 'b'), 'x'.repeat(2000));
+  fs.writeFileSync(path.join(root, 'other', 'c'), 'x'.repeat(4000));
+  assert.equal(folderBytes(root), 7000);
+  fs.chmodSync(path.join(root, 'shut'), 0o000);
+  try {
+    if (process.getuid && process.getuid() !== 0) assert.equal(folderBytes(root), 5000);
+  } finally {
+    fs.chmodSync(path.join(root, 'shut'), 0o755);
+  }
+  // An lstat that puts the folder other on another device.
+  const lstat = (file) => {
+    const stats = fs.lstatSync(file);
+    if (file !== path.join(root, 'other')) return stats;
+    return Object.assign(Object.create(Object.getPrototypeOf(stats)), stats, { dev: stats.dev + 1 });
+  };
+  assert.equal(folderBytes(root, { lstat }), 3000);
+});
+
+test('panel: the size check counts the copy of a reviewer: no .git, no top .qory', () => {
+  const root = path.join(tmp, `size-${++folders}`);
+  for (const folder of ['.git/objects', 'sub/.git', '.qory/artifacts', 'node_modules/x', 'sub/.qory']) {
+    fs.mkdirSync(path.join(root, folder), { recursive: true });
+  }
+  fs.writeFileSync(path.join(root, 'a'), 'x'.repeat(1000));
+  fs.writeFileSync(path.join(root, '.git', 'objects', 'pack'), 'x'.repeat(50000));
+  // A submodule or a worktree has a file .git, and the copy has none.
+  fs.writeFileSync(path.join(root, 'sub', '.git', 'HEAD'), 'x'.repeat(20000));
+  fs.writeFileSync(path.join(root, 'sub', 'b'), 'x'.repeat(2000));
+  fs.mkdirSync(path.join(root, 'mod'));
+  fs.writeFileSync(path.join(root, 'mod', '.git'), 'x'.repeat(30000));
+  fs.writeFileSync(path.join(root, '.qory', 'artifacts', 'c'), 'x'.repeat(40000));
+  // The copy keeps the folders that .gitignore files ignore, node_modules among them, and a
+  // .qory below the top.
+  fs.writeFileSync(path.join(root, 'node_modules', 'x', 'd'), 'x'.repeat(4000));
+  fs.writeFileSync(path.join(root, 'sub', '.qory', 'e'), 'x'.repeat(8000));
+  assert.equal(folderBytes(root), 15000);
+});
+
+test('panel: a member starts only when its paths match a file of the change', () => {
+  const { deps } = panelSetup({
+    members: [['code-reviewer'], ['python-reviewer', ['**/*.py', 'pyproject.toml']], ['rust-reviewer', ['**/*.rs']]],
+    files: ['src/app.py', 'sub/pyproject.toml', 'README.md'],
+  });
+  const result = panelCall(deps, ['code-reviewer', 'python-reviewer', 'rust-reviewer']);
+  assert.equal(result.status, 0, result.out);
+  assert.deepEqual(result.lines.slice(0, 3), [
+    'Skip: rust-reviewer: no file of the change matches its paths.',
+    'Start: code-reviewer, 3 files of the change.',
+    'Start: python-reviewer, 1 file of the change.',
+  ]);
+  assert.match(result.lines.at(-1), /^Checked the group reviewers: 3 members, 2 with a file of the change, 2 places;/);
+});
+
+test('panel: a change with no file starts no member and reads no disk', () => {
+  const { deps } = panelSetup({ members: [['a-reviewer'], ['b-reviewer', ['*.md']]], files: [] });
+  deps.freeBytes = () => { throw new Error('the disk is read'); };
+  const result = panelCall(deps, ['a-reviewer', 'b-reviewer']);
+  assert.equal(result.status, 0, result.out);
+  assert.deepEqual(result.lines, [
+    'Skip: a-reviewer: no file of the change matches its paths.',
+    'Skip: b-reviewer: no file of the change matches its paths.',
+    'Checked the group reviewers: 2 members, none with a file of the change.',
+  ]);
+});
+
+test('panel: a file of the change separated by NUL, with ./ and twice, counts once', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer']] });
+  fs.writeFileSync(path.join(work, 'files.txt'), 'src/a b.py\0./src/a b.py\0lib/c.py\0');
+  const result = panelCall(deps, ['a-reviewer']);
+  assert.equal(result.lines[0], 'Start: a-reviewer, 2 files of the change.');
+});
+
+test('panel: the names pair with the members by position', (t) => {
+  // The lines of this test contain the path of roles.json, and the script cuts a line at 200
+  // characters. A temporary folder of macOS has about 50 characters, so the home goes in a
+  // folder of /tmp, which keeps each line under the cut.
+  const under = fs.realpathSync(fs.mkdtempSync('/tmp/checks-'));
+  t.after(() => fs.rmSync(under, { recursive: true, force: true }));
+  const { deps } = panelSetup({ members: [['code-reviewer'], ['test-reviewer']], under });
+  assert.equal(panelCall(deps, ['code-reviewer', 'test-reviewer']).status, 0);
+  assert.equal(panelCall(deps, ['harness:code-reviewer', 'harness:test-reviewer']).status, 0);
+  const swapped = panelCall(deps, ['harness:test-reviewer', 'harness:code-reviewer']);
+  assert.equal(swapped.status, 3, swapped.out);
+  assert.equal(swapped.lines[0], 'Pass panel the names of the group in the order of roles.json.');
+  assert.match(swapped.lines[1], /^Name 1, "harness:test-reviewer", is not the member code-reviewer of the group reviewers in .*roles\.json\.$/);
+  const glued = panelCall(deps, ['xharness-code-reviewer', 'test-reviewer']);
+  assert.equal(glued.status, 3, glued.out);
+  assert.match(glued.lines[1], /^Name 1, "xharness-code-reviewer", is not the member code-reviewer of /);
+  const short = panelCall(deps, ['code-reviewer']);
+  assert.equal(short.status, 3);
+  assert.equal(short.lines[0], 'Pass panel each name of the group from the reference of the workflow.');
+  assert.match(short.lines[1], /^--names has 1 name, and the group reviewers in .*roles\.json has 2 members\.$/);
+});
+
+test('panel: --group picks another group role', () => {
+  const { deps, home } = panelSetup({ members: [] });
+  fs.writeFileSync(path.join(home, 'roles.json'), JSON.stringify({ roles: [
+    { role: 'agents/screen-reviewers', agent: 'interface-reviewer', from: 'provides screens', group: true },
+  ] }));
+  const result = panelCall(deps, ['interface-reviewer'], '--group', 'screen-reviewers');
+  assert.equal(result.status, 0, result.out);
+  assert.match(result.lines.at(-1), /^Checked the group screen-reviewers: 1 member, 1 with a file of the change, 1 place;/);
+});
+
+test('panel: wrong arguments exit 2', () => {
+  const { deps } = panelSetup({ members: [['a-reviewer']] });
+  const usage = /^Give panel --names <names> and --files <file> once each, and --group and --after at most once\.\n/;
+  for (const [argv, why] of [
+    [['panel'], usage],
+    [['panel', '--files', 'files.txt'], usage],
+    [['panel', '--names', 'a', '--names', 'a', '--files', 'files.txt'], usage],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--other', 'x'], usage],
+    [['panel', '--names', 'a', '--files'], usage],
+    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "" is neither\.\n/],
+    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "Bad Name" is neither\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens: X\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99: 100\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99: -1\n/],
+  ]) {
+    const result = call(deps, argv);
+    assert.equal(result.status, 2, argv.join(' '));
+    assert.match(result.err, why, argv.join(' '));
+  }
+});
+
+test('panel: an input that is missing or does not fit exits 3', () => {
+  const checkedNothing = 'Checked nothing: the panel could not read its input.';
+  // patterns is the pattern of the first line, or the patterns of the first lines in order.
+  const expect3 = (deps, names, patterns, ...more) => {
+    const result = panelCall(deps, names, ...more);
+    assert.equal(result.status, 3, result.out);
+    [patterns].flat().forEach((pattern, at) => assert.match(result.lines[at], pattern));
+    assert.equal(result.lines.at(-1), checkedNothing);
+    return result;
+  };
+  const base = panelSetup({ members: [['a-reviewer']] });
+  const env = { ...process.env };
+  delete env.QORY_HARNESS_HOME;
+  expect3({ ...base.deps, env }, ['a-reviewer'],
+    /^Run panel in a session that qory launched: QORY_HARNESS_HOME is not set\.$/);
+  // The first line has no path, so it stays at most 100 characters for a home of any length.
+  const longHome = path.join(tmp, 'no-such-home', 'x'.repeat(60));
+  const unread = expect3({ ...base.deps, env: { ...env, QORY_HARNESS_HOME: longHome } }, ['a-reviewer'], [
+    /^Compose the harness with qory again: roles\.json cannot be read\.$/,
+    /^.*no-such-home\/x+\/roles\.json cannot be read\.$/,
+  ]);
+  assert.ok(unread.lines[0].length <= 100, unread.lines[0]);
+  for (const [roles, patterns] of [
+    ['[', /^Write .*roles\.json as valid JSON: it does not parse\.$/],
+    ['{}', /^Give .*roles\.json the list roles: it has none\.$/],
+    [JSON.stringify({ roles: [{ role: 'agents/developer', agent: 'x', from: 'base' }] }), [
+      /^Compose the harness with qory again: roles\.json has no member of the group\.$/,
+      /^.*roles\.json has no member of the group agents\/reviewers\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'Bad', group: true }] }), [
+      /^Compose the harness with qory again: a row of roles\.json has no agent name\.$/,
+      /^Row 1 of .*roles\.json has no agent name\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: 'x' }] }), [
+      /^Compose the harness with qory again: the paths of a member in roles\.json are not a list of globs\.$/,
+      /^The paths of a-reviewer in .*roles\.json are not a list of globs\.$/,
+    ]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [] }] }),
+      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+    [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [''] }] }),
+      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+  ]) {
+    const { deps } = panelSetup({ members: [], roles });
+    expect3(deps, ['a-reviewer'], patterns);
+  }
+  expect3(base.deps, ['a-reviewer'], [
+    /^Name a file that exists and can be read: the file of --files cannot be read\.$/,
+    /^.*no-such-file cannot be read\.$/,
+  ], '--files', 'no-such-file');
+  for (const [line, place] of [['/abs/a.py', 1], ['a/../b', 1], ['"q.txt"', 1], ['a//b', 1], ['src/a\tb', 1]]) {
+    const { deps, work } = panelSetup({ members: [['a-reviewer']] });
+    fs.writeFileSync(path.join(work, 'files.txt'), `${line}\n`);
+    const result = expect3(deps, ['a-reviewer'], /^Write each line of the file of --files as a path from the top of the working folder\.$/);
+    assert.match(result.lines[1], new RegExp(`^Line ${place} of .*files\\.txt, ".*", is not\\.$`));
+  }
+  const broken = panelSetup({ members: [['a-reviewer']] });
+  broken.deps.freeBytes = () => { throw Object.assign(new Error('no disk'), { code: 'EIO' }); };
+  const free = expect3(broken.deps, ['a-reviewer'],
+    /^Check the disk of the working folder: its free space cannot be read\.$/);
+  assert.match(free.lines[1], /^The free space of the disk of .* cannot be read: EIO\.$/);
+  // A failed count of the size names the count, not the free space.
+  const count = panelSetup({ members: [['a-reviewer']] });
+  count.deps.folderBytes = () => { throw Object.assign(new Error('no folder'), { code: 'EACCES' }); };
+  const counted = expect3(count.deps, ['a-reviewer'],
+    /^Make the working folder readable: the count of its size failed\.$/);
+  assert.match(counted.lines[1], /^The size of .* cannot be counted: EACCES\.$/);
+  // An error with no code is a fault of the script, and no input.
+  broken.deps.freeBytes = () => { throw new Error('a fault'); };
+  assert.throws(() => panelCall(broken.deps, ['a-reviewer']), { message: 'a fault' });
+  const two = panelSetup({ members: [['a-reviewer'], ['b-reviewer']] });
+  expect3(two.deps, ['a-reviewer', 'b-reviewer'],
+    /^Pass --after a count of at most 2, the members with a file of the change: it is 3\.$/, '--after', '3');
+});
+
+test('panel: a line of the file of the change may end in CR LF', () => {
+  const { deps, work } = panelSetup({ members: [['a-reviewer', ['*.py']]] });
+  fs.writeFileSync(path.join(work, 'files.txt'), 'a.py\r\nb.py\r\n');
+  const result = panelCall(deps, ['a-reviewer']);
+  assert.equal(result.lines[0], 'Start: a-reviewer, 2 files of the change.');
+});
+
+test('globs: the dialect of the paths of an agent', () => {
+  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
+  for (const [glob, file, matches] of [
+    ['**/*.py', 'a.py', true], ['**/*.py', 'a/b/c.py', true], ['*.py', 'a/b.py', false],
+    ['src/**', 'src/a/b', true], ['src/**', 'srcx/a', false],
+    ['docs/*.md', 'docs/a/b.md', false], ['a/**/b', 'a/b', true], ['a/**/b', 'a/x/y/b', true],
+    ['a?c', 'abc', true], ['a?c', 'a/c', false], ['a[b].txt', 'a[b].txt', true],
+    ['a[b].txt', 'ab.txt', false], ['a.txt', 'abtxt', false], ['{a,b}.txt', '{a,b}.txt', true],
+    ['pyproject.toml', 'pyproject.toml', true], ['pyproject.toml', 'sub/pyproject.toml', false],
+    ['src/**', 'src', false], ['**/**', 'a', true], ['**/**', 'a/b', true],
+    ['src/**/**', 'src/a/b', true], ['src/**/**', 'src', false], ['**.py', 'app.py', true],
+    ['**.py', 'src/app.py', false], ['a/**b', 'a/xb', true], ['a/**b', 'a/x/yb', false],
+    ['a+b(c)|d$^e\\f', 'a+b(c)|d$^e\\f', true], ['a+b(c)|d$^e\\f', 'aab', false],
+    ['a+b', 'aab', false], ['(x)', 'x', false], ['x|y', 'y', false],
+    // A leading / changes nothing, and a trailing / matches as /** does.
+    ['/docs/**', 'docs/a.md', true], ['/docs/**', 'sub/docs/a.md', false], ['/a.md', 'a.md', true],
+    ['docs/', 'docs/a/b.md', true], ['docs/', 'docs', false], ['docs/', 'docsx/a.md', false],
+    ['/src/', 'src/a.py', true], ['**/build/', 'x/build/out.js', true],
+  ]) {
+    assert.equal(compileGlob(glob).matches(file), matches, `${glob} on ${file}`);
+  }
+});
+
+test('globs: a glob with many stars matches a long path in a bounded time', () => {
+  const { compileGlob } = require('../modules/core/skills/running-a-workflow/lib/globs.js');
+  // As a RegExp, the first glob took 11 s on the first path.
+  const cases = [
+    ['*a*a*a*a*a*a*a*b', 'a'.repeat(60), false],
+    ['*a*a*a*a*a*a*a*b', `${'a'.repeat(5000)}b`, true],
+    ['**/a/**/a/**/a/**/a/**/b', Array(2000).fill('a').join('/'), false],
+    ['**/*a*a*a*a*b/**/*a*a*a*a*b', Array(200).fill('a'.repeat(40)).join('/'), false],
+  ];
+  const start = Date.now();
+  for (const [glob, file, matches] of cases) assert.equal(compileGlob(glob).matches(file), matches, glob);
+  assert.ok(Date.now() - start < 1000, `${Date.now() - start} ms`);
 });
 
 test('report: the lists and words come from the agent file, and a missing agent file exits 3', () => {
@@ -2095,6 +3487,7 @@ function q7(changes) {
   return {
     id: 'q7',
     question: 'Which page lists the hours?',
+    context: 'The ticket asks for the new hours, and the reply and the help page both list hours.',
     options: [
       { title: 'The reply', explanation: 'Only the reply lists them.' },
       { title: 'The help page', explanation: 'The reply links to the help page.' },
@@ -2122,6 +3515,66 @@ test('questions: a new question is open with no decision, or decided by the run 
     data.questions.push(q7({ state: 'decided', decision: DECISION }));
     return JSON.stringify(data).replace('"run":4,"at":"2026-10-19T09:00:00Z"}}', '"run":4.0,"at":"2026-10-19T09:00:00Z"}}');
   }));
+});
+
+// The question of a criterion that cannot be met as approved, with its context first.
+const EXPORT_LIMIT = {
+  id: 'q7',
+  question: 'Which export limit do you want built for this criterion?',
+  context: 'The export service returns at most 10,000 rows per request. The approved ' +
+    'criterion asks for 50,000. This stage waits until you pick, and your pick changes the ' +
+    'approved criteria.',
+  options: [
+    { title: 'Export up to 10,000 rows per file', recommended: true, explanation: 'This ' +
+      'builds with no change to the export service, so the criterion stays in this work item.' },
+    { title: 'Export 50,000 rows as 5 files of 10,000', explanation: 'This meets the number, ' +
+      'and the member downloads 5 files.' },
+    { title: 'Remove this criterion from the work item', explanation: 'A member takes in ' +
+      'the export as a new work item.' },
+  ],
+  state: 'open',
+  asked: { run: 4, at: '2026-10-19T09:00:00Z' },
+};
+
+test('questions: a new open question has a context, options and the words of each id', () => {
+  const add = (question) => questionsAfter((byId, data) => { data.questions.push(question); });
+  passes(add(EXPORT_LIMIT));
+  const { context, ...noContext } = EXPORT_LIMIT;
+  assert.ok(context);
+  exactly(add(noContext), 'Add a context to q7 that starts with the deciding fact: it has none.');
+  // A decided question records the run's choice, and its reason states the source.
+  passes(add({ ...q7({ state: 'decided', decision: DECISION }), context: undefined }));
+  const { options, ...noOptions } = EXPORT_LIMIT;
+  assert.ok(options);
+  exactly(add(noOptions), 'Add options to q7: 1 to 4 options, or [] when it asks for a ' +
+    'value: it is missing.');
+  // A question that asks for a value has an empty list.
+  passes(add({ ...EXPORT_LIMIT, question: 'From which date do you want the export?',
+    options: [] }));
+  exactly(add({ ...EXPORT_LIMIT, question: 'Which limit do you want built for ac-3?' }),
+    'Quote the words of ac-3 beside it in the question of q7.');
+  exactly(add({ ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' }),
+    'Quote the words of AC-3 beside it in the context of q7.');
+  exactly(add({ ...EXPORT_LIMIT, options: [{ title: 'Drop scenario-1',
+    explanation: 'The demo shows no export.' }] }), 'Quote the words of scenario-1 ' +
+    'beside it in the title of option 1 of q7.');
+  passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
+    'CSV", asks for 50,000 rows.' }));
+  // A context of only spaces and line feeds is none.
+  exactly(add({ ...EXPORT_LIMIT, context: ' \n\t ' }),
+    'Add a context to q7 that starts with the deciding fact: it has none.');
+  // A decided question with no options gets the finding of its 2 to 4 options, and not the
+  // one of [] for a question that asks for a value.
+  const { options: none, ...decided } = q7({ state: 'decided', decision: DECISION });
+  assert.ok(none);
+  const result = add(decided);
+  fails(result, /^Give the decided q7 the 2 to 4 options that the run considered: it has 0\.$/);
+  assert.ok(!result.lines.some((line) => line.startsWith('Add options')), result.out);
+  // Only the ids that the harness writes count, and a question id with no words is bare.
+  passes(add({ ...EXPORT_LIMIT, context: 'The export service on Node-20 returns at most ' +
+    '10,000 rows per request, as the Q1 report of GPT-4 usage shows.' }));
+  exactly(add({ ...EXPORT_LIMIT, context: 'The limit of q3 returns at most 10,000 rows.' }),
+    'Quote the words of q3 beside it in the context of q7.');
 });
 
 test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {
@@ -2445,6 +3898,18 @@ test('registry: a type that two skills add stops each verb that reads the regist
   assert.match(result.out, /^Remove one of the two checks of the type notes: two skills add it/);
 });
 
+test('registry: only a list of ids adds prefixes', () => {
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.js'));
+  for (const [ids, expected] of [["'ac'", []], ["['ac']", ['ac']]]) {
+    const plugin = corePlugin();
+    fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+    fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.js'),
+      `module.exports = () => ({ types: [], ids: ${ids} });\n`);
+    assert.deepEqual(loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'notes'))).ids,
+      expected);
+  }
+});
+
 test('registry: a skill adds a type and a verb', () => {
   const plugin = corePlugin();
   fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
@@ -2461,7 +3926,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, fixes, findings, end, step, resume or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume or hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -2473,15 +3938,88 @@ test('workflow-checks.js push runs the push of checks.js from the harness home',
   const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   const good = run('push', 'spec', path.join(root, 'spec.md'));
   assert.equal(good.status, 0, good.stdout + good.stderr);
-  assert.match(good.stdout, /^Checked spec \(spec.md\)/m);
+  assert.equal(good.stdout, '');
+  assert.match(good.stderr, /^Checked spec \(spec.md\)/m);
   const questions = run('push', 'questions', path.join(root, 'questions.json'));
   assert.equal(questions.status, 0, questions.stdout + questions.stderr);
   write(root, 'notes.md', 'x');
   const wrong = run('push', 'spec', path.join(root, 'notes.md'));
   assert.equal(wrong.status, 1, wrong.stdout + wrong.stderr);
   assert.match(wrong.stdout, /^Remove notes.md from the files: a spec version has no such file/);
+  assert.doesNotMatch(wrong.stdout, /^Checked /m);
+  assert.match(wrong.stderr, /^Checked spec \(no file\): nothing; 2 findings\.$/m);
   const other = run('check', 'spec', path.join(root, 'spec.md'));
   assert.equal(other.status, 2, other.stderr);
+});
+
+test('check, push, end and end --offline print only the findings on stdout, and what they checked on stderr', () => {
+  // qory reads each non-empty line of the stdout of a push check as a finding.
+  const { spawnSync } = require('node:child_process');
+  const home = harnessHome();
+  const program = path.join(home, 'modules', 'software-factory', 'skills', 'running-a-software-workflow',
+    'workflow-checks.js');
+  const root = fixture();
+  write(root, 'notes.md', 'x');
+  const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const spec = path.join(root, 'spec.md');
+  const notes = path.join(root, 'notes.md');
+  for (const [argv, status] of [
+    [['push', 'spec', spec], 0],
+    [['push', 'spec', notes], 1],
+    [['push', 'spec', path.join(root, 'missing.md')], 3],
+  ]) {
+    const ran = run(...argv);
+    const inside = call({ cwd: root, artifacts: [] }, argv);
+    assert.equal(ran.status, status, ran.stdout + ran.stderr);
+    // The findings alone, as the in-process call reads them before its last line.
+    assert.equal(ran.stdout, inside.lines.slice(0, -1).map((line) => `${line}\n`).join(''), argv.join(' '));
+    assert.equal(ran.stderr, `${inside.lines.at(-1)}\n`, argv.join(' '));
+    assert.match(ran.stderr, /^Checked /);
+    assert.doesNotMatch(ran.stdout, /^Checked /m);
+  }
+  assert.equal(run('push', 'spec', spec).stdout, '');
+  assert.ok(run('push', 'spec', notes).stdout.length > 0);
+  // check takes the same form of output, and a finding with a cause keeps its indent.
+  const work = fixture();
+  fs.mkdirSync(path.join(work, '.qory'));
+  fs.renameSync(root, path.join(work, '.qory', 'artifacts'));
+  const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
+  const checked = spawnSync(process.execPath, [checks, 'check', 'spec', path.join(work, '.qory', 'artifacts', 'notes.md')],
+    { cwd: work, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(checked.status, 1, checked.stdout + checked.stderr);
+  assert.match(checked.stdout, /^Remove notes.md from the files/);
+  assert.doesNotMatch(checked.stdout, /^Checked /m);
+  assert.match(checked.stderr, /^Checked .*\n$/);
+  // end outside a run checks nothing: no finding, so nothing on stdout.
+  const ended = spawnSync(process.execPath, [checks, 'end', work],
+    { cwd: tmp, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(ended.status, 0, ended.stdout + ended.stderr);
+  assert.equal(ended.stdout, '');
+  assert.match(ended.stderr, /^Checked nothing: QORY_RUN_ID is not set/);
+  // The lines at column 0 of stdout are the findings that the line on stderr counts.
+  const starts = (stdout) => stdout.split('\n').filter((line) => /^\S/.test(line)).length;
+  // end in a run, with a finding in a draft.
+  const broken = fixture(['spec.md', '## Background', '## Context']);
+  started(broken, {});
+  const inRun = spawnSync(process.execPath, [checks, 'end', broken],
+    { cwd: tmp, encoding: 'utf8', env: RUN_ENV });
+  assert.equal(inRun.status, 1, inRun.stdout + inRun.stderr);
+  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft \(spec\.md\) in the lines after this one:/);
+  assert.doesNotMatch(inRun.stdout, /^Checked /m);
+  assert.equal(inRun.stderr.split('\n').filter(Boolean).length, 1, inRun.stderr);
+  assert.match(inRun.stderr, new RegExp(`^Checked the drafts and reports at the end: ${starts(inRun.stdout)} findings?; check 1 of 3\\.`));
+  // end --offline, with a finding in a draft, and with none.
+  const offlineChild = (run) => spawnSync(process.execPath, [OFFLINE_SCRIPT, ...run.args],
+    { cwd: tmp, env: { PATH: process.env.PATH, HOME: tmp }, encoding: 'utf8' });
+  const found = offlineChild(offlineRun({ edits: [['spec.md', '## Background', '## Context']] }));
+  assert.equal(found.status, 1, found.stdout + found.stderr);
+  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:/);
+  assert.doesNotMatch(found.stdout, /^Checked /m);
+  assert.match(found.stderr, new RegExp(`^Checked the drafts and reports after the session: ${starts(found.stdout)} findings; wrote 1 point to points\\.json of --out\\.\\n$`));
+  const clean = offlineChild(offlineRun());
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  assert.equal(clean.stdout, '');
+  assert.equal(clean.stderr, 'Checked the drafts and reports after the session: 0 findings.\n');
 });
 
 test('push-check.js of core runs the push of checks.js for questions and review-comments only', () => {
@@ -2495,7 +4033,8 @@ test('push-check.js of core runs the push of checks.js for questions and review-
   const run = (...argv) => spawnSync(program, argv, { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   const questions = run('push', 'questions', path.join(root, 'questions.json'));
   assert.equal(questions.status, 0, questions.stdout + questions.stderr);
-  assert.match(questions.stdout, /^Checked questions \(questions.json\)/m);
+  assert.equal(questions.stdout, '');
+  assert.match(questions.stderr, /^Checked questions \(questions.json\)/m);
   const comments = run('push', 'review-comments', path.join(root, 'review-comments.json'));
   assert.equal(comments.status, 0, comments.stdout + comments.stderr);
   for (const argv of [['push', 'spec', path.join(root, 'spec.md')], ['check', 'questions',
@@ -2797,6 +4336,9 @@ test('a missing member is "missing", and a row with no id is named by its place'
 // ---- Results of the report check and the end check ----------------------------------------
 
 const CLEAN = 'What you read:\n- a\n\nclean\n';
+// cleanOf returns CLEAN for agent, with the record of the track for proposal-reviewer, which
+// read the "Standard track." of the testdata.
+const cleanOf = (agent) => (agent === 'proposal-reviewer' ? withRecord(CLEAN, agent) : CLEAN);
 
 // reportIn writes text as .reports/<name> of root and checks it as the report of agent.
 function reportIn(root, agent, name, text) {
@@ -2815,9 +4357,10 @@ function started(root, counts) {
 
 // stub writes a qory to a new folder that records each call's arguments as a line of the
 // file args. run verdict prints one line and exits with status. work-item show prints a work
-// item of the run runId, or exits 1 with no runId. artifact pull verdict writes index to the
-// folder store and prints that folder, or exits 1 with no index.
-function stub(status = 0, { runId, index } = {}) {
+// item of the run runId, or exits 1 when runId is null. artifact pull verdict writes index to
+// the folder store and prints that folder, or exits 1 when index is null. By default the run
+// recorded no verdict.
+function stub(status = 0, { runId = 'run_9f4n2', index = { artifacts: [] } } = {}) {
   const bin = path.join(tmp, `bin-${++folders}`);
   fs.mkdirSync(bin);
   const args = path.join(bin, 'args');
@@ -2840,8 +4383,7 @@ function verdicts(args) {
   return fs.readFileSync(args, 'utf8').split('\n').filter((line) => line.startsWith('run verdict'));
 }
 
-// A run whose lookup of a stored verdict fails, so end checks the folder, and no qory from
-// PATH runs.
+// A run that recorded no verdict, so end checks the folder, and no qory from PATH runs.
 const RUN_ENV = stub().env;
 
 function end(root, env = RUN_ENV) {
@@ -2900,6 +4442,139 @@ test('report: a check of unchanged bytes adds no entry and counts no fix', () =>
   // Changed bytes are a new check, and count the next fix.
   assert.match(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', `${broken}\n`).lines.at(-1), /fix 2 of 2\.$/);
   assert.equal(stored().length, 3);
+});
+
+test('report: record calls in parallel processes lose no entry of results.json', async () => {
+  const { spawn } = require('node:child_process');
+  const reports = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/reports.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  const PROCESSES = 8;
+  const CALLS = 6;
+  // Each process waits for the same start time, so that the calls overlap.
+  const start = Date.now() + 500;
+  const code = (agent) => `const { record } = require(${JSON.stringify(reports)});
+while (Date.now() < ${start});
+for (let at = 1; at <= ${CALLS}; at += 1) {
+  record({}, ${JSON.stringify(root)}, '${agent}', '${agent}-' + at + '.md', 'text ' + at, false);
+}`;
+  const agents = Array.from({ length: PROCESSES }, (_, at) => `reviewer-${at + 1}`);
+  const runs = await Promise.all(agents.map((agent) => new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code(agent)],
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', (data) => { out += data; });
+    proc.stderr.on('data', (data) => { out += data; });
+    proc.on('close', (status) => resolve({ status, out }));
+  })));
+  for (const run of runs) assert.equal(run.status, 0, run.out);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => one.file).sort(), agents.flatMap((agent) =>
+    Array.from({ length: CALLS }, (_, at) => `${agent}-${at + 1}.md`)).sort());
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json.lock')), false);
+});
+
+test('report: a lock of a process that no longer runs is taken over', () => {
+  const { spawnSync } = require('node:child_process');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
+  fs.writeFileSync(lock, String(dead));
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  assert.deepEqual(fs.readdirSync(path.dirname(lock)).filter((name) => name.includes('.lock')),
+    []);
+  const stored = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'results.json'), 'utf8'));
+  assert.deepEqual(stored.reports.map((one) => one.file), ['spec-reviewer-1.md']);
+});
+
+test('withLock: 8 processes on a lock of a dead process never hold it at once', async () => {
+  const { spawn, spawnSync } = require('node:child_process');
+  const base = path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.js');
+  const PROCESSES = 8;
+  const ROUNDS = 15;
+  for (let round = 0; round < ROUNDS; round += 1) {
+    const root = path.join(tmp, `lock-${++folders}`);
+    fs.mkdirSync(root);
+    const file = path.join(root, 'count.json');
+    const holder = path.join(root, 'holder');
+    fs.writeFileSync(file, '0');
+    const dead = spawnSync(process.execPath, ['-e', '']).pid;
+    fs.writeFileSync(`${file}.lock`, String(dead));
+    // Each process waits for the same start time. Its work makes holder with the flag wx,
+    // which throws when another process holds the lock too, and adds 1 to the count.
+    const at = Date.now() + 400;
+    const code = `const fs = require('node:fs');
+const { withLock } = require(${JSON.stringify(base)});
+while (Date.now() < ${at});
+withLock({}, ${JSON.stringify(file)}, 'starts', () => {
+  fs.closeSync(fs.openSync(${JSON.stringify(holder)}, 'wx'));
+  const count = Number(fs.readFileSync(${JSON.stringify(file)}, 'utf8'));
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
+  fs.writeFileSync(${JSON.stringify(file)}, String(count + 1));
+  fs.rmSync(${JSON.stringify(holder)});
+});`;
+    const runs = await Promise.all(Array.from({ length: PROCESSES }, () =>
+      new Promise((resolve) => {
+        const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+        let out = '';
+        proc.stderr.on('data', (data) => { out += data; });
+        proc.on('close', (status) => resolve({ status, out }));
+      })));
+    assert.deepEqual(runs.filter((one) => one.status !== 0), [], `round ${round + 1}`);
+    assert.equal(fs.readFileSync(file, 'utf8'), String(PROCESSES), `round ${round + 1}`);
+    assert.deepEqual(fs.readdirSync(root), ['count.json']);
+  }
+});
+
+test('report: exits 3 within the wait on an old lock of a live pid or with no pid', () => {
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  const file = path.join(root, '.reports', 'spec-reviewer-1.md');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(file, CLEAN);
+  // A lock that a live holder may still have stays, also when it is old: the id of a process
+  // that runs, and text that is no process id. After the wait, report exits 3.
+  const old = new Date(Date.now() - 60000);
+  const WAIT = 200;
+  for (const text of [String(process.pid), 'no-pid']) {
+    fs.writeFileSync(lock, text);
+    fs.utimesSync(lock, old, old);
+    const begin = Date.now();
+    const result = call({ cwd: tmp, artifacts: [root], plugin: PLUGIN, lockWait: WAIT },
+      ['report', 'spec-reviewer', file]);
+    assert.ok(Date.now() - begin < WAIT + 1000, text);
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: checks.js report cannot run, because its lock file still exists.',
+      plainLine(`${lock} still exists after 0.2 s of tries.`),
+    ]);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
+  }
+});
+
+test('report: exits 3 after the wait on a new lock of a live process, and records nothing', () => {
+  const { plainLine } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `results-${++folders}`);
+  const lock = path.join(root, '.reports', 'results.json.lock');
+  const file = path.join(root, '.reports', 'spec-reviewer-1.md');
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(file, CLEAN);
+  for (const text of [String(process.pid), '']) {
+    fs.writeFileSync(lock, text);
+    const result = call({ cwd: tmp, artifacts: [root], plugin: PLUGIN, lockWait: 50 },
+      ['report', 'spec-reviewer', file]);
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), [
+      'Report to a member: checks.js report cannot run, because its lock file still exists.',
+      plainLine(`${lock} still exists after 0.05 s of tries.`),
+    ]);
+    assert.equal(fs.readFileSync(lock, 'utf8'), text);
+    assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
+  }
 });
 
 test('end: does nothing outside a run', () => {
@@ -2967,8 +4642,8 @@ test('end: a points.json that breaks its rules is a finding, and its third check
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')), [
     answer,
     AGAIN_POINT,
-    { text: 'The list of what the run needs from you broke its format rules.',
-      action: 'run_again' },
+    { text: 'The run left out 1 point that broke the rules for points, which its output on ' +
+      'the Run page lists, and another round writes it again.', action: 'run_again' },
   ]);
   // The points pass now, so the next end records the verdict with them.
   older(root);
@@ -3020,7 +4695,7 @@ test('end: points.json older than a report or a draft ends nothing, as under Sha
     /; check 3 of 3, so the run ends: added 1 point to points\.json, and qory run verdict/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.deepEqual(points[0], AGAIN_POINT);
-  assert.match(points[1].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
+  assert.match(points[1].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
   assert.equal(verdicts(args).length, 1);
   // Nothing after points.json: the run ended there.
   older(root);
@@ -3038,6 +4713,16 @@ function verdictIndex(runId) {
   ] }] };
 }
 
+// trackQory returns a stub qory whose pull has version 2 of verdict by this run, with body as
+// its verdict.json.
+function trackQory(body) {
+  const qory = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  const dir = path.join(qory.bin, 'store', 'verdict', 'main', 'v2');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'verdict.json'), JSON.stringify(body));
+  return qory;
+}
+
 test('end: a stored verdict of this run: end checks nothing', () => {
   // As under Shape: a spec draft that fails, a planner report after points.json, and the
   // verdict.
@@ -3046,7 +4731,7 @@ test('end: a stored verdict of this run: end checks nothing', () => {
   write(root, 'points.json', [AGAIN_POINT]);
   older(root);
   fs.writeFileSync(path.join(root, '.reports', 'shape-planner-1.md'), CLEAN);
-  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  const mine = trackQory({ verdict: 'passed', track: STANDARD });
   for (const failures of [0, 2]) {
     fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures }));
     const result = end(root, mine.env);
@@ -3061,15 +4746,120 @@ test('end: a stored verdict of this run: end checks nothing', () => {
   assert.deepEqual(verdicts(mine.args), []);
 });
 
+test('end: a run that ended with points.json and a verdict still compares the track', () => {
+  const root = fixture();
+  started(root, {});
+  write(root, 'points.json', [AGAIN_POINT]);
+  older(root);
+  const fast = trackQory({ verdict: 'passed', track: FAST_TRACK });
+  const result = end(root, fast.env);
+  fails(result, /^Record the verdict again with --track standard\. The verdict has the track "fast"/);
+  assert.match(result.out, /^Fix the 1 finding of the proposal draft/m);
+  assert.match(result.lines.at(-1), /: 2 findings; check 1 of 3\. /);
+  assert.deepEqual(verdicts(fast.args), []);
+  // An escalate verdict compares no track.
+  assert.equal(end(root, trackStub({ verdict: 'escalate' })).lines.at(-1), 'Checked nothing: ' +
+    'the run has points.json and stored version 2 of verdict, so it has ended.');
+  // With a failed lookup, the run ends with points.json and the verdict escalate, which needs
+  // no track.
+  const unread = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  assert.match(end(root, unread.env).lines.at(-1), /^Checked points\.json: the run ended with it/);
+  assert.equal(verdicts(unread.args).length, 1);
+});
+
+test('end: in a run, a failed lookup of the verdict is a finding when a draft needs it', () => {
+  const draft = () => {
+    const root = fixture();
+    started(root, {});
+    return root;
+  };
+  for (const [qory, why] of [
+    [stub(0, { runId: null }), 'qory work-item show exited 1'],
+    [stub(0, { index: null }), 'qory artifact pull verdict exited 1'],
+    // A version whose verdict.json cannot be read.
+    [stub(0, { index: verdictIndex('run_9f4n2') }), '.*/verdict/main/v2/verdict\\.json cannot be read'],
+  ]) {
+    const result = end(draft(), qory.env);
+    fails(result, new RegExp(`^Run end again: the lookup of the run's verdict failed\\. ${why}\\.$`));
+    assert.match(result.lines.at(-1), /: 1 finding; check 1 of 3\. /);
+  }
+  // The third failed check ends the run with its point.
+  const root = draft();
+  fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
+  const failed = stub(0, { runId: null });
+  passes(end(root, failed.env));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')),
+    [{ text: 'The run cannot read the verdict that it recorded.', action: 'run_again' }]);
+  assert.equal(verdicts(failed.args).length, 1);
+  // With no proposal.md, no draft needs the verdict: end looks nothing up.
+  const spec = draft();
+  fs.rmSync(path.join(spec, 'proposal.md'));
+  const none = stub(0, { runId: null });
+  assert.equal(end(spec, none.env).lines.filter((line) => /^Run end again/.test(line)).length, 0);
+  assert.equal(fs.existsSync(none.args), false);
+});
+
 test('end: a run with a verdict and no points.json is still checked', () => {
-  // As after `verdict passed`: a failing spec draft and no points.json. end checks it and runs no
-  // lookup of a stored verdict.
+  // As after `verdict passed`: a failing spec draft and no points.json. end checks it and runs
+  // no verdict. It looks up the stored verdict only for the track of proposal.md.
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, {});
-  const mine = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  const mine = trackQory({ verdict: 'passed', track: STANDARD });
   fails(end(root, mine.env), /^Fix the \d+ findings? of the spec draft/);
   assert.deepEqual(verdicts(mine.args), []);
-  assert.equal(fs.existsSync(mine.args), false);
+  assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
+    ['work-item show', 'artifact pull verdict']);
+  fs.rmSync(path.join(root, 'proposal.md'));
+  const none = stub(0, { runId: 'run_9f4n2', index: verdictIndex('run_9f4n2') });
+  fails(end(root, none.env), /^Fix the \d+ findings? of the spec draft/);
+  assert.equal(fs.existsSync(none.args), false);
+});
+
+// trackStub returns the env of a stub qory whose pull has version 2 of verdict by this run,
+// with body as its verdict.json.
+const trackStub = (body) => trackQory(body).env;
+
+test('end: the track of the stored verdict is that of proposal.md', () => {
+  const track = /^Record the verdict again with --track /;
+  const lines = (result) => result.findings.filter((line) => track.test(line));
+  // Each end runs in a new folder, because the third failed end of a folder ends the run.
+  const standard = () => {
+    const root = fixture();
+    started(root, {});
+    return root;
+  };
+  assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'passed', track: STANDARD }))), []);
+  assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'passed', track: FAST_TRACK }))),
+    ['Record the verdict again with --track standard. The verdict has the track "fast", and ' +
+      'proposal.md the "standard" track.']);
+  const missing = end(standard(), trackStub({ verdict: 'passed' }));
+  fails(missing, /^Record the verdict again with --track standard\. The verdict has no track\.$/);
+  assert.match(missing.out, /^Fix the 1 finding of the proposal draft/m);
+  fails(end(standard(), trackStub({ verdict: 'passed', track: 'fast' })),
+    /^Record the verdict again with --track standard\. The verdict's track is a string with no text id\.$/);
+  // An escalate verdict, or none of this run, compares no track.
+  assert.deepEqual(lines(end(standard(), trackStub({ verdict: 'escalate' }))), []);
+  assert.deepEqual(lines(end(standard(), RUN_ENV)), []);
+  // On the fast track, the reason is the text after "Reason: ", compared exactly.
+  const fast = () => {
+    const root = fastWith('docs/opening-hours.md');
+    started(root, {});
+    return root;
+  };
+  assert.deepEqual(lines(end(fast(), trackStub({ verdict: 'passed', track: FAST_TRACK }))), []);
+  fails(end(fast(), trackStub({ verdict: 'passed', track: { ...FAST_TRACK, reason: 'Small.' } })),
+    /^Record the verdict again with --track fast and --track-reason "<text after Reason: in ## Track>"\. The verdict has another reason than the line "Reason: " of ## Track\.$/);
+});
+
+test('end --offline: the track of the --verdict body is that of proposal.md', () => {
+  passes(offline(offlineRun({ verdict: { verdict: 'passed', track: STANDARD } })));
+  passes(offline(offlineRun({ verdict: { verdict: null } })));
+  const other = offlineRun({ verdict: { verdict: 'passed', track: FAST_TRACK } });
+  fails(offline(other), /^Record the verdict again with --track standard\. The verdict has the track "fast", and proposal\.md the "standard" track\.$/);
+  assert.equal(outPoints(other).length, 1);
+  fails(offline(offlineRun({ verdict: { verdict: 'changes-requested' } })),
+    /^Record the verdict again with --track standard\. The verdict has no track\.$/);
+  passes(offline(offlineFast('docs/opening-hours.md')));
 });
 
 test('end: at most 20 points, with one point of end in place of its others', () => {
@@ -3079,11 +4869,18 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   older(root);
   passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
-  passes(end(root, stub().env));
+  const result = end(root, stub().env);
+  passes(result);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
   assert.equal(points.length, 20);
-  assert.deepEqual(points.at(-1), { text: 'The run ended with drafts or reports that still ' +
-    'break their format rules.', action: 'run_again' });
+  // The two points of end are left out: the last point counts them, and the output lists them
+  // first.
+  assert.deepEqual(points.at(-1), { text: 'The run left out 2 more points, which its output ' +
+    'on the Run page lists, and another round starts the workflow again to fix them.',
+    action: 'run_again' });
+  const left = result.lines.filter((line) => line.startsWith('Point left out of points.json: '));
+  assert.equal(left.length, 2, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), left);
   // A points.json that is no list keeps no point.
   write(root, 'points.json', { text: 'x' });
   older(root);
@@ -3099,17 +4896,18 @@ test('end: no verdict when the run stored one already', () => {
   older(root);
   write(root, 'points.json', [AGAIN_POINT]);
   const index = verdictIndex;
-  const mine = stub(0, { runId: 'run_9f4n2', index: index('run_9f4n2') });
+  const mine = trackQory({ verdict: 'passed', track: STANDARD });
   assert.equal(end(root, mine.env).lines.at(-1), 'Checked nothing: the run has points.json ' +
     'and stored version 2 of verdict, so it has ended.');
   assert.deepEqual(verdicts(mine.args), []);
   assert.deepEqual(fs.readFileSync(mine.args, 'utf8').split('\n').filter(Boolean),
     ['work-item show', 'artifact pull verdict']);
-  // A verdict of another run, or a failed lookup, runs the verdict.
+  // A verdict of another run, or a failed lookup, runs the verdict: the run ends with
+  // escalate, which compares no track.
   const other = stub(0, { runId: 'run_9f4n2', index: index('run_else') });
   passes(end(root, other.env));
   assert.equal(verdicts(other.args).length, 1);
-  const failed = stub(0, { runId: 'run_9f4n2' });
+  const failed = stub(0, { runId: 'run_9f4n2', index: null });
   passes(end(root, failed.env));
   assert.equal(verdicts(failed.args).length, 1);
 });
@@ -3123,6 +4921,61 @@ test('end: passes a run whose drafts and newest reports pass their checks', () =
   const result = end(root);
   passes(result);
   assert.deepEqual(result.lines, ['Checked the drafts and reports at the end: 0 findings.']);
+});
+
+// countsNewer adds version number of type to index.json of root, written by a run and not
+// cancelled, with no folder in the artifact folder: the store lacks the newest version that
+// counts.
+function countsNewer(root, type, number) {
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  let artifact = index.artifacts.find((one) => one.type === type);
+  if (!artifact) {
+    artifact = { type, name: 'main', stage_id: 'st_6ns22c4pav', approved_version: null,
+      newest_version: null, changed_after_approval: false, versions: [] };
+    index.artifacts.push(artifact);
+  }
+  artifact.versions.unshift({ id: `av_${type}${number}`, number,
+    writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, stage_id: 'st_6ns22c4pav',
+    note: null, at: '2026-11-15T09:00:00Z', files: [], approvals: [] });
+  artifact.newest_version = number;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+}
+
+// pullLines returns the two lines of a store that lacks version number of type.
+const pullLines = (type, number) => [`Run \`qory artifact pull ${type} --version ${number}\`, ` +
+  'then check again.', `The store lacks ${type} version ${number}, the newest version that ` +
+  'counts.'];
+
+test('end: a draft check that exits 3 shows the fix, then the value', () => {
+  const root = fixture();
+  started(root, { 'write-shape-1-write-specs': 1, 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  countsNewer(root, 'acceptance-criteria', 2);
+  const result = end(root);
+  assert.equal(result.status, 1, result.out);
+  const at = result.lines.findIndex((line) =>
+    /^Fix the 1 finding of the [a-z-]+ draft \(.*\) in the lines after this one:$/.test(line));
+  assert.ok(at >= 0, result.out);
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('acceptance-criteria', 2));
+});
+
+test('end: points.json whose check exits 3 shows the fix, then the value', () => {
+  // An answer point, no top questions.json, and questions version 3 that the store lacks.
+  const root = fixture();
+  started(root, {});
+  fs.rmSync(path.join(root, 'questions.json'));
+  countsNewer(root, 'questions', 3);
+  write(root, 'points.json', [{ text: 'The proposal does not say who sees the new price.',
+    action: 'answer', question: 'q3' }]);
+  older(root);
+  const { env } = stub();
+  const result = end(root, env);
+  assert.equal(result.status, 1, result.out);
+  const at = result.lines.indexOf('Fix the 1 finding of points.json in the lines after this ' +
+    'one:');
+  assert.ok(at >= 0, result.out);
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('questions', 3));
 });
 
 test('end: a copy with the bytes of its newest version is no draft of the run', () => {
@@ -3155,6 +5008,14 @@ test('end: each report finding', () => {
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
+test('end: a start on a subject needs the report of its reviewer', () => {
+  const root = fixture();
+  started(root, { 'change/questions-reviewer': 1, 'change/no-such-reviewer': 1 });
+  const result = end(root);
+  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  assert.ok(!result.out.includes('no-such-reviewer'), result.out);
+});
+
 test('end: the third failed check writes points.json and records the verdict escalate', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1,
@@ -3172,10 +5033,13 @@ test('end: the third failed check writes points.json and records the verdict esc
   assert.match(third.lines.at(-1),
     /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
   const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
-  // One point per kind of problem: two agents with no report make one point.
+  // One point per kind of problem: two agents with no report make one point that names both.
   assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
-  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
-  assert.equal(points[1].text, 'An agent that the run started returned no report.');
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
+  assert.deepEqual(points.slice(1).map((point) => point.text), [
+    'The decision reviewer and the questions reviewer returned no reports, so the run has none ' +
+      'of their work, and another round starts them again.']);
+  // Each point of end passes the check of a point, and names its step.
   passes(check(root, 'points', path.join(root, 'points.json')));
   assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
   // The run ended through points.json, so the next check runs the verdict again.
@@ -3248,6 +5112,55 @@ test('end-gate takes .qory/artifacts of the project folder, also from a subfolde
   fs.mkdirSync(path.join(nested, '.git'));
   fs.rmSync(path.join(work, '.git'), { recursive: true });
   assert.equal(base(path.join(nested, 'x'), env), path.join(nested, 'x'));
+});
+
+test('end-gate reads the lists from inputs.json of the harness home, else the report', (t) => {
+  if (fs.existsSync('/tmp/qory-artifacts')) {
+    t.skip('/tmp/qory-artifacts exists, so a run checks that folder');
+    return;
+  }
+  const { check } = require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'));
+  const script = path.join(harnessHome(), 'hooks', 'end-gate.js');
+  const billing = /sensitive area "billing"/;
+  // gate runs the hook in a new checkout with a fast track on BILLING_FILE, the harness
+  // report report under it when given, and the harness home home when given.
+  const gate = ({ report, home } = {}) => {
+    const work = path.join(tmp, `gate-${++folders}`);
+    fs.mkdirSync(path.join(work, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(work, '.qory'));
+    fs.cpSync(fastWith(BILLING_FILE), path.join(work, '.qory', 'artifacts'), { recursive: true });
+    if (report) withReport(work, report);
+    const env = { ...RUN_ENV };
+    delete env.CLAUDE_PROJECT_DIR;
+    delete env.QORY_HARNESS_HOME;
+    if (home) env.QORY_HARNESS_HOME = home;
+    return check({ cwd: work, script, env });
+  };
+  const home = (text) => {
+    const folder = path.join(tmp, `harness-home-${++folders}`);
+    fs.mkdirSync(folder);
+    if (text !== undefined) fs.writeFileSync(path.join(folder, 'inputs.json'), text);
+    return folder;
+  };
+  const removed = JSON.stringify({ qory: { harness_extensions: factory(REMOVE_BILLING) } });
+  // The file of the home wins over a report that differs, as for check and push.
+  passes(pushIn(fastWith(BILLING_FILE), path.join(home(removed), 'inputs.json')));
+  assert.doesNotMatch(gate({ report: {}, home: home(removed) }).text, billing);
+  assert.match(gate({ report: REMOVE_BILLING, home: home('{"qory": {"harness_extensions": {}}}') })
+    .text, billing);
+  // With no variable, or no file in the home, the hook reads the report.
+  assert.doesNotMatch(gate({ report: REMOVE_BILLING }).text, billing);
+  assert.match(gate().text, billing);
+  assert.doesNotMatch(gate({ report: REMOVE_BILLING, home: home() }).text, billing);
+  // A relative QORY_HARNESS_HOME is ignored, also when the file exists under it.
+  const relative = path.relative(process.cwd(), home(removed));
+  assert.equal(require(path.join(MODULES, 'core', 'hooks', 'end-gate.js'))
+    .inputsFile({ QORY_HARNESS_HOME: relative }), null);
+  assert.match(gate({ report: {}, home: relative }).text, billing);
+  // A file that is no valid JSON is a finding, with no fallback to the report.
+  const broken = gate({ report: REMOVE_BILLING, home: home('{"qory": ') });
+  assert.equal(broken.status, 1, broken.text);
+  assert.match(broken.text, /Give --inputs the inputs\.json that qory wrote for the run\.\n {2}".*" is no valid JSON\./);
 });
 
 test('each end-gate adapter turns the end check into what its runtime reads', (t) => {
@@ -3383,7 +5296,9 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
   const denied = (kind, args) => decide({ kind, args, env, script });
   for (const file of ['/tmp/qory-artifacts/.reports/end.json', '.reports/results.json',
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
-    '/tmp/qory-artifacts/.reports/findings.json.lock']) {
+    '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock',
+    '/tmp/qory-artifacts/.reports/starts.json.lock.break',
+    '/tmp/qory-artifacts/.reports/results.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));
@@ -3461,8 +5376,8 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
   assert.equal(decide({ kind: 'shell', args: { command: 'ls ~-/*.md' }, env: { ...env, OLDPWD: path.join(cwd, 'src') }, script, cwd }),
     null);
   assert.match(shell('cat ~-/.rep*'), /\nThe guard reads ~- in the word ~-\/\.rep\* as OLDPWD, which is not set\.$/);
-  assert.match(shell('cat ~voldy/.rep*'), /\nThe guard does not expand ~voldy in the glob ~voldy\/\.rep\*\.$/);
-  assert.equal(shell('ls ~voldy/notes.md'), null);
+  assert.match(shell('cat ~alex/.rep*'), /\nThe guard does not expand ~alex in the glob ~alex\/\.rep\*\.$/);
+  assert.equal(shell('ls ~alex/notes.md'), null);
   // A glob that fs.globSync throws on is denied: bash still expands a pattern too long for it.
   assert.match(shell(`cat .[${'r'.repeat(70000)}]eports/starts.json`),
     /\nfs\.globSync could not expand the glob \.\[r+…: pattern is too long\.$/);
@@ -3574,7 +5489,14 @@ const OFFLINE_PLUGIN = path.join(OFFLINE_HOME, 'modules', 'core');
 const OFFLINE_SCRIPT = path.join(OFFLINE_PLUGIN, 'skills', 'running-a-workflow', 'checks.js');
 // The reviewers of the drafts that differ from the store in the testdata.
 const REVIEWED = ['proposal-reviewer', 'spec-reviewer', 'decision-reviewer', 'scenario-reviewer'];
-const REVIEW_NONE = 'A draft in this run has no report from its reviewer.';
+// REVIEW_NONE returns the point of end --offline for a draft with no report of its reviewer.
+const REVIEW_NONE = (draft, reviewer) => `The draft of the ${draft} has no review, because ` +
+  `the ${reviewer.replace(/-/g, ' ')} returned no report, and another round starts the ` +
+  `${reviewer.replace(/-/g, ' ')} again.`;
+// REPORT_BROKEN returns the point of end on a report that breaks its format rules.
+const REPORT_BROKEN = (agent) => `The report of the ${agent.replace(/-/g, ' ')} breaks its ` +
+  `format rules, so the run could not use that work, and another round starts the ` +
+  `${agent.replace(/-/g, ' ')} again.`;
 // The id of the run that end --offline checks, which no version of the testdata has.
 const THIS_RUN = 'run_this1';
 // The types whose base, the newest version that no run of --run or --continues wrote, differs
@@ -3613,7 +5535,10 @@ function storeVersion(run, type, number, { changed = false, writer = null } = {}
 // 1 by a person, and the base of each type, which differs from the top copy for the types of
 // changed; an empty out folder; and a verdict file. With reviewed, each reviewer of REVIEWED
 // has a report that passes.
-function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = [],
+// STANDARD is the track that a run sends with its verdict for the proposal of the fixture.
+const STANDARD = { id: 'standard', reason: 'The change adds a field to the order form.' };
+
+function offlineRun({ verdict = { verdict: 'passed', track: STANDARD }, reviewed = true, edits = [],
   changed = Object.keys(BASE) } = {}) {
   const artifacts = fixture(...edits);
   const store = path.join(tmp, `store-${++folders}`);
@@ -3633,7 +5558,7 @@ function offlineRun({ verdict = { verdict: 'passed' }, reviewed = true, edits = 
   fs.writeFileSync(file, JSON.stringify(verdict));
   fs.mkdirSync(path.join(artifacts, '.reports'));
   for (const agent of reviewed ? REVIEWED : []) {
-    fs.writeFileSync(path.join(artifacts, '.reports', `${agent}-1.md`), CLEAN);
+    fs.writeFileSync(path.join(artifacts, '.reports', `${agent}-1.md`), cleanOf(agent));
   }
   run.args = ['end', '--offline', '--artifacts', artifacts, '--store', store, '--verdict', file,
     '--out', out, '--run', THIS_RUN];
@@ -3685,7 +5610,7 @@ test('end --offline: a finding fails at once, with exit 1 and points.json in --o
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
-  assert.match(points[0].text, /^The draft of the spec still breaks \d+ format rules?\.$/);
+  assert.match(points[0].text, /^The draft of the spec breaks \d+ format rules?, which the output of the run on the Run page lists, and another round starts the writer of the spec again to fix (?:it|them)\.$/);
   assert.equal(points[0].action, 'run_again');
   passes(call({ cwd: tmp, artifacts: [run.out] }, ['check', 'points', path.join(run.out, 'points.json')]));
   assert.equal(fs.existsSync(path.join(run.artifacts, 'points.json')), false);
@@ -3783,9 +5708,9 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
     false, result.out);
   assert.deepEqual(outPoints(run).map((point) => point.text), [
     outPoints(run)[0].text,
-    'The report of an agent that the run started breaks its format rules.',
+    REPORT_BROKEN('spec-reviewer'),
   ]);
-  assert.match(outPoints(run)[0].text, /^The draft of the spec still breaks/);
+  assert.match(outPoints(run)[0].text, /^The draft of the spec breaks/);
   assert.deepEqual(snapshot(run.artifacts), before);
 });
 
@@ -3798,7 +5723,8 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   const first = offline(run);
   fails(first, /^Start spec-reviewer on the spec draft, and write its report to \.reports\/spec-reviewer-<n>\.md: the folder has no report of spec-reviewer\.$/);
   assert.equal(first.lines.length, 2, first.out);
-  assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }]);
+  assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE('spec', 'spec-reviewer'),
+    action: 'run_again' }]);
   // A link to a file with the bytes of the stored version is still a draft, and a finding.
   const two = offlineRun();
   const stored = path.join(two.store, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
@@ -3811,6 +5737,35 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   const second = offline(two);
   fails(second, /^Name the file itself, not a link to it: .*acceptance-criteria\.md is a link\.$/);
   fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file: it is not one\.$/);
+});
+
+test('end --offline: two drafts of one reviewer name the reviewer once', () => {
+  const run = offlineRun({ changed: [...Object.keys(BASE), 'acceptance-criteria'] });
+  fs.rmSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'));
+  fails(offline(run), /^Start spec-reviewer on the spec draft/);
+  const points = outPoints(run);
+  assert.equal(points.length, 1, JSON.stringify(points));
+  assert.match(points[0].text, /^The drafts of the (?:spec and the acceptance criteria|acceptance criteria and the spec) have no review, because the spec reviewer returned no report, and another round starts the spec reviewer again\.$/);
+});
+
+test('end and end --offline: a draft question takes the id prefixes of the modules', () => {
+  const bare = { ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' };
+  const finding = /^\s*Quote the words of AC-3 beside it in the context of q7\.$/;
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push(bare);
+  write(root, 'questions.json', data);
+  started(root, {});
+  const result = end(root);
+  assert.equal(result.status, 1, result.out);
+  assert.ok(result.lines.some((line) => finding.test(line)), result.out);
+  const run = offlineRun();
+  const top = JSON.parse(fs.readFileSync(path.join(run.artifacts, 'questions.json'), 'utf8'));
+  top.questions.push(bare);
+  write(run.artifacts, 'questions.json', top);
+  const after = offline(run);
+  assert.equal(after.status, 1, after.out);
+  assert.ok(after.lines.some((line) => finding.test(line)), after.out);
 });
 
 test('end --offline: writes only to --out, and runs no qory', () => {
@@ -3831,7 +5786,9 @@ test('end --offline: writes only to --out, and runs no qory', () => {
     mode('u+w');
   }
   assert.equal(ran.status, 1, ran.stdout + ran.stderr);
-  assert.equal(ran.stderr, '');
+  // The line of what it checked is the only line on stderr.
+  assert.match(ran.stderr, /^Checked the drafts and reports after the session: 2 findings; wrote 1 point to points\.json of --out\.\n$/);
+  assert.doesNotMatch(ran.stdout, /^Checked /m);
   assert.equal(fs.existsSync(args), false);
   assert.deepEqual(outFiles(run), ['points.json']);
   const after = [run.artifacts, run.store, home, tmp].map(snapshot);
@@ -3858,7 +5815,8 @@ test('end --offline: after the verdict escalate, checks nothing', () => {
 });
 
 test('end --offline: takes changes-requested, passed and no verdict alike', () => {
-  for (const verdict of [{ verdict: 'changes-requested' }, { verdict: 'passed' }, { verdict: null }]) {
+  for (const verdict of [{ verdict: 'changes-requested', track: STANDARD },
+    { verdict: 'passed', track: STANDARD }, { verdict: null }]) {
     passes(offline(offlineRun({ verdict })));
     const failing = offlineRun({ verdict, edits: [['spec.md', '## Background', '## Context']] });
     fails(offline(failing), /^Fix the \d+ findings? of the spec draft/);
@@ -3866,13 +5824,63 @@ test('end --offline: takes changes-requested, passed and no verdict alike', () =
   }
 });
 
+test('end: each point of end states what failed, why, and another round as the step', () => {
+  const end = require(path.join(path.dirname(SCRIPT), 'lib', 'end.js'));
+  const one = ['questions-writer'];
+  const two = ['scenario-writer', 'proposal-reviewer'];
+  // Twelve agents: the first 5 by name, the others counted, within 500 characters.
+  const many = Array.from({ length: 12 }, (_, at) => `agent-number-${at}-reviewer`);
+  const reviews = [{ draft: 'spec', reviewer: 'spec-reviewer' },
+    { draft: 'proposal', reviewer: 'proposal-reviewer' }];
+  const texts = [end.END_POINT(1), end.END_POINT(5), end.RECORDS_UNREAD,
+    ...[one, two, many].flatMap((agents) => [end.REPORT_BROKEN(agents), end.REPORT_NONE(agents),
+      end.REPORT_UNCHECKED(agents), end.REPORT_CHANGED(agents)]),
+    end.REVIEW_NONE(reviews.slice(0, 1)), end.REVIEW_NONE(reviews), end.DRAFT_BROKEN('spec', 1),
+    end.DRAFT_BROKEN('spec', 3), end.POINTS_BROKEN(1), end.POINTS_BROKEN(4),
+    end.POINTS_BROKEN(null)];
+  for (const text of texts) {
+    // One sentence of at most 500 characters, with no hyphenated agent name: the check of a
+    // point passes it.
+    passes(checkPoints([{ text, action: 'run_again' }]));
+    assert.match(text, /, and another round [^,]+\.$/, text);
+    assert.doesNotMatch(text, /\b[a-z]+-(?:writer|reviewer|explorer)\b/, text);
+  }
+  assert.equal(end.REPORT_NONE(['scenario-writer']), 'The scenario writer returned no report, ' +
+    'so the run has none of its work, and another round starts the scenario writer again.');
+  assert.equal(end.REPORT_BROKEN(two), 'The reports of the scenario writer and the proposal ' +
+    'reviewer break their format rules, so the run could not use that work, and another round ' +
+    'starts them again.');
+  assert.match(end.REPORT_NONE(many), /, the agent number 4 reviewer and 7 more agents returned/);
+});
+
 test('end --offline: at most 20 points, with one point of end in place of its others', () => {
   const found = Array.from({ length: 25 }, (_, at) => ({ line: `l${at}`, point: `Point ${at}.` }));
-  const end = 'The run ended with drafts or reports that still break their format rules.';
-  assert.deepEqual(endList([], found).list, [{ text: end, action: 'run_again' }]);
+  const end = (left) => `The run left out ${left} more ${left === 1 ? 'point' : 'points'}, ` +
+    'which its output on the Run page lists, and another round starts the workflow again to ' +
+    `fix ${left === 1 ? 'it' : 'them'}.`;
+  const again = (text) => ({ text, action: 'run_again' });
+  const all = endList([], found);
+  assert.deepEqual(all.list, [...found.slice(0, 19).map((one) => again(one.point)), again(end(6))]);
+  assert.deepEqual(all.left, found.slice(19).map((one) => one.point));
   assert.equal(endList([], found.slice(0, 20)).list.length, 20);
   const kept = Array(19).fill(AGAIN_POINT);
-  assert.deepEqual(endList(kept, found.slice(0, 2)).list, [...kept, { text: end, action: 'run_again' }]);
+  assert.deepEqual(endList(kept, found.slice(0, 2)).list, [...kept, again(end(2))]);
+  // The answer points come first, each group in its order, and the count has every point
+  // left out.
+  const answers = Array.from({ length: 3 }, (_, at) => ({ text: `Answer ${at}.`,
+    action: 'answer', question: `q${at + 1}` }));
+  const mixed = endList([...Array(18).fill(AGAIN_POINT), ...answers], found.slice(0, 1));
+  assert.deepEqual(mixed.list, [...answers, ...Array(16).fill(AGAIN_POINT), again(end(3))]);
+  assert.deepEqual(mixed.left, [AGAIN_POINT.text, AGAIN_POINT.text, 'Point 0.']);
+  assert.deepEqual(mixed.kept, [...answers, ...Array(16).fill(AGAIN_POINT)]);
+  assert.deepEqual(mixed.mine, [end(3)]);
+  // The entries of one point function give one point, with each item once and in order.
+  const grouped = endList([], [{ point: (items) => `Agents ${items.join(' and ')}.`, item: 'a' },
+    { line: 'l1', point: null }, { point: 'Point 9.' }]);
+  assert.deepEqual(grouped.mine, ['Agents a.', 'Point 9.']);
+  const both = (items) => `Agents ${items.join(' and ')}.`;
+  assert.deepEqual(endList([], ['a', 'b', 'a'].map((item) => ({ point: both, item }))).mine,
+    ['Agents a and b.']);
   // A line with no point and a kind found twice add no point.
   assert.equal(endList([], [...found.slice(0, 2), { line: 'x', point: null }, found[0]]).list.length, 2);
 });
@@ -3898,8 +5906,26 @@ test('end --offline: exit 3 when the store lacks the folder of a base version', 
   fs.rmSync(path.join(run.store, 'spec', 'main', 'v2'), { recursive: true });
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Pull version 2 of spec\/main into .*: it is the newest version that neither --run nor a run of --continues wrote\.$/);
+  assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull spec --version 2`, then ' +
+    'end again.', 'The --store folder lacks spec version 2, the newest version from before the ' +
+    'run.']);
   assert.deepEqual(outFiles(run), []);
+});
+
+test('end --offline: a version of a cancelled run is no base version', () => {
+  // Spec version 2 of a cancelled run is the newest; version 1 is the base, and the store
+  // lacks it.
+  const run = offlineRun();
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const spec = index.artifacts.find((one) => one.type === 'spec');
+  spec.versions.find((one) => one.number === 2).cancelled = true;
+  fs.writeFileSync(file, JSON.stringify(index, null, 2));
+  fs.rmSync(path.join(run.store, 'spec', 'main', 'v1'), { recursive: true, force: true });
+  const result = offline(run);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Run `qory artifact pull spec --version 1`, then end again.');
+  assert.match(result.lines[1], /^The --store folder lacks spec version 1,/);
 });
 
 test('end --offline: each changed type needs the report of its reviewer, and no other', () => {
@@ -3913,16 +5939,20 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
     // The report of every other reviewer, which counts for no draft of type.
     for (const agent of new Set(Object.values(reviewers))) {
       if (agent === reviewers[type]) continue;
-      fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-1.md`), CLEAN);
+      fs.writeFileSync(path.join(run.artifacts, '.reports', `${agent}-1.md`), cleanOf(agent));
     }
     const result = offline(run);
     assert.equal(result.status, 1, `${type}: ${result.out}`);
     assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft, ` +
       `and write its report to .reports/${reviewers[type]}-<n>.md: the folder has no report of ` +
       `${reviewers[type]}.`], type);
-    assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE, action: 'run_again' }], type);
+    const words = { 'acceptance-criteria': 'acceptance criteria',
+      'decision-record': 'technical decision record', 'demo-scenarios': 'demo scenarios' };
+    assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE(words[type] || type, reviewers[type]),
+      action: 'run_again' }], type);
     // With the report of its reviewer, the run passes.
-    fs.writeFileSync(path.join(run.artifacts, '.reports', `${reviewers[type]}-1.md`), CLEAN);
+    fs.writeFileSync(path.join(run.artifacts, '.reports', `${reviewers[type]}-1.md`),
+      cleanOf(reviewers[type]));
     passes(offline(run));
   }
   // review-comments has no reviewer: a changed draft of it needs no report.
@@ -3957,6 +5987,19 @@ test('end --offline: a type that this run pushed needs its reviewer\'s report', 
   // Written by another run or by a person, version 3 is the base, and spec.md is unchanged.
   passes(pushedSpec({ kind: 'run', run_id: 'run_other1' }));
   passes(pushedSpec({ kind: 'person', name: 'dana' }));
+});
+
+test('end --offline: a pushed fast track with no report of proposal-reviewer fails', () => {
+  const run = offlineRun({ edits: [trackLines(...fastLines(FAST_CHANGE)),
+    FAST_SOURCE] });
+  fastSource(run.artifacts);
+  storeVersion(run, 'proposal', 3, { writer: { kind: 'run', run_id: THIS_RUN } });
+  fs.rmSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'));
+  const result = offline(run);
+  fails(result, /^Write "Standard track\." in proposal\.md: the fast track has no clean review\. \.reports\/proposal-reviewer-<n>\.md does not exist\.$/);
+  const points = JSON.parse(fs.readFileSync(path.join(run.out, 'points.json'), 'utf8'));
+  assert.ok(points.length > 0, result.out);
+  assert.ok(points.every((point) => point.action === 'run_again'), JSON.stringify(points));
 });
 
 test('end --offline: a draft with the files of a version of an earlier run needs no report', () => {
@@ -4052,8 +6095,8 @@ test('end --offline: a report that cannot be read is a finding', () => {
   }
   fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
   fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
-  assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started breaks ' +
-    'its format rules.', action: 'run_again' }]);
+  assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
+    action: 'run_again' }]);
 });
 
 test('end --offline: a reviewer\'s finding needs a Point: line with no agent name', () => {
@@ -4069,8 +6112,8 @@ test('end --offline: a reviewer\'s finding needs a Point: line with no agent nam
     assert.equal(result.status, 1, result.out);
     fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
     fails(result, line);
-    assert.deepEqual(outPoints(run), [{ text: 'The report of an agent that the run started ' +
-      'breaks its format rules.', action: 'run_again' }]);
+    assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
+      action: 'run_again' }]);
   }
 });
 
@@ -4174,12 +6217,15 @@ test('registry: a fault of the registry is a crash of step and resume, with exit
   }
 });
 
-test('registry: starts, begin, fixes and end outside a run do not load it', () => {
+test('registry: starts, begin, panel, fixes and end outside a run do not load it', () => {
   const plugin = brokenPlugin("throw new Error('boom');\n");
   const root = fixture();
   const deps = { cwd: tmp, artifacts: [root], plugin };
   assert.equal(call(deps, ['begin']).status, 0);
   assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '2']).status, 0);
+  assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '--subject', 'change']).status, 0);
+  const panelled = panelSetup({ members: [['a-reviewer']] });
+  assert.equal(call({ ...panelled.deps, plugin }, ['panel', '--names', 'a-reviewer', '--files', 'files.txt']).status, 0);
   const unread = call({ ...deps, env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
     ['fixes']);
   assert.equal(unread.status, 3, unread.out);
@@ -4430,7 +6476,8 @@ test('core alone: end and end --offline check only questions and review-comments
   passes(call(deps, run.args));
   const changed = offlineRun({ changed: ['questions'] });
   fails(call(deps, changed.args), /questions-reviewer/);
-  assert.deepEqual(outPoints(changed).map((point) => point.text), [REVIEW_NONE]);
+  assert.deepEqual(outPoints(changed).map((point) => point.text),
+    [REVIEW_NONE('questions', 'questions-reviewer')]);
 });
 
 test('core alone: fixes prints the points of a verdict as with every module', () => {
@@ -4454,5 +6501,758 @@ test('workflow-checks.js push runs checks.js beside its folder, in a flat skills
   const ran = spawnSync(path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js'),
     ['push', 'spec', path.join(root, 'spec.md')], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
-  assert.match(ran.stdout, /^Checked spec \(spec.md\)/m);
+  assert.equal(ran.stdout, '');
+  assert.match(ran.stderr, /^Checked spec \(spec.md\)/m);
+});
+
+// ---- The lists of a fast track in push and end --offline -----------------------------------
+
+// withReport writes a harness report with the changes of software-factory under folder.
+function withReport(folder, changes) {
+  fs.mkdirSync(path.join(folder, '.qory'), { recursive: true });
+  fs.writeFileSync(path.join(folder, '.qory', 'harness-report.json'),
+    JSON.stringify({ version: 1, extensions: { 'software-factory': changes } }));
+  return folder;
+}
+const LIST_CHANGES = { remove_kinds: ['a text that the product shows'],
+  remove_sensitive_areas: ['billing'], add_sensitive_areas: [SEARCH] };
+
+// inputsFile writes the inputs.json of a run, {"qory": {"harness_extensions":
+// {"software-factory": changes}}}, to a new file and returns its path, or writes text when
+// changes is a string.
+function inputsFile(changes) {
+  const file = path.join(fs.mkdtempSync(path.join(tmp, 'in-')), 'inputs.json');
+  fs.writeFileSync(file, typeof changes === 'string' ? changes
+    : JSON.stringify({ qory: { harness_extensions: { 'software-factory': changes } } }));
+  return file;
+}
+const REMOVE_BILLING = { remove_sensitive_areas: ['billing'] };
+// unreadable returns the path of an inputs.json that the check cannot read.
+function unreadable() {
+  const file = inputsFile({});
+  fs.chmodSync(file, 0o000);
+  return file;
+}
+const BILLING_FILE = 'src/billing/invoice-text.md';
+
+// The check of the session, push and end --offline read the lists in the same way: from the
+// inputs.json of --inputs when it is given, else from the harness report in their working
+// folder, which for push is the folder that qory pulls the artifacts into.
+test('push: the lists of a fast track come from the harness report of its working folder', () => {
+  fails(push(fastWith(BILLING_FILE), 'proposal'), /sensitive area "billing"/);
+  passes(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal'));
+  passes(inFolder(fastWith(BILLING_FILE), factory(REMOVE_BILLING)));
+  fails(push(withReport(fastWith('docs/opening-hours.md'), LIST_CHANGES), 'proposal'),
+    /qory\.yaml removes the kind of the fast track\. The kind is "a text that the product shows"/);
+  fails(push(withReport(fastWith('src/search-index/weights.md'),
+    { add_sensitive_areas: [SEARCH] }), 'proposal'), /sensitive area "search ranking"/);
+});
+
+// pushIn runs push proposal in root with --inputs file before the files, as qory runs it.
+function pushIn(root, file) {
+  return call({ cwd: root, artifacts: [] }, ['push', 'proposal', '--inputs', file,
+    ...FILES.proposal.map((f) => path.join(root, f))]);
+}
+
+test('push and check: the inputs.json of --inputs replaces the harness report', () => {
+  passes(pushIn(fastWith(BILLING_FILE), inputsFile(REMOVE_BILLING)));
+  fails(pushIn(fastWith('docs/opening-hours.md'),
+    inputsFile({ remove_kinds: ['a text that the product shows'] })), /removes the kind/);
+  fails(pushIn(fastWith('src/search-index/weights.md'),
+    inputsFile({ add_sensitive_areas: [SEARCH] })),
+    /sensitive area "search ranking"/);
+  // The file of --inputs wins over a report in the working folder that differs.
+  fails(pushIn(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), inputsFile({})),
+    /sensitive area "billing"/);
+  const root = fastWith(BILLING_FILE);
+  const folder = withReport(fs.mkdtempSync(path.join(tmp, 'working-')), {});
+  passes(call({ cwd: folder, artifacts: [root] }, ['check', 'proposal', '--inputs',
+    inputsFile(REMOVE_BILLING), ...FILES.proposal.map((f) => path.join(root, f))]));
+  // A path that is not absolute is read from the working folder.
+  const relative = withReport(fastWith(BILLING_FILE), {});
+  fs.copyFileSync(inputsFile(REMOVE_BILLING), path.join(relative, 'inputs.json'));
+  passes(pushIn(relative, 'inputs.json'));
+  // With --inputs, a file that is missing, unreadable, no JSON, or without the member exits 3,
+  // and no other file is read.
+  const fix = 'Give --inputs the inputs\\.json that qory wrote for the run\\. ".*"';
+  const missing = path.join(tmp, 'no-such-in', 'inputs.json');
+  for (const [file, why] of [
+    [missing, 'does not exist'],
+    [inputsFile('{"qory": '), 'is no valid JSON'],
+    [inputsFile('[]'), 'is a list, not an object'],
+    [inputsFile('{"extensions": {}}'), 'has no member qory'],
+    [inputsFile('{"qory": []}'), 'has qory as a list, not an object'],
+    [inputsFile('{"qory": {}}'), 'has no member qory\\.harness_extensions'],
+    [inputsFile('{"qory": {"harness_extensions": []}}'),
+      'has qory\\.harness_extensions as a list, not an object'],
+    [inputsFile('{"qory": {"harness_extensions": null}}'),
+      'has qory\\.harness_extensions as null, not an object'],
+    [fs.mkdtempSync(path.join(tmp, 'in-')), 'is a folder, not a file'],
+  ]) {
+    refused(pushIn(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), file),
+      new RegExp(`^${fix} ${why}\\.$`));
+  }
+  // root reads a file of mode 000, so that case runs only for another user.
+  if (process.getuid?.() !== 0) {
+    refused(pushIn(fastWith(BILLING_FILE), unreadable()),
+      /^Make the file of --inputs readable\. ".*" cannot be read \(EACCES\)\.$/);
+  }
+  // {} in harness_extensions is the inputs of a harness with no extensions.
+  passes(pushIn(fastWith('docs/opening-hours.md'),
+    inputsFile('{"qory": {"harness_extensions": {}}}')));
+  // --inputs needs a value.
+  for (const argv of [['push', 'proposal', '--inputs'], ['check', 'proposal', '--inputs', '--x']]) {
+    const wrong = call({ cwd: tmp, artifacts: [] }, argv);
+    assert.equal(wrong.status, 2, wrong.out);
+    assert.match(wrong.err, /^Give --inputs the path of the inputs\.json of the run\./);
+  }
+});
+
+test('the push programs pass --inputs before the files to checks.js', () => {
+  const { spawnSync } = require('node:child_process');
+  const plugin = path.join(tmp, `flat-${++folders}`, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
+  fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
+    path.join(plugin, 'skills', 'running-a-software-workflow'));
+  const program = path.join(plugin, 'skills', 'running-a-software-workflow', 'workflow-checks.js');
+  const root = fastWith(BILLING_FILE);
+  const files = FILES.proposal.map((f) => path.join(root, f));
+  const run = (file) => spawnSync(program, ['push', 'proposal', '--inputs', file, ...files],
+    { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  const removed = run(inputsFile(REMOVE_BILLING));
+  assert.equal(removed.status, 0, removed.stdout + removed.stderr);
+  const kept = run(inputsFile({}));
+  assert.equal(kept.status, 1, kept.stdout + kept.stderr);
+  assert.match(kept.stdout, /sensitive area "billing"/);
+  const questions = fixture();
+  const core = spawnSync(path.join(MODULES, 'core', 'scripts', 'push-check.js'),
+    ['push', 'questions', '--inputs', inputsFile({}), path.join(questions, 'questions.json')],
+    { cwd: questions, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(core.status, 0, core.stdout + core.stderr);
+});
+
+// check proposal prints the software-factory object that it used on stderr, for the session to
+// pass to the proposal writer and the proposal reviewer, which have no shell.
+test('check proposal prints the extensions that it used on stderr', () => {
+  const root = fastWith(BILLING_FILE);
+  const files = FILES.proposal.map((f) => path.join(root, f));
+  const folder = (changes) => (changes === undefined ? fs.mkdtempSync(path.join(tmp, 'working-'))
+    : withReport(fs.mkdtempSync(path.join(tmp, 'working-')), changes));
+  const none = call({ cwd: folder(), artifacts: [root] }, ['check', 'proposal', ...files]);
+  assert.equal(none.err, 'Extensions: none\n');
+  assert.ok(none.lines.every((line) => !line.startsWith('Extensions:')), none.out);
+  const set = call({ cwd: folder(LIST_CHANGES), artifacts: [root] }, ['check', 'proposal', ...files]);
+  assert.equal(set.err, `Extensions: ${JSON.stringify(LIST_CHANGES)}\n`);
+  const inputs = call({ cwd: folder(), artifacts: [root] },
+    ['check', 'proposal', '--inputs', inputsFile(REMOVE_BILLING), ...files]);
+  passes(inputs);
+  assert.equal(inputs.err, `Extensions: ${JSON.stringify(REMOVE_BILLING)}\n`);
+  // push prints no such line. Extensions that fail to read print none, and stop the standard
+  // track too.
+  assert.equal(push(withReport(fastWith(BILLING_FILE), REMOVE_BILLING), 'proposal').err, '');
+  const full = fixture();
+  const broken = call({ cwd: folder({ add_kinds: ['a picture'] }), artifacts: [full] },
+    ['check', 'proposal', ...FILES.proposal.map((f) => path.join(full, f))]);
+  assert.equal(broken.status, 3, broken.out);
+  assert.equal(broken.err, '');
+});
+
+// The end of the session reads the lists in the same way as check, push and end --offline.
+test('end: the lists of a fast track come from --inputs in the session too', () => {
+  const endIn = (root, file) => call({ cwd: tmp, plugin: PLUGIN, env: RUN_ENV },
+    ['end', root, '--inputs', file]);
+  const plain = end(fastWith(BILLING_FILE));
+  assert.equal(plain.status, 1, plain.out);
+  assert.match(plain.out, /sensitive area "billing"/);
+  const removed = endIn(fastWith(BILLING_FILE), inputsFile(REMOVE_BILLING));
+  assert.doesNotMatch(removed.out, /sensitive area "billing"/);
+  const added = endIn(fastWith('src/search-index/weights.md'),
+    inputsFile({ add_sensitive_areas: [SEARCH] }));
+  assert.equal(added.status, 1, added.out);
+  assert.match(added.out, /sensitive area "search ranking"/);
+  // A file of --inputs that is missing or lacks the member is a finding of the proposal
+  // draft, not exit 3.
+  for (const [file, why] of [[path.join(tmp, 'no-such-in', 'inputs.json'), /does not exist/],
+    [inputsFile('{"qory": {}}'), /has no member qory\.harness_extensions/]]) {
+    const result = endIn(fastWith('docs/opening-hours.md'), file);
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run\.\n {2}"/);
+    assert.match(result.out, why);
+  }
+});
+
+// offlineFast returns the inputs of end --offline with a fast track that changes file, and
+// a clean review of that path.
+function offlineFast(file) {
+  const change = FAST_CHANGE.replace(FAST_FILE, file);
+  const run = offlineRun({ verdict: { verdict: 'passed', track: FAST_TRACK },
+    edits: [trackLines(...fastLines(change)),
+    ['proposal.md', 'No public page and no file.', `- ${file}`]] });
+  write(run.artifacts, 'sources.json', { sources: [{ kind: 'file', ref: file, why: 'Has the text.' }] });
+  fs.writeFileSync(path.join(run.artifacts, '.reports', 'proposal-reviewer-1.md'),
+    reviewerReport([], trackRecord(fastLines(change), 'clean')));
+  return run;
+}
+
+test('end --offline: the lists of a fast track come from --inputs, else the report', () => {
+  const end = (run, cwd, file) => call({ cwd, plugin: OFFLINE_PLUGIN,
+    env: { HOME: '/tmp' }, home: '/tmp' }, file ? [...run.args, '--inputs', file] : run.args);
+  const folder = (changes) => withReport(fs.mkdtempSync(path.join(tmp, 'working-')), changes);
+  passes(end(offlineFast('docs/opening-hours.md'), tmp));
+  const billing = end(offlineFast(BILLING_FILE), tmp);
+  assert.equal(billing.status, 1, billing.out);
+  assert.match(billing.out, /sensitive area "billing"/);
+  // With no --inputs, the harness report of the working folder applies.
+  passes(end(offlineFast(BILLING_FILE), folder(REMOVE_BILLING)));
+  passes(end(offlineFast(BILLING_FILE), tmp, inputsFile(REMOVE_BILLING)));
+  // The file of --inputs wins over a report that differs.
+  const both = end(offlineFast(BILLING_FILE), folder(REMOVE_BILLING), inputsFile({}));
+  assert.equal(both.status, 1, both.out);
+  for (const [changes, pattern] of [
+    [{ remove_kinds: ['a text that the product shows'] }, /removes the kind/],
+    [{ add_sensitive_areas: [SEARCH] }, /sensitive area "search ranking"/]]) {
+    const file = changes.add_sensitive_areas ? 'src/search-index/weights.md' : 'docs/opening-hours.md';
+    const result = end(offlineFast(file), tmp, inputsFile(changes));
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, pattern);
+  }
+  // A file of --inputs that is missing or no JSON is a finding of the proposal draft, and no
+  // other source.
+  for (const [file, why] of [[path.join(tmp, 'no-such-in', 'inputs.json'), /does not exist/],
+    [inputsFile('{"qory": '), /is no valid JSON/]]) {
+    const result = end(offlineFast('docs/opening-hours.md'), folder({}), file);
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, /Give --inputs the inputs\.json that qory wrote for the run\.\n {2}"/);
+    assert.match(result.out, why);
+  }
+  // --inputs is given once.
+  const run = offlineFast(BILLING_FILE);
+  const twice = call({ cwd: tmp, plugin: OFFLINE_PLUGIN, env: { HOME: '/tmp' }, home: '/tmp' },
+    [...run.args, '--inputs', inputsFile({}), '--inputs', inputsFile({})]);
+  assert.equal(twice.status, 2, twice.out);
+  assert.match(twice.err, /^Give --inputs once\./);
+});
+
+// Each finding and fix of the track, the lists of the fast track and the verdict starts with
+// a line of at most 100 characters that has the fix, also with a long path, name or list
+// value: the cause and the values follow on lines indented by two spaces.
+test('the findings of the track keep their first line within 100 characters', () => {
+  const long = 'and the words of a long value that a draft or a repository writes'.repeat(3);
+  const dir = `src/${'a-folder-with-a-long-name/'.repeat(6)}`.slice(0, -1);
+  const areas = Array.from({ length: 11 }, (_, at) => ({ name: `area ${at}`, patterns: [`**/a${at}/**`] }));
+  const area = { name: `refunds ${long}`.slice(0, 150), patterns: [`**/${'refunds-'.repeat(12)}x/**`] };
+  const draft = () => fastWith('docs/opening-hours.md');
+  const reviewed = fast(...fastLines(FAST_CHANGE));
+  trackReviewed(reviewed, 123456789, ['the hours change'], trackRecord(FAST_READ, 'changes-needed'));
+  const ended = (body, root = fixture()) => {
+    started(root, {});
+    return end(root, body ? trackStub(body) : stub(0, { runId: null }).env);
+  };
+  const SHORT = /^Fix harness\.extensions\.software-factory in qory\.yaml: /;
+  const cases = [
+    [push(fixture(trackLines('Full.')), 'proposal'), /^Start ## Track/],
+    [push(fixture(trackLines(`Standard track: ${long}.`)), 'proposal'), /^Write the name of the track alone/],
+    [push(fixture(trackLines('Standard track.', long)), 'proposal'), /^Remove each line after the first/],
+    [push(fast(FAST_LINE, long, long), 'proposal'), /^End ## Track of proposal\.md with one line/],
+    [push(fast('Fast track:', FAST_REASON), 'proposal'), /^Write ## Track as "Fast track/],
+    [push(fast(`Fast track: a comment .  ${long}`, FAST_REASON), 'proposal'), /^Write ## Track as "Fast track/],
+    [inFolder(draft(), factory({ remove_kinds: ['a text that the product shows'] })), /^Write "Standard track\." in proposal\.md: qory\.yaml removes/],
+    [push(fast(fastLine(FAST_CHANGE, long), FAST_REASON), 'proposal'), /^Name a kind of the list/],
+    [push(fast(...fastLines(`${long} in ${long}`)), 'proposal'), /^Write each changed file in a code span/],
+    [push(fast(...fastLines(FAST_CHANGE.replace(FAST_FILE, `${dir}/x.md`))), 'proposal'), /^List each changed file in sources\.json/],
+    [push(fastWith(`${dir}/*.md`), 'proposal'), /^List each changed file by its exact path/],
+    [push(fastWith(`${dir}/notes`), 'proposal'), /^List each changed file under ## Track of proposal\.md, not a folder/],
+    [push(fastWith(`${dir}/../x.md`), 'proposal'), /^Remove the \.\. part from the ref/],
+    [inFolder(fastWith(`${dir}/${'refunds-'.repeat(12)}x/y.md`), factory({ add_sensitive_areas: [area] })), /^Write "Standard track\." in proposal\.md: a changed file is in a sensitive area/],
+    [checkFiles(reviewed), /^Write "Standard track\." in proposal\.md: the fast track has no clean review/],
+    [report(reviewerReport([], []), 'proposal-reviewer'), /^End the report with the record of the track/],
+    [inFolder(draft(), '[]'), /^Compose the harness again\./],
+    [pushIn(fastWith(BILLING_FILE), path.join(tmp, long.replace(/ /g, '-'), 'inputs.json')), /^Give --inputs the inputs\.json/],
+    [ended({ verdict: 'passed', track: { id: long } }), /^Record the verdict again with --track standard\.$/],
+    [ended({ verdict: 'passed', track: { ...FAST_TRACK, reason: long } }, fastWith('docs/opening-hours.md')), /^Record the verdict again with --track fast and --track-reason/],
+    [ended({ verdict: 'passed', track: STANDARD }, fixture(trackLines(`${'Long'.repeat(20)} track.`))), /^Record the verdict again with --track <id>\.$/],
+    [ended(null), /^Run end again: the lookup of the run's verdict failed\.$/],
+    [offline(offlineRun({ verdict: { verdict: 'passed', track: { id: long } } })), /^Record the verdict again/],
+    // The keys of software-factory: a shape or a key of the schema gives the text of
+    // lib/repository-settings.js, a list name or an area of short-path.json the fix of
+    // lib/extensions.js. A long key is cut inside its quotes, and a place counts from 1.
+    ...[
+      [{ [long.replace(/ /g, '_')]: 1 }, /^Remove the key "and_the_words[^"]*\.\.\."/],
+      [{ remove_kinds: long }, /^Write remove_kinds in qory\.yaml as a list\.$/],
+      [{ remove_kinds: [long] }, SHORT],
+      [{ remove_sensitive_areas: [long] }, SHORT],
+      [{ add_sensitive_areas: [...areas, { name: `pay\tments ${long}`, patterns: ['**/p/**'] }] }, /^Write name of area 12 of add_sensitive_areas in qory\.yaml on one line\.$/],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: [`/${long}`] }] }, SHORT],
+      [{ add_sensitive_areas: [...areas, { name: long }] }, /^Add the member patterns to area 12 of add_sensitive_areas in qory\.yaml\.$/],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: [] }] }, /^Give patterns of area 12 of add_sensitive_areas in qory\.yaml at least 1 entry\.$/],
+      [{ add_sensitive_areas: [...areas, { name: long, patterns: ['**/p/**'], [long]: 1 }] }, /^Remove the member "and the words[^"]*\.\.\."/],
+      [{ add_sensitive_areas: [...areas, { name: 'x', patterns: [...areas.map((one) => one.patterns[0]), ''] }] }, /^Write pattern 12 of area 12 of add_sensitive_areas in qory\.yaml as text of at least 1 character\.$/],
+      [{ add_sensitive_areas: [...areas, area, area] }, SHORT],
+      [{ add_sensitive_areas: [...areas, { name: 'Billing', patterns: ['**/p/**'] }] }, SHORT],
+      [{ command_limits_minutes: { full_suite: 1e21 } }, /^Set command_limits_minutes\.full_suite in qory\.yaml to at most 60\.$/],
+    ].map(([changes, pattern]) => [inFolder(draft(), factory(changes)), pattern]),
+  ];
+  for (const [result, pattern] of cases) {
+    const first = result.lines.find((line) => pattern.test(line));
+    assert.ok(first, `${pattern}\n${result.out}`);
+    assert.ok([...first].length <= 100, `${[...first].length}: ${first}`);
+    // The line after the fix, when there is one, is the cause, indented.
+    const next = result.lines[result.lines.indexOf(first) + 1];
+    if (next !== result.lines.at(-1) && next !== undefined && !/^\S/.test(next)) {
+      assert.match(next, /^ {2}\S/);
+    }
+  }
+});
+
+// ---- Findings of a draft in the end check -------------------------------------------------
+
+test('check and end: every finding of the extensions is reported, each with its cause', () => {
+  const changes = { remove_kinds: 'x', add_sensitive_areas: [{ name: '' }], other: 1 };
+  const result = inFolder(fastWith('docs/opening-hours.md'), factory(changes));
+  assert.equal(result.status, 3, result.out);
+  assert.deepEqual(result.lines.slice(0, -1), [
+    'Write remove_kinds in qory.yaml as a list.', '  It is text.',
+    'Add the member patterns to area 1 of add_sensitive_areas in qory.yaml.',
+    '  The schema requires it.',
+    'Write name of area 1 of add_sensitive_areas in qory.yaml as text of at least 1 character.',
+    '  It has 0 characters.',
+    'Remove the key "other" from harness.extensions.software-factory in qory.yaml.',
+    '  The schema has no such key. Its keys are remove_kinds, remove_sensitive_areas, add_sensitive_areas, command_limits_minutes.']);
+  // The end check counts each of them as a finding of the proposal draft.
+  const root = fastWith('docs/opening-hours.md');
+  started(root, {});
+  const folder = fs.mkdtempSync(path.join(tmp, 'working-'));
+  fs.mkdirSync(path.join(folder, '.qory'));
+  fs.writeFileSync(path.join(folder, '.qory', 'harness-report.json'),
+    JSON.stringify({ version: 1, extensions: factory(changes) }));
+  const ended = call({ cwd: folder, plugin: PLUGIN, env: RUN_ENV }, ['end', root]);
+  assert.equal(ended.status, 1, ended.out);
+  assert.equal(ended.lines[0], 'Fix the 4 findings of the proposal draft (delayed-order-reply.svg, ' +
+    'proposal.md, sources.json) in the lines after this one:');
+  assert.deepEqual(ended.lines.slice(1, 3), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
+});
+
+test('end: the header of a draft counts the findings that follow, and the lines of a finding stay after it', () => {
+  const { endDrafts } = require('../modules/core/skills/running-a-workflow/lib/end.js');
+  const { Missing } = require('../modules/core/skills/running-a-workflow/lib/base.js');
+  const root = path.join(tmp, `drafts-${++folders}`);
+  fs.mkdirSync(root);
+  const names = Array.from({ length: 6 }, (_, at) => `${'a-long-file-name-'.repeat(3)}${at}.md`);
+  for (const name of names) fs.writeFileSync(path.join(root, name), 'x');
+  const def = (error) => ({ type: 'acceptance-criteria', words: 'acceptance criteria', main: names[0],
+    allowed: (name) => names.includes(name),
+    check() { throw error; },
+    verdict: () => ['Record the verdict again.'] });
+  const lines = (error) => endDrafts(root, tmp, [def(error)], { verdict: () => ({ verdict: 'passed' }) })
+    .map((one) => one.line);
+  // A Missing with lines after its first line: they are no findings, and stay after the
+  // findings of the check and before the fixes of the verdict.
+  assert.deepEqual(lines(new Missing('Fix the draft.', ['The draft has a cause.', 'It has a value.'])), [
+    `Fix the 2 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
+    'Fix the draft.', 'The draft has a cause.', 'It has a value.', 'Record the verdict again.']);
+  // A Missing that lists its findings: each counts.
+  const listed = lines(new Missing('Fix one.', ['Fix two.', 'Fix three.'], true));
+  assert.deepEqual(listed, [
+    `Fix the 4 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
+    'Fix one.', 'Fix two.', 'Fix three.', 'Record the verdict again.']);
+});
+
+// A name of the longest length that an agent can have, 64 characters, ending in letter.
+const LONG_AGENT = (letter) => `${'r'.repeat(63)}${letter}`;
+
+test('report: the finding about the record of the track has the fix first and the agent on the next line', () => {
+  const agent = LONG_AGENT('e');
+  // PLUGIN is a flat copy of the agents and skills: it gets one more agent.
+  const plugin = path.join(tmp, `plugin-${++folders}`);
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  fs.copyFileSync(path.join(PLUGIN, 'agents', 'proposal-reviewer.md'), path.join(plugin, 'agents', `${agent}.md`));
+  const recorded = report(reviewerReport([], []), agent, plugin);
+  assert.equal(recorded.status, 1, recorded.out);
+  // The record is the only finding of that report: its check covers the line "Track review:",
+  // so no other check of the report asks for the line with the agent name.
+  assert.equal(recorded.lines[0], 'End the report with the record of the track, then its last word.');
+  assert.match(recorded.lines[1], new RegExp(`^  The report is that of ${agent}\\. Its Expected output lists the`));
+  assert.equal(recorded.lines.filter((line) => /^\S/.test(line)).length, 2, recorded.out);
+  assert.ok([...recorded.lines[0]].length <= 100, recorded.lines[0]);
+  // The cause goes on as many indented lines as it needs, and no line is cut: all of it is
+  // there, as it is for the proposal reviewer.
+  const cause = (lines) => lines.slice(1, -1).map((line) => line.trim()).join(' ');
+  const short = report(reviewerReport([], []), 'proposal-reviewer', plugin);
+  assert.ok(recorded.lines.slice(1, -1).every((line) => /^  \S/.test(line) && [...line].length <= 122), recorded.out);
+  assert.equal(cause(recorded.lines).replace(agent, 'proposal-reviewer'), cause(short.lines));
+  assert.match(cause(recorded.lines), /"Track review: changes-needed"[^.]*\.$/);
+  assert.ok(!recorded.lines.slice(0, -1).some((line) => line.endsWith('...')), recorded.out);
+});
+
+test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  for (const [name, key] of [['control character', '\u0001'.repeat(60)], ['line break', '\n'.repeat(60)],
+    ['emoji', '\u{1F600}'.repeat(60)], ['letter', 'k'.repeat(300)],
+    ['bidirectional mark', '\u202e'.repeat(60)], ['line separator', '\u2028'.repeat(60)],
+    ['C1 control', '\u0085'.repeat(60)]]) {
+    for (const found of [settings.check({ [key]: 1 }),
+      settings.check({ add_sensitive_areas: [{ name: 'a', patterns: ['x'], [key]: 1 }] })]) {
+      assert.equal(found.length, 1, name);
+      const first = found[0].split('\n')[0];
+      assert.ok([...first].length <= 100, `${name}: ${[...first].length}: ${first}`);
+      // The key is cut inside its quotes, with the closing quote kept.
+      assert.match(first, /^Remove the (key|member) ".*\.\.\." from /, name);
+      // A control or refused character shows as its escape, not as itself.
+      assert.doesNotMatch(found[0], /[\u0080-\u009f\u2028\u2029\u202a-\u202e]/u, name);
+    }
+  }
+  // A key that fits is shown whole, with its escapes.
+  assert.match(settings.check({ 'a\nb': 1 })[0], /^Remove the key "a\\nb" from /);
+  assert.match(settings.check({ 'a\u202eb': 1 })[0], /^Remove the key "a\\u202eb" from /);
+});
+
+test('extensions: the schema stops at load for a keyword form that check does not read', () => {
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  const good = JSON.parse(fs.readFileSync(settings.LOADED.file, 'utf8'));
+  const load = (edit) => {
+    const copy = JSON.parse(JSON.stringify(good));
+    edit(copy);
+    const file = path.join(fs.mkdtempSync(path.join(tmp, 'schema-')), 'extensions.schema.json');
+    fs.writeFileSync(file, JSON.stringify(copy));
+    return () => settings.loadSchema(file);
+  };
+  assert.doesNotThrow(load(() => {}));
+  const area = (copy) => copy.properties.add_sensitive_areas.items;
+  for (const [edit, form] of [
+    [(copy) => { copy.properties.remove_kinds.type = 'date'; }, /write type at #\/remove_kinds as one of object, array, string, integer, boolean/],
+    [(copy) => { copy.properties.remove_kinds.type = ['array', 'null']; }, /write type at #\/remove_kinds as one of/],
+    [(copy) => { area(copy).required = 'name'; }, /write required at #\/add_sensitive_areas\[\] as a list of names/],
+    [(copy) => { area(copy).required = [1]; }, /write required at /],
+    [(copy) => { copy.properties.add_sensitive_areas.minItems = '1'; }, /write minItems at .* as a whole number of 0 or more/],
+    [(copy) => { copy.properties.add_sensitive_areas.minItems = -1; }, /write minItems at /],
+    [(copy) => { area(copy).properties.name.minLength = 1.5; }, /write minLength at /],
+    [(copy) => { copy.properties.command_limits_minutes.properties.full_suite.maximum = '60'; }, /write maximum at .* as a whole number/],
+    [(copy) => { area(copy).additionalProperties = {}; }, /write additionalProperties at .* as true or false/],
+    [(copy) => { area(copy).properties.name.pattern = 3; }, /write pattern at .* as text/],
+    [(copy) => { area(copy).properties.name.pattern = '('; }, /write pattern at .* as a regular expression/],
+    [(copy) => { copy.properties = []; }, /write properties at # as a map/],
+    [(copy) => { copy.properties.remove_kinds.items = 'string'; }, /is no schema object/],
+    [(copy) => { copy.properties.remove_kinds.enum = ['a']; }, /has the keyword enum, which lib\/repository-settings\.js does not check/],
+  ]) {
+    assert.throws(load(edit), (error) => error.message.startsWith('Fix ') && form.test(error.message), String(form));
+  }
+});
+
+test('report: a record covers its lines only for an agent whose Expected output has its heading', () => {
+  // An agent that lists "Track review:" and not "Track read:" gets the finding of the line.
+  const plugin = path.join(tmp, `plugin-${++folders}`);
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  const text = fs.readFileSync(path.join(PLUGIN, 'agents', 'proposal-reviewer.md'), 'utf8')
+    .replace('Track read:\n', '').replace('<a code block with the lines of ## Track, as the draft has them>\n', '');
+  assert.ok(!/^Track read:$/m.test(text) && /^Track review: /m.test(text));
+  fs.writeFileSync(path.join(plugin, 'agents', 'line-reviewer.md'), text);
+  const without = report(reviewerReport([], []), 'line-reviewer', plugin);
+  assert.equal(without.status, 1, without.out);
+  assert.ok(without.lines.includes('Add the line "Track review:" to the report of line-reviewer.'), without.out);
+  assert.ok(!without.lines.some((line) => /^End the report with the record/.test(line)), without.out);
+  // The proposal reviewer has both, so the record finding replaces the finding of the line.
+  const record = report(reviewerReport([], []), 'proposal-reviewer', plugin);
+  assert.ok(record.lines.includes('End the report with the record of the track, then its last word.'), record.out);
+  assert.ok(!record.lines.some((line) => /^Add the line "Track review:"/.test(line)), record.out);
+});
+
+test('proposal: every bad name and every bad area of the extensions is reported', () => {
+  const result = inFolder(fastWith('docs/opening-hours.md'), factory({
+    remove_kinds: ['a picture', 'a video'],
+    add_sensitive_areas: [{ name: ' ', patterns: ['**/p/**'] },
+      { name: 'Billing', patterns: ['**/invoices/**'] }] }));
+  assert.equal(result.status, 3, result.out);
+  const found = result.findings.slice(0, -1);
+  assert.equal(found.length, 4, result.out);
+  assert.match(found[0], /^Fix harness\.extensions\.software-factory in qory\.yaml: remove the name not in short-path\.json\. remove_kinds has "a picture", which is not a kind in short-path\.json\. Write each name exactly as one of: a document, a text that the product shows, a comment, a text value in a code file, a look-only change\.$/);
+  assert.match(found[1], /^Fix .*: remove the name not in short-path\.json\. remove_kinds has "a video", /);
+  assert.match(found[2], /^Fix .*: fix area 1 of add_sensitive_areas\. In area 1 of add_sensitive_areas, it has no name/);
+  assert.match(found[3], /^Fix .*: rename area 2 of add_sensitive_areas\. Area 2 of add_sensitive_areas has the name "Billing", which is already the name of an area in short-path\.json\./);
+  // The cause of each finding is on a line indented by two spaces, and the names of an area
+  // list are written as lines of at most 150 characters.
+  const areas = inFolder(fastWith('docs/opening-hours.md'), factory({ remove_sensitive_areas: ['search ranking'] }));
+  assert.equal(areas.status, 3, areas.out);
+  assert.ok(areas.lines.filter((line) => /^  \S/.test(line)).every((line) => [...line].length <= 152), areas.out);
+  assert.ok(areas.out.includes('billing'), areas.out);
+});
+
+test('extensions: a pattern other than the one line has the file on the first line when it fits', () => {
+  const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
+  const schema = JSON.parse(JSON.stringify(settings.LOADED.schema));
+  schema.properties.remove_kinds.items.pattern = '^a+$';
+  const loaded = { file: settings.LOADED.file, schema };
+  const [short] = settings.check({ remove_kinds: ['b'] }, undefined, loaded);
+  assert.equal(short, 'Write item 1 of remove_kinds in qory.yaml so that it matches the pattern in extensions.schema.json.\nIt is "b".');
+  // With a place so deep that the file would pass 100 characters, the file goes on the next line.
+  schema.properties.add_sensitive_areas.items.properties.patterns.items.pattern = '^a+$';
+  const areas = Array.from({ length: 11 }, () => ({ name: 'n', patterns: ['a'] }));
+  const [deep] = settings.check({ add_sensitive_areas: [...areas, { name: 'n', patterns: Array(11).fill('a').concat('b') }] }, undefined, loaded);
+  const [first, cause] = deep.split('\n');
+  assert.equal(first, 'Write pattern 12 of area 12 of add_sensitive_areas in qory.yaml so that it matches its pattern.');
+  assert.equal(cause, 'The pattern is in extensions.schema.json. It is "b".');
+  assert.ok([...first].length <= 100);
+});
+
+// ---- A withdrawn name in index.json --------------------------------------------------------
+
+// `qory artifact push <type> --name <name> --withdraw` stores a withdrawal: a version with
+// `withdrawn` set to true and no files. While the newest version of a name that no cancelled
+// run wrote is a withdrawal, a check acts as if index.json did not list the name.
+const { Context, baseVersions } = require(path.join(path.dirname(SCRIPT), 'lib/context.js'));
+const { LIBRARY } = require(path.join(path.dirname(SCRIPT), 'lib/registry.js'));
+const build = require(path.join(MODULES,
+  'software-factory/skills/running-a-software-workflow/lib/build.js'))(LIBRARY);
+
+// entry returns an artifact of index.json of type and name with versions, each [number,
+// fields], newest first, written by run_7c3k1 unless fields has another writer.
+function entry(type, name, versions) {
+  return { type, name, stage_id: 'st_6ns22c4pav', approved_version: null,
+    newest_version: Math.max(...versions.map(([number]) => number)),
+    changed_after_approval: false, versions: versions.map(([number, fields = {}]) => ({
+      id: `av_${type}_${name}_${number}`, number, writer: { kind: 'run', run_id: 'run_7c3k1' },
+      cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z',
+      files: [], approvals: [], ...fields })) };
+}
+
+// withdrawnStore returns a new artifact folder with index.json of artifacts and each file of
+// files, a path below the folder, with the text {}.
+function withdrawnStore(artifacts, files) {
+  const root = path.join(tmp, `withdrawn-${++folders}`);
+  for (const file of files) {
+    fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    fs.writeFileSync(path.join(root, file), '{}\n');
+  }
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts }, null, 2));
+  return root;
+}
+
+const WITHDRAWN = { withdrawn: true };
+
+test('index.json: a withdrawn name passes checkIndex and counts as no name', () => {
+  // scenario-2 version 2 withdraws the name; the store keeps version 1 from an earlier pull.
+  const scenarios = (two) => [entry('demo-script', 'scenario-1', [[1]]),
+    entry('demo-script', 'scenario-2', two)];
+  const files = ['demo-script/scenario-1/v1/scenario-1.json',
+    'demo-script/scenario-2/v1/scenario-2.json'];
+  const context = new Context(withdrawnStore(scenarios([[2, WITHDRAWN], [1]]), files), 'check',
+    tmp);
+  assert.equal(context.withdrawn('demo-script', 'scenario-2'), true);
+  assert.equal(context.withdrawn('demo-script', 'scenario-1'), false);
+  assert.equal(context.counted('demo-script', 'scenario-2'), null);
+  assert.equal(context.counted('demo-script', 'scenario-1'), 1);
+  assert.equal(build.newestNamed(context, 'demo-script', 'scenario-2', 'scenario-2.json'), null);
+  // scenario-1 is the one name of the type.
+  const newest = context.newest('demo-script', 'scenario-1.json');
+  assert.deepEqual([newest.number, newest.name], [1, 'scenario-1']);
+  // Version 3, a push of files after the withdrawal, counts again.
+  const again = new Context(withdrawnStore(scenarios([[3], [2, WITHDRAWN], [1]]),
+    [...files, 'demo-script/scenario-2/v3/scenario-2.json']), 'check', tmp);
+  assert.equal(again.withdrawn('demo-script', 'scenario-2'), false);
+  assert.equal(again.counted('demo-script', 'scenario-2'), 3);
+  assert.equal(build.newestNamed(again, 'demo-script', 'scenario-2', 'scenario-2.json').number, 3);
+  assert.throws(() => again.newest('demo-script', 'scenario-1.json'),
+    /scenario-1, scenario-2 and no main/);
+  // A withdrawal of a cancelled run withdraws nothing.
+  const cancelled = new Context(withdrawnStore(scenarios([[2, { ...WITHDRAWN, cancelled: true }],
+    [1]]), files), 'check', tmp);
+  assert.equal(cancelled.counted('demo-script', 'scenario-2'), 1);
+});
+
+test('index.json: a withdrawn main has no approved or counted version', () => {
+  // Version 1, a member's upload, is approved; a run wrote version 2 and withdrew it in 3.
+  const person = { writer: { kind: 'person', name: 'Sam Example' } };
+  const criteria = (versions) => {
+    const artifact = entry('acceptance-criteria', 'main', versions);
+    artifact.approved_version = 'av_acceptance-criteria_main_1';
+    return [artifact];
+  };
+  const file = ['acceptance-criteria/main/v1/acceptance-criteria.md'];
+  const context = new Context(withdrawnStore(criteria([[3, WITHDRAWN], [2], [1, person]]), file),
+    'check', tmp);
+  assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
+  assert.deepEqual(build.countedOf(context, 'acceptance-criteria'), []);
+  assert.equal(build.newestCriteria(context), null);
+  assert.equal(build.criteriaTarget(context, 'the build plan'), null);
+  assert.equal(context.newest('acceptance-criteria', 'acceptance-criteria.md'), null);
+  // A later upload by a member lists the criteria again, without the withdrawal.
+  const again = new Context(withdrawnStore(criteria([[4, person], [3, WITHDRAWN], [2],
+    [1, person]]), file), 'check', tmp);
+  assert.equal(build.approvedNumber(again, 'acceptance-criteria'), 1);
+  assert.deepEqual(build.countedOf(again, 'acceptance-criteria').map((one) => one.number),
+    [4, 2, 1]);
+  assert.equal(build.criteriaTarget(again, 'the build plan'), 4);
+});
+
+test('end --offline: a withdrawal is no base version', () => {
+  // Version 1 is a member's upload; run_old withdrew the spec in version 2.
+  const old = { ...WITHDRAWN, writer: { kind: 'run', run_id: 'run_old' } };
+  const spec = entry('spec', 'main', [[2, old], [1, { writer: { kind: 'person', name: 'Sam' } }]]);
+  const index = { artifacts: [spec] };
+  assert.equal(baseVersions(index, new Set(['run_new'])).get('spec/main'), null);
+  // In a run that continues run_old, the withdrawal is the run's work, and version 1 the base.
+  assert.equal(baseVersions(index, new Set(['run_new', 'run_old'])).get('spec/main'), 1);
+  const root = withdrawnStore([spec], ['spec/main/v1/spec.md']);
+  const view = (runs) => ({ runs: new Set(runs), questions: null });
+  assert.equal(new Context(root, 'check', tmp, root, view(['run_new'])).withdrawn('spec'), true);
+  assert.equal(new Context(root, 'check', tmp, root, view(['run_new', 'run_old']))
+    .withdrawn('spec'), false);
+});
+
+test('end --offline: counts judges a withdrawal on the base', () => {
+  // run_new, the run of the view, withdrew the criteria in version 2; version 1 is the base.
+  const person = { writer: { kind: 'person', name: 'Sam Example' } };
+  const criteria = entry('acceptance-criteria', 'main', [[2, { ...WITHDRAWN,
+    writer: { kind: 'run', run_id: 'run_new' } }], [1, person]]);
+  const root = withdrawnStore([criteria], ['acceptance-criteria/main/v1/acceptance-criteria.md']);
+  const view = { runs: new Set(['run_new']), questions: null };
+  const offlineContext = new Context(root, 'check', tmp, root, view);
+  assert.equal(offlineContext.withdrawn('acceptance-criteria'), false);
+  assert.deepEqual(offlineContext.counts('acceptance-criteria').map((one) => one.number), [1]);
+  assert.equal(build.countedOf(offlineContext, 'acceptance-criteria').length, 1);
+  const online = new Context(root, 'check', tmp);
+  assert.deepEqual(online.counts('acceptance-criteria'), []);
+});
+
+test('end --offline: a withdrawn type of history needs the version before it in --store', () => {
+  // run_old, a run outside the view, withdrew the criteria in version 2.
+  const run = offlineRun({ changed: [] });
+  withdrawIn(run.store, 'acceptance-criteria', 2);
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  index.artifacts.find((one) => one.type === 'acceptance-criteria').versions[0].writer =
+    { kind: 'run', run_id: 'run_old' };
+  fs.writeFileSync(file, JSON.stringify(index));
+  fs.rmSync(path.join(run.store, 'acceptance-criteria', 'main', 'v1'), { recursive: true });
+  const result = offline(run);
+  assert.equal(result.status, 3, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull acceptance-criteria ' +
+    '--version 1`, then end again.', 'The --store folder lacks acceptance-criteria version 1, ' +
+    'the version before the withdrawal.']);
+});
+
+test('scenarios: a withdrawal of the criteria takes no planned demo away', () => {
+  // An empty demo-scenarios.md gets the same findings with the criteria withdrawn.
+  const make = (withdraw) => {
+    const root = fixture();
+    version(root, 'demo-scenarios', 1, 'demo-scenarios.md',
+      fs.readFileSync(path.join(root, 'demo-scenarios.md'), 'utf8'));
+    if (withdraw) withdrawIn(root, 'acceptance-criteria', 2);
+    write(root, 'demo-scenarios.md', '');
+    return root;
+  };
+  const plain = push(make(false), 'demo-scenarios');
+  assert.equal(plain.status, 1, plain.out);
+  const withdrawn = push(make(true), 'demo-scenarios');
+  assert.equal(withdrawn.status, 1, withdrawn.out);
+  assert.deepEqual(withdrawn.lines, plain.lines);
+  // A push store without the criteria version before the withdrawal exits 3.
+  const lacking = make(true);
+  fs.rmSync(path.join(lacking, 'acceptance-criteria'), { recursive: true });
+  const result = push(lacking, 'demo-scenarios');
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Report to a member: the push store lacks acceptance-criteria ' +
+    'version 1 from before the withdrawal.');
+});
+
+test('withdrawal: each first line for a member is at most 100 characters', () => {
+  // The longest type whose check reads the version before a withdrawal, and the lock.
+  const types = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow',
+    'workflow-checks.js'))(LIBRARY).types;
+  const longest = [...types.filter((def) => def.history).map((def) => def.type),
+    'acceptance-lock'].reduce((a, b) => (b.length > a.length ? b : a));
+  assert.equal(longest, 'acceptance-criteria');
+  // Version 1 is a member's approved upload; a run withdrew the criteria in version 2.
+  const criteria = entry('acceptance-criteria', 'main', [[2, WITHDRAWN],
+    [1, { writer: { kind: 'person', name: 'Sam Example' } }]]);
+  criteria.approved_version = 'av_acceptance-criteria_main_1';
+  const root = withdrawnStore([criteria], []);
+  const lines = [new Context(root, 'push', tmp).lacksBefore(longest, 999).message];
+  const run = (context) => ({ context, did() {}, find(line) { lines.push(line); } });
+  // The words of the three types that read the criteria, as build-plan.js, verification.js
+  // and explainer.js pass them.
+  for (const what of ['the build plan', 'the verification', 'the explainer']) {
+    assert.equal(build.liveCriteria(run(new Context(root, 'push', tmp)), what), null);
+  }
+  const lock = types.find((def) => def.type === 'acceptance-lock');
+  lock.check(run(new Context(root, 'push', tmp)), new Map([['acceptance-lock.json', '{}']]));
+  assert.equal(lines.length, 5, lines.join('\n'));
+  for (const line of lines) assert.ok(line.length <= 100, `${line.length}: ${line}`);
+  assert.equal(lines[0], 'Report to a member: the push store lacks acceptance-criteria version ' +
+    '999 from before the withdrawal.');
+  assert.equal(lines[4], 'Ask a member to upload the acceptance criteria again, then lock the ' +
+    'checks: they are withdrawn.');
+});
+
+test('end --offline: a run that only withdraws a reviewed type needs no reviewer report', () => {
+  // The run changes no draft and withdraws the spec, which spec-reviewer reviews.
+  const run = offlineRun({ reviewed: false, changed: [] });
+  const before = offline(run);
+  assert.equal(before.status, 0, before.out);
+  const file = path.join(run.store, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const spec = index.artifacts.find((one) => one.type === 'spec');
+  spec.versions.unshift({ id: 'av_spec_withdrawn3', number: 3,
+    writer: { kind: 'run', run_id: THIS_RUN }, withdrawn: true, files: [] });
+  spec.newest_version = 3;
+  fs.writeFileSync(file, JSON.stringify(index));
+  const result = offline(run);
+  assert.equal(result.status, 0, result.out);
+  assert.ok(!result.lines.some((line) => /spec-reviewer/.test(line)), result.out);
+});
+
+test('index.json: an approval of a withdrawal is no approval', () => {
+  // approved_version points at version 2, a withdrawal; version 3 is a push after it.
+  const criteria = entry('acceptance-criteria', 'main', [[3], [2, WITHDRAWN],
+    [1, { writer: { kind: 'person', name: 'Sam Example' } }]]);
+  criteria.approved_version = 'av_acceptance-criteria_main_2';
+  const context = new Context(withdrawnStore([criteria], []), 'check', tmp);
+  assert.equal(context.withdrawn('acceptance-criteria'), false);
+  assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
+  assert.equal(build.criteriaTarget(context, 'the build plan'), null);
+});
+
+test('index.json: a withdrawal is no version to cite, and no newest copy of a draft', () => {
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  // Version 1 of the spec is stored, with the bytes of spec.md at the top.
+  const make = (versions) => {
+    const root = withdrawnStore([entry('spec', 'main', versions)], ['spec/main/v1/spec.md']);
+    fs.writeFileSync(path.join(root, 'spec.md'), '{}\n');
+    return root;
+  };
+  const listed = new Context(make([[2, WITHDRAWN], [1]]), 'check', tmp).versions();
+  assert.deepEqual([...listed], ['spec/main/1']);
+  assert.equal(unchanged(make([[1]]), 'spec', ['spec.md']), true);
+  // While the spec is withdrawn, the top copy of version 1 is a draft.
+  assert.equal(unchanged(make([[2, WITHDRAWN], [1]]), 'spec', ['spec.md']), false);
+});
+
+test('end: a store with version folders and an index.json that cannot be read exits 3', () => {
+  const { unchanged } = require(path.join(path.dirname(SCRIPT), 'lib/end.js'));
+  // The spec copy at the top has the bytes of version 1, and index.json does not parse, so
+  // whether the spec is withdrawn is unclear.
+  const root = fixture();
+  started(root, {});
+  version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
+  write(root, 'index.json', '{');
+  const result = end(root);
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Pull the artifacts again: the index.json of the store cannot ' +
+    'be read.');
+  // A store with no index.json and no version folder compares nothing and does not exit 3:
+  // end checks each top copy as a draft. The drafts of the testdata that read index.json then
+  // have findings of their own, so end exits 1.
+  const empty = path.join(tmp, `empty-${++folders}`);
+  fs.mkdirSync(empty);
+  fs.writeFileSync(path.join(empty, 'spec.md'), 'text\n');
+  assert.equal(unchanged(empty, 'spec', ['spec.md']), false);
+  const bare = fixture();
+  started(bare, {});
+  fs.rmSync(path.join(bare, 'index.json'));
+  for (const type of VERSIONED) fs.rmSync(path.join(bare, type), { recursive: true });
+  const checked = end(bare);
+  assert.equal(checked.status, 1, checked.out);
+  assert.ok(!checked.lines.some((line) => line.startsWith('Pull the artifacts again')),
+    checked.out);
 });

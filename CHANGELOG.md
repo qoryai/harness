@@ -32,6 +32,74 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
   refuses a point with `fix` until its verdict schema adds the member.
+- A proposal has a fifth section, `## Track`, between `## Proposed solution` and `##
+  Sources`. `proposal-writer` proposes a track: the line "Standard track.", or the line
+  "Fast track: <kind>. <exact change>" and the line "Reason: <why the change keeps what
+  the product does>", with one kind of
+  `skills/running-a-software-workflow/short-path.json` (a document, a text that the
+  product shows, a comment, a text value in a code file, a look-only change: colour,
+  typography, spacing, borders, corner radius and shadows, and never layout). A work item
+  that fits no kind, touches one of the eight sensitive areas of that file, or about which
+  the writer is unsure, takes the standard track. `short-path.json` sets the id of the fast
+  track, `fast`, and `checks.js` applies the kinds and the sensitive areas only to a
+  proposal of that track. `proposal-reviewer` checks the fast track, its change and its
+  reason against the two lists and each changed file. `checks.js` checks the form of
+  `## Track`, that `sources.json` lists each changed file, and, in `check`, that the
+  newest report of `proposal-reviewer`, which passed `report`, records the exact `## Track`
+  it read with the result "clean".
+  `report` requires that record from `proposal-reviewer`. Otherwise the proposal takes the
+  standard track before the push. `workflow-explore-a-ticket` gives `proposal-reviewer` the
+  code explorer's report, unchanged, and a changed file outside the places of that report
+  is a finding on the fast track.
+- Each sensitive area of `short-path.json` has file patterns, globs from the repository
+  root, such as `**/migrations/**` or `**/*.pem`. `checks.js` refuses the fast track with a
+  changed file that matches a pattern, and names the file, the area and the pattern.
+  `proposal-reviewer` judges a file that no pattern matches by the names of the areas.
+- A repository changes the lists of the fast track in its `qory.yaml`, under
+  `harness.extensions.software-factory`: `remove_kinds` and `remove_sensitive_areas` remove
+  kinds and areas of `short-path.json` by name, and `add_sensitive_areas` adds areas, each
+  with a name and patterns. To give an area other patterns, a repository removes it and
+  adds an area of that name with other patterns. `extensions.schema.json` of
+  `running-a-software-workflow` lists every key of `software-factory` and its shape,
+  `command_limits_minutes` included, and one function checks them all before a check reads
+  its keys. `check proposal`, the push check, `end` in the session and `end --offline` read
+  and check these keys for every proposal, whatever its track, in one way: from
+  `qory.harness_extensions` of the run's `inputs.json` when `--inputs <file>` gives its
+  path, else from `.qory/harness-report.json` of the working folder. `check`, `push` and
+  `end <folder>` take `--inputs` right after their arguments, before the files, and
+  `end --offline` takes it among its flags. `check proposal` and the push check exit 3 with
+  the fix, and `end` and `end --offline` give the fix as a finding of the proposal draft
+  and exit 1, for a key that the schema does not list, a value of another shape, a key set
+  to null, a name or a pattern with a line break, another control character, a line or
+  paragraph separator or a bidirectional control or mark, an unknown name, an added area
+  with the name of an area that stays, and a file of `--inputs` that is missing, a folder,
+  unreadable, no valid JSON, or has no `qory` object with a `harness_extensions` object. A
+  ref of `sources.json` is read with `/` for `\`, no part `.`, one `/` for a run of them
+  and no leading `/`, and a part `..`, also written with `\`, is refused. On the fast
+  track, each changed file is a ref whose last part has a name and an extension, such as
+  `en.json`; a ref that ends with `/` or has no extension, such as `src`, `.github` or
+  `Dockerfile`, may be a folder and is refused, and so is a ref with `*`, `?`, `{`, `}`,
+  `[` or `]`. Only the ref itself is matched against the sensitive areas, so
+  `docs/session-guide.md` is in no area by `**/session*/**`. An added pattern that no ref
+  can match, such as one with a leading `./`, a trailing `/`, `\`, `//`, a part `.` or
+  `..`, also in a path that its braces give, an empty alternative, or `[`, is refused.
+  `docs/extend.md` lists the keys. `check proposal` prints the `software-factory` object
+  that it used on stderr, as `Extensions: {...}` or `Extensions: none`, and the Explore
+  session passes that line unchanged to `proposal-writer` and `proposal-reviewer`, which
+  have no shell.
+- The Explore session sends the track with its verdict, as
+  `run verdict passed --track <id> --track-reason "<reason>"`: the id of `## Track`, and on
+  the fast track the text after "Reason: ". `checks.js end` compares `## Track` of
+  `proposal.md` at the top of the artifact folder with the `track` of the newest verdict
+  that the run stored, and `end --offline` with that of its `--verdict` body, also when
+  `proposal.md` is unchanged. A verdict with no `track`, another id or, on the fast track,
+  another reason is a finding of the proposal draft. An `escalate` verdict compares
+  nothing. A run that ended with `points.json` and a stored verdict is compared too, and a
+  lookup of the verdict that fails is a finding. The end hook of a session runs
+  `checks.js end` with `--inputs $QORY_HARNESS_HOME/inputs.json` when that file exists, the
+  copy of the run's `inputs.json` that qory writes in the harness home, else with no
+  `--inputs`, so it reads `.qory/harness-report.json`. A run without a wall can push a
+  proposal with no push check, so the checks of the fast track bind only walled runs.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
   reads the whole change once per round at a frozen state and changes no file. Each
   finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
@@ -43,31 +111,106 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with a closing proof, or `open` with a new proof, which may raise the severity to
   `break`.
 - `checks.js findings add <round> <agent> <file>`, `findings close <agent> <file>` and
-  `findings show` keep the findings of a change in `.reports/findings.json` of the
-  artifact folder, under a lock file, so that calls at once lose no finding; a call
-  removes a lock whose process no longer runs, and the deny rules of `.reports` protect
-  the lock. `add` gives each finding of a reviewer's report an id, `f1` and on, and
-  refuses a report with a finding without a proof or without a severity, a break proved by
-  a broken rule, a missing judgement of a closure, or the bytes of a recorded report under
-  another name or of another agent, unless the report is clean. The same report again for
-  the same round records nothing and exits 0. For a break, only the reviewer that made it
-  judges that its closure holds. `close` closes each finding with its closing proof, and
-  refuses one of another form. `show` names each reviewer that judges a closure in the
-  next round, and exits 1 while a break finding is open, or closed with no judgement of
-  its reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the
-  list "Earlier findings:" and the list "Closed:".
+  `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
+  folder, under a lock file, so that calls at once lose no finding; a call removes a lock
+  whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
+  `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1`
+  and on, and refuses a report with a finding without a proof or without a severity, a break
+  proved by a broken rule, a missing judgement of a closure, or the bytes of a recorded
+  report under another name or of another agent, unless the report is clean. The same report
+  again for the same round records nothing and exits 0. For a break, only the reviewer that
+  made it judges that its closure holds. `close` closes each finding with its closing proof,
+  and refuses one of another form. `show` names each reviewer that judges a closure in the
+  next round, and exits 1 while a break finding is open, or closed with no judgement of its
+  reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the list
+  "Earlier findings:" and the list "Closed:".
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
   type. `workflow-checks.js` checks these types, `demo-video`, `screenshot` and `explainer`
   before each review and in each type's push check. A type of the checks script may set its
   file size limit and mark files that the check does not read as text.
+- `checks.js lock <file>` and `checks.js lock --verify [--version <N>]`, the lock on the
+  acceptance checks. `lock` writes the SHA-256 of each check and support file that the draft
+  `acceptance-lock.json` lists into it, checks it, and pushes it. The push check of
+  `acceptance-lock` refuses a second lock for the same approval, however the lock is
+  pushed. `lock --verify` exits 1 when a listed file is missing, cannot be read, is a link,
+  is no regular file or has another SHA-256 than the lock that counts. In a run it pulls
+  `index.json` and the lock first, and compares the stored lock with the SHA-256 in
+  `index.json`, so a lock that an agent changed in the store before the call counts for
+  nothing. A path that leads outside the working folder or passes a link is refused. Both
+  run in the working folder, where the session starts, and `acceptance-lock` refuses a
+  folder that is not the top folder of its repository. A file with `repository` is in
+  `.qory/repositories/<path>`. In a run, `repository` must be a further repository in
+  `QORY_RUN_REPOSITORIES`, compared in lower case, and the file is read from the folder of
+  that path as written in the list. In a run where that list is not set, is empty or has an
+  empty first entry, `lock` and `lock --verify` exit 3. The push check does not test
+  `repository`; Verify's `lock --verify` does.
+- The check of `acceptance-lock` and the reads of each type leave out each version that a
+  cancelled run wrote: such a lock no longer blocks the next lock of the same approval, and
+  no such version is the newest version, the approved criteria version or a person's
+  upload. When a push store has a cancelled lock and not the earlier lock that counts,
+  only a person's upload after that lock opens a new lock. A store that has a version of a
+  type but not the newest version that counts exits 3 with the line to pull that type, and
+  the base of `end --offline` leaves out each version of a cancelled run.
 - `running-a-software-workflow`, a skill of `software-factory` that the session of a small
   workflow of that module loads after `running-a-workflow`. It contains the `find` of
   further repositories, the "Blocked:" lines on the spec, and the types that the session
   checks before each review. Its `workflow-checks.js` adds the types `proposal`, `spec`,
   `acceptance-criteria`, `decision-record` and `demo-scenarios` to the checks script, and
   is the program of each push check of `software-factory`.
+- The check runners of `software-factory`, the verbs `run`, `scope`, `freeze`, `diff` and
+  `probe` of the checks script, and the skill `running-checks` that lists them. `run` runs
+  the build plan's targeted, lint, types or build command with its time limit, and counts a
+  run with zero tests, a skipped test, a missing tool or a timeout as red; a failed test
+  runs once more alone first. `run locked` runs the checks of the acceptance lock that
+  counts, after a check of the SHA-256 of each locked file, again before each check and
+  after the last, as an early warning in Build. On Linux, a process of a check's command
+  that left its process group stops with the command.
+  `scope` compares the changed paths with the Files of a step's deliverable. `freeze` scans
+  the change and each commit that qory pushes for keys, commits the change, and requests no
+  push. `diff` writes the diff of a frozen change for reviewers, and `probe` runs a check on
+  a copy with a reviewer's planted fault. A repository sets each time limit under
+  `command_limits_minutes` of `harness.extensions.software-factory`, from 1 to 60 minutes,
+  and `extensions.schema.json` lists every key there. In a run, `run`, `probe`, `scope` and
+  `freeze` read the limits from the run's `inputs.json`, whose path they take as `--inputs
+  <path>`, and exit 3 for a file with no `qory` or `qory.harness_extensions` member; without
+  it, from `.qory/harness-report.json`. The settings of `software-factory` set
+  `BASH_MAX_TIMEOUT_MS` to 60 minutes, and every command of a call stops 60 seconds before
+  that cap, so the call still writes its record and its red line.
+- The check runners read the start of the run from `inputs.json`: `scope` and `freeze`
+  take the base from `qory.start_commits`, and `run`, `probe`, `scope` and `freeze` read
+  the build plan from `qory.start_artifacts`, or from the folder of the new option
+  `--artifacts <folder>`. A `--base` other than the start commit, a checkout with no
+  entry, or a HEAD that does not descend from the start commit exits 3. With a base, the
+  key scan reads every commit since the base, and a remote-tracking ref changes none, and
+  `scope` scans those commits too. With the base from `--inputs`, a deliverable step
+  judges a path of a commit since the base against the Files of that deliverable and of
+  each deliverable before it in the order of the build plan, and an uncommitted path
+  against the Files of the step. Without `--inputs`, the step judges every changed path,
+  committed or not. A committed path outside gets "Take "<path>" out of the commits since
+  the base: it is outside the files of d-1 and d-2." and an example with `git reset
+  --soft` and `git restore -s <c> -SW`, then "If the path is in a frozen or pushed commit,
+  report to a member.", and a passing `scope` prints one line of at most 100 characters,
+  "Passed: ...". No line of `scope` has more than 100 characters: a long name is cut, a
+  long list of Files goes on a second line, and the scan result is the line before
+  "Checked ...". `scope --plan` and `freeze --plan` check against the Files of every
+  deliverable, for qory's push step: `scope --plan --base <commit> --artifacts <folder>`
+  on a clean clone, with only `node` and `git`. On a checkout with no change, `freeze`
+  with a base or `--plan` makes no commit and exits by the checks of the commits. With a
+  folder that lists no build plan, every changed path is outside. Every git call of the
+  check runners runs with replace objects, grafts and the commit graph off, so none of
+  them changes what they read. With git 2.32 or later, a call reads no global or system
+  git config, so no filter driver of the machine runs and no `safe.directory` setting is
+  read: a checkout of another user exits 3.
+- `checks.js suite start` and `suite result <suite>` of `software-factory`: qory runs the
+  repository's full suite on HEAD outside the agent's session, so its result binds.
+  `suite start` sends qory only the commit, through `QORY_HOST_URL` and the run's proxy,
+  and returns the suite id at once; qory reads the time limit, `full_suite`, 60 minutes by
+  default, from the repository's settings. `suite result` waits while the suite runs, until
+  60 seconds before the cap of the Bash call, counts `failed`, `timeout` and `stopped` as
+  red, and writes the last 64 KiB of the output to `.reports/runs/`. Without
+  `QORY_HOST_URL` the verbs send nothing, and each error of the route prints its fix first.
 - Rule 11 of `scripts/check.sh`: no file of `modules/core`, except the skill
   `simple-communication`, contains a word of software work, such as repository, commit,
   test, spec or deploy. The script states the reason for each word, and for the words left
@@ -142,10 +285,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   by path composes with `--runtime claude` and with `--runtime codex`, and that both
   composes list `skills/workflow-explore-a-ticket`.
 - `modules/software-factory/process.yaml` lists `artifact_types`: the standard types
-  `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer`,
-  `decision-record` and `change`, and the custom type `branch`, a structured type with the
-  content of `contracts/harness/v1/branch.schema.json` in the qory repository as its JSON
-  Schema.
+  `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
+  `decision-record`.
 - Each stage in `modules/software-factory/process.yaml` has a `description`: what the
   stage does and what exists when it ends.
 - The `workflow-explore-a-ticket` skill reads the target's files in the working folder,
@@ -265,8 +406,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   verdict.
   `run-artifacts` lists what the verdict does in a run and outside one, and the template of
   a workflow's skill in `writing-skills` has the step and the end line of a failed verdict.
-- The `write-specs` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
+- The `write-specs` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-specs`, `writing-specs` and `checking-specs`,
   and the agents `spec-writer` and `spec-reviewer`. A spec has five parts, rules with ids
   such as `must-1` that stay fixed across versions, and required lines on screens and
   technical choices. Alone, the run ends with a verdict: `passed` after its pushes, with
@@ -281,15 +422,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   skills, and fails when that skill refers to a skill other than `run-artifacts`, when it
   has another skill name with a hyphen, when an agent loads it, or when a text of
   `modules/core` contains `software-factory`.
-- The `write-technical-decisions` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-technical-decisions`, `writing-decisions` and
+- The `write-technical-decisions` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-technical-decisions`, `writing-decisions` and
   `checking-decisions`, and the agents `decision-writer` and `decision-reviewer`. It pushes
   one `decision-record` file. Decision ids such as `decision-1` stay fixed across versions,
   and each decision cites the spec's rule ids it rests on. The session starts
   `code-explorer` first and passes its report to the writer. "Changed" replaces the rule
   ids with `ac-N` ids.
-- The `make-mockups` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-make-mockups`, `designing-mockups`, with the render
+- The `make-mockups` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-make-mockups`, `designing-mockups`, with the render
   script `render-mockups.js`, and `checking-mockups`, and the agents `designer` and
   `mockup-reviewer`. The script prints one picture per screen and `screens.json`, with
   JavaScript and the network off, and reads files only in the working folder and the
@@ -297,15 +438,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `designer`'s exception for Bash, that the settings allow Bash only for this script, and
   that they deny `Edit` under `mockup-draft/`. The check also runs the script's tests that
   need no browser, so it now needs `node`, and CI installs Node.js 24.
-- The `write-test-features` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-write-test-features`, `writing-test-features` and
-  `checking-test-features`, and the agents `feature-writer` and `feature-reviewer`. It
-  pushes the custom type `test-features`, one Markdown file. Each scenario has an id such as
-  `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
-  screens it covers. A rule that no step shows is a finding. "Changed" renames each of these
-  names to its demo-scenarios name.
-- The `shape-a-ticket` workflow in the `software` stack, with `access: read` and
-  `time_limit: 4h`: the skills `workflow-shape-a-ticket`, `planning-shape` and
+- The `write-demo-scenarios` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-write-demo-scenarios`, `writing-demo-scenarios` and
+  `checking-demo-scenarios`, and the agents `scenario-writer` and `scenario-reviewer`. It
+  pushes the custom type `demo-scenarios`, one Markdown file. Each scenario has an id such
+  as `scenario-1` that stays fixed across versions, and cites the spec's rule ids and the
+  screens it covers. A rule that no step shows is a finding.
+- The `shape-a-ticket` workflow in the `software` stack, with `access: read`:
+  the skills `workflow-shape-a-ticket`, `planning-shape` and
   `checking-shape`, and the agents `shape-planner` and `shape-reviewer`, both read-only. The
   planner lists every small workflow that the work needs, also before a spec exists, so
   every needed writer drafts in one run, in the recommended direction. It runs them in a
@@ -337,9 +477,131 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exists, each line range lies inside its `SKILL.md`, and the quoted words of the rule are
   in one of the ranges. A citation that no longer matches its skill fails the rule, and so
   does a citation that crosses a line break, which the rule would otherwise skip.
+- `checks.js panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
+  members of a group role that start for the paths of a change. It reads the group's rows
+  from `$QORY_HARNESS_HOME/roles.json`. The names pair with the rows by position, and it
+  exits 3 when a name is neither the row's agent nor `<prefix>:<agent>`. A member starts
+  only when one of its `paths` globs matches a path of the change; a member with no `paths`
+  gets every path. A leading `/` of a glob changes nothing, and a trailing `/` matches as
+  `/**` does. At most 4 members start together, and fewer when the disk has less free than
+  twice the size of the copy of the working folder for a reviewer, without `.git` and
+  `.qory`, for each; the rest wait, and `--after` lists the next batch. It exits 1 when the
+  disk has room for no member, and writes no file.
+- `checks.js starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer on
+  one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
+  fourth exits 1. Both forms of `starts` read and write the counts under the lock
+  `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
+  once. A call makes the lock with the flag `wx` and writes its process id. It removes a
+  lock whose process no longer runs, or an empty lock older than 5 s, only while it has the
+  file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once,
+  unless two calls both remove an old break file. The deny rules of `.reports` protect each
+  file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
+  path. `checks.js end` prints a finding for each reviewer that such a start counts and
+  that has no report.
 
 ### Changed
 
+- The checks leave out a name of an artifact while its newest version in `index.json`, not
+  counting cancelled ones, is a withdrawal of `qory artifact push --withdraw`: they read no
+  newest, approved or counted version of the name until a later push. A withdrawn
+  `acceptance-lock` fails closed instead: `lock --verify` and `run locked` exit 3 with a
+  line for a member, and the locks before the withdrawal still count for a new lock. The
+  checks of ids, ledger rows and planned demos use the newest version that is no
+  withdrawal, so a withdrawal and a new push drop no id, row or demo. A push after such a
+  withdrawal needs that version in the push store, and exits 3 with a line for a member
+  without it. A withdrawal itself is no version that a review comment cites, that a member
+  approves, or that needs a reviewer's report in `end --offline`.
+- `checks.js` prints a finding as a first line with the fix, then lines indented by two
+  spaces with the cause and the values. The findings of the track, the lists of the fast
+  track, `--inputs`, the harness report and the verdict keep that first line within 100
+  characters, also with a long path or value.
+- `checks.js check`, `push`, `end` and `end --offline` print the line of what they checked
+  on stderr and print only the findings on stdout, because qory reads each non-empty line
+  of the stdout of a push check as a finding. A run with no finding prints nothing on
+  stdout.
+- `check proposal`, the push check and the end check read the keys of `software-factory`
+  with `check` of `lib/repository-settings.js`, the check that the runners use, so
+  `extensions.schema.json` has one check. They print every finding of it, and every bad name
+  and every bad area of the lists of `short-path.json`. Each finding has its fix on the
+  first line, at most 100 characters, and the cause on the line after it, such as "Remove
+  the key "add_kinds" from harness.extensions.software-factory in qory.yaml." and "The
+  schema has no such key." A place counts from 1, as in "area 1 of add_sensitive_areas", and
+  no finding shows a regular expression. A name that `short-path.json` lacks is followed by
+  the names that it has: "Write each name exactly as one of: ...". A key that is too long is
+  cut inside its quotes so that the first line keeps 100 characters as printed: an escape
+  such as `\n` or `\u0001` counts 2 or 6, and other characters count by code point. A
+  control character and a refused character, such as U+202E, show as their escape. The
+  schema file is checked when it loads: a keyword, or a form of a keyword, that the check
+  does not read stops it with the fix, not each value. A harness report whose `extensions`
+  is no map gives "Write harness.extensions in qory.yaml as a map." and, on the next line,
+  the cause.
+- The two readers of `inputs.json`, `lib/context.js` of core and
+  `lib/repository-settings.js` of `software-factory`, give the same fix: "Give --inputs the
+  inputs.json that qory wrote for the run."
+- A record that a module adds to a report may list its `fields`, such as "Track review:",
+  which its check covers. For an agent whose Expected output has the heading of the record,
+  the report check then gives no finding "Add the line "Track review:" to the report of
+  <agent>.", and the finding of the record says what is missing, with the fix first and the
+  agent on the next line. The lines that a check gives after its finding stay after it, and
+  before the fixes of the verdict. The count in the header of a draft has the findings of
+  the check of the draft and the fixes of the verdict.
+- The writers and reviewers of the spec and the demo scenarios skip a note whose words
+  concern only another type, as the designer and reviewer of the mockups and the reviewer
+  of the decisions do. All of them keep such a note when a fact or finding quotes it,
+  because the planner routes a word to a workflow by a fact that quotes the word. The
+  writers and reviewers of the spec and the demo scenarios get the notes from every stage,
+  so a note about code from Verify reaches them when the item moves back to Shape, and it
+  is no word on their work.
+- Every ask of a person follows one rule: "If agent asks anything from a human, it 1. should
+  be actionable 2. should have context, 3. should be easy to understand 4. should be
+  top-down." `check questions` and the push of questions refuse a new open question with no
+  `context`, and a new question with no `options` list; `writing-questions` makes the first
+  sentence of `context` the fact that the answer depends on, in the order of decision
+  requests in `simple-communication`. `check points`, `report` and the end check refuse an
+  id such as `AC-3`, `d-2`, `scenario-1` or `q4` with no words in quotes beside it in a
+  point or a question, and refuse only the names of files that the run writes, so the path
+  of a file that the member changes in the target may stay. `checking-questions` judges each
+  new open question against the four parts of the rule, and fails one whose `context` does
+  not start with the fact that the answer depends on. The points of `running-a-workflow`
+  name the step and the cause when the checks script cannot run, the work that did not
+  finish and why, and a missing version; a list cut to 20 points keeps each `answer` point
+  with its question and states how many points it left out and where the member reads them.
+  A stop on a criterion keeps the criterion's id and its text in quotes, and a technical
+  decision record with no way left names the answer and gives its question and options.
+- The verification and the explainer of `software-factory` show a criterion as its id and
+  its text in quotes, such as `AC-1, "Export saves a CSV file"`, in the Criterion cell of
+  the matrix and in each criterion heading of the explainer; the checks read the id in
+  any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
+  run could not <why>.", and the check refuses an empty or missing one. The Criteria cell
+  of a build plan lists each criterion in that form too, with `; ` between them, and the
+  check refuses an id with no text in quotes, such as `ac-1, ac-2`. The checks of the build
+  plan, the verification and the explainer refuse a text in quotes beside an id that is not
+  the criterion's first sentence in the criteria version that they read: in a Criteria or
+  Criterion cell, in an explainer heading, and anywhere in `## Lowered` and
+  `## Not verified`. The comparison ignores backticks, runs of spaces and one `.`, `!` or
+  `?` at the end of the quote. The finding starts with the fix and gives the words, or,
+  when the line would have more than 200 characters, points to the criterion.
+- Each stop on the spec ends with the change after a colon, such as
+  `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
+  rows`, and the session copies the change into the point.
+- Each point that the end check writes is one sentence: what failed, why, and another
+  round as the step, with each agent in plain words, such as "The scenario writer and the
+  spec reviewer returned no reports, so the run has none of their work, and another round
+  starts them again." The end check still writes one point for each kind of problem.
+- The checks of a point and a question count as an id only a question id such as `q4` and
+  an id whose prefix a module gives as `ids` in its `workflow-checks.js`, with a number, in
+  either case: `software-factory` gives `ac-`, `d-`, `step-`, `scenario-` and `decision-`.
+  A name such as `GPT-4`, and an id inside a path such as
+  `docs/step-1.md`, pass. The words beside an id need a letter, and quotes around the id
+  alone are no words. A point may not name a file that the run writes, alone or in a
+  folder of the run, such as `.reports/end.json`; a path of the target, such as
+  `docs/spec.md`, may stay. Ids joined by a slash, such as `ac-3/ac-4`, each need words. A
+  new open question with a `context` of only spaces has no context, and a decided question
+  gets one finding for its missing options.
+- Each finding of the checks of the build plan and the verification shows a criterion id in
+  upper case, such as `AC-2`.
+- When the end check cuts its points to 20, it keeps the `answer` points first, its last
+  point states how many points it left out, and its output lists each of them.
 - The writer and the reviewer of a run get the Request changes notes from every stage, and
   the run's stage no longer filters them. When a member requests changes at Verify and moves
   the item back to Build, the Build writer gets the request's text.
@@ -404,9 +666,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the person who composes the harness maps each tier to a model with `--tier` or
   `harness.tiers`. Every reviewer sets `thinking`, and `code-explorer` sets `fast`; the
   other agents set no `model` key and run on the main model. `docs/modules.md`, section
-  "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes a
-  tier and still fails a model id or any other value, and the first line of its message
-  is the fix. `writing-agents` and `harness-reviewer` follow the same rule.
+  "Agents", has the tier table for each agent name. Rule 3 of `scripts/check.sh` passes
+  only the tier that the table lists for the agent, and fails a model id, another tier, any
+  other value, a listed agent with no `model` key, and a `model` key in an agent that the
+  table does not list. The first line of its message is the fix. The rule reads the tier
+  of each agent from that table, and also fails on a row that it cannot read, on a pattern
+  of the table, such as `*-reviewer`, that matches a name of a row of another tier that it
+  does not except, on two patterns of different tiers that match a common name, on a name
+  listed under two tiers, and on a name that a row of its tier also excepts.
+  `writing-agents` and `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `4314dbb8`,
   Forager at `a4e7f43c` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
@@ -809,6 +1077,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `checks.js suite start` takes `--inputs <path>` and `--artifacts <folder>`, as `run`
+  does, and reads the build plan from `qory.start_artifacts` or the folder of
+  `--artifacts`. The build plan sets the result files that count as no change. Before,
+  `suite start` read it from the artifact folder of the session, where an agent can write a
+  newer version whose result file makes an untracked path count as no change. With
+  `--inputs`, a file without `qory.start_commits` or `qory.start_artifacts` exits 3.
+- `checks.js report` reads and writes `.reports/results.json` under the lock
+  `.reports/results.json.lock`, as `findings` does with its lock, so that reports checked
+  at once lose no entry. Before, two checks at once could drop an entry, and a reviewer
+  could fix its report more than 2 times in a row. `report` exits 3 when the lock still
+  exists after 10 s, and the deny rules of `.reports` cover the lock.
+- Rules 1, 2, 4 and 8 of `scripts/check.sh` read a file that starts with a UTF-8 byte
+  order mark as they read the same file without it. Before, rules 1, 2 and 8 read the front
+  matter of such a file as its body, and rule 4 missed a list item or a code fence on its
+  first line.
 - A crash of `checks.js` in the end check, at load or while it runs, ends the session on
   every runtime, with "Send this error to the harness maintainers: the end check crashed,
   so the session ended without checking its drafts and reports." first, then the error and

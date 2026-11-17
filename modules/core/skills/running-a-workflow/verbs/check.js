@@ -3,6 +3,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 const { folderOf } = require('../lib/base.js');
 const { checkFiles } = require('../lib/drafts.js');
@@ -26,21 +27,27 @@ function args(verb) {
 module.exports = {
   verbs: {
     check: {
-      usage: ['check <type> <file>...'],
+      usage: ['check <type> [--inputs <file>] <file>...'],
       args: args('check'),
       run(io, what, rest) {
-        const { findings, last } = checkFiles('check', folderOf(io, rest[0]),
-          typeOf(io, 'check', what), rest, io.home, io.plugin);
+        const { findings, last, told } = checkFiles('check', folderOf(io, rest[0]),
+          typeOf(io, 'check', what), rest, io.home, io.plugin, undefined, null,
+          { workingFolder: path.resolve(io.cwd), inputs: io.inputs });
         io.print(findings, last);
+        // io.print wrote the findings to stdout and the line of what the script checked to
+        // stderr. The lines that the check of the type tells follow that line on stderr.
+        if (told.length) io.err.write(`${told.join('\n')}\n`);
         return findings.length ? 1 : 0;
       },
     },
     push: {
-      usage: ['push <type> <file>...'],
+      usage: ['push <type> [--inputs <file>] <file>...'],
       args: args('push'),
       run(io, what, rest) {
-        const { findings, last } = checkFiles('push', fs.realpathSync(io.cwd),
-          typeOf(io, 'push', what), rest, io.home);
+        const cwd = fs.realpathSync(io.cwd);
+        // The plugin gives the prefixes of ids, as the registry of typeOf reads them.
+        const { findings, last } = checkFiles('push', cwd, typeOf(io, 'push', what), rest,
+          io.home, io.plugin, cwd, null, { workingFolder: cwd, inputs: io.inputs });
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },

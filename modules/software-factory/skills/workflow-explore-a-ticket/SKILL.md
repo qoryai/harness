@@ -70,10 +70,12 @@ Never decide on a failure or end the run while an agent runs.
    on, unchanged.
 3. Copy the newest proposal, as the section "Copy and compare the proposal" lists. Then
    start ${qory:agents/proposal-writer} with the input file's path, the artifact folder, the
-   run's number and the code explorer's report. It drafts `proposal.md`, `sources.json` and
-   any wireframe in the artifact folder. It decides each point that the rule "Decide or ask"
-   allows. Its report lists what only a person can settle, what it decided, and its decision
-   on each open review comment.
+   run's number, the code explorer's report and, after the first `check proposal` of the
+   run, its `Extensions:` line, as the section "Checks" lists. At its first start, before
+   any `check proposal`, tell it that no check has run. It drafts `proposal.md`,
+   `sources.json` and any wireframe in the artifact folder. It decides each point that the
+   rule "Decide or ask" allows. Its report lists what only a person can settle, what it
+   decided, and its decision on each open review comment.
 4. Do this step after each start of the proposal writer, with its newest report. When its
    lists "What only a person can settle" and "Decided" differ from the lists that the
    questions writer last got, start ${qory:agents/questions-writer} with the input file's
@@ -88,7 +90,8 @@ Never decide on a failure or end the run while an agent runs.
    questions changed. Give each the paths of the input file and the artifact folder, where
    the draft files are, the run's number, any message that the pull fetched nothing and the
    lines under "Checks:" that the section "Checks" lists, and never a summary or your
-   reasoning. Give only the proposal reviewer the path of `declines.md`, when the writer's
+   reasoning. Give only the proposal reviewer the code explorer's report, unchanged, as
+   step 3 gives it to the proposal writer, and the path of `declines.md`, when the writer's
    report lists that file.
 6. Decide on each finding, as the section "Findings" lists.
 7. Push the proposal, with every wireframe that the writer's report lists, only when one of
@@ -121,11 +124,20 @@ Never decide on a failure or end the run while an agent runs.
 9. Record the verdict, as `run-artifacts` lists, after the last push, with questions open
    or not. When a case in this skill or in `run-artifacts` ends the run with another line,
    record no `passed` verdict: the section "Failures" lists the ends that record
-   `escalate`.
+   `escalate`. Send the track of the proposal with the verdict:
 
    ```
-   <qory> run verdict passed
+   <qory> run verdict passed --track <id> --track-reason "<reason>"
    ```
+
+   `<id>` is the track of `## Track` in `proposal.md`: `fast` for "Fast track: …", and
+   `standard` for "Standard track.". On the fast track, `<reason>` is the text after
+   "Reason: " in `## Track`, unchanged. On the standard track, it is one sentence on why
+   the change is not a small change. Quote `<reason>` so that the shell passes it
+   unchanged: in double quotes, write a `\` before each of these characters in it: the
+   double quote, the dollar sign, the backtick and the backslash. `checks.js end` compares
+   the track of the verdict with `## Track`, and a difference is a finding of the proposal
+   draft.
 
 ## Findings
 
@@ -215,15 +227,22 @@ work item waits for a member, who can start the run again.
 - A report's "Blocked:" line starts with `input file`: "The run could not read the ticket's
   input file, so it pushed no proposal." Write no path in the line.
 - The first pull fails: "The run could not pull the artifacts of the work item."
-- A start fails: "The run could not start an agent it needs, so it pushed no proposal."
+- A start fails: "The run could not start <the work>, so it pushed no proposal." The work
+  is what the agent does, in plain words, such as "the review of the proposal".
 - The proposal still fails the checks of the proposal before a review after the proposal
   writer's second start, as the section "Checks" lists: "The run could not make its proposal
   pass its checks, so it pushed no proposal."
-- The checks script exits with 2 or 3, cannot run or is refused: "The run could not run its
-  checks script, which the settings of the run may not allow." This also applies after the
-  first push: push nothing more.
-- Any other case: "An agent the run needs did not finish its work, so the run pushed no
-  proposal."
+- The checks script exits with 2 or 3, cannot run or is refused: "The run stopped at <the
+  step>, because <the cause>." The step is the step of this skill that ran the script, in
+  plain words, such as "the check of the proposal before its review". The cause is "the
+  settings of the run do not allow its format checks" when they are refused, "its format
+  checks could not start: <the error, in one clause>", "its format checks got arguments
+  that they do not take" for exit 2, or "its format checks could not read <what, in plain
+  words>" for exit 3. This also applies after the first push: push nothing more.
+- Any other case: "<The work> did not finish, because <the cause>, so the run pushed no
+  proposal." The cause is the failure in one clause: it returned no report, its report
+  still broke its format rules after two fixes, a finding has a missing or unknown mark,
+  or it stopped with "<its Blocked: line, in plain words>".
 
 When the push of the proposal is still refused after the third attempt, which
 `run-artifacts` lists, push nothing more and end with "The run could not push its proposal."
@@ -333,10 +352,11 @@ outside one. On Claude Code, the allow rule matches these forms:
 <script folder>/checks.js begin
 ```
 
-It prints one finding per line, each starting with the fix, then one line that states what
-it checked. It exits with 0 when it found nothing, with 1 when it found something, with 2
-for wrong arguments, and with 3 when it cannot read an input. For 2, 3 or a script that
-cannot run, the section "Failures" lists the end.
+It prints each finding at the start of a line, starting with the fix; lines indented by two
+spaces after it give the cause and the values on stdout. Then it prints one line that states
+what it checked on stderr. It exits with 0 when it found nothing, with 1 when it found
+something, with 2 for wrong arguments, and with 3 when it cannot read an input. For 2, 3
+or a script that cannot run, the section "Failures" lists the end.
 - Before each start of a reviewer, except a start that fixes only its report, run `starts`
   with `<run>`, the reviewer's name and the limit 3, such as
   `<script folder>/checks.js starts <run> proposal-reviewer 3`. `<run>` is `run.id`. When
@@ -352,8 +372,20 @@ cannot run, the section "Failures" lists the end.
   run `check` on the proposal:
 
   ```
-  <script folder>/checks.js check proposal <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
+  <script folder>/checks.js check proposal --inputs <input file> \
+    <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
   ```
+
+  Give `--inputs` the input file's path from the prompt: `check` reads the extensions of
+  the harness from that file. When the prompt gives no input file, leave out
+  `--inputs <input file>` and run `check` from the working folder, where it reads
+  `.qory/harness-report.json`. Besides its lines on stdout, `check proposal` prints one
+  line on stderr: `Extensions:` and the object `software-factory` of the extensions that it
+  used, or `Extensions: none`. The proposal writer and the proposal reviewer have no shell
+  to read the extensions, so give each start of either the line of the newest
+  `check proposal`, unchanged. When that `check` printed no such line, it could not read
+  the extensions: give no line. The proposal writer's first start comes before any `check`:
+  tell it that no check has run.
 
   After a `check` that exits with 1, start the proposal writer again with every finding line
   that the script printed. Tell it to change only the lines that the findings quote or name,
@@ -367,7 +399,8 @@ cannot run, the section "Failures" lists the end.
   start of a reviewer, and you run no `starts` for them. When `check` still exits with 1
   after the writer's second start, start no reviewer, and end as the section "Failures"
   lists for the checks of the proposal. The proposal reviewer starts only on a proposal
-  whose `check` exits with 0: give it every line of that `check`, under "Checks:".
+  whose `check` exits with 0: give it every line of that `check`, the `Extensions:` line
+  included, under "Checks:".
 - Before each start of the questions reviewer, run `check` on the questions, and give that
   reviewer every line that the script printed, under "Checks:":
 
@@ -377,7 +410,7 @@ cannot run, the section "Failures" lists the end.
 
 - Before each push, after `compare`, run `check` with the type and each file that the push
   sends. A push that exits with 4 was refused by qory's checks of that type, which printed
-  one finding per line.
+  the findings, each starting with the fix.
 - After a `check` that exits with 1, or a push that exits with 4, start the agent that
   wrote the files with each finding quoted, at most twice per push. Tell it to change only
   the lines that the findings quote or name, and to add a section that a finding names as

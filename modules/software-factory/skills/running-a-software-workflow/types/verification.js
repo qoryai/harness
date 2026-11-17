@@ -5,7 +5,8 @@
 
 module.exports = (lib) => {
   const {
-    COMMIT, commitLine, inOrder, liveCriteria, markdownText, sectionTable, sectionTitles, short,
+    COMMIT, commitLine, inOrder, liveCriteria, markdownText, sectionTable, sectionTitles,
+    short, wrongQuotes, wrongWords,
   } = lib;
 
   const FILE = 'verification.md';
@@ -15,6 +16,16 @@ module.exports = (lib) => {
   const COLUMNS = ['Criterion', 'State', 'Evidence'];
   const STATES = ['Met', 'Not met', 'Needs a person'];
 
+  // The Criterion cell: the id, in any case, then the criterion's first sentence in quotes,
+  // such as AC-1, "Export saves a CSV file".
+  const CELL = /^([A-Za-z]+-[0-9]+), +"(.+)"$/;
+
+  // What a person checks, and why the run could not: the Evidence of a row that needs a
+  // person.
+  const CHECK = /^Check \S.*, because the run could not \S.*\.$/;
+
+  const CHECK_FORM = 'Check <what>, because the run could not <why>.';
+
   // matrix checks the table of ## Matrix against criteria, the criteria that liveCriteria
   // reads.
   function matrix(run, part, criteria) {
@@ -22,23 +33,39 @@ module.exports = (lib) => {
     const found = sectionTable(run, FILE, part, COLUMNS);
     if (!found) return;
     const live = criteria.map((criterion) => criterion.id);
+    const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
     const rows = new Map();
-    for (const [cell = '', state = ''] of found.rows) {
-      const id = cell.replace(/`/g, '').trim();
+    for (const [cell = '', state = '', evidence = ''] of found.rows) {
+      const text = cell.replace(/`/g, '').trim();
+      const match = CELL.exec(text);
+      // The id matches without regard to case: AC-1 is the row of ac-1.
+      const id = (match ? match[1] : text).toLowerCase();
       rows.set(id, (rows.get(id) || 0) + 1);
+      // A finding shows an id upper case, such as AC-2, and another cell as it is.
+      const shown = /^[a-z]+-[0-9]+$/.test(id) ? id.toUpperCase() : text;
       if (!live.includes(id)) {
-        run.find(`Remove the row ${short(id)} from ## Matrix of ${FILE}: the acceptance ` +
+        run.find(`Remove the row ${short(shown)} from ## Matrix of ${FILE}: the acceptance ` +
           'criteria have no such criterion that is not removed.');
+      } else if (!match) {
+        run.find(`Write the Criterion cell of ${shown} in ${FILE} as ${shown}, "<first ` +
+          `sentence>": it is ${short(cell)}.`);
+      } else {
+        const wrong = wrongWords(match[2], byId.get(id), `## Matrix of ${FILE}`);
+        if (wrong) run.find(wrong);
       }
+      const which = live.includes(id) ? shown : short(shown);
       if (!STATES.includes(state)) {
-        run.find(`Set the state of ${live.includes(id) ? id : short(id)} in ${FILE} to Met, ` +
-          `Not met or Needs a person: it is ${short(state)}.`);
+        run.find(`Set the state of ${which} in ${FILE} to Met, Not met or Needs a person: it ` +
+          `is ${short(state)}.`);
+      } else if (state === 'Needs a person' && !CHECK.test(evidence)) {
+        run.find(`Write the Evidence of ${which} in ${FILE} as "${CHECK_FORM}": it is ` +
+          `${evidence ? short(evidence) : 'empty'}.`);
       }
     }
     for (const id of live) {
       const count = rows.get(id) || 0;
       if (count !== 1) {
-        run.find(`Give ${id} one row in ## Matrix of ${FILE}: it has ${count}.`);
+        run.find(`Give ${id.toUpperCase()} one row in ## Matrix of ${FILE}: it has ${count}.`);
       }
     }
   }
@@ -58,6 +85,13 @@ module.exports = (lib) => {
           'verified commit.');
       }
       matrix(run, parts[1], criteria);
+      // A criterion quoted in ## Lowered or ## Not verified, whatever the form of the line.
+      run.did('quotes');
+      const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
+      for (const part of [parts[2], parts[3]]) {
+        wrongQuotes(run, part.lines.map((line) => line.text).join('\n'), byId,
+          `## ${part.title} of ${FILE}`);
+      }
     }
     markdownText(run, FILE, md);
   }

@@ -127,7 +127,7 @@ module.exports = (lib) => {
   // kept checks that each row of the newest version is in the same place, with the same
   // members, but those that ENDED lists on a running row, and replays.
   function kept(run, steps) {
-    const previous = run.context.newest('build-ledger', FILE);
+    const previous = run.context.history('build-ledger', FILE);
     if (!previous) return;
     run.did('rows of the newest version');
     const before = parseJson(previous.text, `build-ledger version ${previous.number}`, 'steps')
@@ -178,6 +178,8 @@ module.exports = (lib) => {
     reviewer: null,
     // The type's size_limit in process.yaml: 1 MiB, the default of Qory Apiary.
     maxBytes: 1024 * 1024,
+    // Its check reads the version that Context.history reads, which end --offline needs.
+    history: true,
     check: buildLedger,
   };
 };

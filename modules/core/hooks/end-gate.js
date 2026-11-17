@@ -13,6 +13,13 @@
 //
 // The adapter lies at <home>/hooks/, where <home> is the composed harness, QORY_HARNESS_HOME.
 // checks.js lies at <home>/modules/core/skills/running-a-workflow/checks.js.
+//
+// In a run, qory writes a copy of the run's inputs.json at $QORY_HARNESS_HOME/inputs.json.
+// When QORY_HARNESS_HOME is an absolute path and that file exists, the hook runs
+// `end <folder> --inputs <file>`, so that end reads the extensions of the harness from the
+// same file as the push check; else `end <folder>`, which reads .qory/harness-report.json of
+// the working folder.
+// The hook takes that file only from the variable, never from a path that it builds.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -44,6 +51,15 @@ function base(cwd, env = process.env) {
   }
 }
 
+// inputsFile returns $QORY_HARNESS_HOME/inputs.json of env when the variable is an absolute
+// path and the file exists, else null. A relative value is ignored, because the hook and the
+// end check could resolve it against different folders.
+function inputsFile(env = process.env) {
+  if (!env.QORY_HARNESS_HOME || !path.isAbsolute(env.QORY_HARNESS_HOME)) return null;
+  const file = path.join(env.QORY_HARNESS_HOME, 'inputs.json');
+  return fs.existsSync(file) ? file : null;
+}
+
 // folder returns the artifact folder for a session in the working folder cwd.
 function folder(cwd, env = process.env) {
   if (env.QORY_RUN_ID && fs.existsSync(RUN_FOLDER)) return RUN_FOLDER;
@@ -55,15 +71,17 @@ function folder(cwd, env = process.env) {
 // findings, so a session would go on with no check counted; RUNNER keeps the two apart.
 const CRASHED = 4;
 
-// RUNNER loads checks.js, given as its first argument, and runs main(['end', <folder>]).
+// RUNNER loads checks.js, given as its first argument, and runs main(['end', <folder>]), with
+// --inputs and the third argument after them when it is given.
 // It sets process.argv as a start of checks.js would, because main finds the plugin folder
 // from process.argv[1]. Any exception, also one thrown later from a callback, exits CRASHED
 // with the fix on the first line, since a log often keeps only that line. Only the first
 // exception is printed. The text of a value that cannot be turned into a string is
 // "unprintable error".
 const RUNNER = `'use strict';
-const [checks, folder] = process.argv.slice(1);
-process.argv = [process.argv[0], checks, 'end', folder];
+const [checks, folder, inputs] = process.argv.slice(1);
+const args = ['end', folder, ...(inputs ? ['--inputs', inputs] : [])];
+process.argv = [process.argv[0], checks, ...args];
 let crashed = false;
 function crash(error) {
   process.exitCode = ${CRASHED};
@@ -82,7 +100,7 @@ function crash(error) {
 }
 process.on('uncaughtException', crash);
 try {
-  process.exitCode = require(checks).main(['end', folder]);
+  process.exitCode = require(checks).main(args);
 } catch (error) {
   crash(error);
 }
@@ -96,8 +114,9 @@ function check({ cwd, script = process.argv[1], env = process.env } = {}) {
   const home = path.resolve(path.dirname(script), '..');
   const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.js');
   const work = cwd && fs.existsSync(cwd) ? cwd : process.cwd();
+  const inputs = inputsFile(env);
   const ran = childProcess.spawnSync(process.execPath,
-    ['-e', RUNNER, checks, folder(work, env)],
+    ['-e', RUNNER, checks, folder(work, env), ...(inputs ? [inputs] : [])],
     { cwd: work, env, encoding: 'utf8', timeout: 170000 });
   // On a crash the fix comes first, before any text that checks.js printed.
   const parts = ran.status === CRASHED ? [ran.stderr, ran.stdout] : [ran.stdout, ran.stderr];
@@ -106,4 +125,4 @@ function check({ cwd, script = process.argv[1], env = process.env } = {}) {
   return { status: ran.status, text };
 }
 
-module.exports = { readInput, base, folder, check };
+module.exports = { readInput, base, folder, inputsFile, check };

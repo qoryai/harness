@@ -110,7 +110,7 @@ The `software` stack composes the `core` module and the `software-factory` modul
 checkout in a workspace set up as a software factory extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read` and `time_limit: 4h`. The `software-factory` module ships the process
+with `access: read`. The `software-factory` module ships the process
 template, six workflows' skills, fourteen other skills, thirteen agents and the settings
 for a run of those workflows:
 
@@ -139,7 +139,7 @@ for a run of those workflows:
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
-  - `proposal`: Markdown for a person who reads no code, in four sections, of at most 450
+  - `proposal`: Markdown for a person who reads no code, in five sections, of at most 450
     words. `## Summary` states the outcome in 1 or 2 sentences of at most 40 words.
     `## Background` opens with one paragraph of at most 40 words on why the work exists,
     and Qory Apiary folds the rest behind "Read more": today's facts, in at most 100
@@ -156,7 +156,12 @@ for a run of those workflows:
     of these limits before the proposal reviewer starts. The run writes the proposed
     solution before the questions, with a solution for each part of the work. A part that an
     open question covers follows the question's recommended option, and only a question with
-    no recommended option leaves its part without a solution. `## Sources`, last, lists
+    no recommended option leaves its part without a solution. `## Track` states whether the
+    change is trivial: "Standard track.", or "Fast track: <kind>. <exact change>" with one
+    kind of five (a document, a text that the product shows, a comment, a text value in a
+    code file, a look-only change), then "Reason: " and why the change keeps what the
+    product does. A change in one of eight sensitive areas, such as
+    billing or secrets, never takes the fast track. `## Sources`, last, lists
     every public page and every file of the target that the run used: a page as a link, and
     a file with no link, as its path. A file
     of a further repository (a folder under `.qory/repositories`) is the folder's name, a
@@ -241,6 +246,10 @@ for a run of those workflows:
   `workflow-checks.js` adds the types `proposal`, `spec`, `acceptance-criteria`,
   `decision-record`, `demo-scenarios` and the 11 types of Build and Verify to the checks
   script. Each push check of the module runs `workflow-checks.js push <type> <file>...`.
+- `running-checks`: load it before you run a check of code, check a step's write scope,
+  freeze a step, read the diff of a change or probe a planted fault. The skill contains the
+  verbs `run`, `scope`, `freeze`, `diff` and `probe` of the checks script, what counts as
+  red, and the time limits that a repository sets under `command_limits_minutes`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
   part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and

@@ -11,22 +11,28 @@ const {
 const { Context } = require('../lib/context.js');
 const { allowed, checkFiles } = require('../lib/drafts.js');
 const {
-  END_POINT, REPORT_BROKEN, REPORT_FILE, REPORT_NONE, endDrafts, endList,
+  POINTS_BROKEN, RECORDS_UNREAD, REPORT_BROKEN, REPORT_CHANGED, REPORT_FILE,
+  REPORT_NONE, REPORT_UNCHECKED, endDrafts, endList, leftLine, verdictDrafts,
 } = require('../lib/end.js');
 const { offline, offlineArgs } = require('../lib/offline.js');
 const { agentNames } = require('../lib/plugin.js');
 const { results } = require('../lib/reports.js');
-const { openQuestions, pointCheck, pointsType } = require('../types/points.js');
+const { openQuestions, pointCheck, pointRules, pointsType } = require('../types/points.js');
 
 // end lets the session go on after this many failed checks less one; the next one ends the run.
 const END_TRIES = 3;
 
 // agentOf returns the agent that a name of starts.json counts, or null: the name itself,
 // such as questions-reviewer, or the part after <workflow>-<n>-, such as questions-reviewer
-// of explore-1-questions-reviewer. A name such as explore-a-ticket, a follow of a workflow, has
-// none.
+// of explore-1-questions-reviewer, or the part after the slash of a start on a subject, such
+// as code-reviewer of change/code-reviewer. A name such as explore-a-ticket, a follow of a
+// workflow, has none.
 function agentOf(name, agents) {
   if (agents.has(name)) return name;
+  if (name.includes('/')) {
+    const agent = name.slice(name.lastIndexOf('/') + 1);
+    return agents.has(agent) ? agent : null;
+  }
   for (const match of name.matchAll(/-[0-9]+-/g)) {
     const rest = name.slice(match.index + match[0].length);
     if (agents.has(rest)) return rest;
@@ -36,7 +42,7 @@ function agentOf(name, agents) {
 
 // endReports checks that the newest report of each agent under root/.reports passed report,
 // as that agent, with its text as it is now, and that each agent that starts.json counts has
-// one. Each result is { line, point }, as endDrafts lists. A point contains no agent name.
+// one. Each result is { line, point, item }, as endList reads it, with the agent as item.
 function endReports(root, plugin) {
   const dir = path.join(root, '.reports');
   const newest = new Map();
@@ -57,19 +63,22 @@ function endReports(root, plugin) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name}: no check of it as the ` +
           `report of ${agent} is recorded.`,
-        point: 'The run did not check the report of an agent that it started.',
+        point: REPORT_UNCHECKED,
+        item: agent,
       });
     } else if (!entry.passed) {
       found.push({
         line: `Fix .reports/${name}: it failed its report check. Start ${agent} again ` +
           `with the findings of that check.`,
         point: REPORT_BROKEN,
+        item: agent,
       });
     } else if (entry.sha256 !== sha256(text)) {
       found.push({
         line: `Run checks.js report ${agent} on .reports/${name} again: the report ` +
           `changed after its check.`,
-        point: 'The report of an agent that the run started changed after its check.',
+        point: REPORT_CHANGED,
+        item: agent,
       });
     }
   }
@@ -89,6 +98,7 @@ function endReports(root, plugin) {
         line: `Write the report of ${agent} to .reports/${agent}-<n>.md, and run ` +
           `checks.js report on it: starts.json counts a start of ${agent}, and it has no report.`,
         point: REPORT_NONE,
+        item: agent,
       });
     }
   }
@@ -128,37 +138,63 @@ function newerThan(root, file, types) {
     newer(root, (name) => types.some((def) => allowed(def, name)));
 }
 
-// storedVerdict returns the number of a version of verdict that this run wrote, or null when
-// there is none or the lookup fails: the run's id from `<qory> work-item show`, and the
-// writers of the versions from the index.json that `<qory> artifact pull verdict` writes.
+// storedVerdict returns { number, body } of the newest version of verdict that this run wrote,
+// null when it wrote none, or { failed } with why the lookup failed: the run's id from
+// `<qory> work-item show`, and the writers of the versions from the index.json that
+// `<qory> artifact pull verdict` writes. body is the verdict.json of that version, which the
+// pull writes in verdict/main/v<number>/; a body that cannot be read is a failed lookup too.
 function storedVerdict(io, qory) {
   const run = (args) => childProcess.spawnSync(qory, args,
     { env: io.env, encoding: 'utf8', timeout: 20000 });
+  const exited = (args, ran) => `qory ${args} ` +
+    (ran.error ? `could not run: ${ran.error.message}` : `exited ${ran.status}`);
   const show = run(['work-item', 'show']);
-  if (show.error || show.status !== 0) return null;
+  if (show.error || show.status !== 0) return { failed: exited('work-item show', show) };
   let id;
   try {
     id = JSON.parse(show.stdout).run.id;
   } catch {
-    return null;
+    id = null;
   }
-  if (typeof id !== 'string' || !id) return null;
+  if (typeof id !== 'string' || !id) {
+    return { failed: 'qory work-item show printed no run.id' };
+  }
   const pull = run(['artifact', 'pull', 'verdict']);
-  if (pull.error || pull.status !== 0) return null;
+  if (pull.error || pull.status !== 0) return { failed: exited('artifact pull verdict', pull) };
   const dir = (pull.stdout || '').trim().split('\n').at(-1).trim();
-  if (!path.isAbsolute(dir)) return null;
+  if (!path.isAbsolute(dir)) {
+    return { failed: 'qory artifact pull verdict printed no absolute folder' };
+  }
+  let numbers;
   try {
     const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
-    const numbers = index.artifacts
+    numbers = index.artifacts
       .filter((one) => isObject(one) && one.type === 'verdict' && Array.isArray(one.versions))
       .flatMap((one) => one.versions)
       .filter((one) => isObject(one) && isObject(one.writer) && one.writer.kind === 'run' &&
         one.writer.run_id === id && Number.isInteger(one.number))
       .map((one) => one.number);
-    return numbers.length ? Math.max(...numbers) : null;
   } catch {
-    return null;
+    return { failed: `${path.join(dir, 'index.json')} cannot be read` };
   }
+  if (!numbers.length) return null;
+  const number = Math.max(...numbers);
+  const file = path.join(dir, 'verdict', 'main', `v${number}`, 'verdict.json');
+  try {
+    return { number, body: JSON.parse(fs.readFileSync(file, 'utf8')) };
+  } catch {
+    return { failed: `${file} cannot be read` };
+  }
+}
+
+// verdictBody returns the body of found, what storedVerdict returned, or null when the run
+// recorded no verdict. A failed lookup throws Missing with the fix, which endDrafts gives as a
+// finding when a draft needs the verdict.
+function verdictBody(found) {
+  if (found && found.failed) {
+    throw new Missing(`Run end again: the lookup of the run's verdict failed.\n${found.failed}.`);
+  }
+  return found ? found.body : null;
 }
 
 // verdict runs `<qory> run verdict escalate --points <points>` and returns a line on how it
@@ -177,18 +213,32 @@ function verdict(io, points) {
 // endDrafts lists.
 function endPoints(root, file, io) {
   let found;
+  let more = [];
   try {
     found = checkFiles('check', root, pointsType, [file], io.home, io.plugin).findings;
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     found = [error.message];
+    more = error.more || [];
   }
   if (!found.length) return [];
   return [{
     line: `Fix the ${plural(found.length, 'finding')} of points.json in the lines after this ` +
       `one:`,
-    point: 'The list of what the run needs from you broke its format rules.',
-  }, ...found.map((line) => ({ line, point: null }))];
+    point: POINTS_BROKEN(leftOut(root, file, io)),
+  }, ...[...found, ...more].map((line) => ({ line, point: null }))];
+}
+
+// leftOut returns how many points of points.json of root fail the check of a point, or null
+// when the file cannot be read or is no list.
+function leftOut(root, file, io) {
+  let list;
+  try {
+    list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+  return Array.isArray(list) ? list.length - keptPoints(root, file, io).length : null;
 }
 
 // keptPoints returns each point of points.json of root that passes the check of a point, or
@@ -210,9 +260,16 @@ function keptPoints(root, file, io) {
     // No open question can be read, so no point answer stays.
   }
   const agents = agentNames(io.plugin);
+  let registry = {};
+  try {
+    registry = io.registry();
+  } catch (error) {
+    if (!(error instanceof Missing)) throw error;
+  }
+  const rules = pointRules(registry);
   return list.filter((point, place) => {
     const run = new Run(null);
-    pointCheck(run, point, place + 1, open, agents);
+    pointCheck(run, point, place + 1, open, agents, rules);
     return !run.findings.length;
   });
 }
@@ -233,18 +290,29 @@ function end(io, folder) {
   }
   const { types } = io.registry();
   const points = path.join(root, 'points.json');
-  let pointResults = [];
-  if (fs.existsSync(points)) {
+  // The verdict that this run recorded, looked up once and only when a check needs it.
+  let lookup;
+  const stored = () => {
+    if (lookup === undefined) lookup = storedVerdict(io, qoryPath());
+    return lookup;
+  };
+  const body = () => verdictBody(stored());
+  let found;
+  const ended = fs.existsSync(points) && stored() !== null && !stored().failed;
+  if (ended) {
     // A run with points.json and a stored verdict has ended through "Points", such as Shape
-    // after a small workflow's points.json. A run with a verdict and no points.json, such as
-    // one that ran `verdict passed`, is still checked: its drafts and reports must keep their
-    // rules.
-    const stored = storedVerdict(io, qoryPath());
-    if (stored !== null) {
+    // after a small workflow's points.json. Only the drafts that the verdict must match, such
+    // as the track of a proposal, are compared with it. A run with a verdict and no
+    // points.json, such as one that ran `verdict passed`, is still checked: its drafts and
+    // reports must keep their rules.
+    found = verdictDrafts(root, types, body);
+    if (!found.length) {
       return { status: 0, findings: [], last: `Checked nothing: the run has points.json and ` +
-        `stored version ${stored} of verdict, so it has ended.` };
+        `stored version ${stored().number} of verdict, so it has ended.` };
     }
-    if (!newerThan(root, points, types)) {
+  } else {
+    let pointResults = [];
+    if (fs.existsSync(points) && !newerThan(root, points, types)) {
       // The run ended with points.json: a file that breaks its rules is a finding, so that the
       // session fixes it before qory refuses it.
       pointResults = endPoints(root, points, io);
@@ -253,16 +321,18 @@ function end(io, folder) {
           `and ${verdict(io, points)}` };
       }
     }
+    let reportResults;
+    try {
+      reportResults = endReports(root, io.plugin);
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      reportResults = [{ line: error.message, point: RECORDS_UNREAD },
+        ...(error.more || []).map((line) => ({ line, point: null }))];
+    }
+    found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin,
+      place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs }, verdict: body }),
+    ...reportResults];
   }
-  let reportResults;
-  try {
-    reportResults = endReports(root, io.plugin);
-  } catch (error) {
-    if (!(error instanceof Missing)) throw error;
-    reportResults = [{ line: error.message,
-      point: 'The run cannot read the records of its report checks.' }];
-  }
-  const found = [...pointResults, ...endDrafts(root, io.home, types), ...reportResults];
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;
@@ -274,22 +344,24 @@ function end(io, folder) {
       `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
   }
   // The points of a points.json of the run stay, each that passes the check of a point.
-  const { kept, mine, list } = endList(fs.existsSync(points) ? keptPoints(root, points, io) : [],
-    found);
+  const { kept, mine, list, left } = endList(
+    fs.existsSync(points) ? keptPoints(root, points, io) : [], found);
   writeJson(points, list);
-  return { status: 0, findings, last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
+  // The points left out come first, so that the limit of lines in the output keeps them.
+  return { status: 0, findings: [...left.map(leftLine), ...findings],
+    last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
     `${END_TRIES}, so the run ends: ${kept.length ? 'added' : 'wrote'} ` +
     `${plural(mine.length, 'point')} to points.json, and ${verdict(io, points)}` };
 }
 
 // The usage of end --offline, on two lines.
 const OFFLINE_USAGE = 'end --offline --artifacts <dir> --store <dir> --verdict <file> ' +
-  '--out <dir>\n       --run <id> [--continues <id>[,<id>...]] [--suite <file>]';
+  '--out <dir>\n       --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]';
 
 module.exports = {
   verbs: {
     end: {
-      usage: ['end <folder>', OFFLINE_USAGE],
+      usage: ['end <folder> [--inputs <file>]', OFFLINE_USAGE],
       args(io, what, rest) {
         if (what === '--offline') return offlineArgs(rest).wrong || null;
         return !what || rest.length ? 'Give end one artifact folder.' : null;

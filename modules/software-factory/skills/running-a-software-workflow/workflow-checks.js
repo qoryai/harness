@@ -7,10 +7,12 @@
 // spec and its criteria; and the rules of the build ledger, in lib/ledger.js, which the verbs
 // step and resume of the checks script apply.
 //
-//   workflow-checks.js push <type> <file>...   the form that `qory artifact push` runs
+//   workflow-checks.js push <type> [--inputs <file>] <file>...   the form that `qory
+//                                                                 artifact push` runs
 //
 // runs `checks.js push` of running-a-workflow, beside this skill's folder or in the module
-// core beside this module, with the same arguments.
+// core beside this module, with the same arguments, --inputs and the path of the run's
+// inputs.json included.
 //
 // check proposal counts the words of proposal.md with the reason of each decided question:
 // in questions.json at the top of the artifact folder, else in the newest questions version.
@@ -20,6 +22,9 @@
 // The reviewers are proposal-reviewer for proposal, spec-reviewer for spec and
 // acceptance-criteria, decision-reviewer for decision-record and scenario-reviewer for
 // demo-scenarios.
+//
+// It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
+// suite, scope, freeze, diff and probe, each in verbs/.
 'use strict';
 
 const fs = require('node:fs');
@@ -43,12 +48,21 @@ const BUILD_AND_VERIFY = [
 // library of the checks script that loads this file.
 function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
+  Object.assign(lib, require('./lib/extensions.js')(lib));
+  Object.assign(lib, require('./lib/short-path.js')(lib));
+  Object.assign(lib, require('./lib/track-record.js')(lib));
   const spec = require('./types/spec.js')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
   const scenarios = require('./types/demo-scenarios.js')(lib);
   Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
   Object.assign(lib, require('./lib/build.js')(lib));
+  Object.assign(lib, require('./lib/plan.js')(lib));
   return {
+    verbs: {
+      ...require('./verbs/run.js')(lib), ...require('./verbs/suite.js')(lib),
+      ...require('./verbs/scope.js')(lib),
+      ...require('./verbs/diff.js')(lib), ...require('./verbs/probe.js')(lib),
+    },
     types: [
       require('./types/proposal.js')(lib),
       ...spec.types,
@@ -58,6 +72,17 @@ function workflowChecks(core) {
     ],
     stops: STOPS,
     ledger: require('./lib/ledger.js')(lib),
+    // The record of the track at the end of a report of proposal-reviewer, which the report
+    // check reads for an agent whose Expected output has the line "Track read:".
+    records: [{
+      heading: lib.TRACK_READ,
+      fields: ['Track review:'],
+      what: 'the record of the track',
+      check: (text) => lib.trackRecordOf(text).error || null,
+    }],
+    // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
+    // checks of a point and a question read.
+    ids: ['ac', 'd', 'step', 'scenario', 'decision'],
   };
 }
 

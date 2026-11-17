@@ -6,14 +6,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  Missing, NAME, isObject, parseJson, quote, readFile, sha256, writeJson,
+  Missing, NAME, isObject, parseJson, quote, readFile, sha256, withLock, writeJson,
 } = require('./base.js');
 const { FINDING_FIELD, changeLines } = require('./findings.js');
 const { fence, lines, sections } = require('./markdown.js');
-const { pointText } = require('../types/points.js');
+const { pointRules, pointText } = require('../types/points.js');
 
 // The "Blocked:" line that
-// running-a-workflow (SKILL.md:147-149: "One that starts with `needs <type>`") lists by its
+// running-a-workflow (SKILL.md:155-157: "One that starts with `needs <type>`") lists by its
 // start. A module adds the lines of its skills as the stops of its workflow-checks.js. Any
 // other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [/^needs (?!a\b)[a-z0-9-]+\.?$/];
@@ -63,10 +63,15 @@ function readPart(file, title, what) {
 // of the section of a skill that it names, such as "The report" of `reviewing-drafts`. It
 // returns the words of the last line, the list headings, the lines such as "Direction:",
 // the lists that may be left out, per last word the lists that it leaves out, the lists that
-// may not be "- none", the most characters of a list's lines, and whether a finding of the
-// shape has an indented "Point:" line and an indented "Proof:" line. The agent
-// and the skill are read from the first of folders that has them, else from plugin.
-function expected(plugin, agent, folders = [plugin]) {
+// may not be "- none", the most characters of a list's lines, whether a finding of the shape
+// has an indented "Point:" line and an indented "Proof:" line, and the records of records
+// whose heading the shape has. records are those of the registry, each { heading, fields,
+// what, check(text) }, which a module adds: check returns why the report breaks the record,
+// or null, and fields, which may be left out, lists the lines of the record that check covers,
+// so that no other check of the report looks for them. The agent and the skill are read from
+// the first of folders that has them, else from plugin.
+function expected(plugin, agent, folders = [plugin], records = []) {
+  const markers = records.map((one) => one.heading);
   const find = (part) => folders.map((folder) => path.join(folder, part))
     .find((file) => fs.existsSync(file)) || path.join(plugin, part);
   const file = find(path.join('agents', `${agent}.md`));
@@ -135,11 +140,17 @@ function expected(plugin, agent, folders = [plugin]) {
       within.set(heading, Number(most.replace(/,/g, '')));
     }
   }
+  // The lines that a record covers, of the records that this agent's Expected output has
+  // the heading of: its check reports what is missing, so no other check looks for them.
+  const ours = records.filter((one) => shape.includes(one.heading));
+  const covered = ours.flatMap((one) => one.fields || []);
   return {
     words,
-    lists: shape.filter((line) => HEADING.test(line)),
+    // A record that a module adds is a heading with a code block, no list.
+    lists: shape.filter((line) => HEADING.test(line) && !markers.includes(line)),
+    records: ours,
     fields: shape.map((line) => FIELD.exec(line)).filter(Boolean).map((match) => match[1])
-      .filter((field) => field !== 'Blocked:' && !optional.has(field)),
+      .filter((field) => field !== 'Blocked:' && !optional.has(field) && !covered.includes(field)),
     optional,
     leftOut,
     filled,
@@ -187,7 +198,7 @@ function findingItems(all, shape) {
 // pointLines checks that each finding of all has one "Point:" line outside a code block,
 // which passes the rules of the text of a point, as pointText checks them, on one line.
 // reviewing-drafts (SKILL.md:108-115: "Point: one sentence that a member reads") lists them.
-function pointLines(all, shape, agent, agents) {
+function pointLines(all, shape, agent, agents, rules) {
   const findings = [];
   const sink = { find: (line) => findings.push(line), did: () => {} };
   findingItems(all, shape).forEach((item, place) => {
@@ -215,7 +226,7 @@ function pointLines(all, shape, agent, agents) {
     const text = item[at[0]].text.replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
     pointText(sink, text, { subject: `the "Point:" line of ${which}`,
       file: `the report of ${agent}`, where: `the "Point:" line of finding ${place + 1}`,
-      linked: 'the run links the point to its question' }, agents);
+      linked: 'the run links the point to its question' }, agents, rules);
   });
   return findings;
 }
@@ -252,9 +263,10 @@ function listLines(list, at, heading, agent, shape) {
 // the last word, such as a list of sources, are no finding: the lists, fields and "Blocked:"
 // lines of the whole text are checked, those lines included; for a blocked report, only its
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
-// checks against agents, the agent names. When shape has a "Proof:" line or a list
-// "Closed:", changeLines checks the proofs, severities, judgements and closures.
-function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
+// checks against agents, the agent names, and the rules that pointRules reads from registry,
+// the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines checks the
+// proofs, severities, judgements and closures.
+function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {}) {
   const findings = [];
   const all = lines(text);
   while (all.length && !all[all.length - 1].text.trim()) all.pop();
@@ -315,11 +327,28 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = []) {
     }
   }
   if (shape.point && !absent.has('Findings:')) {
-    findings.push(...pointLines(all, shape, agent, agents));
+    findings.push(...pointLines(all, shape, agent, agents, pointRules(registry)));
   }
   if (shape.proof || shape.lists.includes('Closed:')) {
     const items = absent.has('Findings:') ? [] : findingItems(all, shape);
     findings.push(...changeLines(all, shape, agent, items, last));
+  }
+  for (const one of shape.records || []) {
+    const error = one.check(text);
+    if (error) {
+      // The cause goes on lines of at most 120 characters, so that no line is cut.
+      const cause = [];
+      const words = (`The report is that of ${agent}. Its Expected output lists the record, ` +
+        `and the report has ${error}.`).split(' ');
+      for (const word of words) {
+        if (cause.length && cause[cause.length - 1].length + word.length < 120) {
+          cause[cause.length - 1] += ` ${word}`;
+        } else {
+          cause.push(word);
+        }
+      }
+      findings.push(`End the report with ${one.what}, then its last word.\n${cause.join('\n')}`);
+    }
   }
   return findings;
 }
@@ -345,14 +374,20 @@ function results(root) {
 // record adds the result of the report check of file to .reports/results.json of root, and
 // returns how many checks of agent failed in a row, this one included. A check of the same
 // bytes as the newest entry of file, as the same agent, adds no entry, so that it counts no fix.
-function record(root, agent, file, text, passed) {
-  const list = results(root);
-  const entry = { file: path.basename(file), agent, sha256: sha256(text), passed };
-  const newest = list.findLast((one) => one.file === entry.file);
-  if (!newest || newest.agent !== agent || newest.sha256 !== entry.sha256) {
-    list.push(entry);
-    writeJson(path.join(root, '.reports', 'results.json'), { reports: list });
-  }
+// It reads and writes results.json under the lock results.json.lock, as withLock takes it, so
+// that reports checked at once lose no entry.
+function record(io, root, agent, file, text, passed) {
+  const store = path.join(root, '.reports', 'results.json');
+  const list = withLock(io, store, 'report', () => {
+    const all = results(root);
+    const entry = { file: path.basename(file), agent, sha256: sha256(text), passed };
+    const newest = all.findLast((one) => one.file === entry.file);
+    if (!newest || newest.agent !== agent || newest.sha256 !== entry.sha256) {
+      all.push(entry);
+      writeJson(store, { reports: all });
+    }
+    return all;
+  });
   let failed = 0;
   for (const one of list.filter((entry) => entry.agent === agent).reverse()) {
     if (one.passed) break;
