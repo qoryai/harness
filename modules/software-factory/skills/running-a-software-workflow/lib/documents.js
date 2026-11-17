@@ -3,7 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { characters, links, machinePaths } = lib;
+  const { characters, links, machinePaths, short } = lib;
 
   // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
   // writing-proposals (SKILL.md:200-201, 334-337, 383-384: "Never write a path of the machine").
@@ -17,8 +17,8 @@ module.exports = (lib) => {
     run.did('paths');
     const at = where ? `${where} of ${file}` : file;
     if (text.includes('.qory/repositories')) {
-      run.find(`Remove .qory/repositories from ${at}: write the folder's name, a colon and the ` +
-        `path.`);
+      run.find(`Remove .qory/repositories from ${short(at)}.\nIn ${at}, write the folder's ` +
+        'name, a colon and the path.');
     }
     machinePaths(run, at, text, (found) => found.startsWith('.qory/repositories'));
   }
@@ -55,17 +55,17 @@ module.exports = (lib) => {
     for (const [id, item] of before) {
       const kept = now.get(id);
       if (!kept) {
-        run.find(`Keep ${id} in ${file}, marked removed if it no longer applies: version ` +
+        run.find(`Keep ${id} in ${file}, marked removed if it no longer applies.\nVersion ` +
           `${previous.number} has it.`);
       } else if (item.removed && !kept.removed) {
-        run.find(`Keep ${id} removed in ${file}: version ${previous.number} removed it, so its ` +
-          `number is never used again.`);
+        run.find(`Keep ${id} removed in ${file}.\nVersion ${previous.number} removed it, so its ` +
+          'number is never used again.');
       }
     }
     for (const id of now.keys()) {
       if (!before.has(id) && number(id) <= highest) {
-        run.find(`Give the new ${kind} ${id} in ${file} a number above ${highest}, the ` +
-          `highest of version ${previous.number}.`);
+        run.find(`Give the new ${kind} ${id} in ${file} a number above ${highest}.\nThe ` +
+          `highest number of version ${previous.number} is ${highest}.`);
       }
     }
   }

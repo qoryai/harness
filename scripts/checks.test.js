@@ -927,7 +927,7 @@ test('scenarios: an empty newest version whose note lists no id', () => {
     emptyVersion(kept, note);
     write(kept, 'demo-scenarios.md', SCENARIOS);
     fails(push(kept, 'demo-scenarios'),
-      /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+      /^Keep scenario-1 removed in demo-scenarios.md\. Version 1 removed it/);
     // With no version that has scenarios, the push fails until the pull brings one.
     const lost = withScenarios();
     emptyVersion(lost, note);
@@ -960,7 +960,7 @@ test('scenarios: an empty newest version skips a cancelled version with scenario
   emptyVersion(root, undefined, 'main', 3);
   write(root, 'demo-scenarios.md', SCENARIOS);
   const result = push(root, 'demo-scenarios');
-  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md\. Version 1 removed it/);
   assert.ok(!result.lines.some((line) => /scenario-[34]|version 2/.test(line)), result.out);
 });
 
@@ -986,8 +986,8 @@ test('scenarios: an empty newest version with no index.json reads each older ver
   fs.rmSync(path.join(root, 'index.json'));
   write(root, 'demo-scenarios.md', SCENARIOS);
   const result = push(root, 'demo-scenarios');
-  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
-  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 1 removed it/);
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md\. Version 1 removed it/);
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md\. Version 1 removed it/);
 });
 
 test('scenarios: the ids of an empty version are read from a note of one line', () => {
@@ -1003,7 +1003,7 @@ test('scenarios: the ids of an empty version are read from a note of one line', 
     '### scenario-1: Read the new hours\n\nRemoved, because it is checked by tests.\n\n');
   write(root, 'demo-scenarios.md', text);
   const result = push(root, 'demo-scenarios');
-  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 2 removed it/);
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md\. Version 2 removed it/);
   assert.ok(!result.lines.some((line) => line.startsWith('Pull the artifacts again')), result.out);
 });
 
@@ -1017,7 +1017,7 @@ test('scenarios: the note of an empty version is read for the name of its folder
   fs.rmSync(dir, { recursive: true });
   write(root, 'demo-scenarios.md', SCENARIOS);
   fails(push(root, 'demo-scenarios'),
-    /^Keep scenario-1 removed in demo-scenarios.md: version 2 removed it/);
+    /^Keep scenario-1 removed in demo-scenarios.md\. Version 2 removed it/);
 });
 
 test('scenarios: a rework that removes every scenario pushes the empty file', () => {
@@ -1046,7 +1046,7 @@ test('scenarios: after an empty version, the ids in its note stay removed and ar
   const reused = withScenarios();
   emptyVersion(reused, note(['scenario-1', 'scenario-2']));
   write(reused, 'demo-scenarios.md', SCENARIOS);
-  fails(push(reused, 'demo-scenarios'), /^Keep scenario-1 removed in demo-scenarios.md: version 2 removed it/);
+  fails(push(reused, 'demo-scenarios'), /^Keep scenario-1 removed in demo-scenarios.md\. Version 2 removed it/);
   const renumbered = SCENARIOS.replace('### scenario-2:', '### scenario-4:')
     .replace('### scenario-1:', '### scenario-3:');
   const kept = renumbered.replace('### scenario-3:', '### scenario-1: Read the hours\n\n' +
@@ -1062,7 +1062,7 @@ test('scenarios: after an empty version, the ids in its note stay removed and ar
     .replace('### scenario-2: Read the day', '### scenario-3: Read the day')
     .replace(/### scenario-3:(?! Read the day)/, '### scenario-2:'));
   fails(push(gap, 'demo-scenarios'),
-    /^Give the new scenario scenario-2 in demo-scenarios.md a number above 3, the highest of version 2/);
+    /^Give the new scenario scenario-2 in demo-scenarios.md a number above 3\. The highest number of version 2 is 3\./);
 });
 
 test('decision record: each decision has its items in order, and its id in the heading', () => {
@@ -1552,7 +1552,7 @@ test('criteria: no id renumbered or reused against the newest version', () => {
   const root = fixture();
   const top = fs.readFileSync(path.join(root, 'acceptance-criteria.md'), 'utf8');
   fs.writeFileSync(path.join(root, 'acceptance-criteria.md'), top.replace(/\| ac-4 .*\n?/, ''));
-  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 in acceptance-criteria.md.*version 1 has it/);
+  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 in acceptance-criteria.md.*Version 1 has it/);
   const reused = fixture();
   version(reused, 'acceptance-criteria', 2, 'acceptance-criteria.md',
     top.replace(/\| ac-4 .*/, '| ac-4 | Removed, because it ended. | None |\n| ac-6 | Removed, because it ended. | None |'));
@@ -1560,7 +1560,7 @@ test('criteria: no id renumbered or reused against the newest version', () => {
   const draft = `${top.trimEnd()}\n| ac-5 | The reply states the hours. | Tests |\n| ac-6 | Removed, because it ended. | None |\n`;
   fs.writeFileSync(path.join(reused, 'acceptance-criteria.md'), draft);
   const result = push(reused, 'acceptance-criteria');
-  fails(result, /^Keep ac-4 removed in acceptance-criteria.md: version 2 removed it/);
+  fails(result, /^Keep ac-4 removed in acceptance-criteria.md\. Version 2 removed it/);
   fails(result, /^Give the new criterion ac-5 in acceptance-criteria.md a number above 6/);
 });
 
@@ -1591,7 +1591,7 @@ test('decision record: no id renumbered or reused against the newest version', (
   version(root, 'decision-record', 3, 'decision-record.md', text);
   withdrawIn(root, 'decision-record', 3, false);
   write(root, 'decision-record.md', text.replace('`decision-1`', '`decision-2`'));
-  fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*version 3 has it/);
+  fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*Version 3 has it/);
 });
 
 // withdrawIn lists version number of type in index.json of root as a withdrawal of main, as
@@ -1611,11 +1611,11 @@ function withdrawIn(root, type, number, withdraw = true) {
 test('ids: a withdrawal and a new push drop no id of the version before it', () => {
   for (const [type, file, from, to, finding] of [
     ['acceptance-criteria', 'acceptance-criteria.md', /\| ac-4 .*\n?/, '',
-      /^Keep ac-4 in acceptance-criteria.md.*version 1 has it/],
+      /^Keep ac-4 in acceptance-criteria.md.*Version 1 has it/],
     ['decision-record', 'decision-record.md', '`decision-1`', '`decision-2`',
-      /^Keep decision-1 in decision-record.md.*version 1 has it/],
+      /^Keep decision-1 in decision-record.md.*Version 1 has it/],
     ['demo-scenarios', 'demo-scenarios.md', '### scenario-2:', '### scenario-3:',
-      /^Keep scenario-2 in demo-scenarios.md.*version 1 has it/],
+      /^Keep scenario-2 in demo-scenarios.md.*Version 1 has it/],
   ]) {
     const root = fixture();
     const text = fs.readFileSync(path.join(root, file), 'utf8');
@@ -1643,7 +1643,7 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     version(again, type, 3, file, text);
     withdrawIn(again, type, 3, false);
     write(again, file, text.replace(from, to));
-    fails(push(again, type), new RegExp(finding.source.replace('version 1', 'version 3')));
+    fails(push(again, type), new RegExp(finding.source.replace('Version 1', 'Version 3')));
   }
 });
 

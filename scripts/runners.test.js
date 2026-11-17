@@ -666,7 +666,8 @@ test('scope: wrong arguments exit 2, an unknown deliverable or a bad Files cell 
   const bad = checkout(PLAN().replace('`src/a.js`, `lib/`', '`../a.js`'));
   const got = call(bad, ['scope', 'deliverable:d-1']);
   assert.equal(got.status, 3);
-  assert.equal(got.lines[0], 'Fix the Files of d-1 in the build plan, then push it: "../a.js" is no path in the checkout.');
+  assert.deepEqual(got.lines.slice(0, 2), ['Fix the Files of d-1 in the build plan, then push it.',
+    '  In the Files of d-1, "../a.js" is no path in the checkout.']);
 });
 
 // ---- freeze ------------------------------------------------------------------------------

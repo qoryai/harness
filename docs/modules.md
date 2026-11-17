@@ -1508,25 +1508,26 @@ Markdown types get "Write the build plan after a person approves the acceptance 
 with the verification or the explainer in place of the build plan, and the lock gets its
 line below. When `index.json` lists a version above the target, the push gets that version
 in place of the target, and a check and a push of each of the four types get one finding,
-such as "Ask a member to upload the acceptance criteria they accept as a new version, then
-push the build plan again: the run stored version 2 after the approved version 1.", with
-the verification or the explainer in place of the build plan, and "then lock that version"
-for the lock. When the writer of that version is not of kind `run`, the reason is
-"no member uploaded the newer criteria version 2". Two criteria versions of
-one number in `index.json` exit 3 with "Run `qory artifact pull`, then check the build plan
-again.", with the verification, the explainer or the lock in place of the build plan, and
-so does the check of a Markdown type with no `index.json`. A push store with no file of the
-target gets "Store the acceptance criteria before you push the build plan: the push check
-found no version of them." A check whose artifact folder has no file of the target gets the
-finding to pull that version. The words of a criterion are its first sentence in that
-version; as the check of the criteria counts sentences, a sentence goes on after `e.g.` and
-`i.e.`. A text in quotes beside the id may end with one `.`, `!` or `?` after the words. A
-quote ends after the criterion's words, so a quote inside them, as in
-`The "Export" button`, stays in them. The comparison ignores backticks and runs of spaces.
-Its finding starts with the fix and gives the words, such as "Quote AC-2 in d-1 of
-build-plan.md as its first sentence: ..."; when that line would have more than 200
-characters, the finding is "Copy the first sentence of AC-2 in the criteria into d-1 of
-build-plan.md." Beyond the schema, the checks find:
+such as "Ask a member to upload the acceptance criteria they accept as a new version." with
+the line "Then push the build plan again: the run stored version 2 after the approved
+version 1." after it, with the verification or the explainer in place of the build plan,
+and "Then lock that version" for the lock. When the writer of that version is not of kind
+`run`, the reason is "no member uploaded the newer criteria version 2". Two criteria
+versions of one number in `index.json` exit 3 with "Run `qory artifact pull`, then check
+the build plan again.", with the verification, the explainer or the lock in place of the
+build plan, and so does the check of a Markdown type with no `index.json`. A push store
+with no file of the target gets "Store the acceptance criteria before you push the build
+plan." with the line "The push check found no version of them." after it. A check whose
+artifact folder has no file of the target gets the finding to pull that version. The
+words of a criterion are its first sentence in that version; as the check of the criteria
+counts sentences, a sentence goes on after `e.g.` and `i.e.`. A text in quotes beside the
+id may end with one `.`, `!` or `?` after the words. A quote ends after the criterion's
+words, so a quote inside them, as in `The "Export" button`, stays in them. The comparison
+ignores backticks and runs of spaces. Its finding starts with the fix, such as "Quote AC-2
+in d-1 of build-plan.md as its first sentence.", and gives the words on the line after it,
+"The first sentence of AC-2 is "..."."; when that line would have more than 200 characters,
+it is "Copy the first sentence from AC-2 in the criteria." Beyond the schema, the checks
+find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
