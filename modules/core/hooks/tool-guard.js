@@ -867,9 +867,11 @@ function walk(parts, start, flags) {
   }
 }
 
-// A here-document operator: group 1 is - for <<-, group 2 the word of a quoted end, as in
-// <<'EOF', <<"EOF" or <<\EOF, and group 3 the word of an unquoted end, as in <<EOF.
-const HEREDOC = /<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\([^\s;&|<>()'"]+)|([^\s;&|<>()'"]+))/y;
+// A here-document operator: group 1 is - for <<-, and group 2 the end word as the call has
+// it, a run of quoted texts, escaped characters and other characters, as in <<EOF, <<'EOF',
+// <<\E\OF or <<"E"'OF'. The shell ends the body at the word after quote removal, and reads
+// the body as text when any part of the word is quoted.
+const HEREDOC = /<<(-?)[ \t]*((?:'[^'\n]*'|"(?:[^"\\\n]|\\.)*"|\\.|[^\s;&|<>()'"\\])+)/y;
 // The commands whose input is text that they copy to a file or to their output, as in
 // `cat > a.ts <<'EOF'`, and apply_patch, whose input is a patch whose files patchPaths reads.
 const READERS = new Set(['cat', 'tee', 'apply_patch']);
@@ -999,8 +1001,8 @@ function heredocs() {
         HEREDOC.lastIndex = at;
         const match = HEREDOC.exec(line);
         if (match) {
-          const quoted = match[2] || match[3] || match[4];
-          found.push({ end: quoted || match[5], dash: match[1] === '-', quoted: Boolean(quoted) });
+          found.push({ end: unquote(match[2]), dash: match[1] === '-',
+            quoted: /['"\\]/.test(match[2]) });
           text += ' ';
           at = HEREDOC.lastIndex - 1;
         } else {
@@ -1563,9 +1565,9 @@ const SED_READS = /^(?:[\d,$]*[pdq=]?|\/[^/]*\/[pd]?|s(.)(?:(?!\1).)*\1(?:(?!\1)
 // opaque reports whether segment, a simple command, can write files that the guard does not
 // read: it is no write that the guard reads, and no command of READ_ONLY with only the
 // options that readsOnly allows, with a subcommand of SUB_WRITERS, which subWrites reads, or
-// of SHAPES, after the words of CONDITIONS. A shell with -c and a quoted text, which commands reads, is not
-// opaque, and sed is not with scripts that SED_READS matches. find is opaque when a command
-// of its -exec is.
+// of SHAPES, after the words of CONDITIONS. A shell with -c and a quoted text, which
+// commands reads, is not opaque, and sed is not with scripts that SED_READS matches. find is
+// opaque when a command of its -exec is.
 function opaque(segment) {
   if (segmentWrites(segment)) return false;
   const words = plainWords(segment.words);

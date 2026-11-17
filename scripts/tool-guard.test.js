@@ -1474,7 +1474,8 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
   for (const command of [`cat > notes.md <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
     `cat > notes.md <<"EOF"\nrm ${CHECK_PATH}\nEOF`,
     `cat > notes.md <<\\EOF\nrm ${CHECK_PATH}\nEOF`,
-    `cat > notes.md <<-'EOF'\n\trm ${CHECK_PATH}\n\tEOF`]) {
+    `cat > notes.md <<-'EOF'\n\trm ${CHECK_PATH}\n\tEOF`,
+    `cat > notes.md <<\\E\\OF\nrm ${CHECK_PATH}\nEOF`, `cat > notes.md <<"E"'OF'\nx\nEOF`]) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
   for (const command of [`bash <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
@@ -1488,6 +1489,10 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     `echo '\ncat > a <<"X"'\nrm ${CHECK_PATH}\nX`, `echo a \\\ncat > a <<'X'\nrm ${CHECK_PATH}\nX`,
     `cat > a <<'X' "b\nc"\nrm ${CHECK_PATH}\nX`, `cat "$(cat "<<'X'")"\nrm ${CHECK_PATH}\nX`,
     `cat $'\\'<<"X"' > a\nrm ${CHECK_PATH}\nX`,
+    // The shell ends a body at its end word after quote removal: EOF for <<\E\OF.
+    `cat > a <<\\E\\OF\nEOF\nrm ${CHECK_PATH}\nE\\OF`,
+    `cat > a <<"E"'OF'\nEOF\nrm ${CHECK_PATH}\nE"OF`,
+    `cat > a <<E"OF"\nEOF\nrm ${CHECK_PATH}\nE"OF"`,
     // In $(( ... )), << is a shift; a variable setting can make cat another program.
     `echo $((true<<2)); cat <<'EOF' >/dev/null\n2\nrm -f ${CHECK_PATH}\nEOF`,
     `((x = 1<<2)); cat <<'EOF' >/dev/null\n2\nrm -f ${CHECK_PATH}\nEOF`,
