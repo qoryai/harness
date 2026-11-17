@@ -6,6 +6,9 @@
 //   0x10 and 16, or 'a' and "a", differ. A comment that a tool reads (noqa, type:, pragma,
 //   pylint:, and the like), a shebang on line 1 and a coding line on line 1 or 2 are
 //   directives: the proof compares their text too.
+//   In text mode the program masks a string only when it sits itself in a display position that
+//   lib/display-positions.js reads from short-path.json (the message of print, logging.*, or of
+//   a raise of an *Error or *Exception, the default text of t) and the deny list finds it plain.
 // - Shell: bash reads the file as the body of a function and `declare -f` prints that body
 //   from its parse tree, which has no comments. Nothing of the file runs. The shell is
 //   restricted (-r), has an empty PATH and an empty working folder, and a DEBUG trap with
@@ -29,6 +32,7 @@ const path = require('node:path');
 
 const { layout, shellComments } = require('./layout.js');
 const { PATTERNS, IGNORABLE_PYTHON } = require('./text-deny.js');
+const { positions } = require('./display-positions.js');
 
 // The absolute paths of the interpreters. Only the tests change them, in the test process.
 const TOOLS = { bash: '/bin/bash', python: '/usr/bin/python3' };
@@ -120,104 +124,79 @@ def fail(reason):
 data = sys.stdin.buffer.read()
 
 ${PY_DENY}
-ARGUMENT_CALLS = re.compile(
-    r"^(?:eval|exec|compile|system|popen|spawn|call|check_call|check_output|run|Popen|"
-    r"getoutput|getstatusoutput|query|execute|executemany|executescript|fetch|fetchone|"
-    r"__import__|import_module|getattr|setattr|hasattr|delattr|open|get|pop|setdefault|"
-    r"has_key|index|count|find|rfind|startswith|endswith|match|fullmatch|search|sub|subn|"
-    r"findall|finditer|split|select|select_one|find_element|find_elements|find_all|xpath|css|"
-    r"locator|query_selector|query_selector_all|get_by_\w+|wait_for_selector|redirect|"
-    r"url_for|reverse|render_template|send_file|send_from_directory|loads|load|Template|"
-    r"literal_eval|environ|getenv|putenv|connect|request|urlopen|post|put|patch|delete|head)$")
-RECEIVER_CALLS = re.compile(r"^(?:startswith|endswith|find|rfind|index|count|join|match)$")
+# The display positions of lib/display-positions.js, for Python: argv[4] as JSON.
+POSITIONS = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
+OUTPUT_CALLS = POSITIONS.get("output_calls", {})
+ERROR_CALLS = POSITIONS.get("error_calls", {})
+I18N_CALLS = POSITIONS.get("i18n_calls", {})
 
-MATCH = getattr(ast, "Match", ())
+def name_matches(pattern, name):
+    """The forms of a name in lib/display-positions.js: a name, "a.*" and "*Error"."""
+    if pattern.startswith("*"):
+        last = name.split(".")[-1]
+        return re.match("[A-Z]", last) is not None and last.endswith(pattern[1:])
+    if pattern.endswith(".*"):
+        rest = name[len(pattern) - 1:]
+        return name.startswith(pattern[:-1]) and rest != "" and "." not in rest
+    return name == pattern
 
-def call_name(call):
-    func = call.func
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
+def argument_of(table, name):
+    """The index of the text argument of the callee name, by the first pattern that matches."""
+    for pattern, index in table.items():
+        if name_matches(pattern, name):
+            return index
     return None
 
-class Keep(ast.NodeVisitor):
-    """Marks the strings that are no text for a person. A string is no text by its place:
-    a docstring, a key, a subscript, a format specification, a comparison, a match pattern, a
-    type, a name of an import or an attribute, an argument of a command, a lookup or a selector.
-    Its content decides too: a link, markup, a template, SQL, shell syntax or a path (DENY)."""
+def dotted(node):
+    """The name of a callee written as names joined by dots, or None."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = dotted(node.value)
+        return None if base is None else base + "." + node.attr
+    return None
+
+class Display(ast.NodeVisitor):
+    """Collects the strings that are text for a person: a string that is itself the text argument
+    of an output call, of a translation call, or of an error constructor in a raise statement,
+    by the positions above. A string bound to a name first, a concatenation, an f-string, a
+    docstring, a key and the rest are code. The deny list applies too: a string with a link,
+    markup, a template, SQL, shell syntax or a path is code (DENY)."""
     def __init__(self):
-        self.kept = set()
-    def mark(self, node):
-        for child in ast.walk(node):
-            if isinstance(child, ast.Constant):
-                self.kept.add(id(child))
-    def visit(self, node):
-        body = getattr(node, "body", None)
-        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) \
-                and isinstance(body, list) and body and isinstance(body[0], ast.Expr) \
-                and isinstance(body[0].value, ast.Constant):
-            self.mark(body[0].value)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and denied(node.value):
-            self.kept.add(id(node))
-        if isinstance(node, ast.Dict):
-            for key in node.keys:
-                if key is not None:
-                    self.mark(key)
-        elif isinstance(node, ast.Subscript):
-            self.mark(node.slice)
-        elif isinstance(node, ast.FormattedValue) and node.format_spec is not None:
-            self.mark(node.format_spec)
-        elif isinstance(node, ast.Compare):
-            for operand in [node.left] + node.comparators:
-                self.mark(operand)
-        elif isinstance(node, MATCH):
-            for case in node.cases:
-                self.mark(case.pattern)
-                if case.guard is not None:
-                    self.mark(case.guard)
-        elif isinstance(node, ast.arg) and node.annotation is not None:
-            self.mark(node.annotation)
-        elif isinstance(node, ast.AnnAssign):
-            self.mark(node.annotation)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns is not None:
-            self.mark(node.returns)
-        elif isinstance(node, ast.Call):
-            name = call_name(node)
-            if name and ARGUMENT_CALLS.search(name):
-                for arg in node.args:
-                    self.mark(arg)
-                for keyword in node.keywords:
-                    self.mark(keyword.value)
-            if name and RECEIVER_CALLS.search(name) and isinstance(node.func, ast.Attribute):
-                self.mark(node.func.value)
-            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) \
-                    and node.func.value.id in ("subprocess", "os", "re", "shlex", "sqlite3"):
-                for arg in node.args:
-                    self.mark(arg)
-                for keyword in node.keywords:
-                    self.mark(keyword.value)
-        elif isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets):
-            self.mark(node.value)
-        elif isinstance(node, ast.keyword) and node.arg in ("encoding", "mode", "name", "key"):
-            self.mark(node.value)
+        self.shown = set()
+    def take(self, call, table):
+        name = dotted(call.func)
+        index = None if name is None else argument_of(table, name)
+        if index is None or index >= len(call.args):
+            return
+        if any(isinstance(one, ast.Starred) for one in call.args[:index + 1]):
+            return
+        arg = call.args[index]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and not denied(arg.value):
+            self.shown.add(id(arg))
+    def visit_Call(self, node):
+        self.take(node, OUTPUT_CALLS)
+        self.take(node, I18N_CALLS)
+        self.generic_visit(node)
+    def visit_Raise(self, node):
+        if isinstance(node.exc, ast.Call):
+            self.take(node.exc, ERROR_CALLS)
         self.generic_visit(node)
 
 class Mask(ast.NodeTransformer):
-    def __init__(self, kept):
-        self.kept = kept
+    def __init__(self, shown):
+        self.shown = shown
     def visit_Constant(self, node):
-        if isinstance(node.value, str) and id(node) not in self.kept:
+        if isinstance(node.value, str) and id(node) in self.shown:
             return ast.copy_location(ast.Constant(value="STR"), node)
         return node
 
 try:
     tree = ast.parse(data)
     if MODE == "text":
-        keep = Keep()
-        keep.visit(tree)
-        tree = Mask(keep.kept).visit(tree)
+        display = Display()
+        display.visit(tree)
+        tree = Mask(display.shown).visit(tree)
     out = [ast.dump(tree, include_attributes=False, indent=1)]
     for n, line in enumerate(data.splitlines()[:2], 1):
         if (n == 1 and line.startswith(b"#!")) or PY_CODING.match(line):
@@ -352,7 +331,8 @@ module.exports = (lib) => {
     let ran;
     try {
       ran = spawn(Missing, TOOLS.python, ['-I', '-S', '-c', PY_DUMP, mode,
-        JSON.stringify(PATTERNS), IGNORABLE_PYTHON], bytes, folder, limit);
+        JSON.stringify(PATTERNS), IGNORABLE_PYTHON, JSON.stringify(positions().python)], bytes, folder,
+        limit);
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }

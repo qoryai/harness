@@ -308,26 +308,27 @@ test('a comment: two languages, comments only', { skip: NO_PARSERS || NO_PYTHON 
 // ---- text values -----------------------------------------------------------------------------
 
 const LABEL = "export const saveLabel = 'Save';\nexport const cancelLabel = 'Cancel';\n";
+const SHOWN = "console.log('Save');\nconsole.log('Cancel');\n";
 const BUTTON = 'export function Save() {\n  return <button title="Save" className="btn">Save</button>;\n}\n';
 
 // A SQL file has no text value proof: each SQL case below fails with the finding to propose the
 // standard track.
 const TEXT_CASES = [
-  ['a changed button label in a TypeScript file passes', { 'a.ts': LABEL }, { 'a.ts': r(LABEL, "'Save'", "'Save it'") }, 0],
+  ['a changed label in a constant fails: it is no display position', { 'a.ts': LABEL }, { 'a.ts': r(LABEL, "'Save'", "'Save it'") }, 1],
   ['a changed label in JSX text and in a title passes', { 'a.tsx': BUTTON }, { 'a.tsx': r(r(BUTTON, '>Save<', '>Save it<'), 'title="Save"', 'title="Save it"') }, 0],
   ['a changed string next to a changed identifier fails', { 'a.ts': LABEL }, { 'a.ts': r(LABEL, "saveLabel = 'Save'", "saveTitle = 'Save it'") }, 1],
   ['a changed identifier fails', { 'a.ts': LABEL }, { 'a.ts': r(LABEL, 'saveLabel', 'saveTitle') }, 1],
   ['a string and a comment together fail', { 'a.ts': LABEL }, { 'a.ts': `// note\n${r(LABEL, "'Save'", "'Save it'")}` }, 1],
   ['a changed import fails', { 'a.ts': "import a from './a';\nexport const x = a;\n" }, { 'a.ts': "import a from './b';\nexport const x = a;\n" }, 1],
   ['a changed key of an object fails', { 'a.ts': "export const o = { 'a': 'one' };\n" }, { 'a.ts': "export const o = { 'b': 'one' };\n" }, 1],
-  ['a changed value of an object passes', { 'a.ts': "export const o = { 'a': 'one' };\n" }, { 'a.ts': "export const o = { 'a': 'two' };\n" }, 0],
+  ['a changed value of an object fails: it is no display position', { 'a.ts': "export const o = { 'a': 'one' };\n" }, { 'a.ts': "export const o = { 'a': 'two' };\n" }, 1],
   ['a changed comparison fails', { 'a.ts': "export const f = (x: string) => x === 'admin';\n" }, { 'a.ts': "export const f = (x: string) => x === 'user';\n" }, 1],
   ['a changed use client directive fails', { 'a.tsx': "'use client';\nexport const x = 1;\n" }, { 'a.tsx': "'use server';\nexport const x = 1;\n" }, 1],
   ['a changed property access by string fails', { 'a.ts': "export const v = o['a'];\n" }, { 'a.ts': "export const v = o['b'];\n" }, 1],
   ['a changed test id attribute fails', { 'a.tsx': 'export const a = <i data-testid="x">y</i>;\n' }, { 'a.tsx': 'export const a = <i data-testid="z">y</i>;\n' }, 1],
   ['a changed class name attribute fails', { 'a.tsx': 'export const a = <i className="x">y</i>;\n' }, { 'a.tsx': 'export const a = <i className="z">y</i>;\n' }, 1],
   ['a changed tagged template fails', { 'a.ts': 'export const q = sql`select 1`;\n' }, { 'a.ts': 'export const q = sql`select 2`;\n' }, 1],
-  ['a changed template text with the same substitution passes', { 'a.ts': 'export const m = (n: string) => `Hello ${n}`;\n' }, { 'a.ts': 'export const m = (n: string) => `Hi ${n}`;\n' }, 0],
+  ['a changed template text with a substitution fails', { 'a.ts': 'export const m = (n: string) => `Hello ${n}`;\n' }, { 'a.ts': 'export const m = (n: string) => `Hi ${n}`;\n' }, 1],
   ['a changed substitution fails', { 'a.ts': 'export const m = (n: string, k: string) => `Hello ${n}`;\n' }, { 'a.ts': 'export const m = (n: string, k: string) => `Hello ${k}`;\n' }, 1],
   ['a changed number fails', { 'a.ts': 'export const n = 1;\n' }, { 'a.ts': 'export const n = 2;\n' }, 1],
   ['sql: a changed string constant has no proof', { 'a.sql': "SELECT 'a' AS label FROM t;\n" }, { 'a.sql': "SELECT 'b' AS label FROM t;\n" }, 1],
@@ -359,8 +360,8 @@ TEXT_CASES.push(
   tsCase('export const f = (k: string, o: object) => "a" in o;', 'export const f = (k: string, o: object) => "b" in o;'),
   // a case label
   tsCase('export function f(x: string) { switch (x) { case "a": return 1; default: return 2; } }', 'export function f(x: string) { switch (x) { case "b": return 1; default: return 2; } }'),
-  // the text that a case returns is text
-  tsCase('export function f(x: string) { switch (x) { case "a": return "One"; default: return "Two"; } }', 'export function f(x: string) { switch (x) { case "a": return "First"; default: return "Two"; } }', 0),
+  // the text that a case returns is no display position
+  tsCase('export function f(x: string) { switch (x) { case "a": return "One"; default: return "Two"; } }', 'export function f(x: string) { switch (x) { case "a": return "First"; default: return "Two"; } }'),
   // a type
   tsCase('export let x: "a" | "b" = "a";', 'export let x: "a" | "c" = "a";'),
   tsCase('export type K = "a" | "b";', 'export type K = "a" | "c";'),
@@ -392,25 +393,25 @@ TEXT_CASES.push(
   tsCase('page.locator("text=Save");', 'page.locator("text=Saved");'),
   ['ts: a test id', { 'a.tsx': 'export const A = <i data-testid="a">x</i>;\n' }, { 'a.tsx': 'export const A = <i data-testid="b">x</i>;\n' }, 1],
   // the content of a string
-  tsCase('export const a = "See https://a.example/x";', 'export const a = "See https://b.example/x";'),
-  tsCase('export const a = "See the page";', 'export const a = "See https://b.example/x";'),
-  tsCase('export const a = "<b>Save</b>";', 'export const a = "<b>Saved</b>";'),
-  tsCase('export const a = "Hello";', 'export const a = "Hello {{ name }}";'),
-  tsCase('export const a = "Hello";', 'export const a = "<%= name %>";'),
-  tsCase('export const a = "Hello";', 'export const a = "Hello ${name}";'),
-  tsCase('export const a = "select * from t";', 'export const a = "select * from u";'),
-  tsCase('export const a = "Hello";', 'export const a = "delete from users where id = 1";'),
-  tsCase('export const a = "ls";', 'export const a = "rm -rf /tmp/x";'),
-  tsCase('export const a = "Hello";', 'export const a = "echo a && echo b";'),
-  tsCase('export const a = "/etc/hosts";', 'export const a = "/etc/passwd";'),
-  tsCase('export const a = "Hello";', 'export const a = "../../etc/passwd";'),
+  tsCase('console.log("See https://a.example/x");', 'console.log("See https://b.example/x");'),
+  tsCase('console.log("See the page");', 'console.log("See https://b.example/x");'),
+  tsCase('console.log("<b>Save</b>");', 'console.log("<b>Saved</b>");'),
+  tsCase('console.log("Hello");', 'console.log("Hello {{ name }}");'),
+  tsCase('console.log("Hello");', 'console.log("<%= name %>");'),
+  tsCase('console.log("Hello");', 'console.log("Hello ${name}");'),
+  tsCase('console.log("select * from t");', 'console.log("select * from u");'),
+  tsCase('console.log("Hello");', 'console.log("delete from users where id = 1");'),
+  tsCase('console.log("ls");', 'console.log("rm -rf /tmp/x");'),
+  tsCase('console.log("Hello");', 'console.log("echo a && echo b");'),
+  tsCase('console.log("/etc/hosts");', 'console.log("/etc/passwd");'),
+  tsCase('console.log("Hello");', 'console.log("../../etc/passwd");'),
   // text for a person passes
-  tsCase('export const label = "Save";', 'export const label = "Save it";', 0),
+  tsCase('export const label = "Save";', 'export const label = "Save it";'),
   tsCase('console.log("Saved");', 'console.log("Saved.");', 0),
   tsCase('throw new Error("Failed");', 'throw new Error("Failed to save");', 0),
-  tsCase('alert("Saved");', 'alert("Saved the file");', 0),
-  tsCase('export const a = "Yes/No";', 'export const a = "Yes/No/Maybe";'),
-  tsCase('export const a = "Yes/No";', 'export const a = "Yes or No";', 0),
+  tsCase('alert("Saved");', 'alert("Saved the file");'),
+  tsCase('console.log("Yes/No");', 'console.log("Yes/No/Maybe");'),
+  tsCase('console.log("Yes/No");', 'console.log("Yes or No");', 0),
   ['ts: a JSX label and a title', { 'a.tsx': 'export const A = <b title="Save">Save</b>;\n' }, { 'a.tsx': 'export const A = <b title="Save it">Save it</b>;\n' }, 0],
 );
 
@@ -419,26 +420,26 @@ TEXT_CASES.push(
 for (const text of ['a; b', 'a | b', 'a & b', 'a > b', 'a < b', 'a`b', '$(x)', 'java\tscript:x',
   'vbscript:x', '__import__', 'bash -c x', 'evil.com', 'http://x', '10.0.0.1', '../x', 'f(x)',
   'a/../b', 'x.y.example']) {
-  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`));
+  TEXT_CASES.push(tsCase('console.log("Hello");', `console.log("${text}");`));
 }
 for (const text of ['Saved. Next', 'Hello, world.', 'Save (optional)', 'Item added.', 'Yes or no?',
   "It's done", 'Total: 5 items']) {
-  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`, 0));
+  TEXT_CASES.push(tsCase('console.log("Hello");', `console.log("${text}");`, 0));
 }
 
 // Other forms of a link and a command: a wide character, a scheme with a colon and no space, an
 // interpolation, a shebang, and a line break in a command line. A colon and a space is text.
 for (const text of ['\uff48\uff54\uff54\uff50\uff1a\uff0f\uff0fx', 'id:5', 'ab:c', 'file:x', '#{x}', '#!/bin/sh',
   'ls -la\\nfoo', 'foo\\nls -la', 'java\\nscript:x']) {
-  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`));
+  TEXT_CASES.push(tsCase('console.log("Hello");', `console.log("${text}");`));
 }
 // The ignorable code points and the ideographic full stops are no way past a host name.
 for (const text of ['evil\u200b.com', 'evil\u00ad.com', 'evil\u2060.com', 'evil\ufeff.com',
   'evil\u3002com', 'evil\uff61com', 'evil\u200d.com']) {
-  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`));
+  TEXT_CASES.push(tsCase('console.log("Hello");', `console.log("${text}");`));
 }
 for (const text of ['Total: 5 items', 'Note: saved', 'Note: the file is saved', 'Time 10:30']) {
-  TEXT_CASES.push(tsCase('export const a = "Hello";', `export const a = "${text}";`, 0));
+  TEXT_CASES.push(tsCase('console.log("Hello");', `console.log("${text}");`, 0));
 }
 
 // SQL files have no text value proof.
@@ -451,7 +452,8 @@ test('a text value in a SQL file has no proof', { skip: NO_PARSERS }, () => {
 cases(TEXT, TEXT_CASES);
 
 const PY_TEXT_CASES = [
-  ['python: a changed string passes', { 'a.py': 'LABEL = "Save"\n' }, { 'a.py': 'LABEL = "Save it"\n' }, 0],
+  ['python: a changed string in a constant fails', { 'a.py': 'LABEL = "Save"\n' }, { 'a.py': 'LABEL = "Save it"\n' }, 1],
+  ['python: a changed message of print passes', { 'a.py': 'print("Save")\n' }, { 'a.py': 'print("Save it")\n' }, 0],
   ['python: a changed docstring fails', { 'a.py': 'def f():\n    "doc"\n    return 1\n' }, { 'a.py': 'def f():\n    "other"\n    return 1\n' }, 1],
   ['python: a changed dict key fails', { 'a.py': 'D = {"a": 1}\n' }, { 'a.py': 'D = {"b": 1}\n' }, 1],
   ['python: a changed string next to a changed name fails', { 'a.py': 'LABEL = "Save"\n' }, { 'a.py': 'TITLE = "Save it"\n' }, 1],
@@ -468,8 +470,8 @@ TEXT_CASES.push(
   tsCase('export const f = (x: string, c: string) => x === (c ?? "a");', 'export const f = (x: string, c: string) => x === (c ?? "b");'),
   tsCase('export const f = (x: string) => x !== ("a" + "b");', 'export const f = (x: string) => x !== ("a" + "c");'),
   tsCase('export const f = (x: string) => x === (("a") as string);', 'export const f = (x: string) => x === (("b") as string);'),
-  // the right side of && is no operand of the comparison: it is text
-  tsCase('export const f = (x: string, c: string) => x === c && "Yes";', 'export const f = (x: string, c: string) => x === c && "Sure";', 0),
+  // the right side of && is no operand of the comparison, and no display position either
+  tsCase('export const f = (x: string, c: string) => x === c && "Yes";', 'export const f = (x: string, c: string) => x === c && "Sure";'),
 );
 const pyCase = (before, after, expected = 1) => [`python: ${after.trim().slice(0, 60)}`,
   { 'a.py': `${before}\n` }, { 'a.py': `${after}\n` }, expected];
@@ -485,12 +487,12 @@ PY_TEXT_CASES.push(
   pyCase('x = d.get("a")', 'x = d.get("b")'),
   pyCase('x = re.match("a", y)', 'x = re.match("b", y)'),
   pyCase('match x:\n    case "a":\n        pass', 'match x:\n    case "b":\n        pass'),
-  pyCase('match x:\n    case "a":\n        y = "One"', 'match x:\n    case "a":\n        y = "First"', 0),
+  pyCase('match x:\n    case "a":\n        y = "One"', 'match x:\n    case "a":\n        y = "First"'),
   pyCase('x = y == ("a" if c else "z")', 'x = y == ("b" if c else "z")'),
   pyCase('x = y == ("a" if c else "z")', 'x = y == ("a" if c else "y")'),
   pyCase('x = y == (c or "a")', 'x = y == (c or "b")'),
   pyCase('x = y != ("a" + "b")', 'x = y != ("a" + "c")'),
-  pyCase('x = y == c and "Yes"', 'x = y == c and "Sure"', 0),
+  pyCase('x = y == c and "Yes"', 'x = y == c and "Sure"'),
   pyCase('x: "A" = 1', 'x: "B" = 1'),
   pyCase('def f(a: "A"):\n    pass', 'def f(a: "B"):\n    pass'),
   pyCase('def f() -> "A":\n    pass', 'def f() -> "B":\n    pass'),
@@ -504,17 +506,17 @@ PY_TEXT_CASES.push(
   pyCase('__import__("a")', '__import__("b")'),
   pyCase('x = soup.select("a")', 'x = soup.select("b")'),
   pyCase('x = driver.find_element("a")', 'x = driver.find_element("b")'),
-  pyCase('x = "See https://a.example"', 'x = "See https://b.example"'),
-  pyCase('x = "Hello"', 'x = "<b>Hello</b>"'),
-  pyCase('x = "Hello"', 'x = "Hello {{ name }}"'),
-  pyCase('x = "Hello"', 'x = "select * from users"'),
-  pyCase('x = "Hello"', 'x = "rm -rf /tmp/x"'),
-  pyCase('x = "/etc/hosts"', 'x = "/etc/passwd"'),
+  pyCase('print("See https://a.example")', 'print("See https://b.example")'),
+  pyCase('print("Hello")', 'print("<b>Hello</b>")'),
+  pyCase('print("Hello")', 'print("Hello {{ name }}")'),
+  pyCase('print("Hello")', 'print("select * from users")'),
+  pyCase('print("Hello")', 'print("rm -rf /tmp/x")'),
+  pyCase('print("/etc/hosts")', 'print("/etc/passwd")'),
   pyCase('print("Saved")', 'print("Saved.")', 0),
   pyCase('print("Saved")', 'print("Saved the file")', 0),
-  pyCase('sys.exit("Failed")', 'sys.exit("Failed to save")', 0),
+  pyCase('sys.exit("Failed")', 'sys.exit("Failed to save")'),
   pyCase('raise ValueError("bad")', 'raise ValueError("bad value")', 0),
-  pyCase('parser.add_argument("--count", help="Count")', 'parser.add_argument("--count", help="Total")', 0),
+  pyCase('parser.add_argument("--count", help="Count")', 'parser.add_argument("--count", help="Total")'),
   pyCase('parser.add_argument("--count", help="Count")', 'parser.add_argument("--total", help="Count")'),
 );
 // A match statement needs Python 3.10.
@@ -523,6 +525,291 @@ const PYTHON_MINOR = NO_PYTHON ? 0 : Number(childProcess.spawnSync(proofComments
 const NO_MATCH = NO_PYTHON || (PYTHON_MINOR < 10 ? 'match needs Python 3.10' : false);
 cases(TEXT, PY_TEXT_CASES.filter(([name]) => !name.includes('match x:')), NO_PYTHON);
 cases(TEXT, PY_TEXT_CASES.filter(([name]) => name.includes('match x:')), NO_MATCH);
+
+// ---- display positions ------------------------------------------------------------------------
+// A changed string passes only when it sits directly in a display position of kind_data of
+// short-path.json (lib/display-positions.js): JSX text, an attribute or a prop with a listed name,
+// the text argument of an output call, an error constructor or a translation call. Each row is
+// [name, before, after]. The deny list applies on top, on the string before and after.
+
+const jsxApp = (body) => (/\breturn\b/.test(body) ? `export const A = () => { ${body} };`
+  : `export const A = () => ${body};`);
+const PLACE = (file, wrap) => ([name, before, after], expected) => [`${file}: ${name}`,
+  { [file]: `${wrap(before)}\n` }, { [file]: `${wrap(after)}\n` }, expected];
+const tsxCase = PLACE('a.tsx', jsxApp);
+const jsCase = PLACE('a.js', (code) => code);
+const tsStatement = PLACE('a.ts', (code) => code);
+const jsxFileCase = PLACE('a.jsx', jsxApp);
+const pyStatement = PLACE('a.py', (code) => code);
+const htmlCase = PLACE('a.html', h);
+
+const JSX_PASS = [
+  ['jsx text', '<b>Save</b>', '<b>Save it</b>'],
+  ['jsx text in a fragment', '<>Save</>', '<>Save it</>'],
+  ['a string as a jsx child', '<b>{"Save"}</b>', '<b>{"Save it"}</b>'],
+  ['title', '<b title="Save">x</b>', '<b title="Save it">x</b>'],
+  ['alt', '<img alt="Logo" />', '<img alt="Company logo" />'],
+  ['placeholder', '<input placeholder="Name" />', '<input placeholder="Your name" />'],
+  ['label', '<option label="One" />', '<option label="First" />'],
+  ['aria-label', '<b aria-label="Close">x</b>', '<b aria-label="Close it">x</b>'],
+  ['aria-description', '<b aria-description="Closes">x</b>', '<b aria-description="Closes it">x</b>'],
+  ['an attribute with a string in braces', '<b title={"Save"}>x</b>', '<b title={"Save it"}>x</b>'],
+  ['an attribute with a template with no substitution', '<b title={`Save`}>x</b>', '<b title={`Save it`}>x</b>'],
+  ['a component prop label', '<Button label="Save" />', '<Button label="Save it" />'],
+  ['a component prop title', '<Card title="Save" />', '<Card title="Save it" />'],
+  ['a component prop text', '<Hint text="Save" />', '<Hint text="Save it" />'],
+  ['a component prop message', '<Note message="Save" />', '<Note message="Save it" />'],
+  ['a component prop description', '<Card description="Save" />', '<Card description="Save it" />'],
+  ['a component prop placeholder', '<Field placeholder="Save" />', '<Field placeholder="Save it" />'],
+  ['a prop of a member component', '<Menu.Item label="Save" />', '<Menu.Item label="Save it" />'],
+  ['a prop with a string in braces', '<Button label={"Save"} />', '<Button label={"Save it"} />'],
+];
+const JSX_FAIL = [
+  ['a string bound to a name first', 'const s = "Save"; return <b title={s}>x</b>;', 'const s = "Save it"; return <b title={s}>x</b>;'],
+  ['a constant used as jsx child', 'const s = "Save"; return <b>{s}</b>;', 'const s = "Save it"; return <b>{s}</b>;'],
+  ['a prop named permission', '<Button permission="read" />', '<Button permission="write" />'],
+  ['a prop named endpoint', '<Button endpoint="read" />', '<Button endpoint="write" />'],
+  ['a prop named srcDoc', '<Frame srcDoc="read" />', '<Frame srcDoc="write" />'],
+  ['a prop named sandbox', '<Frame sandbox="read" />', '<Frame sandbox="write" />'],
+  ['a prop named value', '<Field value="read" />', '<Field value="write" />'],
+  ['a prop named hint', '<Field hint="read" />', '<Field hint="write" />'],
+  ['a prop of a plain element', '<div message="read" />', '<div message="write" />'],
+  ['a data attribute', '<b data-x="read" />', '<b data-x="write" />'],
+  ['an attribute value that is a concatenation', '<b title={"Save" + "x"}>x</b>', '<b title={"Save" + "y"}>x</b>'],
+  ['an attribute value that is a condition', '<b title={c ? "Save" : "x"}>x</b>', '<b title={c ? "Save it" : "x"}>x</b>'],
+  ['an attribute value in parentheses', '<b title={("Save")}>x</b>', '<b title={("Save it")}>x</b>'],
+  ['an attribute value that is a template with a substitution', '<b title={`Save ${n}`}>x</b>', '<b title={`Save it ${n}`}>x</b>'],
+  ['a jsx child that is a condition', '<b>{c && "Save"}</b>', '<b>{c && "Save it"}</b>'],
+  ['a jsx child that is a concatenation', '<b>{"a" + "Save"}</b>', '<b>{"a" + "Save it"}</b>'],
+  ['a comparison operand in an attribute', '<b title={x === "a" ? "b" : "c"}>x</b>', '<b title={x === "z" ? "b" : "c"}>x</b>'],
+  ['a key of an object in an attribute', '<b title={o["a"]}>x</b>', '<b title={o["b"]}>x</b>'],
+  ['an object value in a style', '<b style={{ content: "a" }}>x</b>', '<b style={{ content: "b" }}>x</b>'],
+  ['a label in an object', '<Button {...{ label: "Save" }} />', '<Button {...{ label: "Save it" }} />'],
+  ['a class name', '<b className="Save">x</b>', '<b className="Save it">x</b>'],
+  ['jsx text with a link', '<b>Save</b>', '<b>See https://a.example</b>'],
+  ['jsx text that had a link', '<b>See https://a.example</b>', '<b>Save</b>'],
+  ['a title with markup', '<b title="Save">x</b>', '<b title="<i>Save</i>">x</b>'],
+  ['a title with a template expression', '<b title="Save">x</b>', '<b title="Save {{n}}">x</b>'],
+  ['a prop that had shell syntax', '<Button label="a; b" />', '<Button label="Save" />'],
+  ['a prop with a path', '<Button label="Save" />', '<Button label="/etc/passwd" />'],
+];
+
+const CALL_PASS = [
+  ['console.log', 'console.log("Saved");', 'console.log("Saved it");'],
+  ['console.error', 'console.error("Failed");', 'console.error("Failed to save");'],
+  ['console.warn', 'console.warn("Careful");', 'console.warn("Careful now");'],
+  ['print', 'print("Saved");', 'print("Saved it");'],
+  ['a template with no substitution', 'console.log(`Saved`);', 'console.log(`Saved it`);'],
+  ['throw new Error', 'throw new Error("Failed");', 'throw new Error("Failed to save");'],
+  ['Error without new', 'throw Error("Failed");', 'throw Error("Failed to save");'],
+  ['a subclass of Error', 'throw new TypeError("Failed");', 'throw new TypeError("Failed to save");'],
+  ['an error class of a module', 'throw new errors.HttpError("Failed");', 'throw new errors.HttpError("Failed to save");'],
+  ['an error that a call returns', 'reject(new Error("Failed"));', 'reject(new Error("Failed to save"));'],
+  ['an error with a second argument', 'throw new Error("Failed", { cause: e });', 'throw new Error("Failed to save", { cause: e });'],
+  ['the default text of t', 't("save.label", "Save");', 't("save.label", "Save it");'],
+  ['the default text of i18n.t', 'i18n.t("save.label", "Save");', 'i18n.t("save.label", "Save it");'],
+  ['the default text of t with a third argument', 't("save.label", "Save", { n: 1 });', 't("save.label", "Save it", { n: 1 });'],
+];
+const CALL_FAIL = [
+  ['the key of t', 't("save.label", "Save");', 't("save.title", "Save");'],
+  ['the key of t with no default text', 't("save.label");', 't("save.title");'],
+  ['the key and the text of t, changed together', 't("save.label", "Save");', 't("save.title", "Save it");'],
+  ['the text of gettext, which is its key', 'gettext("Save");', 'gettext("Save it");'],
+  ['the text of _, which is its key', '_("Save");', '_("Save it");'],
+  ['the first argument of i18n.t with no default text', 'i18n.t("Save");', 'i18n.t("Save it");'],
+  ['a message from a variable', 'const m = "Saved"; console.log(m);', 'const m = "Saved it"; console.log(m);'],
+  ['a message that is a concatenation', 'console.log("Saved " + "it");', 'console.log("Saved " + "that");'],
+  ['a message that is a template with a substitution', 'console.log(`Saved ${n}`);', 'console.log(`Saved it ${n}`);'],
+  ['a message in parentheses', 'console.log(("Saved"));', 'console.log(("Saved it"));'],
+  ['a message in a condition', 'console.log(c ? "Saved" : "x");', 'console.log(c ? "Saved it" : "x");'],
+  ['a message in a comparison', 'console.log(x === "a");', 'console.log(x === "b");'],
+  ['a message in a list', 'console.log(["Saved"]);', 'console.log(["Saved it"]);'],
+  ['a message after a spread', 'console.log(...a, "Saved");', 'console.log(...a, "Saved it");'],
+  ['the second argument of console.log', 'console.log("Saved", "x");', 'console.log("Saved", "y");'],
+  ['a method of another object', 'logger.info("Saved");', 'logger.info("Saved it");'],
+  ['a call that is no output call', 'alert("Saved");', 'alert("Saved it");'],
+  ['a function whose name ends with Error', 'form.setError("email");', 'form.setError("phone");'],
+  ['a handler whose name ends with Error', 'handleError("email");', 'handleError("phone");'],
+  ['a check whose name ends with Error', 'hasError("email");', 'hasError("phone");'],
+  ['the label of a console timer', 'console.time("load");', 'console.time("boot");'],
+  ['the label of a console counter', 'console.count("load");', 'console.count("boot");'],
+  ['a string of a new object', 'throw new Failure("Failed");', 'throw new Failure("Failed to save");'],
+  ['a string in a list that an error class gets', 'throw new Error(["Failed"]);', 'throw new Error(["Failed to save"]);'],
+  ['a message with a link', 'console.log("Saved");', 'console.log("Saved at https://a.example");'],
+  ['a message that had SQL', 'console.log("select a from b");', 'console.log("Saved");'],
+  ['an error message with shell syntax', 'throw new Error("Failed");', 'throw new Error("a; b");'],
+  ['a default text with a template expression', 't("k", "Saved");', 't("k", "Saved {{n}}");'],
+  ['a default text with a path', 't("k", "Saved");', 't("k", "../Saved");'],
+  ['a key of an object', 'export const o = { "Save": 1 };', 'export const o = { "Save it": 1 };'],
+  ['a value of an object', 'export const o = { label: "Save" };', 'export const o = { label: "Save it" };'],
+  ['a comparison operand', 'export const f = (x: string) => x === "Save";', 'export const f = (x: string) => x === "Save it";'],
+  ['an element of a list', 'export const l = ["Save"];', 'export const l = ["Save it"];'],
+];
+
+const PY_PASS = [
+  ['print', 'print("Saved")', 'print("Saved it")'],
+  ['print with a keyword argument', 'print("Saved", end="")', 'print("Saved it", end="")'],
+  ['two literals that follow each other', 'print("Saved" " it")', 'print("Saved" " that")'],
+  ['logging.info', 'logging.info("Saved")', 'logging.info("Saved it")'],
+  ['logging.error', 'logging.error("Failed")', 'logging.error("Failed to save")'],
+  ['the message of logging.log', 'logging.log(logging.INFO, "Saved")', 'logging.log(logging.INFO, "Saved it")'],
+  ['raise ValueError', 'raise ValueError("bad")', 'raise ValueError("bad value")'],
+  ['raise Exception', 'raise Exception("bad")', 'raise Exception("bad value")'],
+  ['raise a class that ends with Exception', 'raise AppException("bad")', 'raise AppException("bad value")'],
+  ['raise a class of a module', 'raise errors.AppError("bad")', 'raise errors.AppError("bad value")'],
+  ['raise from another error', 'raise ValueError("bad") from e', 'raise ValueError("bad value") from e'],
+  ['the default text of t', 't("save.label", "Save")', 't("save.label", "Save it")'],
+  ['the default text of i18n.t', 'i18n.t("save.label", "Save")', 'i18n.t("save.label", "Save it")'],
+];
+const PY_FAIL = [
+  ['a constant', 'LABEL = "Save"', 'LABEL = "Save it"'],
+  ['a message from a variable', 'm = "Saved"\nprint(m)', 'm = "Saved it"\nprint(m)'],
+  ['an error that no raise uses', 'e = ValueError("bad")', 'e = ValueError("bad value")'],
+  ['an error that a call gets', 'f(ValueError("bad"))', 'f(ValueError("bad value"))'],
+  ['raise a class that is no error', 'raise Stop("bad")', 'raise Stop("bad value")'],
+  ['the key of t', 't("save.label", "Save")', 't("save.title", "Save")'],
+  ['the text of gettext, which is its key', 'gettext("Save")', 'gettext("Save it")'],
+  ['the text of _, which is its key', '_("Save")', '_("Save it")'],
+  ['t with no default text', 't("Save")', 't("Save it")'],
+  ['a method of another object', 'logger.info("Saved")', 'logger.info("Saved it")'],
+  ['the name of a logger', 'logging.getLogger("audit")', 'logging.getLogger("billing")'],
+  ['the file of a log handler', 'logging.FileHandler("out")', 'logging.FileHandler("in")'],
+  ['the name of a log level', 'logging.getLevelName("INFO")', 'logging.getLevelName("DEBUG")'],
+  ['the level of logging.log', 'logging.log("INFO", "Saved")', 'logging.log("DEBUG", "Saved")'],
+  ['a function whose name ends with Error', 'setError("a")', 'setError("b")'],
+  ['a message that is a concatenation', 'print("Saved " + "it")', 'print("Saved " + "that")'],
+  ['a message that is an f-string', 'print(f"Saved {n}")', 'print(f"Saved it {n}")'],
+  ['a message that is a condition', 'print("Saved" if c else "x")', 'print("Saved it" if c else "x")'],
+  ['a message in a comparison', 'print(x == "a")', 'print(x == "b")'],
+  ['a message after a star argument', 'print(*a, "Saved")', 'print(*a, "Saved it")'],
+  ['the second argument of print', 'print("Saved", "x")', 'print("Saved", "y")'],
+  ['the message of sys.exit', 'sys.exit("Failed")', 'sys.exit("Failed to save")'],
+  ['a docstring', 'def f():\n    "Saves"\n    return 1', 'def f():\n    "Saves it"\n    return 1'],
+  ['a key of a dict', 'D = {"a": 1}', 'D = {"b": 1}'],
+  ['a value of a dict', 'D = {"a": "Save"}', 'D = {"a": "Save it"}'],
+  ['a comparison operand', 'x = y == "Save"', 'x = y == "Save it"'],
+  ['a message with a link', 'print("Saved")', 'print("Saved at https://a.example")'],
+  ['a message that had markup', 'print("<b>a</b>")', 'print("Saved")'],
+  ['an error message with a template expression', 'raise ValueError("bad")', 'raise ValueError("bad {{n}}")'],
+  ['an error message with SQL', 'raise ValueError("bad")', 'raise ValueError("select a from b")'],
+  ['a default text with a path', 't("k", "Saved")', 't("k", "/etc/Saved")'],
+];
+
+const HTML_PASS = [
+  ['text', '<p>Hi</p>', '<p>Hello</p>'],
+  ['title', '<p title="a">x</p>', '<p title="b">x</p>'],
+  ['alt', '<img alt="a">', '<img alt="b">'],
+  ['placeholder', '<input placeholder="a">', '<input placeholder="b">'],
+  ['label', '<option label="a">x</option>', '<option label="b">x</option>'],
+  ['aria-label', '<p aria-label="a">x</p>', '<p aria-label="b">x</p>'],
+  ['aria-description', '<p aria-description="a">x</p>', '<p aria-description="b">x</p>'],
+  ['an attribute name in capitals', '<p TITLE="a">x</p>', '<p TITLE="b">x</p>'],
+];
+const HTML_FAIL = [
+  ['value', '<input value="a">', '<input value="b">'],
+  ['hint', '<p hint="a">x</p>', '<p hint="b">x</p>'],
+  ['content', '<meta name="a" content="a">', '<meta name="a" content="b">'],
+  ['aria-labelledby', '<p aria-labelledby="a">x</p>', '<p aria-labelledby="b">x</p>'],
+  ['data-title', '<p data-title="a">x</p>', '<p data-title="b">x</p>'],
+  ['message of a custom element', '<my-card message="a">x</my-card>', '<my-card message="b">x</my-card>'],
+  ['a title with a link', '<p title="a">x</p>', '<p title="see https://a.example">x</p>'],
+  ['a title with markup', '<p title="a">x</p>', '<p title="<b>a</b>">x</p>'],
+  ['a text with a template expression', '<p>Hi</p>', '<p>Hi {{ name }}</p>'],
+];
+
+const POSITION_CASES = [
+  ...JSX_PASS.map((row) => tsxCase(row, 0)), ...JSX_FAIL.map((row) => tsxCase(row, 1)),
+  ...JSX_PASS.slice(0, 3).map((row) => jsxFileCase(row, 0)),
+  ...CALL_PASS.map((row) => tsStatement(row, 0)), ...CALL_FAIL.map((row) => tsStatement(row, 1)),
+  ...CALL_PASS.slice(0, 3).map((row) => jsCase(row, 0)),
+  ...HTML_PASS.map((row) => htmlCase(row, 0)), ...HTML_FAIL.map((row) => htmlCase(row, 1)),
+];
+cases(TEXT, POSITION_CASES);
+cases(TEXT, [...PY_PASS.map((row) => pyStatement(row, 0)),
+  ...PY_FAIL.map((row) => pyStatement(row, 1))], NO_PYTHON);
+
+// A changed label and a changed constant in one file fail: only the display positions mask.
+test('display positions: a changed label next to a changed constant fails', { skip: NO_PARSERS }, () => {
+  const base = 'export const A = () => <b title="Save">Save</b>;\nexport const K = "a";\n';
+  const found = run(TEXT, { 'a.tsx': base }, { 'a.tsx': r(r(base, '"Save"', '"Save it"'), '"a"', '"b"') });
+  assert.equal(found.length, 1);
+});
+
+// The data of kind_data and the matcher of the names in the data.
+test('display positions: the names of kind_data match as lib/display-positions.js says', () => {
+  const { matches, argumentOf, positions } = require(path.join(SKILL, 'lib/display-positions.js'));
+  assert.equal(matches('print', 'print'), true);
+  assert.equal(matches('print', 'a.print'), false);
+  assert.equal(matches('console.*', 'console.log'), true);
+  assert.equal(matches('console.*', 'console'), false);
+  assert.equal(matches('console.*', 'console.a.b'), false);
+  assert.equal(matches('console.*', 'consoles.log'), false);
+  assert.equal(matches('*Error', 'Error'), true);
+  assert.equal(matches('*Error', 'errors.HttpError'), true);
+  assert.equal(matches('*Error', 'ErrorBox'), false);
+  assert.equal(matches('*Error', 'setError'), false);
+  assert.equal(matches('*Error', 'form.handleError'), false);
+  const { javascript, python } = positions();
+  assert.equal(argumentOf(javascript.i18n_calls, 't'), 1);
+  assert.equal(argumentOf(javascript.i18n_calls, 'gettext'), null);
+  assert.equal(argumentOf(python.error_calls, 'AppException'), 0);
+  assert.equal(argumentOf(javascript.error_calls, 'AppException'), null);
+});
+
+// A position is added by data alone: a copy of the skill folder with one more attribute in
+// kind_data has that attribute masked, in the program that dumps TypeScript, and in the one that
+// dumps Python for one more output call. The original folder masks neither.
+test('display positions: a position added to kind_data needs no change of code', { skip: NO_PARSERS || NO_PYTHON }, () => {
+  const copy = path.join(tmp, 'skill-copy');
+  fs.cpSync(SKILL, copy, { recursive: true });
+  const file = path.join(copy, 'short-path.json');
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  data.kind_data[TEXT].attributes.push('tooltip');
+  data.kind_data[TEXT].python.output_calls.emit = 0;
+  fs.writeFileSync(file, JSON.stringify(data));
+  const dump = (root, text) => childProcess.execFileSync(process.execPath,
+    [path.join(root, 'lib/parse-dump.js'), PARSERS, 'tsx', 'text', '{}'],
+    { input: text, env: { PATH: '/nonexistent' }, encoding: 'utf8' });
+  const one = 'export const A = () => <b tooltip="Save">x</b>;\n';
+  const two = one.replace('Save', 'Save it');
+  assert.equal(dump(copy, one), dump(copy, two));
+  assert.notEqual(dump(SKILL, one), dump(SKILL, two));
+  const py = (root, text) => require(path.join(root, 'lib/proof-comments.js'))(LIBRARY)
+    .pythonDump(Buffer.from(text), 'text').dump;
+  assert.equal(py(copy, 'emit("Save")\n'), py(copy, 'emit("Save it")\n'));
+  assert.notEqual(py(SKILL, 'emit("Save")\n'), py(SKILL, 'emit("Save it")\n'));
+});
+
+// A kind_data entry in a form that the proofs do not read is a fault of the module, with the
+// reason.
+test('display positions: a malformed entry of kind_data has a finding with its reason', () => {
+  const copy = path.join(tmp, 'skill-form');
+  fs.cpSync(SKILL, copy, { recursive: true });
+  const file = path.join(copy, 'short-path.json');
+  const good = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const load = () => {
+    for (const name of Object.keys(require.cache)) {
+      if (name.startsWith(copy)) delete require.cache[name];
+    }
+    return require(path.join(copy, 'lib/short-path.js'))(LIBRARY);
+  };
+  const broken = [
+    [(d) => { d.attributes = ['two words']; }, /attributes has a name that is no name of an attribute/],
+    [(d) => { delete d.props; }, /has no props/],
+    [(d) => { d.python.output_calls.print = -1; }, /python output_calls has for "print" no index from 0 to 9, or null/],
+    [(d) => { d.javascript.error_calls['*'] = 0; }, /javascript error_calls has the name "\*", no callee/],
+    [(d) => { d.javascript.extra = {}; }, /javascript has the key "extra"/],
+    [(d) => { d.python = 3; }, /python is a number, not an object/],
+  ];
+  for (const [change, why] of broken) {
+    const data = JSON.parse(JSON.stringify(good));
+    change(data.kind_data[TEXT]);
+    fs.writeFileSync(file, JSON.stringify(data));
+    assert.throws(load, (error) => why.test(error.message), String(why));
+  }
+  fs.writeFileSync(file, JSON.stringify(good));
+  load();
+});
 
 test('a text value in a shell file has no proof', { skip: NO_PARSERS }, () => {
   const found = run(TEXT, { 'a.sh': 'echo "a"\n' }, { 'a.sh': 'echo "b"\n' });
@@ -655,10 +942,10 @@ test('a checkout with a node_modules folder of the same names changes no result'
   for (const [name, body] of [['typescript', trap], ['postcss', lie], ['parse5', trap]]) {
     const base = { [`node_modules/${name}/index.js`]: body,
       [`node_modules/${name}/package.json`]: JSON.stringify({ name, main: 'index.js' }),
-      'a.ts': LABEL, 'a.css': CSS, 'a.html': h('<p>Hi</p>') };
-    const head = { ...base, 'a.ts': r(LABEL, "'Save'", "'Save it'") };
+      'a.ts': SHOWN, 'a.css': CSS, 'a.html': h('<p>Hi</p>') };
+    const head = { ...base, 'a.ts': r(SHOWN, "'Save'", "'Save it'") };
     assert.deepEqual(run(TEXT, base, head), [], name);
-    const bad = { ...base, 'a.ts': r(LABEL, 'saveLabel', 'saveTitle') };
+    const bad = { ...base, 'a.ts': r(SHOWN, 'console.log', 'console.info') };
     assert.equal(run(TEXT, base, bad).length > 0, true, name);
     const css = { ...base, 'a.css': r(CSS, '#333', '#444') };
     assert.deepEqual(run(LOOK, base, css).filter((line) => !/node_modules/.test(line)), [], name);

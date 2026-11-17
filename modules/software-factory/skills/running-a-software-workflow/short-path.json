@@ -102,6 +102,68 @@
         "</?[A-Za-z][^<>]*>"
       ]
     },
+    "a text value in a code file": {
+      "attributes": [
+        "title",
+        "alt",
+        "placeholder",
+        "label",
+        "aria-label",
+        "aria-description"
+      ],
+      "props": [
+        "label",
+        "title",
+        "text",
+        "message",
+        "description",
+        "placeholder"
+      ],
+      "javascript": {
+        "output_calls": {
+          "print": 0,
+          "console.log": 0,
+          "console.info": 0,
+          "console.warn": 0,
+          "console.error": 0,
+          "console.debug": 0,
+          "console.trace": 0
+        },
+        "error_calls": {
+          "*Error": 0
+        },
+        "i18n_calls": {
+          "t": 1,
+          "i18n.t": 1,
+          "gettext": null,
+          "_": null
+        }
+      },
+      "python": {
+        "output_calls": {
+          "print": 0,
+          "logging.debug": 0,
+          "logging.info": 0,
+          "logging.warning": 0,
+          "logging.warn": 0,
+          "logging.error": 0,
+          "logging.critical": 0,
+          "logging.fatal": 0,
+          "logging.exception": 0,
+          "logging.log": 1
+        },
+        "error_calls": {
+          "*Error": 0,
+          "*Exception": 0
+        },
+        "i18n_calls": {
+          "t": 1,
+          "i18n.t": 1,
+          "gettext": null,
+          "_": null
+        }
+      }
+    },
     "a look-only change": {
       "token_files": [
         "**/*.tokens.json",
