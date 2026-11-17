@@ -225,7 +225,7 @@ module.exports = (lib) => {
     }
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
       env: io.env });
-    if (limit.problem) throw new Missing(limit.problem, limit.more);
+    if (limit.problem) throw new Missing(limit.problem, limit.more, limit.listed);
     const record = newRecord(artifactFolder(io));
     const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qory-probe-')));
     const dest = path.join(temporary, 'checkout');

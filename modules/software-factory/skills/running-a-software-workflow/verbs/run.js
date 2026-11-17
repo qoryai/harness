@@ -47,6 +47,11 @@ module.exports = (lib) => {
   // line has the fix, and checks.js prints the lines after it indented.
   const whole = (finding) => [].concat(finding).join('\n');
 
+  // limitFindings returns the findings of a limit with a problem: each finding of the schema
+  // alone, or the problem with its cause.
+  const limitFindings = (limit) => (limit.listed ? [limit.problem, ...limit.more]
+    : [[limit.problem, ...limit.more]]);
+
   function args(io, kind, paths) {
     if (!Object.hasOwn(KINDS, kind || '')) {
       return `Give run one kind of check: ${Object.keys(KINDS).join(', ')}.`;
@@ -82,7 +87,7 @@ module.exports = (lib) => {
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
       env: io.env });
     if (inputs !== undefined && limit.problem) {
-      throw new Missing(limit.problem, limit.more);
+      throw new Missing(limit.problem, limit.more, limit.listed);
     }
     const changed = lib.changesOf(work, plan);
     const record = newRecord(lib.artifactFolder(io));
@@ -112,7 +117,7 @@ module.exports = (lib) => {
       return done('none', [], `Ran no ${kind} command ${where}: the build plan has none.`);
     }
     if (limit.problem) {
-      return done('red', [[limit.problem, ...limit.more]], `Ran no ${kind} command ` +
+      return done('red', limitFindings(limit), `Ran no ${kind} command ` +
         `${where}: its time limit is unknown, so the check is red.`,
       { limit_source: limit.source });
     }
@@ -184,7 +189,7 @@ module.exports = (lib) => {
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
       env: io.env });
     if (inputs !== undefined && limit.problem) {
-      throw new Missing(limit.problem, limit.more);
+      throw new Missing(limit.problem, limit.more, limit.listed);
     }
     const def = lockType(io);
     const lock = readLock(io, def, null, 'run locked');
@@ -207,10 +212,10 @@ module.exports = (lib) => {
       at: new Date().toISOString(),
     };
     // done writes the record with the entries of findings in one list, and prints each
-    // finding of shown as one text. shown has the findings in the order of the print.
-    const done = (state, findings, last, extra = {}, shown = findings) => {
+    // finding as one text.
+    const done = (state, findings, last, extra = {}) => {
       record.write({ ...base, ...extra, state, reasons: findings.flat() });
-      io.print([...shown.map(whole), record.line], last);
+      io.print([...findings.map(whole), record.line], last);
       return state === 'red' ? 1 : 0;
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
@@ -232,7 +237,7 @@ module.exports = (lib) => {
         'check is red.']], none);
     }
     if (limit.problem) {
-      return done('red', [[limit.problem, ...limit.more]], `Ran no locked check ` +
+      return done('red', limitFindings(limit), `Ran no locked check ` +
         `${where}: its time limit is unknown, so the check is red.`,
       { limit_source: limit.source });
     }
@@ -289,11 +294,6 @@ module.exports = (lib) => {
       `out of time, ${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call.`]] : [];
     const notSafe = unsafe.length ? [`${plural(unsafe.length, 'check')} did not run: a locked ` +
       'file changed during the call.'] : [];
-    // The record has the line of the checks that did not run after a locked file changed last.
-    // The print has it as a line of the last finding on the files: a change of a locked file
-    // is why they did not run.
-    const onFiles = swapped.length ? swapped.map((one, at) => (at === swapped.length - 1
-      ? [].concat(one, notSafe) : one)) : notSafe;
     return done(red.length || swapped.length ? 'red' : 'green',
       [...swapped, ...ran, ...ranOut, ...notSafe],
       `Ran ${plural(results.length, 'locked check')} of ${lock.what} ${where}: ` +
@@ -301,7 +301,7 @@ module.exports = (lib) => {
       `${swapped.length ? `, and ${plural(swapped.length, 'finding')} on the files of ` +
       `${lock.what}` : ''}.`,
       { limit_minutes: minutes, limit_source: limit.source, checks: results,
-        ...(swapped.length ? { changed: swapped.flat() } : {}) }, [...onFiles, ...ran, ...ranOut]);
+        ...(swapped.length ? { changed: swapped.flat() } : {}) });
   }
 
   return {

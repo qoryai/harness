@@ -557,6 +557,26 @@ test('limits: a harness report with extensions that is no map has the fix first 
   assert.equal(limits({ top: dir }).problem, 'Write harness.extensions in qory.yaml as a map.\nIt is a list.');
 });
 
+test('limits: each finding of the schema on the limits prints at column 0, as before', () => {
+  const dir = checkout();
+  const wrong = { fast_checks: 0, targeted_checks: -1 };
+  write(dir, '.qory/harness-report.json', JSON.stringify(ofLimits(wrong)));
+  assert.equal(limits({ top: dir }).listed, true);
+  const both = [
+    'Set command_limits_minutes.fast_checks in qory.yaml to at least 1.', '  It is 0.',
+    'Set command_limits_minutes.targeted_checks in qory.yaml to at least 1.', '  It is -1.',
+  ];
+  const red = call(dir, ['run', 'targeted']);
+  assert.equal(red.status, 1, red.out);
+  assert.deepEqual(red.lines.slice(0, 4), both);
+  const bad = inputsFile(ofInputs(wrong));
+  for (const argv of [['run', 'lint'], ['run', 'targeted'], ['scope', 'deliverable:d-1']]) {
+    const got = call(dir, [...argv, '--inputs', bad]);
+    assert.equal(got.status, 3, `${argv.join(' ')}: ${got.out}`);
+    assert.deepEqual(got.lines.slice(0, 4), both, argv.join(' '));
+  }
+});
+
 test('extensions: the shared check covers the four keys and refuses null and other shapes', () => {
   const ok = { remove_kinds: [], remove_sensitive_areas: ['billing'], add_sensitive_areas: [],
     command_limits_minutes: { full_suite: 60 } };
@@ -2340,7 +2360,7 @@ test('run locked: a locked file that an earlier check changes is red, also when 
   const got = call(dir, ['run', 'locked']);
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 3), ['Restore "tests/ac2.test.js".', '  The bytes of "tests/ac2.test.js" differ from acceptance-lock version 1.',
-    '  1 check did not run: a locked file changed during the call.']);
+    '1 check did not run: a locked file changed during the call.']);
   assert.match(got.lines.at(-1), /^Ran 2 locked checks of acceptance-lock version 1 on [0-9a-f]{12} with uncommitted changes: 1 green, 1 red, and 1 finding on the files of acceptance-lock version 1\.$/);
   assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0] || null]),
     [['ac-1', 'green', null], ['ac-2', 'red', 'not run: a locked file changed during the call']]);
@@ -2353,6 +2373,37 @@ test('run locked: a locked file that an earlier check changes is red, also when 
   assert.match(last.lines.at(-1), /: 1 green, 0 red, and 1 finding on the files of acceptance-lock version 1\.$/);
   assert.deepEqual(lastRecord(dir).changed, ['Restore "tests/support.js".\nThe bytes of ' +
     '"tests/support.js" differ from acceptance-lock version 1.']);
+});
+
+test('run locked prints its findings in the order and number of the record', () => {
+  const dir = checkout();
+  write(dir, 'tests/ac1.test.js', "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-1');\n");
+  write(dir, 'tests/ac2.test.js', "if (require('../src/a.js').add(1, 1) !== 2) throw new Error('ac-2');\n");
+  write(dir, 'tests/ac3.test.js', "if (require('../src/a.js').add(1, 2) !== 3) throw new Error('ac-3');\n");
+  commitAll(dir, 'checks');
+  lockOf(dir, [{ checks: ['ac-1', 'ac-2', 'ac-3'].map((one) => ({ criterion: one,
+    path: `tests/${one.replace('-', '')}.test.js`,
+    command: `node tool/runner.js tests/${one.replace('-', '')}.test.js` })) }]);
+  // The code under test fails ac-1 and changes the locked check of ac-2, so ac-2 and ac-3
+  // do not run.
+  write(dir, 'src/a.js', [
+    "require('fs').appendFileSync('tests/ac2.test.js', '// x\\n');",
+    'exports.add = (a, b) => a - b;', '',
+  ].join('\n'));
+  const got = call(dir, ['run', 'locked']);
+  assert.equal(got.status, 1, got.out);
+  // The lines at column 0 are the first lines of the findings, then the line of the record
+  // and the last line. Before the first lines of findings were shortened, the print had these
+  // findings at column 0 in this order: the file that differs, the red check, and last the
+  // checks that did not run.
+  assert.deepEqual(got.lines.filter((one) => !one.startsWith(' ')).slice(0, -2), [
+    'Restore "tests/ac2.test.js".',
+    'Fix the code until the locked check of ac-1 passes.',
+    '2 checks did not run: a locked file changed during the call.',
+  ]);
+  assert.deepEqual(lastRecord(dir).reasons.at(-1),
+    '2 checks did not run: a locked file changed during the call.');
+  assert.match(got.lines.at(-1), /: 0 green, 3 red, and 1 finding on the files of acceptance-lock version 1\.$/);
 });
 
 // alive reports whether the process pid still runs: on Linux, a process that ended and that

@@ -121,7 +121,7 @@ module.exports = (lib) => {
     if (given.inputs !== undefined) {
       const limit = limits({ inputs: path.resolve(io.cwd, given.inputs), top: work.top,
         env: io.env });
-      if (limit.problem) throw new Missing(limit.problem, limit.more);
+      if (limit.problem) throw new Missing(limit.problem, limit.more, limit.listed);
     }
     const base = starts.baseOf(io, verb, work, given.base, start);
     // With no build plan too, an uncommitted path under .qory counts as none: qory keeps
