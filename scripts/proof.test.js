@@ -949,7 +949,7 @@ test('the ignorable code points of the deny list are those of Unicode', () => {
 
 test('short-path.json: the kind data has the form that the proofs read', () => {
   const data = require(path.join(SKILL, 'short-path.json'));
-  assert.deepEqual(Object.keys(data.kind_data), [DOCUMENT, TEXT, 'a look-only change']);
+  assert.deepEqual(Object.keys(data.kind_data), [DOCUMENT, TEXT, 'a text value in a code file', 'a look-only change']);
   const table = data.kind_data['a look-only change'].tailwind;
   for (const row of table.utilities) {
     const values = row.values === 'colors' ? table.colors : Array.isArray(row.values) ? row.values

@@ -2605,9 +2605,54 @@ The proofs, in order:
    and `LC_ALL=C`, in a new empty folder.
 8. For "a text value in a code file", each changed file is a Python, TypeScript,
    JavaScript or HTML file that parses to the same tree once its text values are masked,
-   and each comment is the same. A text value is the text of a string, of an untagged
-   template, of JSX or of a page that a person reads, such as a label, a message or a
-   `title`, and it is no text value, and is compared as code, when
+   and each comment is the same. A text value is a string that sits itself in a display
+   position and that the deny rules below find plain. Any other string is code and is
+   compared as code: a change of it has the finding "Propose the standard track". The
+   display positions are data, in the entry "a text value in a code file" of `kind_data` in
+   `short-path.json`, so that a place is added there and in no code:
+   - `attributes`: the value of an attribute of this name in HTML and in JSX (`title`,
+     `alt`, `placeholder`, `label`, `aria-label`, `aria-description`). HTML reads the name
+     in any case.
+   - `props`: the value of a prop of this name on a JSX component, that is an element whose
+     tag starts with a capital letter or is a member such as `Menu.Item` (`label`,
+     `title`, `text`, `message`, `description`, `placeholder`). `permission`, `endpoint`,
+     `srcDoc` and `sandbox` are no text, and neither is `message` on `<div>`. No attribute
+     of `<link>` and `<style>` is text, because their `title` names a style sheet group.
+   - JSX text, a string in braces as a JSX child, and the text of an HTML page. The text
+     and the strings in braces inside `<script>`, `<style>` and `<noscript>`, in JSX and
+     in HTML, are code.
+   - `javascript` (TypeScript and JavaScript) and `python`: the tables `output_calls`,
+     `error_calls` and `i18n_calls`. Each is an object from the name of a callee to the
+     index, counted from 0, of the argument that is the text, or to `null` for a callee
+     that has none. A name is the callee as written (`print`, `i18n.t`), `console.*` for
+     any one name after `console.`, or `*Error` for a class name: its last part starts with
+     a capital letter and ends with `Error`, so `setError` is no such name. The first name
+     that matches sets the index. Today: the message methods of `console` (`log`, `info`,
+     `warn`, `error`, `debug`, `trace`) in JavaScript, `print` in Python, and the message
+     functions of `logging` (`debug`, `info`, `warning`, `warn`, `error`, `critical`, `fatal`,
+     `exception`) in Python take the message, argument 0; `logging.log` takes it as argument
+     1. `console.time`, `console.count` and `logging.getLogger` take no text.
+     `error_calls` take the message, argument 0, of `new X(...)` and `throw X(...)` with a
+     bare name `X` ending in `Error` in JavaScript, and of `raise X(...)` with `X` ending in
+     `Error` or `Exception` in Python. An error that none of these makes is code, such as
+     `RunError("ls")` outside a `throw`, a decorator, `x.Error("a")` and `new net.Error("a")`. `t` and
+     `i18n.t` take the default text, argument 1, and never the key, argument 0, as
+     i18next does with `t("key", "Default text")`. `gettext` and `_` have `null`: their
+     only argument is the text that is also the key, so a change of it changes which
+     translation is found, and it is code.
+   A string sits itself in a position when it is the JSX child, the value of the attribute
+   or prop (written `"..."` or `{"..."}`), or the argument, with nothing around it. These
+   are code, and a string in one has the standard track: a string bound to a name first
+   (`const s = "Save"; <b title={s}>`), a constant, an object value, a list element, a
+   concatenation (`"a" + "b"`), a template with a substitution, an f-string, a string in a
+   condition, in parentheses (TypeScript and JavaScript) or in a comparison, an argument after
+   a spread, any other argument than the listed one, and the text of a call that `kind_data`
+   does not list.
+   A template with no substitution (`` `Save` ``) and two Python literals that follow each
+   other (`"a" "b"`) are one literal. A message that other code compares or parses, such as an
+   error message that a `catch` checks, is no text for a person, and a change of it is
+   declared on the standard track. The deny rules stay on top, on the string at the start
+   commit and at HEAD alike: a string is no text value when
    - it has a link, a host name or an address, markup, a template expression (`{{ }}`,
      `{% %}`, `<%= %>`, `${ }`), SQL, shell syntax (`;`, `|`, `&`, `<`, `>`, a backquote,
      `$(`, `-c`), a call shape such as `f(x)`, `__import__`, `javascript:` with a tab or a
@@ -2616,19 +2661,13 @@ The proofs, in order:
      its NFKC form, and each of them without the ignorable code points (a zero width
      space, a soft hyphen, U+FEFF) and with U+3002 and U+FF61 written as `.`, and without
      tabs and line breaks. A plain sentence with a full stop, a comma or "(optional)" is
-     text;
-   - or it is an operand of a comparison (`==`, `===`, `!=`, `in`), a `case` label of
-     `switch` or `match`, the list or the argument of `includes`, `indexOf`, `has`,
-     `startsWith`, `endsWith` or `match`, a key of an object or a dict, an index, a type
-     or an annotation, a module name or a directive;
-   - or it is an argument of a call that runs or looks up what it says: `eval`,
-     `new Function`, `setTimeout` or `setInterval` with a string, `exec`, `spawn`,
-     `system`, `subprocess`, `query`, `execute`, `fetch`, `require`, `import`, and a
-     selector or test id (`querySelector`, `getBy*`, `locator`, `data-testid`), or the
-     value of an attribute that is no text, such as `href`, `class` and `id`.
-   Python's `print("Saved")` and a message of a command line tool are text values. SQL
+     text.
+
+   Python's `print("Saved")` and `raise ValueError("Failed")` are text values, and so are
+   `console.log("Saved")`, `throw new Error("Failed")` and `<Button label="Save" />`. SQL
    files have no text value proof, and neither do shell files: a changed string of one
-   takes the standard track.
+   takes the standard track. The proof has no other language than Python, TypeScript,
+   JavaScript and HTML, and `kind_data` has no table for another.
 9. For "a look-only change", each changed file is a CSS, SCSS, TypeScript, JavaScript or
    HTML file, or a design-token file by `token_files`, that parses to the same tree once
    its look values are masked, and each comment is the same. A look value is a value of a

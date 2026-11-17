@@ -349,11 +349,15 @@ adds or removes white space.
   that a tool reads is part of the tree: `shellcheck`, `noqa`, `type:`, `@ts-ignore`,
   `nosemgrep`, `gitleaks:allow` and the like.
 - "a text value in a code file": the tree is the same once each text that a person reads
-  is masked, such as a label or a message, and the comments are the same. A string with a
-  link, markup, a template, SQL, shell syntax or a path, an operand of a comparison, a
-  `case` label, a key, a type, a selector, a test id, and an argument of `eval`, `exec`,
-  `query`, `fetch`, `require` and the like, is no text and is compared as code. SQL and
-  shell files have no such proof, so a changed string of one takes the standard track.
+  is masked, and the comments are the same. A string is such a text only when it sits itself
+  in a display position that `kind_data` of `short-path.json` lists: JSX text, an attribute
+  such as `title`, `alt`, `placeholder` or `label`, a prop such as `label`, `title` or
+  `message` of a component, the message of `print`, `console.*`, `logging` and an `Error` or
+  `Exception` that is raised or thrown, and the default text of `t` and `i18n.t`. A string
+  in a constant, an object, a condition or a concatenation, and the key of a translation
+  call, is code. A string with a link, markup, a template, SQL, shell syntax or a path is
+  code in each position. SQL and shell files have no such proof, so a changed string of one
+  takes the standard track.
 - "a look-only change": the tree is the same once each value of colour, typography,
   spacing, border, corner radius and shadow is masked, in CSS, SCSS, design tokens,
   CSS-in-JS and Tailwind classes. A value may call only colour, number and length

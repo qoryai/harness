@@ -1,9 +1,10 @@
 // The lists of the fast track: the id of the track, the kinds and the sensitive areas of
 // short-path.json in this skill's folder, each area with its name and the file patterns of
 // its files, the changes that a repository makes to them, and the match of a file against the
-// patterns. kind_data of short-path.json has the data of the proofs of two kinds: the file
-// patterns of a document, and the file patterns and placeholders of a text that the product
-// shows. trackLine reads the first line of ## Track of a proposal.
+// patterns. kind_data of short-path.json has the data of the proofs of four kinds: the file
+// patterns of a document, the file patterns and placeholders of a text that the product shows,
+// the display positions of a text value in a code file, and the tables of a look-only change.
+// trackLine reads the first line of ## Track of a proposal.
 'use strict';
 
 const fs = require('node:fs');
@@ -179,6 +180,7 @@ module.exports = (lib) => {
   const KIND_DATA = {
     'a document': ['files', 'exclude'],
     'a text that the product shows': ['files', 'placeholders'],
+    'a text value in a code file': ['attributes', 'props', 'javascript', 'python'],
     'a look-only change': ['token_files', 'token_types', 'properties', 'variable_words',
       'tailwind'],
   };
@@ -251,6 +253,42 @@ module.exports = (lib) => {
     return table ? `tailwind ${table}` : null;
   }
 
+  // The members of the entry of a language in the data of a text value in a code file, each an
+  // object from the name of a callee to the index of its text argument, or to null.
+  const CALL_TABLES = ['output_calls', 'error_calls', 'i18n_calls'];
+  // A name of a callee: names joined by dots, "a.*" for any one name after "a.", or "*Part" for a
+  // name whose last part ends with Part.
+  const CALLEE = /^(?:\*[A-Za-z_$][\w$]*|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*(?:\.\*)?)$/;
+
+  // displayForm returns why entry, the data of the kind "a text value in a code file", is in no
+  // form that the proofs read (lib/display-positions.js), or null.
+  function displayForm(entry) {
+    for (const key of ['attributes', 'props']) {
+      const why = listOfTexts(entry[key]) || (entry[key]
+        .every((name) => /^[A-Za-z][\w:-]*$/.test(name))
+        ? null : 'has a name that is no name of an attribute');
+      if (why) return `${key} ${why}`;
+    }
+    for (const language of ['javascript', 'python']) {
+      const calls = entry[language];
+      if (!isObject(calls)) return `${language} is ${jsonKind(calls)}, not an object`;
+      const other = Object.keys(calls).find((key) => !CALL_TABLES.includes(key));
+      if (other !== undefined) return `${language} has the key ${quote(other)}`;
+      for (const table of CALL_TABLES) {
+        if (!isObject(calls[table])) return `${language} has no ${table}, an object`;
+        for (const [name, index] of Object.entries(calls[table])) {
+          if (!CALLEE.test(name)) {
+            return `${language} ${table} has the name ${quote(name)}, no callee`;
+          }
+          if (index !== null && !(Number.isInteger(index) && index >= 0 && index <= 9)) {
+            return `${language} ${table} has for ${quote(name)} no index from 0 to 9, or null`;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   // kindDataForm returns why value, the kind_data of short-path.json for the kinds in kinds, is
   // in no form that the proofs read, or null. Each kind of KIND_DATA has an entry with its
   // members and no other; files is a list of file patterns that globRegExp reads, one line
@@ -287,6 +325,8 @@ module.exports = (lib) => {
           }
         }
         why = why || listOfTexts(entry.placeholders);
+      } else if (kind === 'a text value in a code file') {
+        why = displayForm(entry);
       } else {
         why = lookForm(entry);
       }
