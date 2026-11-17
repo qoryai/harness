@@ -2,7 +2,7 @@
 'use strict';
 
 const {
-  isObject, jsonKind, parseJson, quote, sized, valueText,
+  isObject, jsonKind, parseJson, plural, quote, short, sized, valueText,
 } = require('../lib/base.js');
 const { MARKDOWN, bareId, characters, sentences } = require('../lib/markdown.js');
 const { agentNames } = require('../lib/plugin.js');
@@ -88,37 +88,38 @@ function pointText(run, text, { subject, file, where, linked, step = false }, ag
   characters(run, file, where, text, { oneLine: true });
   const count = sentences(text);
   if (count !== 1) {
-    const what = step ? 'with the step for the person'
-      : 'on what is wrong or missing, with no step for the person';
-    run.find(`Write ${subject} as one sentence ${what}: it has ${count}.`);
+    const has = `The text has ${plural(count, 'sentence')}.`;
+    run.find(step ? `Write ${subject} as one sentence with the step for the person.\n${has}`
+      : `Write ${subject} as one sentence on what is wrong or missing.\n${has} ` +
+        'Leave the step for the person out of it.');
   }
   if (!/\.$/.test(text)) run.find(`End ${subject} with a full stop.`);
   if (MARKDOWN.test(text)) run.find(`Write ${subject} as plain text, with no Markdown mark.`);
   if (FINDING_LABEL.test(text)) {
-    run.find(`Write ${subject} in plain words, with no Quote, Problem, Fix, Point or Marks ` +
-      `label.`);
+    run.find(`Write ${subject} in plain words, with no label.\nThe labels are Quote, ` +
+      'Problem, Fix, Point and Marks.');
   }
   if (QUESTION_REF.test(text)) {
-    run.find(`Remove the question id from ${subject}: ${linked}.`);
+    run.find(`Remove the question id from ${subject}.\n${linked}`);
   }
   // running-a-workflow (SKILL.md:221-227: "write the item's words in quotes"): no name of a
   // file of the run, and words in quotes beside the id of an item.
   const name = [...text.matchAll(FILE_NAME)]
     .find((match) => rules.isRunFile(match[2], match[1]));
   if (name) {
-    run.find(`Remove the file name from ${subject}: name what the file contains.`);
+    run.find(`Remove the file name from ${subject}.\nName what the file contains in its place.`);
   }
   // The id of a question has the finding of QUESTION_REF, so it gets no second one here.
   const id = bareId(text, { prefixes: rules.ids, questions: false });
   if (id) {
-    run.find(`Quote the words of ${id} beside it in ${subject}.`);
+    run.find(`Quote the words of ${short(id)} beside it in ${subject}.`);
   }
   // Only a hyphenated agent name, in lower case: "designer" is also a word of the text.
   const agent = [...agents].sort().filter((name) => name.includes('-')).find((name) =>
     new RegExp(`(?:^|[^\\w-])${name}(?![\\w-])`).test(text));
   if (agent) {
-    run.find(`Remove the agent name ${agent} from ${subject}: name the work, such as the ` +
-      `review of the proposal.`);
+    run.find(`Remove the agent name ${short(agent)} from ${subject}.\nName the work in place ` +
+      `of ${agent}, such as the review of the proposal.`);
   }
 }
 
@@ -142,8 +143,8 @@ function pointCheck(run, point, place, open, agents, rules = pointRules()) {
   run.did('texts');
   const { text, action, question } = point;
   pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
-    where: `text of ${which}`, linked: 'question links the point to its question' }, agents,
-    rules);
+    where: `text of ${which}`, linked: 'The member question links the point to its question.' },
+  agents, rules);
   // running-a-workflow (SKILL.md:230-234: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
@@ -170,7 +171,8 @@ function pointCheck(run, point, place, open, agents, rules = pointRules()) {
     return;
   }
   pointText(run, point.fix, { subject: `the fix of ${which}`, file: 'points.json',
-    where: `fix of ${which}`, linked: 'question links the point to its question', step: true },
+    where: `fix of ${which}`, linked: 'The member question links the point to its question.',
+    step: true },
   agents, rules);
 }
 
