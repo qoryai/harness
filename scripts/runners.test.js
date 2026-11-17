@@ -655,6 +655,26 @@ test('scope: both paths of a rename, and commits since --base, count', () => {
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--base', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
 });
 
+test('scope --base: a committed path and a change outside one scope each keep their lines', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  commitFiles(dir, 'docs', { 'docs/x.md': 'x\n' });
+  write(dir, 'src/b.js', 'exports.b = 1;\n');
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  // Each finding has the lines of the scope, and the committed path the example and the
+  // line to report too.
+  const listed = '  The scope is the files of d-1, which build plan version 1 lists as src/a.js, lib/.';
+  assert.deepEqual(got.lines.slice(0, -2), [
+    'Undo the change to "src/b.js", or end the step as failed: it is outside the scope.',
+    listed,
+    'Take "docs/x.md" out of the commits since the base: it is outside the scope.',
+    ...CONTEXT,
+    listed,
+  ]);
+  assert.equal(got.lines.at(-1), 'Checked 2 changed paths against the files of d-1: 2 outside.');
+});
+
 test('scope --base: a short id exits 2, and a tag named like an id never takes its place', () => {
   const dir = checkout();
   const start = sh(dir, 'rev-parse', 'HEAD');
@@ -2622,15 +2642,17 @@ test('scope and freeze with --inputs: a step after a frozen step passes, a commi
     assert.ok(got.lines[0].length <= 100);
   }
   // An uncommitted path outside the step keeps the words of the step beside the committed one.
+  // Each finding has the lines of its scope: the step for the change, the commits for the
+  // committed path.
   write(dir, 'src/b.js', 'exports.b = 1;\n');
   const mixed = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
   assert.deepEqual(mixed.lines.slice(-2), [`Read the scan for keys: 3 commits ${since}`,
     `Checked 4 changed paths against ${both}: 2 outside.`]);
   assert.deepEqual(mixed.lines.slice(0, 8), [
     'Undo the change to "src/b.js", or end the step as failed: it is outside the scope.',
+    '  The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.',
     'Take "docs/x.md" out of the commits since the base: it is outside the files of d-1 and d-2.',
     ...CONTEXT,
-    '  The scope is the files of d-2, which build plan version 1 lists as qory.yaml, hooks/.',
     '  The scope is the files of d-1 and d-2, which build plan version 1 lists as:',
     '  src/a.js, lib/, qory.yaml, hooks/.']);
   assert.equal(call(dir, ['freeze', 'deliverable:d-2', '--inputs', inputs]).lines.at(-1),

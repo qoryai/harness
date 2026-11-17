@@ -186,13 +186,18 @@ module.exports = (lib) => {
     const explained = found.committedScope.words === found.scope.words
       ? explain(found.scope, paths)
       : [...explain(found.scope, now), ...explain(found.committedScope, committed)];
-    // The example, the line to report and the lines of the scope are lines of the last
-    // finding: they hold for each path. The line to push a build plan is a fix of its own.
-    const context = [...(committed.length ? [EXAMPLE, REPORT] : []),
-      ...explained.filter((line) => line !== NO_PLAN)];
-    if (context.length && findings.length) {
-      findings[findings.length - 1] += `\n${context.join('\n')}`;
-    }
+    // The lines of the cause go under the last finding of the kind that they hold for: the
+    // lines of the scope of the step under the last finding to undo a change, and the example,
+    // the line to report and the lines of the scope of the commits under the last finding to
+    // take a path out of the commits. The line to push a build plan is a separate finding.
+    const append = (some, lines) => {
+      const plain = lines.filter((line) => line !== NO_PLAN);
+      if (some.length && plain.length) {
+        findings[paths.lastIndexOf(some[some.length - 1])] += `\n${plain.join('\n')}`;
+      }
+    };
+    append(now, explain(found.scope, now));
+    append(committed, [EXAMPLE, REPORT, ...explain(found.committedScope, committed)]);
     return [...(found.work.excluded ? [git.EXCLUDED] : []), ...findings,
       ...explained.filter((line) => line === NO_PLAN)];
   }
