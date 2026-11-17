@@ -227,7 +227,8 @@ function commands(command, depth = 0) {
 }
 
 // shellText returns word as the shell reads it: without its quotes, and with the character
-// after each backslash that escapes it, outside single quotes. With keep, a wildcard, *, ?,
+// after each backslash that escapes it, outside single quotes; in $'...', with the escapes
+// that ansi reads. With keep, a wildcard, *, ?,
 // [ or ], or a backslash that quotes or a backslash made literal keeps a backslash before it,
 // so that the result is a pattern for globMatch whose live wildcards are the unquoted ones.
 function shellText(word, keep) {
@@ -245,6 +246,16 @@ function shellText(word, keep) {
         at += 1;
         out += one(word[at]);
       } else out += one(char);
+    } else if (quote === 'ansi') {
+      if (char === "'") quote = null;
+      else if (char === '\\' && at + 1 < word.length) {
+        const [text, used] = ansi(word, at + 1);
+        out += [...text].map(one).join('');
+        at += used;
+      } else out += one(char);
+    } else if (char === '$' && word[at + 1] === "'") {
+      quote = 'ansi';
+      at += 1;
     } else if (char === "'" || char === '"') quote = char;
     else if (char === '\\' && at + 1 < word.length) {
       at += 1;
@@ -252,6 +263,23 @@ function shellText(word, keep) {
     } else out += char;
   }
   return out;
+}
+
+// The characters of the escapes of $'...' that stand for one character.
+const ANSI = { a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t',
+  v: '\v', '\\': '\\', "'": "'", '"': '"', '?': '?' };
+
+// ansi returns [text, used] of the escape of $'...' in word that starts at at, after its
+// backslash: the text it stands for, and the number of characters it takes. It reads \xHH,
+// \NNN in octal and the escapes of ANSI; any other keeps its backslash.
+function ansi(word, at) {
+  const char = word[at];
+  const hex = /^x([0-9A-Fa-f]{1,2})/.exec(word.slice(at, at + 3));
+  if (hex) return [String.fromCharCode(parseInt(hex[1], 16)), hex[0].length];
+  const octal = /^[0-7]{1,3}/.exec(word.slice(at, at + 3));
+  if (octal) return [String.fromCharCode(parseInt(octal[0], 8)), octal[0].length];
+  if (Object.hasOwn(ANSI, char)) return [ANSI[char], 1];
+  return [`\\${char}`, 1];
 }
 
 // unquote returns word as the shell reads it, without quotes and escapes.
@@ -263,19 +291,76 @@ const patternOf = (word) => shellText(word, true);
 // The most words that braces makes of one word.
 const BRACED = 64;
 
-// braces returns the words of word after the shell expands its braces: a {a,b} with no brace
-// in it and no quote or backslash before it is one word for each of its parts, as in
-// `rm {a,b}`. A brace with no comma, such as {} or ${x}, stays.
-function braces(word) {
-  const match = /^([^{'"\\]*)\{([^{}'"\\]*,[^{}'"\\]*)\}(.*)$/s.exec(word);
-  if (!match || match[1].endsWith('$')) return [word];
-  const out = [];
-  for (const part of match[2].split(',')) {
-    for (const rest of braces(match[3])) {
-      if (out.length < BRACED) out.push(`${match[1]}${part}${rest}`);
+// braceGroups returns the top-level brace groups of word that the shell expands, each as
+// { start, end, parts, nested }: a { outside quotes, not after $ or a backslash, whose }
+// closes it with a comma at its level between them. parts are the texts between those commas,
+// and nested reports whether a group holds another group. One pass with a stack of open
+// braces finds them, so the time grows in a line with the length of word.
+function braceGroups(word) {
+  const groups = [];
+  const open = [];
+  let quote = null;
+  for (let at = 0; at < word.length; at += 1) {
+    const char = word[at];
+    if (quote) {
+      if (char === quote) quote = null;
+      else if (char === '\\' && quote === '"') at += 1;
+    } else if (char === "'" || char === '"') quote = char;
+    else if (char === '\\') at += 1;
+    else if (char === '{' && word[at - 1] !== '$') {
+      open.push({ start: at, commas: [], nested: false });
+    } else if (char === ',' && open.length) open[open.length - 1].commas.push(at);
+    else if (char === '}' && open.length) {
+      const group = open.pop();
+      if (group.commas.length && open.length) open[open.length - 1].nested = true;
+      if (group.commas.length && !open.length) {
+        const cuts = [group.start, ...group.commas, at];
+        groups.push({ start: group.start, end: at, nested: group.nested,
+          parts: cuts.slice(1).map((cut, k) => word.slice(cuts[k] + 1, cut)) });
+      }
     }
   }
-  return out;
+  return groups;
+}
+
+// braces returns the words of word after the shell expands its braces, as in `rm {a,b}`, up to
+// BRACED words. When word would have more, or has a group in a group, it also returns word
+// with each group as *, so that the guard reads every path that the shell could make. A brace
+// with no comma, such as {} or ${x}, stays.
+function braces(word) {
+  const groups = braceGroups(word);
+  if (!groups.length) return [word];
+  let out = [''];
+  let over = groups.some((group) => group.nested);
+  let from = 0;
+  for (const group of groups) {
+    const before = word.slice(from, group.start);
+    const next = [];
+    for (const head of out) {
+      for (const part of group.parts) {
+        if (next.length >= BRACED) {
+          over = true;
+          break;
+        }
+        next.push(`${head}${before}${part}`);
+      }
+      if (next.length >= BRACED) {
+        over = over || out.length * group.parts.length > BRACED;
+        break;
+      }
+    }
+    out = next;
+    from = group.end + 1;
+  }
+  out = out.map((head) => `${head}${word.slice(from)}`);
+  if (!over) return out;
+  let star = '';
+  from = 0;
+  for (const group of groups) {
+    star += `${word.slice(from, group.start)}*`;
+    from = group.end + 1;
+  }
+  return [...out, `${star}${word.slice(from)}`];
 }
 
 // commandWords returns { words, dirs } of a simple command: words are the words from the
@@ -395,7 +480,12 @@ function walk(parts, start) {
     else {
       if (tool === 'pushd') pushed.push(at);
       const next = path.resolve(at, to);
-      const stat = fs.statSync(next, { throwIfNoEntry: false });
+      let stat = null;
+      try {
+        stat = fs.statSync(next, { throwIfNoEntry: false });
+      } catch {
+        // A folder that cannot be read, a name too long or a NUL: the cd fails.
+      }
       at = stat && stat.isDirectory() ? next : null;
     }
   }
@@ -695,7 +785,8 @@ function pathHits(segment, full, folder, how) {
 // chmod, chown, chgrp, chflags and a checkout with no `--` count as no write, and of cp,
 // install, ln and rsync only the last path counts. A relative path of a shell command is
 // read from the folder that walk finds for its command, after a cd, pushd, popd, -C or
-// env -C, and counts as no write when that folder is unknown.
+// env -C, and counts as no write when that folder is unknown. A path with a wildcard counts
+// as its folder before the first part with a wildcard.
 function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const args = input !== null && typeof input === 'object' ? input : {};
   const nocase = caseless(root);
@@ -719,7 +810,8 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
   const command = String(args.command || '');
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
   return segments(command, cwd).some((segment) => {
-    const at = (word) => !vague(word) && !wild(word) && work(literal(word), segment.at);
+    const at = (word) => !vague(word) && (wild(word) ? work(globFolder(word), segment.at)
+      : work(literal(word), segment.at));
     const words = segment.words.map(unquote);
     const tool = path.basename(words[0]);
     if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;
@@ -731,6 +823,15 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
     if (LAST_WRITTEN.has(tool)) return [...targets, ...written.slice(-1)].some(at);
     return written.some(at);
   });
+}
+
+// globFolder returns the folder of word, a pattern with a wildcard, before its first part
+// with a wildcard, as in src for src/*/build, or . for *.log.
+function globFolder(word) {
+  const parts = word.split('/');
+  const at = parts.findIndex((part) => wild(part));
+  const folder = parts.slice(0, at).join('/');
+  return literal(folder === '' && word.startsWith('/') ? '/' : folder || '.');
 }
 
 // names returns the ways a shell command can write full: its path, and its path from each

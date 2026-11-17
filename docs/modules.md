@@ -1149,33 +1149,35 @@ such as `( ... )`, `{ ...; }`, `then ...`, `$( ... )` or backticks. It reads `>|
 redirect, as `>`. It reads each word as the shell does: without its quotes and the
 backslashes that escape a character, so `rm c"h"ecks/a.ts` and `rm \checks/a.ts` write
 `checks/a.ts`, while a quoted wildcard, as in `rm 'chec*'`, is a character of the name. It
-expands braces with no brace inside, so `rm -rf {checks,x}` removes `checks`. It resolves
-each path of a command that writes from the current folder, and from each folder that a `cd`
-or `pushd` in the command changes to or that `-C <folder>` of `git -C` or `env -C` names, so
-`checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`,
-`unlink` and `mv` of a folder above a locked file or above `.qory/build/`, such as
-`rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads a `restore` of a folder
-above a locked file, and a `checkout` of such a folder, after `--` or as a path that exists,
-such as `git checkout .`, the same way; `git checkout <name>` of a name that is no path
-passes. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
-`rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
-locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
-matches a leading dot only when the command contains `dotglob`, `globdots`, `GLOB_DOTS` or
-`GLOBIGNORE`, so `rm -rf */build` passes and `rm -rf .q*` does not; `rm -rf node_mod*`
-passes. The guard matches a wildcard part by part with no regular expression, in time that
-grows with the length of the part times the length of the name, and a bracket with a range
-such as `[z-a]` matches nothing. A `cp`, `install`, `ln` or `rsync` into a folder above a
-locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or `cp -t checks a.ts`,
-writes that file when a source has the name of the next part of its path, or when a source
-contains `$` or ends with `/`. A `find` with `-delete`, or with `-exec`, `-execdir`, `-ok`
-or `-okdir` of a command that writes, writes the files below each folder it starts from that
-its `-name` and `-iname` tests match, or all of them with no such test. On a disk that
-ignores case, the guard compares paths in any case. A shell command of the main session is
-no edit, so the main session runs `qory` and `checks.js`. The guard covers no write to
-`qory.yaml`, to `.qory/` outside `.qory/build/` and a harness home below the working folder,
-or to a hook or a module of the harness source: agents may change those files, and qory
-composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID` is not set, the
-guard denies nothing.
+reads `$'...'` as single quotes with the escapes of the shell, such as `\x63`. It expands
+braces, so `rm -rf {checks,x}` removes `checks`, up to 64 words for each word; when a word
+would make more, or has a brace group inside a brace group, the guard also reads each group
+as `*`. It resolves each path of a command that writes from the current folder, and from
+each folder that a `cd` or `pushd` in the command changes to or that `-C <folder>` of
+`git -C` or `env -C` names, so `checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`,
+and it reads `rm`, `rmdir`, `unlink` and `mv` of a folder above a locked file or above
+`.qory/build/`, such as `rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads
+a `restore` of a folder above a locked file, and a `checkout` of such a folder, after `--`
+or as a path that exists, such as `git checkout .`, the same way; `git checkout <name>` of a
+name that is no path passes. A path with the wildcards `*`, `?` or `[...]` counts as each
+path it can match, so `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and
+`git checkout -- ch*` are writes of the locked files and of `.qory/build/` below the folders
+they match. As in the shell, a wildcard matches a leading dot only when the command contains
+`dotglob`, `globdots`, `GLOB_DOTS` or `GLOBIGNORE`, so `rm -rf */build` passes and
+`rm -rf .q*` does not; `rm -rf node_mod*` passes. The guard matches a wildcard part by part
+with no regular expression, in time that grows with the length of the part times the length
+of the name, and a bracket with a range such as `[z-a]` matches nothing. A `cp`, `install`,
+`ln` or `rsync` into a folder above a locked file or above `.qory/build/`, as in
+`cp /tmp/a.ts checks/` or `cp -t checks a.ts`, writes that file when a source has the name
+of the next part of its path, or when a source contains `$` or ends with `/`. A `find` with
+`-delete`, or with `-exec`, `-execdir`, `-ok` or `-okdir` of a command that writes, writes
+the files below each folder it starts from that its `-name` and `-iname` tests match, or all
+of them with no such test. On a disk that ignores case, the guard compares paths in any
+case. A shell command of the main session is no edit, so the main session runs `qory` and
+`checks.js`. The guard covers no write to `qory.yaml`, to `.qory/` outside `.qory/build/`
+and a harness home below the working folder, or to a hook or a module of the harness source:
+agents may change those files, and qory composes the harness at a fixed version. Outside a
+run, when `QORY_RUN_ID` is not set, the guard denies nothing.
 
 The guard and the step limit take the working folder from `CLAUDE_PROJECT_DIR` on Claude
 Code, and on Codex from the folder that the hook runs in. Codex 0.167.2 runs each hook in
@@ -1194,28 +1196,29 @@ one of its calls writes a file, by the rules above, below the working folder out
 the count. The step limit reads each path through its links, a new file through the deepest
 folder above it that exists. A write elsewhere in `/tmp`, a write through a link that leads
 out of the working folder, a shell path that starts with `~` or contains `$` or a backtick,
-such as `~/x` or `"$f"`, a relative path whose folder is unknown, `mkdir`, `rmdir`, `chmod`,
-`chown`, `chgrp`, `chflags` and a `checkout` with no `--` are no write, and of `cp`,
-`install`, `ln` and `rsync` only the last path counts. The step limit reads a relative path
-from the folder that the shell runs its command in: after each `cd`, `pushd` and `popd`
-before it, with `-C` of `git -C` or `env -C`, and back to the folder before a `( ... )`,
-`$( ... )` or backtick group at its end. The folder is unknown after a `cd` to a folder with
-`~`, `$` or a backtick or to one that does not exist, a `cd` in a pipe or in the background,
-a `popd` with no `pushd`, a command after `cd ... ||`, a command that `;` or `||` joins
-after a `cd` that ran only after `&&`, and in the text of `sh -c` after a `cd` anywhere in
-the command. The guard reads such paths from every folder the command can reach, so it
-denies more than the step limit counts. After 12 steps in a row that write nothing, the
-guard denies every call of the agent except a write, with the reason "Write your output now:
-12 steps in a row wrote nothing." The next step that writes sets the count back to 0. The
-main session, whose input has no `agent_id`, and, on Claude Code, a read-only agent are
-exempt: their stop is the time limit and the end check. A read-only agent is one whose file
-`modules/<module>/agents/<name>.md` under `$QORY_HARNESS_HOME` has a `tools` key that lists
-tools, none of them `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`.
-The key lists them on its line or as a YAML list. `agent_type` must be `harness:<name>`: a
-bare name can also be an agent of the project, so it counts. An agent with no such file,
-such as a built-in agent or an agent of another plugin, counts, and so does an agent with an
-empty `tools` list. On Codex, every agent counts, because every role can run `apply_patch`,
-whatever its file lists.
+such as `~/x` or `"$f"`, a relative path whose folder is unknown, a path with a wildcard
+whose folder before the first wildcard, such as `src` of `src/*/build`, lies outside the
+working folder or in `.qory/`, `mkdir`, `rmdir`, `chmod`, `chown`, `chgrp`, `chflags` and a
+`checkout` with no `--` are no write, and of `cp`, `install`, `ln` and `rsync` only the last
+path counts. The step limit reads a relative path from the folder that the shell runs its
+command in: after each `cd`, `pushd` and `popd` before it, with `-C` of `git -C` or
+`env -C`, and back to the folder before a `( ... )`, `$( ... )` or backtick group at its
+end. The folder is unknown after a `cd` to a folder with `~`, `$` or a backtick or to one
+that does not exist, a `cd` in a pipe or in the background, a `popd` with no `pushd`, a
+command after `cd ... ||`, a command that `;` or `||` joins after a `cd` that ran only after
+`&&`, and in the text of `sh -c` after a `cd` anywhere in the command. The guard reads such
+paths from every folder the command can reach, so it denies more than the step limit counts.
+After 12 steps in a row that write nothing, the guard denies every call of the agent except
+a write, with the reason "Write your output now: 12 steps in a row wrote nothing." The next
+step that writes sets the count back to 0. The main session, whose input has no `agent_id`,
+and, on Claude Code, a read-only agent are exempt: their stop is the time limit and the end
+check. A read-only agent is one whose file `modules/<module>/agents/<name>.md` under
+`$QORY_HARNESS_HOME` has a `tools` key that lists tools, none of them `Write`, `Edit`,
+`MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. The key lists them on its line or as a
+YAML list. `agent_type` must be `harness:<name>`: a bare name can also be an agent of the
+project, so it counts. An agent with no such file, such as a built-in agent or an agent of
+another plugin, counts, and so does an agent with an empty `tools` list. On Codex, every
+agent counts, because every role can run `apply_patch`, whatever its file lists.
 
 When `$QORY_HARNESS_HOME` lies below the working folder, as `.qory/harness/` does, the
 guard denies each write below it, with the reason "Leave the composed harness as it is: the

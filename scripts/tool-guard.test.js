@@ -1122,3 +1122,61 @@ test('quotes and backslashes inside a word, and simple braces, are read as the s
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
 });
+
+test('braces are expanded in linear time, and a brace past the cap or nested is a wildcard',
+  () => {
+    const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+    for (const command of [`rm ${'{a,b}'.repeat(30)}`, `rm {${','.repeat(100 * 1024)}}`,
+      `rm ${'{'.repeat(100 * 1024)}`, `rm ${'{a,'.repeat(20 * 1024)}`]) {
+      const start = process.hrtime.bigint();
+      guard(codex('Bash', { command }, 'implementer'));
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      assert.ok(ms < 100, `${command.slice(0, 20)}: ${ms} ms`);
+    }
+    const many = Array.from({ length: 64 }, (_, at) => `z${at}`).join(',');
+    for (const command of [`rm -rf {${many},checks}`, `rm -rf ${'{a,b}'.repeat(6)}{checks,x}`,
+      'rm -rf {checks,{x,y}}', 'rm -rf "a"{checks,x}/../checks']) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+    }
+    assert.equal(guard(codex('Bash', { command: 'rm -rf {src,{x,y}}/a.ts' }, 'implementer')),
+      null);
+  });
+
+test('a cd whose folder cannot be read leaves the folder unknown, with no crash', () => {
+  const noperm = path.join(WORK, 'noperm');
+  fs.mkdirSync(noperm, { recursive: true });
+  fs.chmodSync(noperm, 0o000);
+  try {
+    for (const command of ['cd noperm/x && echo x > a.ts', `cd ${'a'.repeat(300)} && rm a.ts`,
+      'cd a\0b && rm a.ts']) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+      assert.equal(countsAsWrite('Bash', { command }, { cwd: WORK, root: WORK }), false);
+    }
+  } finally {
+    fs.chmodSync(noperm, 0o755);
+    fs.rmSync(noperm, { recursive: true, force: true });
+  }
+});
+
+test("a word in $'...' is read as the shell reads it", () => {
+  const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  const base = path.basename(CHECK_PATH);
+  for (const command of [`rm $'checks'/${base}`, `rm $'che\\x63ks'/${base}`,
+    `rm $'che\\143ks/'${base}`, `rm c$'h'ecks/${base}`]) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
+  assert.equal(guard(codex('Bash', { command: "rm $'chec*'" }, 'implementer')), null);
+});
+
+test('a wildcard path whose folder lies in the working folder counts as a write', () => {
+  const place = { cwd: WORK, root: WORK };
+  const counts = (command) => countsAsWrite('Bash', { command }, place);
+  for (const command of ['rm -f *.log', 'rm -rf packages/*/build', 'rm -rf */dist',
+    `rm -f ${WORK}/src/*.tmp`]) {
+    assert.equal(counts(command), true, command);
+  }
+  for (const command of ['rm -f /tmp/*.log', 'rm -rf .qory/b*', 'rm -f ~/*.log',
+    'cd ~ && rm -f *.log']) {
+    assert.equal(counts(command), false, command);
+  }
+});
