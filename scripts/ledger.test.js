@@ -1013,6 +1013,17 @@ test('ledger: the point of the full ledger names the criteria that are not built
     fix: POINT.fix }]);
 });
 
+// The check of a point refuses a file name of a run in its text, so the point leaves out a
+// criterion whose first sentence contains one, also a script name that ends in .cjs.
+test('ledger: the point of the full ledger leaves out a criterion with a file name', () => {
+  for (const name of ['checks.js', 'checks.cjs']) {
+    const texts = ['The cart keeps its items after a reload.', `Run ${name} before each push.`];
+    assert.equal(fullWith(texts, []).text, `${LIMIT} 2 of 2 criteria are not built: ` +
+      '"The cart keeps its items after a reload", and 1 more, listed in the acceptance ' +
+      'criteria of this work item.', name);
+  }
+});
+
 // startFolder writes a folder of build plans, as qory pulls it at the start of a run, with the
 // plan of criteria, as planText takes them, as version 1, and returns its path.
 function startFolder(criteria) {

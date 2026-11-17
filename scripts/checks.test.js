@@ -5280,6 +5280,17 @@ test('the scripts and hooks run in a repository whose package.json sets "type": 
     assert.equal(ran.status, 0, `${name}: ${ran.stdout}${ran.stderr}`);
     assert.doesNotMatch(`${ran.stdout}${ran.stderr}`, /crashed|did not run|ES module/, name);
   }
+  // With no argument, each other script prints its usage and exits 2, and reads or writes
+  // no file.
+  for (const script of ['modules/core/skills/running-a-workflow/versions.cjs',
+    'modules/software-factory/skills/designing-mockups/pack-mockups.cjs',
+    'modules/software-factory/skills/designing-mockups/render-mockups.cjs']) {
+    const ran = node(script, []);
+    const out = `${ran.stdout}${ran.stderr}`;
+    assert.equal(ran.status, 2, `${script}: ${out}`);
+    assert.match(ran.stderr, new RegExp(`^Usage: ${path.basename(script)} `, 'm'), script);
+    assert.doesNotMatch(out, /ES module|require is not defined/, script);
+  }
 });
 
 test('end-gate takes .qory/artifacts of the project folder, also from a subfolder', () => {
