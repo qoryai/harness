@@ -43,14 +43,18 @@ module.exports = (lib) => {
   // short returns the first 12 digits of a commit, or the words for none.
   const short = (commit) => (commit ? commit.slice(0, 12) : 'a checkout with no commit');
 
+  // whole returns a finding that is a line, or a list of lines, as one text: its first line
+  // has the fix, and checks.js prints the lines after it indented.
+  const whole = (finding) => [].concat(finding).join('\n');
+
   function args(io, kind, paths) {
     if (!Object.hasOwn(KINDS, kind || '')) {
       return `Give run one kind of check: ${Object.keys(KINDS).join(', ')}.`;
     }
     if (kind === 'locked') {
       const bad = paths.find((one) => !CRITERION.test(one));
-      return bad === undefined ? null : 'Give run locked criteria such as ac-1, or none: ' +
-        `${quote(secrets.shown(bad, secrets.secretValues(io.env)).slice(0, 40))} is not one.`;
+      return bad === undefined ? null : 'Give run locked criteria such as ac-1, or none.\n' +
+        `${quote(secrets.shown(bad, secrets.secretValues(io.env)))} is not one.`;
     }
     if (kind !== 'targeted' && paths.length) {
       return `Give run ${kind} no path: only run targeted takes the paths of test files.`;
@@ -98,16 +102,17 @@ module.exports = (lib) => {
     if (work.excluded) return done('red', [git.EXCLUDED], `Ran no ${kind} command ${where}.`);
     // A plan with no targeted command runs zero tests, and zero tests are red.
     if (!row.command && kind === 'targeted') {
-      return done('red', ['Set a targeted command in ## Commands of the build plan, then push it.',
-        'Without one no test runs, and a run with zero tests is red.'],
+      return done('red', ['Set a targeted command in ## Commands of the build plan, then push it.' +
+        '\nWithout one no test runs, and a run with zero tests is red.'],
       `Ran no targeted command ${where}.`);
     }
     if (!row.command) {
       return done('none', [], `Ran no ${kind} command ${where}: the build plan has none.`);
     }
     if (limit.problem) {
-      return done('red', [limit.problem, ...limit.more], `Ran no ${kind} command ${where}: ` +
-        'its time limit is unknown, so the check is red.', { limit_source: limit.source });
+      return done('red', [whole([limit.problem, ...limit.more])], `Ran no ${kind} command ` +
+        `${where}: its time limit is unknown, so the check is red.`,
+      { limit_source: limit.source });
     }
     const minutes = limit.minutes[KINDS[kind]];
     const extra = { limit_minutes: minutes, limit_source: limit.source };
@@ -116,7 +121,7 @@ module.exports = (lib) => {
       const resultFile = row.resultFile && runner.relative(work.top, row.resultFile);
       if (!resultFile) {
         return done('red', ['Set the Result file of targeted in the build plan to a path in the ' +
-          'checkout, then push it.', 'Without it no test counts, so the check is red.'],
+          'checkout, then push it.\nWithout it no test counts, so the check is red.'],
         `Ran no targeted command ${where}.`, extra);
       }
       // A failed test runs alone only from a path of the run, or with no path, from a file
@@ -137,10 +142,10 @@ module.exports = (lib) => {
     const alone = result.reruns.filter((one) => one.state === 'green').map((one) => one.file);
     // A file that passed only alone gets a separate line before the last line.
     const flaky = result.state === 'green' && alone.length
-      ? [`Make ${alone.slice(0, 3).map((one) => quote(shown(one))).join(', ')}` +
-        `${alone.length > 3 ? ` and ` +
-        `${alone.length - 3} more files` : ''} pass when run with the other tests: ` +
-        `${alone.length === 1 ? 'it' : 'they'} passed only when run alone.`] : [];
+      ? [`Make ${alone.length === 1 ? 'one file' : `${alone.length} files`} pass when run with ` +
+        `the other tests.\n${alone.slice(0, 3).map((one) => quote(shown(one))).join(', ')}` +
+        `${alone.length > 3 ? ` and ${alone.length - 3} more files` : ''} passed only when ` +
+        'run alone.'] : [];
     const told = [
       counts ? `, ${plural(counts.tests, 'test')}` : '',
       flaky.length ? `, ${plural(alone.length, 'file')} green only alone` : '',
@@ -182,13 +187,13 @@ module.exports = (lib) => {
     const def = lockType(io);
     const lock = readLock(io, def, null, 'run locked');
     if (!lock.version) {
-      throw new Missing('Pull the artifacts, then run locked again: index.json lists no ' +
+      throw new Missing('Pull the artifacts, then run locked again.\nindex.json lists no ' +
         `${def.type} version that counts.`);
     }
     const unknown = lock.differs ? [] : criteria.filter((one) =>
       !lock.data.checks.some((check) => check.criterion === one));
     if (unknown.length) {
-      throw new Missing(`Give run locked a criterion that ${lock.what} locks: ${unknown[0]} ` +
+      throw new Missing(`Give run locked a criterion that ${lock.what} locks.\n${unknown[0]} ` +
         'has no check.');
     }
     const changed = lib.changesOf(work, plan);
@@ -213,18 +218,19 @@ module.exports = (lib) => {
     }
     const problems = changedFiles(io, def, lock, 'run locked again', 'run locked');
     if (problems.length) {
-      return done('red', problems.flat(), `Ran no locked check ${where}: ` +
+      return done('red', problems.map(whole), `Ran no locked check ${where}: ` +
         `${plural(problems.length, 'finding')} on the files of ${lock.what}.`);
     }
     const resultFile = row && row.resultFile && runner.relative(work.top, row.resultFile);
     if (!resultFile) {
       return done('red', ['Set the Result file of targeted in the build plan to a path in the ' +
-        'checkout, then push it.', 'Without it no test of a locked check counts, so the ' +
+        'checkout, then push it.\nWithout it no test of a locked check counts, so the ' +
         'check is red.'], none);
     }
     if (limit.problem) {
-      return done('red', [limit.problem, ...limit.more], `Ran no locked check ${where}: its ` +
-        'time limit is unknown, so the check is red.', { limit_source: limit.source });
+      return done('red', [whole([limit.problem, ...limit.more])], `Ran no locked check ` +
+        `${where}: its time limit is unknown, so the check is red.`,
+      { limit_source: limit.source });
     }
     const minutes = limit.minutes[KINDS.locked];
     const checks = lock.data.checks.filter((check) => !criteria.length ||
@@ -269,20 +275,25 @@ module.exports = (lib) => {
       .map((one) => one.criterion);
     const skipped = notRun(NOT_RUN);
     const unsafe = notRun(UNSAFE);
-    const lines = [...swapped.flat(), ...red.filter((one) => ![NOT_RUN, UNSAFE]
+    // The line of the checks that did not run after a locked file changed is a line of the
+    // last finding on the files: a change of a locked file is why they did not run.
+    const onFiles = swapped.map(whole);
+    if (unsafe.length) {
+      onFiles[onFiles.length - 1] += `\n${plural(unsafe.length, 'check')} did not run: a ` +
+        'locked file changed during the call.';
+    }
+    const lines = [...onFiles, ...red.filter((one) => ![NOT_RUN, UNSAFE]
       .includes(one.reasons[0])).flatMap((one) => one.reasons), ...(skipped.length
-      ? [`Run locked again for ${cut(skipped.join(' '), 40)}, in fewer checks per call.`,
+      ? [`Run locked again for ${cut(skipped.join(' '), 40)}, in fewer checks per call.\n` +
         `${plural(skipped.length, 'check')} did not run: the call ran out of time, ` +
-        `${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call.`] : []),
-    ...(unsafe.length ? [`${plural(unsafe.length, 'check')} did not run: a locked file ` +
-      'changed during the call.'] : [])];
+        `${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call.`] : [])];
     return done(red.length || swapped.length ? 'red' : 'green', lines,
       `Ran ${plural(results.length, 'locked check')} of ${lock.what} ${where}: ` +
       `${results.length - red.length} green, ${red.length} red` +
       `${swapped.length ? `, and ${plural(swapped.length, 'finding')} on the files of ` +
       `${lock.what}` : ''}.`,
       { limit_minutes: minutes, limit_source: limit.source, checks: results,
-        ...(swapped.length ? { changed: swapped.flat() } : {}) });
+        ...(swapped.length ? { changed: swapped.map(whole) } : {}) });
   }
 
   return {

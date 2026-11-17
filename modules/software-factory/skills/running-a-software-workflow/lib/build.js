@@ -129,9 +129,11 @@ module.exports = (lib) => {
     }
     for (const other of tables.filter((one) => !wanted.includes(one))) {
       const header = other.header.join(', ');
+      const whole = short(header, 20) === short(header) ? ''
+        : ` That table has the columns ${short(header, 80)}.`;
       run.find(`Remove the table with the columns ${short(header, 20)} from ## ${part.title} ` +
         `of ${file}.\nThe check reads only the table with the columns ${columns.join(', ')}.` +
-        `${short(header, 20) === short(header) ? '' : ` That table has the columns ${short(header, 80)}.`}`);
+        whole);
     }
     if (wanted.length > 1) {
       run.find(`Put the rows of ## ${part.title} of ${file} in one table: it has ` +

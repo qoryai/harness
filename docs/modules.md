@@ -2500,11 +2500,11 @@ and three calls run it:
   no push follows. A proposal on the standard track, or a folder with no proposal, runs no
   proof, and `scope --plan` judges the Files as before;
 - `check` and `end`, with the check of `submission`, in a checkout, with `--inputs`. The
-  files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the
-  call writes one line on stderr, "Run the push step: it proves <kind>, since the parsers
-  in <folder> are not installed here.", and leaves them to `scope --plan`. `end` checks a
-  draft that differs from the newest stored version, so it runs no proof for a submission
-  that equals its stored version. With the fast track and no `--inputs`,
+  files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the call
+  writes "Run the push step: it proves <kind>." on stderr, with the line "The parsers in
+  <folder> are not installed here." after it, and leaves them to `scope --plan`. `end`
+  checks a draft that differs from the newest stored version, so it runs no proof for a
+  submission that equals its stored version. With the fast track and no `--inputs`,
   `check submission` has a finding, never a pass;
 - `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`, by hand.
 

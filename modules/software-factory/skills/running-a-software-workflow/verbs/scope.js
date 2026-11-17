@@ -363,8 +363,9 @@ module.exports = (lib) => {
       const patch = git.git(top, ['diff', '-U0', '--text', '--no-color', '--no-ext-diff',
         '--no-textconv', before, blob], { env: io.env });
       if (patch.error || patch.status !== 0 || (!patch.stdout && size.get(blob) > 0)) {
-        lines.push(fitted(name, (quoted) => `Remove ${quoted} from the change, or make it ` +
-          `smaller: git showed no lines of it${commit ? ` in commit ${short}` : ''} to scan.`));
+        lines.push(`${fitted(name, (quoted) => `Remove ${quoted} from the change, or make it ` +
+          'smaller.')}\ngit showed no lines of ${quote(name)}${commit ? ` in commit ${short}`
+          : ''} to scan.`);
         continue;
       }
       for (const hit of secrets.scanPatch(patch.stdout, values)) {
@@ -405,9 +406,9 @@ module.exports = (lib) => {
     if (commits.length > MOST_COMMITS) {
       return { commits: commits.length, lines: base
         ? [`Push at most ${MOST_COMMITS} commits since ${base.slice(0, 12)}, such as by ` +
-          `squashing them, then ${verb} again.`, `${verb} scans at most ${MOST_COMMITS} ` +
+          `squashing them, then ${verb} again.\n${verb} scans at most ${MOST_COMMITS} ` +
           'commits for keys, and there are more.']
-        : ['Freeze with --base <commit>, the commit that the session started from.',
+        : ['Freeze with --base <commit>, the commit that the session started from.\n' +
           `More than ${MOST_COMMITS} commits are on no remote branch, and freeze scans at ` +
           `most ${MOST_COMMITS}.`] };
     }
@@ -444,7 +445,7 @@ module.exports = (lib) => {
     }
     const { top, commit: head } = found.work;
     if (!head) {
-      throw new Missing('Commit once before the first step: the checkout has no commit, so ' +
+      throw new Missing('Commit once before the first step.\nThe checkout has no commit, so ' +
         'freeze has no parent for the step.');
     }
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-freeze-'));
@@ -474,8 +475,8 @@ module.exports = (lib) => {
         return 1;
       }
       if (change && !step) {
-        io.print(['Freeze the change with freeze <step>, or undo it, then freeze --plan again.',
-          `freeze --plan commits nothing, and the checkout has ` +
+        io.print(['Freeze the change with freeze <step>, or undo it, then freeze --plan again.\n' +
+          'freeze --plan commits nothing, and the checkout has ' +
           `${plural(found.counted.length, 'changed path')}.`], 'Froze nothing for the build plan.');
         return 1;
       }
@@ -491,9 +492,14 @@ module.exports = (lib) => {
       const nested = entries.filter((one) => one.mode === GITLINK);
       if (nested.length) {
         const values = secrets.secretValues(io.env);
-        io.print([...nested.map((one) => `Remove the repository ${quote(secrets.shown(one.file,
-          values))} from the change, or end the step as failed.`), 'freeze commits no ' +
-          'repository inside the checkout: the scan does not read the files of one.'],
+        // Each finding has the path on its first line, cut to keep that line within 100
+        // characters, and the whole path on the line after it.
+        io.print(nested.map((one) => {
+          const shown = secrets.shown(one.file, values);
+          return `Remove the repository ${quote(lib.brief(shown, 32))} from the change, or end ` +
+            `the step as failed.\nfreeze commits no repository inside the checkout, such as ` +
+            `${quote(shown)}: the scan does not read the files of one.`;
+        }),
         `Froze nothing: the change has ${plural(nested.length, 'repository', 'repositories')}.`);
         return 1;
       }

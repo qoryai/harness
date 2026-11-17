@@ -44,8 +44,8 @@ module.exports = (lib) => {
 
   function args(io, patch, rest) {
     if (!patch || rest.length !== 2 || rest[0] !== 'targeted' || !isPath(rest[1])) {
-      return 'Give probe <patch> targeted <path>: the patch file in the artifact folder, and ' +
-        'the path of one test file below the top of the checkout.';
+      return 'Give probe <patch> targeted <path>.\n<patch> is the patch file in the artifact ' +
+        'folder, and <path> the path of one test file below the top of the checkout.';
     }
     return null;
   }
@@ -197,6 +197,9 @@ module.exports = (lib) => {
     const work = git.checkout(Missing, io);
     const values = secrets.secretValues(io.env);
     const shown = (text) => quote(secrets.shown(text, values));
+    // named returns a path for the first line of a finding, cut in the middle to size
+    // characters; shown returns it for a later line.
+    const named = (text, size = 40) => quote(lib.brief(secrets.shown(text, values), size));
     const resultFile = row && row.command && row.resultFile &&
       runner.relative(work.top, row.resultFile);
     if (!resultFile) {
@@ -216,8 +219,9 @@ module.exports = (lib) => {
     const planted = touched(io, work.top, file);
     const wrong = planted.find((one) => one === check || one === resultFile || git.isQory(one));
     if (wrong !== undefined) {
-      throw new Missing(`Plant the fault in the code, not in ${shown(wrong)}.`,
-        [`The probe runs ${shown(check)} against the code, and writes ${shown(resultFile)}.`]);
+      throw new Missing(`Plant the fault in the code, not in ${named(wrong)}.`,
+        [`The patch changes ${shown(wrong)}. The probe runs ${shown(check)} against the code, ` +
+          `and writes ${shown(resultFile)}.`]);
     }
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
       env: io.env });
@@ -230,14 +234,14 @@ module.exports = (lib) => {
       copy(io, work.top, work.commit, dest, temporary);
       const out = escapes(dest, [fs.realpathSync(work.top), ...gitFolders(io, work.top)]);
       if (out.length && out[0].dangling) {
-        throw new Missing(`Remove the link ${shown(out[0].file)}, or make its target, then ` +
-          'probe again.', ['It leads to no file, so a test in the copy could make one ' +
-          'outside the copy.']);
+        throw new Missing(`Remove the link ${named(out[0].file)}, or make its target, then ` +
+          'probe again.', [`${shown(out[0].file)} leads to no file, so a test in the copy ` +
+          'could make one outside the copy.']);
       }
       if (out.length) {
-        throw new Missing(`Make the link ${shown(out[0].file)} relative, inside the checkout, ` +
-          'then probe again.', ['Its real path is in the checkout or its .git folder, so a ' +
-          'test in the copy could change them.']);
+        throw new Missing(`Make the link ${named(out[0].file, 36)} relative, inside the ` +
+          'checkout, then probe again.', [`The real path of ${shown(out[0].file)} is in the ` +
+          'checkout or its .git folder, so a test in the copy could change them.']);
       }
       const before = repository(io, work.top);
       // No git command in the copy finds a repository above the temporary folder, or reads a
@@ -265,7 +269,7 @@ module.exports = (lib) => {
         if (repository(io, work.top) === before) return false;
         record.write({ ...base, ...data, state: 'repository changed' });
         io.print(['Remove the code that changes the git repository from the tests, then probe ' +
-          'again.', `HEAD, a ref or the index changed while ${shown(check)} ran, so the probe ` +
+          `again.\nHEAD, a ref or the index changed while ${shown(check)} ran, so the probe ` +
           'proves nothing.'], last);
         return true;
       };
@@ -274,8 +278,9 @@ module.exports = (lib) => {
       if (changedRepository({})) return NO_PROOF;
       if (first.state !== 'green') {
         record.write({ ...base, state: 'no proof', reasons: first.reasons });
-        io.print([`Make ${shown(check)} green on ${short} first, then probe again.`,
-          'Without the patch it is red, so the probe proves nothing.', ...first.reasons], last);
+        io.print([`Make ${named(check)} green on ${short} first, then probe again.\nWithout ` +
+          `the patch ${shown(check)} is red, so the probe proves nothing.`, ...first.reasons],
+        last);
         return NO_PROOF;
       }
       git.ok(Missing, dest, ['apply', file], `Write the patch against ${short}`,
@@ -292,10 +297,10 @@ module.exports = (lib) => {
         else if (minutes < MOST) {
           step = `Raise ${setting(KEY, '/targeted_checks')}, or probe a faster test file.`;
         }
-        io.print([step, capped ? `With the patch, the check ran until ` +
+        io.print([`${step}\n${capped ? 'With the patch, the check ran until ' +
           `${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call, so the probe ` +
-          'proves nothing.' : `With the patch, the check ran past the shared limit of ` +
-          `${minutes} minutes, so the probe proves nothing.`], last);
+          'proves nothing.' : 'With the patch, the check ran past the shared limit of ' +
+          `${minutes} minutes, so the probe proves nothing.`}`], last);
         return NO_PROOF;
       }
       const state = after.state === 'red' ? 'caught' : 'missed';
@@ -305,7 +310,7 @@ module.exports = (lib) => {
           `patch on ${short}.`);
         return 0;
       }
-      io.print(['Report the planted fault as a proof: the tests miss it.',
+      io.print(['Report the planted fault as a proof: the tests miss it.\n' +
         `${shown(check)} stays green with the patch on ${short}.`], last);
       return 1;
     } finally {

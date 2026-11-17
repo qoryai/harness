@@ -74,7 +74,8 @@ module.exports = (lib) => {
 
   // The lines of each fault of a run, each list with its fix first: planWords for the command
   // of a kind of the build plan, and lockedWords for the command of a locked check, which the
-  // session cannot change.
+  // session cannot change. finding makes each list one finding: the fix on the first line,
+  // and the cause on the lines after it.
   // A limit of MOST minutes cannot be raised, so the first line for it is another step.
   const raise = (key) => setting('command_limits_minutes', `/${key}`);
   // The reason when the command ran until the reserve before the cap of the Bash call.
@@ -85,7 +86,9 @@ module.exports = (lib) => {
     'command still ran after SIGKILL, so the check is red.';
   const ranPast = (minutes) => `It ran past its limit of ${minutes} minutes and was stopped` +
     `${minutes >= MOST ? ', the most that qory.yaml allows' : ''}.`;
-  const planWords = (name) => ({
+  const finding = (words) => Object.fromEntries(Object.entries(words)
+    .map(([key, lines]) => [key, (...args) => [lines(...args).join('\n')]]));
+  const planWords = (name) => finding({
     timeout: (minutes) => [minutes < MOST
       ? `Make the ${name} command faster, or raise ${raise(KEYS(name))}.`
       : `${name === 'targeted' ? 'Give run targeted fewer paths, or make' : 'Split'} the ` +
@@ -98,29 +101,30 @@ module.exports = (lib) => {
       `The ${name} command could not start (${why}).`],
     missing: (exit) => [`Install the tool that the ${name} command needs, or fix it in the ` +
       'build plan.', `The shell exited ${exit}, so the program does not exist or cannot run.`],
-    signal: (signal) => [`Find what stopped the ${name} command, then run it again: it ended ` +
-      `on the signal ${signal}.`],
-    noFile: (file) => [`Make the ${name} command write its results to ${file}, as the build ` +
-      'plan states.', 'This run wrote no such file, so no test counts.'],
-    noSuite: (file) => [`Make the ${name} command write JUnit XML to ${file}.`,
-      'The file has no testsuite element, so no test counts.'],
-    mismatch: (file, why) => [`Fix the JUnit XML that the ${name} command writes to ${file}.`,
-      `The run is red: ${why}.`],
+    signal: (signal) => [`Find what stopped the ${name} command, then run it again.`,
+      `It ended on the signal ${signal}.`],
+    noFile: (file) => [`Make the ${name} command write its results to its Result file, as the ` +
+      'build plan states.', `The Result file is ${file}. This run wrote no such file, so no ` +
+      'test counts.'],
+    noSuite: (file) => [`Make the ${name} command write JUnit XML to its Result file.`,
+      `The Result file ${file} has no testsuite element, so no test counts.`],
+    mismatch: (file, why) => [`Fix the JUnit XML that the ${name} command writes to its ` +
+      'Result file.', `The Result file is ${file}. The run is red: ${why}.`],
     zero: () => [`Give run ${name} the path of a test file, or fix the command.`,
       'It ran zero tests, and a run with zero tests is red.'],
     skipped: (count) => [`Remove the skip from ${count === 1 ? 'the skipped test' :
-      `the ${count} skipped tests`}, or end the step as failed: a skipped test is red.`],
+      `the ${count} skipped tests`}, or end the step as failed.`, 'A skipped test is red.'],
     failed: (failed, tests) => [`Fix the code or the test of each failed test, then run ` +
-      `${name} again: ${failed} of ${tests} tests failed.`],
-    exit: (exit) => [`Find why the ${name} command exited ${exit}, then run it again: the ` +
-      'result file has no failed test.'],
+      `${name} again.`, `${failed} of ${tests} tests failed.`],
+    exit: (exit) => [`Find why the ${name} command exited ${exit}, then run it again.`,
+      'The result file has no failed test.'],
     escaped: (count) => [`Make the ${name} command end every process that it starts, then run ` +
       `${name} again.`, escapedLine(count)],
   });
   const lockedWords = (criterion) => {
     const check = `the locked check of ${criterion}`;
     const Check = `The locked check of ${criterion}`;
-    return {
+    return finding({
       timeout: (minutes) => [minutes < MOST
         ? `Make the code faster, or raise ${raise('targeted_checks')}.`
         : `Make the code that ${check} runs faster, or report to a member.`,
@@ -131,24 +135,24 @@ module.exports = (lib) => {
         'repeats.', `${Check} could not start (${why}).`],
       missing: (exit) => [`Install the tool that ${check} needs, then run locked again.`,
         `The shell exited ${exit}, so the program does not exist or cannot run.`],
-      signal: (signal) => [`Find what stopped ${check}, then run locked again: it ended on ` +
-        `the signal ${signal}.`],
-      noFile: (file) => [`Report to a member: ${check} wrote no results to ${file}.`,
-        'That file is the Result file of targeted in the build plan, so no test counts.'],
-      noSuite: (file) => [`Report to a member: ${check} wrote no JUnit XML to ${file}.`,
-        'The file has no testsuite element, so no test counts.'],
+      signal: (signal) => [`Find what stopped ${check}, then run locked again.`,
+        `It ended on the signal ${signal}.`],
+      noFile: (file) => [`Report to a member: ${check} wrote no results to the Result file.`,
+        `${file} is the Result file of targeted in the build plan, so no test counts.`],
+      noSuite: (file) => [`Report to a member: ${check} wrote no JUnit XML to the Result file.`,
+        `The Result file ${file} has no testsuite element, so no test counts.`],
       mismatch: (file, why) => [`Report to a member: ${check} wrote invalid JUnit XML.`,
         `The run is red: ${why}.`],
       zero: () => [`Fix the code so that ${check} runs its tests, or report to a member.`,
         'It ran zero tests, and a run with zero tests is red.'],
       skipped: () => [`Report to a member: ${check} skips a test, and a skipped test is red.`],
-      failed: (failed, tests) => [`Fix the code until ${check} passes: ${failed} of ${tests} ` +
-        'tests failed.'],
+      failed: (failed, tests) => [`Fix the code until ${check} passes.`,
+        `${failed} of ${tests} tests failed.`],
       exit: (exit) => [`Find why ${check} exited ${exit}, then run locked again.`,
         'The result file has no failed test, and a check that exits other than 0 is red.'],
       escaped: (count) => [`Fix the code so that ${check} ends every process that it starts.`,
         escapedLine(count)],
-    };
+    });
   };
 
   // exitReason returns the lines of an exit that is no result of the check, by words, or null.
@@ -232,29 +236,30 @@ module.exports = (lib) => {
     }
     const files = [...new Set(failures.map((one) => relative(cwd, one.file)))];
     if (files.includes(null)) {
-      out.reasons.push('Fix each failed test: none ran again alone.',
+      out.reasons.push('Fix each failed test: none ran again alone.\n' +
         'The result file has no file below the checkout for a failed test.');
       return out;
     }
     if (files.length > MAX_RERUNS) {
-      out.reasons.push('Fix each failed test: none ran again alone.',
+      out.reasons.push('Fix each failed test: none ran again alone.\n' +
         `Tests failed in ${files.length} files, and at most ${MAX_RERUNS} files run again.`);
       return out;
     }
     if (!files.every((one) => allowed(one))) {
-      out.reasons.push('Fix each failed test: none ran again alone.', 'The result file has a ' +
+      out.reasons.push('Fix each failed test: none ran again alone.\nThe result file has a ' +
         'failed test in a file that is not a path of the run, or that git does not track.');
       return out;
     }
     for (const [at, one] of files.entries()) {
       if (Date.now() >= deadline) {
         out.timedOut = true;
-        out.reasons = [...first.reasons, minutes < MOST && !capped
+        const fix = minutes < MOST && !capped
           ? `Fix each failed test, or raise ${raise('targeted_checks')}.`
-          : 'Fix each failed test, or give run targeted fewer paths.',
-        capped ? `The call ran out of time, ${RESERVE_MS / 1000} seconds before the cap of ` +
-          'the Bash call, before the failed tests ran again alone.' : `The limit of ` +
-          `${minutes} minutes ran out before the failed tests ran again alone.`];
+          : 'Fix each failed test, or give run targeted fewer paths.';
+        const why = capped ? `The call ran out of time, ${RESERVE_MS / 1000} seconds before the ` +
+          'cap of the Bash call, before the failed tests ran again alone.' : `The limit of ` +
+          `${minutes} minutes ran out before the failed tests ran again alone.`;
+        out.reasons = [...first.reasons, `${fix}\n${why}`];
         return out;
       }
       const again = once([one], at + 1);
@@ -272,9 +277,11 @@ module.exports = (lib) => {
       out.reasons = [];
     } else {
       const still = out.reruns.filter((one) => one.state !== 'green').map((one) => one.file);
-      out.reasons = [`Fix the failed tests of ${still.slice(0, 3).map(shown).join(', ')}` +
-        `${still.length > 3 ? ` and ${still.length - 3} more files` : ''}, then run targeted ` +
-        'again.', 'They failed again when run alone.'];
+      out.reasons = [`Fix the failed tests of ${still.length === 1 ? 'one file'
+        : `${still.length} files`}, then run targeted again.\nThe tests of ` +
+        `${still.slice(0, 3).map(shown).join(', ')}` +
+        `${still.length > 3 ? ` and ${still.length - 3} more files` : ''} failed again when run ` +
+        'alone.'];
     }
     return out;
   }
@@ -291,7 +298,7 @@ module.exports = (lib) => {
       limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env, proc });
     const reason = exitReason(planWords(kind), result, minutes, capped) ||
       (result.exit === 0 ? null
-      : [`Fix what the ${kind} command reports, then run ${kind} again: it exited ` +
+      : [`Fix what the ${kind} command reports, then run ${kind} again.\nIt exited ` +
         `${result.exit}.`]);
     return { state: reason ? 'red' : 'green', reasons: reason || [], result,
       logs: [log], reruns: [], counts: null };

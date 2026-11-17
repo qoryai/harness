@@ -130,7 +130,7 @@ function ok(Missing, cwd, args, fix, options = {}) {
     if (secrets.scanLine(why, secrets.secretValues(options.env))) {
       why = 'its error line has a key, so the line is left out';
     }
-    throw new Missing(`${fix}: git ${args[0]} failed: ${why.slice(0, 80)}`);
+    throw new Missing(`${fix}.\ngit ${args[0]} failed: ${why.slice(0, 80)}`);
   }
   return ran.stdout;
 }

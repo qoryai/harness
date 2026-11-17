@@ -35,7 +35,7 @@ module.exports = (lib) => {
     }
     if (changed.length) {
       const values = secrets.secretValues(io.env);
-      io.print([`Freeze the step first, then run diff again: the checkout has ` +
+      io.print(['Freeze the step first, then run diff again.\nThe checkout has ' +
         `${plural(changed.length, 'changed path')}, such as ` +
         `${quote(secrets.shown(changed[0], values))}.`], 'Wrote no diff.');
       return 1;
@@ -62,7 +62,7 @@ module.exports = (lib) => {
       fs.writeFileSync(path.join(temporary, 'diff'), bytes, { flag: 'wx' });
       fs.renameSync(path.join(temporary, 'diff'), file);
     } catch {
-      throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
+      throw new Missing(`Make the artifact folder writable.\n${file} cannot be written.`);
     } finally {
       if (temporary) fs.rmSync(temporary, { recursive: true, force: true });
     }

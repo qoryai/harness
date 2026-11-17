@@ -19,7 +19,7 @@ module.exports = (lib) => {
     try {
       fs.mkdirSync(folder, { recursive: true });
     } catch {
-      throw new Missing(`Make the artifact folder writable: ${folder} cannot be made.`);
+      throw new Missing(`Make the artifact folder writable.\n${folder} cannot be made.`);
     }
     const id = `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}-` +
       crypto.randomBytes(3).toString('hex');

@@ -631,7 +631,7 @@ test('check submission: without the parsers, end leaves the proof to prove', {
   } finally {
     process.stderr.write = write;
   }
-  assert.equal(lines.filter((line) => /^Run the push step: it proves "a text value in a code file", since the parsers in \/opt\/qory\/parsers\/node_modules are not installed here\.\n$/.test(line)).length, 2, lines.join());
+  assert.equal(lines.filter((line) => /^Run the push step: it proves "a text value in a code file"\.\n  The parsers in \/opt\/qory\/parsers\/node_modules are not installed here\.\n$/.test(line)).length, 2, lines.join());
   // prove, which the push step runs, has the finding.
   fails(prove(run), /^Propose the standard track: the parsers are not installed\./);
 });

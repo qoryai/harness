@@ -213,7 +213,7 @@ test('run targeted: a run with zero tests is red', () => {
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'zero' } });
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 2), ['Give run targeted the path of a test file, or fix the command.',
-    'It ran zero tests, and a run with zero tests is red.']);
+    '  It ran zero tests, and a run with zero tests is red.']);
   assert.match(got.lines.at(-2), /^The output and the record are in \.reports\/runs\/, as /);
   assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: red, 0 tests\.$/);
   assert.equal(lastRecord(dir).state, 'red');
@@ -236,24 +236,27 @@ test('run targeted: a skipped test, a failed test and a missing result file are 
   const dir = checkout();
   const skip = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'skip' } });
   assert.equal(skip.status, 1);
-  assert.match(skip.lines[0], /^Remove the skip from the skipped test, or end the step as failed: a skipped test is red\.$/);
+  assert.deepEqual(skip.lines.slice(0, 2), ['Remove the skip from the skipped test, or end the step as ' +
+    'failed.', '  A skipped test is red.']);
   write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
   const fail = call(dir, ['run', 'targeted']);
   assert.equal(fail.status, 1);
-  assert.deepEqual(fail.lines.slice(0, 2), ['Fix the failed tests of "tests/a.test.js", then run targeted again.',
-    'They failed again when run alone.']);
+  assert.deepEqual(fail.lines.slice(0, 2), ['Fix the failed tests of one file, then run targeted again.',
+    '  The tests of "tests/a.test.js" failed again when run alone.']);
   assert.deepEqual(lastRecord(dir).reruns, [{ file: 'tests/a.test.js', state: 'red' }]);
   const none = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'nowrite' } });
   assert.equal(none.status, 1);
-  assert.deepEqual(none.lines.slice(0, 2), ['Make the targeted command write its results to out/junit.xml, as the build plan states.',
-    'This run wrote no such file, so no test counts.']);
+  assert.deepEqual(none.lines.slice(0, 2), ['Make the targeted command write its results to its Result ' +
+    'file, as the build plan states.',
+  '  The Result file is out/junit.xml. This run wrote no such file, so no test counts.']);
 });
 
 test('run targeted: a failed test that passes alone counts as passed, and the line says so', () => {
   const dir = checkout();
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'once', FAKE_COUNT: path.join(dir, 'count') } });
   assert.equal(got.status, 0, got.out);
-  assert.equal(got.lines[0], 'Make "tests/a.test.js" pass when run with the other tests: it passed only when run alone.');
+  assert.deepEqual(got.lines.slice(0, 2), ['Make one file pass when run with the other tests.',
+    '  "tests/a.test.js" passed only when run alone.']);
   assert.match(got.lines.at(-1), /: green, 1 test, 1 file green only alone\.$/);
   assert.deepEqual(lastRecord(dir).reruns, [{ file: 'tests/a.test.js', state: 'green' }]);
 });
@@ -263,11 +266,11 @@ test('run: a missing tool and a timeout are red', () => {
   const missing = call(dir, ['run', 'lint']);
   assert.equal(missing.status, 1);
   assert.deepEqual(missing.lines.slice(0, 2), ['Install the tool that the lint command needs, or fix it in the build plan.',
-    'The shell exited 127, so the program does not exist or cannot run.']);
+    '  The shell exited 127, so the program does not exist or cannot run.']);
   const slow = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'sleep' }, minuteMs: 300 });
   assert.equal(slow.status, 1);
   assert.equal(slow.lines[0], 'Make the targeted command faster, or raise command_limits_minutes.targeted_checks in qory.yaml.');
-  assert.match(slow.lines[1], /^It ran past its limit of 5 minutes/);
+  assert.match(slow.lines[1], /^  It ran past its limit of 5 minutes/);
   assert.equal(lastRecord(dir).timed_out, true);
 });
 
@@ -278,7 +281,7 @@ test('run and probe: at the limit of 60 minutes, a timeout gives a step other th
   const slow = call(dir, ['run', 'targeted', '--inputs', most], { env: { FAKE_MODE: 'sleep' }, minuteMs: 5 });
   assert.equal(slow.status, 1, slow.out);
   assert.deepEqual(slow.lines.slice(0, 2), ['Give run targeted fewer paths, or make the targeted command faster.',
-    'It ran past its limit of 60 minutes and was stopped, the most that qory.yaml allows.']);
+    '  It ran past its limit of 60 minutes and was stopped, the most that qory.yaml allows.']);
   write(dir, 'tool/lint.js', 'setInterval(() => {}, 1000);\n');
   const lint = call(dir, ['run', 'lint', '--inputs', most], { minuteMs: 5 });
   assert.equal(lint.lines[0], 'Split the lint command into faster commands.');
@@ -299,7 +302,8 @@ test('run: a result file that the run did not write is red', () => {
   assert.equal(call(dir, ['run', 'targeted']).status, 0);
   const stale = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'nowrite' } });
   assert.equal(stale.status, 1);
-  assert.equal(stale.lines[1], 'This run wrote no such file, so no test counts.');
+  assert.equal(stale.lines[1], '  The Result file is out/junit.xml. This run wrote no such file, so no ' +
+    'test counts.');
 });
 
 test('run: lint by its exit status, a kind with no command, and wrong arguments', () => {
@@ -307,7 +311,8 @@ test('run: lint by its exit status, a kind with no command, and wrong arguments'
   assert.equal(call(dir, ['run', 'lint']).status, 0);
   const red = call(dir, ['run', 'lint'], { env: { FAKE_LINT: '1' } });
   assert.equal(red.status, 1);
-  assert.equal(red.lines[0], 'Fix what the lint command reports, then run lint again: it exited 2.');
+  assert.deepEqual(red.lines.slice(0, 2), ['Fix what the lint command reports, then run lint again.',
+    '  It exited 2.']);
   const none = call(dir, ['run', 'types']);
   assert.equal(none.status, 0);
   assert.match(none.lines.at(-1), /^Ran no types command on [0-9a-f]{12}: the build plan has none\.$/);
@@ -941,7 +946,8 @@ test('freeze: a file over 16 MiB and a repository inside the checkout are findin
   const got = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 2), ['Remove the repository "lib/sub" from the change, or end the step as failed.',
-    'freeze commits no repository inside the checkout: the scan does not read the files of one.']);
+    '  freeze commits no repository inside the checkout, such as "lib/sub": the scan does not read ' +
+      'the files of one.']);
 });
 
 test('scope: a file whose end-of-line filter changes it counts as unchanged', () => {
@@ -963,7 +969,8 @@ test('freeze: git\'s error line about a file with a key in its name shows no key
   try {
     const got = call(dir, ['freeze', 'deliverable:d-1']);
     assert.equal(got.status, 3, got.out);
-    assert.match(got.lines[0], /^Freeze the step again: git add failed: its error line has a key, so the line is left out$/);
+    assert.deepEqual(got.lines.slice(0, 2), ['Freeze the step again.',
+      '  git add failed: its error line has a key, so the line is left out']);
     assert.ok(!got.out.includes(TOKEN) && !got.err.includes(TOKEN));
   } finally {
     fs.chmodSync(path.join(dir, `lib/${TOKEN}.js`), 0o644);
@@ -1021,7 +1028,8 @@ test('diff: the change from --from to the frozen HEAD, new files included and .q
   write(dir, 'lib/new.js', 'exports.x = 1;\n');
   const dirty = call(dir, ['diff', '--from', start]);
   assert.equal(dirty.status, 1);
-  assert.equal(dirty.lines[0], 'Freeze the step first, then run diff again: the checkout has 1 changed path, such as "lib/new.js".');
+  assert.deepEqual(dirty.lines.slice(0, 2), ['Freeze the step first, then run diff again.',
+    '  The checkout has 1 changed path, such as "lib/new.js".']);
   assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
   const head = sh(dir, 'rev-parse', 'HEAD');
   const got = call(dir, ['diff', '--from', start]);
@@ -1134,21 +1142,24 @@ test('run locked: a failed test, zero tests, a skip, no result file, a missing t
   write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
   const failed = call(dir, ['run', 'locked']);
   assert.equal(failed.status, 1, failed.out);
-  assert.equal(failed.lines[0], 'Fix the code until the locked check of ac-1 passes: 1 of 1 tests failed.');
-  assert.equal(failed.lines[1], 'Fix the code until the locked check of ac-2 passes: 1 of 1 tests failed.');
+  assert.deepEqual(failed.lines.slice(0, 4), ['Fix the code until the locked check of ac-1 passes.',
+    '  1 of 1 tests failed.', 'Fix the code until the locked check of ac-2 passes.',
+    '  1 of 1 tests failed.']);
   assert.match(failed.lines.at(-1), /: 0 green, 2 red\.$/);
   assert.deepEqual(lastRecord(dir).checks.map((one) => one.state), ['red', 'red']);
   sh(dir, 'checkout', '-q', 'src/a.js');
   const zero = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'zero' } });
   assert.equal(zero.status, 1);
   assert.deepEqual(zero.lines.slice(0, 2), ['Fix the code so that the locked check of ac-1 runs its tests, or report to a member.',
-    'It ran zero tests, and a run with zero tests is red.']);
+    '  It ran zero tests, and a run with zero tests is red.']);
   const skip = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'skip' } });
   assert.equal(skip.status, 1);
   assert.equal(skip.lines[0], 'Report to a member: the locked check of ac-1 skips a test, and a skipped test is red.');
   const nowrite = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'nowrite' } });
   assert.equal(nowrite.status, 1);
-  assert.equal(nowrite.lines[0], 'Report to a member: the locked check of ac-1 wrote no results to out/junit.xml.');
+  assert.deepEqual(nowrite.lines.slice(0, 2), ['Report to a member: the locked check of ac-1 wrote no ' +
+    'results to the Result file.', '  out/junit.xml is the Result file of targeted in the build plan, so ' +
+    'no test counts.']);
   const slow = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'sleep' }, minuteMs: 300 });
   assert.equal(slow.status, 1);
   assert.equal(slow.lines[0], 'Make the code faster, or raise command_limits_minutes.targeted_checks in qory.yaml.');
@@ -1166,7 +1177,7 @@ test('run locked: a failed test, zero tests, a skip, no result file, a missing t
 
 test('run locked: the newest lock that no cancelled run wrote counts, and no lock exits 3', () => {
   const dir = checkout();
-  assert.match(call(dir, ['run', 'locked']).lines[0], /^Pull the artifacts, then run locked again: index\.json lists no acceptance-lock version that counts\.$/);
+  assert.match(call(dir, ['run', 'locked']).lines[0], /^Pull the artifacts, then run locked again\.$/);
   write(dir, 'tests/ac1.test.js', "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-1');\n");
   sh(dir, 'add', '-A');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'checks');
@@ -1191,7 +1202,7 @@ test('cap: a command that would run past the cap of the Bash call stops 60 secon
   assert.ok(Date.now() - started < 20000, 'the command ran to its limit');
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 2), ['Give run targeted fewer paths, or make the targeted command faster.',
-    'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
+    '  The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
   assert.match(got.lines.at(-1), /^Ran targeted on [0-9a-f]{12}: red\.$/);
   assert.deepEqual([lastRecord(dir).state, lastRecord(dir).timed_out, lastRecord(dir).limit_minutes], ['red', true, 5]);
   write(dir, 'tool/lint.js', 'setInterval(() => {}, 1000);\n');
@@ -1203,18 +1214,19 @@ test('cap: a command that would run past the cap of the Bash call stops 60 secon
   const locked = call(dir, ['run', 'locked'], { env: { FAKE_MODE: 'sleep' }, capMs });
   assert.equal(locked.status, 1, locked.out);
   assert.deepEqual(locked.lines.slice(0, 4), ['Give run locked fewer criteria, then run the others in another call.',
-    'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.',
+    '  The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.',
     'Run locked again for ac-2, in fewer checks per call.',
-    '1 check did not run: the call ran out of time, 60 seconds before the cap of the Bash call.']);
+    '  1 check did not run: the call ran out of time, 60 seconds before the cap of the Bash call.']);
   assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0]]), [
-    ['ac-1', 'red', 'Give run locked fewer criteria, then run the others in another call.'],
+    ['ac-1', 'red', 'Give run locked fewer criteria, then run the others in another call.\nThe script ' +
+      'stopped it 60 seconds before the cap of the Bash call, 60 minutes.'],
     ['ac-2', 'red', 'not run: the call ran out of time'],
   ]);
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
   const probe = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { capMs: 63000 });
   assert.equal(probe.status, 4, probe.out);
   assert.deepEqual(probe.lines.slice(0, 2), ['Probe a faster test file.',
-    'With the patch, the check ran until 60 seconds before the cap of the Bash call, so the probe proves nothing.']);
+    '  With the patch, the check ran until 60 seconds before the cap of the Bash call, so the probe proves nothing.']);
 });
 
 // ---- probe -------------------------------------------------------------------------------
@@ -1237,7 +1249,7 @@ test('probe: a planted fault that the tests catch, one that they miss, and the c
   const missed = call(dir, ['probe', '.qory/artifacts/.reports/missed.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(missed.status, 1, missed.out);
   assert.equal(missed.lines[0], 'Report the planted fault as a proof: the tests miss it.');
-  assert.match(missed.lines[1], /^"tests\/a\.test\.js" stays green with the patch on [0-9a-f]{12}\.$/);
+  assert.match(missed.lines[1], /^  "tests\/a\.test\.js" stays green with the patch on [0-9a-f]{12}\.$/);
   assert.equal(fs.readFileSync(path.join(dir, 'src/a.js'), 'utf8'), 'exports.add = (a, b) => a + b;\n');
   assert.equal(sh(dir, 'status', '--porcelain'), '');
   assert.deepEqual(fs.readdirSync(temporary).filter((name) => name.startsWith('qory-probe-')), []);
@@ -1258,7 +1270,7 @@ test('probe: a patch of the check, a patch outside the artifact folder and a red
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a * b;'));
   const red = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'zero' } });
   assert.equal(red.status, 4);
-  assert.equal(red.lines[1], 'Without the patch it is red, so the probe proves nothing.');
+  assert.equal(red.lines[1], '  Without the patch "tests/a.test.js" is red, so the probe proves nothing.');
   assert.equal(call(dir, ['probe', '.qory/artifacts/p.patch', 'locked', 'ac-1']).status, 2);
 });
 
@@ -1298,7 +1310,8 @@ test('probe: a link to a system file is kept; a link into the checkout or its .g
   const into = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(into.status, 3, into.out);
   assert.deepEqual(into.lines.slice(0, 2), ['Make the link "lib-in" relative, inside the checkout, then probe again.',
-    '  Its real path is in the checkout or its .git folder, so a test in the copy could change them.']);
+    '  The real path of "lib-in" is in the checkout or its .git folder, so a test in the copy could ' +
+      'change them.']);
   fs.rmSync(path.join(dir, 'lib-in'));
   fs.symlinkSync(path.join(dir, '.git/config'), path.join(dir, 'lib-git'));
   commit('into .git');
@@ -1310,7 +1323,7 @@ test('probe: a link to a system file is kept; a link into the checkout or its .g
   const gone = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(gone.status, 3, gone.out);
   assert.deepEqual(gone.lines.slice(0, 2), ['Remove the link "lib-gone", or make its target, then probe again.',
-    '  It leads to no file, so a test in the copy could make one outside the copy.']);
+    '  "lib-gone" leads to no file, so a test in the copy could make one outside the copy.']);
 });
 
 test('run, then diff and probe: an untracked result file is no change', () => {
@@ -1339,7 +1352,7 @@ test('run: the stop reaches the process group, exit 126 is red, and a plan with 
   assert.ok(!fs.existsSync(marker), 'a process of the group outlived the command');
   const notExecutable = call(dir, ['run', 'types']);
   assert.equal(notExecutable.status, 1);
-  assert.equal(notExecutable.lines[1], 'The shell exited 126, so the program does not exist or cannot run.');
+  assert.equal(notExecutable.lines[1], '  The shell exited 126, so the program does not exist or cannot run.');
   const none = call(dir, ['run', 'targeted']);
   assert.equal(none.status, 1);
   assert.match(none.lines[0], /^Set a targeted command in ## Commands of the build plan/);
@@ -1349,13 +1362,13 @@ test('run targeted: no failed test runs alone with tests failed in 11 files, wit
   const dir = checkout();
   const many = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'many' } });
   assert.equal(many.status, 1);
-  assert.deepEqual(many.lines.slice(1, 3), ['Fix each failed test: none ran again alone.',
-    'Tests failed in 11 files, and at most 10 files run again.']);
+  assert.deepEqual(many.lines.slice(2, 4), ['Fix each failed test: none ran again alone.',
+    '  Tests failed in 11 files, and at most 10 files run again.']);
   assert.deepEqual(lastRecord(dir).reruns, []);
   const nofile = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'nofile' } });
   assert.equal(nofile.status, 1);
-  assert.deepEqual(nofile.lines.slice(1, 3), ['Fix each failed test: none ran again alone.',
-    'The result file has no file below the checkout for a failed test.']);
+  assert.deepEqual(nofile.lines.slice(2, 4), ['Fix each failed test: none ran again alone.',
+    '  The result file has no file below the checkout for a failed test.']);
   write(dir, 'tests/b.test.js', '\n');
   sh(dir, 'add', 'tests/b.test.js');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'b');
@@ -1373,8 +1386,9 @@ test('run targeted: a failed test runs alone only from the run\'s paths, and pas
   const counter = (name) => path.join(tmp, `${name}-${count}`);
   const other = call(dir, ['run', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'other', FAKE_COUNT: counter('other') } });
   assert.equal(other.status, 1, other.out);
-  assert.deepEqual(other.lines.slice(1, 3), ['Fix each failed test: none ran again alone.',
-    'The result file has a failed test in a file that is not a path of the run, or that git does not track.']);
+  assert.deepEqual(other.lines.slice(2, 4), ['Fix each failed test: none ran again alone.',
+    '  The result file has a failed test in a file that is not a path of the run, or that git does not ' +
+    'track.']);
   // With no path, a tracked file may run alone.
   assert.equal(call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'other', FAKE_COUNT: counter('tracked') } }).status, 0);
   const renamed = call(dir, ['run', 'targeted', 'tests'], { env: { FAKE_MODE: 'rename', FAKE_COUNT: counter('rename') } });
@@ -1386,8 +1400,9 @@ test('run targeted: counts of a testsuite that its testcase elements do not matc
   const dir = checkout();
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'suite' } });
   assert.equal(got.status, 1, got.out);
-  assert.deepEqual(got.lines.slice(0, 2), ['Fix the JUnit XML that the targeted command writes to out/junit.xml.',
-    'The run is red: a testsuite element counts 2 for tests, and the testcase elements count 1.']);
+  assert.deepEqual(got.lines.slice(0, 2), ['Fix the JUnit XML that the targeted command writes to its ' +
+    'Result file.', '  The Result file is out/junit.xml. The run is red: a testsuite element counts 2 ' +
+    'for tests, and the testcase elements count 1.']);
 });
 
 test('junit: a mismatch of the counts, a failure outside a testcase, and elements in comments and CDATA', () => {
@@ -1487,7 +1502,7 @@ test('probe: a link whose real path is in the checkout stops it, and a test that
   const ref = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'ref', FAKE_REPO: dir } });
   assert.equal(ref.status, 4, ref.out);
   assert.equal(ref.lines[0], 'Remove the code that changes the git repository from the tests, then probe again.');
-  assert.match(ref.lines[1], /^HEAD, a ref or the index changed/);
+  assert.match(ref.lines[1], /^  HEAD, a ref or the index changed/);
   assert.equal(lastRecord(dir).state, 'repository changed');
 });
 
@@ -1499,7 +1514,7 @@ test('probe: a run with the patch that times out proves nothing, also for a patc
   const got = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js'], { env: { FAKE_MODE: 'pause', FAKE_PAUSE: '1000' }, minuteMs: 300 });
   assert.equal(got.status, 4, got.out);
   assert.deepEqual(got.lines.slice(0, 2), ['Raise command_limits_minutes.targeted_checks in qory.yaml, or probe a faster test file.',
-    'With the patch, the check ran past the shared limit of 5 minutes, so the probe proves nothing.']);
+    '  With the patch, the check ran past the shared limit of 5 minutes, so the probe proves nothing.']);
   assert.deepEqual([lastRecord(dir).before, lastRecord(dir).state, lastRecord(dir).timed_out], ['green', 'no proof', true]);
   // A fault that makes the test hang proves nothing either: the run only ran out of time.
   write(dir, '.qory/artifacts/hang.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));
@@ -2269,7 +2284,7 @@ test('run locked: a locked file that an earlier check changes is red, also when 
   const got = call(dir, ['run', 'locked']);
   assert.equal(got.status, 1, got.out);
   assert.deepEqual(got.lines.slice(0, 3), ['Restore "tests/ac2.test.js".', '  The bytes of "tests/ac2.test.js" differ from acceptance-lock version 1.',
-    '1 check did not run: a locked file changed during the call.']);
+    '  1 check did not run: a locked file changed during the call.']);
   assert.match(got.lines.at(-1), /^Ran 2 locked checks of acceptance-lock version 1 on [0-9a-f]{12} with uncommitted changes: 1 green, 1 red, and 1 finding on the files of acceptance-lock version 1\.$/);
   assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0] || null]),
     [['ac-1', 'green', null], ['ac-2', 'red', 'not run: a locked file changed during the call']]);
@@ -2347,7 +2362,7 @@ test('run: a process that leaves the group by setsid stops with the command, and
   const left = call(dir, ['run', 'lint'], { env: { FAKE_PROC: fake, FAKE_ZOMBIE: String(zombie.pid) }, proc: fake });
   assert.equal(left.status, 1, left.out);
   assert.deepEqual(left.lines.slice(0, 2), ['Make the lint command end every process that it starts, then run lint again.',
-    '1 process of the command still ran after SIGKILL, so the check is red.']);
+    '  1 process of the command still ran after SIGKILL, so the check is red.']);
 });
 
 test('run: a command that exits 1 is red even with a result file of passed tests', () => {
@@ -2355,11 +2370,12 @@ test('run: a command that exits 1 is red even with a result file of passed tests
   const targeted = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'exit' } });
   assert.equal(targeted.status, 1, targeted.out);
   assert.deepEqual([lastRecord(dir).exit, lastRecord(dir).counts], [1, { tests: 4, failed: 0, skipped: 0 }]);
-  assert.equal(targeted.lines[0], 'Find why the targeted command exited 1, then run it again: the result file has no failed test.');
+  assert.deepEqual(targeted.lines.slice(0, 2), ['Find why the targeted command exited 1, then run it again.',
+    '  The result file has no failed test.']);
   const locked = call(dir, ['run', 'locked', 'ac-1'], { env: { FAKE_MODE: 'exit' } });
   assert.equal(locked.status, 1, locked.out);
   assert.deepEqual(locked.lines.slice(0, 2), ['Find why the locked check of ac-1 exited 1, then run locked again.',
-    'The result file has no failed test, and a check that exits other than 0 is red.']);
+    '  The result file has no failed test, and a check that exits other than 0 is red.']);
   assert.deepEqual(lastRecord(dir).checks.map((one) => [one.state, one.exit, one.counts.tests]), [['red', 1, 1]]);
 });
 
@@ -2436,7 +2452,7 @@ test('cap: a types or build command stops 60 seconds before the cap of the Bash 
     assert.ok(Date.now() - started < 20000, `${kind} ran to its limit`);
     assert.equal(got.status, 1, got.out);
     assert.deepEqual(got.lines.slice(0, 2), [`Split the ${kind} command into faster commands.`,
-      'The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
+      '  The script stopped it 60 seconds before the cap of the Bash call, 60 minutes.']);
     assert.deepEqual([lastRecord(dir).kind, lastRecord(dir).timed_out], [kind, true]);
   }
 });
@@ -2657,7 +2673,8 @@ test('freeze: a git that prints no lines for a changed file with content is a fi
   const head = sh(dir, 'rev-parse', 'HEAD');
   const got = call(dir, ['freeze', 'deliverable:d-1'], { env: { PATH: `${bin}${path.delimiter}${process.env.PATH}` } });
   assert.equal(got.status, 1, got.out);
-  assert.ok(got.lines.includes('Remove "src/a.js" from the change, or make it smaller: git showed no lines of it to scan.'), got.out);
+  assert.ok(got.out.includes('Remove "src/a.js" from the change, or make it smaller.\n  git showed no ' +
+    'lines of "src/a.js" to scan.'), got.out);
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
 });
 
