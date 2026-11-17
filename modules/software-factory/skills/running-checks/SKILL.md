@@ -97,8 +97,8 @@ the section "Diff and probe".
    folder, then runs `probe <patch> targeted <path>`.
 5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
 
-The full suite runs after the session, started by qory; its result reaches the next session
-as a finding.
+The full suite runs after the session, started by qory; a red or missing result reaches the
+next session as a finding.
 
 The commands come from the newest version of `build-plan` that the session pulled, never
 from a draft. With `--inputs`, they come from the newest version that qory pulled at the

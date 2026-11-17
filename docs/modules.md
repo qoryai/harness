@@ -2208,7 +2208,8 @@ the newest version of `build-plan` that the session pulled, never from a draft. 
 each finding with its fix on line 1, at most 100 characters, and the reason on lines
 indented by two spaces, then one line of what it did. Exit status: 0 passed, 1 red or found
 something, 2 wrong arguments, 3 missing input, and for `probe`, 4 no proof. The full suite
-runs after the session, started by qory; its result reaches the next session as a finding.
+runs after the session, started by qory; a red or missing result reaches the next session as
+a finding.
 
 Run each verb as the user that owns the checkout, by the same uid. With git 2.32 or later,
 git runs with no global or system config (an older git reads `~/.gitconfig`), so no
