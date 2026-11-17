@@ -498,14 +498,17 @@ const HEREDOC = /<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\([^\s;&|<>()'"]+)|([^\
 // The commands whose input is text that they copy to a file or to their output, as in
 // `cat > a.ts <<'EOF'`.
 const READERS = new Set(['cat', 'tee']);
+// A function definition, as in `cat() { sh; }`, `cat () { sh; }` or `function cat { sh; }`, in
+// any form and with any name, so that a function named cat or tee is never read as cat or tee.
+const DEFINES = /(?:^|[^\w$-])function(?![\w-])|\(\s*\)/;
 
 // dropBodies returns command without the body of each here-document whose end word is quoted,
 // such as <<'EOF', and whose command, after PREFIXES, is cat or tee with no pipe after it,
 // because the shell reads such a body as text, with no $( ... ) or backticks, and passes it
 // to cat or tee as their input. Any other command could run the lines of the body, so its
 // body stays. It reads the command once, line by line, and returns it as it is when a body
-// has no end, when the command ends in a quote or after a backslash, or when heredocs
-// returns null.
+// has no end, when the command ends in a quote or after a backslash, when heredocs returns
+// null, or when the lines outside the bodies define a function, which can be named cat.
 function dropBodies(command) {
   if (!command.includes('<<')) return command;
   const kept = [];
@@ -525,7 +528,9 @@ function dropBodies(command) {
     if (!found) return command;
     pending.push(...found);
   }
-  return pending.length || scan.open() || !dropped ? command : kept.join('\n');
+  if (pending.length || scan.open() || !dropped) return command;
+  const rest = kept.join('\n');
+  return DEFINES.test(rest) ? command : rest;
 }
 
 // reads reports whether text, a simple command with its here-document operators removed, is

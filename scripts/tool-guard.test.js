@@ -1226,6 +1226,13 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     const command = `${runner}\nrm ${CHECK_PATH}\nEOF`;
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
+  // A function named cat or tee runs the body.
+  for (const runner of ["cat(){ sh; }; cat <<'EOF'", "function cat { sh; }; cat <<'EOF'",
+    "cat () { sh; }\ncat <<'EOF'", "tee() { sh; }; tee a <<'EOF'",
+    "function tee() { sh; }\ntee a <<'EOF'"]) {
+    const command = `${runner}\nrm ${CHECK_PATH}\nEOF`;
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
   for (const command of [`sqlite3 db <<'EOF'\n.shell rm ${CHECK_PATH}\nEOF`,
     `make -f - <<'EOF'\nall:\n\trm ${CHECK_PATH}\nEOF`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
