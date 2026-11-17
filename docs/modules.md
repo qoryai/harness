@@ -46,6 +46,8 @@ modules/core/
     end-gate-<runtime>.js
     reports-guard.js
     reports-guard-<runtime>.js
+    tool-guard.js
+    tool-guard-<runtime>.js
   settings/
     claude/settings.json
     codex/config.toml
@@ -199,8 +201,9 @@ An agent that the table does not list sets no `model` key.
   workflow on Claude Code. The settings of `software-factory` allow the skills and agents of
   that module alone.
 - `scripts/check.sh` checks that the settings composed on `claude` for the `core` and
-  `software` stacks keep `disableAllHooks`, the `Stop` hook, the six deny rules of
-  `.reports/` and the allow rules of `running-a-workflow`. It checks that the `core` stack's
+  `software` stacks keep `disableAllHooks`, the `Stop` hook, the `PreToolUse` and
+  `PostToolBatch` hooks of the tool guard, the six deny rules of `.reports/` and the
+  allow rules of `running-a-workflow`. It checks that the `core` stack's
   settings allow each skill and agent of `core`, and that the `software` stack's have each
   allow rule of both settings files and no other. For the `core` stack, it also checks that
   the hook files composed on Gemini CLI, Cursor and Copilot CLI run the end check.
@@ -1004,6 +1007,10 @@ check that failed itself as `systemMessage` and exits 0, because Codex drops std
 0. On Cursor, the adapter checks only a stop whose `status` is `completed`, so a session
 that the user stopped, or that failed, ends with no check.
 
+On Codex, the end check tracks no agent that the session started, so an agent can still run
+when the main session ends. Codex 0.167.2 runs no stop hook for a turn of an agent that
+ends in an error or is aborted, so a record of running agents could not be kept reliably.
+
 Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook that exits 2
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
@@ -1027,7 +1034,20 @@ and their `.break` files. On Claude Code, the settings deny `Edit` of
 rule that starts with `/` is relative to its settings source: for the project's
 `.claude/settings.json` and for the settings that qory passes inline in a run, that is the
 folder where the session started; a `./` rule is relative to the current folder
-([permissions](https://code.claude.com/docs/en/permissions)). On the other three runtimes,
+([permissions](https://code.claude.com/docs/en/permissions)). Those rules cover no shell
+command, so on Claude Code and on Codex the tool guard, `tool-guard.js`, runs
+`reports-guard.js` for each `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch` and
+shell call, with the same rules and deny texts, except that a shell command whose simple
+commands are each a read-only command with the options of its list in `READ_ONLY`, and
+write no file, reads `.reports/` and passes, as in `ls .reports` or
+`tail .reports/runs/<n>.log`. It reads a shell command without the body
+of a here-document that it reads as text, as `cat > notes.md <<'EOF'`, and checks the
+files of a patch that the shell call runs, as `apply_patch <<'EOF'`, as those of
+`apply_patch`. The tool guard does
+not run `fs.globSync`,
+which has no limit on its work: it reads a word after brace expansion, and a word with a
+wildcard reaches `.reports` when it can match the `.reports` folder of the artifact folder,
+or of `.qory/artifacts/`, or a path below it. On the other three runtimes,
 `reports-guard-<runtime>.js` runs before each tool call, through `reports-guard.js`, and
 only in a run. It denies a write, edit or delete of a path under `.reports/` that ends in
 `.json` or whose name has `.json.lock`, and a shell command that reaches `.reports` and does
@@ -1095,6 +1115,299 @@ variables that the hooks, `checks.js` and qory read in a run: `QORY_RUN_ID`, `QO
 `QORY_SESSION`, `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` in both
 cases, through which qory reaches the gateway. Gemini CLI passes `PATH` and `HOME` by
 default.
+
+In a run, a guard runs before each tool call: `tool-guard-claude.js` on Claude Code and
+`tool-guard-codex.js` on Codex, through `tool-guard.js`. The `PreToolUse` hooks of
+`settings/claude/settings.json` and `settings/codex/config.toml` match every tool (`*`),
+because the step limit of `step-limit.js` reads every call. Each call costs about 30 ms, the
+start of `node`: on a Mac with Node 24, a call that the guard lets run took 30.5 ms, and
+`node -e 0` 27.4 ms. Codex writes `apply_patch` and `Bash` into the hook's input for its
+write and shell tools. Both adapters deny a call with
+`permissionDecision: deny` on stdout, and the runtime sends the reason to the model as the
+tool's error. The first line of each reason starts with what to do. The guard denies:
+
+- an agent in the background, on Claude Code: an `Agent` or `Task` call with
+  `run_in_background` set to true. An `Agent` call with no `run_in_background` passes.
+  Codex starts each agent with `spawn_agent`, which returns the agent's id at once and has
+  no key for the foreground, so the guard lets `spawn_agent` run. With
+  `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` set to `1`, as the settings of
+  `software-factory` set it, Claude Code offers no such key.
+- a write to a path under `.qory/build/`, where the step limit keeps the step counts. The
+  build ledger is not there: its copy is `.reports/build-ledger.json`.
+- a `chmod`, `chown`, `chgrp` or `chflags` of a path in `.qory/` or of a folder above it,
+  also through a glob such as `.qory/b*/steps`, and any such command whose text contains
+  `.qory`, so that an agent cannot stop the step limit from writing its counts.
+- a write to a file that the lock lists. The guard reads the lock with the reader of
+  `checks.js lock --verify`, so in a run it pulls the lock that counts before each write
+  below the working folder, and before each shell command that writes. So a lock that a
+  step stores during the session counts from the next write on. A stack with no type with
+  a lock, or with no version of the lock that counts, locks no file. When the lock cannot
+  be read, the guard denies each write below the working folder, with the reason of the
+  reader.
+- a write from the main session outside the artifact folder. On Claude Code and on Codex,
+  the input of a call from an agent has `agent_id` and `agent_type`, and the input of a
+  call from the main session has neither. The main session writes `points.json` and the
+  other files of the artifact folder.
+
+A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
+`notebook_path` or the patch. Codex also runs a patch as a shell command,
+`apply_patch <<'EOF' ...`, and the guard reads the files of that patch as a write. A shell
+command writes a path when its text contains the path and a redirect `>` or `>>` to it, or
+when it runs `tee`, `cp`, `mv`, `rm`, `rmdir`, `unlink`, `touch`, `ln`, `install`,
+`truncate`, `dd`, `chmod`, `chown`, `chgrp`, `chflags`, `mkdir`, `rsync`, `patch`, `sed -i`
+(also `-i.bak`, `--in-place` and `--in-place=.bak`) or `perl -i` with the path, or a command
+whose subcommand is `rm`, `mv`, `restore` or `checkout`, such as `git -C . restore`. The
+guard skips the options before the subcommand, and passes a `restore` with `--staged` and no
+`--worktree` or start of it, such as `--work`, which changes only the index. When `sh`,
+`bash`, `zsh` or `dash` runs a quoted text with `-c`, as in `sh -c 'cp a <path>'` or
+`bash -lc "tee <path>"`, the guard reads that text with the same rules, down to two shells
+deep. It skips the options before `-c`, `-o <value>` and `-O <value>` included. A shell
+with words after its `-c` text, as in `sh -c ': > "$1"' _ <path>`, is opaque, since the
+text can write each of them as `$0`, `$1` and on. A `find` whose `-exec`, `-execdir`, `-ok`
+or `-okdir` runs such a shell writes each path that it walks, as with `-delete`. The guard
+reads the command after `env`, `command`, `exec`, `nice`, `timeout`, `sudo`, `nohup`,
+`time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with their options, and reads the
+file of `time -o`, `--output` or `--output=`, and each file after `sudo -e`, `sudo --edit`
+or `sudoedit`, as a file that the command writes, and in a group such as `( ... )`,
+`{ ...; }`, `then ...`, `$( ... )` or backticks. It reads each redirect of bash and zsh that
+writes a file as `>` or `>>`: `>|`, `>!`, `>>|`, `>>!`, `&>`, `&>>`, and `>&` or `>>&` to a
+word that is not a number, `-` or `p`, each also with `|` or `!` after it. It skips the body
+of a here-document whose end word is quoted, such as `<<'EOF'`, only when the command of the
+here-document, after the words before a command, is `cat` or `tee` with no pipe, `(` or
+backtick after it, as in `cat > a.ts <<'EOF'`: the shell passes that body to `cat` or `tee`
+as text. It reads the body of any other command, which could run its lines, such as a shell,
+`ssh` or `make -f -`, of a body with no end line, and of every here-document of a command
+that defines a function, as in `cat() { sh; }`, because a function can take the name `cat`
+or `tee`; of every body of a call with `((`, as in `$((1<<2))`, where `<<` is a shift; and
+of a `cat` or `tee` after a variable setting, as in `PATH=<folder> cat`. It also reads every
+body when another command of the call, after the words before a command, is not `echo`,
+`ls`, `mkdir`, `true`, or a `cat` or `tee` with no pipe, `(` or backtick after it, because
+that command could run the file that `cat` writes, as in `cat > x.sh <<'EOF'` and then
+`sh x.sh`. So `mkdir -p docs && cat > docs/a.md <<'EOF'` skips the body, while a write
+followed by `git commit` or `npm test` in the same call has its body read. A quote or a
+backslash at the end of a line goes on to the next line, as in the shell, so a `<<` in a
+string of several lines is text; the guard reads every body of a command line of more than
+one line, and of a line with `$(` or a backtick in double quotes. It denies a write to a
+relative path where it cannot tell the folder: after a `cd` to a folder that a variable
+names, `builtin cd`, `eval`, `source` or `.`, a `cd` while `CDPATH` may be set, a `cd` in a
+pipe, a branch, a loop or a function, and in a call that may set `auto_cd`. After
+`cd <folder> &&`, the next command runs in that folder. It reads each written path through
+its links part by part, as the system does, so in `l/../a.ts` the `..` applies to the target
+of the link `l`, and it denies a path with a `..` after a folder that does not exist yet,
+which a later command of the call can make a link. It reads each word, the name of the
+command too, as the shell does, so `\cp`, `c\p`, `"c"p`, `c''p` and `$'cp'` are `cp`:
+without its quotes and the backslashes that escape a character, so `rm c"h"ecks/a.ts` and
+`rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as in `rm 'chec*'`, is a
+character of the name. It reads `$'...'` as single quotes with the escapes of the shell,
+such as `\x63`. It expands braces, so `rm -rf {checks,x}` removes `checks`, up to 64 words
+for each word; when a word would make more, or has a brace group inside a brace group, the
+guard also reads each group as `*`. It resolves each path of a command that writes from the
+current folder, and from each folder that a `cd` or `pushd` in the command changes to or
+that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
+`./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`, `unlink` and `mv` of a
+folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
+`rm -rf .qory`, as a write of that file. It reads a `restore` of a folder above a locked
+file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
+`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. A
+path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+`rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
+locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
+matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
+of zsh, such as `GLOB_DOTS` or `set -4`, or `GLOBIGNORE`, so `rm -rf */build` passes and
+`rm -rf .q*` does not; `rm -rf node_mod*` passes. The guard matches a wildcard part by part with no regular expression, in time that
+grows with the length of the part times the length of the name, and a bracket with a range
+such as `[z-a]` matches nothing. A `cp`, `install`, `ln` or `rsync` into a folder above a
+locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or `cp -t checks a.ts`,
+writes that file when a source has the name of the next part of its path, or when a source
+contains `$` or ends with `/`, or when the `cp` is recursive (`-r`, `-R`, `-a`,
+`--recursive` or `--archive`) with `-T` or `--no-target-directory`, as in
+`cp -rT src checks`, which copies the contents of its source into that folder. A `find`
+with `-delete`, or with `-exec`, `-execdir`, `-ok`
+or `-okdir` of a command that writes, writes the files below each folder it starts from that
+its `-name` and `-iname` tests match, or all of them with no such test. On a disk that
+ignores case, the guard compares paths in any case. A shell command of the main session is
+no edit, so the main session runs `qory` and `checks.js`. The guard covers no write to
+`qory.yaml`, to `.qory/` outside `.qory/build/` and a harness home below the working folder,
+or to a hook or a module of the harness source: agents may change those files, and qory
+composes the harness at a fixed version. Outside a run, when `QORY_RUN_ID` is not set, the
+guard denies nothing.
+
+The guard and the step limit take the working folder from `CLAUDE_PROJECT_DIR` on Claude
+Code, and on Codex from the folder that the hook runs in. Codex 0.167.2 runs each hook in
+the folder of the session (`core/src/hook_runtime.rs:264-269`). The `cwd` of a call's input
+is not the working folder: on Codex it is the `workdir` that the model gives a shell command
+(`core/src/tools/handlers/unified_exec/exec_command.rs:349-364`). In a run with no working
+folder, the guard denies each call with "Start the session through qory: the tool guard
+found no working folder of the run." An artifact folder that is a link is no artifact
+folder: the main session cannot write in it, and a write in it does not reset a count.
+
+The guard also limits the steps of an agent that writes files, through `step-limit.js`. A
+step is one answer of the model with its calls, however many run at once. A step writes when
+one of its calls writes a file, by the rules above, below the working folder outside
+`.qory/`, or in the artifact folder (`.qory/artifacts` or `/tmp/qory-artifacts`), or runs
+`qory artifact push`. So a writer agent that writes its draft in the artifact folder resets
+the count. The step limit reads each path through its links, a new file through the deepest
+folder above it that exists. A write elsewhere in `/tmp`, a write through a link that leads
+out of the working folder, a shell path that starts with `~user` or `~-` or contains `$` or
+a backtick, such as `~other/x` or `"$f"`, a relative path whose folder is unknown, a path
+with a wildcard whose folder before the first wildcard, such as `src` of `src/*/build`, lies
+outside the working folder or in `.qory/`, `mkdir`, `rmdir`, `chmod`, `chown`, `chgrp`,
+`chflags` and a `checkout` with no `--` are no write, and of `cp`, `install`, `ln` and
+`rsync` only the last path counts. A path that starts with `~` or `~/` counts by the folder
+of `$HOME` that it leads to, and one that starts with `~+` by the folder of the command. The
+step limit reads a relative path from the folder that the shell runs its command in: after
+each `cd`, `pushd` and `popd` before it, with `-C` of `git -C` or `env -C`, and back to the
+folder before a `( ... )`, `$( ... )` or backtick group at its end. The folder is unknown
+after a `cd` to a folder with `~user`, `~-`, `$` or a backtick or to one that does not
+exist, a `cd` in a pipe or in the background, a `popd` with no `pushd`, a command after
+`cd ... ||`, a command that `;` or `||` joins after a `cd` that ran only after `&&`, and in
+the text of `sh -c` after a `cd` anywhere in the command. The guard reads such paths from
+every folder the command can reach, so it denies more than the step limit counts. After 12
+steps in a row that write nothing, the guard denies every call of the agent except a write,
+with the reason "Write your output now: 12 steps in a row wrote nothing." The next step that
+writes sets the count back to 0. The main session, whose input has no `agent_id`, and, on
+Claude Code, a read-only agent are exempt: their stop is the time limit and the end check. A
+read-only agent is one whose file `modules/<module>/agents/<name>.md` under
+`$QORY_HARNESS_HOME` has a `tools` key that lists tools, none of them `Write`, `Edit`,
+`MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. The key lists them on its line or as a
+YAML list. `agent_type` must be `harness:<name>`: a bare name can also be an agent of the
+project, so it counts. An agent with no such file, such as a built-in agent or an agent of
+another plugin, counts, and so does an agent with an empty `tools` list. On Codex, every
+agent counts, because every role can run `apply_patch`, whatever its file lists.
+
+When `$QORY_HARNESS_HOME` lies below the working folder, as `.qory/harness/` does, the
+guard denies each write below it, with the reason "Leave the composed harness as it is: the
+step limit reads the tools of each agent from it." A read-only agent is then exempt only
+when its file, read through its links, lies in that home. A file that a link leads to
+elsewhere in the working folder could be changed, so its agent counts.
+
+The count of an agent is in `.qory/build/steps/<session_id>--<agent_id>.json` of the working
+folder. The guard denies an agent's write to `.qory/build/`, so an agent cannot set its
+count back. A count file that exists but cannot be read, or has no count, counts as 12. When
+the step limit cannot write the count, because the count folder, or the nearest folder above
+it, takes no new file, or a count or marker file cannot be written, the guard denies every
+call of the agent except a write, with the reason "Report to a member: the step limit cannot
+write the step count of this agent." A save that fails removes the count file, so the agent
+counts as 12. Beside the count, the step limit writes the marker file
+`<session_id>--<agent_id>.seen`; a missing count file of an agent with a marker counts as
+12, and a new agent, with neither file, starts at 0. An error while the end of a step reads
+its calls still counts the step, as one that wrote nothing. `PostToolBatch` saves that count
+before it reads the calls and sets it to 0 after a write, so a hook process that ends while it
+reads them, as when it runs out of memory, leaves the step counted. On Codex, a `PreToolUse`
+that ends before it appends its line leaves the step with no line, which counts as a step
+that wrote nothing. Only the end of a step changes
+the count, and `PreToolUse` only reads it:
+
+- Claude Code runs the `PostToolBatch` hook once per step, in an agent too, with
+  `agent_id`, `agent_type` and `tool_calls`, every call of the step. A step that only
+  returns the report counts. A last step with text alone runs no hook. Claude Code 2.1.325
+  showed this in a probe run: four reads at once gave one `PostToolBatch` with four calls.
+- Codex runs the `PreModelRequest` hook before each model request, with `agent_id` and
+  `agent_type` in an agent (`core/src/session/turn.rs` of Codex 0.167.2). Each
+  `PreToolUse` appends one line per call to `<session_id>--<agent_id>.calls`, so calls at
+  once do not race. `PreModelRequest` reads the lines of the step before it, sets the count
+  and removes the file. A step with no call, such as the first request of a turn, counts as
+  a step that wrote nothing; the first request of a new agent sets its count to 0.
+
+`end-gate-claude.js` and `end-gate-codex.js` remove the counts of the session each time it
+ends. On Codex, the end check of the main session also removes the counts of agents that
+still run, which sets their counts back to 0, because Codex gives each agent the session id
+of the main session (`core/src/session/session.rs:700-703` of Codex 0.167.2). A call that
+the guard denied wrote nothing, so a denied write never resets the count.
+On Claude Code, `PostToolBatch` lists denied calls too: `PreToolUse` appends the
+`tool_use_id` of each call it denies to `<session_id>--<agent_id>.denied`, and
+`PostToolBatch` counts no write of those calls. On Codex, the line of a denied call is no
+write. A write that fails, or that a permission rule or another hook denies, still counts
+as a write on both runtimes: the calls of `PostToolBatch` have no field that marks a failed
+call, and on Codex `PreToolUse` writes the line before the call runs.
+
+The limits of the guard:
+
+- The guard gives a clear message; checks outside the session catch a write that passes it.
+  Verify's `lock --verify --version <N>` keeps the lock, the push check of `build-ledger`
+  keeps the build ledger, and the report checks keep the reports. The guard covers each form
+  in which a locked path or `.qory/build/` appears literally in the call, also after the
+  shell removes quotes, as in `ch''ecks`, `"checks"`, `\checks` or `$'\x63hecks'`, expands
+  braces, sequences such as `{c..c}hecks` included, and expands a `~` or `~/` at the start
+  of a word outside quotes to the folder of `$HOME`. It reads a shell command as text, on
+  both runtimes, and runs no shell. So a variable, `$HOME` and `${HOME}` included, a
+  `~user`, a `$( ... )`, a backtick and `eval` are its limit: a write whose path only they
+  make passes, as in `D=lock; echo x > ${D}ed/f`, and so does a shell three shells deep, and
+  a here-document body that `cat` writes to a file in one call and a later call runs. A `cp`
+  that reads a locked file is denied, as it contains the path. An earlier command of the
+  call that makes or moves entries, a `cp` with an option that keeps or makes links (`-a`,
+  `-R`, `-r`, `-P`, `-d`, `-l`, `-s`, `-H`, their long forms, `--preserve` with `links` or
+  `all`, or an option that the guard does not read), `mv`, `rsync`, `ln`, `link`, `mklink`,
+  `install`, a `tar` that extracts, `unzip` or an opaque command, can make a link that does
+  not exist yet when the guard reads the call. So a later write whose path goes through its
+  destination is denied, and the step count reads it as no write. The destination is the
+  folder of `-t`, `-C` or `-d`, else the last path, `.` for `tar -x` and `unzip` with no
+  folder, and each word of an opaque command. A destination that the guard cannot tell, such
+  as one with a variable, makes each later write unknown. `mkdir` and `touch` make no link,
+  and neither does another `cp`, which follows each link and writes regular files. A writer
+  or an opaque command that `xargs` or `parallel` runs counts as opaque, since it takes its
+  paths from its input.
+- A command whose writes the guard does not read, such as `node -e`, `python3 -c`,
+  `curl -o`, `tar -x`, `make` or `npm run`, is opaque. Writers, redirects, the files of
+  prefixes, a shell with `-c` and a quoted text and no words after it, a subcommand
+  `restore`, `checkout`, `rm` or `mv`, which the guard reads, and the read-only commands are
+  not: `cat`, `grep`, `rg`, `ls`, `head`, `tail`, `wc`, `cmp`, `sed` that only prints,
+  `find` with no opaque `-exec`, `sort`, and a few more. A read-only command stays read-only
+  only with the options of its list in `READ_ONLY` of `tool-guard.js`; any other option,
+  such as `rg --pre`, `sort -o` or `find -delete`, makes it opaque. So does a variable
+  setting, as a variable can change what the command runs (`RIPGREP_CONFIG_PATH`,
+  `LESSOPEN`, `PAGER`, `GREP_OPTIONS`): a `NAME=value` before the command or after `env`, or
+  an earlier `export`, `declare -x`, `typeset -x`, `local -x`, `readonly -x`, `set -a`,
+  `set -k`, `set -o allexport` or `setopt allexport` in the call, or a shell started with
+  `-a`, `-k` or `-o allexport`. The guard reads each option name of `set -o`, `set +o`,
+  `setopt` and `unsetopt` as zsh does, in any case, without `_` and with or without a `no`
+  before it, so `ALL_EXPORT`, `all_export` and `noallexport` are all `allexport`; it reads
+  `auto_cd`, `glob_dots` and `keyword_args` the same way, with the letters `-J`, `-4` and
+  `-k`. A command after `env`, `sudo` or `doas` with an option other than those that set no
+  variable, run no shell and pass no command line is opaque too: `env` with any option but
+  `-i`, `-u <name>`, `-0` and `--`, such as `-S`, `-C` or `-P`, and `sudo -E`, `sudo -i`,
+  `sudo -s`, `sudo -D` or `doas -s`. Rule 11 keeps the words of software
+  work, such as `diff` and `git`, out of `core`, so `git diff` and `git log` are opaque. In
+  a call with an opaque command, the guard denies the call when its text reaches a locked
+  file or `.qory/build/`: a word that resolves to the file or a folder between it and the
+  working folder, from the folder of its command after links; a wildcard that can match it;
+  or the name of a locked file anywhere in the text. The working folder and the folders
+  above it reach no file, as a command with no path runs over the whole working folder too.
+  The text includes each here-document body that the call does not give to `cat`, `tee` or
+  `apply_patch`. So `npm run check -- checks/a.check.ts` and `git add checks/a.check.ts` are
+  denied, and `git add .` and `npx eslint .` pass. The first line of the deny is "Run the
+  checks with no file path or `checks.js run locked`; read a locked file with
+  `cat <file>`.", as `cat` is a read-only command. A `cd` folder reaches no file. After
+  `eval`, `source`, `.` or a `cd` to a vague folder, where the folder is unknown, the guard
+  reads a relative word as if the command ran in the working folder of the call, as well as
+  by the name of each locked file, and an absolute word from any folder; so
+  `. /dev/null; python3 -c '...rmtree("checks")'` is denied.
+- On Codex, a shell that the model starts with a terminal takes later commands through
+  `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
+  starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for
+  the end check. The Codex inputs in `scripts/tool-guard.test.js` have the
+  fields that Codex 0.167.2 wrote to a `PreToolUse` hook in a probe run.
+- The guard reads the calls of `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch`
+  and the shell. A tool of an MCP server that writes files passes without a check; Verify's
+  `lock --verify --version <N>` keeps the lock for its writes.
+- On Claude Code and on Codex, `decide` runs `reports-guard.js` first, within the work
+  budget of the call: it denies a direct write to `.reports/` as on Gemini CLI. No guard
+  records which agent wrote a report, on any runtime. A report needs no such record, because
+  each reviewer runs in a separate session.
+- A guard that throws denies the call, with the error, and so does hook input that is not
+  JSON. In a run, the `PreToolUse` command exits 2 when `node` does not start or exits with
+  an error, and both runtimes then block the call with the text on stderr. Outside a run,
+  the command starts no `node`. The guard counts its work in one call: each comparison of a
+  path with a file, each read of the disk, and each step through a long word or pattern. It
+  stops after 200,000 units or 20 seconds; past either, it denies the call with "Split this
+  command into smaller calls", and the step count counts the call as no write. It charges a
+  unit for each path that it adds to a list, and keeps one list of the paths that the
+  commands of a call make, so its memory grows with the length of the call. A guard that
+  runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock,
+  blocks the call on Claude Code 2.1.295 or later, through the key `onFailure: "block"` of
+  the `PreToolUse` hook. Earlier Claude Code builds drop that key, and there, as on Codex,
+  such a call runs. A change to a locked file still fails Verify's
+  `lock --verify --version <N>`.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the
@@ -2534,12 +2847,13 @@ the rule passes on that file.
    `harness compose --dry-run --runtime codex` for the `software` stack lists every skill
    and agent of `core` and `software-factory` (`ENTRY`, `VISUALS_ENTRY`, `SOFTWARE_ENTRY`,
    `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`), and no entry of
-   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"` and the
-   `Stop` hook into `config.toml`, which the script checks. For the `core` stack, it writes
-   the `Stop` hook and no `web_search`. The Claude settings composed for the `core` and
-   `software` stacks have the `Stop` hook, the six deny rules of `.reports/` and the three
-   allow rules of `running-a-workflow` from the settings of `core`: its skill, and its
-   versions and checks scripts.
+   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"`, the
+   `Stop` hook and the `PreToolUse` and `PreModelRequest` hooks of the tool guard into
+   `config.toml`, which the script checks. For the `core` stack, it writes the three hooks
+   and no `web_search`. The Claude settings composed for the `core` and `software` stacks
+   have the `Stop` hook, the `PreToolUse` and `PostToolBatch` hooks of the tool guard, the
+   six deny rules of `.reports/` and the three allow rules of `running-a-workflow` from the
+   settings of `core`: its skill, and its versions and checks scripts.
 7. Each workflow under a stack's `workflows` key has a skill `workflow-<name>`, and a skill
    with the plain name does not count. Each `workflow-*` skill is a workflow of a stack, and
    the `name` in its front matter equals its folder name, because qory reads no skill front
@@ -2592,6 +2906,7 @@ there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order m
 read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
-`scripts/versions.test.js`, `scripts/checks.test.js` and rule 9 with `node`, and exits 1 at
+`scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js` and
+rule 9 with `node`, and exits 1 at
 its start with an instruction to install `node` when `node` is missing. These tests start
 no browser.

@@ -4,10 +4,12 @@
 // stderr, so the adapter prints there what the user sees: the findings when the run ends at
 // the third failed check, or the text of a check that failed itself, as systemMessage.
 // Codex's stop_hook_active is not read: checks.js counts the failed checks and lets the
-// session end at the third, as on Claude Code.
+// session end at the third, as on Claude Code. Each time the session ends, the adapter
+// removes the step counts of its agents, which step-limit.js keeps.
 'use strict';
 
 const { readInput, check } = require('./end-gate.js');
+const steps = require('./step-limit.js');
 
 function end(text) {
   process.stdout.write(`${JSON.stringify({ systemMessage: text })}\n`);
@@ -16,6 +18,8 @@ function end(text) {
 
 const input = readInput();
 const result = check({ cwd: typeof input.cwd === 'string' ? input.cwd : undefined });
+const root = steps.rootOf('codex', process.env);
+if (result.status !== 1 && root) steps.clear(root, input.session_id);
 if (result.status === 1) {
   process.stderr.write(`${result.text}\n`);
   process.exitCode = 2;

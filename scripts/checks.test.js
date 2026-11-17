@@ -5335,7 +5335,8 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
     'cd /tmp/qory-artifacts/.reports', `${checks} report a .reports/a-1.md; rm .reports/end.json`,
     `node /tmp/fake/running-a-workflow/checks.js report a .reports/a-1.md`,
     `${checks} report a $(rm .reports/end.json)`]) {
-    assert.match(denied('shell', { command }), /^Run no shell command on \.reports\//, command);
+    assert.match(denied('shell', { command }), /^Write to \.reports\/ only through checks\.js\.\n/,
+      command);
   }
   for (const command of [`${checks} report spec-reviewer /tmp/qory-artifacts/.reports/spec-reviewer-1.md`,
     `node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
@@ -5423,7 +5424,8 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     fs.globSync = globSync;
   }
   // The literal check keeps its reason.
-  assert.match(shell('rm .reports/starts.json'), /^Run no shell command on \.reports\//);
+  assert.match(shell('rm .reports/starts.json'),
+    /^Write to \.reports\/ only through checks\.js\.\n/);
   // A glob that matches nothing under .reports, a quoted glob character and a $ without .r pass.
   for (const command of ['ls *.md', 'cat */*.md', 'grep -r foo src', 'ls $HOME', 'cat "$HOME/notes.md"',
     `grep '.rep*' a.md`, `awk '{print}' a.md`, '[ -f a.md ] && echo yes', 'ls src/*',
@@ -5454,22 +5456,22 @@ test('each reports-guard adapter writes the deny of its runtime', () => {
   const file = '/tmp/qory-artifacts/.reports/end.json';
   const command = `rm ${file}`;
   assert.equal(guard('gemini', { tool_name: 'write_file', tool_input: { file_path: file } }).decision, 'deny');
-  assert.match(guard('gemini', { tool_name: 'run_shell_command', tool_input: { command } }).reason, /^Run no shell/);
+  assert.match(guard('gemini', { tool_name: 'run_shell_command', tool_input: { command } }).reason, /^Write to \.reports\/ only through/);
   assert.deepEqual(guard('gemini', { tool_name: 'read_file', tool_input: { file_path: file } }), {});
   assert.equal(guard('copilot', { toolName: 'edit', toolArgs: JSON.stringify({ path: file }) }).permissionDecision, 'deny');
   assert.equal(guard('copilot', { toolName: 'apply_patch', toolArgs: `*** Update File: ${file}\n` }).permissionDecision, 'deny');
-  assert.match(guard('copilot', { toolName: 'bash', toolArgs: JSON.stringify({ command }) }).permissionDecisionReason, /^Run no shell/);
+  assert.match(guard('copilot', { toolName: 'bash', toolArgs: JSON.stringify({ command }) }).permissionDecisionReason, /^Write to \.reports\/ only through/);
   assert.deepEqual(guard('copilot', { toolName: 'bash', toolArgs: JSON.stringify({ command: 'ls' }) }), {});
   // write_bash types text into a running shell: each string argument counts as a command.
   for (const toolName of ['write_bash', 'write_powershell']) {
     assert.match(guard('copilot', { toolName, toolArgs: JSON.stringify({ shellId: '1', input: `${command}\n` }) })
-      .permissionDecisionReason, /^Run no shell/);
+      .permissionDecisionReason, /^Write to \.reports\/ only through/);
     assert.deepEqual(guard('copilot', { toolName, toolArgs: JSON.stringify({ shellId: '1', input: 'ls\n' }) }), {});
   }
   assert.equal(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: file } }).permission, 'deny');
   const shell = guard('cursor', { hook_event_name: 'beforeShellExecution', command });
   assert.equal(shell.permission, 'deny');
-  assert.match(shell.agent_message, /^Run no shell/);
+  assert.match(shell.agent_message, /^Write to \.reports\/ only through/);
   assert.equal(guard('cursor', { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: { file_path: '/w/a.md' } }),
     null);
   // Each adapter passes the working folder of the call from its input, from which a glob expands.

@@ -8,10 +8,34 @@
 # trusted_hash into config.toml (internal/render/codex/codex.go) and starts Codex as
 # `env CODEX_HOME=<home> codex`, without --dangerously-bypass-hook-trust
 # (contracts/harness/v1/README.md, the table of launches), so Codex does not run this hook
-# in a run. That flag would also trust hooks that the agent writes. This file sets no
+# in a run. That flag would also run hooks that the agent writes. This file sets no
 # hooks.state.
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"
 command = "node \"$QORY_HARNESS_HOME/hooks/end-gate-codex.js\""
 timeout = 180
+
+# The guard of tool calls: Codex runs this hook before every tool call, and denies the call
+# when the hook prints permissionDecision "deny". The guard denies an apply_patch or a shell
+# command that its rules cover, and, by the step limit, any call of an agent that wrote
+# nothing in 12 steps in a row. The hook runs only when its hash is trusted, as for the Stop
+# hook. With features.unified_exec_tty true, a shell that the model starts with a terminal
+# takes later commands through write_stdin, which runs no hook. In a run, a guard that does
+# not start or exits with an error exits 2, so Codex blocks the call with the text on
+# stderr.
+[[hooks.PreToolUse]]
+matcher = "*"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "[ -z \"$QORY_RUN_ID\" ] || node \"$QORY_HARNESS_HOME/hooks/tool-guard-codex.js\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }"
+timeout = 120
+
+# The start of a step of the step limit: Codex runs this hook before each model request.
+# The hook counts the calls of the step before it and prints nothing; Codex reads no
+# output of this event.
+[[hooks.PreModelRequest]]
+[[hooks.PreModelRequest.hooks]]
+type = "command"
+command = "node \"$QORY_HARNESS_HOME/hooks/tool-guard-codex.js\""
+timeout = 30

@@ -8,6 +8,36 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A guard of tool calls in a run, `hooks/tool-guard-claude.js` on Claude Code and
+  `hooks/tool-guard-codex.js` on Codex, run by a `PreToolUse` hook of the settings of
+  `core`. It denies an agent in the background on Claude Code, a write to `.qory/build/`, a
+  `chmod`, `chown`, `chgrp` or `chflags` of `.qory/` or a folder above it, a write below
+  `$QORY_HARNESS_HOME` when it lies below the working folder, a write to a file that the
+  lock lists, and a write from the main session outside the artifact folder. The Codex hook
+  reads Codex's tool names, `apply_patch` and `Bash`, lets `spawn_agent` run, because Codex
+  starts no agent in the foreground. On both runtimes the guard runs `reports-guard.js`, so
+  a direct write to `.reports/`, in a shell command too, is denied; a call of read-only
+  commands reads it. The guard reads a shell command as text and gives a message for each
+  form in which a locked path or `.qory/build/` appears literally in the call, also after
+  quote removal, brace expansion and the expansion of a `~` at the start of a word; a write
+  whose path only a variable, a `~user`, a `$( ... )`, a backtick or `eval` makes passes,
+  and Verify's `lock --verify --version <N>` keeps the lock for it. The guard takes the
+  working folder from `CLAUDE_PROJECT_DIR` on Claude Code and from the folder of the hook on
+  Codex, not from the `cwd` of a call, which on Codex is the model's `workdir`. In a run
+  with no working folder, it denies each call. An artifact folder that is a link is no
+  artifact folder.
+- A step limit for an agent that writes files, in the same guard: after 12 steps in a row
+  that write no file and push no artifact, it denies every call of the agent except a
+  write. The main session and, on Claude Code, read-only agents are exempt; on Codex every
+  agent counts, because `apply_patch` writes in every role. Claude Code ends a step with a
+  `PostToolBatch` hook, and Codex starts one with a `PreModelRequest` hook. The count of
+  each agent is in `.qory/build/steps/`, and the end check removes the counts of its
+  session. The guard now runs before every tool call, which costs about 30 ms per call.
+- In a run, the `PreToolUse` command of the tool guard exits 2 when the guard crashes or is
+  missing, so every Claude Code build and Codex block the call. The hook in the Claude Code
+  settings of `core` also sets `onFailure: "block"`, so on Claude Code 2.1.295 or later a
+  guard that times out blocks the call too. Earlier builds drop the key and run a call whose
+  guard timed out, as Codex does.
 - `checks.js prove [--inputs <path>] [--base <commit>]` proves the commits of a fast-track
   run: the commits from `--base`, else `qory.start_commits` of `inputs.json`, to HEAD,
   against the kind that `## Track` of the pulled proposal declares. `scope --plan`, which
