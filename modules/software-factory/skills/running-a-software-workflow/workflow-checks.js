@@ -3,8 +3,9 @@
 // running-a-workflow loads from every skill folder with this file, as its lib/registry.js
 // lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios;
 // the types of Build and Verify, which BUILD_AND_VERIFY lists, with the JSON Schemas of
-// schemas/, which process.yaml also contains for Qory Apiary; and the Blocked: lines on the
-// spec and its criteria.
+// schemas/, which process.yaml also contains for Qory Apiary; the Blocked: lines on the
+// spec and its criteria; and the rules of the build ledger, in lib/ledger.js, which the verbs
+// step and resume of the checks script apply.
 //
 //   workflow-checks.js push <type> [--inputs <file>] <file>...   the form that `qory
 //                                                                 artifact push` runs
@@ -43,8 +44,8 @@ const BUILD_AND_VERIFY = [
   'demo-evidence', 'demo-video', 'screenshot', 'verification', 'explainer',
 ];
 
-// workflowChecks returns the types and Blocked: lines of this skill. core is the library of
-// the checks script that loads this file.
+// workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
+// library of the checks script that loads this file.
 function workflowChecks(core) {
   const lib = { ...core, ...require('./lib/documents.js')(core) };
   Object.assign(lib, require('./lib/extensions.js')(lib));
@@ -70,6 +71,7 @@ function workflowChecks(core) {
       ...BUILD_AND_VERIFY.map((type) => require(`./types/${type}.js`)(lib)),
     ],
     stops: STOPS,
+    ledger: require('./lib/ledger.js')(lib),
     // The record of the track at the end of a report of proposal-reviewer, which the report
     // check reads for an agent whose Expected output has the line "Track read:".
     records: [{

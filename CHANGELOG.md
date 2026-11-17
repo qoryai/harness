@@ -8,6 +8,47 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The build ledger of a Build session, in the verbs `step` and `resume` of `checks.js`.
+  `core` keeps the rows: the pass of each id, the state, the agent starts, the report, the
+  replays, the 101st row and the escalation `ledger-full`; `running-a-software-workflow`
+  adds the type `build-ledger`, the members `base`, `commit` and `script_sha256`, and the
+  checks of edits made outside a step. `resume` pulls the newest version at the start of a
+  session, marks each `running` row `failed`, and writes the mark of the session in
+  `.reports/ledger.json`: its id, the pair of `QORY_RUN_ID` and `QORY_SESSION`, 1 when
+  unset, and the head at which it started; on Gemini CLI, the settings keep `QORY_SESSION`
+  in the environment. `step` refuses a mark of an earlier session.
+  `step begin <id> <workflow> <file>...` hashes the step's inputs, replays a step whose
+  newest row is `done` with the same inputs on a commit that the head has, and else adds a
+  `running` row with the next `pass`. It refuses a head that breaks the chain of `base`
+  within the session, and the 101st row before any agent starts: it prints "Start no new
+  step: the ledger has 100 rows, its limit. End the session with escalate.", writes to
+  `points.json` the point of the full ledger, with the criteria that are not built, and
+  records `ledger-full` once per session. `step end <id> done|failed` records the report,
+  the attempts, the pushed versions and `script_sha256`; `done` also records the head as
+  `commit`, and refuses a change of the checkout or a head that does not follow `base`.
+  `failed` always records the row, and leaves out a report that is too long or cannot be
+  read. Each change pushes a new version, and a failed push asks for `resume` first. A crash
+  of `step` or `resume` exits 4 with the fix on stderr.
+- `resume` reads the version of the build ledger that the push check of `build-ledger`
+  compares with: the newest version that `index.json` lists, with no version of a cancelled
+  run, and while `main` is withdrawn, the version before the withdrawal. A version folder
+  that `index.json` does not list counts for nothing. `step begin` takes `--inputs <path>`
+  and `--artifacts <folder>`, anywhere after the workflow, and reads the build plan of the
+  point of the full ledger from `qory.start_artifacts` or that folder, as `suite start`
+  does, so a plan that the session pushes again changes nothing in the point. Without either
+  flag, the plan is the newest pulled version, never a draft. An inputs.json without
+  `qory.start_commits` or `qory.start_artifacts` exits 3.
+- `step begin`, `step end` and `resume` hold the locks `.reports/build-ledger.json.lock` and
+  `.reports/ledger.json.lock`, in that order, from their first read to their last write,
+  across the pull and the push of qory, so each call in one artifact folder that exits 0 is
+  in the newest stored version of the build ledger. Calls in two artifact folders share no
+  lock, and the push check, which ignores `replays`, does not refuse a push that loses a
+  `replays` count of the other folder. A call that waits for a lock longer than 10 s
+  pushes nothing and exits 3 with "Run <verb> again after the other call finishes: another
+  call held the ledger lock for 10 s."
+- A point `run_again` of `points.json` may have `fix`, the step for the person, which
+  `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
+  refuses a point with `fix` until its verdict schema adds the member.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two
@@ -1058,6 +1099,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A check and a push check read the newest version of a type from `index.json`: the newest
+  version that it lists and no cancelled run wrote. Before, they read the highest version
+  folder, so a folder that an earlier pull left, and that `index.json` does not list,
+  decided the version that a push was compared with. Only with no `index.json`, or one that
+  does not list the name of the type, the highest version folder counts.
 - `checks.js suite start` takes `--inputs <path>` and `--artifacts <folder>`, as `run`
   does, and reads the build plan from `qory.start_artifacts` or the folder of
   `--artifacts`. The build plan sets the result files that count as no change. Before,

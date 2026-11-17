@@ -230,6 +230,8 @@ Each point has these members, and no other:
 - `question`: only with `answer`, the id of an open question in `questions.json` at the top
   of the artifact folder, the draft that the run pushes before the verdict: the question
   that the point asks the member to answer.
+- `fix`: only with `run_again`, and only where the workflow you follow lists one: the step
+  for the member, by the rules of `text`, as one sentence that states the step.
 
 With more than 20 points, keep 19: the `answer` points first, each with its `question`,
 then the `run_again` points, each group in its order. Add as the last point a `run_again`
