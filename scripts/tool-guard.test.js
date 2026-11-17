@@ -287,6 +287,22 @@ test('a command whose writes the guard does not read is denied when it reaches a
     }
     // A read-only command keeps only its read-only options: any other option, such as one
     // that runs a command, makes it opaque.
+    // The value of such an option is no subcommand, in the form --option value too: each
+    // command of READ_ONLY in tool-guard.js with an option outside its list.
+    const source = fs.readFileSync(path.join(HOOKS, 'tool-guard.js'), 'utf8');
+    const list = source.slice(source.indexOf('const READ_ONLY = new Map('));
+    const names = [...list.slice(0, list.indexOf('}));')).matchAll(
+      /^ {2}(?:'([^']+)'|([\w-]+)): \{ short: '([^']*)'/gm)]
+      .filter((match) => match[3] !== '*').map((match) => match[1] || match[2])
+      // A cd runs no command and writes no file.
+      .filter((name) => !['cd', 'pushd', 'popd'].includes(name));
+    assert.ok(names.length > 20, names.join(' '));
+    for (const name of names) {
+      firstLine(guard(codex('Bash', { command: `${name} --pre rm x checks` }, 'implementer')),
+        opaque);
+    }
+    firstLine(guard(codex('Bash', { command: 'rg --pre rm --hidden -uu x .qory/build' },
+      'implementer')), 'Leave .qory/build/ as it is');
     for (const command of ['rg --pre=rm x checks', `rg --pre=sh x ${file}`,
       `sort --compress-program=rm ${file}`, `file -C -m ${file}`, `tree -R -H . checks`,
       `grep --no-such-option x ${file}`, `find checks -name x -delete-all`]) {

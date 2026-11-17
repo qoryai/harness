@@ -1693,7 +1693,9 @@ function opaque(segment) {
   if (at >= words.length || SHAPES.has(words[at])) return false;
   const rest = words.slice(at);
   const name = path.basename(rest[0]);
-  if (SUB_WRITERS.has(rest[subIndex(rest)])) return false;
+  // A read-only command has no subcommand: in `rg --pre rm x <path>`, rm is the value of an
+  // option outside the list of rg, which makes rg opaque.
+  if (!READ_ONLY.has(name) && SUB_WRITERS.has(rest[subIndex(rest)])) return false;
   if (/^(?:sh|bash|zsh|dash)$/.test(name)) {
     const raw = segment.words.slice(words.length - rest.length);
     const at = rest.findIndex((word) => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
