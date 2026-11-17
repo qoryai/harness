@@ -215,8 +215,8 @@ const TIME_LIMIT = 20000;
 const TOO_MUCH = 'Split this command into smaller calls: the guard stopped before it read ' +
   `the whole call.\nThe guard does at most ${WORK_LIMIT} units of work in one call and stops ` +
   `after ${TIME_LIMIT / 1000} s, so it cannot tell what this call writes.`;
-const OPAQUE = 'Run the checks with no file path or with `checks.js run locked`: this command ' +
-  'reaches a locked file.\n';
+const OPAQUE = 'Run the checks with no file path or `checks.js run locked`; read a locked file ' +
+  'with `cat <file>`.\n';
 const LOST = 'Write with a path that starts with /: the guard cannot tell the folder that ' +
   'this command runs in.\nA cd after builtin, eval, source or ., with CDPATH, in an if, a ' +
   'loop or a function, or to a folder that a variable names makes the folder unknown. ';

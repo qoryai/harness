@@ -1359,9 +1359,10 @@ The limits of the guard:
   folders above it reach no file, as a command with no path runs over the whole working
   folder too. The text includes each here-document body that the call does not give to
   `cat`, `tee` or `apply_patch`. So `npm run check -- checks/a.check.ts` and
-  `git add checks/a.check.ts` are denied, and `git add .` and `npx eslint .` pass. The deny
-  says to run the checks with no file path or with `checks.js run locked`. A `cd` folder
-  reaches no file.
+  `git add checks/a.check.ts` are denied, and `git add .` and `npx eslint .` pass. The first
+  line of the deny is "Run the checks with no file path or `checks.js run locked`; read a
+  locked file with `cat <file>`.", as `cat` is a read-only command. A `cd` folder reaches no
+  file.
 - On Codex, a shell that the model starts with a terminal takes later commands through
   `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
   starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for

@@ -219,9 +219,9 @@ test('a path is read through its links before each .., as the system reads it', 
 
 test('a command whose writes the guard does not read is denied when it reaches a locked file',
   () => {
-    const opaque = 'Run the checks with no file path or with `checks.js run locked`: this ' +
-      'command reaches a locked file.';
-    // The first line names a form that passes, and the next line the command and the file.
+    const opaque = 'Run the checks with no file path or `checks.js run locked`; read a locked ' +
+      'file with `cat <file>`.';
+    // The first line names the forms that pass, and the next line the command and the file.
     const reason = firstLine(guard(codex('Bash', { command: `npx vitest run ${CHECK_PATH}` },
       'implementer')), opaque);
     assert.equal(reason.split('\n')[0], opaque);
