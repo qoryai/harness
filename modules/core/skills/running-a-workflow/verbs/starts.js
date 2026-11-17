@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const {
   LIMIT, LOCAL, Missing, NAME, RUN, STARTED, STARTS_PER_SUBJECT, artifactFolder, isObject,
-  jsonKind, parseJson, plural, quote, readFile, short, withLock,
+  given, jsonKind, parseJson, plural, quote, readFile, short, withLock,
 } = require('../lib/base.js');
 
 // starts counts one start of name in run, in counts[run][name] of starts.json, so that a
@@ -109,24 +109,25 @@ module.exports = {
       args(io, what, rest) {
         if (!RUN.test(what || '')) {
           return 'Give a run of at most 64 letters, digits, hyphens and underscores.\nThe ' +
-            `argument is ${what}.`;
+            `argument is ${given(what)}.`;
         }
         const arity = 'Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer ' +
           'and --subject <subject>.';
         if (rest[1] === '--subject') {
           if (!STARTED.test(rest[0])) {
-            return `Give a reviewer as <agent> or <prefix>:<agent>.\nThe argument is ${rest[0]}.`;
+            return 'Give a reviewer as <agent> or <prefix>:<agent>.\nThe argument is ' +
+              `${given(rest[0])}.`;
           }
           if (rest.length !== 3) return arity;
           if (!NAME.test(rest[2])) {
             return 'Give a subject of lower-case letters, digits and hyphens, such as ' +
-              `change.\nThe argument is ${rest[2]}.`;
+              `change.\nThe argument is ${given(rest[2])}.`;
           }
           return null;
         }
         if (!NAME.test(rest[0] || '')) {
           return 'Give a name of lower-case letters, digits and hyphens.\nThe argument is ' +
-            `${rest[0]}.`;
+            `${given(rest[0])}.`;
         }
         if (rest.length !== 2 || !LIMIT.test(rest[1])) return arity;
         return null;

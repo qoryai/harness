@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  LIMIT, MAX_BYTES, Missing, NAME, artifactFolder, folderOf, inside, isObject, jsonKind,
+  LIMIT, MAX_BYTES, Missing, NAME, artifactFolder, folderOf, given, inside, isObject, jsonKind,
   parseJson, plural, readFile, sha256, short, withLock, writeJson,
 } = require('../lib/base.js');
 const {
@@ -366,11 +366,11 @@ module.exports = {
         const [round, agent, file] = what === 'add' ? rest : [null, ...rest];
         if (!['add', 'close'].includes(what || '')) return 'Give findings add, close or show.';
         if (what === 'add' && !LIMIT.test(round || '')) {
-          return `Give findings add a round of 1 to 99.\nThe argument is ${round}.`;
+          return `Give findings add a round of 1 to 99.\nThe argument is ${given(round)}.`;
         }
         if (!NAME.test(agent || '')) {
           return 'Give an agent name of lower-case letters, digits and hyphens.\nThe argument ' +
-            `is ${agent}.`;
+            `is ${given(agent)}.`;
         }
         return file !== undefined && rest.length === (what === 'add' ? 3 : 2) ? null
           : `Give findings ${what} ${what === 'add' ? 'a round, ' : ''}an agent and one file.`;

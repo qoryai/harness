@@ -149,7 +149,8 @@ function pointCheck(run, point, place, open, agents, rules = pointRules()) {
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
-    run.find(`Set the action of ${which} to answer or run_again: it is ${valueText(action)}.`);
+    run.find(`Set the action of ${which} to answer or run_again.\nThe action of ${which} is ` +
+      `${valueText(action)}.`);
   }
   if (action === 'answer') {
     if (question === undefined) {
@@ -157,10 +158,10 @@ function pointCheck(run, point, place, open, agents, rules = pointRules()) {
         `open question.`);
     } else if (typeof question !== 'string' || !QUESTION_ID.test(question)) {
       run.find(`Set the question of ${which} to an id of 1 to 32 lower-case letters, digits ` +
-        `and hyphens: it is ${valueText(question)}.`);
+        `and hyphens.\nThe question of ${which} is ${valueText(question)}.`);
     } else if (!open.has(question)) {
       run.find(`Set the question of ${which} to the id of an open question in ` +
-        `questions.json: ${quote(question)} is none.`);
+        `questions.json.\n${quote(question)} is none.`);
     }
   } else if (action === 'run_again' && question !== undefined) {
     run.find(`Remove question from ${which}: a point with the action run_again has none.`);

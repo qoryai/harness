@@ -696,11 +696,13 @@ test('ledger: no step begins while a row runs, and step end needs a running row'
   const second = begin(call, w, 'checks');
   assert.equal(second.status, 1);
   assert.deepEqual(second.lines, ['End the step plan with step end, or run checks.js resume ' +
-    'after a crash: row 1 of the ledger is running.']);
+    'after a crash.', '  Row 1 of the ledger, of plan, is running.',
+  'Started no row of checks: the ledger is unchanged.']);
   const none = call('step', 'end', 'checks', 'done');
   assert.equal(none.status, 1);
-  assert.deepEqual(none.lines, ['Start checks with step begin first: the ledger has no running ' +
-    'row of it.']);
+  assert.deepEqual(none.lines, ['Start checks with step begin first.',
+    '  The ledger has no running row of checks.',
+    'Checked the step checks: the ledger is unchanged.']);
 });
 
 test('ledger: step begin and step end need resume first', () => {
@@ -1316,8 +1318,9 @@ test('ledger: the verbs read the copy of the draft under .reports, not the draft
   fs.writeFileSync(draft, JSON.stringify(edited));
   const blocked = begin(call, w, 'deliverable:d-3');
   assert.equal(blocked.status, 1, blocked.out);
-  assert.equal(blocked.lines.at(-1), 'End the step deliverable:d-2 with step end, or run ' +
-    'checks.js resume after a crash: row 2 of the ledger is running.');
+  assert.deepEqual(blocked.lines, ['End the step deliverable:d-2 with step end, or run ' +
+    'checks.js resume after a crash.', '  Row 2 of the ledger, of deliverable:d-2, is running.',
+  'Started no row of deliverable:d-3: the ledger is unchanged.']);
   commit(w, 'd-2.txt', 'The change of d-2.\n');
   assert.equal(call('step', 'end', 'deliverable:d-2', 'done').status, 0);
   assert.equal(fs.readFileSync(draft, 'utf8'), fs.readFileSync(copy, 'utf8'));

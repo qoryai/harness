@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  DISK_FACTOR, Missing, NAME, PLACES, STARTED, isObject, parseJson, plural, quote,
+  DISK_FACTOR, Missing, NAME, PLACES, STARTED, given, isObject, parseJson, plural, quote,
 } = require('../lib/base.js');
 const { compileGlobs, matchesAny } = require('../lib/globs.js');
 
@@ -282,10 +282,11 @@ module.exports = {
         }
         if (!NAME.test(options.group)) {
           return 'Give --group a name of lower-case letters, digits and hyphens.\nThe argument ' +
-            `is ${options.group}.`;
+            `is ${given(options.group)}.`;
         }
         if (!AFTER.test(options.after)) {
-          return `Give --after a whole number of 0 to 99.\nThe argument is ${options.after}.`;
+          return 'Give --after a whole number of 0 to 99.\nThe argument is ' +
+            `${given(options.after)}.`;
         }
         return null;
       },

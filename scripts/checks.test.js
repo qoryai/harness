@@ -2203,17 +2203,17 @@ test('points: each text is plain text for a person, on one line', () => {
 });
 
 test('points: an answer point names an open question, and a run_again point none', () => {
-  fails(checkPoints([{ ...ANSWER, action: 'ask' }]), /^Set the action of point 1 to answer or run_again: it is "ask"\.$/);
-  fails(checkPoints([{ text: ANSWER.text }]), /^Set the action of point 1 to answer or run_again: it is missing\.$/);
+  fails(checkPoints([{ ...ANSWER, action: 'ask' }]), /^Set the action of point 1 to answer or run_again\. The action of point 1 is "ask"\.$/);
+  fails(checkPoints([{ text: ANSWER.text }]), /^Set the action of point 1 to answer or run_again\. The action of point 1 is missing\.$/);
   const { question, ...noQuestion } = ANSWER;
   assert.equal(question, 'q3');
   fails(checkPoints([noQuestion]), /^Add question to point 1: a point with the action answer has the id of an open question\.$/);
-  fails(checkPoints([{ ...ANSWER, question: 'Q3' }]), /^Set the question of point 1 to an id of 1 to 32 lower-case letters, digits and hyphens: it is "Q3"\.$/);
-  fails(checkPoints([{ ...ANSWER, question: 3 }]), /: it is 3\.$/);
+  fails(checkPoints([{ ...ANSWER, question: 'Q3' }]), /^Set the question of point 1 to an id of 1 to 32 lower-case letters, digits and hyphens\. The question of point 1 is "Q3"\.$/);
+  fails(checkPoints([{ ...ANSWER, question: 3 }]), / The question of point 1 is 3\.$/);
   // q1 is answered, q2 withdrawn and q6 decided in the testdata, and q9 does not exist.
   for (const id of ['q1', 'q2', 'q6', 'q9']) {
     fails(checkPoints([{ ...ANSWER, question: id }]),
-      new RegExp(`^Set the question of point 1 to the id of an open question in questions\\.json: "${id}" is none\\.$`));
+      new RegExp(`^Set the question of point 1 to the id of an open question in questions\\.json\\. "${id}" is none\\.$`));
   }
   fails(checkPoints([{ ...AGAIN, question: 'q3' }]), /^Remove question from point 1: a point with the action run_again has none\.$/);
 });
@@ -2221,7 +2221,7 @@ test('points: an answer point names an open question, and a run_again point none
 test('points: a point states its action, and the words of each id beside it', () => {
   // A point with no action names the field and its fix first.
   exactly(checkPoints([{ text: ANSWER.text }]),
-    'Set the action of point 1 to answer or run_again: it is missing.');
+    'Set the action of point 1 to answer or run_again.\n  The action of point 1 is missing.');
   // The point of a criterion that cannot be met, with its id and its text in quotes.
   passes(checkPoints([{ ...ANSWER, text: 'AC-3, "A member exports up to 50,000 rows to CSV", ' +
     'cannot be met as approved: the export service returns at most 10,000 rows.' }]));
@@ -4675,7 +4675,7 @@ test('end: a points.json that breaks its rules is a finding, and its third check
   const { args, env } = stub();
   const first = end(root, env);
   fails(first, /^Fix the 1 finding of points\.json in the lines after this one:$/);
-  fails(first, /^Set the question of point 2 to the id of an open question in questions\.json: "q1" is none\.$/);
+  fails(first, /^Set the question of point 2 to the id of an open question in questions\.json\. "q1" is none\.$/);
   assert.match(first.lines.at(-1), /; check 1 of 3\. /);
   assert.deepEqual(verdicts(args), []);
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));

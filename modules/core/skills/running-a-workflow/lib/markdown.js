@@ -259,17 +259,20 @@ const MARKDOWN = new RegExp(
 function characters(run, file, where, text, { oneLine = false } = {}) {
   run.did('characters');
   const at = where ? `${where} of ${file}` : file;
+  // The place on the first line, and the whole place on the next when short() cuts it.
+  const brief = short(at, 56);
+  const whole = brief === at ? '' : `\nThe character is in ${at}.`;
   // artifact-text (SKILL.md:16-20: "Tab and line feed are the only control characters"): tab and
   // line feed are the only control characters, and a member that its skill lists as having no tab
   // or line feed contains neither.
   const control = CONTROL.exec(text) || (oneLine && /[\t\n]/.exec(text));
   if (control) {
-    run.find(`Remove the control character ${hex(control[0])} from ${at}.`);
+    run.find(`Remove the control character ${hex(control[0])} from ${brief}.${whole}`);
   }
   // artifact-text (SKILL.md:21-30: "No text contains one of these characters"): the refused
   // characters.
   const refused = REFUSED.exec(text);
-  if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${at}.`);
+  if (refused) run.find(`Remove the refused character ${hex(refused[0])} from ${brief}.${whole}`);
 }
 
 // The ids of items: the id of a question, such as q4, which core writes, in lower case, since

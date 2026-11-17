@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, Missing, NAME, folderOf, inside, plural, readFile,
+  MAX_BYTES, Missing, NAME, folderOf, given, inside, plural, readFile,
 } = require('../lib/base.js');
 const { agentNames } = require('../lib/plugin.js');
 const { REPORT_FIXES, expected, record, reportCheck } = require('../lib/reports.js');
@@ -64,7 +64,7 @@ module.exports = {
       args(io, what, rest) {
         if (!NAME.test(what || '')) {
           return 'Give an agent name of lower-case letters, digits and hyphens.\nThe argument ' +
-            `is ${what}.`;
+            `is ${given(what)}.`;
         }
         return rest.length === 1 ? null : 'Give report one agent and one file.';
       },

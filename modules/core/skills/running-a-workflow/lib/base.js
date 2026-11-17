@@ -86,6 +86,10 @@ function cut(text, size) {
   return chars.length > size ? `${chars.slice(0, size - 3).join('')}...` : text;
 }
 
+// given returns an argument of argv as the line about a wrong argument shows it: the word
+// missing when the argument is not there.
+const given = (value) => (value === undefined ? 'missing' : value);
+
 // short returns text, or its start and its end with ... between them when it has more than
 // size characters, counted by code point, so that a first line keeps the fix within 100
 // characters. Give the whole text on a line after the first.
@@ -409,7 +413,8 @@ function artifactFolder(deps) {
 module.exports = {
   ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, SHORT, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
   DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
-  CONTROL, CONTROL_ALL, hex, cut, short, plainLine, findingLines, quote, plural, inside, lexists,
+  CONTROL, CONTROL_ALL, hex, cut, short, given, plainLine, findingLines, quote, plural, inside,
+  lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder, withLock,
 };
