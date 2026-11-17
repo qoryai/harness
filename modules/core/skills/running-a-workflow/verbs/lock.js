@@ -219,6 +219,23 @@ function qory(io, args) {
 const outputLines = (ran) => `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n')
   .map((line) => line.trim()).filter(Boolean);
 
+// refusalFindings returns the findings of what a failed call of qory printed, stdout first.
+// qory prints an error on stderr as a line that starts with "✗ ", and each line after it
+// indented by two spaces. Without those two spaces, a line at column 0 starts a finding, and
+// an indented line is a cause of the finding before it, which io.print indents.
+function refusalFindings(ran) {
+  const findings = [];
+  let error = false;
+  for (const raw of `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n')) {
+    const line = error && raw.startsWith('  ') ? raw.slice(2) : raw;
+    if (!line.trim()) continue;
+    if (/^\s/.test(line) && findings.length) findings[findings.length - 1] += `\n${line.trim()}`;
+    else findings.push(line.trim());
+    if (raw.startsWith('✗ ')) error = true;
+  }
+  return findings;
+}
+
 // pull runs `<qory> artifact pull <type>`, with --version <number> when number is set, and
 // returns the folder that it prints last. A pull that fails exits 3.
 function pull(io, type, number) {
@@ -274,7 +291,7 @@ function lockFile(io, def, draft) {
   const ran = qory(io, ['artifact', 'push', def.type, draft]);
   if (ran.error || ran.status !== 0) {
     const why = ran.error ? 'could not start' : `exited with ${ran.status}`;
-    io.print(outputLines(ran), `Locked nothing: qory artifact push ${def.type} ${why}.`);
+    io.print(refusalFindings(ran), `Locked nothing: qory artifact push ${def.type} ${why}.`);
     return 1;
   }
   const pushed = outputLines(ran).at(-1) || 'no output';

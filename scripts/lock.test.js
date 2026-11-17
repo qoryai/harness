@@ -143,7 +143,7 @@ function fakeQory({ run = false, server = null, store = null, pushStatus = 0, re
   const bin = next('bin');
   fs.mkdirSync(bin);
   const calls = path.join(bin, 'calls');
-  const refused = refusal.map((line) => `echo '${line}'`).join('\n');
+  const refused = refusal.map((line) => `printf '%s\\n' '${line}' >&2`).join('\n');
   const copy = server ? `cp -R '${server}/.' '${store}/'` : ':';
   const copyLater = later ? `cp -R '${later}/.' '${store}/'` : copy;
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
@@ -864,18 +864,32 @@ test('lock pushes nothing when the check of the draft finds something', () => {
   assert.deepEqual(result.calls, []);
 });
 
-test('lock exits 1 with the lines of qory when the push check refuses the lock', () => {
-  const qory = fakeQory({ pushStatus: 6, refusal: [
-    'qory: Fix each finding below and push again. The check for acceptance-lock failed:',
-    'qory: Ask a member to store the criteria they accept as a new version.',
-  ] });
-  const result = lock(artifacts(), working(), DRAFT, qory);
-  assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines, [
-    'qory: Fix each finding below and push again. The check for acceptance-lock failed:',
-    'qory: Ask a member to store the criteria they accept as a new version.',
-    'Locked nothing: qory artifact push acceptance-lock exited with 6.',
-  ]);
+test('lock exits 1 with the findings of qory when the push check refuses the lock', () => {
+  // qory prints its title, the line of the error, and each line after it indented by two
+  // spaces: the findings of the push check, each with its cause indented by two more.
+  const frame = ['🐝 qory',
+    '✗ Fix each finding below and push again. The check for acceptance-lock failed:'];
+  const ask = 'Ask a member to store the criteria they accept as a new version.';
+  const last = 'Locked nothing: qory artifact push acceptance-lock exited with 6.';
+  const plain = lock(artifacts(), working(), DRAFT,
+    fakeQory({ pushStatus: 6, refusal: [...frame, `  ${ask}`] }));
+  assert.equal(plain.status, 1, plain.out);
+  assert.deepEqual(plain.lines, [...frame, ask, last]);
+  const restore = (n) => [`  Restore "checks/c${n}.check.ts".`,
+    `    The bytes of "checks/c${n}.check.ts" differ from acceptance-lock version 1.`];
+  const caused = lock(artifacts(), working(), DRAFT,
+    fakeQory({ pushStatus: 6, refusal: [...frame, `  ${ask}`, ...restore(1)] }));
+  assert.equal(caused.status, 1, caused.out);
+  assert.deepEqual(caused.lines, [...frame, ask, 'Restore "checks/c1.check.ts".',
+    '  The bytes of "checks/c1.check.ts" differ from acceptance-lock version 1.', last]);
+  // 60 findings of 2 lines and the 2 lines of the frame are 62 findings: the count after the
+  // first 50 counts findings, not lines.
+  const many = lock(artifacts(), working(), DRAFT, fakeQory({ pushStatus: 6,
+    refusal: [...frame, ...Array.from({ length: 60 }, (_, n) => restore(n + 1)).flat()] }));
+  assert.equal(many.status, 1, many.out);
+  assert.equal(many.lines.filter((line) => line.startsWith('  ')).length, 48);
+  assert.deepEqual(many.lines.slice(-2), [
+    'Fix the findings above and run the check again: 12 more are not shown.', last]);
 });
 
 test('lock reports the schema when the draft has no list of checks', () => {

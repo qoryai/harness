@@ -825,8 +825,10 @@ prints the hashes that the list must contain.
   missing or cannot be read, a path that leads outside the working folder, passes a link
   or ends at no regular file, a finding of the check, and a push that qory refuses each
   exit 1, and the lock is not stored. A file that cannot be read gets "Make "<path>"
-  readable, then lock again: it cannot be read.". The lines of a refused push are those
-  that qory printed.
+  readable, then lock again: it cannot be read.". A refused push prints the lines that
+  qory printed. qory indents each line after its error line by two spaces; without them, a
+  line at column 0 is a finding, and an indented line prints indented as the cause of the
+  finding before it.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
