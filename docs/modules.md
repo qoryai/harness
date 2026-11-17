@@ -1153,45 +1153,47 @@ reads the command after `env`, `command`, `exec`, `nice`, `timeout`, `sudo`, `no
 `time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with their options, and reads the
 file of `time -o`, `--output` or `--output=`, and each file after `sudo -e`, `sudo --edit`
 or `sudoedit`, as a file that the command writes, and in a group such as `( ... )`,
-`{ ...; }`, `then ...`, `$( ... )` or backticks. It reads `>|` as a redirect, as `>`. It
-skips the body of a here-document whose end word is quoted, such as `<<'EOF'`, only when the
-command of the here-document, after the words before a command, is `cat` or `tee` with no
-pipe, `(` or backtick after it, as in `cat > a.ts <<'EOF'`: the shell passes that body to
-`cat` or `tee` as text. It reads the body of any other command, which could run its lines,
-such as a shell, `ssh` or `make -f -`, of a body with no end line, and of every
-here-document of a command that defines a function, as in `cat() { sh; }`, because a
-function can take the name `cat` or `tee`; of every body of a call with `((`, as in
-`$((1<<2))`, where `<<` is a shift; and of a `cat` or `tee` after a variable setting, as in
-`PATH=<folder> cat`. It also reads every body when another command of the call, after the
-words before a command, is not `echo`, `ls`, `mkdir`, `true`, or a `cat` or `tee` with no
-pipe, `(` or backtick after it, because that command could run the file that `cat` writes,
-as in `cat > x.sh <<'EOF'` and then `sh x.sh`. So `mkdir -p docs && cat > docs/a.md <<'EOF'`
-skips the body, while a write followed by `git commit` or `npm test` in the same call has
-its body read. A quote or a backslash at the end of a line goes on to the next line, as in
-the shell, so a `<<` in a string of several lines is text; the guard reads every body of a
-command line of more than one line, and of a line with `$(` or a backtick in double quotes.
-It denies a write to a relative path where it cannot tell the folder: after a `cd` to a
-folder that a variable names, `builtin cd`, `eval`, `source` or `.`, a `cd` while `CDPATH`
-may be set, a `cd` in a pipe, a branch, a loop or a function, and in a call that may set
-`auto_cd`. After `cd <folder> &&`, the next command runs in that folder. It reads each
-written path through its links part by part, as the system does, so in `l/../a.ts` the `..`
-applies to the target of the link `l`, and it denies a path with a `..` after a folder that
-does not exist yet, which a later command of the call can make a link. It reads each word,
-the name of the command too, as the shell does, so `\cp`, `c\p`, `"c"p`, `c''p` and `$'cp'`
-are `cp`: without its quotes and the backslashes that escape a character, so
-`rm c"h"ecks/a.ts` and `rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as in
-`rm 'chec*'`, is a character of the name. It reads `$'...'` as single quotes with the
-escapes of the shell, such as `\x63`. It expands braces, so `rm -rf {checks,x}` removes
-`checks`, up to 64 words for each word; when a word would make more, or has a brace group
-inside a brace group, the guard also reads each group as `*`. It resolves each path of a
-command that writes from the current folder, and from each folder that a `cd` or `pushd` in
-the command changes to or that `-C <folder>` of `git -C` or `env -C` names, so
-`checks//a.ts` and `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`,
-`unlink` and `mv` of a folder above a locked file or above `.qory/build/`, such as
-`rm -rf checks` or `rm -rf .qory`, as a write of that file. It reads a `restore` of a folder
-above a locked file, and a `checkout` of such a folder, after `--` or as a path that exists,
-such as `git checkout .`, the same way; `git checkout <name>` of a name that is no path
-passes. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+`{ ...; }`, `then ...`, `$( ... )` or backticks. It reads each redirect of bash and zsh that
+writes a file as `>` or `>>`: `>|`, `>!`, `>>|`, `>>!`, `&>`, `&>>`, and `>&` or `>>&` to a
+word that is not a number, `-` or `p`, each also with `|` or `!` after it. It skips the body
+of a here-document whose end word is quoted, such as `<<'EOF'`, only when the command of the
+here-document, after the words before a command, is `cat` or `tee` with no pipe, `(` or
+backtick after it, as in `cat > a.ts <<'EOF'`: the shell passes that body to `cat` or `tee`
+as text. It reads the body of any other command, which could run its lines, such as a shell,
+`ssh` or `make -f -`, of a body with no end line, and of every here-document of a command
+that defines a function, as in `cat() { sh; }`, because a function can take the name `cat`
+or `tee`; of every body of a call with `((`, as in `$((1<<2))`, where `<<` is a shift; and
+of a `cat` or `tee` after a variable setting, as in `PATH=<folder> cat`. It also reads every
+body when another command of the call, after the words before a command, is not `echo`,
+`ls`, `mkdir`, `true`, or a `cat` or `tee` with no pipe, `(` or backtick after it, because
+that command could run the file that `cat` writes, as in `cat > x.sh <<'EOF'` and then
+`sh x.sh`. So `mkdir -p docs && cat > docs/a.md <<'EOF'` skips the body, while a write
+followed by `git commit` or `npm test` in the same call has its body read. A quote or a
+backslash at the end of a line goes on to the next line, as in the shell, so a `<<` in a
+string of several lines is text; the guard reads every body of a command line of more than
+one line, and of a line with `$(` or a backtick in double quotes. It denies a write to a
+relative path where it cannot tell the folder: after a `cd` to a folder that a variable
+names, `builtin cd`, `eval`, `source` or `.`, a `cd` while `CDPATH` may be set, a `cd` in a
+pipe, a branch, a loop or a function, and in a call that may set `auto_cd`. After
+`cd <folder> &&`, the next command runs in that folder. It reads each written path through
+its links part by part, as the system does, so in `l/../a.ts` the `..` applies to the target
+of the link `l`, and it denies a path with a `..` after a folder that does not exist yet,
+which a later command of the call can make a link. It reads each word, the name of the
+command too, as the shell does, so `\cp`, `c\p`, `"c"p`, `c''p` and `$'cp'` are `cp`:
+without its quotes and the backslashes that escape a character, so `rm c"h"ecks/a.ts` and
+`rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as in `rm 'chec*'`, is a
+character of the name. It reads `$'...'` as single quotes with the escapes of the shell,
+such as `\x63`. It expands braces, so `rm -rf {checks,x}` removes `checks`, up to 64 words
+for each word; when a word would make more, or has a brace group inside a brace group, the
+guard also reads each group as `*`. It resolves each path of a command that writes from the
+current folder, and from each folder that a `cd` or `pushd` in the command changes to or
+that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
+`./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`, `unlink` and `mv` of a
+folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
+`rm -rf .qory`, as a write of that file. It reads a `restore` of a folder above a locked
+file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
+`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. A
+path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
 `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
 matches a leading dot only when the command contains `dotglob`, `globdots`, `GLOB_DOTS` or

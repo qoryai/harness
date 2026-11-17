@@ -1317,6 +1317,25 @@ test('a ~ at the start of a word is the home folder, as the shell expands it', (
   }
 });
 
+test('each redirect of bash and zsh that writes a file is read as one', () => {
+  const locked = 'Leave the locked file as it is';
+  for (const op of ['>!', '>>!', '>|', '>>|', '&>', '&>>', '&>!', '&>|', '&>>!', '&>>|', '>&',
+    '>>&', '>&!', '>&|', '>>&!', '>>&|', '2>!', '1>|', '<>']) {
+    for (const command of [`echo x ${op} ${CHECK_PATH}`, `echo x ${op}${CHECK_PATH}`]) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+    }
+    assert.equal(countsAsWrite('Bash', { command: `echo x ${op} src/a.ts` }, PLACE), true, op);
+  }
+  firstLine(guard(codex('Bash', { command: 'echo 0 >! .qory/build/steps/s.json' },
+    'implementer')), 'Leave .qory/build/ as it is');
+  // A >& to a stream, or a > in quotes, writes no file.
+  for (const command of ['echo x >&2', 'echo x 2>&1', 'echo x >&-', 'echo x >& 2',
+    `echo "x >! ${CHECK_PATH}"`]) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    assert.equal(countsAsWrite('Bash', { command }, PLACE), false, command);
+  }
+});
+
 test('the step count reads a redirect outside quotes and comments, and a subcommand', () => {
   const count = (command) => countsAsWrite('Bash', { command }, PLACE);
   for (const command of ['echo "a > src/x"', 'echo hi # > src/x', 'echo rm src/x',

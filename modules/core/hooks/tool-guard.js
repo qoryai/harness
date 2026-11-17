@@ -785,17 +785,26 @@ function commandWords(words) {
   return { words: rest, dirs, outputs: edit ? outputs.concat(rest) : outputs };
 }
 
+// plainRedirects returns text with each redirect of bash and zsh that writes a file as > or
+// >>: >| and >! (zsh), >>| and >>!, &> and &>>, >& and >>& to a word that is not a number, -
+// or p, each also with | or ! after it. A >& or >>& to a stream stays.
+function plainRedirects(text) {
+  return text.replace(/&>(>?)[|!]?/g, ' >$1')
+    .replace(/>(>?)&[|!]?(?!\s*(?:\d+|-|p)(?=$|[\s;&|<>()]))/g, '>$1 ')
+    .replace(/>(>?)[|!]/g, '>$1');
+}
+
 // segments returns the simple commands of a shell command and of the text of each shell in it
-// that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the | of the
-// redirect >|, so that a group such as `( cp a b )` or `$(cp a b)` reads as its command, each
-// as { text, words, cwds, at, dots }. words are the words that commandWords keeps; cwds the
+// that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the | or &
+// of a redirect, which plainRedirects reads, so that a group such as `( cp a b )` or
+// `$(cp a b)` reads as its command, each as { text, words, cwds, at, dots }. words are the words that commandWords keeps; cwds the
 // known folders that the command can run in, as folders finds them from cwd; at the folder it
 // runs in, as walk finds it, or null when that is unknown; and dots whether a wildcard
 // matches a leading dot.
 function segments(command, cwd = process.cwd(), keep = () => true) {
   const texts = commands(dropBodies(command)).map((one, index) => {
     // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
-    const pieces = one.replace(/>\|/g, '>').replace(/\\[()]/g, ' ').split(/([;&|\n()`]+)/);
+    const pieces = plainRedirects(one).replace(/\\[()]/g, ' ').split(/([;&|\n()`]+)/);
     const out = [];
     for (let at = 0; at < pieces.length; at += 2) {
       out.push({ text: pieces[at], before: pieces[at - 1] || '', after: pieces[at + 1] || '',
@@ -1004,7 +1013,8 @@ function reads(text) {
 // body is text to drop: the end word is quoted and the command of the operator reads. A
 // command line goes on to the next line after a backslash at its end or in a quote, as in the
 // shell; next then returns no operator, and open returns true. A command ends at ; & | ( ) `
-// and the end of the command line, but not at the & or | of a redirect such as 2>&1, &> or >|;
+// and the end of the command line, but not at the & or | of a redirect such as 2>&1, &>, >|
+// or >&|;
 // a command that ends at a pipe, a ( or a backtick sends its input on, so its body stays. next
 // skips a << in quotes, after a backslash, or in a comment, which starts with a # at the start
 // of a word. next returns null where it cannot know the lines of a body or the quotes: for an
@@ -1073,7 +1083,8 @@ function heredocs() {
       } else if (char === '<' && line[at + 1] === '<') {
         text += '<<<';
         at += 2;
-      } else if (/[;)(`]/.test(char) || (char === '|' && line[at - 1] !== '>') ||
+      } else if (/[;)(`]/.test(char) || (char === '|' && line[at - 1] !== '>' &&
+        !(line[at - 1] === '&' && line[at - 2] === '>')) ||
         (char === '&' && !/[<>]/.test(line[at - 1] || '') && line[at + 1] !== '>')) close(char);
       else text += char;
     }
