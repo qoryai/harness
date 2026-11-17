@@ -132,19 +132,33 @@ function kindOf(name, input) {
   return { kind: null };
 }
 
+// The longest path that the system opens: a longer one fails with ENAMETOOLONG.
+const PATH_MAX = 4096;
+
 // real returns full with each part that exists read through its links, in the case of its
 // name on the disk, so that /tmp/x and /private/tmp/x are one path on macOS, and so are
-// Checks/a.ts and checks/a.ts on a disk that ignores case.
+// Checks/a.ts and checks/a.ts on a disk that ignores case. It reads the parts from the top
+// once, up to the first that does not exist, and adds the rest as they are. A path longer
+// than PATH_MAX, with its .. parts resolved, names no file, and real returns it resolved.
 function real(full) {
-  const rest = [];
-  for (let at = path.resolve(full); ; at = path.dirname(at)) {
-    try {
-      return path.join(fs.realpathSync.native(at), ...rest.reverse());
-    } catch {
-      if (path.dirname(at) === at) return path.resolve(full);
-      rest.push(path.basename(at));
-    }
+  const resolved = path.resolve(full);
+  if (resolved.length > PATH_MAX) return resolved;
+  const { root } = path.parse(resolved);
+  const parts = resolved.slice(root.length).split(path.sep).filter(Boolean);
+  let found = root;
+  let at = 0;
+  for (; at < parts.length; at += 1) {
+    const next = path.join(found, parts[at]);
+    if (!fs.existsSync(next)) break;
+    found = next;
   }
+  let base;
+  try {
+    base = fs.realpathSync.native(found);
+  } catch {
+    return resolved;
+  }
+  return at < parts.length ? path.join(base, parts.slice(at).join(path.sep)) : base;
 }
 
 const under = (full, dir) => full === dir || full.startsWith(`${dir}${path.sep}`);

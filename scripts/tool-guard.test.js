@@ -1211,6 +1211,27 @@ test('a call of 1 MB with many words or operators returns a decision', () => {
   }
 });
 
+test('a path of 1 MB returns a decision in under 2 seconds, and .. parts reach a locked file',
+  () => {
+    const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+    const deep = 'a/'.repeat(500000);
+    const back = `${'a/'.repeat(3000)}${'../'.repeat(3000)}${CHECK_PATH}`;
+    const timed = (input) => {
+      const start = process.hrtime.bigint();
+      const reason = guard(input);
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      assert.ok(ms < 2000, `${ms} ms`);
+      return reason;
+    };
+    assert.equal(timed(claude('Write', { file_path: path.join(WORK, deep), content: 'x' },
+      'implementer')), null);
+    firstLine(timed(codex('Bash', { command: `rm ${CHECK_PATH} ${deep}` }, 'implementer')),
+      locked);
+    firstLine(timed(claude('Write', { file_path: path.join(WORK, back), content: 'x' },
+      'implementer')), locked);
+    firstLine(timed(codex('Bash', { command: `rm ${back}` }, 'implementer')), locked);
+  });
+
 test('the body of a here-document with a quoted end is text only for cat or tee', () => {
   const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   const MB = 1 << 20;
