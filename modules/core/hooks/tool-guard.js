@@ -15,15 +15,15 @@
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
 //   started.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
-// the paths of its file_path, notebook_path or patch; or a shell command whose text contains
-// the path and writes, as WRITERS reads it. The guard gives a clear message for each form in
-// which a locked path or .qory/build/ appears literally in the call, also after the shell
-// removes quotes, expands braces and expands a ~ or ~/ at the start of a word to $HOME. It
-// reads a shell command as text and runs no shell, so a write whose path only a variable,
-// $HOME, ${HOME}, a ~user, a $( ... ), a backtick or eval makes passes, as in
-// `D=lock; echo x > ${D}ed/f`. checks.js lock --verify keeps the lock for that write, and the
-// push check of build-ledger and the report checks keep the build ledger, whose copy is
-// .reports/build-ledger.json, and the reports. No rule covers
+// the paths of its file_path, notebook_path or patch; or a shell command whose text
+// contains the path and writes, as WRITERS reads it. The guard gives a clear message for
+// each form in which a locked path or .qory/build/ appears literally in the call, also
+// after the shell removes quotes, expands braces and expands a ~ or ~/ at the start of a
+// word to $HOME. It reads a shell command as text and runs no shell, so a write whose path
+// only a variable, $HOME, ${HOME}, a ~user, a $( ... ), a backtick or eval makes passes, as
+// in `D=lock; echo x > ${D}ed/f`. Verify's `lock --verify --version <N>` keeps the lock for
+// that write, and the push check of build-ledger and the report checks keep the build
+// ledger, whose copy is .reports/build-ledger.json, and the reports. No rule covers
 // qory.yaml, .qory/ outside .qory/build/ and the harness home, the hooks or the modules
 // outside a harness home below the working folder: agents may change them.
 //
@@ -2222,7 +2222,7 @@ function globReach(pattern, full, fold, dots) {
 function lockedReason(file, root, what) {
   const shown = under(file, root) ? path.relative(root, file) : file;
   return `Leave the locked file as it is: ${what} locks it.\nThe call writes ${shown}. ` +
-    'A change to a locked file fails checks.js lock --verify.';
+    "A change to a locked file fails Verify's lock --verify --version <N>.";
 }
 
 // placeOf returns { cwd, root, artifacts } of a call: the folder of the hook's input, root

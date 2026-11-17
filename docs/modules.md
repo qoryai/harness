@@ -1320,16 +1320,16 @@ call, and on Codex `PreToolUse` writes the line before the call runs.
 The limits of the guard:
 
 - The guard gives a clear message; checks outside the session catch a write that passes it.
-  `checks.js lock --verify` keeps the lock, the push check of `build-ledger` keeps the build
-  ledger, and the report checks keep the reports. The guard covers each form in which a
-  locked path or `.qory/build/` appears literally in the call, also after the shell removes
-  quotes, as in `ch''ecks`, `"checks"`, `\checks` or `$'\x63hecks'`, expands braces,
-  sequences such as `{c..c}hecks` included, and expands a `~` or `~/` at the start of a word
-  outside quotes to the folder of `$HOME`. It reads a shell command as text, on both
-  runtimes, and runs no shell. So a variable, `$HOME` and `${HOME}` included, a `~user`, a
-  `$( ... )`, a backtick and `eval` are its limit: a write whose path only they make passes,
-  as in `D=lock; echo x > ${D}ed/f`, and so does a shell three shells deep, and a
-  here-document body that `cat` writes to a file in one call and a later call runs. A `cp`
+  Verify's `lock --verify --version <N>` keeps the lock, the push check of `build-ledger`
+  keeps the build ledger, and the report checks keep the reports. The guard covers each form
+  in which a locked path or `.qory/build/` appears literally in the call, also after the
+  shell removes quotes, as in `ch''ecks`, `"checks"`, `\checks` or `$'\x63hecks'`, expands
+  braces, sequences such as `{c..c}hecks` included, and expands a `~` or `~/` at the start
+  of a word outside quotes to the folder of `$HOME`. It reads a shell command as text, on
+  both runtimes, and runs no shell. So a variable, `$HOME` and `${HOME}` included, a
+  `~user`, a `$( ... )`, a backtick and `eval` are its limit: a write whose path only they
+  make passes, as in `D=lock; echo x > ${D}ed/f`, and so does a shell three shells deep, and
+  a here-document body that `cat` writes to a file in one call and a later call runs. A `cp`
   that reads a locked file is denied, as it contains the path. An earlier command of the
   call that makes or moves entries, a `cp` with an option that keeps or makes links (`-a`,
   `-R`, `-r`, `-P`, `-d`, `-l`, `-s`, `-H`, their long forms, `--preserve` with `links` or
@@ -1367,9 +1367,9 @@ The limits of the guard:
   starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for
   the end check. The Codex inputs in `scripts/tool-guard.test.js` have the
   fields that Codex 0.167.2 wrote to a `PreToolUse` hook in a probe run.
-- The guard reads the calls of `Write`, `Edit`, `MultiEdit`, `NotebookEdit`,
-  `apply_patch` and the shell. A tool of an MCP server that writes files passes without a
-  check; `checks.js lock --verify` keeps the lock for its writes.
+- The guard reads the calls of `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch`
+  and the shell. A tool of an MCP server that writes files passes without a check; Verify's
+  `lock --verify --version <N>` keeps the lock for its writes.
 - On Claude Code and on Codex, `decide` runs `reports-guard.js` first, within the work
   budget of the call: it denies a direct write to `.reports/` as on Gemini CLI. No guard
   records which agent wrote a report, on any runtime. A report needs no such record, because
@@ -1384,8 +1384,8 @@ The limits of the guard:
   runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock, or
   fails to start, blocks the call on Claude Code 2.1.295 or later, through the key
   `onFailure: "block"` of the `PreToolUse` hook. Earlier Claude Code builds drop that key,
-  and there, as on Codex, such a call runs. A change to a locked file still fails
-  `checks.js lock --verify`.
+  and there, as on Codex, such a call runs. A change to a locked file still fails Verify's
+  `lock --verify --version <N>`.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the

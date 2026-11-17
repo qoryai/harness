@@ -410,7 +410,8 @@ test('the reasons say what the code does', () => {
     'An agent in the background can still run after the main session ends, so the guard ' +
     'denies it.');
   const locked = guard(claude('Edit', { file_path: LOCKED }, 'implementer'));
-  assert.ok(locked.endsWith('A change to a locked file fails checks.js lock --verify.'), locked);
+  assert.ok(locked.endsWith("A change to a locked file fails Verify's lock --verify --version " +
+    '<N>.'), locked);
 });
 
 test('a deny names the path of a locked file on its second line', () => {
