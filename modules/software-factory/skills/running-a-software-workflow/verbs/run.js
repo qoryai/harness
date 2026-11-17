@@ -292,8 +292,8 @@ module.exports = (lib) => {
     const ranOut = skipped.length ? [[`Run locked again for ${cut(skipped.join(' '), 40)}, in ` +
       'fewer checks per call.', `${plural(skipped.length, 'check')} did not run: the call ran ` +
       `out of time, ${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call.`]] : [];
-    const notSafe = unsafe.length ? [`Run locked again: ${plural(unsafe.length, 'check')} did not ` +
-      'run, because a locked file changed during the call.'] : [];
+    const notSafe = unsafe.length ? [`Run locked again: ${plural(unsafe.length, 'check')} ` +
+      'did not run, because a locked file changed during the call.'] : [];
     return done(red.length || swapped.length ? 'red' : 'green',
       [...swapped, ...ran, ...ranOut, ...notSafe],
       `Ran ${plural(results.length, 'locked check')} of ${lock.what} ${where}: ` +
