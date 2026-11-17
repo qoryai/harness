@@ -105,7 +105,8 @@ module.exports = (lib) => {
   }
 
   // readPlan returns { version, deliverables, commands } of the newest pulled build plan:
-  // each deliverable { id, change, files, problem }, and each command by its kind,
+  // each deliverable { id, change, criteria, files, problem }, where criteria has the ids of
+  // the Criteria cell, and each command by its kind,
   // { command, resultFile, source }, with null for none. With none set, and a folder that
   // --artifacts or qory.start_artifacts gives (io.pinned), an index.json that lists no
   // version of build-plan gives { none: true }, a plan with no deliverable: the session
@@ -117,7 +118,8 @@ module.exports = (lib) => {
     const deliverables = sectionRows(newest.text, 'Deliverables',
       ['Id', 'Change', 'Criteria', 'Files', 'Check']).map((row) => {
       const files = filesCell(row.Files);
-      return { id: plainCell(row.Id), change: row.Change.trim(), ...files };
+      return { id: plainCell(row.Id), change: row.Change.trim(),
+        criteria: lib.criterionList(row.Criteria).map((one) => one.id), ...files };
     });
     const commands = {};
     for (const row of sectionRows(newest.text, 'Commands',

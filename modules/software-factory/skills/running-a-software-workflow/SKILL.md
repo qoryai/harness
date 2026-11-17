@@ -1,6 +1,6 @@
 ---
 name: running-a-software-workflow
-description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, the files that each check takes, and the plain words of each type.
+description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, the files that each check takes, the plain words of each type, and the steps of the build ledger.
 ---
 
 # Running a software workflow
@@ -58,3 +58,36 @@ In the text of a point and in the last line of "The end", name each type in thes
 "spec" for `spec`, "acceptance criteria" for `acceptance-criteria`, "technical decision
 record" for `decision-record`, "mockups" for `mockup`, and "demo scenarios" for
 `demo-scenarios`.
+
+## The build ledger
+
+In a Build session, these steps add to "What you do" of `running-a-workflow`. Run each
+command with `<skill folder>/checks.js`, the checks script of `running-a-workflow`. When it
+exits 3 with a first line "Run <verb> again after the other call finishes", another call
+held the ledger: when that call has ended, run the same command again, once. When it exits
+with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
+
+1. After the artifact pull, and before the first step, run `checks.js resume` once. A line
+   "Run <id> again" names a step whose session stopped while it ran: that step runs again.
+2. Before each step, run
+   `checks.js step begin <id> <workflow> --inputs <path> <file>...`, with the id of the
+   step, such as `deliverable:d-2`, the name of your workflow, the path of the run's
+   inputs, the file that ends in `/in/inputs.json` in the prompt, and the files that your
+   workflow lists for the step: its inputs, its skill file and its role's agent file.
+   - With "Replay <id>", start no agent and push nothing for the step: read the report
+     above that line, and go on to the next step.
+   - With "Run <id> as pass <N>", start the step's agent.
+   - With "Start no new step", check `points.json` with `check points`, and end the run
+     with `escalate`, as "Points" of `running-a-workflow` lists. The script wrote the point.
+   - With "Run git stash push" or "Run git reset --keep" and exit 1, a failed step left
+     a change or a commit: run that command, then the same `step begin` again. Both
+     commands keep the step's files: in a stash, and in the reflog of git.
+   - With any other line and exit 1, start no agent, and end as "Failures" lists.
+3. After the step, run `checks.js step end <id> done`, or `failed` when the step failed.
+   Add `--report <file>` with the agent's last report under `.reports`, one
+   `--attempt <agent>,<role>,<tier>,<model>` per agent start, one
+   `--pushed <type>/<name>/<version>` per version the step stored, and, for a step
+   `script:`, `--script-sha256 <sha256>`. When `step end done` exits with 1, the step made
+   an edit that no commit of the step has: end as "Failures" lists. `step end failed`
+   records the row and exits 0, also when it prints a line that it left the report out:
+   go on to the next step.
