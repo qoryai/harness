@@ -1106,6 +1106,22 @@ $OUT"
 	return 1
 }
 
+# rule_cjs DIR: rule 12, no file under DIR/modules ends in .js. Node loads a .js file as an
+# ES module when the nearest package.json above it sets "type": "module", as a target
+# repository may, and there require is not defined. Node loads a .cjs file as CommonJS under
+# any package.json. Each finding is a line with its fix and the path under modules/.
+rule_cjs() {
+	OUT=$(CDPATH= cd -- "$1/modules" 2>/dev/null &&
+		find . -type f -name '*.js' | sort | while IFS= read -r file; do
+			printf 'Rename modules/%s to .cjs.\n' "${file#./}"
+		done)
+	[ -z "$OUT" ] && return 0
+	reason="A module's scripts must load as CommonJS in a repository whose package.json"
+	OUT="$OUT
+$reason sets \"type\": \"module\"."
+	return 1
+}
+
 # rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
 # checks scripts, each .cjs file under a skill running-a-*workflow of DIR/modules, names a skill
 # of DIR/modules, each range lies inside its SKILL.md (from 1 up to the last line, with from at
@@ -2413,6 +2429,17 @@ printf '// sample (SKILL.md:1-2: "Contains the rules"): a rule.\n' \
 expect_broken "rule 10 fails on a citation in a script of another running-a-* skill" \
 	"in running-a-sample-workflow/types/sample.cjs: the quote is in none" rule_citations "$FIX"
 
+fixture
+printf '%s\n' "'use strict';" >"$FIX/modules/core/skills/sample/check.js"
+expect_broken_first "rule 12 fails on a .js script under modules/" \
+	'Rename modules/core/skills/sample/check.js to .cjs.' rule_cjs "$FIX"
+printf '%s\n' "$OUT" | grep -Fq 'package.json sets "type": "module"' ||
+	fail "rule 12 states why a module's scripts end in .cjs"
+pass "rule 12 states why a module's scripts end in .cjs"
+fixture
+printf '%s\n' "'use strict';" >"$FIX/modules/core/skills/sample/check.cjs"
+expect_passes "rule 12 passes on a .cjs script under modules/" rule_cjs "$FIX"
+
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
 pass "rule 1: each agent has the three required sections"
@@ -2437,6 +2464,8 @@ rule_citations "$ROOT" || fail "rule 10: each citation of the checks script quot
 pass "rule 10: each citation of the checks script quotes its skill"
 rule_core_words "$ROOT" || fail "rule 11: no text of core contains a word of software work"
 pass "rule 11: no text of core contains a word of software work"
+rule_cjs "$ROOT" || fail "rule 12: each script under modules/ ends in .cjs"
+pass "rule 12: each script under modules/ ends in .cjs"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
