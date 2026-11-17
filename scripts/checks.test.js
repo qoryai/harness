@@ -5335,7 +5335,8 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
     'cd /tmp/qory-artifacts/.reports', `${checks} report a .reports/a-1.md; rm .reports/end.json`,
     `node /tmp/fake/running-a-workflow/checks.js report a .reports/a-1.md`,
     `${checks} report a $(rm .reports/end.json)`]) {
-    assert.match(denied('shell', { command }), /^Run no shell command on \.reports\//, command);
+    assert.match(denied('shell', { command }), /^Write to \.reports\/ only through checks\.js\.\n/,
+      command);
   }
   for (const command of [`${checks} report spec-reviewer /tmp/qory-artifacts/.reports/spec-reviewer-1.md`,
     `node "$QORY_HARNESS_HOME/modules/core/skills/running-a-workflow/checks.js" report a .reports/a-1.md 2>&1`,
@@ -5423,7 +5424,8 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     fs.globSync = globSync;
   }
   // The literal check keeps its reason.
-  assert.match(shell('rm .reports/starts.json'), /^Run no shell command on \.reports\//);
+  assert.match(shell('rm .reports/starts.json'),
+    /^Write to \.reports\/ only through checks\.js\.\n/);
   // A glob that matches nothing under .reports, a quoted glob character and a $ without .r pass.
   for (const command of ['ls *.md', 'cat */*.md', 'grep -r foo src', 'ls $HOME', 'cat "$HOME/notes.md"',
     `grep '.rep*' a.md`, `awk '{print}' a.md`, '[ -f a.md ] && echo yes', 'ls src/*',

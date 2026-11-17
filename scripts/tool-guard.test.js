@@ -577,12 +577,12 @@ test('each adapter prints the deny of its runtime', () => {
   denied(run('codex', codex('apply_patch', patch('/tmp/qory-artifacts/.reports/starts.json'),
     'default')), 'Write no file under .reports/');
   denied(run('codex', codex('Bash', { command: 'rm /tmp/qory-artifacts/.reports/end.json' })),
-    'Run no shell command on .reports/');
+    'Write to .reports/ only through checks.js.');
   // On Claude Code, decide runs reports-guard too, for each tool.
   for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
     'rm -rf .qory/artifacts/.reports']) {
     denied(run('claude', claude('Bash', { command }, 'implementer')),
-      'Run no shell command on .reports/');
+      'Write to .reports/ only through checks.js.');
   }
   denied(run('claude', claude('Write', { file_path: `${RUN_FOLDER}/.reports/findings.json`,
     content: '{}' }, 'implementer')), 'Write no file under .reports/');
@@ -1383,7 +1383,7 @@ test('a ~ at the start of a word is the home folder, as the shell expands it', (
 });
 
 test('a call that reaches .reports/ is denied on Claude Code and on Codex', () => {
-  const shell = 'Run no shell command on .reports/ other than checks.js alone';
+  const shell = 'Write to .reports/ only through checks.js.';
   const hidden = 'Leave .reports/ to checks.js, and name other files with no `$`, backtick, ' +
     'eval or glob.';
   const starts = (reason, start) => firstLine(reason, start);
@@ -1472,7 +1472,7 @@ test('the first line of each deny has at most 100 characters and says what to do
 
 test('a read-only command with a variable setting is opaque', () => {
   const opaque = 'Run the checks with no file path or';
-  const reports = 'Run no shell command on .reports/';
+  const reports = 'Write to .reports/ only through checks.js.';
   const set = (target) => [`printf '\\x2d-pre=rm' | RIPGREP_CONFIG_PATH=/dev/stdin rg x ${target}`,
     `export RIPGREP_CONFIG_PATH=/dev/stdin; rg x ${target}`,
     `env RIPGREP_CONFIG_PATH=/dev/stdin rg x ${target}`, `declare -x R=1; rg x ${target}`,
