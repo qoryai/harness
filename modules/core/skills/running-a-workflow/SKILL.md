@@ -336,9 +336,9 @@ one. On Claude Code, the allow rule matches these forms:
 ```
 
 `<type>` is the type of the files, or `points` for `points.json`, and each `<file>` is a
-whole path under the artifact folder. The script prints each finding at the start of a
-line on stdout, starting with the fix; lines indented by two spaces after it give the cause
-and the values. Then it prints one line that states what it checked on stderr. It exits
+whole path under the artifact folder. The script prints each finding on stdout: line 1 is
+the fix, at most 100 characters, and the cause and the full values follow on lines indented
+by two spaces. Then it prints one line that states what it checked on stderr. It exits
 with 0 when it found nothing, with 1 when it found something, with 2 for wrong arguments,
 and with 3 when it cannot read an input. For 2, 3 or a script that cannot run, "Failures"
 lists the end. Run `check` from the working folder: the check of a type may read files
@@ -515,12 +515,13 @@ workflow lists. On Claude Code, the allow rule matches these forms:
   agent that wrote the files.
 - When a line of `lock` starts with "Ask a member", only a member can open a new lock. Push
   nothing more, and end the run as "Points" lists, with one `run_again` point. Write its
-  text for the member from that line, in plain words: first the action, addressed to the
-  member, then the reason after the colon of the line. Leave out the step after "then":
-  the run takes it. Call a version of the lock "the lock", and keep each other version
-  number. "Ask a member to upload the X they accept as a
-  new version, then lock that version: <type> version 1 already locks X version 1."
-  becomes "Upload the X you accept as a new version: the lock already locks X version 1."
+  text for the member from that line and the indented lines after it, in plain words:
+  first the action, addressed to the member, then the reason, after a colon or on a later
+  line. Leave out the step after "then" or "Then": the run takes it. Call a version of the
+  lock "the lock", and keep each other version number. "Ask a member to upload the X they
+  accept as a new version." with the line "Then lock that version: <type> version 1
+  already locks X version 1." becomes "Upload the X you accept as a new version: the lock
+  already locks X version 1."
 - Run `lock --verify` from the working folder. It exits with 0 when every locked
   file has its locked bytes, or when no lock counts. It exits with 1 when a locked file
   changed, with one line per file. Then follow the skill of your workflow for that case,

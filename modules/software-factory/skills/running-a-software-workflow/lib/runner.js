@@ -72,9 +72,10 @@ module.exports = (lib) => {
     }
   }
 
-  // The lines of each fault of a run, each list with its fix first: planWords for the command
-  // of a kind of the build plan, and lockedWords for the command of a locked check, which the
-  // session cannot change.
+  // The finding of each fault of a run, each a list of the entries of a record with its fix
+  // first: planWords for the command of a kind of the build plan, and lockedWords for the
+  // command of a locked check, which the session cannot change. An entry may have more lines:
+  // the fix on the first line, and the cause on the lines after it.
   // A limit of MOST minutes cannot be raised, so the first line for it is another step.
   const raise = (key) => setting('command_limits_minutes', `/${key}`);
   // The reason when the command ran until the reserve before the cap of the Bash call.
@@ -98,21 +99,22 @@ module.exports = (lib) => {
       `The ${name} command could not start (${why}).`],
     missing: (exit) => [`Install the tool that the ${name} command needs, or fix it in the ` +
       'build plan.', `The shell exited ${exit}, so the program does not exist or cannot run.`],
-    signal: (signal) => [`Find what stopped the ${name} command, then run it again: it ended ` +
-      `on the signal ${signal}.`],
-    noFile: (file) => [`Make the ${name} command write its results to ${file}, as the build ` +
-      'plan states.', 'This run wrote no such file, so no test counts.'],
-    noSuite: (file) => [`Make the ${name} command write JUnit XML to ${file}.`,
-      'The file has no testsuite element, so no test counts.'],
-    mismatch: (file, why) => [`Fix the JUnit XML that the ${name} command writes to ${file}.`,
-      `The run is red: ${why}.`],
+    signal: (signal) => [`Find what stopped the ${name} command, then run it again.\nIt ` +
+      `ended on the signal ${signal}.`],
+    noFile: (file) => [`Make the ${name} command write its results to its Result file, as the ` +
+      'build plan states.', `The Result file is ${file}. This run wrote no such file, so no ` +
+      'test counts.'],
+    noSuite: (file) => [`Make the ${name} command write JUnit XML to its Result file.`,
+      `The Result file ${file} has no testsuite element, so no test counts.`],
+    mismatch: (file, why) => [`Fix the JUnit XML that the ${name} command writes to its ` +
+      'Result file.', `The Result file is ${file}. The run is red: ${why}.`],
     zero: () => [`Give run ${name} the path of a test file, or fix the command.`,
       'It ran zero tests, and a run with zero tests is red.'],
     skipped: (count) => [`Remove the skip from ${count === 1 ? 'the skipped test' :
-      `the ${count} skipped tests`}, or end the step as failed: a skipped test is red.`],
+      `the ${count} skipped tests`}, or end the step as failed.\nA skipped test is red.`],
     failed: (failed, tests) => [`Fix the code or the test of each failed test, then run ` +
-      `${name} again: ${failed} of ${tests} tests failed.`],
-    exit: (exit) => [`Find why the ${name} command exited ${exit}, then run it again: the ` +
+      `${name} again.\n${failed} of ${tests} tests failed.`],
+    exit: (exit) => [`Find why the ${name} command exited ${exit}, then run it again.\nThe ` +
       'result file has no failed test.'],
     escaped: (count) => [`Make the ${name} command end every process that it starts, then run ` +
       `${name} again.`, escapedLine(count)],
@@ -131,19 +133,19 @@ module.exports = (lib) => {
         'repeats.', `${Check} could not start (${why}).`],
       missing: (exit) => [`Install the tool that ${check} needs, then run locked again.`,
         `The shell exited ${exit}, so the program does not exist or cannot run.`],
-      signal: (signal) => [`Find what stopped ${check}, then run locked again: it ended on ` +
+      signal: (signal) => [`Find what stopped ${check}, then run locked again.\nIt ended on ` +
         `the signal ${signal}.`],
-      noFile: (file) => [`Report to a member: ${check} wrote no results to ${file}.`,
-        'That file is the Result file of targeted in the build plan, so no test counts.'],
-      noSuite: (file) => [`Report to a member: ${check} wrote no JUnit XML to ${file}.`,
-        'The file has no testsuite element, so no test counts.'],
+      noFile: (file) => [`Report to a member: ${check} wrote no results to the Result file.`,
+        `${file} is the Result file of targeted in the build plan, so no test counts.`],
+      noSuite: (file) => [`Report to a member: ${check} wrote no JUnit XML to the Result file.`,
+        `The Result file ${file} has no testsuite element, so no test counts.`],
       mismatch: (file, why) => [`Report to a member: ${check} wrote invalid JUnit XML.`,
         `The run is red: ${why}.`],
       zero: () => [`Fix the code so that ${check} runs its tests, or report to a member.`,
         'It ran zero tests, and a run with zero tests is red.'],
       skipped: () => [`Report to a member: ${check} skips a test, and a skipped test is red.`],
-      failed: (failed, tests) => [`Fix the code until ${check} passes: ${failed} of ${tests} ` +
-        'tests failed.'],
+      failed: (failed, tests) => [`Fix the code until ${check} passes.\n${failed} of ` +
+        `${tests} tests failed.`],
       exit: (exit) => [`Find why ${check} exited ${exit}, then run locked again.`,
         'The result file has no failed test, and a check that exits other than 0 is red.'],
       escaped: (count) => [`Fix the code so that ${check} ends every process that it starts.`,
@@ -151,9 +153,9 @@ module.exports = (lib) => {
     };
   };
 
-  // exitReason returns the lines of an exit that is no result of the check, by words, or null.
-  // capped is true when the reserve before the cap of the Bash call, not the limit, ended the
-  // time of the command.
+  // exitReason returns the finding of an exit that is no result of the check, by words, or
+  // null. capped is true when the reserve before the cap of the Bash call, not the limit,
+  // ended the time of the command.
   function exitReason(words, result, minutes, capped = false) {
     if (result.escaped) return words.escaped(result.escaped);
     if (result.timedOut) return capped ? words.capped() : words.timeout(minutes);
@@ -165,27 +167,32 @@ module.exports = (lib) => {
     return null;
   }
 
-  // judge returns { state, reasons, counts } for one run of a command with a result file:
-  // green or red, with the lines of words for each reason, each fix first.
+  // found returns { findings, reasons } of findings, each a list of entries: reasons has the
+  // entries of all findings in one list, as a record has them, and a verb prints each finding
+  // as one text.
+  const found = (findings) => ({ findings, reasons: findings.flat() });
+
+  // judge returns { state, findings, reasons, counts } for one run of a command with a result
+  // file: green or red, with the finding of words for each reason, each fix first.
   function judge({
     result, before, after, resultFile, minutes, words = planWords('targeted'), capped = false,
   }) {
     const reason = exitReason(words, result, minutes, capped);
-    if (reason) return { state: 'red', reasons: reason, counts: null };
+    if (reason) return { state: 'red', ...found([reason]), counts: null };
     const fresh = after &&
       (!before || after.time !== before.time || after.sha256 !== before.sha256);
-    if (!fresh) return { state: 'red', counts: null, reasons: words.noFile(resultFile) };
+    if (!fresh) return { state: 'red', counts: null, ...found([words.noFile(resultFile)]) };
     const counts = junit.counts(after.text);
-    if (!counts) return { state: 'red', counts: null, reasons: words.noSuite(resultFile) };
+    if (!counts) return { state: 'red', counts: null, ...found([words.noSuite(resultFile)]) };
     if (counts.mismatch) {
-      return { state: 'red', counts, reasons: words.mismatch(resultFile, counts.mismatch) };
+      return { state: 'red', counts, ...found([words.mismatch(resultFile, counts.mismatch)]) };
     }
-    const reasons = [];
-    if (counts.tests === 0) reasons.push(...words.zero());
-    if (counts.skipped > 0) reasons.push(...words.skipped(counts.skipped));
-    if (counts.failed > 0) reasons.push(...words.failed(counts.failed, counts.tests));
-    if (!reasons.length && result.exit !== 0) reasons.push(...words.exit(result.exit));
-    return { state: reasons.length ? 'red' : 'green', reasons, counts };
+    const findings = [];
+    if (counts.tests === 0) findings.push(words.zero());
+    if (counts.skipped > 0) findings.push(words.skipped(counts.skipped));
+    if (counts.failed > 0) findings.push(words.failed(counts.failed, counts.tests));
+    if (!findings.length && result.exit !== 0) findings.push(words.exit(result.exit));
+    return { state: findings.length ? 'red' : 'green', ...found(findings), counts };
   }
 
   // relative returns file as a path below cwd, or null when it is none.
@@ -201,7 +208,8 @@ module.exports = (lib) => {
 
   // targeted runs the targeted command once with paths, and each file of a failed test once
   // more alone, all within one limit, which ends at deadline. allowed(file) reports whether a
-  // file may run alone. It returns { state, reasons, counts, reruns, result, logs, timedOut }:
+  // file may run alone. It returns { state, findings, reasons, counts, reruns, result, logs,
+  // timedOut }, with findings and reasons as found returns them:
   // timedOut is true when a run ran past the deadline, or the deadline came before the reruns.
   // minuteMs is the milliseconds of a minute, and proc the process table: only a test sets
   // them.
@@ -230,32 +238,32 @@ module.exports = (lib) => {
       first.counts.skipped > 0 || first.counts.mismatch) {
       return out;
     }
+    // finish returns out with findings, and their entries as reasons.
+    const finish = (findings) => Object.assign(out, found(findings));
+    const noRerun = (why) => finish([...first.findings,
+      ['Fix each failed test: none ran again alone.', why]]);
     const files = [...new Set(failures.map((one) => relative(cwd, one.file)))];
     if (files.includes(null)) {
-      out.reasons.push('Fix each failed test: none ran again alone.',
-        'The result file has no file below the checkout for a failed test.');
-      return out;
+      return noRerun('The result file has no file below the checkout for a failed test.');
     }
     if (files.length > MAX_RERUNS) {
-      out.reasons.push('Fix each failed test: none ran again alone.',
-        `Tests failed in ${files.length} files, and at most ${MAX_RERUNS} files run again.`);
-      return out;
+      return noRerun(`Tests failed in ${files.length} files, and at most ${MAX_RERUNS} files ` +
+        'run again.');
     }
     if (!files.every((one) => allowed(one))) {
-      out.reasons.push('Fix each failed test: none ran again alone.', 'The result file has a ' +
-        'failed test in a file that is not a path of the run, or that git does not track.');
-      return out;
+      return noRerun('The result file has a failed test in a file that is not a path of the ' +
+        'run, or that git does not track.');
     }
     for (const [at, one] of files.entries()) {
       if (Date.now() >= deadline) {
         out.timedOut = true;
-        out.reasons = [...first.reasons, minutes < MOST && !capped
+        const fix = minutes < MOST && !capped
           ? `Fix each failed test, or raise ${raise('targeted_checks')}.`
-          : 'Fix each failed test, or give run targeted fewer paths.',
-        capped ? `The call ran out of time, ${RESERVE_MS / 1000} seconds before the cap of ` +
-          'the Bash call, before the failed tests ran again alone.' : `The limit of ` +
-          `${minutes} minutes ran out before the failed tests ran again alone.`];
-        return out;
+          : 'Fix each failed test, or give run targeted fewer paths.';
+        const why = capped ? `The call ran out of time, ${RESERVE_MS / 1000} seconds before the ` +
+          'cap of the Bash call, before the failed tests ran again alone.' : `The limit of ` +
+          `${minutes} minutes ran out before the failed tests ran again alone.`;
+        return finish([...first.findings, [fix, why]]);
       }
       const again = once([one], at + 1);
       out.logs.push(again.log);
@@ -269,18 +277,18 @@ module.exports = (lib) => {
     }
     if (out.reruns.every((one) => one.state === 'green')) {
       out.state = 'green';
-      out.reasons = [];
-    } else {
-      const still = out.reruns.filter((one) => one.state !== 'green').map((one) => one.file);
-      out.reasons = [`Fix the failed tests of ${still.slice(0, 3).map(shown).join(', ')}` +
-        `${still.length > 3 ? ` and ${still.length - 3} more files` : ''}, then run targeted ` +
-        'again.', 'They failed again when run alone.'];
+      return finish([]);
     }
-    return out;
+    const still = out.reruns.filter((one) => one.state !== 'green').map((one) => one.file);
+    return finish([[`Fix the failed tests of ${still.length === 1 ? 'one file'
+      : `${still.length} files`}, then run targeted again.`, 'The tests of ' +
+      `${still.slice(0, 3).map(shown).join(', ')}` +
+      `${still.length > 3 ? ` and ${still.length - 3} more files` : ''} failed again when run ` +
+      'alone.']]);
   }
 
   // fast runs the command of a fast check, lint, types or build, once: its exit status is the
-  // result. It returns { state, reasons, result, logs }.
+  // result. It returns { state, findings, reasons, result, logs }.
   function fast({
     cwd, kind, command, minutes, logOf, env, minuteMs = 60000, cap = Infinity, proc,
   }) {
@@ -291,16 +299,16 @@ module.exports = (lib) => {
       limitMs: Math.max(Math.min(limitMs, cap - Date.now()), 1), log, env, proc });
     const reason = exitReason(planWords(kind), result, minutes, capped) ||
       (result.exit === 0 ? null
-      : [`Fix what the ${kind} command reports, then run ${kind} again: it exited ` +
+      : [`Fix what the ${kind} command reports, then run ${kind} again.\nIt exited ` +
         `${result.exit}.`]);
-    return { state: reason ? 'red' : 'green', reasons: reason || [], result,
+    return { state: reason ? 'red' : 'green', ...found(reason ? [reason] : []), result,
       logs: [log], reruns: [], counts: null };
   }
 
   // locked runs the command of a locked check once, with no path and no rerun, for at most
   // minutes, and judges it by resultFile, the Result file of targeted in the build plan, as a
   // targeted run: green only when the command exits 0 and wrote resultFile with 1 test or
-  // more, none skipped or failed. It returns { state, reasons, counts, result, log }.
+  // more, none skipped or failed. It returns { state, findings, reasons, counts, result, log }.
   function locked({
     cwd, criterion, command, resultFile, minutes, log, env, minuteMs = 60000, cap = Infinity,
     proc,

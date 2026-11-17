@@ -12,14 +12,24 @@ const schema = require('./schema.js');
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines, lacks, sentenceParts,
+    topSections, lines, lacks, sentenceParts, short: brief,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
   const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
+  // The longest first line of a finding, which has the fix: a log viewer or an agent often
+  // reads only that line.
+  const FIRST = 100;
+
+  // fitFirst returns full when it has at most FIRST characters, else other.
+  const fitFirst = (full, other) => ([...full].length <= FIRST ? full : other);
+
+  // brief is short of core (lib/base.js): text, or its start and its end with ... between
+  // them, for a value on the first line of a finding. It is a member of lib for the types.
+  //
   // short returns text from a draft in double quotes, cut to size characters, 40 by default,
-  // so that a finding line with a value, or two, stays at most 196 characters.
+  // for a value on the line after the fix.
   const short = (text, size = 40) => `"${cut(quote(text).slice(1, -1), size)}"`;
 
   // A file of a type with one artifact per demo scenario has the scenario's id in its name.
@@ -64,7 +74,7 @@ module.exports = (lib) => {
     if (number < 0) return null;
     const found = path.join(dir, `v${number}`, file);
     if (!fs.existsSync(found)) {
-      throw new Missing(`Pull the artifacts again: ${type}/${name}/v${number} has no ${file}.`);
+      throw new Missing(`Pull the artifacts again.\n${type}/${name}/v${number} has no ${file}.`);
     }
     return { number, text: readFile(found, `${type} ${name} version ${number}`) };
   }
@@ -85,13 +95,17 @@ module.exports = (lib) => {
   // sectionTitles returns the ## headings of a Markdown file, and finds text before the first.
   const sectionTitles = (run, file, md) => topSections(run, file, lines(md));
 
-  // inOrder finds sections of a Markdown file other than wanted, in that order.
+  // inOrder finds sections of a Markdown file other than wanted, in that order. The first line
+  // has the sections when it stays within FIRST characters, else the next line.
   function inOrder(run, file, parts, wanted) {
     run.did('sections');
     const titles = parts.map((part) => part.title);
     if (!same(titles, wanted)) {
-      run.find(`Give ${file} the sections ${headings(wanted)}, in this order: it has ` +
-        `${cut(headings(titles), 40)}.`);
+      const list = headings(wanted);
+      run.find(fitFirst(`Give ${file} the sections ${list}, in this order.`,
+        `Give ${file} the ${wanted.length} sections of its type, in their order.\nThey are ` +
+        `${list}.`) +
+        `\nIt has ${cut(headings(titles), 120)}.`);
       return false;
     }
     return true;
@@ -114,9 +128,12 @@ module.exports = (lib) => {
       return null;
     }
     for (const other of tables.filter((one) => !wanted.includes(one))) {
-      run.find(`Remove the table with the columns ${short(other.header.join(', '), 30)} from ` +
-        `## ${part.title} of ${file}: the check reads only the table with the columns ` +
-        `${columns.join(', ')}.`);
+      const header = other.header.join(', ');
+      const whole = short(header, 20) === short(header) ? ''
+        : ` That table has the columns ${short(header, 80)}.`;
+      run.find(`Remove the table with the columns ${short(header, 20)} from ## ${part.title} ` +
+        `of ${file}.\nThe check reads only the table with the columns ${columns.join(', ')}.` +
+        whole);
     }
     if (wanted.length > 1) {
       run.find(`Put the rows of ## ${part.title} of ${file} in one table: it has ` +
@@ -179,8 +196,8 @@ module.exports = (lib) => {
   }
 
   // num returns n in digits when it is a whole number from 1 to 999999, else "over 999999"
-  // or "below 1". index.json and a lock may have any whole number, and each finding line
-  // stays at most 196 characters.
+  // or "below 1". index.json and a lock may have any whole number, and the first line of each
+  // finding stays within FIRST characters.
   const num = (n) => {
     if (Number.isInteger(n) && n >= 1 && n <= 999999) return String(n);
     return n > 999999 ? 'over 999999' : 'below 1';
@@ -245,8 +262,8 @@ module.exports = (lib) => {
   // askAbove returns the line when index.json lists criteria version newest above target:
   // the push gets that version in place of the target, so a check gets the line too. No
   // person stored newest, because the target is the newest version that a person stored, or
-  // the approved version above it. step ends the action, such as "lock that version". The
-  // line opens with the action of the member, so that the run can pass it to a member.
+  // the approved version above it. step is the action after it, such as "lock that version".
+  // The first line has the action of the member alone, so that the run can pass it to a member.
   function askAbove(context, step, target, newest) {
     const why = target === approvedNumber(context, 'acceptance-criteria')
       ? `the approved version ${num(target)}` : `version ${num(target)}, a member's upload`;
@@ -255,19 +272,19 @@ module.exports = (lib) => {
     const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
     const reason = byRun ? `the run stored version ${num(newest)} after ${why}`
       : `no member uploaded the newer criteria version ${num(newest)}`;
-    return 'Ask a member to upload the acceptance criteria they accept as a new version, then ' +
-      `${step}: ${reason}.`;
+    return 'Ask a member to upload the acceptance criteria they accept as a new version.\n' +
+      `Then ${step}: ${reason}.`;
   }
 
   // noCriteria returns the line of a push of what, such as "the build plan", whose store has
   // no file of the target.
-  const noCriteria = (what) => `Store the acceptance criteria before you push ${what}: the ` +
+  const noCriteria = (what) => `Store the acceptance criteria before you push ${what}.\nThe ` +
     'push check found no version of them.';
 
   // pullCriteria returns the line of a check whose artifact folder has no file of criteria
   // version number.
   const pullCriteria = (number) => `Pull version ${num(number)} of the acceptance criteria, ` +
-    'then check again: the artifact folder has no acceptance-criteria/main/' +
+    'then check again.\nThe artifact folder has no acceptance-criteria/main/' +
     `v${number}/acceptance-criteria.md.`;
 
   // criteriaText returns the number and the text of the target of criteriaTarget, which
@@ -286,7 +303,7 @@ module.exports = (lib) => {
     const target = criteriaTarget(context, what);
     if (target === null) {
       run.find(context.withdrawn('acceptance-criteria')
-        ? `Write ${what} after a member uploads the acceptance criteria again: they are ` +
+        ? `Write ${what} after a member uploads the acceptance criteria again.\nThey are ` +
           'withdrawn.'
         : `Write ${what} after a person approves the acceptance criteria.`);
       return null;
@@ -345,15 +362,15 @@ module.exports = (lib) => {
     /^[.!?]?"/.test(text.slice(words.length));
 
   // quoteFix returns the finding of a quote of criterion in where, such as "d-1 of
-  // build-plan.md", that differs from its words. The line starts with the fix and gives the
-  // words; when the line with the words has more than 200 characters, LINE of core's
-  // lib/base.js, it names the place in the criteria in place of the words. It is the one
-  // finding of these types that may pass 196 characters.
+  // build-plan.md", that differs from its words. The first line has the fix, with a long id
+  // shortened, and the next line the whole id and the words; when that line has more than 200
+  // characters, LINE of core's lib/base.js, it has the place in the criteria in place of the
+  // words.
   function quoteFix(criterion, where) {
     const id = criterion.id.toUpperCase();
-    const line = `Quote ${id} in ${where} as its first sentence: "${criterionWords(criterion)}".`;
-    return [...line].length <= 200 ? line
-      : `Copy the first sentence of ${id} in the criteria into ${where}.`;
+    const line = `The first sentence of ${id} is "${criterionWords(criterion)}".`;
+    return `Quote ${brief(id, 16)} in ${where} as its first sentence.\n${[...line].length <= 200
+      ? line : `Copy the first sentence from ${id} in the criteria.`}`;
   }
 
   // wrongWords returns the finding of quoteFix when quoted, the whole text in quotes beside
@@ -403,8 +420,8 @@ module.exports = (lib) => {
   }
 
   return {
-    COMMIT, SCENARIO_JSON, short, jsonFile, newestNamed, scenarioFile, sectionTitles, inOrder,
-    sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
+    COMMIT, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile, sectionTitles,
+    inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
   };

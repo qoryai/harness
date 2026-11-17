@@ -178,10 +178,9 @@ function verdictFindings(root, def, names, verdict) {
 
 // compareDraft returns the results of found, the findings of the check of the draft of def
 // with the files names, plus the fixes of verdictFindings, as endDrafts lists them: the line
-// before the findings, which counts both kinds; then the findings of the check; then more, the
-// lines after the last of them that a Missing carries; then the fixes of the verdict; then the
-// line of a failed lookup of the verdict.
-function compareDraft(root, def, names, found, verdict, more = []) {
+// before the findings, which counts both kinds; then the findings of the check; then the fixes
+// of the verdict; then the line of a failed lookup of the verdict.
+function compareDraft(root, def, names, found, verdict) {
   let unread = [];
   let compared = [];
   try {
@@ -192,10 +191,11 @@ function compareDraft(root, def, names, found, verdict, more = []) {
   }
   const count = found.length + compared.length;
   const lines = !count ? [] : [{
-    line: `Fix the ${plural(count, 'finding')} of the ${def.type} draft ` +
-      `(${names.join(', ')}) in the lines after this one:`,
+    line: `Fix the ${plural(count, 'finding')} of the ${def.type} draft in the lines after ` +
+      `this one:\nThe ${def.type} draft has ${plural(names.length, 'file')}: ` +
+      `${names.join(', ')}.`,
     point: DRAFT_BROKEN(def.words, count),
-  }, ...[...found, ...more, ...compared].map((line) => ({ line, point: null }))];
+  }, ...[...found, ...compared].map((line) => ({ line, point: null }))];
   return [...lines, ...unread];
 }
 
@@ -251,7 +251,6 @@ function endDrafts(root, home, types, {
     if (!names.length || (def.draft && !def.draft(names))) continue;
     const same = (!offline || names.every(regular)) && unchanged(root, type, names, store, base);
     let found = [];
-    let more = [];
     // A bad top questions.json is a finding of the questions draft, also when unchanged.
     if (!same || (offline && type === 'questions' && view.questions)) {
       if (!same) checked.set(type, names);
@@ -261,19 +260,21 @@ function endDrafts(root, home, types, {
       } catch (error) {
         if (!(error instanceof Missing)) throw error;
         found = error instanceof BadQuestions && type !== 'questions' ? [] : [error.message];
-        // The entries of more are findings when the error lists them, else lines of the first.
+        // The entries of more are findings when the error lists them, else the cause of the
+        // first, on the lines after it.
         if (found.length && error.listed) found.push(...error.more);
-        else if (found.length) more = error.more || [];
+        else if (found.length) found = [[error.message, ...(error.more || [])].join('\n')];
       }
     }
-    drafts.push(...compareDraft(root, def, names, found, verdict, more));
+    drafts.push(...compareDraft(root, def, names, found, verdict));
   }
   return drafts;
 }
 
 // leftLine returns the line of the output of end for the text of a point that endList left
 // out, the line that END_POINT links to.
-const leftLine = (text) => `Point left out of points.json: ${text}`;
+const leftLine = (text) => 'Fix the problem of the point on the next line, which points.json ' +
+  `left out.\n${text}`;
 
 // endList returns the points that end writes: the points kept, then one point run_again for
 // each kind of problem of found. The point of an entry of found is a text, or a function of

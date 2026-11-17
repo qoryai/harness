@@ -31,10 +31,25 @@ function kind(value) {
 
 const codePoints = (text) => [...text].length;
 
-// clip returns text cut to size characters, the last 3 of them "...", so that a finding line
-// with a long list of values or a long pattern stays at most 196 characters.
+// clip returns text cut to size characters, the last 3 of them "...", so that the line of a
+// finding with a long list of values or a long pattern stays at most 200 characters.
 const clip = (text, size) => (codePoints(text) > size ? `${[...text].slice(0, size - 3).join('')}...`
   : text);
+
+// The most characters of a JSON pointer on the first line of a finding, and of a member name
+// in quotes there: with a file name of up to 20 characters, the fix stays within 100.
+const POINTER = 28;
+const MEMBER = 20;
+
+// brief returns text, or its start and its end with ... between them when it has more than
+// size characters, as short of core (lib/base.js) does, so that the end of a JSON pointer, the
+// member, stays on the first line.
+function brief(text, size) {
+  const chars = [...text];
+  if (chars.length <= size) return text;
+  const head = Math.ceil((size - 3) / 2);
+  return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
+}
 
 // scalar is true for a JSON value that === compares as JSON Schema does.
 const scalar = (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value);
@@ -61,17 +76,17 @@ function compile(schema, file) {
   const patterns = new Map();
   const walk = (node, where) => {
     if (typeof node !== 'object' || node === null || Array.isArray(node)) {
-      throw new Error(`Fix ${file}: ${where} is no schema object.`);
+      throw new Error(`Fix ${path.basename(file)}.\n${where} of ${file} is no schema object.`);
     }
     for (const [key, value] of Object.entries(node)) {
       if (!APPLIED.has(key) && !NOTES.has(key)) {
-        throw new Error(`Fix ${file}: the keyword ${key} at ${where} is one that lib/schema.js ` +
-          'does not check.');
+        throw new Error(`Fix ${path.basename(file)}.\nThe keyword ${key} at ${where} of ${file} ` +
+          'is one that lib/schema.js does not check.');
       }
       const form = Object.hasOwn(FORMS, key) ? FORMS[key] : null;
       if (form && !form.test(value)) {
-        throw new Error(`Fix ${file}: write ${key} at ${where} as ${form.text}, the only form ` +
-          'that lib/schema.js checks.');
+        throw new Error(`Fix ${path.basename(file)}.\nWrite ${key} at ${where} of ${file} as ` +
+          `${form.text}, the only form that lib/schema.js checks.`);
       }
       if (key === 'pattern') patterns.set(value, new RegExp(value, 'u'));
       if (key === '$defs' || key === 'properties') {
@@ -94,62 +109,70 @@ function load(type) {
   return { file, schema, patterns: compile(schema, file) };
 }
 
-// errors returns the findings of value, the JSON of file, against the schema: each one sentence
-// that starts with the fix, with the member as its JSON pointer, such as /steps/0/pass.
+// errors returns the findings of value, the JSON of file, against the schema: each with the fix
+// on its first line, the member as its JSON pointer, such as /steps/0/pass, and the cause on
+// the line after it. A pointer that brief cuts on the first line is whole on the last line.
 function errors(loaded, value, file) {
   const { schema: root, patterns } = loaded;
   const out = [];
   const resolve = (ref) => {
     const match = /^#\/\$defs\/([A-Za-z0-9_-]+)$/.exec(ref);
     if (!match || !root.$defs || !root.$defs[match[1]]) {
-      throw new Error(`Fix ${loaded.file}: $ref ${ref} matches no entry of $defs.`);
+      throw new Error(`Fix ${path.basename(loaded.file)}.\n$ref ${ref} of ${loaded.file} ` +
+        'matches no entry of $defs.');
     }
     return root.$defs[match[1]];
   };
   const visit = (schema, node, at, found) => {
     if (schema.$ref) visit(resolve(schema.$ref), node, at, found);
-    const where = at ? `${at} of ${file}` : file;
-    const add = (verb, text) => found.push(`${verb} ${where} ${text}.`);
+    const pointer = brief(at, POINTER);
+    const where = at ? `${pointer} of ${file}` : file;
+    const whole = pointer === at ? '' : `\nThe whole JSON pointer is ${at}.`;
+    // add adds the finding of fix, the words after the place, with cause on the next line.
+    const add = (verb, fix, cause) => found.push(`${verb} ${where} ${fix}.` +
+      `${cause ? `\n${cause}.` : ''}${whole}`);
     const actual = kind(node);
     if (schema.type) {
       const fits = schema.type === actual || (schema.type === 'number' && actual === 'integer');
       if (!fits) {
-        add('Write', `as ${WORDS[schema.type]}: it is ${WORDS[actual]}`);
+        add('Write', `as ${WORDS[schema.type]}`, `It is ${WORDS[actual]}`);
         return;
       }
     }
     if (schema.enum && !schema.enum.some((one) => one === node)) {
-      add('Set', `to one of ${clip(schema.enum.join(', '), 80)}: it is ${shown(node)}`);
+      add('Set', 'to a value that the schema lists',
+        `The schema lists ${clip(schema.enum.join(', '), 120)}. It is ${shown(node)}`);
     }
     if (Object.hasOwn(schema, 'const') && schema.const !== node) {
-      add('Set', `to ${shown(schema.const)}: it is ${shown(node)}`);
+      add('Set', `to ${shown(schema.const)}`, `It is ${shown(node)}`);
     }
     if (actual === 'string') {
       const count = codePoints(node);
       if (schema.minLength !== undefined && count < schema.minLength) {
-        add('Write', `as text of at least ${schema.minLength} characters: it has ${count}`);
+        add('Write', `as text of at least ${schema.minLength} characters`, `It has ${count}`);
       }
       if (schema.maxLength !== undefined && count > schema.maxLength) {
-        add('Cut', `to at most ${schema.maxLength} characters: it has ${count}`);
+        add('Cut', `to at most ${schema.maxLength} characters`, `It has ${count}`);
       }
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
-        add('Write', `in the form ${clip(schema.pattern, 60)}: it is ${shown(node)}`);
+        add('Write', 'so that it matches its pattern',
+          `The pattern is ${clip(schema.pattern, 120)}. It is ${shown(node)}`);
       }
     }
     if (actual === 'integer' || actual === 'number') {
       if (schema.minimum !== undefined && node < schema.minimum) {
-        add('Set', `to at least ${schema.minimum}: it is ${node}`);
+        add('Set', `to at least ${schema.minimum}`, `It is ${node}`);
       }
       if (schema.maximum !== undefined && node > schema.maximum) {
-        add('Set', `to at most ${schema.maximum}: it is ${node}`);
+        add('Set', `to at most ${schema.maximum}`, `It is ${node}`);
       }
     }
     if (actual === 'array') {
       if (schema.minItems !== undefined && node.length < schema.minItems) {
-        add('Give', `at least ${schema.minItems} entries: it has ${node.length}`);
+        add('Give', `at least ${schema.minItems} entries`, `It has ${node.length}`);
       }
       if (schema.maxItems !== undefined && node.length > schema.maxItems) {
-        add('Cut', `to at most ${schema.maxItems} entries: it has ${node.length}`);
+        add('Cut', `to at most ${schema.maxItems} entries`, `It has ${node.length}`);
       }
       if (schema.items) {
         node.forEach((item, place) => visit(schema.items, item, `${at}/${place}`, found));
@@ -157,15 +180,16 @@ function errors(loaded, value, file) {
     }
     if (actual === 'object') {
       for (const key of schema.required || []) {
-        if (!Object.hasOwn(node, key)) found.push(`Add the member ${key} to ${where}.`);
+        if (!Object.hasOwn(node, key)) found.push(`Add the member ${key} to ${where}.${whole}`);
       }
       const properties = schema.properties || {};
       for (const [key, member] of Object.entries(node)) {
         if (Object.hasOwn(properties, key)) {
           visit(properties[key], member, `${at}/${key}`, found);
         } else if (schema.additionalProperties === false) {
-          found.push(`Remove the member ${shown(key)} from ${where}: the schema has no such ` +
-            'member.');
+          const name = shown(key, MEMBER);
+          found.push(`Remove the member ${name} from ${where}.\nThe schema has no ` +
+            `${name === shown(key) ? 'such member' : `member ${shown(key)}`}.${whole}`);
         }
       }
     }
@@ -182,13 +206,13 @@ function errors(loaded, value, file) {
         return !test.length;
       }).length;
       if (fits !== 1) {
-        add('Write', `in exactly one of its ${schema.oneOf.length} forms: it fits ${fits}`);
+        add('Write', `in exactly one of its ${schema.oneOf.length} forms`, `It fits ${fits}`);
       }
     }
     if (schema.not) {
       const test = [];
       visit(schema.not, node, at, test);
-      if (!test.length) add('Write', `in another form: the schema excludes ${shown(node)}`);
+      if (!test.length) add('Write', 'in another form', `The schema excludes ${shown(node)}`);
     }
   };
   visit(root, value, '', out);
@@ -207,20 +231,21 @@ const UNSHOWN = new RegExp('[\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E
 const escaped = (json) => json.replace(UNSHOWN, (char) =>
   `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`);
 
-// shown returns a value for a finding as JSON.stringify writes it, cut to 40 characters, as
-// written: a control character or a refused character counts as its escape, such as \u0002, and
-// a list or an object is cut too. Text keeps its quotes. No escape is cut in two.
-function shown(value) {
+// shown returns a value for a finding as JSON.stringify writes it, cut to limit characters, 40
+// by default, as written: a control character or a refused character counts as its escape,
+// such as \u0002, and a list or an object is cut too. Text keeps its quotes. No escape is cut in
+// two.
+function shown(value, limit = 40) {
   const json = escaped(JSON.stringify(value));
   const text = typeof value === 'string';
   const units = (text ? json.slice(1, -1) : json).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
   const sizes = units.map((unit) => codePoints(unit));
-  if (sizes.reduce((sum, one) => sum + one, 0) <= 40) return json;
+  if (sizes.reduce((sum, one) => sum + one, 0) <= limit) return json;
   const kept = [];
   let size = 0;
   units.forEach((unit, place) => {
     size += sizes[place];
-    if (size <= 37) kept.push(unit);
+    if (size <= limit - 3) kept.push(unit);
   });
   const cutText = `${kept.join('')}...`;
   return text ? `"${cutText}"` : cutText;

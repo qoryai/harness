@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  Missing, NAME, isObject, parseJson, quote, readFile, sha256, withLock, writeJson,
+  Missing, NAME, isObject, parseJson, quote, readFile, sha256, short, withLock, writeJson,
 } = require('./base.js');
 const { FINDING_FIELD, changeLines } = require('./findings.js');
 const { fence, lines, sections } = require('./markdown.js');
@@ -51,10 +51,13 @@ function readPart(file, title, what) {
   try {
     text = fs.readFileSync(file, 'utf8');
   } catch {
-    throw new Missing(`Name ${what} that the plugin has: ${file} cannot be read.`);
+    throw new Missing(`Name ${what} that the plugin has.\n${file} cannot be read.`);
   }
   const part = level2(text, title);
-  if (part === null) throw new Missing(`Add ## ${title} to ${file}: the report check reads it.`);
+  if (part === null) {
+    throw new Missing(`Add ## ${title} to ${short(path.basename(file))}.\n${file} has no ## ` +
+      `${title}, and the report check reads it.`);
+  }
   return part;
 }
 
@@ -83,13 +86,14 @@ function expected(plugin, agent, folders = [plugin], records = []) {
     const its = /`([a-z0-9-]+)` lists in its section "([^"]+)"/.exec(words);
     const named = of || (its && [its[0], its[2], its[1]]);
     if (!named) {
-      throw new Missing(`Give ## Expected output of ${file} a text block of the report, or name ` +
-        `the section of a skill that has one.`);
+      throw new Missing('Give ## Expected output a text block of the report, or name a skill ' +
+        `section with one.\n## Expected output of ${file} has neither.`);
     }
     const skill = find(path.join('skills', named[2], 'SKILL.md'));
     const other = textBlock(readPart(skill, named[1], `a skill ${named[2]}`));
     if (!other.block) {
-      throw new Missing(`Give ## ${named[1]} of ${skill} a text block of the report.`);
+      throw new Missing(`Add a text block of the report to the skill ${short(named[2])}.\n` +
+        `## ${named[1]} of ${skill} has none.`);
     }
     block = other.block;
     prose = [...prose, ...other.prose];
@@ -100,8 +104,8 @@ function expected(plugin, agent, folders = [plugin], records = []) {
   const last = /^<(.+)>$/.exec(shape.length ? shape[shape.length - 1] : '');
   const words = last ? last[1].split(/,\s*|\s+or\s+/).map((word) => word.trim()) : [];
   if (!words.length || !words.every((word) => /^[a-z][a-z-]*$/.test(word))) {
-    throw new Missing(`End the text block of the report in ${file} with the words of the last ` +
-      `line, such as <done or blocked>.`);
+    throw new Missing('End the text block of the report with the words of the last line, such ' +
+      `as <done or blocked>.\nThe text block in ${file} ends with no such line.`);
   }
   const optional = new Set();
   const leftOut = new Map();
@@ -195,38 +199,48 @@ function findingItems(all, shape) {
   return items.filter((item) => item.length > 1 || item[0].text.trim() !== '- none');
 }
 
+// fullAgent returns a later line with the whole name of agent when short() cuts it on the
+// first line of a finding, or nothing.
+const fullAgent = (agent) => (short(agent) === agent ? '' : `\nThe agent is ${agent}.`);
+
 // pointLines checks that each finding of all has one "Point:" line outside a code block,
 // which passes the rules of the text of a point, as pointText checks them, on one line.
 // reviewing-drafts (SKILL.md:108-115: "Point: one sentence that a member reads") lists them.
 function pointLines(all, shape, agent, agents, rules) {
   const findings = [];
-  const sink = { find: (line) => findings.push(line), did: () => {} };
+  const whole = fullAgent(agent);
+  // A finding of pointText contains the place of the line; the line after it contains the
+  // name of the agent.
+  const sink = {
+    find: (line) => findings.push(`${line}\nThe line is in the report of ${agent}.`),
+    did: () => {},
+  };
   findingItems(all, shape).forEach((item, place) => {
-    const which = `finding ${place + 1} of ${agent}`;
+    const which = `finding ${place + 1} of ${short(agent)}`;
     const label = (line) => (line.fenced ? '' : (FINDING_FIELD.exec(line.text) || [])[1]);
     const at = item.map((line, index) => (label(line) === 'Point' ? index : -1))
       .filter((index) => index >= 0);
     if (!at.length) {
-      findings.push(`Add a "Point:" line to ${which}: one sentence that a member reads when ` +
-        `the finding is left.`);
+      findings.push(`Add a "Point:" line to ${which}.\nThe line is one sentence that a member ` +
+        `reads when the finding is left.${whole}`);
       return;
     }
     if (at.length > 1) {
-      findings.push(`Give ${which} one "Point:" line: it has ${at.length}.`);
+      findings.push(`Give ${which} one "Point:" line: it has ${at.length}.${whole}`);
       return;
     }
     // A wrap of the Point: line is indented, or has no blank line before it.
     const next = item[at[0] + 1];
     if (next !== undefined && !next.fenced && !label(next) &&
       (/^\s/.test(next.text) || !next.gap)) {
-      findings.push(`Write the "Point:" line of ${which} on one line: the line after it is ` +
-        `${quote(next.text)}.`);
+      findings.push(`Write the "Point:" line of ${which} on one line.\nThe line after it is ` +
+        `${quote(next.text)}.${whole}`);
       return;
     }
     const text = item[at[0]].text.replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
-    pointText(sink, text, { subject: `the "Point:" line of ${which}`,
-      file: `the report of ${agent}`, where: `the "Point:" line of finding ${place + 1}`,
-      linked: 'the run links the point to its question' }, agents, rules);
+    pointText(sink, text, { subject: `the "Point:" line of finding ${place + 1}`,
+      file: 'the report', where: `the "Point:" line of finding ${place + 1}`,
+      linked: 'The run links the point to its question.' }, agents, rules);
   });
   return findings;
 }
@@ -243,14 +257,14 @@ function listLines(list, at, heading, agent, shape) {
   }
   const findings = [];
   if (shape.filled.has(heading) && items.some((item) => /^none\b/.test(item))) {
-    findings.push(`Leave out the list "${heading}" of ${agent} in place of "- none": the list ` +
-      `has no "- none".`);
+    findings.push(`Leave out the list "${heading}" in place of "- none".\nThe list ` +
+      `"${heading}" of ${agent} has no "- none".`);
   }
   const most = shape.within.get(heading);
   const size = [...items.join(' ')].length;
   if (most !== undefined && size > most) {
-    findings.push(`Cut the lines of "${heading}" of ${agent} to at most ${most} characters: ` +
-      `they have ${size}.`);
+    findings.push(`Cut the lines of "${heading}" to at most ${most} characters.\nThe lines ` +
+      `of "${heading}" of ${agent} have ${size}.`);
   }
   return findings;
 }
@@ -264,8 +278,8 @@ function listLines(list, at, heading, agent, shape) {
 // lines of the whole text are checked, those lines included; for a blocked report, only its
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
 // checks against agents, the agent names, and the rules that pointRules reads from registry,
-// the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines checks the
-// proofs, severities, judgements and closures.
+// the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines
+// checks the proofs, severities, judgements and closures.
 function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {}) {
   const findings = [];
   const all = lines(text);
@@ -281,49 +295,55 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
     if (shape.words.includes(final.trim())) {
       why = all[at].fenced ? ', in a code block' : ', with an indent';
     }
-    findings.push(`End the report of ${agent} with one word, ${shape.words.join(', ')}: its ` +
-      `last line is ${quote(final.trim())}${why}.`);
+    findings.push(`End the report with one word, ${shape.words.join(', ')}.\nThe last line ` +
+      `of the report of ${agent} is ${quote(final.trim())}${why}.`);
   }
   const blocked = list.filter((line) => line.startsWith('Blocked:'));
   if (last === 'blocked') {
     if (blocked.length !== 1) {
-      findings.push(`Give the blocked report of ${agent} one "Blocked:" line: it has ` +
-        `${blocked.length}.`);
+      findings.push('Give the blocked report one "Blocked:" line.\nThe report of ' +
+        `${agent} has ${blocked.length} "Blocked:" lines.`);
     } else {
       const reason = blocked[0].slice('Blocked:'.length).trim();
       if (reason.startsWith('needs') &&
         ![...NEEDS, ...stops].some((form) => form.test(reason))) {
-        findings.push(`Start "Blocked:" of ${agent} with a stop line that the skills of its ` +
-          `workflow list: ${quote(reason)} is none.`);
+        findings.push('Start "Blocked:" with a stop line that the skills of the workflow ' +
+          `list.\n${quote(reason)} of ${agent} is none.`);
       }
     }
     return findings;
   }
   if (blocked.length) {
-    findings.push(`Remove "Blocked:" from the report of ${agent}: only a blocked report has it.`);
+    findings.push(`Remove "Blocked:" from the report of ${short(agent)}.\nOnly a blocked report ` +
+      `has it.${fullAgent(agent)}`);
   }
   const absent = shape.leftOut.get(last) || new Set();
   for (const heading of shape.lists) {
     const at = list.findIndex((line) => line.trim() === heading);
     if (absent.has(heading)) {
-      if (at >= 0) findings.push(`Remove "${heading}" from the ${last} report of ${agent}.`);
+      if (at >= 0) {
+        findings.push(`Remove "${heading}" from the ${last} report.\nThe report of ${agent} ` +
+          `ends with ${last}, and has "${heading}".`);
+      }
       continue;
     }
     if (at < 0) {
       if (!shape.optional.has(heading)) {
-        findings.push(`Add the list "${heading}" to the report of ${agent}.`);
+        findings.push(`Add the list "${heading}" to the report of ${short(agent)}.` +
+          fullAgent(agent));
       }
     } else if (!/^\s*(- |\d+\. )/.test(list[at + 1] || '')) {
+      const has = `The list "${heading}" of ${agent} has no item.`;
       findings.push(shape.filled.has(heading)
-        ? `Give the list "${heading}" of ${agent} an item, or leave the list out.`
-        : `Give the list "${heading}" of ${agent} an item, or "- none".`);
+        ? `Give the list "${heading}" an item, or leave the list out.\n${has}`
+        : `Give the list "${heading}" an item, or "- none".\n${has}`);
     } else {
       findings.push(...listLines(list, at, heading, agent, shape));
     }
   }
   for (const field of shape.fields) {
     if (!list.some((line) => line.startsWith(field))) {
-      findings.push(`Add the line "${field}" to the report of ${agent}.`);
+      findings.push(`Add the line "${field}" to the report of ${short(agent)}.${fullAgent(agent)}`);
     }
   }
   if (shape.point && !absent.has('Findings:')) {
@@ -365,8 +385,8 @@ function results(root) {
   if (!data.reports.every((one) => isObject(one) && typeof one.file === 'string' &&
     NAME.test(one.agent || '') && typeof one.sha256 === 'string' &&
     typeof one.passed === 'boolean')) {
-    throw new Missing(`Write each entry of reports in ${file} as an object with file, agent, ` +
-      `sha256 and passed.`);
+    throw new Missing('Write each entry of reports in results.json as an object with file, ' +
+      `agent, sha256 and passed.\n${file} has an entry in another form.`);
   }
   return data.reports;
 }

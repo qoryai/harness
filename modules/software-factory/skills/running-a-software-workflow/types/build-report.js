@@ -18,8 +18,8 @@ module.exports = (lib) => {
     const titles = sectionTitles(run, FILE, md).map((part) => part.title);
     const forms = [FULL, SHORT, [...SHORT, ESCALATION]];
     if (!forms.some((form) => same(titles, form))) {
-      run.find(`Give ${FILE} the sections of the full path or of a short session, in order: ` +
-        `it has ${cut(headings(titles), 100)}.`);
+      run.find(`Give ${FILE} the sections of the full path or of a short session, in order.` +
+        `\nIt has ${cut(headings(titles), 120)}.`);
     }
     markdownText(run, FILE, md);
   }

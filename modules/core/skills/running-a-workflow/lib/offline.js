@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, Missing, RUN, isObject, lexists, parseJson, plural, readFile, sha256, valueText,
-  writeJson,
+  MAX_BYTES, Missing, RUN, isObject, lexists, parseJson, plural, readFile, sha256, short,
+  valueText, writeJson,
 } = require('./base.js');
 const { Context } = require('./context.js');
 const {
@@ -23,8 +23,8 @@ const OFFLINE_FLAGS = [...OFFLINE_NEEDED, '--continues', '--suite', '--inputs'];
 // The verdicts of qory contracts/harness/v1/verdict.schema.json, and null for none.
 const VERDICTS = ['passed', 'changes-requested', 'escalate', null];
 
-// The first line on stderr when end --offline crashes, with exit 4.
-const OFFLINE_CRASH = 'Send this error to the harness maintainers: the end check after the ' +
+// The first lines on stderr when end --offline crashes, with exit 4: the fix, then the cause.
+const OFFLINE_CRASH = 'Send this error to the harness maintainers.\nThe end check after the ' +
   'session crashed, so it checked no draft and no report.';
 
 // offlineArgs returns { args } with each flag and its value, or { wrong } with the fix.
@@ -33,22 +33,23 @@ function offlineArgs(rest) {
   for (let at = 0; at < rest.length; at += 2) {
     const [flag, value] = [rest[at], rest[at + 1]];
     if (!OFFLINE_FLAGS.includes(flag)) {
-      return { wrong: `Give end --offline only ${OFFLINE_FLAGS.join(', ')}: ${flag} is none.` };
+      return { wrong: 'Give end --offline only the flags that its usage lists.\nThe flags are ' +
+        `${OFFLINE_FLAGS.join(', ')}, and ${flag} is none of them.` };
     }
     if (Object.hasOwn(args, flag)) return { wrong: `Give ${flag} once.` };
     if (!value || value.startsWith('--')) return { wrong: `Give ${flag} a value.` };
     if (flag === '--run' && !RUN.test(value)) {
-      return { wrong: `Give --run the id of this run: ${value} is none.` };
+      return { wrong: `Give --run the id of this run.\n${value} is no run id.` };
     }
     if (flag === '--continues' && !value.split(',').every((id) => RUN.test(id))) {
-      return { wrong: `Give --continues run ids, separated by commas: ${value} is not.` };
+      return { wrong: `Give --continues run ids, separated by commas.\n${value} is not.` };
     }
     args[flag] = value;
   }
   const missing = OFFLINE_NEEDED.find((flag) => !Object.hasOwn(args, flag));
   if (missing) return { wrong: `Give end --offline the argument ${missing}.` };
   if ((args['--continues'] || '').split(',').includes(args['--run'])) {
-    return { wrong: `Give --continues only the runs that this run continues: it has ` +
+    return { wrong: 'Give --continues only the runs that this run continues.\n--continues has ' +
       `${args['--run']}, the id of --run.` };
   }
   return { args };
@@ -62,7 +63,7 @@ function folderArg(io, args, flag) {
   } catch {
     // The finding below.
   }
-  throw new Missing(`Give ${flag} a folder that exists: ${args[flag]} is none.`);
+  throw new Missing(`Give ${flag} a folder that exists.\n${args[flag]} is no folder.`);
 }
 
 // verdictArg returns the body of the file that --verdict gives, or exits 3: a verdict body,
@@ -72,8 +73,9 @@ function verdictArg(io, args) {
   const file = path.resolve(io.cwd, args['--verdict']);
   const data = parseJson(readFile(file, file), file, null);
   if (!isObject(data) || !VERDICTS.includes(data.verdict)) {
-    throw new Missing(`Write ${file} as a verdict body, such as {"verdict":"passed"}, or as ` +
-      `{"verdict":null}: its verdict is ${valueText(isObject(data) ? data.verdict : data)}.`);
+    throw new Missing(`Write ${short(path.basename(file))} as a verdict body, such as ` +
+      '{"verdict":"passed"}.\nFor a run that recorded no verdict, write {"verdict":null}.\n' +
+      `The verdict of ${file} is ${valueText(isObject(data) ? data.verdict : data)}.`);
   }
   return data;
 }
@@ -105,11 +107,11 @@ function offlineReports(root, folders, needed, registry) {
     const file = path.join(dir, name);
     const stat = fs.lstatSync(file);
     let lines;
-    let more = [];
     try {
-      if (!stat.isFile()) lines = [`Write .reports/${name} as a regular file: it is not one.`];
-      else if (stat.size > MAX_BYTES) {
-        lines = [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ` +
+      if (!stat.isFile()) {
+        lines = [`Write .reports/${short(name)} as a regular file.\n.reports/${name} is not one.`];
+      } else if (stat.size > MAX_BYTES) {
+        lines = [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ` +
           `${stat.size} bytes.`];
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
@@ -118,23 +120,23 @@ function offlineReports(root, folders, needed, registry) {
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
-      lines = [error.message];
-      more = error.more || [];
+      // The lines of more are the cause of the message, on the lines after it.
+      lines = [[error.message, ...(error.more || [])].join('\n')];
     }
     if (lines.length) {
       found.push({
-        line: `Fix the ${plural(lines.length, 'finding')} of .reports/${name}, the report of ` +
-          `${agent}, in the lines after this one:`,
+        line: `Fix the ${plural(lines.length, 'finding')} of the report of ${short(agent, 32)} ` +
+          `in the lines after this one:\nThe report is .reports/${name}, of ${agent}.`,
         point: REPORT_BROKEN,
         item: agent,
-      }, ...[...lines, ...more].map((line) => ({ line, point: null })));
+      }, ...lines.map((line) => ({ line, point: null })));
     }
   }
   for (const { type, reviewer, words } of registry.types) {
     if (!needed.has(type) || !reviewer || newest.has(reviewer)) continue;
     found.push({
-      line: `Start ${reviewer} on the ${type} draft, and write its report to ` +
-        `.reports/${reviewer}-<n>.md: the folder has no report of ${reviewer}.`,
+      line: `Start ${short(reviewer)} on the ${type} draft.\nThe folder has no report of ` +
+        `${reviewer}. Its report goes to .reports/${reviewer}-<n>.md.`,
       point: REVIEW_NONE,
       item: { draft: words || type, reviewer },
     });
@@ -192,7 +194,8 @@ function offline(io, args) {
   const body = verdictArg(io, args);
   const recorded = body.verdict;
   if (!fs.existsSync(path.join(store, 'index.json'))) {
-    throw new Missing(`Pull the artifacts into ${store}: it has no index.json.`);
+    throw new Missing(`Pull the artifacts into the folder of --store.\n${store} has no ` +
+      'index.json.');
   }
   // An index.json that contradicts itself exits 3 here, before any check of a draft.
   const earlier = new Set(args['--continues'] ? args['--continues'].split(',') : []);
@@ -254,7 +257,9 @@ function crashed(io, error, first = OFFLINE_CRASH) {
   } catch {
     // The words above.
   }
-  io.err.write(`${first}\nError: ${message}\n${stack}\n`);
+  // The lines of first after its first line are its cause, indented as in a finding.
+  const fix = first.split('\n').map((line, at) => (at ? `  ${line}` : line)).join('\n');
+  io.err.write(`${fix}\nError: ${message}\n${stack}\n`);
   return 4;
 }
 

@@ -814,28 +814,30 @@ prints the hashes that the list must contain.
   that further repository. A `repository` with a part `.` or `..` fails the JSON Schema.
   In a run, `repository` must be an entry of `QORY_RUN_REPOSITORIES` after the first,
   compared in lower case, as qory compares them on github.com, and `lock` reads the folder
-  of the entry as written in the list. The first entry, the run's repository, in any
-  letter case, gets "Remove `repository` from check 1 of acceptance-lock.json: it is the
-  run's repository.", and a path that the list does not contain gets "Remove `repository`
-  from check 1 of acceptance-lock.json: the run has no such repository."; a second line
-  shows the value, such as "`repository` is "example-org/api".". `lock` writes the SHA-256
-  of each file into the draft, checks the draft as `check` does, and runs `qory artifact
-  push <type> <file>`. In a walled run, qory runs the push check of the type before Qory
-  Apiary stores the lock, and a lock that the check refuses is not stored. A file that is
-  missing or cannot be read, a path that leads outside the working folder, passes a link
-  or ends at no regular file, a finding of the check, and a push that qory refuses each
+  of the entry as written in the list. A `repository` that is the first entry, the run's
+  repository, in any letter case, or that the list does not contain, gets "Remove
+  `repository` from check 1 of acceptance-lock.json."; a second line shows the value and
+  the reason, such as "`repository` is "example-org/api", and the run has no such
+  repository." or "`repository` is "example-org/shop", the run's repository.". `lock`
+  writes the SHA-256 of each file into the draft, checks the draft as `check` does, and runs
+  `qory artifact push <type> <file>`. In a walled run, qory runs the push check of the type
+  before Qory Apiary stores the lock, and a lock that fails the check is not stored. A file
+  that is missing or cannot be read, a path that leads outside the working folder, passes a
+  link or ends at no regular file, a finding of the check, and a push that qory refuses each
   exit 1, and the lock is not stored. A file that cannot be read gets "Make "<path>"
-  readable, then lock again: it cannot be read.". The lines of a refused push are those
-  that qory printed.
+  readable, then lock again: it cannot be read.". A refused push prints the lines that qory
+  printed. qory indents each line after its error line by two spaces; without them, a line
+  at column 0 is a finding, and an indented line prints indented as the cause of the finding
+  before it.
 - `checks.js lock --verify [--version <N>]`: the session runs it after each step that may
   change files, and the session of a later run runs it on its checkout. It reads the version
   of the lock that counts: the newest version that no cancelled run wrote, or `--version
   <N>`, the version that a member approved, which may not be older than that version. An
-  older `--version` exits 3 with "Ask a member to approve acceptance-lock version M: version
-  N is older.", and a `--version` that `index.json` does not list, or that a cancelled run
-  wrote, with "Pass --version the acceptance-lock version that a member approved." and a
-  second line with the cause, such as "index.json lists no version 7.". In a
-  run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
+  older `--version` exits 3 with "Ask a member to approve acceptance-lock version M." and
+  the line "Version N is older.", and a `--version` that `index.json` does not list, or that
+  a cancelled run wrote, with "Pass --version the acceptance-lock version that a member
+  approved." and a second line with the cause, such as "index.json lists no version 7.". In
+  a run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
   artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file with the
   one in `index.json`, so a lock or an `index.json` that an agent changed in the store
   before the call counts for nothing. When the second pull changes the id of version N in
@@ -843,16 +845,17 @@ prints the hashes that the list must contain.
   acceptance-lock version N changed in index.json during the pull.". Outside a run, it reads
   the first artifact folder that exists, and compares the SHA-256 when `index.json` lists
   one. It prints one finding for each listed file that is missing, cannot be read, is a
-  link, is no regular file or has another SHA-256, such as "Restore "checks/reply.check.ts":
-  its bytes differ from acceptance-lock version 1.", and exits 1. With no version that
-  counts, it prints "Verified nothing: index.json lists no acceptance-lock version that
-  counts." and exits 0. A stored lock file whose SHA-256 differs from `index.json` exits 1
-  with "Pull acceptance-lock version N again: the stored acceptance-lock.json differs from
-  index.json.". A failed pull, a version with no stored file or a link in its place, a
-  `--version` that `index.json` does not list or that a cancelled run wrote, and, in a run,
-  a version with no SHA-256 in `index.json` exit 3. Past 50 lines, `lock` and `lock
-  --verify` print whole findings up to 49 lines, then a line that counts the findings not
-  shown, such as "Fix the findings above and lock again: 2 more are not shown.".
+  link, is no regular file or has another SHA-256, and exits 1. Such a finding is "Restore
+  "checks/reply.check.ts".", with the line "The bytes of "checks/reply.check.ts" differ from
+  acceptance-lock version 1." after it. With no version that counts, it prints "Verified
+  nothing: index.json lists no acceptance-lock version that counts." and exits 0. A stored
+  lock file whose SHA-256 differs from `index.json` exits 1 with "Pull acceptance-lock
+  version N again: the stored acceptance-lock.json differs from index.json.". A failed pull,
+  a version with no stored file or a link in its place, a `--version` that `index.json` does
+  not list or that a cancelled run wrote, and, in a run, a version with no SHA-256 in
+  `index.json` exit 3. Past 50 lines, `lock` and `lock --verify` print whole findings up to
+  49 lines, then a line that counts the findings not shown, such as "Fix the findings above
+  and lock again: 2 more are not shown.".
 
   The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run,
   on a new working folder, before any agent of that run starts. It pulls the lock again, and
@@ -912,8 +915,9 @@ prints the hashes that the list must contain.
   group in its order, and adds one point with the count left out, such as "The run left out
   2 more points, which its output on the Run page lists, and another round starts the
   workflow again to fix them."
-  Its output starts with a line `Point left out of points.json: <text>` per point left out,
-  cut to 200 characters as each line. `end --offline` cuts its points the same way. These
+  Its output starts with a finding per point left out: the line `Fix the problem of the
+  point on the next line, which points.json left out.`, then the text of the point, cut to
+  200 characters as each line. `end --offline` cuts its points the same way. These
   commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
@@ -1499,32 +1503,33 @@ the newest lock. One function, `criteriaTarget` of
 and a push read the versions in `index.json`, not the folders of the store, so that they
 agree. The three Markdown types read the target before any other check of the type, so that
 a finding of the read is the only finding of that check. A finding on the files that a
-check or a push gets, such as "Remove notes.txt from the files: a build-plan version has no
-such file.", comes before the finding of the read.
+check or a push gets, such as "Remove notes.txt from the files." with the line "A build-plan
+version has no file notes.txt." after it, comes before the finding of the read.
 With no approved version there is no target, also when a person stored a version: the three
 Markdown types get "Write the build plan after a person approves the acceptance criteria.",
 with the verification or the explainer in place of the build plan, and the lock gets its
 line below. When `index.json` lists a version above the target, the push gets that version
 in place of the target, and a check and a push of each of the four types get one finding,
-such as "Ask a member to upload the acceptance criteria they accept as a new version, then
-push the build plan again: the run stored version 2 after the approved version 1.", with
-the verification or the explainer in place of the build plan, and "then lock that version"
-for the lock. When the writer of that version is not of kind `run`, the reason is
-"no member uploaded the newer criteria version 2". Two criteria versions of
-one number in `index.json` exit 3 with "Run `qory artifact pull`, then check the build plan
-again.", with the verification, the explainer or the lock in place of the build plan, and
-so does the check of a Markdown type with no `index.json`. A push store with no file of the
-target gets "Store the acceptance criteria before you push the build plan: the push check
-found no version of them." A check whose artifact folder has no file of the target gets the
-finding to pull that version. The words of a criterion are its first sentence in that
-version; as the check of the criteria counts sentences, a sentence goes on after `e.g.` and
-`i.e.`. A text in quotes beside the id may end with one `.`, `!` or `?` after the words. A
-quote ends after the criterion's words, so a quote inside them, as in
-`The "Export" button`, stays in them. The comparison ignores backticks and runs of spaces.
-Its finding starts with the fix and gives the words, such as "Quote AC-2 in d-1 of
-build-plan.md as its first sentence: ..."; when that line would have more than 200
-characters, the finding is "Copy the first sentence of AC-2 in the criteria into d-1 of
-build-plan.md." Beyond the schema, the checks find:
+such as "Ask a member to upload the acceptance criteria they accept as a new version." with
+the line "Then push the build plan again: the run stored version 2 after the approved
+version 1." after it, with the verification or the explainer in place of the build plan,
+and "Then lock that version" for the lock. When the writer of that version is not of kind
+`run`, the reason is "no member uploaded the newer criteria version 2". Two criteria
+versions of one number in `index.json` exit 3 with "Run `qory artifact pull`, then check
+the build plan again.", with the verification, the explainer or the lock in place of the
+build plan, and so does the check of a Markdown type with no `index.json`. A push store
+with no file of the target gets "Store the acceptance criteria before you push the build
+plan." with the line "The push check found no version of them." after it. A check whose
+artifact folder has no file of the target gets the finding to pull that version. The
+words of a criterion are its first sentence in that version; as the check of the criteria
+counts sentences, a sentence goes on after `e.g.` and `i.e.`. A text in quotes beside the
+id may end with one `.`, `!` or `?` after the words. A quote ends after the criterion's
+words, so a quote inside them, as in `The "Export" button`, stays in them. The comparison
+ignores backticks and runs of spaces. Its finding starts with the fix, such as "Quote AC-2
+in d-1 of build-plan.md as its first sentence.", and gives the words on the line after it,
+"The first sentence of AC-2 is "..."."; when that line would have more than 200 characters,
+it is "Copy the first sentence from AC-2 in the criteria." Beyond the schema, the checks
+find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
@@ -1574,11 +1579,12 @@ build-plan.md." Beyond the schema, the checks find:
   finding has the fix to set the criteria version only to the target, and only when a lock
   of the target passes: a new lock, or the newest lock again when it locks the target. Else,
   with an approved version, the finding opens with its one action, "Ask a member to upload
-  the acceptance criteria they accept as a new version, then lock that version", and its
-  reason follows the colon: "acceptance-lock version 1 already locks criteria version 1." or
-  "no member uploaded criteria after acceptance-lock version 1, the lock that counts."; a
-  run passes the line to the member as a point, as `running-a-workflow` lists under "Locked
-  files". A finding line shows a version from 1 to 999999 in digits, and any other version,
+  the acceptance criteria they accept as a new version.", and its second line has the next
+  step and the reason after the colon: "Then lock that version: acceptance-lock version 1
+  already locks criteria version 1." or "Then lock that version: no member uploaded
+  criteria after acceptance-lock version 1, the lock that counts."; a run passes the line
+  to the member as a point, as `running-a-workflow` lists under "Locked files". A finding
+  line shows a version from 1 to 999999 in digits, and any other version,
   outside a folder path, as "over 999999" or "below 1", so that no line is longer than 196
   characters. The check of Tests reads the lock's criteria version only when it is the
   newest criteria version in `index.json`, because the store of a push has only the newest
@@ -1648,9 +1654,9 @@ build-plan.md." Beyond the schema, the checks find:
   id, or one other than the verified commit: in a check, that of `verification.md` at the
   top of the artifact folder, else of the newest verification version; in a push, that of
   the newest verification version, which the push check reads. With no verification, the
-  line is "Push the verification before the explainer: the artifacts have no verification
-  version." A verification with no line `Commit: ` and a full commit id in its summary is a
-  finding of the explainer too, in a check and in a push.
+  finding is "Push the verification before the explainer.", with the line "The artifacts
+  have no verification version." after it. A verification with no line `Commit: ` and a
+  full commit id in its summary is a finding of the explainer too, in a check and in a push.
 
 A Build session records each step it runs in the build ledger, so that a session that stops
 resumes where it stopped, and a step that is done replays and does not run again. The verbs
@@ -1719,8 +1725,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   skips the version before a withdrawal. Only with no `index.json`, or one that does not
   list the build ledger, the highest version folder counts.
   For
-  each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
-  starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
+  each such row it prints "Run <id> again." and the line "Its pass <N> of <id> stopped
+  while it ran, so step begin starts pass <N+1>.", then a line with the counts of rows,
+  done rows and escalations.
 - `checks.js step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>]
   <file>...`: before each step, after `resume`. With no mark, or a mark of an earlier
   session, it exits 3 with "Run checks.js resume first". `--inputs` and `--artifacts` may
@@ -1780,27 +1787,29 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   left out, with a line that says why, and the verb exits 0.
 
 The chain of `base`, the commit a step started on, holds within one session only, because
-commits outside a step happen between sessions, such as the commit of the submit step, and
-a cancelled run can leave its commits on no branch. A row replays only when its `commit`
-is an ancestor of the head, so a step whose commit is lost runs again at its next `pass`.
-Each row of a session takes the `commit` of the session's newest row that has one, else the
-head at which the session started, from the mark, and `step begin` refuses it when the head
-is another commit: "Return the checkout to <base>, where <id> ended", or "where the session
-started". So a commit between `resume` and the first step, a commit between two steps of a
-session, and the commits of a failed step stop the next `step begin` before any row is
-pushed. When a failed step left a commit, the line is "Run git reset --keep <base>, then
-step begin again: the failed step <id> left the commit <head>.", and the session runs that
-command, because it goes on from `base`. `git reset --keep` keeps each file that differs
-from the head, and the reflog of git keeps the failed step's commits.
+commits outside a step happen between sessions, such as the commit of the submit step, and a
+cancelled run can leave its commits on no branch. A row replays only when its `commit` is an
+ancestor of the head, so a step whose commit is lost runs again at its next `pass`. Each row
+of a session takes the `commit` of the session's newest row that has one, else the head at
+which the session started, from the mark, and `step begin` refuses it when the head is
+another commit: "Return the checkout to <base>, where <id> ended.", or "where the session
+started.", with the head on the line after it. So a commit between `resume` and the first
+step, a commit between two steps of a session, and the commits of a failed step stop the
+next `step begin` before any row is pushed. When a failed step left a commit, the line is
+"Run git reset --keep <base>, then step begin again.", with the line "The failed step <id>
+left the commit <head>." after it, and the session runs that command, because it goes on
+from `base`. `git reset --keep` keeps each file that differs from the head, and the reflog
+of git keeps the failed step's commits.
 
 `step begin` also refuses a checkout with a change, before it checks the chain, with the
 same rule for a change as `step end done` below. `step begin` and `step end done` both need
 a checkout with no change, so each change after a failed step is that step's. When the
 newest row of the session is `failed`, the line is "Run git stash push --include-untracked
--- ':/' ':!/.qory', then step begin again: the failed step <id> left <n> files changed.",
-and the session runs that command: the stash keeps the files, and `.qory/` stays as it is.
-Else the line is "End the session, and keep the checkout as it is: <n> files changed outside
-a step, such as <file>.", and no command runs.
+-- ':/' ':!/.qory', then step begin again.", with the line "The failed step <id> left <n>
+files changed." after it, and the session runs that command: the stash keeps the files, and
+`.qory/` stays as it is. Else the line is "End the session, and keep the checkout as it
+is.", with the line "<n> files changed outside a step, such as <file>." after it, and no
+command runs.
 
 A crashed step is a row that a session of the same run started and left `running`, which
 `resume` marks `failed`. When that row is the newest row before the session's rows, and the
@@ -1838,23 +1847,34 @@ as its escape, such as `\u0002`, and a list or an object is cut too. A finding c
 list of headings, of allowed values or a schema pattern, so that each line has at most 196
 characters.
 
-A line is one finding that starts with the fix, of at most 200 characters, with no control
+Line 1 of each finding is the fix, in the imperative, in at most 100 characters, with a long
+path or an agent name of 64 characters too, because a log viewer or an agent often reads
+only that line. The `Start:` and `Wait:` lines of `panel` keep the whole name of the member,
+so with a module prefix such as `harness:` they can pass 100 characters. The cause and the
+full values follow on lines indented by two spaces. Two lines that print among the findings
+are information, not findings. Each states a result and has no fix: the line
+`Scanned <N> commits since <commit> (or on no remote branch) for keys: <M> findings.` of
+`scope`, and the line `The output and the record are in .reports/runs/, as <id>.` of `run`,
+`probe` and `suite`. Each line of a finding has at most 200 characters, with no control
 character, and a quote from a draft of at most 80 characters. At most 50 findings are
-printed, then one line with the number left out. The last line states what the script
-checked, and names only the checks that ran. `check`, `push`, `end` and `end --offline`
-print that line on stderr, after the findings, and print only the findings on stdout,
-because qory reads each line of the stdout of a push check as a finding; a run with no
-finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for a split, so
-the count goes on the last line and is no finding. It exits with 0 with no finding, 1 with
-findings, 2 for wrong arguments and 3 for an input it cannot read. With 2 or 3, or when the
-script cannot run, the session stops and ends with `escalate`, so a check that cannot run
-never passes. With 1 before a push, the session sends the findings to the writer. A finding
-of the checks left after the last review start ends the run like one marked `break`, because
-a push with it fails. Each checking skill lists what the checks cover, and its reviewer
-judges the rest. `scripts/checks.test.js` breaks each rule in a copy of the testdata and
-watches the check fail. The settings of `core` allow the script with one rule,
-`Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`. Untested: no
-run has matched this rule yet.
+printed, then one line with the number left out. The
+findings and that line have at most 200 lines together, because qory keeps at most 200 lines
+of the stdout of a push check and drops the rest with no line that counts them. A finding
+prints whole or not at all, and the first finding prints whole even past 200 lines. The last
+line states what the script checked, and names only the checks that ran. `check`, `push`,
+`end` and `end --offline` print that line on stderr, after the findings, and print only the
+findings on stdout, because qory reads each line of the stdout of a push check as a finding;
+a run with no finding prints nothing on stdout. Above 7 criteria, `checking-specs` asks for
+a split, so the count goes on the last line and is no finding. It exits with 0 with no
+finding, 1 with findings, 2 for wrong arguments and 3 for an input it cannot read. With 2 or
+3, or when the script cannot run, the session stops and ends with `escalate`, so a check
+that cannot run never passes. With 1 before a push, the session sends the findings to the
+writer. A finding of the checks left after the last review start ends the run like one
+marked `break`, because a push with it fails. Each checking skill lists what the checks
+cover, and its reviewer judges the rest. `scripts/checks.test.js` breaks each rule in a copy
+of the testdata and watches the check fail. The settings of `core` allow the script with one
+rule, `Bash($QORY_HARNESS_HOME/claude/plugin/skills/running-a-workflow/checks.js *)`.
+Untested: no run has matched this rule yet.
 
 A module states the checks that qory runs on a push under `push_checks`: one entry per
 type, with the command and the types that the check reads. For `demo-scenarios`:
@@ -2186,10 +2206,10 @@ The skill `running-checks` of `software-factory` lists the verbs that run every 
 code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
 checks script, each in a file of `verbs/`. Each but `suite` reads its commands and its write
 scope from the newest version of `build-plan` that the session pulled, never from a draft.
-Each prints each finding as a line with its fix, at times with a second line with the
-reason, then one line of what it did. Exit status: 0 passed, 1 red or found something, 2
-wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and for `probe`,
-4 no proof.
+Each prints each finding with its fix on line 1, at most 100 characters, and the reason on
+lines indented by two spaces, then one line of what it did. Exit status: 0 passed, 1 red or
+found something, 2 wrong arguments, 3 missing input or, for `suite`, a failed request to
+qory, and for `probe`, 4 no proof.
 
 Run each verb as the user that owns the checkout, by the same uid. With git 2.32 or later,
 git runs with no global or system config (an older git reads `~/.gitconfig`), so no
@@ -2291,18 +2311,21 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   counts when its file differs. A path under `.qory` in a commit since `--base` is outside
   the scope, as qory pushes the commit as it is. With the base from `--inputs`, a
   `deliverable:d-<N>` step judges a path of a commit since the base against the Files of
-  that deliverable and of each deliverable before it in the order of the build plan, such
-  as "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed
-  now, against the Files of the step. Without `--inputs`, the step judges every changed
-  path, committed or not, against the Files of the step. A committed path outside its
-  scope gets the line "Take "<path>" out of the commits since the base: it is outside the
-  files of d-1 and d-2.", and a second line, "For example: git reset --soft <c>, git
-  restore -s <c> -SW -- <path>, commit (<c>: before the path).", where `git restore`
-  brings the path back as it was at `<c>`, or removes it when it was not there, and a
-  third line, "If the path is in a frozen or pushed commit, report to a member.", as a
-  reset drops the commit that the build ledger records and a push that qory made cannot be
-  redone; an uncommitted one gets "Undo the change to "<path>"". A passing `scope` prints
-  one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no key."
+  that deliverable and of each deliverable before it in the order of the build plan, such as
+  "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed now,
+  against the Files of the step. Without `--inputs`, the step judges every changed path,
+  committed or not, against the Files of the step. A committed path outside its scope gets
+  the line "Take "<path>" out of the commits since the base: it is outside the files of d-1
+  and d-2."; an uncommitted one gets "Undo the change to "<path>"". With a committed path
+  outside, the last finding on a committed path has, indented after it, "For example: git
+  reset --soft <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).", where
+  `git restore` brings the path back as it was at `<c>`, or removes it when it was not
+  there, and "If the path is in a frozen or pushed commit, report to a member.", as a reset
+  drops the commit that the build ledger records and a push that qory made cannot be redone.
+  The lines of the scope of the commits come after them, also indented. The last finding on
+  an uncommitted path has the lines of the scope of the step, indented. A passing `scope`
+  prints one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no
+  key."
   No line of `scope` has more than 100 characters: a long name is cut, a long list of
   Files goes on a second line, and the scan result is the line before "Checked ...". git
   runs with full stat checks, no untracked cache, no global excludes file, no global or
@@ -2494,11 +2517,11 @@ and three calls run it:
   no push follows. A proposal on the standard track, or a folder with no proposal, runs no
   proof, and `scope --plan` judges the Files as before;
 - `check` and `end`, with the check of `submission`, in a checkout, with `--inputs`. The
-  files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the
-  call writes one line on stderr, "Run the push step: it proves <kind>, since the parsers
-  in <folder> are not installed here.", and leaves them to `scope --plan`. `end` checks a
-  draft that differs from the newest stored version, so it runs no proof for a submission
-  that equals its stored version. With the fast track and no `--inputs`,
+  files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the call
+  writes "Run the push step: it proves <kind>." on stderr, with the line "The parsers in
+  <folder> are not installed here." after it, and leaves them to `scope --plan`. `end`
+  checks a draft that differs from the newest stored version, so it runs no proof for a
+  submission that equals its stored version. With the fast track and no `--inputs`,
   `check submission` has a finding, never a pass;
 - `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`, by hand.
 

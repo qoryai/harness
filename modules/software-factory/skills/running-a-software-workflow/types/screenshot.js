@@ -13,7 +13,7 @@ module.exports = (lib) => {
     const ids = new Set(names.map((name) => FILE.exec(name)[1]));
     run.did('files');
     if (ids.size > 1) {
-      run.find(`Give the screenshot version the pictures of one scenario: it has those of ` +
+      run.find('Give the screenshot version the pictures of one scenario.\nIt has those of ' +
         `${[...ids].sort().join(', ')}.`);
       return;
     }
@@ -25,21 +25,21 @@ module.exports = (lib) => {
     run.did('demo script');
     const newest = newestNamed(run.context, 'demo-script', scenario, `${scenario}.json`);
     if (!newest) {
-      run.find(`Push the demo script of ${scenario} before its pictures: the artifacts have no ` +
-        `demo-script version named ${scenario}.`);
+      run.find(`Push the demo script of ${scenario} before its pictures.\nThe artifacts have ` +
+        `no demo-script version named ${scenario}.`);
       return;
     }
     const script = parseJson(newest.text, `demo-script ${scenario} version ${newest.number}`,
       'steps');
     if (script.evidence === 'film') {
-      run.find(`Remove the pictures of ${scenario}: its demo script has the evidence film, ` +
+      run.find(`Remove the pictures of ${scenario}.\nIts demo script has the evidence film, ` +
         'which never becomes pictures.');
       return;
     }
     const count = script.steps.length;
     if (names.length !== count) {
       run.find(`Give the screenshot version of ${scenario} one picture per step of its demo ` +
-        `script, ${plural(count, 'picture')}: it has ${names.length}.`);
+        `script.\nThat is ${plural(count, 'picture')}. The version has ${names.length}.`);
     }
     for (let step = 1; step <= count; step += 1) {
       if (!files.has(`${scenario}-step-${step}.png`)) {

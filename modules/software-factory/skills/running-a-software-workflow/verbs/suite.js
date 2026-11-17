@@ -56,10 +56,12 @@ module.exports = (lib) => {
 
   const short = (commit) => commit.slice(0, 12);
 
-  // routeLines returns the lines, fix first, of an answer of the route or of qory that is no
-  // suite: an error of the connection, a status of the route, or an answer that qory should
-  // not send. verb is suite start or suite result, without the suite id, so that a long id
-  // does not push the first line past 100 characters; suite is the id of suite result.
+  // routeLines returns the entries, fix first, of the one finding of an answer of the route
+  // or of qory that is no suite: an error of the connection, a status of the route, or an
+  // answer that qory should not send. An entry may have more lines, the cause after the fix.
+  // verb is suite start or suite result, without the suite id, so that a long id does not
+  // push the first line past 100 characters; suite is the id of suite result. The error code
+  // of the body, which has no length limit, is on a later line.
   function routeLines(answer, verb, suite) {
     let code = '';
     try {
@@ -75,26 +77,28 @@ module.exports = (lib) => {
       'The route passes at most 1 MiB, so the fault is in qory or the route.'];
     }
     if (answer.error) {
-      return [`Run ${verb} again: the request to ${host.VARIABLE} failed (${answer.error}).`,
+      return [`Run ${verb} again.\nThe request to ${host.VARIABLE} failed (${answer.error}).`,
         'If it fails again, report to a member that qory cannot be reached from the session.'];
     }
     switch (answer.status) {
       case 403:
-        return [`Report to a member: the request to the suite route failed with status 403 ` +
-          `(${code || 'wall:qory-host'}).`,
+        return ['Report to a member: the request to the suite route failed with status 403.\n' +
+          `The error is ${code || 'wall:qory-host'}.`,
         'The gateway returns 403 to a request from outside the agent\'s container, such as a ' +
         'setup command that runs outside it (the default), and in a run without a route to ' +
         'qory.'];
       case 503:
-        return [`Report to a member: the request to the suite route failed with status ${status}.`,
-          'The request came from a process of an earlier session of the run, or after the ' +
-          'session ended.'];
+        return ['Report to a member: the request to the suite route failed with status 503.',
+          `${code ? `The error is ${code}. ` : ''}The request came from a process of an ` +
+          'earlier session of the run, or after the session ended.'];
       case 429:
-        return [`Run ${verb} again in 1 second (status ${status}).`,
-          `The request to the suite route failed: the run sent too many requests at once.`];
+        return [`Run ${verb} again in 1 second.`,
+          `The request to the suite route failed with status ${status}: the run sent too many ` +
+          'requests at once.'];
       case 504:
-        return [`Run ${verb} again (status ${status}).`,
-          'The request to the suite route failed: no reply came within 30 seconds.'];
+        return [`Run ${verb} again.`,
+          `The request to the suite route failed with status ${status}: no reply came within ` +
+          '30 seconds.'];
       case 404:
         if (suite && code === 'unknown_suite') {
           return ['Run suite result with the id that suite start printed: no suite has this id.',
@@ -104,9 +108,10 @@ module.exports = (lib) => {
       default:
     }
     const failed = answer.status >= 200 && answer.status < 300
-      ? `the reply to ${verb} with status ${status} contains no valid suite`
-      : `the suite route returned status ${status} to ${verb}`;
-    return [`Report to a member: ${failed}.`,
+      ? `the reply to ${verb} contains no valid suite.\nThe reply has status ${status}.`
+      : `the suite route returned status ${answer.status} to ${verb}.` +
+        `${code ? `\nThe error is ${code}.` : ''}`;
+    return [`Report to a member: ${failed}`,
       'The checks script sends only the commit, the one field the route reads, so the fault ' +
       'is in qory or the route.'];
   }
@@ -140,7 +145,7 @@ module.exports = (lib) => {
   function start(io, inputs, artifacts) {
     const to = host.target(io.env, 'suite start');
     if (to.problem) {
-      io.print([to.problem, ...to.more], 'Started no full suite.');
+      io.print([[to.problem, ...to.more].join('\n')], 'Started no full suite.');
       return 3;
     }
     const pinned = starts.planIo(io, artifacts, starts.readStart(io.cwd, inputs, io.env));
@@ -161,7 +166,7 @@ module.exports = (lib) => {
       return 1;
     }
     if (changed.length) {
-      io.print([`Freeze the step first, then run suite start again: the suite runs HEAD.`,
+      io.print(['Freeze the step first, then run suite start again: the suite runs HEAD.\n' +
         `The checkout has ${plural(changed.length, 'changed path')}, such as ` +
         `${quote(secrets.shown(changed[0], secrets.secretValues(io.env)))}.`], none);
       return 1;
@@ -175,7 +180,7 @@ module.exports = (lib) => {
     if (!got) {
       const lines = routeLines(answer, 'suite start');
       record.write({ ...base, state: 'error', error: answer.error || null, reasons: lines });
-      io.print(lines, `Started no full suite on ${short(work.commit)}.`);
+      io.print([lines.join('\n')], `Started no full suite on ${short(work.commit)}.`);
       return 3;
     }
     record.write({ ...base, suite: got.suite, state: 'green', suite_state: got.state,
@@ -189,7 +194,7 @@ module.exports = (lib) => {
   function result(io, suite) {
     const to = host.target(io.env, 'suite result');
     if (to.problem) {
-      io.print([to.problem, ...to.more], `Read no result of the full suite ${suite}.`);
+      io.print([[to.problem, ...to.more].join('\n')], `Read no result of the full suite ${suite}.`);
       return 3;
     }
     const record = newRecord(artifactFolder(io));
@@ -202,7 +207,7 @@ module.exports = (lib) => {
     if (!got || got.suite !== suite) {
       const lines = routeLines(answer, 'suite result', suite);
       record.write({ ...base, state: 'error', error: answer.error || null, reasons: lines });
-      io.print(lines, `Read no result of the full suite ${suite}.`);
+      io.print([lines.join('\n')], `Read no result of the full suite ${suite}.`);
       return 3;
     }
     const minutes = Number.isFinite(got.minutes) && got.minutes >= 0 ? got.minutes : null;
@@ -214,7 +219,7 @@ module.exports = (lib) => {
       try {
         fs.writeFileSync(log, output.text, { flag: 'wx' });
       } catch {
-        throw new Missing(`Make the artifact folder writable: ${log} cannot be written.`);
+        throw new Missing(`Make the artifact folder writable.\n${log} cannot be written.`);
       }
       logs.push(log.split('/').pop());
     }
@@ -243,7 +248,8 @@ module.exports = (lib) => {
     const state = got.state === 'passed' ? 'green' : 'red';
     record.write({ ...base, commit: got.commit, state, suite_state: got.state, counts: count,
       minutes, output_cut: Boolean(output && output.cut), reasons, logs });
-    io.print([...reasons, record.line],
+    // Each state has one finding, or none: the print has its fix on the first line.
+    io.print([...(reasons.length ? [reasons.join('\n')] : []), record.line],
       `Read the full suite ${suite} on ${short(got.commit)}: ${got.state}${tests}${took}.`);
     return state === 'green' ? 0 : 1;
   }

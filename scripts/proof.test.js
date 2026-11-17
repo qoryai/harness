@@ -14,6 +14,7 @@ const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
 const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
+const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const SAMPLES = require('./testdata/build-verify-samples.json');
 const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
@@ -89,6 +90,7 @@ function scene(base, kind = DOCUMENT, track = fastTrack(kind)) {
 function call(dir, argv, deps = {}) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
@@ -96,8 +98,10 @@ function call(dir, argv, deps = {}) {
     cwd: dir,
     env: ENV,
     home: tmp,
+    firstLine: first.firstLine,
     ...deps,
   });
+  first.check(status, err);
   const lines = (out + (['check', 'push', 'end'].includes(argv[0]) ? err.split('\n')[0] : ''))
     .split('\n').filter(Boolean);
   return { status, out, err, lines };
@@ -631,7 +635,7 @@ test('check submission: without the parsers, end leaves the proof to prove', {
   } finally {
     process.stderr.write = write;
   }
-  assert.equal(lines.filter((line) => /^Run the push step: it proves "a text value in a code file", since the parsers in \/opt\/qory\/parsers\/node_modules are not installed here\.\n$/.test(line)).length, 2, lines.join());
+  assert.equal(lines.filter((line) => /^Run the push step: it proves "a text value in a code file"\.\n  The parsers in \/opt\/qory\/parsers\/node_modules are not installed here\.\n$/.test(line)).length, 2, lines.join());
   // prove, which the push step runs, has the finding.
   fails(prove(run), /^Propose the standard track: the parsers are not installed\./);
 });

@@ -33,9 +33,9 @@ module.exports = (lib) => {
     if (!data.text) return;
     const titles = sections(lines(data.text.description), 2).slice(1).map((part) => part.title);
     if (titles.join('\n') !== PARTS.join('\n')) {
-      run.find(`Write /text/description of submission.json in four parts, ${PARTS.map((part) =>
-        `## ${part}`).join(', ')}, in this order: it has ${titles.map((title) =>
-        `## ${title}`).join(', ') || 'no ## heading'}.`);
+      run.find('Write /text/description of submission.json in four parts, in their order.\n' +
+        `They are ${PARTS.map((part) => `## ${part}`).join(', ')}.\nIt has ` +
+        `${titles.map((title) => `## ${title}`).join(', ') || 'no ## heading'}.`);
     }
     run.did('secrets');
     for (const member of ['title', 'description']) {

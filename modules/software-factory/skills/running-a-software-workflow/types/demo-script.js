@@ -11,8 +11,8 @@ module.exports = (lib) => {
     const version = approved(run.context, 'demo-scenarios', 'demo-scenarios.md');
     const scenario = version && scenarios(version.text).find((one) => one.id === id);
     if (!scenario || scenario.removed) {
-      run.find(`Write ${file} for a scenario of the approved demo scenarios: ${id} is not one, ` +
-        'or it is removed.');
+      run.find(`Write ${file} for a scenario of the approved demo scenarios.\n${id} is not one ` +
+        'of them, or it is removed.');
       return null;
     }
     return scenario;
@@ -31,8 +31,8 @@ module.exports = (lib) => {
     const scenario = approvedScenario(run, one.name, data.scenario);
     if (!scenario) return;
     if (data.title !== scenario.title) {
-      run.find(`Set /title of ${one.name} to the title of ${data.scenario}, ` +
-        `${short(scenario.title)}: it is ${short(data.title)}.`);
+      run.find(`Set /title of ${one.name} to the title of ${data.scenario}.\nThat title is ` +
+        `${short(scenario.title, 80)}. /title is ${short(data.title, 80)}.`);
     }
     const rows = stepRows(scenario) || [];
     if (data.steps.length !== rows.length) {
@@ -48,11 +48,12 @@ module.exports = (lib) => {
       const row = rows[place];
       if (!row) return;
       if (step.title !== row.action) {
-        run.find(`Set the title of ${at} to the Action of the scenario, ${short(row.action)}.`);
+        run.find(`Set the title of ${at} to the Action of the scenario.\nThe Action is ` +
+          `${short(row.action, 80)}.`);
       }
       if (step.expected !== row.sees) {
-        run.find(`Set the expected of ${at} to What the viewer sees of the scenario, ` +
-          `${short(row.sees)}.`);
+        run.find(`Set the expected of ${at} to What the viewer sees of the scenario.\nWhat the ` +
+          `viewer sees is ${short(row.sees, 80)}.`);
       }
     });
   }

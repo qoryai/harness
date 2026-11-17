@@ -42,9 +42,12 @@ const GITLINK = '160000';
 // git restore brings the path back as it was before it came in, or removes it when it was
 // not there, in the index and the file system. A reset drops the commit that a row of the
 // build ledger records, and a push that qory made cannot be redone: a member decides.
-const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit ' +
+// Each line prints indented by two spaces after a finding, so each has at most 98 characters.
+const EXAMPLE = 'For example: git reset --soft <c>, git restore -s <c> -SW -- <path>, commit\n' +
   '(<c>: before the path).';
 const REPORT = 'If the path is in a frozen or pushed commit, report to a member.';
+const NO_PLAN = 'Push a build plan before you change files: this session started with none, so ' +
+  'its scope is empty.';
 
 // The options of scope and freeze that take a value, each with the line of a wrong value.
 const VALUES = {
@@ -57,11 +60,11 @@ module.exports = (lib) => {
   const { Missing, cut, plural, quote } = lib;
   const starts = require('../lib/start.js')(lib);
 
-  // fitted returns line(quote(name)) with name cut so that the line has at most 100 characters,
-  // down to 6 characters of the name.
-  function fitted(name, line) {
+  // fitted returns line(quote(name)) with name cut so that the line has at most width
+  // characters, 100 by default, down to 6 characters of the name.
+  function fitted(name, line, width = 100) {
     let text = line(quote(name));
-    for (let size = 80; text.length > 100 && size > 6; size -= 1) {
+    for (let size = 80; text.length > width && size > 6; size -= 1) {
       text = line(quote(cut(name, size)));
     }
     return text;
@@ -88,10 +91,11 @@ module.exports = (lib) => {
       } else if (got.step === null && lib.STEP.test(arg || '')) {
         got.step = arg;
       } else {
+        // The cause prints indented by two spaces, so it has at most 98 characters.
         const shown = secrets.shown(String(arg), secrets.secretValues(io.env));
         return { problem: `Give ${verb} deliverable:d-<N>, fix:f<N> or --plan, then only ` +
           '--base, --inputs and --artifacts.\n' +
-          `${fitted(shown, (name) => `${name} is none of them.`)}` };
+          `${fitted(shown, (name) => `${name} is none of them.`, 98)}` };
       }
     }
     if ((got.step === null) === !got.plan) {
@@ -118,7 +122,7 @@ module.exports = (lib) => {
     if (given.inputs !== undefined) {
       const limit = limits({ inputs: path.resolve(io.cwd, given.inputs), top: work.top,
         env: io.env });
-      if (limit.problem) throw new Missing(limit.problem, limit.more);
+      if (limit.problem) throw new Missing(limit.problem, limit.more, limit.listed);
     }
     const base = starts.baseOf(io, verb, work, given.base, start);
     // With no build plan too, an uncommitted path under .qory counts as none: qory keeps
@@ -152,37 +156,51 @@ module.exports = (lib) => {
     const values = secrets.secretValues(io.env);
     const committed = paths.filter((file) => found.committedOutside.has(file));
     const now = paths.filter((file) => !found.committedOutside.has(file));
-    // When the list of Files does not fit the line, it is the next line.
+    // When the list of Files does not fit the line, it is the next line. Both lines print
+    // indented by two spaces, so each has at most 98 characters.
     const explain = (scope, some) => {
       if (!some.length) return [];
-      if (found.plan.none) {
-        return ['Push a build plan before you change files: this session started with none, so ' +
-          'its scope is empty.'];
-      }
+      if (found.plan.none) return [NO_PLAN];
       const head = `The scope is ${scope.words}, which build plan version ${found.plan.version} ` +
         'lists as';
       const listed = scope.paths.join(', ');
-      return head.length + listed.length + 2 <= 100 ? [`${head} ${listed}.`]
-        : [`${head}:`, `${cut(listed, 99)}.`];
+      return head.length + listed.length + 2 <= 98 ? [`${head} ${listed}.`]
+        : [`${head}:`, `${cut(listed, 97)}.`];
     };
     // A commit cannot be undone: the commits since the base must not contain the path. A
     // committed path that the step does not judge alone is outside the words of its scope.
     const words = found.narrow ? found.committedScope.words : 'the scope';
-    return [
-      ...(found.work.excluded ? [git.EXCLUDED] : []),
-      ...paths.map((file) => {
-        const shown = secrets.shown(file, values);
-        if (found.committedOutside.has(file)) {
-          return fitted(shown, (name) => `Take ${name} out of the commits since the base: it ` +
-            `is outside ${words}.`);
-        }
-        return fitted(shown, (name) => `Undo the change to ${name}` +
-          `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`);
-      }),
-      ...(committed.length ? [EXAMPLE, REPORT] : []),
-      ...(found.committedScope.words === found.scope.words ? explain(found.scope, paths)
-        : [...explain(found.scope, now), ...explain(found.committedScope, committed)]),
-    ];
+    const take = (outside) => (name) => `Take ${name} out of the commits since the base: it ` +
+      `is outside ${outside}.`;
+    const findings = paths.map((file) => {
+      const shown = secrets.shown(file, values);
+      if (found.committedOutside.has(file)) {
+        // The words of many deliverables can push the line past 100 characters even with the
+        // name cut: then the words are on the line after it.
+        const line = fitted(shown, take(words));
+        return line.length <= 100 ? line
+          : `${fitted(shown, take('the scope of the commits'))}\nThat scope is ${words}.`;
+      }
+      return fitted(shown, (name) => `Undo the change to ${name}` +
+        `${found.step ? ', or end the step as failed' : ''}: it is outside the scope.`);
+    });
+    const explained = found.committedScope.words === found.scope.words
+      ? explain(found.scope, paths)
+      : [...explain(found.scope, now), ...explain(found.committedScope, committed)];
+    // The lines of the cause go under the last finding of the kind that they hold for: the
+    // lines of the scope of the step under the last finding to undo a change, and the example,
+    // the line to report and the lines of the scope of the commits under the last finding to
+    // take a path out of the commits. The line to push a build plan is a separate finding.
+    const append = (some, lines) => {
+      const plain = lines.filter((line) => line !== NO_PLAN);
+      if (some.length && plain.length) {
+        findings[paths.lastIndexOf(some[some.length - 1])] += `\n${plain.join('\n')}`;
+      }
+    };
+    append(now, explain(found.scope, now));
+    append(committed, [EXAMPLE, REPORT, ...explain(found.committedScope, committed)]);
+    return [...(found.work.excluded ? [git.EXCLUDED] : []), ...findings,
+      ...explained.filter((line) => line === NO_PLAN)];
   }
 
   // checkedWords returns the words of the Files that scope checked the paths against: the
@@ -247,7 +265,7 @@ module.exports = (lib) => {
         count: 0 };
     const keys = scanHistory(io, work.top, base, 'scope');
     const scanned = `Scanned ${plural(keys.commits, 'commit')} ${since(base)} for keys: ` +
-      `${plural(keys.lines.length, 'finding')}.`;
+      `${plural(keys.count, 'finding')}.`;
     if (!done.findings.length && !keys.lines.length && !work.excluded) {
       io.print([], `Passed: ${plural(done.count, 'changed path')} prove ${quote(track.kind)}, ` +
         `${plural(keys.commits, 'commit')} with no key.`);
@@ -273,7 +291,7 @@ module.exports = (lib) => {
     }
     // The scan result is the line before the result of the check, so that no line is long.
     const scanned = keys ? [`Scanned ${plural(keys.commits, 'commit')} ${since(found.base)} ` +
-      `for keys: ${plural(keys.lines.length, 'finding')}.`] : [];
+      `for keys: ${plural(keys.count, 'finding')}.`] : [];
     io.print([...outsideLines(io, found), ...(keys ? keys.lines : []), ...scanned],
       `Checked ${plural(found.counted.length, 'changed path')} against ${checkedWords(found)}: ` +
       `${found.outside.length} outside.`);
@@ -363,8 +381,9 @@ module.exports = (lib) => {
       const patch = git.git(top, ['diff', '-U0', '--text', '--no-color', '--no-ext-diff',
         '--no-textconv', before, blob], { env: io.env });
       if (patch.error || patch.status !== 0 || (!patch.stdout && size.get(blob) > 0)) {
-        lines.push(fitted(name, (quoted) => `Remove ${quoted} from the change, or make it ` +
-          `smaller: git showed no lines of it${commit ? ` in commit ${short}` : ''} to scan.`));
+        lines.push(`${fitted(name, (quoted) => `Remove ${quoted} from the change, or make it ` +
+          'smaller.')}\ngit showed no lines of ${quote(name)}${commit ? ` in commit ${short}`
+          : ''} to scan.`);
         continue;
       }
       for (const hit of secrets.scanPatch(patch.stdout, values)) {
@@ -398,30 +417,30 @@ module.exports = (lib) => {
     }))];
   }
 
-  // scanHistory returns { lines, commits }: a line for each key in the commits that qory
-  // pushes, as git.unpushed lists them for base, and the number of those commits.
+  // scanHistory returns { lines, commits, count }: a line for each key in the commits that
+  // qory pushes, as git.unpushed lists them for base, the number of those commits, and the
+  // count of findings for the summary line. Past MOST_COMMITS commits, the one line has the
+  // fix and its cause, and count is 2, one for each.
   function scanHistory(io, top, base, verb) {
     const commits = git.unpushed(Missing, top, io.env, base, MOST_COMMITS);
     if (commits.length > MOST_COMMITS) {
-      return { commits: commits.length, lines: base
+      return { commits: commits.length, count: 2, lines: base
         ? [`Push at most ${MOST_COMMITS} commits since ${base.slice(0, 12)}, such as by ` +
-          `squashing them, then ${verb} again.`, `${verb} scans at most ${MOST_COMMITS} ` +
+          `squashing them, then ${verb} again.\n${verb} scans at most ${MOST_COMMITS} ` +
           'commits for keys, and there are more.']
-        : ['Freeze with --base <commit>, the commit that the session started from.',
+        : ['Freeze with --base <commit>, the commit that the session started from.\n' +
           `More than ${MOST_COMMITS} commits are on no remote branch, and freeze scans at ` +
           `most ${MOST_COMMITS}.`] };
     }
     const empty = commits.length ? git.emptyTree(Missing, top, io.env) : null;
-    return {
-      commits: commits.length,
-      lines: commits.flatMap((commit) => {
-        const parent = git.git(top, ['rev-parse', '--verify', '-q', `${commit}^1`],
-          { env: io.env });
-        const from = parent.status === 0 ? parent.stdout.trim() : empty;
-        return [...scanCommit(io, top, commit, verb),
-          ...scan(io, top, from, commit, commit, verb)];
-      }),
-    };
+    const lines = commits.flatMap((commit) => {
+      const parent = git.git(top, ['rev-parse', '--verify', '-q', `${commit}^1`],
+        { env: io.env });
+      const from = parent.status === 0 ? parent.stdout.trim() : empty;
+      return [...scanCommit(io, top, commit, verb),
+        ...scan(io, top, from, commit, commit, verb)];
+    });
+    return { commits: commits.length, lines, count: lines.length };
   }
 
   // message returns the one-line message of the commit of step.
@@ -444,7 +463,7 @@ module.exports = (lib) => {
     }
     const { top, commit: head } = found.work;
     if (!head) {
-      throw new Missing('Commit once before the first step: the checkout has no commit, so ' +
+      throw new Missing('Commit once before the first step.\nThe checkout has no commit, so ' +
         'freeze has no parent for the step.');
     }
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-freeze-'));
@@ -474,8 +493,8 @@ module.exports = (lib) => {
         return 1;
       }
       if (change && !step) {
-        io.print(['Freeze the change with freeze <step>, or undo it, then freeze --plan again.',
-          `freeze --plan commits nothing, and the checkout has ` +
+        io.print(['Freeze the change with freeze <step>, or undo it, then freeze --plan again.\n' +
+          'freeze --plan commits nothing, and the checkout has ' +
           `${plural(found.counted.length, 'changed path')}.`], 'Froze nothing for the build plan.');
         return 1;
       }
@@ -491,16 +510,23 @@ module.exports = (lib) => {
       const nested = entries.filter((one) => one.mode === GITLINK);
       if (nested.length) {
         const values = secrets.secretValues(io.env);
-        io.print([...nested.map((one) => `Remove the repository ${quote(secrets.shown(one.file,
-          values))} from the change, or end the step as failed.`), 'freeze commits no ' +
-          'repository inside the checkout: the scan does not read the files of one.'],
+        // Each finding has the path on its first line, cut to keep that line within 100
+        // characters, and the whole path on the line after it.
+        io.print(nested.map((one) => {
+          const shown = secrets.shown(one.file, values);
+          return `Remove the repository ${quote(lib.brief(shown, 32))} from the change, or end ` +
+            `the step as failed.\nfreeze commits no repository inside the checkout, such as ` +
+            `${quote(shown)}: the scan does not read the files of one.`;
+        }),
         `Froze nothing: the change has ${plural(nested.length, 'repository', 'repositories')}.`);
         return 1;
       }
       const history = scanHistory(io, top, found.base, 'freeze');
-      const keys = [...history.lines, ...(change ? scan(io, top, head, tree) : [])];
+      const scanned = change ? scan(io, top, head, tree) : [];
+      const keys = [...history.lines, ...scanned];
       if (keys.length) {
-        io.print(keys, `Froze nothing: the scan for keys has ${plural(keys.length, 'finding')}.`);
+        io.print(keys, 'Froze nothing: the scan for keys has ' +
+          `${plural(history.count + scanned.length, 'finding')}.`);
         return 1;
       }
       if (!change) {

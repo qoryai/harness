@@ -13,7 +13,8 @@ const path = require('node:path');
 
 module.exports = (lib) => {
   const {
-    Context, Missing, artifactFolder, isObject, isRow, lines, quote, readFile, sections, table,
+    Context, Missing, artifactFolder, brief, isObject, isRow, lines, quote, readFile, sections,
+    table,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -55,7 +56,7 @@ module.exports = (lib) => {
     const start = part ? part.lines.findIndex(isRow) : -1;
     const found = start < 0 ? null : table(part.lines, start);
     if (!found || found.header.join('|') !== columns.join('|')) {
-      throw new Missing(`Push a build plan that passes its check: the newest version has no ` +
+      throw new Missing(`Push a build plan that passes its check.\nThe newest version has no ` +
         `table with the columns ${columns.join(', ')} under ## ${title}.`);
     }
     return found.rows.map((row) => Object.fromEntries(columns.map((name, at) =>
@@ -95,7 +96,7 @@ module.exports = (lib) => {
     }
     const name = entry.name || 'main';
     if (typeof name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(name) || /^\.\.?$/.test(name)) {
-      throw new Missing(`Pull the artifacts again: index.json lists build-plan under the name ` +
+      throw new Missing('Pull the artifacts again.\nindex.json lists build-plan under the name ' +
         `${quote(String(name))}, which is no folder name.`);
     }
     const number = entry.newest_version;
@@ -159,8 +160,8 @@ module.exports = (lib) => {
       const named = ids.length > 3 ? [`${ids[0]} to ${ids.at(-1)}`] : ids;
       const bad = rows.find((row) => row.problem);
       if (bad) {
-        throw new Missing(`Fix the Files of ${bad.id} in the build plan, then push it: ` +
-          `${bad.problem}.`);
+        throw new Missing(`Fix the Files of ${brief(bad.id, 24)} in the build plan, then push ` +
+          `it.\nIn the Files of ${bad.id}, ${bad.problem}.`);
       }
       return {
         paths: [...new Set(rows.flatMap((row) => row.paths))],
@@ -170,8 +171,8 @@ module.exports = (lib) => {
     }
     const bad = rows.find((row) => row.problem);
     if (bad) {
-      throw new Missing(`Fix the Files of ${bad.id} in the build plan, then push it: ` +
-        `${bad.problem}.`);
+      throw new Missing(`Fix the Files of ${brief(bad.id, 24)} in the build plan, then push ` +
+        `it.\nIn the Files of ${bad.id}, ${bad.problem}.`);
     }
     return {
       paths: [...new Set(rows.flatMap((row) => row.paths))],

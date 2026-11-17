@@ -52,16 +52,17 @@ function proofForm(text, forms) {
 function proofProblem(text, subject, forms) {
   const count = characterCount(text);
   if (count > PROOF_TEXT) {
-    return `Cut ${subject} to at most ${PROOF_TEXT} characters: it has ${count}.`;
+    return `Cut ${subject} to at most ${PROOF_TEXT} characters.\nThe text has ${count}.`;
   }
   if (CONTROL.test(text)) return `Remove the control character from ${subject}.`;
   if (formOf(text, forms) && !proofForm(text, forms)) {
-    return `Write the steps that repeat it after the form of ${subject}: they have no letter ` +
-      'or digit.';
+    return `Write the steps after the form of ${subject}.\nThe steps that repeat it have no ` +
+      'letter or digit.';
   }
   if (!proofForm(text, forms)) {
-    return `Start ${subject} with ${forms.slice(0, -1).map((form) => `${form}:`).join(', ')} ` +
-      `or ${forms[forms.length - 1]}:, then the steps that repeat it: it is ${quote(text)}.`;
+    return `Start ${subject} with a form, then the steps that repeat it.\nThe form is one of ` +
+      `${forms.slice(0, -1).map((form) => `${form}:`).join(', ')} or ` +
+      `${forms[forms.length - 1]}:.\nThe text is ${quote(text)}.`;
   }
   return null;
 }
@@ -79,7 +80,7 @@ function oneField(item, name, which) {
   const next = item[at[0] + 1];
   if (next !== undefined && !next.fenced && !label(next) &&
     (/^\s/.test(next.text) || !next.gap)) {
-    return { problem: `Write the "${name}:" line of ${which} on one line: the line after it ` +
+    return { problem: `Write the "${name}:" line of ${which} on one line.\nThe line after it ` +
       `is ${quote(next.text)}.` };
   }
   const text = item[at[0]].text.replace(new RegExp(`^\\s*(?:\\d+[.)]\\s+)?${name}:`), '').trim();
@@ -91,34 +92,37 @@ function oneField(item, name, which) {
 // and each finding as { text, proof, severity, point }.
 function readFindings(items, agent) {
   const problems = [];
+  // add appends the report of agent to a problem, on a line after its cause.
+  const add = (problem) => problems.push(`${problem}\nThe finding is in the report of ${agent}.`);
   const findings = items.map((item, place) => {
-    const which = `finding ${place + 1} of ${agent}`;
+    const which = `finding ${place + 1}`;
     const proof = oneField(item, 'Proof', which);
     const severity = oneField(item, 'Severity', which);
     if (proof.text === undefined) {
-      problems.push(proof.problem || `Add a "Proof:" line to ${which}: a failing check, a ` +
+      add(proof.problem || `Add a "Proof:" line to ${which}.\nThe proof is a failing check, a ` +
         'planted fault that the checks miss, the failing input, or for a finding that breaks ' +
         'nothing the broken rule.');
     } else if (proof.text) {
       const problem = proofProblem(proof.text, `the "Proof:" line of ${which}`,
         Object.keys(PROOFS));
-      if (problem) problems.push(problem);
+      if (problem) add(problem);
     } else {
-      problems.push(`Write the steps of the proof on the "Proof:" line of ${which}: it is empty.`);
+      add(`Write the steps of the proof on the "Proof:" line of ${which}: it is empty.`);
     }
     if (severity.text === undefined) {
-      problems.push(severity.problem || `Add a "Severity:" line to ${which}: break or no break.`);
+      add(severity.problem || `Add a "Severity:" line to ${which}: break or no break.`);
     } else if (!SEVERITIES.includes(severity.text)) {
-      problems.push(`Set the "Severity:" line of ${which} to break or no break: it is ` +
+      add(`Set the "Severity:" line of ${which} to break or no break.\nThe line is ` +
         `${quote(severity.text)}.`);
     } else if (severity.text === 'break' && proof.text && !proofForm(proof.text, BREAK_PROOFS) &&
       proofForm(proof.text, Object.keys(PROOFS))) {
-      problems.push(`Prove the break of ${which} with a failing check, a planted fault or the ` +
-        'failing input, or set its severity to no break: a broken rule proves no break.');
+      add(`Prove the break of ${which} with a failing check, a planted fault or the failing ` +
+        'input.\nA broken rule proves no break. With a broken rule, set the severity to no ' +
+        'break.');
     }
     if (item.some((line) => !line.fenced && (FINDING_FIELD.exec(line.text) || [])[1] === 'Marks')) {
-      problems.push(`Remove the "Marks:" line from ${which}: a finding of a change has a ` +
-        '"Proof:" and a "Severity:" line in place of marks.');
+      add(`Remove the "Marks:" line from ${which}.\nA finding of a change has a "Proof:" and ` +
+        'a "Severity:" line in place of marks.');
     }
     const point = oneField(item, 'Point', which);
     return {
@@ -144,8 +148,8 @@ function listItems(all, heading, shape, agent, problems) {
     if (!text.trim() || shape.lists.includes(text) || text.startsWith('Blocked:') ||
       shape.words.includes(text)) break;
     if (line.fenced || !text.startsWith('- ')) {
-      problems.push(`Write each item of "${heading}" of ${agent} on one line that starts with ` +
-        `"- ": ${quote(text)} is none.`);
+      problems.push(`Write each item of "${heading}" on one line that starts with "- ".\n` +
+        `The list "${heading}" of the report of ${agent} has the line ${quote(text)}.`);
       continue;
     }
     if (text !== '- none') items.push(text.slice(2).trim());
@@ -162,27 +166,28 @@ function readEarlier(all, shape, agent) {
   const items = listItems(all, 'Earlier findings:', shape, agent, problems).map((text) => {
     const match = /^(f[0-9]+): (holds|open):(\s.*)?$/su.exec(text);
     if (!match || !FINDING_ID.test(match[1])) {
-      problems.push(`Write each item of "Earlier findings:" of ${agent} as "<id>: holds: ` +
-        `<closing proof>" or "<id>: open: <proof>": ${quote(text)} is neither.`);
+      problems.push('Write each item of "Earlier findings:" as "<id>: holds: <closing proof>" ' +
+        `or "<id>: open: <proof>".\nThe item ${quote(text)} of the report of ${agent} is ` +
+        'neither.');
       return null;
     }
     const id = match[1];
     let proof = (match[3] || '').trim();
-    const where = `${id} under "Earlier findings:" of ${agent}`;
+    const where = `\nThe item is under "Earlier findings:" of the report of ${agent}.`;
     if (match[2] === 'holds') {
-      const problem = proofProblem(proof, `the closing proof of ${where}`,
-        Object.values(PROOFS));
-      if (problem) problems.push(problem);
+      const problem = proofProblem(proof, `the closing proof of ${id}`, Object.values(PROOFS));
+      if (problem) problems.push(`${problem}${where}`);
       return { id, holds: true, proof, raise: false };
     }
     const raise = formOf(proof, ['break']) !== undefined;
     if (raise) proof = proof.slice('break:'.length).trim();
-    const problem = proofProblem(proof, `the proof of ${where}`, Object.keys(PROOFS));
+    const problem = proofProblem(proof, `the proof of ${id}`, Object.keys(PROOFS));
     if (problem) {
-      problems.push(problem);
+      problems.push(`${problem}${where}`);
     } else if (raise && !proofForm(proof, BREAK_PROOFS)) {
-      problems.push(`Prove the break of ${where} with a failing check, a planted fault or the ` +
-        'failing input, or leave out "break:": a broken rule proves no break.');
+      problems.push(`Prove the break of ${id} with a failing check, a planted fault or the ` +
+        'failing input.\nA broken rule proves no break. With a broken rule, leave out ' +
+        `"break:".${where}`);
     }
     return { id, holds: false, proof, raise };
   }).filter(Boolean);
@@ -196,13 +201,15 @@ function readClosed(all, shape, agent) {
   const items = listItems(all, 'Closed:', shape, agent, problems).map((text) => {
     const match = /^(f[0-9]+): (.*)$/.exec(text);
     if (!match || !FINDING_ID.test(match[1])) {
-      problems.push(`Write each item of "Closed:" of ${agent} as "<id>: <closing proof>": ` +
-        `${quote(text)} is not.`);
+      problems.push('Write each item of "Closed:" as "<id>: <closing proof>".\nThe item ' +
+        `${quote(text)} of the report of ${agent} is not.`);
       return null;
     }
-    const problem = proofProblem(match[2].trim(), `the closing proof of ${match[1]} under ` +
-      `"Closed:" of ${agent}`, Object.values(PROOFS));
-    if (problem) problems.push(problem);
+    const problem = proofProblem(match[2].trim(), `the closing proof of ${match[1]}`,
+      Object.values(PROOFS));
+    if (problem) {
+      problems.push(`${problem}\nThe item is under "Closed:" of the report of ${agent}.`);
+    }
     return { id: match[1], proof: match[2].trim() };
   }).filter(Boolean);
   return { problems, items };
@@ -219,12 +226,12 @@ function changeLines(all, shape, agent, items, last) {
   problems.push(...earlier.problems);
   const again = earlier.items.some((item) => !item.holds);
   if (last === 'clean' && again) {
-    problems.push(`End the report of ${agent} with changes-needed: "Earlier findings:" has a ` +
-      'finding that is open again.');
+    problems.push('End the report with changes-needed.\n"Earlier findings:" of the report of ' +
+      `${agent} has a finding that is open again.`);
   }
   if (shape.proof && last === 'changes-needed' && !items.length && !again) {
-    problems.push(`End the report of ${agent} with clean, or add a finding: it ends with ` +
-      'changes-needed, and has no finding and no earlier finding that is open again.');
+    problems.push(`End the report with clean, or add a finding.\nThe report of ${agent} ends ` +
+      'with changes-needed, and has no finding and no earlier finding that is open again.');
   }
   if (shape.lists.includes('Closed:')) problems.push(...readClosed(all, shape, agent).problems);
   return problems;

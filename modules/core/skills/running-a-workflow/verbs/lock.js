@@ -23,7 +23,7 @@ const path = require('node:path');
 
 const {
   MAX_FINDINGS, Missing, artifactFolder, folderOf, inside, isObject, parseJson, plural, qoryPath,
-  quote, readFile, writeJson,
+  quote, readFile, short, writeJson,
 } = require('../lib/base.js');
 const { Context } = require('../lib/context.js');
 const { checkFiles } = require('../lib/drafts.js');
@@ -44,7 +44,8 @@ function lockType(io) {
     typeof def.lock.files === 'function');
   if (found.length === 1) return found[0];
   throw new Missing(found.length
-    ? `Keep the lock in one type: ${found.map((def) => def.type).join(', ')} each have one.`
+    ? `Keep the lock in one type.\nThe types ${found.map((def) => def.type).join(', ')} each ` +
+      'have one.'
     : 'Compose a module that adds a type with a lock: no type of the registry has one.');
 }
 
@@ -63,21 +64,25 @@ function workingFolder(io, def, verb) {
 }
 
 // printFindings prints findings, each a line or a list of lines, and last, as io.print does.
-// io.print keeps MAX_FINDINGS lines; past them, this keeps whole findings, so that no
-// finding loses its second line, and the line after them counts the findings not shown and
-// ends with again, the step that runs the check again.
+// The lines of a list after its first line are its cause, which io.print indents. Past
+// MAX_FINDINGS lines, this keeps whole findings, so that no finding loses its second line,
+// and the line after them counts the findings not shown and ends with again, the step that
+// runs the check again.
 function printFindings(io, findings, again, last) {
   const lines = findings.flat();
+  const whole = (one) => [].concat(one).join('\n');
   if (lines.length <= MAX_FINDINGS) {
-    io.print(lines, last);
+    io.print(findings.map(whole), last);
     return;
   }
   const shown = [];
+  let used = 0;
   let kept = 0;
   for (const one of findings) {
     const more = [].concat(one);
-    if (shown.length + more.length > MAX_FINDINGS - 1) break;
-    shown.push(...more);
+    if (used + more.length > MAX_FINDINGS - 1) break;
+    shown.push(whole(one));
+    used += more.length;
     kept += 1;
   }
   const left = findings.length - kept;
@@ -109,12 +114,15 @@ function filesOf(io, def, data, verb) {
   return files;
 }
 
-// shownPath returns the path of a listed file as a finding shows it.
-const shownPath = (file) => quote(file.folder ? `${file.folder}/${file.path}` : file.path);
+// shownPath returns the path of a listed file as a finding shows it, and briefPath that path
+// shortened, as the first line of a finding shows it.
+const pathOf = (file) => (file.folder ? `${file.folder}/${file.path}` : file.path);
+const shownPath = (file) => quote(pathOf(file));
+const briefPath = (file) => quote(short(pathOf(file)));
 
-// The kinds of entry that are no regular file, as a line shows them.
-const NOT_FILE = (shown) => `Replace ${shown} with a regular file: it is a folder, a FIFO or ` +
-  'another entry that is no file.';
+// The kinds of entry that are no regular file, as a finding shows them.
+const NOT_FILE = (file) => `Replace ${briefPath(file)} with a regular file.\n${shownPath(file)} ` +
+  'is a folder, a FIFO or another entry that is no file.';
 
 // place returns { full } for a listed file under root, the working folder, or { problem },
 // the line of a path that leads outside root, passes a link or is no regular file, or
@@ -122,11 +130,10 @@ const NOT_FILE = (shown) => `Replace ${shown} with a regular file: it is a folde
 // missing entry, such as a folder that the user may not read. It reads each part of the
 // path with lstat, so no link counts.
 function place(root, file) {
-  const shown = shownPath(file);
   const full = path.resolve(root, file.folder || '.', file.path);
   if (!inside(full, root)) {
-    return { problem: `Give ${shown} a path inside the working folder: the path ends outside ` +
-      'that folder.' };
+    return { problem: `Give ${briefPath(file)} a path inside the working folder.\nThe path ` +
+      `${shownPath(file)} ends outside that folder.` };
   }
   const parts = path.relative(root, full).split(path.sep);
   let dir = root;
@@ -140,12 +147,12 @@ function place(root, file) {
         : { unreadable: true };
     }
     if (stat.isSymbolicLink()) {
-      return { problem: `Replace the link in ${shown} with the file it points to: a locked path ` +
-        'may contain no link.' };
+      return { problem: `Replace the link in ${briefPath(file)} with the file it points to.\n` +
+        `A locked path may contain no link, and ${shownPath(file)} has one.` };
     }
     const last = at === parts.length - 1;
     if (!last && !stat.isDirectory()) return { missing: true };
-    if (last && !stat.isFile()) return { problem: NOT_FILE(shown) };
+    if (last && !stat.isFile()) return { problem: NOT_FILE(file) };
   }
   return { full };
 }
@@ -170,28 +177,27 @@ function hashOf(full) {
   }
 }
 
-// read returns the SHA-256 of a listed file under root, or { problem } with the line of
+// read returns the SHA-256 of a listed file under root, or { problem } with the finding of
 // lines for a missing or unreadable file, or of place.
 function read(root, file, lines) {
   if (file.problem) return { problem: file.problem };
-  const shown = shownPath(file);
   const at = place(root, file);
   if (at.problem) return at;
-  if (at.missing) return { problem: lines.missing(shown) };
-  if (at.unreadable) return { problem: lines.unreadable(shown) };
+  if (at.missing) return { problem: lines.missing(file) };
+  if (at.unreadable) return { problem: lines.unreadable(file) };
   try {
     const hash = hashOf(at.full);
-    return hash === null ? { problem: NOT_FILE(shown) } : { hash };
+    return hash === null ? { problem: NOT_FILE(file) } : { hash };
   } catch (error) {
-    return { problem: error && error.code === 'ENOENT' ? lines.missing(shown)
-      : lines.unreadable(shown) };
+    return { problem: error && error.code === 'ENOENT' ? lines.missing(file)
+      : lines.unreadable(file) };
   }
 }
 
 // hashes returns { found, problems }: found maps each listed file that read finds to its
 // SHA-256, and problems has the finding of each other file: a line, or a list of lines.
-// lines has missing and unreadable, which return the line of a file that the working folder
-// does not have, or that cannot be read.
+// lines has missing and unreadable, which return the finding of a listed file that the
+// working folder does not have, or that cannot be read.
 function hashes(root, files, lines) {
   const found = new Map();
   const problems = [];
@@ -213,18 +219,36 @@ function qory(io, args) {
 const outputLines = (ran) => `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n')
   .map((line) => line.trim()).filter(Boolean);
 
+// refusalFindings returns the findings of what a failed call of qory printed, stdout first.
+// qory prints an error on stderr as a line that starts with "✗ ", and each line after it
+// indented by two spaces. Without those two spaces, a line at column 0 starts a finding, and
+// an indented line is a cause of the finding before it, which io.print indents.
+function refusalFindings(ran) {
+  const findings = [];
+  let error = false;
+  for (const raw of `${ran.stdout || ''}\n${ran.stderr || ''}`.split('\n')) {
+    const line = error && raw.startsWith('  ') ? raw.slice(2) : raw;
+    if (!line.trim()) continue;
+    if (/^\s/.test(line) && findings.length) findings[findings.length - 1] += `\n${line.trim()}`;
+    else findings.push(line.trim());
+    if (raw.startsWith('✗ ')) error = true;
+  }
+  return findings;
+}
+
 // pull runs `<qory> artifact pull <type>`, with --version <number> when number is set, and
 // returns the folder that it prints last. A pull that fails exits 3.
 function pull(io, type, number) {
   const args = ['artifact', 'pull', type, ...(number === null ? [] : ['--version', `${number}`])];
   const ran = qory(io, args);
-  const why = ran.error ? 'it could not start' : `it exited with ${ran.status}`;
+  const why = ran.error ? 'could not start' : `exited with ${ran.status}`;
   if (ran.error || ran.status !== 0) {
-    throw new Missing(`Run \`qory ${args.join(' ')}\`, then verify again: ${why}.`);
+    throw new Missing(`Run \`qory ${args.join(' ')}\`, then verify again.\nThe pull ${why}.`);
   }
   const dir = (ran.stdout || '').trim().split('\n').at(-1).trim();
   if (!path.isAbsolute(dir)) {
-    throw new Missing(`Run \`qory ${args.join(' ')}\`, then verify again: it printed no folder.`);
+    throw new Missing(`Run \`qory ${args.join(' ')}\`, then verify again.\nThe pull printed no ` +
+      'folder.');
   }
   return dir;
 }
@@ -234,7 +258,7 @@ function pull(io, type, number) {
 function lockFile(io, def, draft) {
   const root = folderOf(io, draft);
   if (fs.lstatSync(draft).isSymbolicLink()) {
-    throw new Missing(`Name the file itself, not a link to it: ${draft} is a link.`);
+    throw new Missing(`Name the file itself, not a link to it.\n${draft} is a link.`);
   }
   const data = parseJson(readFile(draft, def.main), def.main);
   const files = filesOf(io, def, data, 'lock');
@@ -247,8 +271,10 @@ function lockFile(io, def, draft) {
     return 1;
   }
   const { found, problems } = hashes(workingFolder(io, def, 'lock'), files, {
-    missing: (shown) => `Write ${shown} before you lock it: the working folder has no such file.`,
-    unreadable: (shown) => `Make ${shown} readable, then lock again: it cannot be read.`,
+    missing: (file) => `Write ${briefPath(file)} before you lock it.\nThe working folder has ` +
+      `no file ${shownPath(file)}.`,
+    unreadable: (file) => `Make ${briefPath(file)} readable, then lock again.\n` +
+      `${shownPath(file)} cannot be read.`,
   });
   if (problems.length) {
     printFindings(io, problems, 'lock again',
@@ -265,7 +291,7 @@ function lockFile(io, def, draft) {
   const ran = qory(io, ['artifact', 'push', def.type, draft]);
   if (ran.error || ran.status !== 0) {
     const why = ran.error ? 'could not start' : `exited with ${ran.status}`;
-    io.print(outputLines(ran), `Locked nothing: qory artifact push ${def.type} ${why}.`);
+    io.print(refusalFindings(ran), `Locked nothing: qory artifact push ${def.type} ${why}.`);
     return 1;
   }
   const pushed = outputLines(ran).at(-1) || 'no output';
@@ -305,7 +331,7 @@ function counted(context, def, number) {
       'nothing.']);
   }
   if (chosen.number < newest.number) {
-    throw new Missing(`Ask a member to approve ${def.type} version ${newest.number}: version ` +
+    throw new Missing(`Ask a member to approve ${def.type} version ${newest.number}.\nVersion ` +
       `${number} is older.`);
   }
   return chosen;
@@ -350,7 +376,7 @@ function readLock(io, def, number, verb = 'verify') {
   let store = inRun ? pull(io, def.type, null) : artifactFolder(io);
   let context = new Context(store, 'check', io.home);
   if (!context.index) {
-    throw new Missing(`Run \`qory artifact pull\`, then ${verb} again: ${store} has no ` +
+    throw new Missing(`Run \`qory artifact pull\`, then ${verb} again.\n${store} has no ` +
       'index.json.');
   }
   let version = counted(context, def, number);
@@ -365,7 +391,7 @@ function readLock(io, def, number, verb = 'verify') {
   const file = path.join(store, def.type, 'main', `v${chosen}`, def.main);
   if (!fs.existsSync(file) || fs.lstatSync(file).isSymbolicLink()) {
     throw new Missing(`Run \`qory artifact pull ${def.type} --version ${chosen}\`, then ` +
-      `${verb} again: the store lacks version ${chosen}.`);
+      `${verb} again.\nThe store lacks version ${chosen}.`);
   }
   const bytes = fs.readFileSync(file);
   const listed = indexed(version, def.main);
@@ -410,12 +436,15 @@ function verifyLock(io, def, number) {
 function changedFiles(io, def, lock, again, verb = 'lock --verify') {
   const { what, files } = lock;
   const { found, problems } = hashes(workingFolder(io, def, verb), files, {
-    missing: (shown) => `Restore ${shown}: ${what} locks it, and it is missing.`,
-    unreadable: (shown) => `Make ${shown} readable, then ${again}: it cannot be read.`,
+    missing: (file) => `Restore ${briefPath(file)}.\n${what} locks ${shownPath(file)}, and it ` +
+      'is missing.',
+    unreadable: (file) => `Make ${briefPath(file)} readable, then ${again}.\n` +
+      `${shownPath(file)} cannot be read.`,
   });
   for (const [one, hash] of found) {
     if (hash !== one.entry.sha256) {
-      problems.push(`Restore ${shownPath(one)}: its bytes differ from ${what}.`);
+      problems.push(`Restore ${briefPath(one)}.\nThe bytes of ${shownPath(one)} differ from ` +
+        `${what}.`);
     }
   }
   return problems;
@@ -436,7 +465,7 @@ module.exports = {
         }
         const def = lockType(io);
         if (path.basename(what) !== def.main) {
-          return `Give lock the file ${def.main}: ${path.basename(what)} is another file.`;
+          return `Give lock the file ${def.main}.\n${path.basename(what)} is another file.`;
         }
         return null;
       },

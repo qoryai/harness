@@ -472,7 +472,7 @@ module.exports = (lib) => {
       for (const one of done.findings) run.find(one);
       // The push step proves the files that need a parser that this machine lacks.
       if (done.left) {
-        process.stderr.write(`Run the push step: it proves ${quote(track.kind)}, since the ` +
+        process.stderr.write(`Run the push step: it proves ${quote(track.kind)}.\n  The ` +
           `parsers in ${parsers.PARSERS} are not installed here.\n`);
       }
     } catch (error) {

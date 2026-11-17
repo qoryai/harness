@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const {
   LIMIT, LOCAL, Missing, NAME, RUN, STARTED, STARTS_PER_SUBJECT, artifactFolder, isObject,
-  jsonKind, parseJson, plural, quote, readFile, withLock,
+  given, jsonKind, parseJson, plural, quote, readFile, short, withLock,
 } = require('../lib/base.js');
 
 // starts counts one start of name in run, in counts[run][name] of starts.json, so that a
@@ -32,8 +32,9 @@ function count(file, run, name, limit, shown) {
   let counts = {};
   if (fs.existsSync(file)) {
     const data = parseJson(readFile(file, file), file, null);
-    const broken = (detail) => new Missing(`Write counts in ${file} as an object of runs, each ` +
-      `an object of names and whole numbers of 0 or more: ${detail}.`);
+    const broken = (detail) => new Missing('Write counts in starts.json as an object of runs, ' +
+      `each of names and whole numbers.\nEach whole number is 0 or more. ${file} breaks this ` +
+      `form: ${detail}.`);
     if (!isObject(data) || !isObject(data.counts)) throw broken('it has no object counts');
     for (const [key, names] of Object.entries(data.counts)) {
       if (!isObject(names)) throw broken(`the run ${quote(key)} is ${jsonKind(names)}`);
@@ -48,8 +49,9 @@ function count(file, run, name, limit, shown) {
   const mine = Object.hasOwn(counts, run) ? counts[run] : {};
   const done = Object.hasOwn(mine, name) ? mine[name] : 0;
   if (done >= limit) {
-    return { status: 1, line: `Start no more ${shown}: it has had ${plural(done, 'start')}, and ` +
-      `the limit is ${limit}.` };
+    return { status: 1, line: `Start no more ${short(shown)}: it has had ` +
+      `${plural(done, 'start')}, and the limit is ${limit}.` +
+      (short(shown) === shown ? '' : `\nThe limit counts the starts of ${shown}.`) };
   }
   mine[name] = done + 1;
   counts[run] = mine;
@@ -80,7 +82,7 @@ function begin(deps) {
     fs.writeFileSync(temporary, `${JSON.stringify({ key }, null, 2)}\n`);
     fs.renameSync(temporary, file);
   } catch {
-    throw new Missing(`Make the artifact folder writable: ${file} cannot be written.`);
+    throw new Missing(`Make the artifact folder writable.\n${file} cannot be written.`);
   }
   return key;
 }
@@ -95,7 +97,7 @@ function localKey(root) {
     // The finding below.
   }
   if (!isObject(data) || typeof data.key !== 'string' || !RUN.test(data.key)) {
-    throw new Missing('Run checks.js begin once when the session has no run id: ' +
+    throw new Missing('Run checks.js begin once when the session has no run id.\n' +
       `${file} has no key.`);
   }
   return data.key;
@@ -107,23 +109,26 @@ module.exports = {
       usage: ['starts <run> <name> <limit>', 'starts <run> <reviewer> --subject <subject>'],
       args(io, what, rest) {
         if (!RUN.test(what || '')) {
-          return `Give a run of at most 64 letters, digits, hyphens and underscores: ${what}`;
+          return 'Give a run of at most 64 letters, digits, hyphens and underscores.\nThe ' +
+            `argument is ${given(what)}.`;
         }
         const arity = 'Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer ' +
           'and --subject <subject>.';
         if (rest[1] === '--subject') {
           if (!STARTED.test(rest[0])) {
-            return `Give a reviewer as <agent> or <prefix>:<agent>: ${rest[0]}`;
+            return 'Give a reviewer as <agent> or <prefix>:<agent>.\nThe argument is ' +
+              `${given(rest[0])}.`;
           }
           if (rest.length !== 3) return arity;
           if (!NAME.test(rest[2])) {
             return 'Give a subject of lower-case letters, digits and hyphens, such as ' +
-              `change: ${rest[2]}`;
+              `change.\nThe argument is ${given(rest[2])}.`;
           }
           return null;
         }
         if (!NAME.test(rest[0] || '')) {
-          return `Give a name of lower-case letters, digits and hyphens: ${rest[0]}`;
+          return 'Give a name of lower-case letters, digits and hyphens.\nThe argument is ' +
+            `${given(rest[0])}.`;
         }
         if (rest.length !== 2 || !LIMIT.test(rest[1])) return arity;
         return null;
@@ -138,7 +143,9 @@ module.exports = {
           ? starts(io, root, run, `${rest[2]}/${STARTED.exec(rest[0])[1]}`, STARTS_PER_SUBJECT,
             `${STARTED.exec(rest[0])[1]} on ${rest[2]}`)
           : starts(io, root, run, rest[0], Number(rest[1]));
-        io.print([], result.line);
+        // The refusal prints as a finding, so that its whole name prints indented below it.
+        if (result.status) io.print([result.line], null);
+        else io.print([], result.line);
         return result.status;
       },
     },

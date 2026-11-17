@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, Missing, NAME, folderOf, inside, plural, readFile,
+  MAX_BYTES, Missing, NAME, folderOf, given, inside, plural, readFile,
 } = require('../lib/base.js');
 const { agentNames } = require('../lib/plugin.js');
 const { REPORT_FIXES, expected, record, reportCheck } = require('../lib/reports.js');
@@ -17,18 +17,19 @@ function report(io, agent, file) {
   try {
     real = fs.realpathSync(file);
   } catch {
-    throw new Missing(`Write the report first: ${file} does not exist.`);
+    throw new Missing(`Write the report first.\n${file} does not exist.`);
   }
   const root = folderOf(io, real);
   if (!inside(real, path.join(root, '.reports'))) {
-    throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${file} is ` +
-      `not there.`);
+    throw new Missing('Write the report under .reports of the artifact folder.\n' +
+      `${file} is not under ${path.join(root, '.reports')}.`);
   }
   const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
   const findings = size > MAX_BYTES
-    ? [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
+    ? [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ${size} ` +
+      'bytes.']
     : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops,
       io.registry());
   let checked = 'last word, lists and Blocked: line';
@@ -62,7 +63,8 @@ module.exports = {
       usage: ['report <agent> <file>'],
       args(io, what, rest) {
         if (!NAME.test(what || '')) {
-          return `Give an agent name of lower-case letters, digits and hyphens: ${what}`;
+          return 'Give an agent name of lower-case letters, digits and hyphens.\nThe argument ' +
+            `is ${given(what)}.`;
         }
         return rest.length === 1 ? null : 'Give report one agent and one file.';
       },

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  DISK_FACTOR, Missing, NAME, PLACES, STARTED, isObject, parseJson, plural, quote,
+  DISK_FACTOR, Missing, NAME, PLACES, STARTED, given, isObject, parseJson, plural, quote,
 } = require('../lib/base.js');
 const { compileGlobs, matchesAny } = require('../lib/globs.js');
 
@@ -242,19 +242,20 @@ function panel(io, options) {
   const fit = need === 0 ? Infinity : Math.floor(free / need);
   const places = Math.min(PLACES, remaining.length, fit);
   const files = (member) => `${member.name}, ${plural(member.files.length, 'file')} of the change`;
+  const wait = (member) => `Wait: ${files(member)}.\nThe member has no free place.`;
   const room = `the disk has ${size(free)} free, and each member needs ${size(need)}`;
   const last = `Checked the group ${group}: ${count}, ${plural(places, 'place')}; ${room}.`;
   if (places === 0) {
-    lines.unshift('Start no member, and end the run as "Failures" lists: the disk has no room.',
-      `The disk has ${size(free)} free, and each member needs ${size(need)}, twice the size ` +
-        'of the copy of the working folder for a reviewer.');
-    for (const member of remaining) lines.push(`Wait: ${files(member)}: no free place.`);
+    lines.unshift('Start no member, and end the run as "Failures" lists: the disk has no ' +
+      `room.\nThe disk has ${size(free)} free, and each member needs ${size(need)}, twice the ` +
+      'size of the copy of the working folder for a reviewer.');
+    for (const member of remaining) lines.push(wait(member));
     io.print(lines, last);
     return 1;
   }
   for (const member of remaining.slice(0, places)) lines.push(`Start: ${files(member)}.`);
   const waiting = remaining.slice(places);
-  for (const member of waiting) lines.push(`Wait: ${files(member)}: no free place.`);
+  for (const member of waiting) lines.push(wait(member));
   if (waiting.length > 0) {
     const started = places === 1 ? 'the member above has' : `the ${places} members above have`;
     lines.push(`Run panel again with --after ${after + places} when ${started} returned: ` +
@@ -277,14 +278,16 @@ module.exports = {
         }
         const wrong = options.names.find((name) => !STARTED.test(name));
         if (wrong !== undefined) {
-          return `Give each name of --names as <agent> or <prefix>:<agent>: ${quote(wrong)} is ` +
-            'neither.';
+          return 'Give each name of --names as <agent> or <prefix>:<agent>.\n' +
+            `${quote(wrong)} is neither.`;
         }
         if (!NAME.test(options.group)) {
-          return `Give --group a name of lower-case letters, digits and hyphens: ${options.group}`;
+          return 'Give --group a name of lower-case letters, digits and hyphens.\nThe argument ' +
+            `is ${given(options.group)}.`;
         }
         if (!AFTER.test(options.after)) {
-          return `Give --after a whole number of 0 to 99: ${options.after}`;
+          return 'Give --after a whole number of 0 to 99.\nThe argument is ' +
+            `${given(options.after)}.`;
         }
         return null;
       },

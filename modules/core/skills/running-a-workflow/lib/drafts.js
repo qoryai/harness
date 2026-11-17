@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { MAX_BYTES, Missing, Run, cut, inside, plural, readFile } = require('./base.js');
+const { MAX_BYTES, Missing, Run, cut, inside, plural, readFile, short } = require('./base.js');
 const { Context } = require('./context.js');
 
 // allowed reports whether a file of that base name belongs to a version of def, a type of
@@ -35,25 +35,26 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
     try {
       // A link could point a push at any file of the machine, so a link is refused.
       if (fs.lstatSync(file).isSymbolicLink()) {
-        throw new Missing(`Name the file itself, not a link to it: ${file} is a link.`);
+        throw new Missing(`Name the file itself, not a link to it.\n${file} is a link.`);
       }
       real = fs.realpathSync(file);
     } catch (error) {
       if (error instanceof Missing) throw error;
-      throw new Missing(`Name a file that exists: ${file} does not.`);
+      throw new Missing(`Name a file that exists.\n${file} does not exist.`);
     }
     if (mode === 'check' && !inside(real, root)) {
-      throw new Missing(`Name a file under the artifact folder ${root}: ${file} is not.`);
+      throw new Missing(`Name a file under the artifact folder.\n${file} is not under ${root}.`);
     }
-    if (!fs.statSync(real).isFile()) throw new Missing(`Name a file: ${file} is not one.`);
+    if (!fs.statSync(real).isFile()) throw new Missing(`Name a file.\n${file} is not a file.`);
     const name = path.basename(real);
     if (files.has(name)) {
-      run.find(`Name each file once: two files are named ${name}.`);
+      run.find(`Name each file once.\nTwo files are named ${name}.`);
       continue;
     }
     if (!allowed(def, name)) {
-      // A name of up to 255 bytes is cut, so that the line stays at most 196 characters.
-      run.find(`Remove ${cut(name, 100)} from the files: a ${type} version has no such file.`);
+      // A name of up to 255 bytes is cut, so that each line stays at most 196 characters.
+      run.find(`Remove ${short(name)} from the files.\nA ${type} version has no file ` +
+        `${cut(name, 100)}.`);
       continue;
     }
     if (def.binary && def.binary(name)) {
@@ -63,7 +64,8 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
     const size = fs.statSync(real).size;
     const most = def.maxBytes || MAX_BYTES;
     if (size > most) {
-      run.find(`Cut ${name} to at most ${most / 1024} KB: it has ${size} bytes.`);
+      run.find(`Cut ${short(name)} to at most ${most / 1024} KB.\n${cut(name, 100)} has ${size} ` +
+        'bytes.');
       large.add(name);
       continue;
     }

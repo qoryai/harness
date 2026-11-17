@@ -19,6 +19,7 @@ const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.js');
 const PUSH = path.join(MODULES,
   'software-factory/skills/running-a-software-workflow/workflow-checks.js');
 const { main } = require(SCRIPT);
+const { watch, CHILD } = require('./first-line.js');
 
 const FULL = 'Start no new step: the ledger has 100 rows, its limit. End the session with escalate.';
 const LIMIT = 'The build is at its limit of 100 build steps, so another round stops at once, and';
@@ -157,12 +158,15 @@ function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
   const call = (...argv) => {
     let out = '';
     let err = '';
+    const first = watch();
     const status = main(argv, {
       cwd, artifacts: [artifacts], env, plugin, qory: w.qory,
       ...(lockWait === undefined ? {} : { lockWait }),
       out: { write: (text) => { out += text; } },
       err: { write: (text) => { err += text; } },
+      firstLine: first.firstLine,
     });
+    first.check(status, err);
     return { status, out, err, lines: out.split('\n').filter(Boolean) };
   };
   call.artifacts = artifacts;
@@ -294,8 +298,9 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   const before = pushes(w);
   const refused = begin(call, w, 'deliverable:d-2');
   assert.equal(refused.status, 1, refused.out);
-  assert.match(refused.lines[0], new RegExp(`^Return the checkout to ${c1.slice(0, 12)}, where ` +
-    'deliverable:d-1 ended: the head [0-9a-f]{12} has a change that no step of this session made\\.$'));
+  assert.equal(refused.lines[0], `Return the checkout to ${c1.slice(0, 12)}, where ` +
+    'deliverable:d-1 ended.');
+  assert.match(refused.lines[1], /^ {2}The head [0-9a-f]{12} has a change that no step of this session made\.$/);
   assert.equal(refused.lines.at(-1), 'Started no row of deliverable:d-2: the ledger is unchanged.');
   assert.equal(pushes(w), before, 'step begin pushes nothing');
   // A file changed and not committed fails step end done.
@@ -304,7 +309,8 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   fs.writeFileSync(path.join(w.repo, 'README.md'), 'An edit that no step committed.\n');
   const dirty = call('step', 'end', 'deliverable:d-2', 'done');
   assert.equal(dirty.status, 1, dirty.out);
-  assert.match(dirty.lines[0], /^Commit each change in the step, or undo it: 1 file of the checkout differs from [0-9a-f]{12}, such as "README\.md"\.$/);
+  assert.equal(dirty.lines[0], 'Commit each change in the step, or undo it.');
+  assert.match(dirty.lines[1], /^ {2}1 file of the checkout differs from [0-9a-f]{12}, such as "README\.md"\.$/);
   assert.equal(dirty.lines.at(-1), 'Checked the step deliverable:d-2: the ledger is unchanged.');
   assert.equal(stored(w).ledger.steps[1].state, 'running');
   // step end failed records the failure with the edit, and no commit.
@@ -320,8 +326,8 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   const before2 = pushes(w);
   const left = begin(call, w, 'deliverable:d-2');
   assert.equal(left.status, 1, left.out);
-  assert.equal(left.lines[0], "Run git stash push --include-untracked -- ':/' ':!/.qory', then " +
-    'step begin again: the failed step deliverable:d-2 left 2 files changed.');
+  assert.deepEqual(left.lines.slice(0, 2), ["Run git stash push --include-untracked -- ':/' " +
+    "':!/.qory', then step begin again.", '  The failed step deliverable:d-2 left 2 files changed.']);
   assert.equal(pushes(w), before2, 'step begin pushes nothing');
   git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
   assert.equal(fs.existsSync(path.join(w.repo, '.qory', 'note.json')), true);
@@ -340,9 +346,9 @@ test('ledger: a change made before step begin and outside a step is refused', ()
   fs.writeFileSync(path.join(w.repo, 'README.md'), 'An edit before the first step.\n');
   const refused = begin(call, w, 'deliverable:d-1');
   assert.equal(refused.status, 1, refused.out);
-  assert.deepEqual(refused.lines, ['End the session, and keep the checkout as it is: 1 file ' +
-    'changed outside a step, such as "README.md".',
-  'Started no row of deliverable:d-1: the ledger is unchanged.']);
+  assert.deepEqual(refused.lines, ['End the session, and keep the checkout as it is.',
+    '  1 file changed outside a step, such as "README.md".',
+    'Started no row of deliverable:d-1: the ledger is unchanged.']);
   assert.equal(pushes(w), 0, 'step begin pushes nothing');
   assert.equal(fs.readFileSync(path.join(w.repo, 'README.md'), 'utf8'),
     'An edit before the first step.\n');
@@ -353,8 +359,8 @@ test('ledger: a change made before step begin and outside a step is refused', ()
   fs.writeFileSync(path.join(w.repo, 'other.txt'), 'A second one.\n');
   const between = begin(call, w, 'deliverable:d-2');
   assert.equal(between.status, 1, between.out);
-  assert.equal(between.lines[0], 'End the session, and keep the checkout as it is: 2 files ' +
-    'changed outside a step, such as "new.txt".');
+  assert.deepEqual(between.lines.slice(0, 2), ['End the session, and keep the checkout as it is.',
+    '  2 files changed outside a step, such as "new.txt".']);
 });
 
 test('ledger: a commit between resume and the first row is refused', () => {
@@ -365,8 +371,8 @@ test('ledger: a commit between resume and the first row is refused', () => {
   const refused = begin(call, w, 'deliverable:d-1');
   assert.equal(refused.status, 1, refused.out);
   assert.deepEqual(refused.lines, [`Return the checkout to ${start.slice(0, 12)}, where the ` +
-    `session started: the head ${moved.slice(0, 12)} has a change that no step of this session ` +
-    'made.', 'Started no row of deliverable:d-1: the ledger is unchanged.']);
+    `session started.`, `  The head ${moved.slice(0, 12)} has a change that no step of this ` +
+    'session made.', 'Started no row of deliverable:d-1: the ledger is unchanged.']);
   assert.equal(pushes(w), 0, 'step begin pushes nothing');
   git(w, 'reset', '-q', '--keep', start);
   assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
@@ -382,8 +388,8 @@ test('ledger: a crash restart takes the next pass', () => {
   const next = session(w);
   const again = next('resume');
   assert.equal(again.status, 0, again.out);
-  assert.deepEqual(again.lines.slice(0, -1), ['Run deliverable:d-2 again: its pass 1 stopped ' +
-    'while it ran, so step begin starts pass 2.']);
+  assert.deepEqual(again.lines.slice(0, -1), ['Run deliverable:d-2 again.', '  Its pass 1 of ' +
+    'deliverable:d-2 stopped while it ran, so step begin starts pass 2.']);
   let { ledger } = stored(w);
   assert.equal(ledger.steps[1].state, 'failed');
   assert.equal(ledger.steps[1].commit, undefined);
@@ -415,7 +421,7 @@ test('ledger: after a crash, the next session stashes the crashed step\'s change
   const left = begin(next, w, 'deliverable:d-2');
   assert.equal(left.status, 1, left.out);
   assert.deepEqual(left.lines, ["Run git stash push --include-untracked -- ':/' ':!/.qory', " +
-    'then step begin again: the failed step deliverable:d-2 left 2 files changed.',
+    'then step begin again.', '  The failed step deliverable:d-2 left 2 files changed.',
   'Started no row of deliverable:d-2: the ledger is unchanged.']);
   git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
   const again = begin(next, w, 'deliverable:d-2');
@@ -428,8 +434,8 @@ test('ledger: after a crash, the next session stashes the crashed step\'s change
   assert.equal(begin(crashed, v, 'plan').status, 0);
   fs.writeFileSync(path.join(v.repo, 'README.md'), 'A change of the crashed step.\n');
   const other = resumed(v);
-  assert.equal(begin(other, v, 'plan').lines[0], 'End the session, and keep the checkout as ' +
-    'it is: 1 file changed outside a step, such as "README.md".');
+  assert.deepEqual(begin(other, v, 'plan').lines.slice(0, 2), ['End the session, and keep the ' +
+    'checkout as it is.', '  1 file changed outside a step, such as "README.md".']);
 });
 
 test('ledger: after a crash with a commit, the next session returns to the crashed base', () => {
@@ -449,16 +455,16 @@ test('ledger: after a crash with a commit, the next session returns to the crash
     'utf8'));
   assert.equal(mark.origin, left);
   assert.deepEqual(mark.crashed, ['deliverable:d-2\n1']);
-  assert.equal(begin(next, w, 'deliverable:d-2').lines[0], "Run git stash push " +
-    "--include-untracked -- ':/' ':!/.qory', then step begin again: the failed step " +
-    'deliverable:d-2 left 1 file changed.');
+  assert.deepEqual(begin(next, w, 'deliverable:d-2').lines.slice(0, 2), ['Run git stash push ' +
+    "--include-untracked -- ':/' ':!/.qory', then step begin again.", '  The failed step ' +
+    'deliverable:d-2 left 1 file changed.']);
   git(w, 'stash', 'push', '--include-untracked', '--', ':/', ':!/.qory');
   // A second resume in the session, as after a failed push, keeps the crash.
   assert.equal(next('resume').status, 0);
   const reset = begin(next, w, 'deliverable:d-2');
   assert.equal(reset.status, 1, reset.out);
-  assert.equal(reset.lines[0], `Run git reset --keep ${c1.slice(0, 12)}, then step begin ` +
-    `again: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
+  assert.deepEqual(reset.lines.slice(0, 2), [`Run git reset --keep ${c1.slice(0, 12)}, then ` +
+    'step begin again.', `  The failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`]);
   git(w, 'reset', '-q', '--keep', c1.slice(0, 12));
   const run = begin(next, w, 'deliverable:d-2');
   assert.equal(run.lines.at(-1), 'Run deliverable:d-2 as pass 2: start its agent, then run ' +
@@ -528,8 +534,8 @@ test('ledger: after a failed row, the next row starts on the commit before it', 
   // The failed step's commit is no commit of a step: step begin refuses it.
   const refused = begin(call, w, 'deliverable:d-2');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Run git reset --keep ${c1.slice(0, 12)}, then step begin ` +
-    `again: the failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`);
+  assert.deepEqual(refused.lines.slice(0, 2), [`Run git reset --keep ${c1.slice(0, 12)}, then ` +
+    'step begin again.', `  The failed step deliverable:d-2 left the commit ${left.slice(0, 12)}.`]);
   git(w, 'reset', '-q', '--keep', c1.slice(0, 12));
   assert.equal(begin(call, w, 'deliverable:d-2').lines.at(-1),
     'Run deliverable:d-2 as pass 2: start its agent, then run step end.');
@@ -545,8 +551,8 @@ test('ledger: after a failed first row of a session, the next row starts on the 
   assert.equal(call('step', 'end', 'plan', 'failed').status, 0);
   const refused = begin(call, w, 'plan');
   assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], `Run git reset --keep ${head.slice(0, 12)}, then step begin ` +
-    `again: the failed step plan left the commit ${left.slice(0, 12)}.`);
+  assert.deepEqual(refused.lines.slice(0, 2), [`Run git reset --keep ${head.slice(0, 12)}, then ` +
+    'step begin again.', `  The failed step plan left the commit ${left.slice(0, 12)}.`]);
   git(w, 'reset', '-q', '--keep', head.slice(0, 12));
   assert.equal(begin(call, w, 'plan').status, 0);
   assert.equal(stored(w).ledger.steps[1].base, head);
@@ -570,8 +576,8 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   const next = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '2' });
   for (const result of [begin(next, w, 'checks'), next('step', 'end', 'plan', 'done')]) {
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], 'Run checks.js resume first, once at the start of the ' +
-      'session: .reports/ledger.json is from an earlier session.');
+    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.js resume first, once at the start ' +
+      'of the session.', '  .reports/ledger.json is from an earlier session.']);
   }
   assert.equal(next('resume').status, 0);
   assert.equal(begin(next, w, 'checks').status, 0);
@@ -581,8 +587,8 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   // A number that is no number of a session exits 3.
   const wrong = session(w, { number: '0' })('resume');
   assert.equal(wrong.status, 3, wrong.out);
-  assert.equal(wrong.lines[0], 'Run step and resume in a session of qory: QORY_SESSION is not ' +
-    'a whole number from 1 to 999999: "0".');
+  assert.deepEqual(wrong.lines.slice(0, 2), ['Run step and resume in a session of qory.',
+    '  QORY_SESSION is not a whole number from 1 to 999999: "0".']);
   assert.equal(session(w, { number: '1000000' })('resume').status, 3);
   // An empty QORY_SESSION counts as 1, as an unset one does.
   const empty = session(w, { artifacts: earlier.artifacts, run: earlier.run, number: '' });
@@ -595,13 +601,16 @@ test('ledger: a mark of an earlier session is refused until resume runs', () => 
   const { QORY_RUN_ID, ...env } = { ...w.env, ARTIFACTS: artifacts };
   assert.equal(QORY_RUN_ID, undefined);
   let out = '';
+  const first = watch();
   const status = main(['resume'], {
     cwd: w.repo, artifacts: [artifacts], env, plugin: path.join(MODULES, 'core'), qory: w.qory,
     out: { write: (text) => { out += text; } }, err: { write: () => {} },
+    firstLine: first.firstLine,
   });
+  first.check(status);
   assert.equal(status, 3, out);
-  assert.equal(out.split('\n')[0], 'Run step and resume in a run of qory: QORY_RUN_ID is not ' +
-    'set, so the ledger cannot tell one session from the next.');
+  assert.deepEqual(out.split('\n').slice(0, 2), ['Run step and resume in a run of qory.',
+    '  QORY_RUN_ID is not set, so the ledger cannot tell one session from the next.']);
 });
 
 test('ledger: a commit between two sessions starts the next session on the head', () => {
@@ -649,7 +658,7 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
   fs.writeFileSync(path.join(sub, 'new.txt'), 'An untracked file.\n');
   const untracked = inSub('step', 'end', 'checks', 'done');
   assert.equal(untracked.status, 1, untracked.out);
-  assert.match(untracked.lines[0], /such as "src\/new\.txt"\.$/);
+  assert.match(untracked.lines[1], /such as "src\/new\.txt"\.$/);
   fs.rmSync(path.join(sub, 'new.txt'));
   // A head that does not follow the base.
   const start = headOf(w);
@@ -659,8 +668,10 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
   git(w, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Another root');
   const away = inSub('step', 'end', 'checks', 'done');
   assert.equal(away.status, 1, away.out);
-  assert.match(away.lines[0], new RegExp(`^Check out a commit that follows ${start.slice(0, 12)}, ` +
-    'where checks started: the head [0-9a-f]{12} does not follow it\\.$'));
+  assert.equal(away.lines[0], `Check out a commit that follows ${start.slice(0, 12)}, the base ` +
+    'of the step.');
+  assert.match(away.lines[1], new RegExp(`^ {2}checks started on ${start.slice(0, 12)}, and the ` +
+    'head [0-9a-f]{12} does not follow it\\.$'));
 });
 
 // ---- Replays, rows and reports --------------------------------------------------------------
@@ -695,12 +706,34 @@ test('ledger: no step begins while a row runs, and step end needs a running row'
   assert.equal(begin(call, w, 'plan').status, 0);
   const second = begin(call, w, 'checks');
   assert.equal(second.status, 1);
-  assert.deepEqual(second.lines, ['End the step plan with step end, or run checks.js resume ' +
-    'after a crash: row 1 of the ledger is running.']);
+  // No finding: the one line has the fix.
+  assert.deepEqual(second.lines, ['End the step plan, row 1, with step end, or run checks.js ' +
+    'resume after a crash.']);
   const none = call('step', 'end', 'checks', 'done');
   assert.equal(none.status, 1);
   assert.deepEqual(none.lines, ['Start checks with step begin first: the ledger has no running ' +
     'row of it.']);
+});
+
+test('ledger: the line of a running row and of no running row keeps 100 characters', () => {
+  const w = work();
+  const call = resumed(w);
+  // The longest id that the build ledger takes: fix: and 40 characters.
+  const long = `fix:${'a'.repeat(40)}`;
+  assert.equal(begin(call, w, long).status, 0);
+  const second = begin(call, w, 'checks');
+  assert.equal(second.status, 1);
+  assert.equal(second.lines.length, 1, second.out);
+  assert.equal(second.lines[0], `End the step fix:aaaaaa...aaaaaaaaa, row 1, with step end, ` +
+    'or run checks.js resume after a crash.');
+  // Room for a row of 3 digits.
+  assert.ok([...second.lines[0]].length + 2 <= 100, second.lines[0]);
+  const other = `fix:${'b'.repeat(40)}`;
+  const none = call('step', 'end', other, 'done');
+  assert.equal(none.status, 1);
+  assert.equal(none.lines.length, 1, none.out);
+  assert.ok([...none.lines[0]].length <= 100, none.lines[0]);
+  assert.match(none.lines[0], /^Start fix:b+\.\.\.b+ with step begin first: the ledger has no /);
 });
 
 test('ledger: step begin and step end need resume first', () => {
@@ -708,8 +741,8 @@ test('ledger: step begin and step end need resume first', () => {
   const call = session(w);
   for (const result of [begin(call, w, 'plan'), call('step', 'end', 'plan', 'done')]) {
     assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0], 'Run checks.js resume first, once at the start of the session: ' +
-      'the artifact folder has no .reports/ledger.json that resume writes.');
+    assert.deepEqual(result.lines.slice(0, 2), ['Run checks.js resume first, once at the start ' +
+      'of the session.', '  The artifact folder has no .reports/ledger.json that resume writes.']);
   }
 });
 
@@ -724,7 +757,8 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const cut = call('step', 'end', 'script:scenario-1', 'done', '--script-sha256', H, '--report', long);
   assert.equal(cut.status, 1, cut.out);
   assert.equal(cut.lines[0], 'Cut the report "browser-demo-author-1.md" to 8192 bytes as written ' +
-    'in the ledger: it has 8196 in 4098 characters.');
+    'in the ledger.');
+  assert.equal(cut.lines[1], '  "browser-demo-author-1.md" has 8196 bytes in 4098 characters.');
   const ended = call('step', 'end', 'script:scenario-1', 'done', '--script-sha256', H,
     '--pushed', 'demo-script/scenario-1/2');
   assert.equal(ended.status, 0, ended.out);
@@ -736,8 +770,9 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const failed = call('step', 'end', 'plan', 'failed', '--report', long);
   assert.equal(failed.status, 0, failed.out);
   assert.deepEqual(failed.lines, [
-    'Keep the next report to 8192 bytes as written in the ledger: the report ' +
-      '"browser-demo-author-1.md" has 8196 in 4098 characters, so the row has none.',
+    'Keep the next report to 8192 bytes as written in the ledger.',
+    '  The report "browser-demo-author-1.md" has 8196 bytes in 4098 characters, so the row has ' +
+      'none.',
     'Recorded plan, pass 1, as failed, with no report, and pushed the ledger.',
   ]);
   const plan = stored(w).ledger.steps[1];
@@ -747,7 +782,8 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const gone = call('step', 'end', 'plan', 'failed', '--report',
     path.join(call.artifacts, '.reports', 'none.md'));
   assert.equal(gone.status, 0, gone.out);
-  assert.match(gone.lines[0], /^Write the report first: ".*" does not exist\.$/);
+  assert.equal(gone.lines[0], 'Write the report first.');
+  assert.match(gone.lines[1], /^ {2}".*" does not exist\.$/);
   assert.equal(stored(w).ledger.steps[2].state, 'failed');
 });
 
@@ -760,14 +796,16 @@ test('ledger: --report takes only a file under .reports, and no link', () => {
   const link = path.join(call.artifacts, '.reports', 'link.md');
   fs.symlinkSync(report(call, 'planner-1', 'done\n'), link);
   const cases = [
-    [outside, /^Write the report under \.reports of the artifact folder: ".*" is not there\./],
-    [link, /^Name the report file, not a link to it: ".*" is a link\./],
-    [path.join(call.artifacts, '.reports', 'none.md'), /^Write the report first: ".*" does not exist\./],
+    [outside, 'Write the report under .reports of the artifact folder.', /^ {2}".*" is not there\./],
+    [link, 'Name the report file, not a link to it.', /^ {2}".*" is a link\./],
+    [path.join(call.artifacts, '.reports', 'none.md'), 'Write the report first.',
+      /^ {2}".*" does not exist\./],
   ];
-  for (const [file, pattern] of cases) {
+  for (const [file, first, second] of cases) {
     const result = call('step', 'end', 'plan', 'done', '--report', file);
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], pattern);
+    assert.equal(result.lines[0], first);
+    assert.match(result.lines[1], second);
   }
 });
 
@@ -777,20 +815,20 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
   const attempt = ['--attempt', 'a,b,fast,m'];
   const pushed = ['--pushed', 'spec/main/1'];
   const cases = [
-    [['step'], /^Give step begin or step end: nothing is neither\./],
-    [['step', 'begin'], /^Give the id of a step, such as plan, deliverable:d-1 or fix:f1: nothing is none\./],
-    [['step', 'begin', 'deliverable:d-0', 'implement-changes', 'x'], /^Give the id of a step.*: "deliverable:d-0" is none\./],
-    [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case: nothing is none\./],
+    [['step'], /^Give step begin or step end\.\n  nothing is neither\./],
+    [['step', 'begin'], /^Give the id of a step, such as plan, deliverable:d-1 or fix:f1\.\n  nothing is none\./],
+    [['step', 'begin', 'deliverable:d-0', 'implement-changes', 'x'], /^Give the id of a step.*\.\n  "deliverable:d-0" is none\./],
+    [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case\.\n  nothing is none\./],
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],
-    [['step', 'end', 'plan'], /^Give step end the state done or failed: nothing is neither\./],
+    [['step', 'end', 'plan'], /^Give step end the state done or failed\.\n  nothing is neither\./],
     [['step', 'end', 'plan', 'done', '--attempt', 'a,b,slow,m'], /^Give --attempt as/],
     [['step', 'end', 'plan', 'done', ...attempt, ...attempt, ...attempt, ...attempt], /^Give --attempt at most 3 times/],
     [['step', 'end', 'plan', 'done', '--pushed', 'spec/main/0'], /^Give --pushed as/],
     [['step', 'end', 'plan', 'done', ...pushed, ...pushed, ...pushed, ...pushed, ...pushed], /^Give --pushed at most 4 times/],
     [['step', 'end', 'plan', 'done', '--report'], /^Give --report a value\./],
     [['step', 'end', 'plan', 'done', '--report', 'a', '--report', 'b'], /^Give --report once\./],
-    [['step', 'end', 'plan', 'done', '--script-sha256', 'ABC'], /^Give --script-sha256 64 lower-case hex digits: "ABC" is not\./],
-    [['step', 'end', 'plan', 'done', '--ot\u0007her', 'x'], /^Give step end only --report, --attempt, --pushed, --script-sha256: "--ot her" is none\./],
+    [['step', 'end', 'plan', 'done', '--script-sha256', 'ABC'], /^Give --script-sha256 64 lower-case hex digits\.\n  "ABC" is not\./],
+    [['step', 'end', 'plan', 'done', '--ot\u0007her', 'x'], /^Give step end only the flags that its usage lists\.\n  The flags are --report, --attempt, --pushed, --script-sha256, and "--ot her" is none of them\./],
     [['resume', 'now'], /^Give resume no argument\./],
     [['step', 'begin', 'plan', 'implement-changes', 'x', '--inputs'],
       /^Give --inputs once, with the path of inputs\.json from the prompt\./],
@@ -820,8 +858,9 @@ test('ledger: a failed push changes no draft, and its line asks for resume', () 
   fs.writeFileSync(path.join(w.bin, 'fail-push'), '');
   const failed = begin(call, w, 'deliverable:d-2');
   assert.equal(failed.status, 3, failed.out);
-  assert.match(failed.lines[0], /^Run checks\.js resume, then step begin again: qory artifact push build-ledger exited with 1: The push failed: 503 unavailable\.$/);
-  assert.ok([...failed.lines[0]].length <= 196, failed.lines[0]);
+  assert.equal(failed.lines[0], 'Run checks.js resume, then step begin again.');
+  assert.equal(failed.lines[1],
+    '  qory artifact push build-ledger exited with 1: The push failed: 503 unavailable.');
   assert.equal(fs.readFileSync(path.join(call.artifacts, 'build-ledger.json'), 'utf8'), draft);
 });
 
@@ -834,10 +873,10 @@ test('ledger: a push that stored the version and failed leaves the draft behind;
   // The store has the running row, the draft does not: the next push fails the kept rule.
   const next = begin(call, w, 'checks');
   assert.equal(next.status, 3, next.out);
-  assert.match(next.lines[0], /^Run checks\.js resume, then step begin again: /);
+  assert.equal(next.lines[0], 'Run checks.js resume, then step begin again.');
   const again = call('resume');
-  assert.deepEqual(again.lines.slice(0, -1), ['Run plan again: its pass 1 stopped while it ran, ' +
-    'so step begin starts pass 2.']);
+  assert.deepEqual(again.lines.slice(0, -1), ['Run plan again.', '  Its pass 1 of plan stopped ' +
+    'while it ran, so step begin starts pass 2.']);
   assert.equal(begin(call, w, 'checks').status, 0);
 });
 
@@ -854,7 +893,7 @@ test('ledger: the 20-escalation limit, and a failed escalation push', () => {
   fs.writeFileSync(path.join(other.bin, 'fail-push'), '');
   const failed = begin(second, other, 'plan');
   assert.equal(failed.status, 1, failed.out);
-  assert.match(failed.lines[0], /^Run checks\.js resume, then step begin again: /);
+  assert.equal(failed.lines[0], 'Run checks.js resume, then step begin again.');
   assert.equal(failed.lines.at(-1), FULL);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(second.artifacts, 'points.json'), 'utf8')),
     [NONE]);
@@ -872,9 +911,10 @@ test('ledger: at 20 points, the point of the full ledger replaces the last, with
   const refused = begin(call, w, 'plan');
   assert.equal(refused.status, 1, refused.out);
   assert.deepEqual(refused.lines, [
-    'Raise this point again in the next session: points.json had 20 points, its limit, so ' +
-      'step begin removed it for the point of the full ledger: "The review of part 20 found an ' +
-      'open question.".',
+    'Raise a point that step begin removed again in the next session.',
+    '  points.json had 20 points, its limit, so step begin removed the point for the point of ' +
+      'the full ledger.',
+    '  The point is "The review of part 20 found an open question.".',
     FULL,
   ]);
   for (const line of refused.lines) assert.ok([...line].length <= 196, line);
@@ -1049,7 +1089,7 @@ test('ledger: step begin with an inputs.json without a start member exits 3', ()
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Give --inputs the inputs.json that qory wrote for the run.',
-      `inputs.json has no member qory.${member}, which qory writes, so the start of the run is ` +
+      `  inputs.json has no member qory.${member}, which qory writes, so the start of the run is ` +
         'unknown.',
     ]);
   }
@@ -1118,7 +1158,7 @@ test('ledger: a withdrawn ledger whose earlier version was not pulled names its 
   assert.equal(result.status, 3, result.out);
   assert.deepEqual(result.lines.slice(0, 2), [
     'Run `qory artifact pull build-ledger --version 2`, then check again.',
-    'The store lacks build-ledger version 2, the version before the withdrawal.',
+    '  The store lacks build-ledger version 2, the version before the withdrawal.',
   ]);
 });
 
@@ -1186,7 +1226,7 @@ test('ledger: a call that waits for the lock too long exits 3 with nothing pushe
     assert.deepEqual(result.lines, [
       `Run ${verb} again after the other call finishes: another call held the ledger lock ` +
         'for 0.05 s.',
-      `.reports/${name}.lock still exists after 0.05 s of tries.`,
+      `  .reports/${name}.lock still exists after 0.05 s of tries.`,
     ]);
     assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
     assert.equal(pushes(w), started, verb);
@@ -1207,21 +1247,32 @@ async function parallel(w, call, list) {
   const start = Date.now() + 1000;
   const code = (argv) => `const { main } = require(${JSON.stringify(SCRIPT)});
 let out = '';
+let err = '';
 const sink = { write: (text) => { out += text; } };
 while (Date.now() < ${start});
 const status = main(${JSON.stringify(argv)}, {
   cwd: ${JSON.stringify(w.repo)}, artifacts: [${JSON.stringify(call.artifacts)}],
   env: ${JSON.stringify(env)}, plugin: ${JSON.stringify(path.join(MODULES, 'core'))},
-  qory: ${JSON.stringify(w.qory)}, out: sink, err: sink,
+  qory: ${JSON.stringify(w.qory)}, out: sink,
+  err: { write: (text) => { out += text; err += text; } }, firstLine: ${CHILD},
 });
-process.stdout.write(JSON.stringify({ status, out }));`;
-  return Promise.all(list.map((argv) => new Promise((resolve) => {
-    const proc = spawn(process.execPath, ['-e', code(argv)], { stdio: ['ignore', 'pipe', 'pipe'] });
+process.stdout.write(JSON.stringify({ status, out, err }));`;
+  const runs = await Promise.all(list.map((argv) => new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code(argv)],
+      { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
     let out = '';
+    let lines = '';
     proc.stdout.on('data', (data) => { out += data; });
     proc.stderr.on('data', (data) => { out += data; });
-    proc.on('close', () => resolve({ argv, ...JSON.parse(out) }));
+    proc.stdio[3].on('data', (data) => { lines += data; });
+    proc.on('close', () => resolve({ argv, lines, ...JSON.parse(out) }));
   })));
+  return runs.map(({ argv, status, out, err, lines }) => {
+    const first = watch();
+    first.read(lines);
+    first.check(status, err);
+    return { argv, status, out };
+  });
 }
 
 test('ledger: each step call in parallel that passes is in the newest stored version', async () => {
@@ -1239,7 +1290,7 @@ test('ledger: each step call in parallel that passes is in the newest stored ver
   assert.ok(passed.length >= 1, JSON.stringify(runs));
   for (const run of runs.filter((one) => one.status !== 0)) {
     assert.equal(run.status, 1, run.out);
-    assert.match(run.out, /^End the step deliverable:d-5 with step end/, run.out);
+    assert.match(run.out, /^End the step deliverable:d-5, row \d+, with step end/, run.out);
   }
   const newest = stored(w).ledger;
   const reports = path.join(call.artifacts, '.reports');
@@ -1269,17 +1320,20 @@ test('ledger: an input that cannot be read exits 3', () => {
   const call = resumed(w);
   const missing = begin(call, w, 'plan', [path.join(tmp, 'no-such-input')]);
   assert.equal(missing.status, 3);
-  assert.match(missing.lines[0], /^Name input files that exist and can be read: ".*" cannot be read\./);
+  assert.equal(missing.lines[0], 'Name input files that exist and can be read.');
+  assert.match(missing.lines[1], /^ {2}".*" cannot be read\./);
   // Not a checkout of git.
   const bare = session({ ...w, repo: fresh('plain') }, { cwd: fresh('plain') });
   const none = bare('resume');
   assert.equal(none.status, 3, none.out);
-  assert.match(none.lines[0], /^Run step and resume in the checkout of the work: git rev-parse HEAD failed/);
+  assert.deepEqual(none.lines.slice(0, 2), ['Run step and resume in the checkout of the work.',
+    '  git rev-parse HEAD failed in the working folder.']);
   // A failed pull.
   fs.writeFileSync(path.join(w.bin, 'fail-pull'), '');
   const pull = session(w)('resume');
   assert.equal(pull.status, 3);
-  assert.match(pull.lines[0], /^Push nothing, and end the session with this line: qory artifact pull build-ledger exited with 1: The pull failed\.$/);
+  assert.deepEqual(pull.lines.slice(0, 2), ['Push nothing, and end the session with these lines.',
+    '  qory artifact pull build-ledger exited with 1: The pull failed.']);
   fs.rmSync(path.join(w.bin, 'fail-pull'));
   // A copy of the draft that breaks the schema.
   fs.mkdirSync(path.join(call.artifacts, '.reports'), { recursive: true });
@@ -1287,7 +1341,8 @@ test('ledger: an input that cannot be read exits 3', () => {
     '{"steps":[],"escalations":[],"x":1}');
   const broken = begin(call, w, 'plan');
   assert.equal(broken.status, 3, broken.out);
-  assert.match(broken.lines[0], /^Run checks\.js resume, then the verb again: \.reports\/build-ledger\.json of the artifact folder breaks its schema: Remove the member "x"/);
+  assert.equal(broken.lines[0], 'Run checks.js resume, then the verb again.');
+  assert.match(broken.lines[1], /^ {2}\.reports\/build-ledger\.json of the artifact folder breaks its schema: Remove the member "x"/);
 });
 
 test('ledger: the verbs read the copy of the draft under .reports, not the draft', () => {
@@ -1306,8 +1361,8 @@ test('ledger: the verbs read the copy of the draft under .reports, not the draft
   fs.writeFileSync(draft, JSON.stringify(edited));
   const blocked = begin(call, w, 'deliverable:d-3');
   assert.equal(blocked.status, 1, blocked.out);
-  assert.equal(blocked.lines.at(-1), 'End the step deliverable:d-2 with step end, or run ' +
-    'checks.js resume after a crash: row 2 of the ledger is running.');
+  assert.deepEqual(blocked.lines, ['End the step deliverable:d-2, row 2, with step end, or ' +
+    'run checks.js resume after a crash.']);
   commit(w, 'd-2.txt', 'The change of d-2.\n');
   assert.equal(call('step', 'end', 'deliverable:d-2', 'done').status, 0);
   assert.equal(fs.readFileSync(draft, 'utf8'), fs.readFileSync(copy, 'utf8'));
@@ -1324,21 +1379,25 @@ test('ledger: without the rules of a skill, step and resume exit 3', () => {
   fs.symlinkSync(path.dirname(SCRIPT), path.join(plugin, 'skills', 'running-a-workflow'));
   const result = session(w, { plugin })('resume');
   assert.equal(result.status, 3, result.out);
-  assert.match(result.lines[0], /^Add the module of the workflow to the stack: no skill adds the rules of the ledger/);
+  assert.deepEqual(result.lines.slice(0, 2), ['Add the module of the workflow to the stack.',
+    '  No skill adds the rules of the ledger, so step and resume cannot run.']);
 });
 
 test('ledger: a crash of step or resume exits 4 with the fix first on stderr', () => {
   const w = work();
   const artifacts = fresh('artifacts');
   let err = '';
+  const first = watch();
   const status = main(['resume'], {
     cwd: w.repo, artifacts: [artifacts], env: { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: 'run-x' },
     plugin: path.join(MODULES, 'core'), qory: w.qory,
     out: { write: () => { throw new Error('boom'); } },
     err: { write: (text) => { err += text; } },
+    firstLine: first.firstLine,
   });
+  first.check(status, err);
   assert.equal(status, 4);
-  assert.match(err, /^Send this error to the harness maintainers: checks\.js resume crashed, so the ledger may lack its last change\.\nError: boom\n/);
+  assert.match(err, /^Send this error to the harness maintainers\.\n  checks\.js resume crashed, so the ledger may lack its last change\.\nError: boom\n/);
 });
 
 test('ledger: each finding line has at most 196 characters with ids of 44 characters', () => {
@@ -1361,7 +1420,7 @@ test('ledger: each finding line has at most 196 characters with ids of 44 charac
   lines.push(...stash);
   fs.rmSync(path.join(w.repo, `${'c'.repeat(150)}.txt`));
   const reset = begin(call, w, other).lines;
-  assert.match(reset[0], /^Run git reset --keep [0-9a-f]{12}, then step begin again: /);
+  assert.match(reset[0], /^Run git reset --keep [0-9a-f]{12}, then step begin again\.$/);
   lines.push(...reset);
   // A file with a long name changed after a done step.
   git(w, 'reset', '-q', '--keep', 'HEAD~1');
@@ -1370,8 +1429,13 @@ test('ledger: each finding line has at most 196 characters with ids of 44 charac
   assert.equal(call('step', 'end', other, 'done').status, 0);
   fs.writeFileSync(path.join(w.repo, `${'d'.repeat(150)}.txt`), 'An edit outside a step.\n');
   const outside = begin(call, w, `fix:${'d'.repeat(40)}`).lines;
-  assert.match(outside[0], /^End the session, and keep the checkout as it is: 1 file changed /);
+  assert.equal(outside[0], 'End the session, and keep the checkout as it is.');
+  assert.match(outside[1], /^ {2}1 file changed /);
   lines.push(...outside);
   for (const line of lines) assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);
+  // The first line of each finding, the fix, stays within 100 characters.
+  for (const line of lines.filter((one) => !one.startsWith('  '))) {
+    assert.ok([...line].length <= 100, `${[...line].length}: ${line}`);
+  }
   assert.ok(lines.length >= 5, lines.join('\n'));
 });

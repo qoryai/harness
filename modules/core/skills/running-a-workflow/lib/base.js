@@ -23,11 +23,20 @@ const LINE = 200;
 
 const QUOTE = 80;
 
+// The most characters of a name, a path or a value in the first line of a finding, so that
+// the first line keeps the fix within 100 characters. The lines after it have the whole value.
+const SHORT = 40;
+
 // A draft above this size is refused, so that no check runs long on it.
 const MAX_BYTES = 256 * 1024;
 
 // At most this many findings are printed; one more line states how many are left out.
 const MAX_FINDINGS = 50;
+
+// At most this many lines of findings are printed, the line of how many are left out
+// included: qory keeps at most 200 lines that are not blank of the stdout of a push check,
+// and drops the rest with no line that counts them.
+const MAX_FINDING_LINES = 200;
 
 // The <run> of starts when the session has no run id; begin makes its key.
 const LOCAL = 'local';
@@ -82,6 +91,20 @@ function cut(text, size) {
   return chars.length > size ? `${chars.slice(0, size - 3).join('')}...` : text;
 }
 
+// given returns an argument of argv as the line about a wrong argument shows it: the word
+// missing when the argument is not there.
+const given = (value) => (value === undefined ? 'missing' : value);
+
+// short returns text, or its start and its end with ... between them when it has more than
+// size characters, counted by code point, so that a first line keeps the fix within 100
+// characters. Give the whole text on a line after the first.
+function short(text, size = SHORT) {
+  const chars = [...String(text)];
+  if (chars.length <= size) return chars.join('');
+  const head = Math.ceil((size - 3) / 2);
+  return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
+}
+
 // plainLine removes control and refused characters, and cuts the line to LINE characters.
 function plainLine(text) {
   return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd(), LINE);
@@ -127,7 +150,7 @@ function readFile(file, what) {
   try {
     return fs.readFileSync(file, 'utf8');
   } catch {
-    throw new Missing(`Name a file that exists and can be read: ${what} cannot be read.`);
+    throw new Missing(`Name a file that exists and can be read.\n${what} cannot be read.`);
   }
 }
 
@@ -136,10 +159,12 @@ function parseJson(text, name, list) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Missing(`Write ${name} as valid JSON: it does not parse.`);
+    throw new Missing(`Write ${short(path.basename(name))} as valid JSON.\n` +
+      `${name} does not parse.`);
   }
   if (list && (!data || !Array.isArray(data[list]))) {
-    throw new Missing(`Give ${name} the list ${list}: it has none.`);
+    throw new Missing(`Give ${short(path.basename(name))} the list ${list}.\n` +
+      `${name} has no list ${list}.`);
   }
   return data;
 }
@@ -153,7 +178,7 @@ function writeJson(file, data, folder = 'the artifact folder') {
     fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
     fs.renameSync(temporary, file);
   } catch {
-    throw new Missing(`Make ${folder} writable: ${file} cannot be written.`);
+    throw new Missing(`Make ${folder} writable.\n${file} cannot be written.`);
   }
 }
 
@@ -198,9 +223,10 @@ function sized(run, value, member, most, { optional = false } = {}) {
   const count = typeof value === 'string' ? characterCount(value) : 0;
   if (typeof value !== 'string' || count < 1 || count > most) {
     const has = typeof value === 'string'
-      ? `it has ${plural(count, 'character')}`
-      : `it is ${jsonKind(value)}`;
-    run.find(`Write ${member} as text of 1 to ${most} characters: ${has}.`);
+      ? `has ${plural(count, 'character')}`
+      : `is ${jsonKind(value)}`;
+    run.find(`Write ${short(member, 48)} as text of 1 to ${most} characters.\n` +
+      `${member[0].toUpperCase()}${member.slice(1)} ${has}.`);
   }
 }
 
@@ -242,7 +268,7 @@ function folderOf(deps, file) {
   try {
     real = fs.realpathSync(file);
   } catch {
-    throw new Missing(`Name a file that exists: ${file} does not.`);
+    throw new Missing(`Name a file that exists.\n${file} does not exist.`);
   }
   for (const folder of deps.artifacts) {
     let root;
@@ -253,8 +279,8 @@ function folderOf(deps, file) {
     }
     if (inside(real, root)) return root;
   }
-  throw new Missing(`Name a file under the artifact folder, ${deps.artifacts.join(' or ')}: ` +
-    `${file} is not.`);
+  throw new Missing('Name a file under the artifact folder.\n' +
+    `${file} is not under ${deps.artifacts.join(' or ')}.`);
 }
 
 // The most milliseconds that a call tries to take a lock, and the pause between two tries.
@@ -390,9 +416,10 @@ function artifactFolder(deps) {
 }
 
 module.exports = {
-  ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
-  DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
-  CONTROL, CONTROL_ALL, hex, cut, plainLine, findingLines, quote, plural, inside, lexists,
+  ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, SHORT, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
+  MAX_FINDING_LINES, DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
+  CONTROL, CONTROL_ALL, hex, cut, short, given, plainLine, findingLines, quote, plural, inside,
+  lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder, withLock,
 };

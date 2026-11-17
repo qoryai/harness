@@ -22,14 +22,14 @@ const SHOW_BYTES = 4 * 1024 * 1024;
 // last line; see the top of the script.
 function fixes(io) {
   const qory = qoryPath();
-  const skip = 'Go on with no point to fix first:';
+  const skip = 'Go on with no point to fix first.\n';
   const show = childProcess.spawnSync(qory, ['work-item', 'show'],
     { env: io.env, encoding: 'utf8', timeout: 20000, maxBuffer: SHOW_BYTES });
   if (show.error) {
-    throw new Missing(`${skip} ${qory} work-item show could not run: ${show.error.message}.`);
+    throw new Missing(`${skip}${qory} work-item show could not run: ${show.error.message}.`);
   }
   if (show.status !== 0) {
-    throw new Missing(`${skip} ${qory} work-item show exited with ${show.status}.`);
+    throw new Missing(`${skip}${qory} work-item show exited with ${show.status}.`);
   }
   let item;
   try {
@@ -38,7 +38,7 @@ function fixes(io) {
     item = null;
   }
   if (!isObject(item)) {
-    throw new Missing(`${skip} ${qory} work-item show printed no JSON object.`);
+    throw new Missing(`${skip}${qory} work-item show printed no JSON object.`);
   }
   // A work item of .qory/work-item.json outside a run may have no verdict.
   const newest = Object.hasOwn(item, 'verdict') ? item.verdict : null;
@@ -46,7 +46,7 @@ function fixes(io) {
   if (newest === null) return { lines: [], last: `${what} it has none, so no point comes first.` };
   if (!isObject(newest) || typeof newest.verdict !== 'string' ||
       !(newest.points === undefined || newest.points === null || Array.isArray(newest.points))) {
-    throw new Missing(`${skip} the verdict that ${qory} work-item show printed is no object ` +
+    throw new Missing(`${skip}The verdict that ${qory} work-item show printed is no object ` +
       'with a verdict and a list of points.');
   }
   const name = plainLine(newest.verdict);

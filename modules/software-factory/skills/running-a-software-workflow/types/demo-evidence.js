@@ -3,7 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { jsonFile, newestNamed, parseJson, scenarioFile, short, SCENARIO_JSON } = lib;
+  const { jsonFile, newestNamed, parseJson, plural, scenarioFile, short, SCENARIO_JSON } = lib;
 
   // The type of the media version by the evidence that was stored.
   const MEDIA = { film: 'demo-video', pictures: 'screenshot' };
@@ -20,20 +20,20 @@ module.exports = (lib) => {
     }
     run.did('versions');
     if (data.script.type !== 'demo-script' || data.script.name !== data.scenario) {
-      run.find(`Set /script of ${one.name} to a demo-script version named ${data.scenario}: it ` +
-        `is ${data.script.type} ${data.script.name}.`);
+      run.find(`Set /script of ${one.name} to a demo-script version named ${data.scenario}.\n` +
+        `It is ${data.script.type} ${data.script.name}.`);
     }
     if (data.media) {
       const type = MEDIA[data.evidence];
       if ((type && data.media.type !== type) || data.media.name !== data.scenario) {
         run.find(`Set /media of ${one.name} to a ${type || 'demo-video or screenshot'} version ` +
-          `named ${data.scenario}: it is ${data.media.type} ${data.media.name}.`);
+          `named ${data.scenario}.\nIt is ${data.media.type} ${data.media.name}.`);
       }
     }
     run.did('demo script');
     const newest = newestNamed(run.context, 'demo-script', data.scenario, one.name);
     if (!newest) {
-      run.find(`Push the demo script of ${data.scenario} before its evidence: the artifacts ` +
+      run.find(`Push the demo script of ${data.scenario} before its evidence.\nThe artifacts ` +
         `have no demo-script version named ${data.scenario}.`);
       return;
     }
@@ -42,15 +42,16 @@ module.exports = (lib) => {
     // Each step of the script has a row, and a step that the run did not reach has the verdict
     // not-reached.
     if (data.steps.length !== script.steps.length) {
-      run.find(`Give ${one.name} one step per step of the demo script, ${script.steps.length}, ` +
-        `with not-reached for a step that the run did not reach: it has ${data.steps.length}.`);
+      run.find(`Give ${one.name} ${plural(script.steps.length, 'step')}, one per step of the ` +
+        'demo script.\nA step that the run did not reach has the verdict not-reached. ' +
+        `${one.name} has ${data.steps.length}.`);
     }
     data.steps.forEach((step, place) => {
       const scripted = script.steps[place];
       const title = scripted && scripted.title;
       if (step.title !== title) {
-        run.find(`Set the title of step ${place + 1} of ${one.name} to that of the demo script` +
-          `${title ? `, ${short(title)}` : ': the script has no such step'}.`);
+        run.find(`Set the title of step ${place + 1} of ${one.name} to that of the demo script.` +
+          `\n${title ? `That title is ${short(title, 80)}` : 'The script has no such step'}.`);
       }
     });
   }

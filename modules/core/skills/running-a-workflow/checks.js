@@ -248,17 +248,19 @@
 // qory, end and lock --verify read QORY_RUN_ID, step and resume read it with QORY_SESSION
 // as the id of the session, panel reads QORY_HARNESS_HOME, lock and lock --verify pass the
 // environment to lock.files and lock.folder of the type, which may read more of it, and the
-// script reads HOME, the home folder, which the check of machine paths refuses when it has
-// two or more parts, such as /home/sam, or is /root. A general folder such as /tmp, or no
-// HOME, adds no refused folder. check, push, end and end --offline give the check of a type
-// the extensions of the harness, as Context.extensions of lib/context.js reads them:
-// qory.harness_extensions of the run's inputs.json that --inputs gives, else
-// .qory/harness-report.json in the working folder.
+// script reads HOME, the home folder, which the check of machine paths reports as a finding
+// when it has two or more parts, such as /home/sam, or is /root. A general folder such as
+// /tmp, or no HOME, adds no refused folder. check, push, end and end --offline pass the
+// extensions of the harness to the check of a type, as Context.extensions of lib/context.js
+// reads them: qory.harness_extensions of the inputs.json of the run at the path of --inputs,
+// else .qory/harness-report.json in the working folder.
 'use strict';
 
 const path = require('node:path');
 
-const { ARTIFACTS, MAX_FINDINGS, Missing, findingLines, plainLine } = require('./lib/base.js');
+const {
+  ARTIFACTS, MAX_FINDINGS, MAX_FINDING_LINES, Missing, findingLines, plainLine,
+} = require('./lib/base.js');
 const { crashed } = require('./lib/offline.js');
 const { pluginFolder } = require('./lib/plugin.js');
 const { loadRegistry } = require('./lib/registry.js');
@@ -280,6 +282,14 @@ const VERBS = {
   ...require('./verbs/end.js').verbs,
   ...require('./verbs/ledger.js').verbs,
 };
+
+// missingFindings returns the findings of a Missing: its message with the lines of more
+// after it, indented as the cause, or with listed set, the message and each line of more as
+// a finding.
+function missingFindings(error) {
+  const more = error.more || [];
+  return error.listed ? [error.message, ...more] : [[error.message, ...more].join('\n')];
+}
 
 // usage returns the usage of every verb, and the types that check and push take.
 function usage(io, verbs) {
@@ -311,14 +321,26 @@ function main(argv, deps = {}) {
     return registry;
   };
   io.print = (findings, last) => {
-    const shown = findings.slice(0, MAX_FINDINGS);
-    if (findings.length > MAX_FINDINGS) {
-      const left = findings.length - MAX_FINDINGS;
+    // At most MAX_FINDINGS whole findings, and at most MAX_FINDING_LINES lines with the line
+    // of the findings not shown. The first finding prints whole even when it has more lines.
+    const shown = [];
+    let used = 0;
+    for (const finding of findings.slice(0, MAX_FINDINGS)) {
+      const room = shown.length + 1 < findings.length ? 1 : 0;
+      const size = findingLines(finding).length;
+      if (shown.length && used + size + room > MAX_FINDING_LINES) break;
+      shown.push(finding);
+      used += size;
+    }
+    if (shown.length < findings.length) {
+      const left = findings.length - shown.length;
       shown.push(`Fix the findings above and run the check again: ${left} more ` +
         `${left === 1 ? 'is' : 'are'} not shown.`);
     }
     // The lines after the first line of a finding are indented, so that each line that
     // starts at column 0 starts a finding.
+    // io.firstLine, when a caller sets it, receives the first line of each finding.
+    if (io.firstLine) shown.forEach((finding) => io.firstLine(findingLines(finding)[0]));
     const printed = shown.flatMap((finding) => findingLines(finding)
       .map((line, at) => (at ? `  ${line.trim()}` : line)));
     // check, push and end print the line of what the script checked on stderr, so that stdout
@@ -345,18 +367,20 @@ function main(argv, deps = {}) {
       verbs = { ...VERBS, ...io.registry().verbs, ...VERBS };
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
-      io.print([error.message, ...(error.more || [])],
-        `Checked nothing: ${verb} could not load the registry.`);
+      io.print(missingFindings(error), `Checked nothing: ${verb} could not load the registry.`);
       return 3;
     }
   }
+  // The lines of why after its first line are its cause, indented as in a finding.
   const wrong = (why) => {
-    io.err.write(`${why}\n${usage(io, verbs)}\n`);
+    const fix = why.split('\n').map((line, at) => (at ? `  ${line}` : line)).join('\n');
+    io.err.write(`${fix}\n${usage(io, verbs)}\n`);
     return 2;
   };
   if (!Object.hasOwn(verbs, verb || '')) {
     const names = Object.keys(verbs);
-    return wrong(`Start with ${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}.`);
+    return wrong('Start with a verb that the usage of checks.js lists.\n' +
+      `The verbs are ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}.`);
   }
   // check, push and end <folder> take --inputs <file> right after their arguments, before the
   // files, as qory gives it to a push check; end --offline takes it among its flags.
@@ -385,7 +409,7 @@ function main(argv, deps = {}) {
     if (!(error instanceof Missing)) throw error;
     // A Missing with alone set, such as the wait for a lock of the ledger, is no fault of the
     // input, so no line follows its lines.
-    io.print([error.message, ...(error.more || [])],
+    io.print(missingFindings(error),
       error.alone ? null : `Checked nothing: the ${verb} could not read its input.`);
     return 3;
   }

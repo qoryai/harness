@@ -18,6 +18,7 @@ const test = require('node:test');
 
 const MODULES = path.join(__dirname, '../modules');
 const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
+const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const proofComments = require(path.join(SKILL, 'lib/proof-comments.js'));
 
@@ -93,6 +94,7 @@ function scene(base, head) {
 function prove(run) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(['prove', '--inputs', run.inputs], {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
@@ -100,7 +102,9 @@ function prove(run) {
     cwd: run.dir,
     env: ENV,
     home: tmp,
+    firstLine: first.firstLine,
   });
+  first.check(status, err);
   return { status, out, err, lines: out.split('\n').filter(Boolean) };
 }
 

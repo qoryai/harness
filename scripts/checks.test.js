@@ -16,6 +16,7 @@ const MODULES = path.join(__dirname, '../modules');
 // workflow-checks.js of the skills of every module beside it.
 const SOURCE_PLUGIN = path.join(MODULES, 'core');
 const { main } = require(SCRIPT);
+const { watch, CHILD } = require('./first-line.js');
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'checks-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -75,12 +76,15 @@ function write(root, file, text) {
 function call(deps, argv) {
   let out = '';
   let err = '';
+  const first = watch();
   const status = main(argv, {
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
     plugin: SOURCE_PLUGIN,
+    firstLine: first.firstLine,
     ...deps,
   });
+  first.check(status, err);
   // check, push and end print the line of what they checked first on stderr and nothing else on
   // stdout but the findings. out has both, the summary last, as a session reads them; stdout
   // has the stdout alone, and err the rest of stderr.
@@ -124,10 +128,10 @@ function fails(result, pattern) {
 
 const passes = (result) => assert.equal(result.status, 0, result.out);
 
-// exactly asserts exit 1 and line as the one finding.
+// exactly asserts exit 1 and line as the one finding, with its later lines indented.
 function exactly(result, line) {
   assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines.slice(0, -1), [line], result.out);
+  assert.equal(result.lines.slice(0, -1).join('\n'), line, result.out);
 }
 const many = (count, word = 'word') => Array(count).fill(word).join(' ');
 
@@ -156,7 +160,7 @@ test('each note of the testdata has null or a version id of index.json', () => {
 
 test('proposal: its five sections, in order', () => {
   const root = fixture(['proposal.md', '## Proposed solution', '## Solution']);
-  fails(push(root, 'proposal'), /^Give proposal.md the sections .* it has .*## Solution/);
+  fails(push(root, 'proposal'), /^Give proposal.md the 5 sections of its type, in their order\. They are .* proposal\.md has .*## Solution/);
 });
 
 // trackLines returns the edit of a proposal fixture whose ## Track has the given lines.
@@ -185,7 +189,7 @@ const checkFiles = (root) => check(root, 'proposal', ...FILES.proposal.map((f) =
 
 test('proposal: ## Track sits between ## Proposed solution and ## Sources', () => {
   fails(push(fixture(['proposal.md', '## Track\n\nStandard track.\n\n', '']), 'proposal'),
-    /^Give proposal.md the sections ## Summary, ## Background, ## Proposed solution, ## Track, ## Sources/);
+    /^Give proposal.md the 5 sections of its type, in their order\. They are ## Summary, ## Background, ## Proposed solution, ## Track, ## Sources\./);
 });
 
 test('proposal: a track that takes no kind is the line "<Name> track." alone', () => {
@@ -746,20 +750,20 @@ test('proposal: Explore gives proposal-reviewer the report of code-explorer', ()
 
 test('spec: its four sections, in order', () => {
   const root = fixture(['spec.md', /^## Background$/m, '## Context']);
-  fails(push(root, 'spec'), /it has ## Summary, ## Context/);
+  fails(push(root, 'spec'), /in this order\. It has ## Summary, ## Context/);
 });
 
 test('spec: each part opens with a Rule, Today, After table', () => {
   const root = fixture(['spec.md', '| Rule | Today | After |', '| Value | Today | After |']);
-  fails(push(root, 'spec'), /columns Rule, Today, After/);
+  fails(push(root, 'spec'), /^Open the part ".*" of spec\.md with a Rule, Today, After table\.$/);
 });
 
 test('criteria: only ## Summary, then the table, and nothing after it', () => {
   fails(push(fixture(['acceptance-criteria.md', '## Summary', '## Background']), 'acceptance-criteria'),
-    /only the section ## Summary: it has ## Background/);
+    /only the section ## Summary\. It has ## Background/);
   const bare = fixture();
   write(bare, 'acceptance-criteria.md', '## Summary\n\nNo table.\n');
-  fails(push(bare, 'acceptance-criteria'), /^Put the table with the columns Id, Criterion/);
+  fails(push(bare, 'acceptance-criteria'), /^Put the table of criteria after the summary of acceptance-criteria\.md\. The table has the columns Id, Criterion/);
   const root = fixture();
   fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), '\nOne more line.\n');
   fails(push(root, 'acceptance-criteria'), /the file ends with the table/);
@@ -767,7 +771,7 @@ test('criteria: only ## Summary, then the table, and nothing after it', () => {
 
 test('scenarios: only ## Summary', () => {
   fails(push(fixture(['demo-scenarios.md', '## Summary', '## Background']), 'demo-scenarios'),
-    /only the section ## Summary: it has ## Background/);
+    /only the section ## Summary\. It has ## Background/);
 });
 
 test('scenarios: a starting state, the step table and a Shows: line', () => {
@@ -782,25 +786,37 @@ test('scenarios: each scenario ends with Evidence: film or Evidence: pictures', 
   passes(push(fixture(['demo-scenarios.md', 'Evidence: pictures', 'Evidence: film']), 'demo-scenarios'));
   passes(push(fixture(['demo-scenarios.md', /Evidence: pictures(?![\s\S]*Evidence)/, 'Evidence: film']), 'demo-scenarios'));
   fails(push(fixture(['demo-scenarios.md', /\n\nEvidence: pictures\n$/, '\n']), 'demo-scenarios'),
-    /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2, with a blank line between: scenario-2 has no Evidence line\.$/);
+    /^Add an Evidence line after the Shows: line of scenario-2, with a blank line between\. The Evidence line is "Evidence: film" or "Evidence: pictures"\. scenario-2 has no Evidence line\.$/);
   fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: video\n']), 'demo-scenarios'),
-    /^Set the Evidence line of scenario-2 to "Evidence: film" or "Evidence: pictures": it is "Evidence: video"\.$/);
+    /^Set the Evidence line of scenario-2 to "Evidence: film" or "Evidence: pictures"\. The Evidence line is "Evidence: video"\.$/);
   fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: Film\n']), 'demo-scenarios'),
-    /^Set the Evidence line of scenario-2 to .*: it is "Evidence: Film"\.$/);
+    /^Set the Evidence line of scenario-2 to .*\. The Evidence line is "Evidence: Film"\.$/);
   fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence:\n']), 'demo-scenarios'),
-    /^Set the Evidence line of scenario-2 to .*: it is "Evidence:"\.$/);
+    /^Set the Evidence line of scenario-2 to .*\. The Evidence line is "Evidence:"\.$/);
   fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Proof: pictures\n']), 'demo-scenarios'),
-    /^Put the line "Evidence: film" or "Evidence: pictures" right after the Shows: line of scenario-2: "Proof: pictures" is there\.$/);
+    /^Put an Evidence line right after the Shows: line of scenario-2\. The Evidence line is "Evidence: film" or "Evidence: pictures"\. "Proof: pictures" is there\.$/);
   fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nOne more line.\n']), 'demo-scenarios'),
-    /^End scenario-2 with its Evidence line: "One more line\." comes after it\.$/);
+    /^End scenario-2 with its Evidence line\. "One more line\." comes after the Evidence line\.$/);
   fails(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\nEvidence: film\n']), 'demo-scenarios'),
-    /^End scenario-2 with its Evidence line: "Evidence: film" comes after it\.$/);
+    /^End scenario-2 with its Evidence line\. "Evidence: film" comes after the Evidence line\.$/);
+});
+
+test('scenarios: a long scenario id is shortened on line 1 and whole on a later line', () => {
+  const id = `scenario-${'7'.repeat(30)}`;
+  const result = push(fixture(['demo-scenarios.md', '### scenario-2:', `### ${id}:`],
+    ['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: video\n']), 'demo-scenarios');
+  const at = result.lines.findIndex((line) => line.startsWith('Set the Evidence line of '));
+  assert.ok(at >= 0, result.out);
+  assert.equal(result.lines[at], 'Set the Evidence line of scenario-77...7777777777 to ' +
+    '"Evidence: film" or "Evidence: pictures".');
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), ['  The Evidence line is "Evidence: video".',
+    `  The whole id is ${id}.`]);
 });
 
 test('scenarios: with no Shows: line, the same round checks the Evidence line', () => {
   const neither = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\nEvidence: pictures\n$/, '']), 'demo-scenarios');
   fails(neither, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
-  fails(neither, /^Add the line "Evidence: film" or "Evidence: pictures" after the Shows: line of scenario-2, with a blank line between: scenario-2 has no Evidence line\.$/);
+  fails(neither, /^Add an Evidence line after the Shows: line of scenario-2, with a blank line between\. The Evidence line is "Evidence: film" or "Evidence: pictures"\. scenario-2 has no Evidence line\.$/);
   const noShows = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\n/, '']), 'demo-scenarios');
   fails(noShows, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
   assert.ok(!noShows.lines.some((line) => /Evidence/.test(line)), noShows.out);
@@ -808,11 +824,12 @@ test('scenarios: with no Shows: line, the same round checks the Evidence line', 
 
 test('scenarios: the Evidence line follows the Shows: line after one blank line', () => {
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Shows: ac-3\nEvidence: pictures']), 'demo-scenarios'),
-    /^Put a blank line between the Shows: line and the Evidence line of scenario-2: without it, Markdown shows the two lines as one paragraph\.$/);
+    /^Put a blank line between the Shows: line and the Evidence line of scenario-2\. Without the blank line, Markdown shows the two lines as one paragraph\.$/);
   const stray = push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Shows: ac-3\n\nA stray line.\n\nEvidence: pictures']), 'demo-scenarios');
   assert.equal(stray.status, 1, stray.out);
   assert.deepEqual(stray.lines.slice(0, -1),
-    ['Remove "A stray line." from scenario-2: only the Evidence line follows the Shows: line.']);
+    ['Remove "A stray line." from scenario-2.',
+      '  The line is "A stray line.". Only the Evidence line follows the Shows: line.']);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3\n\nEvidence: pictures', 'Evidence: pictures\n\nShows: ac-3']), 'demo-scenarios'),
     /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);
 });
@@ -830,7 +847,7 @@ test('scenarios: the Evidence check reads CRLF line ends and blank lines at the 
   fails(push(fixture(['demo-scenarios.md', /\n/g, '\r\n'], ['demo-scenarios.md', 'Shows: ac-3\r\n\r\nEvidence: pictures', 'Shows: ac-3\r\nEvidence: pictures']), 'demo-scenarios'),
     /^Put a blank line between the Shows: line and the Evidence line of scenario-2/);
   fails(push(fixture(['demo-scenarios.md', /\n/g, '\r\n'], ['demo-scenarios.md', 'Evidence: pictures\r\n\r\n### scenario-2', 'Evidence: film\r\n\r\n### scenario-2'], ['demo-scenarios.md', /Evidence: pictures\r\n$/, 'Evidence: films\r\n']), 'demo-scenarios'),
-    /^Set the Evidence line of scenario-2 to .*: it is "Evidence: films"\.$/);
+    /^Set the Evidence line of scenario-2 to .*\. The Evidence line is "Evidence: films"\.$/);
   passes(push(fixture(['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: pictures\n\n  \n\n']), 'demo-scenarios'));
 });
 
@@ -883,7 +900,7 @@ test('scenarios: an empty file passes only with 0 bytes and with no criterion pl
   const planned = withScenarios();
   write(planned, 'demo-scenarios.md', '');
   fails(push(planned, 'demo-scenarios'),
-    /^Add a scenario with the title "Read the closed day", which ac-3 plans as its demo/);
+    /^Add a scenario with the title that ac-3 plans as its demo\. The title is "Read the closed day"\./);
   for (const blankText of ['\n', ' \n\n', '\r\n', '﻿']) {
     write(empty, 'demo-scenarios.md', blankText);
     fails(push(empty, 'demo-scenarios'), /^Write demo-scenarios.md with 0 bytes when no scenario is left/);
@@ -896,7 +913,7 @@ test('scenarios: an empty file with no version fails', () => {
   const root = fixture(NO_DEMO);
   write(root, 'demo-scenarios.md', '');
   fails(push(root, 'demo-scenarios'),
-    /^Delete demo-scenarios.md and report "- none: no criterion is planned as a demo" under Files: no version of demo-scenarios exists\./);
+    /^Delete demo-scenarios.md and report "- none: no criterion is planned as a demo" under Files\. No version of demo-scenarios exists\./);
 });
 
 test('scenarios: an empty file after an empty newest version fails', () => {
@@ -904,7 +921,7 @@ test('scenarios: an empty file after an empty newest version fails', () => {
   emptyVersion(root, 'No demo scenario is left.\nscenario-1, "Read the new hours": removed.');
   write(root, 'demo-scenarios.md', '');
   fails(push(root, 'demo-scenarios'),
-    /^Push no demo-scenarios.md, and report "- none: no scenario is left, and the newest version is empty" under Files: version 2 is empty too\./);
+    /^Push no demo-scenarios.md, and report it under Files\. Report it as "- none: no scenario is left, and the newest version is empty"\. Version 2 is empty too\./);
 });
 
 test('scenarios: all removed after an empty newest version gets the finding to push nothing', () => {
@@ -915,7 +932,7 @@ test('scenarios: all removed after an empty newest version gets the finding to p
     '$1\nRemoved, because the criteria are checked by tests.\n');
   write(root, 'demo-scenarios.md', removed);
   const result = push(root, 'demo-scenarios');
-  fails(result, /^Push no demo-scenarios.md, and report "- none: no scenario is left, and the newest version is empty" under Files: version 2 is empty too\./);
+  fails(result, /^Push no demo-scenarios.md, and report it under Files\. Report it as "- none: no scenario is left, and the newest version is empty"\. Version 2 is empty too\./);
   assert.ok(!result.lines.some((line) => line.startsWith('Write demo-scenarios.md with 0 bytes')),
     result.out);
 });
@@ -927,14 +944,14 @@ test('scenarios: an empty newest version whose note lists no id', () => {
     emptyVersion(kept, note);
     write(kept, 'demo-scenarios.md', SCENARIOS);
     fails(push(kept, 'demo-scenarios'),
-      /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+      /^Keep scenario-1 removed in demo-scenarios.md\. Version 1 removed it/);
     // With no version that has scenarios, the push fails until the pull brings one.
     const lost = withScenarios();
     emptyVersion(lost, note);
     fs.rmSync(path.join(lost, 'demo-scenarios', 'main', 'v1'), { recursive: true });
     write(lost, 'demo-scenarios.md', SCENARIOS);
     fails(push(lost, 'demo-scenarios'),
-      /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
+      /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios\. Version 2 is empty, and its note lists no scenario id\./);
   }
 });
 
@@ -960,7 +977,7 @@ test('scenarios: an empty newest version skips a cancelled version with scenario
   emptyVersion(root, undefined, 'main', 3);
   write(root, 'demo-scenarios.md', SCENARIOS);
   const result = push(root, 'demo-scenarios');
-  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md\. Version 1 removed it/);
   assert.ok(!result.lines.some((line) => /scenario-[34]|version 2/.test(line)), result.out);
 });
 
@@ -974,7 +991,7 @@ test('scenarios: an empty newest version with only cancelled versions below it',
   write(root, 'demo-scenarios.md', SCENARIOS);
   const result = push(root, 'demo-scenarios');
   fails(result,
-    /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios: version 2 is empty, and its note lists no scenario id\./);
+    /^Pull the artifacts again, with the last version of demo-scenarios that has scenarios\. Version 2 is empty, and its note lists no scenario id\./);
   assert.ok(!result.lines.some((line) => line.startsWith('Keep scenario-')), result.out);
 });
 
@@ -986,8 +1003,8 @@ test('scenarios: an empty newest version with no index.json reads each older ver
   fs.rmSync(path.join(root, 'index.json'));
   write(root, 'demo-scenarios.md', SCENARIOS);
   const result = push(root, 'demo-scenarios');
-  fails(result, /^Keep scenario-1 removed in demo-scenarios.md: version 1 removed it/);
-  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 1 removed it/);
+  fails(result, /^Keep scenario-1 removed in demo-scenarios.md\. Version 1 removed it/);
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md\. Version 1 removed it/);
 });
 
 test('scenarios: the ids of an empty version are read from a note of one line', () => {
@@ -1003,7 +1020,7 @@ test('scenarios: the ids of an empty version are read from a note of one line', 
     '### scenario-1: Read the new hours\n\nRemoved, because it is checked by tests.\n\n');
   write(root, 'demo-scenarios.md', text);
   const result = push(root, 'demo-scenarios');
-  fails(result, /^Keep scenario-2 removed in demo-scenarios.md: version 2 removed it/);
+  fails(result, /^Keep scenario-2 removed in demo-scenarios.md\. Version 2 removed it/);
   assert.ok(!result.lines.some((line) => line.startsWith('Pull the artifacts again')), result.out);
 });
 
@@ -1017,7 +1034,7 @@ test('scenarios: the note of an empty version is read for the name of its folder
   fs.rmSync(dir, { recursive: true });
   write(root, 'demo-scenarios.md', SCENARIOS);
   fails(push(root, 'demo-scenarios'),
-    /^Keep scenario-1 removed in demo-scenarios.md: version 2 removed it/);
+    /^Keep scenario-1 removed in demo-scenarios.md\. Version 2 removed it/);
 });
 
 test('scenarios: a rework that removes every scenario pushes the empty file', () => {
@@ -1046,7 +1063,7 @@ test('scenarios: after an empty version, the ids in its note stay removed and ar
   const reused = withScenarios();
   emptyVersion(reused, note(['scenario-1', 'scenario-2']));
   write(reused, 'demo-scenarios.md', SCENARIOS);
-  fails(push(reused, 'demo-scenarios'), /^Keep scenario-1 removed in demo-scenarios.md: version 2 removed it/);
+  fails(push(reused, 'demo-scenarios'), /^Keep scenario-1 removed in demo-scenarios.md\. Version 2 removed it/);
   const renumbered = SCENARIOS.replace('### scenario-2:', '### scenario-4:')
     .replace('### scenario-1:', '### scenario-3:');
   const kept = renumbered.replace('### scenario-3:', '### scenario-1: Read the hours\n\n' +
@@ -1062,12 +1079,12 @@ test('scenarios: after an empty version, the ids in its note stay removed and ar
     .replace('### scenario-2: Read the day', '### scenario-3: Read the day')
     .replace(/### scenario-3:(?! Read the day)/, '### scenario-2:'));
   fails(push(gap, 'demo-scenarios'),
-    /^Give the new scenario scenario-2 in demo-scenarios.md a number above 3, the highest of version 2/);
+    /^Give the new scenario scenario-2 in demo-scenarios.md a number above 3\. The highest number of version 2 is 3\./);
 });
 
 test('decision record: each decision has its items in order, and its id in the heading', () => {
   fails(push(fixture(['decision-record.md', /^- Cost:.*\n/m, '']), 'decision-record'),
-    /^Give decision-1 the items Decision:, Rests on:, Today:, Why:, Question:, Cost:/);
+    /^Give decision-1 its 6 items in their order, or only "- Removed, because <the reason>\." The items are "Decision:", "Rests on:", "Today:", "Why:", "Question:", "Cost:"\.$/);
   fails(push(fixture(['decision-record.md', '### `decision-1`', '### decision-1']), 'decision-record'),
     /decision-<N>/);
 });
@@ -1265,12 +1282,12 @@ test('proposal: the recommendation opens ## Proposed solution in 1 sentence of a
   fails(push(fixture(['proposal.md', RECOMMENDATION, `${RECOMMENDATION.slice(0, -1)} ${many(9)}.`]), 'proposal'),
     /^Cut the recommendation that opens ## Proposed solution of proposal.md to 30 words: it has 31\.$/);
   fails(push(fixture(['proposal.md', RECOMMENDATION, `${RECOMMENDATION} It is short.`]), 'proposal'),
-    /^Write the recommendation that opens ## Proposed solution of proposal.md as 1 sentence: it has 2\.$/);
+    /^Write the recommendation that opens ## Proposed solution of proposal.md as 1 sentence\. The recommendation has 2 sentences\.$/);
   fails(push(fixture(['proposal.md', `${RECOMMENDATION}\n\n`, '']), 'proposal'),
-    /^Open ## Proposed solution of proposal.md with the recommendation in 1 sentence of at most 30 words: it has none/);
+    /^Open ## Proposed solution of proposal.md with the recommendation in 1 sentence of at most 30 words\. ## Proposed solution has no sentence before its first part\.$/);
   const table = `| Alternative | Why not |\n|---|---|\n${ALTERNATIVE}`;
   fails(push(fixture(['proposal.md', `${RECOMMENDATION}\n\n${table}`, `${table}\n\n${RECOMMENDATION}`]), 'proposal'),
-    /^Put the recommendation that opens ## Proposed solution of proposal.md before its table of alternatives\.$/);
+    /^Put the recommendation before the table of alternatives in ## Proposed solution of proposal.md\.$/);
 });
 
 test('proposal: a table of 0 to 3 alternatives, with a "Why not" of at most 15 words', () => {
@@ -1279,19 +1296,19 @@ test('proposal: a table of 0 to 3 alternatives, with a "Why not" of at most 15 w
   fails(push(fixture(['proposal.md', ALTERNATIVE, Array(4).fill(ALTERNATIVE).join('\n')]), 'proposal'),
     /^Cut the table of alternatives at line \d+ of proposal.md to 3 rows: it has 4\.$/);
   fails(push(fixture(['proposal.md', `\n${ALTERNATIVE}`, '']), 'proposal'),
-    /^Remove the table of alternatives at line \d+ of proposal.md: with no alternative weighed, write no table\.$/);
+    /^Remove the table of alternatives at line \d+ of proposal.md\. The table has no row\. With no alternative weighed, write no table\.$/);
   fails(push(fixture(['proposal.md', '| Alternative | Why not |', '| Option | Cost |']), 'proposal'),
-    /^Give the table at line \d+ of proposal.md the columns Alternative and Why not, or move it into a ### part\.$/);
+    /^Give the table at line \d+ of proposal.md the columns Alternative and Why not\. For a table of another kind, move the table into a ### part\./);
   const why = (size) => fixture(['proposal.md', ALTERNATIVE, `| One code for all | ${many(size)} |`]);
   passes(push(why(15), 'proposal'));
-  fails(push(why(16), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 15 words: it has 16\.$/);
+  fails(push(why(16), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 15 words\. The cell "word word .*" has 16 words\.$/);
 });
 
 test('proposal: each part has at most 120 words, with its table and code, not its Mermaid block', () => {
   // The part "Support hours" has 48 words.
   const code = (size) => fixture(['proposal.md', DAYS, `${DAYS}\n\n\`\`\`text\n${many(size)}\n\`\`\``]);
   passes(push(code(72), 'proposal'));
-  fails(push(code(73), 'proposal'), /^Cut the part "Support hours" of proposal.md to 120 words: it has 121\.$/);
+  fails(push(code(73), 'proposal'), /^Cut the part "Support hours" of proposal.md to 120 words\. The part "Support hours" has 121 words\.$/);
   const mermaid = fixture(['proposal.md', '  B --> C[Corrected reply lists the new hours]',
     `  B --> C[${many(300)}]`]);
   passes(push(mermaid, 'proposal'));
@@ -1305,22 +1322,22 @@ test('proposal: a Today/After table has 2 to 6 rows, and each row changes someth
   passes(push(rows(6), 'proposal'));
   for (const count of [1, 7]) {
     fails(push(rows(count), 'proposal'), new RegExp('^Give the Today/After table at line \\d+ of ' +
-      `proposal.md 2 to 6 rows, or write a single change as one sentence: it has ${count}\\.$`));
+      `proposal.md 2 to 6 rows\\. The table has ${count} rows?\\. Write a single change as one sentence\\.$`));
   }
   // A table with no delimiter row counts its second line as a row.
   const undelimited = (count) => fixture(['proposal.md', /\|---\|---\|---\|\n\| Monday to Friday[^]*\| Closed \|/,
     Array.from({ length: count }, (_, at) => `| Day ${at + 1} | 9:00 | 8:00 |`).join('\n')]);
   passes(push(undelimited(6), 'proposal'));
-  fails(push(undelimited(7), 'proposal'), /^Give the Today\/After table at line \d+ of proposal.md 2 to 6 rows, .*: it has 7\.$/);
+  fails(push(undelimited(7), 'proposal'), /^Give the Today\/After table at line \d+ of proposal.md 2 to 6 rows\. The table has 7 rows\./);
   fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 |  9:00 TO 17:00 |']), 'proposal'),
-    /^Remove the row "Monday to Friday \| 9:00 to 17:00 \| 9:00 TO 17:00" of the table at line \d+ of proposal.md: its Today and After cells are the same\.$/);
+    /^Remove the row at line \d+ of proposal.md\. The row is "Monday to Friday \| 9:00 to 17:00 \| 9:00 TO 17:00"\. The Today and After cells of the row are the same\.$/);
   for (const after of ['Unchanged', 'The same.', 'As today', 'same as\ttoday', 'Same as before',
     'Unchanged since 2026', '"Same"', 'The same as today', 'No change', 'The unchanged rule']) {
     fails(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'),
-      /^Remove the row .* of the table at line \d+ of proposal.md, or state its change: its After cell ".*" states no change\.$/);
+      /^Remove the row at line \d+ of proposal.md, or state its change\. The row is ".*"\. The After cell ".*" of the row states no change\.$/);
   }
   fails(push(fixture(['proposal.md', row, '| Monday to Friday | 9:00 to 17:00 | Same as before |']), 'proposal'),
-    /, or state its change: its After cell "Same as before" states no change\.$/);
+    /, or state its change\. The row is ".*"\. The After cell "Same as before" of the row states no change\.$/);
   for (const after of ['Unchangeable, samedi', 'Same-day delivery', 'Closed, as today\'s Sunday rule']) {
     passes(push(fixture(['proposal.md', row, `| Monday to Friday | 9:00 to 17:00 | ${after} |`]), 'proposal'));
   }
@@ -1329,7 +1346,7 @@ test('proposal: a Today/After table has 2 to 6 rows, and each row changes someth
 test('proposal: every table cell has at most 12 words', () => {
   const cell = (size) => fixture(['proposal.md', '| Monday to Friday |', `| ${many(size)} |`]);
   passes(push(cell(12), 'proposal'));
-  fails(push(cell(13), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 12 words: it has 13\.$/);
+  fails(push(cell(13), 'proposal'), /^Cut the cell "word word .*" of the table at line \d+ of proposal.md to 12 words\. The cell "word word .*" has 13 words\.$/);
 });
 
 test('proposal: no refused phrase outside ## Sources, as whole words in any case', () => {
@@ -1338,7 +1355,7 @@ test('proposal: no refused phrase outside ## Sources, as whole words in any case
     'you asked', 'you suggested', 'you are right', 'good point', 'as discussed', 'the review found']) {
     const result = push(fixture(['proposal.md', TODAY, `${TODAY} Here ${phrase.toUpperCase()} it.`]), 'proposal');
     fails(result, new RegExp(`^Remove "${phrase}" from line \\d+ of proposal.md and state the ` +
-      'outcome: the line is ".*"\\.$'));
+      'outcome\\. The line is ".*"\\.$'));
   }
   const across = fixture(['proposal.md', TODAY, `${TODAY} The comment\nasks for it.`]);
   fails(push(across, 'proposal'), /^Remove "the comment asks" from line 9 of proposal.md/);
@@ -1386,7 +1403,7 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   const root = fixture(beforeSources(parts(2) + parts(1, 450 - own - 204 - 2).replace('Part 1', 'Part 3')));
   passes(push(root, 'proposal'));
   // The newest questions version stores the decision of q6, so its reason cannot change.
-  const reasons = /^Cut proposal.md to 424 words: proposal.md has 450, and the reason of 1 decided question has 26\.$/;
+  const reasons = /^Cut proposal.md to 424 words\. proposal.md has 450, and the reason of 1 decided question has 26\.$/;
   fails(checkProposal(root), reasons);
   // With no questions.json at the top of the folder, check reads the newest version.
   fs.rmSync(path.join(root, 'questions.json'));
@@ -1402,7 +1419,7 @@ test('words: check adds the reasons of the decided questions, and push counts pr
   data.questions.push({ ...data.questions[5], id: 'q7', decision: { ...data.questions[5].decision, reason: 'One.' } });
   write(root, 'questions.json', data);
   // This run decided q7, so its reason can change.
-  fails(checkProposal(root), /^Cut proposal.md to 423 words, or shorten a reason of a question that this run decided: proposal.md has 450, and the reasons of 2 decided questions have 27\.$/);
+  fails(checkProposal(root), /^Cut proposal.md to 423 words, or shorten a reason of a question that this run decided\. proposal.md has 450, and the reasons of 2 decided questions have 27\.$/);
   const short = fixture(beforeSources(parts(1)));
   passes(checkProposal(short));
 });
@@ -1414,12 +1431,12 @@ test('words: check proposal counts no reason of a questions.json that does not p
   // The same proposal fails with the reasons of the stored questions.
   const base = total(push(fixture(beforeSources(parts(5))), 'proposal'));
   const full = fixture(beforeSources(parts(2) + parts(1, 450 - (base - 510) - 204 - 2).replace('Part 1', 'Part 3')));
-  fails(checkProposal(full), /^Cut proposal.md to 424 words: /);
+  fails(checkProposal(full), /^Cut proposal.md to 424 words\. /);
   write(full, 'questions.json', '{"questions": [');
   passes(checkProposal(full));
   const questions = check(root, 'questions', path.join(root, 'questions.json'));
   assert.equal(questions.status, 3, questions.out);
-  assert.match(questions.out, /Write questions.json as valid JSON: it does not parse\./);
+  assert.match(questions.out, /Write questions\.json as valid JSON\.\n  questions\.json does not parse\./);
 });
 
 test('questions: a new or changed reason has at most 2 sentences and 40 words', () => {
@@ -1431,17 +1448,17 @@ test('questions: a new or changed reason has at most 2 sentences and 40 words', 
   data.questions[5].decision.reason = `${many(59)}. Two. Four.`;
   write(stored, 'questions.json', data);
   const changed = push(stored, 'questions');
-  fails(changed, /^Cut the reason of q6 to 2 sentences: it has 3\.$/);
-  fails(changed, /^Cut the reason of q6 to 40 words: it has 61\.$/);
+  fails(changed, /^Cut the reason of q6 to 2 sentences\. The reason of q6 has 3\.$/);
+  fails(changed, /^Cut the reason of q6 to 40 words\. The reason of q6 has 61\.$/);
   const root = fixture();
   const added = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
   const q7 = (text) => ({ ...added.questions[5], id: 'q7', decision: { ...added.questions[5].decision, reason: text } });
   write(root, 'questions.json', { questions: [...added.questions, q7(`${many(39)}. Two.`)] });
   passes(push(root, 'questions'));
   write(root, 'questions.json', { questions: [...added.questions, q7(`${many(40)}. Two.`)] });
-  fails(push(root, 'questions'), /^Cut the reason of q7 to 40 words: it has 41\.$/);
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 40 words\. The reason of q7 has 41\.$/);
   write(root, 'questions.json', { questions: [...added.questions, q7('One. Two. Three.')] });
-  fails(push(root, 'questions'), /^Cut the reason of q7 to 2 sentences: it has 3\.$/);
+  fails(push(root, 'questions'), /^Cut the reason of q7 to 2 sentences\. The reason of q7 has 3\.$/);
 });
 
 test('words: the sources of a proposal end at the next heading of any level', () => {
@@ -1471,10 +1488,10 @@ test('a decision record counts its whole text', () => {
 
 test('at most 3 points per part', () => {
   const root = fixture(['spec.md', '- Mockup screen: `delayed-order-reply`.\n- Stays: the rest', '- Mockup screen: `delayed-order-reply`.\n- One more point.\n- Stays: the rest']);
-  fails(push(root, 'spec'), /^Cut the part "Saved reply for delayed orders" of spec.md to 3 points: it has 4/);
+  fails(push(root, 'spec'), /^Cut the part "Saved reply for delayed orders" of spec.md to 3 points\. The part "Saved reply for delayed orders" has 4/);
   const proposal = fixture(['proposal.md', '- If the answer is to send nothing more',
     '- One.\n- Two.\n- Three.\n- If the answer is to send nothing more']);
-  fails(push(proposal, 'proposal'), /^Cut the part "Customers who got the old hours" of proposal.md to 3 points: it has 4/);
+  fails(push(proposal, 'proposal'), /^Cut the part "Customers who got the old hours" of proposal.md to 3 points\. The part "Customers who got the old hours" has 4\.$/);
 });
 
 test('criteria: one sentence of at most 25 words', () => {
@@ -1483,8 +1500,8 @@ test('criteria: one sentence of at most 25 words', () => {
     ['acceptance-criteria.md', /\| ac-4 \| [^|]*\|/, '| ac-4 | One. Two. |'],
   );
   const result = push(root, 'acceptance-criteria');
-  fails(result, /^Cut ac-1 in acceptance-criteria.md to 25 words: it has 26/);
-  fails(result, /^Write ac-4 in acceptance-criteria.md as one sentence: it has 2/);
+  fails(result, /^Cut ac-1 in acceptance-criteria.md to 25 words\. It has 26 words\.$/);
+  fails(result, /^Write ac-4 in acceptance-criteria.md as one sentence\. It has 2 sentences\.$/);
 });
 
 test('criteria: more than 7 is no finding, and the last line states the count', () => {
@@ -1518,8 +1535,10 @@ test('questions: only new questions count, by context words and explanation sent
   write(root, 'questions.json', data);
   const result = push(root, 'questions');
   assert.deepEqual(result.lines.slice(0, -1), [
-    'Cut the context of q4 to 120 words: it has 121.',
-    'Cut the explanation of option 2 of q4 to 2 sentences: it has 3.',
+    'Cut the context of q4 to 120 words.',
+    '  The context of q4 has 121.',
+    'Cut the explanation of option 2 of q4 to 2 sentences.',
+    '  The explanation of option 2 of q4 has 3.',
   ]);
 });
 
@@ -1531,16 +1550,17 @@ test('replies: only new replies count, at most 80 words', () => {
   data.review_comments[0].replies.push({ text: many(81), by: { run: 3 }, outcome: 'changed' });
   write(root, 'review-comments.json', data);
   const result = push(root, 'review-comments');
-  assert.deepEqual(result.lines.slice(0, -1), ['Cut reply 2 of c1 to 80 words: it has 81.']);
+  assert.deepEqual(result.lines.slice(0, -1), ['Cut reply 2 of c1 to 80 words.',
+    '  Reply 2 of c1 has 81.']);
 });
 
 // ---- Ids ----------------------------------------------------------------------------------
 
 test('criteria: ac-N, one row each, a removed row with its reason, and a planned check', () => {
   fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| ac-3 |']), 'acceptance-criteria'),
-    /^Give each criterion of acceptance-criteria.md its own id: ac-3 is there twice/);
+    /^Give each criterion of acceptance-criteria.md a different id\. ac-3 is there twice/);
   fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed. | None |']), 'acceptance-criteria'),
-    /^Write the removed ac-4/);
+    /^Write ac-4 as removed, or plan it as "Demo: <title>" or "Tests"\. Write a removed criterion/);
   fails(push(fixture(['acceptance-criteria.md', '| Tests |', '| Later |']), 'acceptance-criteria'),
     /^Set the planned check of ac-4 to "Demo: <title>" or "Tests"/);
 });
@@ -1549,7 +1569,7 @@ test('criteria: no id renumbered or reused against the newest version', () => {
   const root = fixture();
   const top = fs.readFileSync(path.join(root, 'acceptance-criteria.md'), 'utf8');
   fs.writeFileSync(path.join(root, 'acceptance-criteria.md'), top.replace(/\| ac-4 .*\n?/, ''));
-  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 in acceptance-criteria.md.*version 1 has it/);
+  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 in acceptance-criteria.md.*Version 1 has it/);
   const reused = fixture();
   version(reused, 'acceptance-criteria', 2, 'acceptance-criteria.md',
     top.replace(/\| ac-4 .*/, '| ac-4 | Removed, because it ended. | None |\n| ac-6 | Removed, because it ended. | None |'));
@@ -1557,7 +1577,7 @@ test('criteria: no id renumbered or reused against the newest version', () => {
   const draft = `${top.trimEnd()}\n| ac-5 | The reply states the hours. | Tests |\n| ac-6 | Removed, because it ended. | None |\n`;
   fs.writeFileSync(path.join(reused, 'acceptance-criteria.md'), draft);
   const result = push(reused, 'acceptance-criteria');
-  fails(result, /^Keep ac-4 removed in acceptance-criteria.md: version 2 removed it/);
+  fails(result, /^Keep ac-4 removed in acceptance-criteria.md\. Version 2 removed it/);
   fails(result, /^Give the new criterion ac-5 in acceptance-criteria.md a number above 6/);
 });
 
@@ -1588,7 +1608,7 @@ test('decision record: no id renumbered or reused against the newest version', (
   version(root, 'decision-record', 3, 'decision-record.md', text);
   withdrawIn(root, 'decision-record', 3, false);
   write(root, 'decision-record.md', text.replace('`decision-1`', '`decision-2`'));
-  fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*version 3 has it/);
+  fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*Version 3 has it/);
 });
 
 // withdrawIn lists version number of type in index.json of root as a withdrawal of main, as
@@ -1608,11 +1628,11 @@ function withdrawIn(root, type, number, withdraw = true) {
 test('ids: a withdrawal and a new push drop no id of the version before it', () => {
   for (const [type, file, from, to, finding] of [
     ['acceptance-criteria', 'acceptance-criteria.md', /\| ac-4 .*\n?/, '',
-      /^Keep ac-4 in acceptance-criteria.md.*version 1 has it/],
+      /^Keep ac-4 in acceptance-criteria.md.*Version 1 has it/],
     ['decision-record', 'decision-record.md', '`decision-1`', '`decision-2`',
-      /^Keep decision-1 in decision-record.md.*version 1 has it/],
+      /^Keep decision-1 in decision-record.md.*Version 1 has it/],
     ['demo-scenarios', 'demo-scenarios.md', '### scenario-2:', '### scenario-3:',
-      /^Keep scenario-2 in demo-scenarios.md.*version 1 has it/],
+      /^Keep scenario-2 in demo-scenarios.md.*Version 1 has it/],
   ]) {
     const root = fixture();
     const text = fs.readFileSync(path.join(root, file), 'utf8');
@@ -1631,7 +1651,7 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     const checked = check(root, type, path.join(root, file));
     assert.equal(checked.status, 3, `${type}: ${checked.out}`);
     assert.deepEqual(checked.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version ` +
-      '1`, then check again.', `The store lacks ${type} version 1, the version before the ` +
+      '1`, then check again.', `  The store lacks ${type} version 1, the version before the ` +
       'withdrawal.'], type);
     // Version 3, a push after the withdrawal, is the version that a third push keeps.
     const again = fixture();
@@ -1640,15 +1660,15 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     version(again, type, 3, file, text);
     withdrawIn(again, type, 3, false);
     write(again, file, text.replace(from, to));
-    fails(push(again, type), new RegExp(finding.source.replace('version 1', 'version 3')));
+    fails(push(again, type), new RegExp(finding.source.replace('Version 1', 'Version 3')));
   }
 });
 
 test('questions: each id once, and follows lists only earlier ids', () => {
   fails(push(fixture(['questions.json', /^ {8}"q1"$/m, '        "q7"']), 'questions'),
-    /^List in follows of q5 only questions before it: "q7" is not/);
+    /^List in follows of q5 only questions before it\. "q7" in follows of q5 is not before it\.$/);
   fails(push(fixture(['questions.json', '"id": "q3"', '"id": "q2"']), 'questions'),
-    /^Give each question in questions.json its own id: q2 is there twice/);
+    /^Give each question in questions.json a different id\. q2 is there twice\.$/);
 });
 
 test('questions: a new decided question has an id above every stored id', () => {
@@ -1674,7 +1694,7 @@ test('review comments: each id once, and on of an output comment names a version
   fails(push(fixture(['review-comments.json', /"version": 2$/m, '"version": 3']), 'review-comments'),
     /index.json has no proposal version 3/);
   fails(push(fixture(['review-comments.json', '"id": "c2"', '"id": "c1"']), 'review-comments'),
-    /its own id: c1 is there twice/);
+    /^Give each review comment a different id\. c1 is there twice\.$/);
 });
 
 test('review comments: on of an output comment has artifact as text and version as a whole number', () => {
@@ -1686,7 +1706,7 @@ test('review comments: on of an output comment has artifact as text and version 
     write(root, 'review-comments.json', data);
     return push(root, 'review-comments');
   };
-  const keep = 'Keep "on" of c1 as the newest review comments have it: ';
+  const keep = 'Keep "on" of c1 as the newest review comments have it. The "on" of c1 is wrong: ';
   const exact = (text) => new RegExp(`^${(keep + text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
   fails(output({}), exact('it has no artifact and no version.'));
   fails(output({ artifact: 'proposal' }), exact('it has no version.'));
@@ -1714,25 +1734,25 @@ test('review comments: a round comment has on {"run": N}, N of 1 or more, and no
   };
   passes(round({ run: 1 }));
   passes(round({ run: 40 }));
-  const bad = /^Keep "on" of c6 as the newest review comments have it: its run is /;
+  const bad = /^Keep "on" of c6 as the newest review comments have it\. The run of "on" of c6 is /;
   fails(round({ run: 0 }), new RegExp(`${bad.source}0, not a whole number of 1 or more\\.$`));
   fails(round({ run: -1 }), bad);
   fails(round({ run: 1.5 }), bad);
   fails(round({ run: '2' }), new RegExp(`${bad.source}"2", not a whole number`));
   fails(round({ run: null }), new RegExp(`${bad.source}null, not a whole number`));
   fails(round({ run: 1, artifact: 'proposal' }),
-    /^Keep "on" of c6 as the newest review comments have it: an "on" with run has no other key, and it has "artifact"\.$/);
-  fails(round({ run: 1, artifact: 'proposal', version: 1 }), /and it has "artifact", "version"\.$/);
+    /^Keep "on" of c6 as the newest review comments have it\. An "on" with run has no other key, and the "on" of c6 has "artifact"\.$/);
+  fails(round({ run: 1, artifact: 'proposal', version: 1 }), /and the "on" of c6 has "artifact", "version"\.$/);
   const both = round({ run: 0, version: 1 });
   fails(both, bad);
-  fails(both, /an "on" with run has no other key, and it has "version"/);
+  fails(both, /An "on" with run has no other key, and the "on" of c6 has "version"/);
 });
 
 test('review comments: a reply cites a question that exists and, when asked, is not withdrawn', () => {
   fails(push(fixture(['review-comments.json', '"question": "q4"', '"question": "q8"']), 'review-comments'),
-    /^Set the question of reply 1 of c2 to an id of this run's questions: "q8" is not there/);
+    /^Set the question of reply 1 of c2 to an id of this run's questions\. The question of reply 1 of c2 is "q8", which is not there\.$/);
   const root = fixture(['review-comments.json', '"question": "q4"', '"question": "q2"']);
-  fails(push(root, 'review-comments'), /^Cite a question that is not withdrawn in reply 1 of c2: q2 is withdrawn/);
+  fails(push(root, 'review-comments'), /^Cite a question that is not withdrawn in reply 1 of c2\. q2, in reply 1 of c2, is withdrawn\.$/);
 });
 
 test('decision record: Rests on: cites criteria that exist and are not removed', () => {
@@ -1754,7 +1774,7 @@ test('decision record: Question: cites a decided or answered question of this ru
 
 test('scenarios: planned demos and Shows: lines match both ways', () => {
   fails(push(fixture(['acceptance-criteria.md', 'Demo: Read the closed day', 'Demo: Read the open day']), 'demo-scenarios'),
-    /title "Read the open day"/);
+    /The title is "Read the open day"/);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-1, ac-2', 'Shows: ac-1']), 'demo-scenarios'),
     /^Add ac-2 to the Shows: line of scenario-1/);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', 'Shows: ac-3, ac-4']), 'demo-scenarios'),
@@ -1766,7 +1786,7 @@ test('scenarios: planned demos and Shows: lines match both ways', () => {
 test('proposal: ## Sources and sources.json list the same pages and files', () => {
   const root = fixture(['proposal.md', 'No public page and no file.', '- [Support hours](https://help.example.com/hours)\n- web: src/reply.ts']);
   const result = push(root, 'proposal');
-  fails(result, /^Add "https:\/\/help.example.com\/hours" to sources.json/);
+  fails(result, /^Add ".*" to sources.json, or remove it from ## Sources of proposal\.md\. The item is "https:\/\/help.example.com\/hours"\.$/);
   fails(result, /^Add "web: src\/reply.ts" to sources.json/);
   write(root, 'sources.json', {
     sources: [
@@ -1798,13 +1818,13 @@ const SOURCE = fs.readFileSync(path.join(TESTDATA, 'proposal.md'), 'utf8').split
   .indexOf('No public page and no file.') + 1;
 const PAGE = '- [Support hours](https://help.example.com/hours)';
 const FILE = '- web: src/reply.ts';
-const FORM = /^Write ## Sources of proposal\.md as "- " items, or only "No public page and no file\.": line (\d+) is "(.*)"\.$/;
+const FORM = /^Write ## Sources of proposal\.md as "- " items, or only "No public page and no file\."\. Line (\d+) is "(.*)"\.$/;
 
 // forms returns the line number and the quoted line of each finding on the form of ## Sources,
 // and checks that the check fails.
 function forms(result) {
   assert.equal(result.status, 1, result.out);
-  return result.lines.map((line) => FORM.exec(line)).filter(Boolean)
+  return result.findings.map((line) => FORM.exec(line)).filter(Boolean)
     .map((found) => [Number(found[1]), found[2]]);
 }
 
@@ -1851,8 +1871,8 @@ test('proposal: each ## Sources section has its finding', () => {
 test('proposal: ## Sources has no prose, code block or other list', () => {
   const prose = 'The sources are the support pages and the reply code.';
   const result = push(sourced(`${prose}\n\n${PAGE}\n${FILE}`), 'proposal');
-  assert.ok(result.lines.includes('Write ## Sources of proposal.md as "- " items, or only ' +
-    `"No public page and no file.": line ${SOURCE} is "${prose}".`), result.out);
+  assert.ok(result.out.includes('Write ## Sources of proposal.md as "- " items, or only ' +
+    `"No public page and no file.".\n  Line ${SOURCE} is "${prose}".`), result.out);
   assert.deepEqual(form(result), [SOURCE, prose]);
   assert.deepEqual(form(push(sourced(`${PAGE}\n${FILE}\n\n${prose}`), 'proposal')), [SOURCE + 3, prose]);
   assert.deepEqual(form(push(sourced(`${PAGE}\n${prose}\n${FILE}`), 'proposal')), [SOURCE + 1, prose]);
@@ -1963,14 +1983,14 @@ test('an image only where the skill allows it', () => {
 
 test('scenarios: no link', () => {
   fails(push(fixture(['demo-scenarios.md', 'Two scenarios show', 'Two [scenarios](https://example.com/v) show']), 'demo-scenarios'),
-    /^Remove the link "https:\/\/example.com\/v" from demo-scenarios.md: it has no link/);
+    /^Remove the link "https:\/\/example.com\/v" from demo-scenarios.md\. The link is "https:\/\/example.com\/v", and demo-scenarios.md may have no link\.$/);
 });
 
 test('no .qory/repositories and no path of the machine the run is on', () => {
   fails(push(fixture(['spec.md', 'No public page and no file.', '- .qory/repositories/web/a.ts']), 'spec'),
     /^Remove \.qory\/repositories from spec.md/);
   fails(push(fixture(['decision-record.md', 'The ticket has no target.', 'See /tmp/qory-artifacts/in/inputs.json.']), 'decision-record'),
-    /^Remove the path of the machine the run is on, "\/tmp\/qory-artifacts\/in\/inputs.json.", from decision-record.md/);
+    /^Remove the path of the machine the run is on from decision-record.md\. The path is "\/tmp\/qory-artifacts\/in\/inputs.json." in decision-record.md\.$/);
   passes(push(fixture(['spec.md', 'https://control.example.com/work-items/', 'https://control.example.com/tmp/']), 'spec'));
 });
 
@@ -1985,7 +2005,7 @@ test('each output line is at most 200 characters, with quotes of at most 80 and 
     assert.ok(line.length <= 200, line);
     assert.doesNotMatch(line, /[\u0000-\u001f]/);
   }
-  const quoted = result.lines.find((line) => line.startsWith('Write the heading'));
+  const quoted = result.lines.find((line) => line.startsWith('  The heading is'));
   assert.ok(quoted && /"[^"]{1,80}"/.test(quoted) && quoted.includes('..."'), quoted);
 });
 
@@ -2065,7 +2085,8 @@ test('check: an index.json that contradicts itself exits 3', () => {
   const root = fixture(['index.json', '"newest_version": 2,', '"newest_version": 3,']);
   const result = check(root, 'spec', path.join(root, 'spec.md'));
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /newest_version of proposal in index.json is 3/);
+  assert.equal(result.lines[0], 'Pull the artifacts again.');
+  assert.match(result.lines[1], /^ {2}newest_version of proposal in index.json is 3/);
 });
 
 test('check: approved_version is the id of a version, as the run API sets it', () => {
@@ -2077,7 +2098,7 @@ test('check: approved_version is the id of a version, as the run API sets it', (
       `"approved_version": ${wrong},`]);
     const result = push(root, 'spec');
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], /approved_version of proposal in index.json is .*, the id of no/);
+    assert.match(result.lines[1], /^ {2}approved_version of proposal in index.json is .*, the id of no/);
   }
 });
 
@@ -2115,7 +2136,7 @@ test('push: a related type with no version yet is an empty set, never exit 3', (
   }
   fails(push(store, 'demo-scenarios'), /^Remove ac-1 from the Shows: line of scenario-1/);
   fails(push(store, 'decision-record'), /ac-1 is not in the newest criteria/);
-  fails(push(store, 'review-comments'), /"q4" is not there/);
+  fails(push(store, 'review-comments'), /is "q4", which is not there\.$/);
   write(store, 'decision-record.md', '## Decisions\n\nThe spec leaves no technical choice open.\n');
   passes(push(store, 'decision-record'));
 });
@@ -2157,8 +2178,8 @@ test('points: a run_again point may have a fix, by the rules of a text', () => {
   const FIX = 'Accept the newest submission, or close this work item.';
   passes(checkPoints([{ ...AGAIN, fix: FIX }]));
   fails(checkPoints([{ ...ANSWER, fix: FIX }]), /^Remove fix from point 1: only a point with the action run_again has one\.$/);
-  fails(checkPoints([{ ...AGAIN, fix: `${'a'.repeat(500)}.` }]), /^Write the fix of point 1 as text of 1 to 500 characters: it has 501 characters\.$/);
-  fails(checkPoints([{ ...AGAIN, fix: 'Run it again. Then close it.' }]), /^Write the fix of point 1 as one sentence with the step for the person: it has 2\.$/);
+  fails(checkPoints([{ ...AGAIN, fix: `${'a'.repeat(500)}.` }]), /^Write the fix of point 1 as text of 1 to 500 characters\. The fix of point 1 has 501 characters\.$/);
+  fails(checkPoints([{ ...AGAIN, fix: 'Run it again. Then close it.' }]), /^Write the fix of point 1 as one sentence with the step for the person\. The text has 2 sentences\.$/);
   fails(checkPoints([{ ...AGAIN, fix: 'Close the work item' }]), /^End the fix of point 1 with a full stop\.$/);
   fails(checkPoints([{ ...AGAIN, fix: '' }]), /^Write the fix of point 1 as text of 1 to 500 characters/);
 });
@@ -2177,18 +2198,18 @@ test('points: the list has 1 to 20 points, each an object', () => {
 
 test('points: each text is plain text for a person, on one line', () => {
   const text = (value) => checkPoints([{ ...AGAIN, text: value }]);
-  fails(text(''), /^Write the text of point 1 as text of 1 to 500 characters: it has 0 characters\.$/);
-  fails(text(`${'a'.repeat(490)} b c d e f.`), /^Write the text of point 1 as text of 1 to 500 characters: it has 501/);
+  fails(text(''), /^Write the text of point 1 as text of 1 to 500 characters\. The text of point 1 has 0 characters\.$/);
+  fails(text(`${'a'.repeat(490)} b c d e f.`), /^Write the text of point 1 as text of 1 to 500 characters\. The text of point 1 has 501/);
   fails(text('The checks\nfailed.'), /^Remove the control character U\+000A from text of point 1 of points\.json\.$/);
-  fails(text('The checks failed. Run another round.'), /^Write the text of point 1 as one sentence on what is wrong or missing, with no step for the person: it has 2\.$/);
+  fails(text('The checks failed. Run another round.'), /^Write the text of point 1 as one sentence on what is wrong or missing\. The text has 2 sentences\. Leave the step for the person out of it\.$/);
   fails(text('The checks failed'), /^End the text of point 1 with a full stop\.$/);
   fails(text('The `spec` breaks a rule.'), /^Write the text of point 1 as plain text, with no Markdown mark\.$/);
-  fails(text('Quote: "the price".'), /^Write the text of point 1 in plain words, with no Quote, Problem, Fix, Point or Marks label\.$/);
-  fails(text('Marks: writer, no direction.'), /with no Quote, Problem, Fix, Point or Marks label/);
-  fails(text('Point: the spec has a gap.'), /with no Quote, Problem, Fix, Point or Marks label/);
-  fails(text('The run left q4 open.'), /^Remove the question id from the text of point 1: question links the point to its question\.$/);
-  fails(text('The draft spec.md breaks a rule.'), /^Remove the file name from the text of point 1: name what the file contains\.$/);
-  fails(text('The spec-reviewer found a gap.'), /^Remove the agent name spec-reviewer from the text of point 1: name the work/);
+  fails(text('Quote: "the price".'), /^Write the text of point 1 in plain words, with no label\. The labels are Quote, Problem, Fix, Point and Marks\.$/);
+  fails(text('Marks: writer, no direction.'), /with no label\. The labels are Quote, Problem, Fix, Point and Marks/);
+  fails(text('Point: the spec has a gap.'), /with no label\. The labels are Quote, Problem, Fix, Point and Marks/);
+  fails(text('The run left q4 open.'), /^Remove the question id from the text of point 1\. The member question links the point to its question\.$/);
+  fails(text('The draft spec.md breaks a rule.'), /^Remove the file name from the text of point 1\. Name what the file contains in its place\.$/);
+  fails(text('The spec-reviewer found a gap.'), /^Remove the agent name spec-reviewer from the text of point 1\. Name the work in place of spec-reviewer/);
   // Words such as a version number or a hyphenated word are no id, file name or agent name.
   passes(text('The spec of version 1.2 has a well-known gap, and the follow-up spec is missing.'));
   // A product name such as Node.js is no file name, and a plain word such as designer is no
@@ -2199,17 +2220,17 @@ test('points: each text is plain text for a person, on one line', () => {
 });
 
 test('points: an answer point names an open question, and a run_again point none', () => {
-  fails(checkPoints([{ ...ANSWER, action: 'ask' }]), /^Set the action of point 1 to answer or run_again: it is "ask"\.$/);
-  fails(checkPoints([{ text: ANSWER.text }]), /^Set the action of point 1 to answer or run_again: it is missing\.$/);
+  fails(checkPoints([{ ...ANSWER, action: 'ask' }]), /^Set the action of point 1 to answer or run_again\. The action of point 1 is "ask"\.$/);
+  fails(checkPoints([{ text: ANSWER.text }]), /^Set the action of point 1 to answer or run_again\. The action of point 1 is missing\.$/);
   const { question, ...noQuestion } = ANSWER;
   assert.equal(question, 'q3');
   fails(checkPoints([noQuestion]), /^Add question to point 1: a point with the action answer has the id of an open question\.$/);
-  fails(checkPoints([{ ...ANSWER, question: 'Q3' }]), /^Set the question of point 1 to an id of 1 to 32 lower-case letters, digits and hyphens: it is "Q3"\.$/);
-  fails(checkPoints([{ ...ANSWER, question: 3 }]), /: it is 3\.$/);
+  fails(checkPoints([{ ...ANSWER, question: 'Q3' }]), /^Set the question of point 1 to an id of 1 to 32 lower-case letters, digits and hyphens\. The question of point 1 is "Q3"\.$/);
+  fails(checkPoints([{ ...ANSWER, question: 3 }]), / The question of point 1 is 3\.$/);
   // q1 is answered, q2 withdrawn and q6 decided in the testdata, and q9 does not exist.
   for (const id of ['q1', 'q2', 'q6', 'q9']) {
     fails(checkPoints([{ ...ANSWER, question: id }]),
-      new RegExp(`^Set the question of point 1 to the id of an open question in questions\\.json: "${id}" is none\\.$`));
+      new RegExp(`^Set the question of point 1 to the id of an open question in questions\\.json\\. "${id}" is none\\.$`));
   }
   fails(checkPoints([{ ...AGAIN, question: 'q3' }]), /^Remove question from point 1: a point with the action run_again has none\.$/);
 });
@@ -2217,7 +2238,7 @@ test('points: an answer point names an open question, and a run_again point none
 test('points: a point states its action, and the words of each id beside it', () => {
   // A point with no action names the field and its fix first.
   exactly(checkPoints([{ text: ANSWER.text }]),
-    'Set the action of point 1 to answer or run_again: it is missing.');
+    'Set the action of point 1 to answer or run_again.\n  The action of point 1 is missing.');
   // The point of a criterion that cannot be met, with its id and its text in quotes.
   passes(checkPoints([{ ...ANSWER, text: 'AC-3, "A member exports up to 50,000 rows to CSV", ' +
     'cannot be met as approved: the export service returns at most 10,000 rows.' }]));
@@ -2246,12 +2267,15 @@ test('points: a point states its action, and the words of each id beside it', ()
   // A text over the limit gets the finding of its length and of each other rule it breaks.
   const long = 'The run could not meet AC-3 as approved, and the file index.json is ';
   assert.deepEqual(text(`${long}${'a'.repeat(500 - long.length)}.`).lines.slice(0, -1), [
-    'Write the text of point 1 as text of 1 to 500 characters: it has 501 characters.',
-    'Remove the file name from the text of point 1: name what the file contains.',
+    'Write the text of point 1 as text of 1 to 500 characters.',
+    '  The text of point 1 has 501 characters.',
+    'Remove the file name from the text of point 1.',
+    '  Name what the file contains in its place.',
     'Quote the words of AC-3 beside it in the text of point 1.']);
   // A question id has one finding: remove it.
-  exactly(text('The run left q4 open.'), 'Remove the question id from the text of point 1: ' +
-    'question links the point to its question.');
+  assert.deepEqual(text('The run left q4 open.').lines.slice(0, -1), [
+    'Remove the question id from the text of point 1.',
+    '  The member question links the point to its question.']);
   // An id in the path of a file of the target is part of the path, but ids joined by a slash
   // are no path.
   passes(text('Edit docs/step-1.md so that it lists the refund.'));
@@ -2279,8 +2303,8 @@ test('points: a point states its action, and the words of each id beside it', ()
     'The file /tmp/qory-artifacts/spec.md is empty.', 'The run left .qory/artifacts/points.json empty.',
     'The report .reports/reviewer-2.md is missing.', 'The file ./points.json is broken.',
     'The file ../.reports/end.json is missing.']) {
-    exactly(text(value), 'Remove the file name from the text of point 1: name what the file ' +
-      'contains.');
+    assert.deepEqual(text(value).lines.slice(0, -1), ['Remove the file name from the text of ' +
+      'point 1.', '  Name what the file contains in its place.'], value);
   }
 });
 
@@ -2360,8 +2384,8 @@ const WRITER_REPORT = [
 test('report: the last line is a word the agent may end with', () => {
   passes(report(WRITER_REPORT, 'spec-writer'));
   const result = report(WRITER_REPORT.replace(/done\n$/, 'Done.\n'), 'spec-writer');
-  fails(result, /^End the report of spec-writer with one word, done, blocked: its last line is "Done."/);
-  fails(report('What you read:\n- a\n\ndone\n', 'spec-reviewer'), /^End the report of spec-reviewer with one word, clean/);
+  fails(result, /^End the report with one word, done, blocked\. The last line of the report of spec-writer is "Done."/);
+  fails(report('What you read:\n- a\n\ndone\n', 'spec-reviewer'), /^End the report with one word, clean.* of spec-reviewer /);
 });
 
 test('report: lines after the last word are no finding, and the check reads them', () => {
@@ -2398,12 +2422,12 @@ test('report: lines after the last word are no finding, and the check reads them
   passes(report(`${WRITER_REPORT.replace('Criteria:\n- ac-1: added\n\n', '')}\nCriteria:\n- ac-1: added\n`,
     'spec-writer'));
   fails(report(`${WRITER_REPORT.replace('Decided:\n- none\n', '')}\nDecided:\n`, 'spec-writer'),
-    /^Give the list "Decided:" of spec-writer an item/);
-  fails(report(`${WRITER_REPORT}blocked\n`, 'spec-writer'), /one "Blocked:" line: it has 0/);
+    /^Give the list "Decided:" an item.* The list "Decided:" of spec-writer has no item/);
+  fails(report(`${WRITER_REPORT}blocked\n`, 'spec-writer'), /one "Blocked:" line\. The report of spec-writer has 0 "Blocked:" lines\.$/);
   fails(report('What you read:\n- a\n\nchanges-needed\n\nSources:\n- a\n', 'proposal-reviewer'),
     /^Add the list "Findings:" to the report of proposal-reviewer/);
   fails(report(`${WRITER_REPORT.replace(/done\n$/, 'Done.\n')}\nSources:\n- a\n`, 'spec-writer'),
-    /^End the report of spec-writer with one word, done, blocked: its last line is "- a"\.$/);
+    /^End the report with one word, done, blocked\. The last line of the report of spec-writer is "- a"\.$/);
   // A wrapped line of an item, or a last word with no blank line after it, is no last word.
   const cut = [
     'What you searched:',
@@ -2415,12 +2439,12 @@ test('report: lines after the last word are no finding, and the check reads them
     '  before the reply',
     '- src/b.ts:9: the reply is sent by the queue wor',
   ].join('\n');
-  fails(report(cut, 'code-explorer'), /^End the report of code-explorer with one word/);
+  fails(report(cut, 'code-explorer'), /^End the report with one word.* of code-explorer /);
   fails(report(cut.replace('  done', 'done'), 'code-explorer'),
-    /^End the report of code-explorer with one word/);
+    /^End the report with one word.* of code-explorer /);
   // A report cut right after a wrapped "  done" line: only the indent rule catches it.
   fails(report(cut.split('\n').slice(0, 6).join('\n'), 'code-explorer'),
-    /its last line is "done", with an indent\.$/);
+    / of code-explorer is "done", with an indent\.$/);
   passes(report(`${WRITER_REPORT}\nSources:\n\`\`\`\nblocked\n\`\`\`\n`, 'spec-writer'));
   // A line of a code block is no last word, also with a blank line after it or no closing
   // fence.
@@ -2432,20 +2456,20 @@ test('report: lines after the last word are no finding, and the check reads them
   passes(report(`${WRITER_REPORT.replace(/done\n$/, '')}\`\`\`x\`\`\` is code\n\ndone\n`,
     'spec-writer'));
   fails(report(`${WRITER_REPORT.replace(/done\n$/, '')}\`\`\`\ndone\n`, 'spec-writer'),
-    /its last line is "done", in a code block\.$/);
+    / of spec-writer is "done", in a code block\.$/);
 });
 
 test('report: each list that Expected output names is there, with an item', () => {
   fails(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', ''), 'spec-writer'),
     /^Add the list "Criteria:" to the report of spec-writer/);
   fails(report(WRITER_REPORT.replace('Decided:\n- none\n', 'Decided:\n\n'), 'spec-writer'),
-    /^Give the list "Decided:" of spec-writer an item/);
+    /^Give the list "Decided:" an item.* The list "Decided:" of spec-writer has no item/);
   fails(report('What you read:\n- a\n\nchanges-needed\n', 'proposal-reviewer'),
     /^Add the list "Findings:" to the report of proposal-reviewer/);
   fails(report('What you read:\n- a\n\nFindings:\n1. Quote: "a"\n\nclean\n', 'spec-reviewer'),
     /^Remove "Findings:" from the clean report/);
   fails(report('What you searched:\n- nothing: no target\n\nDirection: changed\n', 'proposal-writer'),
-    /^End the report of proposal-writer/);
+    /^End the report with one word.* of proposal-writer /);
   assert.deepEqual(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', ''), 'proposal-writer').lines,
     ['Add the line "Direction:" to the report of proposal-writer.',
       'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding. ' +
@@ -2474,39 +2498,39 @@ test('report: each finding of a reviewer has one Point: line that a point can co
   assert.equal(result.lines.at(-1), 'Checked the report of spec-reviewer: last word, lists, ' +
     'Blocked: line and Point: lines; 0 findings.');
   fails(report(reviewed(null), 'spec-reviewer'), new RegExp('^Add a "Point:" line to finding 1 ' +
-    'of spec-reviewer: one sentence that a member reads when the finding is left\\.$'));
+    'of spec-reviewer\\. The line is one sentence that a member reads when the finding is left\\.$'));
   fails(report(reviewed(GOOD_POINT, null), 'spec-reviewer'), /^Add a "Point:" line to finding 2 of spec-reviewer/);
   fails(report(reviewed('The `spec` does not state how long a refund takes.'), 'spec-reviewer'),
-    /^Write the "Point:" line of finding 1 of spec-reviewer as plain text, with no Markdown mark\.$/);
+    /^Write the "Point:" line of finding 1 as plain text, with no Markdown mark\. The line is in the report of spec-reviewer\.$/);
   fails(report(reviewed('The draft spec.md does not state how long a refund takes.'), 'spec-reviewer'),
-    /^Remove the file name from the "Point:" line of finding 1 of spec-reviewer: name what the file contains\.$/);
+    /^Remove the file name from the "Point:" line of finding 1\. Name what the file contains in its place\. The line is in the report of spec-reviewer\.$/);
   fails(report(reviewed('The spec has a gap. It does not state how long a refund takes.'), 'spec-reviewer'),
-    /^Write the "Point:" line of finding 1 of spec-reviewer as one sentence on what is wrong or missing, with no step for the person: it has 2\.$/);
+    /^Write the "Point:" line of finding 1 as one sentence on what is wrong or missing\. The text has 2 sentences\. Leave the step for the person out of it\. The line is in the report of spec-reviewer\.$/);
   fails(report(reviewed('The spec does not state how long a refund takes'), 'spec-reviewer'),
-    /^End the "Point:" line of finding 1 of spec-reviewer with a full stop\.$/);
+    /^End the "Point:" line of finding 1 with a full stop\. The line is in the report of spec-reviewer\.$/);
   fails(report(reviewed('The answer to q3 is not in the spec.'), 'spec-reviewer'),
-    /^Remove the question id from the "Point:" line of finding 1 of spec-reviewer: the run links the point to its question\.$/);
+    /^Remove the question id from the "Point:" line of finding 1\. The run links the point to its question\. The line is in the report of spec-reviewer\.$/);
   fails(report(reviewed('The spec-writer left out the time of a refund.'), 'spec-reviewer'),
-    /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/);
+    /^Remove the agent name spec-writer from the "Point:" line of finding 1\. Name the work in place of spec-writer, .* The line is in the report of spec-reviewer\.$/);
   fails(report(reviewed('The spec does not meet AC-3 as approved.'), 'spec-reviewer'),
-    /^Quote the words of AC-3 beside it in the "Point:" line of finding 1 of spec-reviewer\.$/);
+    /^Quote the words of AC-3 beside it in the "Point:" line of finding 1\. The line is in the report of spec-reviewer\.$/);
   passes(report(reviewed('The spec does not meet AC-3, "A refund takes at most 5 days".'),
     'spec-reviewer'));
   fails(report(reviewed(''), 'spec-reviewer'),
-    /^Write the "Point:" line of finding 1 of spec-reviewer as text of 1 to 500 characters: it has 0/);
+    /^Write the "Point:" line of finding 1 as text of 1 to 500 characters\. The "Point:" line of finding 1 has 0 characters\. The line is in the report of spec-reviewer\.$/);
   // Two Point: lines, and a Point: line that wraps onto a second line.
   const twice = reviewed(GOOD_POINT).replace('   Marks:', `   Point: ${GOOD_POINT}\n   Marks:`);
   fails(report(twice, 'spec-reviewer'), /^Give finding 1 of spec-reviewer one "Point:" line: it has 2\.$/);
   const wrapped = reviewed('The spec does not state how long').replace('   Marks:', '     a refund takes.\n   Marks:');
   fails(report(wrapped, 'spec-reviewer'),
-    /^Write the "Point:" line of finding 1 of spec-reviewer on one line: the line after it is "a refund takes\."\.$/);
+    /^Write the "Point:" line of finding 1 of spec-reviewer on one line\. The line after it is "a refund takes\."\.$/);
   // A code block at column 0 inside a quote stays in its finding, and the list goes on to
   // the next finding, which has no Point: line.
   const fenced = reviewed(GOOD_POINT, null).replace('1. Quote: "Refunds take a while."',
     '1. Quote: "Refunds take a while."\n```text\nRefunds take a while.\nPoint: none\n```');
   const lines = report(fenced, 'spec-reviewer').lines;
-  assert.deepEqual(lines.slice(0, -1), ['Add a "Point:" line to finding 2 of spec-reviewer: one ' +
-    'sentence that a member reads when the finding is left.']);
+  assert.deepEqual(lines.slice(0, -1), ['Add a "Point:" line to finding 2 of spec-reviewer.',
+    '  The line is one sentence that a member reads when the finding is left.']);
   // A free line after a blank line is no wrap of a Point: line that ends its finding.
   const last = ['What you read:', '- /tmp/qory-artifacts/spec.md', '', 'Findings:',
     '1. Quote: "Refunds take a while."', '   Problem: Rule 15: `a while` is no number.',
@@ -2517,8 +2541,9 @@ test('report: each finding of a reviewer has one Point: line that a point can co
   // A quoted line with a capital and a colon ends no list: only a list of the shape does.
   const colon = reviewed(GOOD_POINT, null).replace('1. Quote: "Refunds take a while."',
     '1. Quote: "Refunds take a while,\nThe spec says:\n  more"');
-  assert.deepEqual(report(colon, 'spec-reviewer').lines.slice(0, -1), ['Add a "Point:" line to ' +
-    'finding 2 of spec-reviewer: one sentence that a member reads when the finding is left.']);
+  assert.deepEqual(report(colon, 'spec-reviewer').lines.slice(0, -1), [
+    'Add a "Point:" line to finding 2 of spec-reviewer.',
+    '  The line is one sentence that a member reads when the finding is left.']);
   // "- none" is no finding, and a writer's report has no Point: line.
   passes(report(reviewed().replace('Findings:\n', 'Findings:\n- none'), 'spec-reviewer'));
   passes(report(WRITER_REPORT, 'spec-writer'));
@@ -2591,8 +2616,8 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
       .test(text), `${file} has a stop with no change`);
   }
   fails(report('Blocked: needs the moon\nblocked\n', 'spec-writer'),
-    /^Start "Blocked:" of spec-writer with a stop line that the skills of its workflow list: "needs the moon"/);
-  fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line: it has 0/);
+    /^Start "Blocked:" with a stop line that the skills of the workflow list\. "needs the moon" of spec-writer is none\.$/);
+  fails(report('blocked\n', 'spec-writer'), /one "Blocked:" line\. The report of spec-writer has 0 "Blocked:" lines\.$/);
   fails(report(WRITER_REPORT.replace('done', 'Blocked: input file\ndone'), 'spec-writer'),
     /^Remove "Blocked:" from the report of spec-writer/);
 });
@@ -2613,12 +2638,12 @@ test('report: the scenario writer reports a version note only for an empty file'
     'hours", is now checked by tests.';
   passes(report(withNote([...head, line]), 'scenario-writer'));
   fails(report(scenarios.replace('\ndone', '\nVersion note:\n\ndone'), 'scenario-writer'),
-    /^Give the list "Version note:" of scenario-writer an item, or leave the list out/);
+    /^Give the list "Version note:" an item, or leave the list out\. The list "Version note:" of scenario-writer has no item\.$/);
   fails(report(withNote(['none']), 'scenario-writer'),
-    /^Leave out the list "Version note:" of scenario-writer in place of "- none"/);
+    /^Leave out the list "Version note:" in place of "- none"\. The list "Version note:" of scenario-writer has no "- none"\.$/);
   const long = withNote([...head, ...Array(40).fill(line)]);
   fails(report(long, 'scenario-writer'),
-    /^Cut the lines of "Version note:" of scenario-writer to at most 4000 characters: they have \d+/);
+    /^Cut the lines of "Version note:" to at most 4000 characters\. The lines of "Version note:" of scenario-writer have \d+\.$/);
 });
 
 test('report: a file outside the reports folder exits 3', () => {
@@ -2715,16 +2740,26 @@ test('starts --subject: local counts under the key of begin', () => {
 // waits until that time, so that calls of several processes start at the same moment.
 function startsChild(root, argv, at = 0) {
   const { spawn } = require('node:child_process');
-  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}] }`;
+  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}], ` +
+    `firstLine: ${CHILD} }`;
   const code = `const { main } = require(${JSON.stringify(SCRIPT)}); ` +
     `while (Date.now() < ${at}) {} ` +
     `process.exitCode = main(${JSON.stringify(['starts', ...argv])}, ${deps});`;
+  const first = watch();
   return new Promise((resolve) => {
-    const proc = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(process.execPath, ['-e', code],
+      { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
     let out = '';
+    let err = '';
+    let lines = '';
     proc.stdout.on('data', (data) => { out += data; });
-    proc.stderr.on('data', (data) => { out += data; });
-    proc.on('close', (status) => resolve({ status, out }));
+    proc.stderr.on('data', (data) => { out += data; err += data; });
+    proc.stdio[3].on('data', (data) => { lines += data; });
+    proc.on('close', (status) => resolve({ status, out, err, lines }));
+  }).then(({ status, out, err, lines }) => {
+    first.read(lines);
+    first.check(status, err);
+    return { status, out };
   });
 }
 
@@ -2783,7 +2818,7 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Report to a member: checks.js starts cannot run, because its lock file still exists.',
-      plainLine(`${lock} still exists after 0.05 s of tries.`),
+      `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.deepEqual(fs.readdirSync(reports), ['starts.json.lock']);
@@ -2868,8 +2903,8 @@ test('starts --subject: a wrong reviewer, subject or count of arguments exits 2'
   fs.mkdirSync(root);
   const start = (...argv) => call({ cwd: tmp, artifacts: [root] }, ['starts', 'r1', ...argv]);
   for (const [argv, why] of [
-    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>: Bad Name\n/],
-    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change: Change\n/],
+    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>\.\n  The argument is Bad Name\.\n/],
+    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change\.\n  The argument is Change\.\n/],
     [['code-reviewer', '--subject'], /^Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer and --subject <subject>\.\n/],
     [['code-reviewer', '--subject', 'change', 'more'], /^Give starts a run, a name and a limit/],
   ]) {
@@ -2931,7 +2966,8 @@ test('panel: a fifth reviewer waits for a free place, and --after starts it', ()
     'Start: harness:b-reviewer, 1 file of the change.',
     'Start: harness:c-reviewer, 1 file of the change.',
     'Start: harness:d-reviewer, 1 file of the change.',
-    'Wait: harness:e-reviewer, 1 file of the change: no free place.',
+    'Wait: harness:e-reviewer, 1 file of the change.',
+    '  The member has no free place.',
     'Run panel again with --after 4 when the 4 members above have returned: 1 waits for a ' +
       'free place.',
     'Checked the group reviewers: 5 members, 5 with a file of the change, 4 places; the disk ' +
@@ -2963,7 +2999,7 @@ test('panel: the disk sets fewer places, and none exits 1', () => {
   assert.equal(full.status, 1, full.out);
   assert.deepEqual(full.lines.slice(0, 2), [
     'Start no member, and end the run as "Failures" lists: the disk has no room.',
-    'The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the copy of ' +
+    '  The disk has 1.0 GiB free, and each member needs 2.0 GiB, twice the size of the copy of ' +
       'the working folder for a reviewer.',
   ]);
   assert.equal(full.lines.filter((line) => line.startsWith('Wait: ')).length, 5);
@@ -3092,14 +3128,14 @@ test('panel: the names pair with the members by position', (t) => {
   const swapped = panelCall(deps, ['harness:test-reviewer', 'harness:code-reviewer']);
   assert.equal(swapped.status, 3, swapped.out);
   assert.equal(swapped.lines[0], 'Pass panel the names of the group in the order of roles.json.');
-  assert.match(swapped.lines[1], /^Name 1, "harness:test-reviewer", is not the member code-reviewer of the group reviewers in .*roles\.json\.$/);
+  assert.match(swapped.lines[1], /^  Name 1, "harness:test-reviewer", is not the member code-reviewer of the group reviewers in .*roles\.json\.$/);
   const glued = panelCall(deps, ['xharness-code-reviewer', 'test-reviewer']);
   assert.equal(glued.status, 3, glued.out);
-  assert.match(glued.lines[1], /^Name 1, "xharness-code-reviewer", is not the member code-reviewer of /);
+  assert.match(glued.lines[1], /^  Name 1, "xharness-code-reviewer", is not the member code-reviewer of /);
   const short = panelCall(deps, ['code-reviewer']);
   assert.equal(short.status, 3);
   assert.equal(short.lines[0], 'Pass panel each name of the group from the reference of the workflow.');
-  assert.match(short.lines[1], /^--names has 1 name, and the group reviewers in .*roles\.json has 2 members\.$/);
+  assert.match(short.lines[1], /^  --names has 1 name, and the group reviewers in .*roles\.json has 2 members\.$/);
 });
 
 test('panel: --group picks another group role', () => {
@@ -3121,11 +3157,11 @@ test('panel: wrong arguments exit 2', () => {
     [['panel', '--names', 'a', '--names', 'a', '--files', 'files.txt'], usage],
     [['panel', '--names', 'a', '--files', 'files.txt', '--other', 'x'], usage],
     [['panel', '--names', 'a', '--files'], usage],
-    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "" is neither\.\n/],
-    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>: "Bad Name" is neither\.\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens: X\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99: 100\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99: -1\n/],
+    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n  "" is neither\.\n/],
+    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n  "Bad Name" is neither\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens\.\n  The argument is X\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99\.\n  The argument is 100\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99\.\n  The argument is -1\.\n/],
   ]) {
     const result = call(deps, argv);
     assert.equal(result.status, 2, argv.join(' '));
@@ -3156,24 +3192,24 @@ test('panel: an input that is missing or does not fit exits 3', () => {
   ]);
   assert.ok(unread.lines[0].length <= 100, unread.lines[0]);
   for (const [roles, patterns] of [
-    ['[', /^Write .*roles\.json as valid JSON: it does not parse\.$/],
-    ['{}', /^Give .*roles\.json the list roles: it has none\.$/],
+    ['[', /^Write roles\.json as valid JSON\.$/],
+    ['{}', /^Give roles\.json the list roles\.$/],
     [JSON.stringify({ roles: [{ role: 'agents/developer', agent: 'x', from: 'base' }] }), [
       /^Compose the harness with qory again: roles\.json has no member of the group\.$/,
       /^.*roles\.json has no member of the group agents\/reviewers\.$/,
     ]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'Bad', group: true }] }), [
       /^Compose the harness with qory again: a row of roles\.json has no agent name\.$/,
-      /^Row 1 of .*roles\.json has no agent name\.$/,
+      /^  Row 1 of .*roles\.json has no agent name\.$/,
     ]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: 'x' }] }), [
       /^Compose the harness with qory again: the paths of a member in roles\.json are not a list of globs\.$/,
-      /^The paths of a-reviewer in .*roles\.json are not a list of globs\.$/,
+      /^  The paths of a-reviewer in .*roles\.json are not a list of globs\.$/,
     ]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [] }] }),
-      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+      [/are not a list of globs\.$/, /^  The paths of a-reviewer in /]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [''] }] }),
-      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+      [/are not a list of globs\.$/, /^  The paths of a-reviewer in /]],
   ]) {
     const { deps } = panelSetup({ members: [], roles });
     expect3(deps, ['a-reviewer'], patterns);
@@ -3186,19 +3222,19 @@ test('panel: an input that is missing or does not fit exits 3', () => {
     const { deps, work } = panelSetup({ members: [['a-reviewer']] });
     fs.writeFileSync(path.join(work, 'files.txt'), `${line}\n`);
     const result = expect3(deps, ['a-reviewer'], /^Write each line of the file of --files as a path from the top of the working folder\.$/);
-    assert.match(result.lines[1], new RegExp(`^Line ${place} of .*files\\.txt, ".*", is not\\.$`));
+    assert.match(result.lines[1], new RegExp(`^  Line ${place} of .*files\\.txt, ".*", is not\\.$`));
   }
   const broken = panelSetup({ members: [['a-reviewer']] });
   broken.deps.freeBytes = () => { throw Object.assign(new Error('no disk'), { code: 'EIO' }); };
   const free = expect3(broken.deps, ['a-reviewer'],
     /^Check the disk of the working folder: its free space cannot be read\.$/);
-  assert.match(free.lines[1], /^The free space of the disk of .* cannot be read: EIO\.$/);
+  assert.match(free.lines[1], /^  The free space of the disk of .* cannot be read: EIO\.$/);
   // A failed count of the size names the count, not the free space.
   const count = panelSetup({ members: [['a-reviewer']] });
   count.deps.folderBytes = () => { throw Object.assign(new Error('no folder'), { code: 'EACCES' }); };
   const counted = expect3(count.deps, ['a-reviewer'],
     /^Make the working folder readable: the count of its size failed\.$/);
-  assert.match(counted.lines[1], /^The size of .* cannot be counted: EACCES\.$/);
+  assert.match(counted.lines[1], /^  The size of .* cannot be counted: EACCES\.$/);
   // An error with no code is a fault of the script, and no input.
   broken.deps.freeBytes = () => { throw new Error('a fault'); };
   assert.throws(() => panelCall(broken.deps, ['a-reviewer']), { message: 'a fault' });
@@ -3262,16 +3298,18 @@ test('report: the lists and words come from the agent file, and a missing agent 
   ].join('\n'));
   passes(report('Notes:\n- a\n\nMode: fast\n\nfinished\n', 'sample-writer', plugin));
   assert.deepEqual(report('Notes:\n\nfinished\n', 'sample-writer', plugin).lines.slice(0, -1), [
-    'Give the list "Notes:" of sample-writer an item, or "- none".',
+    'Give the list "Notes:" an item, or "- none".',
+    '  The list "Notes:" of sample-writer has no item.',
     'Add the line "Mode:" to the report of sample-writer.',
   ]);
   fails(report('Mode: fast\nNotes:\n- a\nstuck\n', 'sample-writer', plugin),
-    /^Remove "Notes:" from the stuck report of sample-writer/);
+    /^Remove "Notes:" from the stuck report\. The report of sample-writer ends with stuck, and has "Notes:"\.$/);
   fails(report('Mode: fast\ndone\n', 'sample-writer', plugin),
-    /^End the report of sample-writer with one word, finished, stuck, blocked/);
+    /^End the report with one word, finished, stuck, blocked\. The last line of the report of sample-writer /);
   const missing = report('done\n', 'spec-writer', plugin);
   assert.equal(missing.status, 3);
-  assert.match(missing.lines[0], /^Name an agent that the plugin has: .*spec-writer.md cannot be read/);
+  assert.equal(missing.lines[0], 'Name an agent that the plugin has.');
+  assert.match(missing.lines[1], /^  .*spec-writer\.md cannot be read\.$/);
   const reviewer = report('What you read:\n- a\n\nclean\n', 'spec-reviewer', plugin);
   assert.equal(reviewer.status, 3, 'a reviewer with no agent file');
 });
@@ -3281,7 +3319,7 @@ test('report: each agent of the modules has a shape that the script reads', () =
     const agent = file.replace(/\.md$/, '');
     const result = report('nothing\n', agent);
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
-    assert.match(result.lines[0], new RegExp(`^End the report of ${agent} with one word, .*blocked`));
+    assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
 });
 
@@ -3343,7 +3381,8 @@ test('a draft above 256 KB is one finding, and no check reads it', () => {
   const result = push(root, 'spec');
   assert.equal(result.status, 1);
   assert.deepEqual(result.lines, [
-    'Cut spec.md to at most 256 KB: it has 300013 bytes.',
+    'Cut spec.md to at most 256 KB.',
+    '  spec.md has 300013 bytes.',
     'Checked spec (no file): nothing; 1 finding.',
   ]);
 });
@@ -3354,10 +3393,59 @@ test('at most 50 findings, then one line with the number left out', () => {
   fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), `${rows}\n`);
   const result = push(root, 'acceptance-criteria');
   assert.equal(result.status, 1);
-  assert.equal(result.lines.length, 52);
-  const left = /^Fix the findings above and run the check again: (\d+) more are not shown\.$/.exec(result.lines[50]);
-  const total = /; (\d+) findings\.$/.exec(result.lines[51]);
+  assert.equal(result.findings.length, 52);
+  const left = /^Fix the findings above and run the check again: (\d+) more are not shown\.$/.exec(result.findings[50]);
+  const total = /; (\d+) findings\.$/.exec(result.findings[51]);
   assert.ok(left && total && Number(left[1]) + 50 === Number(total[1]) && Number(left[1]) >= 10, result.out);
+});
+
+// printMany returns what checks.js prints for a verb that refuses with each finding of sizes,
+// a finding of n lines for each n: the fix, then n - 1 cause lines.
+function printMany(sizes) {
+  const plugin = corePlugin();
+  const skill = path.join(plugin, 'skills', 'many');
+  fs.mkdirSync(skill);
+  fs.writeFileSync(path.join(skill, 'workflow-checks.js'), `
+module.exports = () => ({ types: [], verbs: { many: { usage: ['many'], args: () => null,
+  run(io) {
+    io.print(${JSON.stringify(sizes)}.map((size, at) => [\`Fix finding \${at + 1}.\`,
+      ...Array.from({ length: size - 1 }, (_, line) => \`Cause \${line + 1}.\`)].join('\\n')),
+    'Checked many.');
+    return 1;
+  } } } });
+`);
+  const result = call({ cwd: tmp, plugin, trusted: trusting(skill) }, ['many']);
+  assert.equal(result.status, 1, result.out);
+  assert.equal(result.lines.at(-1), 'Checked many.');
+  const lines = result.lines.slice(0, -1);
+  return { lines, firsts: lines.filter((line) => !line.startsWith(' ')) };
+}
+
+test('past 50 findings of 3 lines, the print stays under 200 lines and ends with the count left out', () => {
+  const { lines, firsts } = printMany(Array(60).fill(3));
+  assert.ok(lines.length < 200, `${lines.length}`);
+  assert.equal(lines.length, 151);
+  assert.equal(firsts.length, 51);
+  assert.equal(lines.at(-1), 'Fix the findings above and run the check again: 10 more are not shown.');
+});
+
+test('findings of 4 lines or more stop before 200 lines, and the last line counts the rest', () => {
+  for (const [size, kept] of [[4, 49], [5, 39], [7, 28]]) {
+    const { lines, firsts } = printMany(Array(60).fill(size));
+    assert.ok(lines.length <= 200, `${size}: ${lines.length}`);
+    assert.equal(lines.length, kept * size + 1, `${size}`);
+    assert.equal(firsts.at(-2), `Fix finding ${kept}.`);
+    assert.equal(lines.at(-1), `Fix the findings above and run the check again: ${60 - kept} more are not shown.`);
+  }
+  // 200 lines with no finding left out need no last count.
+  const fit = printMany(Array(40).fill(5));
+  assert.equal(fit.lines.length, 200);
+  assert.equal(fit.lines.at(-1), '  Cause 4.');
+  // A first finding of more than 200 lines prints whole, and the count follows it.
+  const long = printMany([250, 2, 2]);
+  assert.equal(long.lines.length, 251);
+  assert.deepEqual(long.firsts, ['Fix finding 1.',
+    'Fix the findings above and run the check again: 2 more are not shown.']);
 });
 
 // ---- Inputs that the checks cannot use -----------------------------------------------------
@@ -3368,7 +3456,8 @@ test('review comments with no index.json exit 3', () => {
   fs.copyFileSync(path.join(TESTDATA, 'review-comments.json'), path.join(store, 'review-comments.json'));
   const result = push(store, 'review-comments');
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /^Pull the artifacts first: the check of review-comments needs index.json/);
+  assert.equal(result.lines[0], 'Pull the artifacts first.');
+  assert.match(result.lines[1], /^ {2}The check of review-comments needs index.json/);
 });
 
 test('a type with two names and no main, or a version with no file, exits 3', () => {
@@ -3377,13 +3466,14 @@ test('a type with two names and no main, or a version with no file, exits 3', ()
   fs.renameSync(path.join(store, 'acceptance-criteria', 'main'), path.join(store, 'acceptance-criteria', 'first'));
   const two = push(store, 'demo-scenarios');
   assert.equal(two.status, 3);
-  assert.match(two.lines[0], /acceptance-criteria has the names first, other and no main/);
+  assert.match(two.lines[1], /^ {2}acceptance-criteria has the names first, other and no main/);
   const empty = fixture();
   fs.mkdirSync(path.join(empty, 'acceptance-criteria', 'main', 'v2'));
   withdrawIn(empty, 'acceptance-criteria', 2, false);
   const result = push(empty, 'demo-scenarios');
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /^Pull the artifacts again: acceptance-criteria\/main\/v2 has no acceptance-criteria.md/);
+  assert.equal(result.lines[0], 'Pull the artifacts again.');
+  assert.match(result.lines[1], /^ {2}acceptance-criteria\/main\/v2 has no acceptance-criteria.md/);
 });
 
 test('an entry that is no object is a finding: question, comment, reply and source', () => {
@@ -3399,7 +3489,7 @@ test('an entry that is no object is a finding: question, comment, reply and sour
   comments.review_comments.push([]);
   write(root, 'review-comments.json', comments);
   const result = push(root, 'review-comments');
-  fails(result, /^Write reply 2 of c1 of review-comments.json as an object: it is a number/);
+  fails(result, /^Write reply 2 of c1 of review-comments.json as an object\. Reply 2 of c1 is a number\.$/);
   fails(result, /^Write review comment \d+ of review-comments.json as an object: it is a list/);
   write(root, 'sources.json', { sources: [null] });
   fails(push(root, 'proposal'), /^Write source 1 of sources.json as an object: it is null/);
@@ -3411,7 +3501,8 @@ test('an index.json with an artifact that is no object exits 3, with no stack tr
     write(root, 'index.json', index);
     const result = push(root, 'spec');
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], /^Pull the artifacts again: artifact 1 of index.json has no list of versions/);
+    assert.equal(result.lines[0], 'Pull the artifacts again.', result.out);
+    assert.match(result.lines[1], /^ {2}Artifact 1 of index.json has no list of versions/);
     assert.doesNotMatch(result.out + result.err, /at /);
   }
 });
@@ -3435,16 +3526,17 @@ test('push: a file that is a link is refused', () => {
   fs.symlinkSync(path.join(root, 'spec.md'), path.join(sent, 'spec.md'));
   const result = call({ cwd: root, artifacts: [] }, ['push', 'spec', path.join(sent, 'spec.md')]);
   assert.equal(result.status, 3);
-  assert.match(result.lines[0], /^Name the file itself, not a link to it: .*spec.md is a link/);
+  assert.equal(result.lines[0], 'Name the file itself, not a link to it.');
+  assert.match(result.lines[1], /^ {2}.*spec.md is a link/);
 });
 
 // ---- Ids, scenarios and decisions ---------------------------------------------------------
 
 test('a decision or scenario id that is there twice is a finding', () => {
   fails(push(fixture(['decision-record.md', /$/, '\n### `decision-1`: the same id\n\n- Removed, because it moved.\n']), 'decision-record'),
-    /^Give each decision of decision-record.md its own id: decision-1 is there twice/);
+    /^Give each decision of decision-record.md a different id\. decision-1 is there twice/);
   fails(push(fixture(['demo-scenarios.md', '### scenario-2:', '### scenario-1:']), 'demo-scenarios'),
-    /^Give each scenario of demo-scenarios.md its own id: scenario-1 is there twice/);
+    /^Give each scenario of demo-scenarios.md a different id\. scenario-1 is there twice/);
 });
 
 test('scenarios: one scenario per title, and a Shows: line with at least one id', () => {
@@ -3452,14 +3544,14 @@ test('scenarios: one scenario per title, and a Shows: line with at least one id'
   const text = fs.readFileSync(path.join(root, 'demo-scenarios.md'), 'utf8');
   const second = text.slice(text.indexOf('### scenario-1:'), text.indexOf('### scenario-2:'));
   write(root, 'demo-scenarios.md', `${text.trimEnd()}\n\n${second.replace('scenario-1', 'scenario-3')}`);
-  fails(push(root, 'demo-scenarios'), /^Give scenario-3 a title that no other scenario has: scenario-1 has "Read the new hours"/);
+  fails(push(root, 'demo-scenarios'), /^Give scenario-3 a title that no other scenario has\. scenario-1 has the title "Read the new hours" too\./);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', 'Shows:']), 'demo-scenarios'),
     /^List at least one ac-N on the Shows: line of scenario-2/);
 });
 
 test('decision record: "no criterion yet." only on an open decision', () => {
   fails(push(fixture(['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: no criterion yet.']), 'decision-record'),
-    /^Write "Rests on: no criterion yet." only on an open decision: decision-1 is decided/);
+    /^List the ac-N that decision-1 rests on, or write "Rests on: no criterion, by the answer\." decision-1 is decided\. Only an open decision has "Rests on: no criterion yet\."$/);
   passes(push(fixture(['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: no criterion, by the answer.']), 'decision-record'));
   const open = fixture(
     ['decision-record.md', '- Decision: The hours stay in the text of the reply.', '- Decision: open until the questions are answered.'],
@@ -3473,16 +3565,16 @@ test('decision record: "no criterion yet." only on an open decision', () => {
 test('decision record: a line right after an item continues it, also with no indent', () => {
   passes(push(fixture(['decision-record.md', '- Today: The ticket has no target.', '- Today: The ticket\nhas no target.']), 'decision-record'));
   fails(push(fixture(['decision-record.md', '- Today: The ticket has no target.', '- Today: The ticket.\n\nA paragraph.']), 'decision-record'),
-    /^Give decision-1 the items/);
+    /^Give decision-1 its 6 items in their order/);
 });
 
 test('criteria: only the exact removed form is removed', () => {
   const root = fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed items stay. | None |']);
-  fails(push(root, 'acceptance-criteria'), /^Write the removed ac-4 as "Removed, because <the reason>\."/);
+  fails(push(root, 'acceptance-criteria'), /^Write ac-4 as removed, or plan it as "Demo: <title>" or "Tests"\. Write a removed criterion as "Removed, because <the reason>\." with the planned check None\.$/);
   const kept = fixture(['acceptance-criteria.md', /\| ac-4 \| [^|]*\| Tests \|/, `| ac-4 | Removed items stay in the list, ${many(30)}. | Tests |`]);
   fails(push(kept, 'acceptance-criteria'), /^Cut ac-4 in acceptance-criteria.md to 25 words/);
   fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed, because it ended. | Tests |']), 'acceptance-criteria'),
-    /^Set the planned check of the removed ac-4 to None: it is "Tests"/);
+    /^Set the planned check of the removed ac-4 to None\. The planned check is "Tests"\.$/);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', 'Shows: ac-3\n\nRemoved later.']), 'demo-scenarios'),
     /^Give the removed scenario-2 only the line "Removed, because <the reason>\."/);
 });
@@ -3525,11 +3617,11 @@ const DECISION = { option: 'The reply', reason: 'The ticket asks for the reply.'
 test('questions: a new question is open with no decision, or decided by the run that asked it', () => {
   const add = (question) => questionsAfter((byId, data) => { data.questions.push(question); });
   for (const state of ['answered', 'withdrawn']) {
-    fails(add(q7({ state })), new RegExp(`^Set the state of the new q7 to open or decided: it is "${state}"\\.$`));
+    fails(add(q7({ state })), new RegExp(`^Set the state of the new q7 to open or decided\\. The state of q7 is "${state}"\\.$`));
   }
   fails(add(q7({ decision: DECISION })), /^Remove the decision from the new open q7/);
   fails(add(q7({ state: 'decided', decision: { ...DECISION, run: 5 } })),
-    /^Set decision\.run of the new q7 to its asked\.run, 4: it is 5\.$/);
+    /^Set decision\.run of the new q7 to its asked\.run\. The asked\.run of q7 is 4, and its decision\.run is 5\.$/);
   passes(add(q7()));
   passes(add(q7({ state: 'decided', decision: DECISION })));
   // Numbers compare by value: a decision.run of 4.0 is run 4.
@@ -3563,40 +3655,41 @@ test('questions: a new open question has a context, options and the words of eac
   passes(add(EXPORT_LIMIT));
   const { context, ...noContext } = EXPORT_LIMIT;
   assert.ok(context);
-  exactly(add(noContext), 'Add a context to q7 that starts with the deciding fact: it has none.');
+  exactly(add(noContext), 'Add a context to q7 that starts with the deciding fact.\n  q7 has no ' +
+    'context.');
   // A decided question records the run's choice, and its reason states the source.
   passes(add({ ...q7({ state: 'decided', decision: DECISION }), context: undefined }));
   const { options, ...noOptions } = EXPORT_LIMIT;
   assert.ok(options);
   exactly(add(noOptions), 'Add options to q7: 1 to 4 options, or [] when it asks for a ' +
-    'value: it is missing.');
+    'value.\n  The options of q7 are missing.');
   // A question that asks for a value has an empty list.
   passes(add({ ...EXPORT_LIMIT, question: 'From which date do you want the export?',
     options: [] }));
   exactly(add({ ...EXPORT_LIMIT, question: 'Which limit do you want built for ac-3?' }),
-    'Quote the words of ac-3 beside it in the question of q7.');
+    'Quote the words of ac-3 beside it in the question.\n  The id ac-3 is in the question of q7.');
   exactly(add({ ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' }),
-    'Quote the words of AC-3 beside it in the context of q7.');
+    'Quote the words of AC-3 beside it in the context.\n  The id AC-3 is in the context of q7.');
   exactly(add({ ...EXPORT_LIMIT, options: [{ title: 'Drop scenario-1',
     explanation: 'The demo shows no export.' }] }), 'Quote the words of scenario-1 ' +
-    'beside it in the title of option 1 of q7.');
+    'beside it in the title of option 1.\n  The id scenario-1 is in the title of option 1 of q7.');
   passes(add({ ...EXPORT_LIMIT, context: 'AC-3, "A member exports up to 50,000 rows to ' +
     'CSV", asks for 50,000 rows.' }));
   // A context of only spaces and line feeds is none.
   exactly(add({ ...EXPORT_LIMIT, context: ' \n\t ' }),
-    'Add a context to q7 that starts with the deciding fact: it has none.');
+    'Add a context to q7 that starts with the deciding fact.\n  q7 has no context.');
   // A decided question with no options gets the finding of its 2 to 4 options, and not the
   // one of [] for a question that asks for a value.
   const { options: none, ...decided } = q7({ state: 'decided', decision: DECISION });
   assert.ok(none);
   const result = add(decided);
-  fails(result, /^Give the decided q7 the 2 to 4 options that the run considered: it has 0\.$/);
+  fails(result, /^Give the decided q7 the 2 to 4 options that the run considered\. q7 has 0\.$/);
   assert.ok(!result.lines.some((line) => line.startsWith('Add options')), result.out);
   // Only the ids that the harness writes count, and a question id with no words is bare.
   passes(add({ ...EXPORT_LIMIT, context: 'The export service on Node-20 returns at most ' +
     '10,000 rows per request, as the Q1 report of GPT-4 usage shows.' }));
   exactly(add({ ...EXPORT_LIMIT, context: 'The limit of q3 returns at most 10,000 rows.' }),
-    'Quote the words of q3 beside it in the context of q7.');
+    'Quote the words of q3 beside it in the context.\n  The id q3 is in the context of q7.');
 });
 
 test('questions: an answer that gives the choice back leads to a new decided question that follows it', () => {
@@ -3651,13 +3744,13 @@ test('questions: no question that exists becomes decided, or gets, changes or lo
   fails(questionsAfter((byId) => {
     Object.assign(byId('q4'), { state: 'decided', decision: { ...DECISION, option: byId('q4').options[0].title } });
     byId('q4').options.forEach((option) => { delete option.recommended; });
-  }), /^Keep the state of q4 as questions version 1 has it, "open", and decide in a new question/);
+  }), /^Keep the state of q4, and decide in a new question\. questions version 1 has the state "open" for q4, and a question that exists never becomes decided\.$/);
   fails(questionsAfter((byId) => { byId('q4').decision = DECISION; }),
-    /^Keep the decision of q4 as questions version 1 has it: questions version 1 has none\.$/);
+    /^Keep the decision of q4 as questions version 1 has it\. questions version 1 has no decision of q4\.$/);
   fails(questionsAfter((byId) => { byId('q6').decision.reason = 'Another reason.'; }),
-    /^Keep the decision of q6 as questions version 1 has it: it changed\.$/);
+    /^Keep the decision of q6 as questions version 1 has it\. The decision of q6 changed\.$/);
   fails(questionsAfter((byId) => { Object.assign(byId('q6'), { state: 'withdrawn' }); delete byId('q6').decision; }),
-    /^Keep the decision of q6 as questions version 1 has it: it is missing\.$/);
+    /^Keep the decision of q6 as questions version 1 has it\. The decision of q6 is missing\.$/);
   passes(questionsAfter((byId) => { byId('q6').state = 'withdrawn'; }));
   // Numbers compare by value: a decision.run of 3.0 is the stored run 3.
   passes(questionsAfter((byId, data) => JSON.stringify(data).replace('"run":3,"at":"2026-10-18T09:35:00Z"}}',
@@ -3667,7 +3760,7 @@ test('questions: no question that exists becomes decided, or gets, changes or lo
 test('questions: a question with a decision keeps its question and options in every state', () => {
   for (const state of ['decided', 'withdrawn']) {
     fails(questionsAfter((byId) => { Object.assign(byId('q6'), { state, question: 'Where are the hours kept now?' }); }),
-      /^Keep the question of q6 as questions version 1 has it: a question with a decision keeps its question and options\.$/);
+      /^Keep the question of q6 as questions version 1 has it\. A question with a decision keeps its question and options, and q6 has a decision\.$/);
     fails(questionsAfter((byId) => { byId('q6').state = state; byId('q6').options[1].explanation = 'Another.'; }),
       /^Keep the options of q6 as questions version 1 has it/);
   }
@@ -3689,9 +3782,9 @@ test('questions: a question with a decision keeps its question and options in ev
 
 test('questions: a question that stays answered or decided keeps its context, and a reopen adds to it', () => {
   fails(questionsAfter((byId) => { byId('q6').context = 'More context.'; }),
-    /^Keep the context of q6 as questions version 1 has it: a question that stays decided keeps its context\.$/);
+    /^Keep the context of q6 as questions version 1 has it\. A question that stays decided keeps its context, and q6 stays decided\.$/);
   fails(questionsAfter((byId) => { byId('q1').context = 'More context.'; }),
-    /^Keep the context of q1 as questions version 1 has it: a question that stays answered keeps its context\.$/);
+    /^Keep the context of q1 as questions version 1 has it\. A question that stays answered keeps its context, and q1 stays answered\.$/);
   // Withdrawn, a decided question may change its context.
   passes(questionsAfter((byId) => { Object.assign(byId('q6'), { state: 'withdrawn', context: 'Settled by a note.' }); }));
   // A member answered the decided q6 in version 2, and this run reopens it with context added.
@@ -3707,7 +3800,7 @@ test('questions: a question that stays answered or decided keeps its context, an
     });
   }, stored));
   fails(questionsAfter((byId) => { byId('q6').context = 'More context.'; }, stored),
-    /^Keep the context of q6 as questions version 2 has it: a question that stays answered/);
+    /^Keep the context of q6 as questions version 2 has it\. A question that stays answered/);
 });
 
 test('questions: a new question has its limits of characters, one sentence and no Markdown', () => {
@@ -3724,11 +3817,17 @@ test('questions: a new question has its limits of characters, one sentence and n
   write(root, 'questions.json', data);
   assert.deepEqual(push(root, 'questions').lines.slice(0, -1), [
     'Write the question of q3 as plain text, with no Markdown mark.',
-    'Write the context of q3 as text of 1 to 20000 characters: it has 20001 characters.',
-    'Write the question of q4 as text of 1 to 500 characters: it has 501 characters.',
-    'Write the title of option 1 of q4 as text of 1 to 200 characters: it has 201 characters.',
-    'Write the explanation of option 2 of q4 as text of 1 to 2000 characters: it has 0 characters.',
-    'Write the question of q6 as one sentence: it has 2.',
+    '  The question of q3 has a Markdown mark.',
+    'Write the context of q3 as text of 1 to 20000 characters.',
+    '  The context of q3 has 20001 characters.',
+    'Write the question of q4 as text of 1 to 500 characters.',
+    '  The question of q4 has 501 characters.',
+    'Write the title of option 1 of q4 as text of 1 to 200 characters.',
+    '  The title of option 1 of q4 has 201 characters.',
+    'Write the explanation of option 2 of q4 as text of 1 to 2000 characters.',
+    '  The explanation of option 2 of q4 has 0 characters.',
+    'Write the question of q6 as one sentence.',
+    '  The question of q6 has 2.',
   ]);
   // The stored questions keep their text: the limits apply only to new questions.
   data.questions[0].question = 'a'.repeat(501);
@@ -3762,7 +3861,7 @@ test('machine paths: only the folders of the run, and no app route', () => {
     passes(at(`See ${route} first.`));
   }
   fails(at('See `/workspace/src/cart.ts` first.'),
-    /^Remove the path of the machine the run is on, "\/workspace\/src\/cart.ts"/);
+    /^Remove the path of the machine the run is on from decision-record\.md\. The path is "\/workspace\/src\/cart.ts"/);
   passes(at('The page `GET /workspace/src/12` lists them.'));
   passes(at('The page [Orders](https://shop.example.com/workspace/src/12) has the route `/workspace/src/12`.'));
 });
@@ -3787,7 +3886,7 @@ test('"e.g." ends no sentence', () => {
 test('a quote cuts no surrogate pair, and one finding is singular', () => {
   const heading = `### ${'a'.repeat(76)}${'\u{1F600}'.repeat(5)}`;
   const result = push(fixture(['demo-scenarios.md', '### scenario-1: Read the new hours', heading]), 'demo-scenarios');
-  const quoted = result.lines.find((line) => line.startsWith('Write the heading'));
+  const quoted = result.lines.find((line) => line.startsWith('  The heading is'));
   assert.ok(quoted.includes(`"${'a'.repeat(76)}\u{1F600}..."`), quoted);
   assert.doesNotMatch(quoted, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
   const one = push(fixture(['spec.md', '## Background', '## Context']), 'spec');
@@ -3805,24 +3904,24 @@ test('each finding of the sections and files fires on a draft that breaks it', (
     /^Start spec.md with its first ## heading: it has text before that heading/);
   const page = fixture(['proposal.md', 'No public page and no file.', '- [Hours](http://help.example.com/hours)']);
   write(page, 'sources.json', { sources: [{ kind: 'page', ref: 'http://help.example.com/hours', why: 'A.' }] });
-  fails(push(page, 'proposal'), /^Fix the ref "http:\/\/help.example.com\/hours" of source 1 in sources.json/);
+  fails(push(page, 'proposal'), /^Fix the ref of source 1 in sources.json: write it as https:\/\/, never http:\/\/\. The ref is "http:\/\/help.example.com\/hours"\.$/);
   fails(push(fixture(['spec.md', /^## Changes\n/m, '## Changes\n\nText first.\n']), 'spec'),
     /^Start ## Changes in spec.md with a ### part/);
   fails(push(fixture(['spec.md', /^### .*$/gm, 'A line.']), 'spec'),
     /^Add at least one ### part under ## Changes in spec.md/);
   fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| criterion-4 |']), 'acceptance-criteria'),
-    /^Write the id "criterion-4" of row 4 in acceptance-criteria.md as ac-<N>/);
+    /^Write the id of row 4 in acceptance-criteria.md as ac-<N>\. The id is "criterion-4"\.$/);
   fails(push(fixture(['demo-scenarios.md', /^### .*$/gm, 'A line.']), 'demo-scenarios'),
     /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
   fails(push(fixture(['demo-scenarios.md', /Starting state: the support member `sam@example.com` signs in with a password\. The account is in the support team, which has the saved reply for delayed orders\. The list of saved replies is open\.\n\n\| Step \| Action \| What the viewer sees \| Screen \|\n\|---\|---\|---\|---\|\n\| 1 \| Open the saved reply for delayed orders\. \| The reply states[^\n]*\n\nShows: ac-3/, 'Removed, because it ended.\n\nA second line.']), 'demo-scenarios'),
     /^Give the removed scenario-2 only the line/);
   fails(push(fixture(['demo-scenarios.md', '| Step | Action | What the viewer sees | Screen |', '| Step | Action | Screen |']), 'demo-scenarios'),
-    /^Put the table with the columns Step, Action, What the viewer sees, Screen after the starting state of scenario-1/);
+    /^Put a step table after the starting state of scenario-1\. The step table has the columns Step, Action, What the viewer sees, Screen\./);
   fails(push(fixture(['decision-record.md', '## Decisions', '## Choices']), 'decision-record'),
-    /^Give decision-record.md only the section ## Decisions: it has ## Choices/);
+    /^Give decision-record.md only the section ## Decisions\. It has ## Choices/);
   const nothing = fixture();
   write(nothing, 'decision-record.md', '## Decisions\n\nNo choice.\n');
-  fails(push(nothing, 'decision-record'), /^Add a decision to decision-record.md, or write only/);
+  fails(push(nothing, 'decision-record'), /^Add a decision to decision-record.md, or write only one line under ## Decisions\. That line is "The spec leaves no technical choice open\."$/);
   fails(push(fixture(['decision-record.md', '## Decisions\n', '## Decisions\n\nText first.\n']), 'decision-record'),
     /^Start ## Decisions in decision-record.md with a ### decision/);
   fails(push(fixture(['decision-record.md', '- Question: `q6`.', '- Question: none.']), 'decision-record'),
@@ -3833,13 +3932,13 @@ test('each finding of the sections and files fires on a draft that breaks it', (
   delete data.questions[5].decision;
   write(decided, 'questions.json', data);
   const result = push(decided, 'questions');
-  fails(result, /^Give the decided q6 the 2 to 4 options that the run considered: it has 1/);
+  fails(result, /^Give the decided q6 the 2 to 4 options that the run considered\. q6 has 1\.$/);
   fails(result, /^Add a decision to the decided q6/);
   const root = fixture();
   const other = path.join(tmp, `other-${++folders}`);
   fs.mkdirSync(other);
   fs.copyFileSync(path.join(root, 'spec.md'), path.join(other, 'spec.md'));
-  fails(push(root, 'spec', ['spec.md', path.relative(root, path.join(other, 'spec.md'))]), /^Name each file once: two files are named spec.md/);
+  fails(push(root, 'spec', ['spec.md', path.relative(root, path.join(other, 'spec.md'))]), /^Name each file once\. Two files are named spec.md\.$/);
   write(root, 'notes.md', 'x');
   fails(push(root, 'decision-record', ['notes.md']), /^Add decision-record.md to the files: a decision-record version has it/);
 });
@@ -3901,7 +4000,7 @@ test('registry: with core alone, the script checks questions and review-comments
   fs.mkdirSync(reports, { recursive: true });
   const file = path.join(reports, 'questions-reviewer-1.md');
   fs.writeFileSync(file, 'Blocked: needs a change to criterion ac-3\nblocked\n');
-  fails(call(deps, ['report', 'questions-reviewer', file]), /^Start "Blocked:" of questions-reviewer/);
+  fails(call(deps, ['report', 'questions-reviewer', file]), /^Start "Blocked:" with a stop line .* of questions-reviewer is none\.$/);
 });
 
 test('registry: a type that two skills add stops each verb that reads the registry', () => {
@@ -3948,7 +4047,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.js lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume and hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -3967,7 +4066,7 @@ test('workflow-checks.js push runs the push of checks.js from the harness home',
   write(root, 'notes.md', 'x');
   const wrong = run('push', 'spec', path.join(root, 'notes.md'));
   assert.equal(wrong.status, 1, wrong.stdout + wrong.stderr);
-  assert.match(wrong.stdout, /^Remove notes.md from the files: a spec version has no such file/);
+  assert.match(wrong.stdout, /^Remove notes.md from the files\.\n {2}A spec version has no file notes.md\./);
   assert.doesNotMatch(wrong.stdout, /^Checked /m);
   assert.match(wrong.stderr, /^Checked spec \(no file\): nothing; 2 findings\.$/m);
   const other = run('check', 'spec', path.join(root, 'spec.md'));
@@ -4026,7 +4125,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
   const inRun = spawnSync(process.execPath, [checks, 'end', broken],
     { cwd: tmp, encoding: 'utf8', env: RUN_ENV });
   assert.equal(inRun.status, 1, inRun.stdout + inRun.stderr);
-  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft \(spec\.md\) in the lines after this one:/);
+  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft in the lines after this one:\n  The spec draft has 1 file: spec\.md\.\n/);
   assert.doesNotMatch(inRun.stdout, /^Checked /m);
   assert.equal(inRun.stderr.split('\n').filter(Boolean).length, 1, inRun.stderr);
   assert.match(inRun.stderr, new RegExp(`^Checked the drafts and reports at the end: ${starts(inRun.stdout)} findings?; check 1 of 3\\.`));
@@ -4035,7 +4134,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
     { cwd: tmp, env: { PATH: process.env.PATH, HOME: tmp }, encoding: 'utf8' });
   const found = offlineChild(offlineRun({ edits: [['spec.md', '## Background', '## Context']] }));
   assert.equal(found.status, 1, found.stdout + found.stderr);
-  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:/);
+  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft in the lines after this one:\n  The spec draft has 1 file: spec\.md\.\n/);
   assert.doesNotMatch(found.stdout, /^Checked /m);
   assert.match(found.stderr, new RegExp(`^Checked the drafts and reports after the session: ${starts(found.stdout)} findings; wrote 1 point to points\\.json of --out\\.\\n$`));
   const clean = offlineChild(offlineRun());
@@ -4132,7 +4231,7 @@ test('machine paths: a HOME of one part refuses no path under it, and /root does
   passes(at('See /tmp/x.ts first.', '/tmp/'));
   passes(at('See /tmp/x.ts first.', undefined));
   passes(at('See /home/x.ts first.', '/home'));
-  fails(at('See /root/x.ts first.', '/root'), /^Remove the path of the machine the run is on, "\/root\/x.ts"/);
+  fails(at('See /root/x.ts first.', '/root'), /^Remove the path of the machine the run is on from decision-record\.md\. The path is "\/root\/x.ts"/);
   passes(at('See /root/x.ts first.', undefined));
 });
 
@@ -4302,17 +4401,18 @@ test('fixes exits 3 when it cannot read the work item, and 2 with an argument', 
   const unread = (qory, pattern) => {
     const result = call({ cwd: tmp, env: qory.env }, ['fixes']);
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], pattern);
+    assert.equal(result.lines[0], 'Go on with no point to fix first.');
+    assert.match(result.lines[1], pattern);
     assert.equal(result.lines.at(-1), 'Checked nothing: the fixes could not read its input.');
   };
-  unread(showing({}, 1), /^Go on with no point to fix first: qory work-item show exited with 1\.$/);
-  unread(showing('not json'), /^Go on with no point to fix first: qory work-item show printed no JSON object\.$/);
+  unread(showing({}, 1), /^ {2}qory work-item show exited with 1\.$/);
+  unread(showing('not json'), /^ {2}qory work-item show printed no JSON object\.$/);
   unread(showing('[]'), /printed no JSON object\.$/);
-  unread(showing({ verdict: 'passed' }), /^Go on with no point to fix first: the verdict that qory/);
+  unread(showing({ verdict: 'passed' }), /^ {2}The verdict that qory/);
   unread(showing({ verdict: { verdict: 'changes-requested', points: 'none' } }),
     /is no object with a verdict and a list of points\.$/);
   unread({ env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
-    /^Go on with no point to fix first: qory work-item show could not run: /);
+    /^ {2}qory work-item show could not run: /);
   const wrong = call({ cwd: tmp }, ['fixes', 'run-1']);
   assert.equal(wrong.status, 2);
   assert.match(wrong.err, /^Give fixes no argument\./);
@@ -4324,7 +4424,7 @@ test('check takes the artifact folder of its files, never one left from an earli
   const result = call({ cwd: tmp, artifacts: [stale, root] }, ['check', 'spec', path.join(root, 'spec.md')]);
   passes(result);
   fails(call({ cwd: tmp, artifacts: [stale, root] }, ['check', 'spec', path.join(stale, 'spec.md')]),
-    /it has ## Summary, ## Context/);
+    /in this order\. It has ## Summary, ## Context/);
 });
 
 test('review comments: a comment with no "on" object is a finding', () => {
@@ -4335,11 +4435,24 @@ test('review comments: a comment with no "on" object is a finding', () => {
   fails(push(root, 'review-comments'), /^Give c1 its "on" object, as the newest review comments have it/);
 });
 
+test('review comments: a 64-character id is cut on the first line and whole on the next', () => {
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'review-comments.json'), 'utf8'));
+  const id = `c${'1'.repeat(63)}`;
+  Object.assign(data.review_comments[0], { id });
+  delete data.review_comments[0].on;
+  write(root, 'review-comments.json', data);
+  const result = push(root, 'review-comments');
+  const cut = `${'c'.padEnd(11, '1')}...${'1'.repeat(10)}`;
+  fails(result, new RegExp(`^Give ${cut} its "on" object, as the newest review comments have ` +
+    `it\\. The "on" object of ${id} is missing\\.$`));
+});
+
 test('report: an unclosed backtick is no stop line', () => {
   fails(report('Blocked: needs a change to criterion `ac-2\nblocked\n', 'decision-writer'),
-    /^Start "Blocked:" of decision-writer with a stop line/);
+    /^Start "Blocked:" with a stop line .* of decision-writer is none\.$/);
   fails(report('Blocked: needs a change to criterion ac-2`\nblocked\n', 'decision-writer'),
-    /^Start "Blocked:" of decision-writer with a stop line/);
+    /^Start "Blocked:" with a stop line .* of decision-writer is none\.$/);
 });
 
 test('a missing member is "missing", and a row with no id is named by its place', () => {
@@ -4348,8 +4461,8 @@ test('a missing member is "missing", and a row with no id is named by its place'
   data.questions.push({ id: 'q7', state: 'open', options: [{ title: 'A', explanation: 7 }] });
   write(root, 'questions.json', data);
   const questions = push(root, 'questions');
-  fails(questions, /^Write the question of q7 as text of 1 to 500 characters: it is missing\.$/);
-  fails(questions, /^Write the explanation of option 1 of q7 as text of 1 to 2000 characters: it is a number\.$/);
+  fails(questions, /^Write the question of q7 as text of 1 to 500 characters\. The question of q7 is missing\.$/);
+  fails(questions, /^Write the explanation of option 1 of q7 as text of 1 to 2000 characters\. The explanation of option 1 of q7 is a number\.$/);
   const empty = fixture();
   fs.appendFileSync(path.join(empty, 'acceptance-criteria.md'), '|  | The reply states the hours. | Later |\n');
   fails(push(empty, 'acceptance-criteria'), /^Set the planned check of row 5 to "Demo: <title>" or "Tests"/);
@@ -4571,7 +4684,7 @@ test('report: exits 3 within the wait on an old lock of a live pid or with no pi
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Report to a member: checks.js report cannot run, because its lock file still exists.',
-      plainLine(`${lock} still exists after 0.2 s of tries.`),
+      `  ${plainLine(`${lock} still exists after 0.2 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
@@ -4592,7 +4705,7 @@ test('report: exits 3 after the wait on a new lock of a live process, and record
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Report to a member: checks.js report cannot run, because its lock file still exists.',
-      plainLine(`${lock} still exists after 0.05 s of tries.`),
+      `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
@@ -4652,7 +4765,7 @@ test('end: a points.json that breaks its rules is a finding, and its third check
   const { args, env } = stub();
   const first = end(root, env);
   fails(first, /^Fix the 1 finding of points\.json in the lines after this one:$/);
-  fails(first, /^Set the question of point 2 to the id of an open question in questions\.json: "q1" is none\.$/);
+  fails(first, /^Set the question of point 2 to the id of an open question in questions\.json\. "q1" is none\.$/);
   assert.match(first.lines.at(-1), /; check 1 of 3\. /);
   assert.deepEqual(verdicts(args), []);
   fs.writeFileSync(path.join(root, '.reports', 'end.json'), JSON.stringify({ failures: 2 }));
@@ -4900,9 +5013,11 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   assert.deepEqual(points.at(-1), { text: 'The run left out 2 more points, which its output ' +
     'on the Run page lists, and another round starts the workflow again to fix them.',
     action: 'run_again' });
-  const left = result.lines.filter((line) => line.startsWith('Point left out of points.json: '));
+  const left = result.lines.filter((line) => line === 'Fix the problem of the point on the next ' +
+    'line, which points.json left out.');
   assert.equal(left.length, 2, result.out);
-  assert.deepEqual(result.lines.slice(0, 2), left);
+  assert.deepEqual([result.lines[0], result.lines[2]], left);
+  assert.match(result.lines[1], /^  The draft of the spec breaks 1 format rule/);
   // A points.json that is no list keeps no point.
   write(root, 'points.json', { text: 'x' });
   older(root);
@@ -4966,7 +5081,7 @@ function countsNewer(root, type, number) {
 
 // pullLines returns the two lines of a store that lacks version number of type.
 const pullLines = (type, number) => [`Run \`qory artifact pull ${type} --version ${number}\`, ` +
-  'then check again.', `The store lacks ${type} version ${number}, the newest version that ` +
+  'then check again.', `  The store lacks ${type} version ${number}, the newest version that ` +
   'counts.'];
 
 test('end: a draft check that exits 3 shows the fix, then the value', () => {
@@ -4977,9 +5092,10 @@ test('end: a draft check that exits 3 shows the fix, then the value', () => {
   const result = end(root);
   assert.equal(result.status, 1, result.out);
   const at = result.lines.findIndex((line) =>
-    /^Fix the 1 finding of the [a-z-]+ draft \(.*\) in the lines after this one:$/.test(line));
+    /^Fix the 1 finding of the [a-z-]+ draft in the lines after this one:$/.test(line));
   assert.ok(at >= 0, result.out);
-  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('acceptance-criteria', 2));
+  assert.match(result.lines[at + 1], /^  The [a-z-]+ draft has 1 file: [a-z-]+\.md\.$/);
+  assert.deepEqual(result.lines.slice(at + 2, at + 4), pullLines('acceptance-criteria', 2));
 });
 
 test('end: points.json whose check exits 3 shows the fix, then the value', () => {
@@ -5008,7 +5124,7 @@ test('end: a copy with the bytes of its newest version is no draft of the run', 
   version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
   passes(end(root));
   fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
-  fails(end(root), /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+  fails(end(root), /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
 });
 
 test('end: each report finding', () => {
@@ -5022,11 +5138,11 @@ test('end: each report finding', () => {
   // A report that passed as another agent's report counts as not checked.
   passes(reportIn(root, 'questions-reviewer', 'shape-reviewer-1.md', CLEAN));
   const result = end(root);
-  fails(result, /^Run checks\.js report spec-writer on \.reports\/spec-writer-1\.md: no check of it as the report of spec-writer is recorded\.$/);
-  fails(result, /^Run checks\.js report shape-reviewer on \.reports\/shape-reviewer-1\.md: no check of it as the report of shape-reviewer/);
-  fails(result, /^Fix \.reports\/decision-writer-1\.md: it failed its report check\. Start decision-writer again/);
-  fails(result, /^Run checks\.js report spec-reviewer on \.reports\/spec-reviewer-1\.md again: the report changed/);
-  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  fails(result, /^Run checks\.js report on \.reports\/spec-writer-1\.md\. No check of \.reports\/spec-writer-1\.md as the report of spec-writer is recorded\.$/);
+  fails(result, /^Run checks\.js report on \.reports\/shape-reviewer-1\.md\. No check of \.reports\/shape-reviewer-1\.md as the report of shape-reviewer/);
+  fails(result, /^Start decision-writer again to fix the report that failed its check\. \.reports\/decision-writer-1\.md failed its report check\. Give decision-writer the findings of that check\.$/);
+  fails(result, /^Run checks\.js report on \.reports\/spec-reviewer-1\.md again\. The report of spec-reviewer changed/);
+  fails(result, /^Write the report of questions-reviewer, and run checks\.js report on it\. starts\.json counts a start of questions-reviewer, and the agent has no report\. The report goes to \.reports\/questions-reviewer-<n>\.md\.$/);
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
@@ -5034,7 +5150,7 @@ test('end: a start on a subject needs the report of its reviewer', () => {
   const root = fixture();
   started(root, { 'change/questions-reviewer': 1, 'change/no-such-reviewer': 1 });
   const result = end(root);
-  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  fails(result, /^Write the report of questions-reviewer, and run checks\.js report on it\. /);
   assert.ok(!result.out.includes('no-such-reviewer'), result.out);
 });
 
@@ -5046,7 +5162,7 @@ test('end: the third failed check writes points.json and records the verdict esc
   const { args, env } = stub();
   for (const at of [1, 2]) {
     const result = end(root, env);
-    fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
+    fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
     assert.match(result.lines.at(-1), new RegExp(`; check ${at} of 3\\. `));
     assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
   }
@@ -5088,7 +5204,7 @@ test('end: a results.json that cannot be read is a finding, not exit 3', () => {
   fs.writeFileSync(path.join(root, '.reports', 'results.json'), '{');
   fs.writeFileSync(path.join(root, '.reports', 'spec-reviewer-1.md'), CLEAN);
   const result = end(root);
-  fails(result, /results\.json as valid JSON: it does not parse\.$/);
+  fails(result, /^Write results\.json as valid JSON\. .*results\.json does not parse\.$/);
   assert.equal(result.status, 1);
 });
 
@@ -5630,9 +5746,9 @@ test('end --offline: exit 0 when the drafts and the reviewers\' reports pass', (
 test('end --offline: a finding fails at once, with exit 1 and points.json in --out', () => {
   const run = offlineRun({ edits: [['spec.md', '## Background', '## Context']] });
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
   assert.equal(result.lines.at(-1), 'Checked the drafts and reports after the session: ' +
-    `${result.lines.length - 1} findings; wrote 1 point to points.json of --out.`);
+    `${result.findings.length - 1} findings; wrote 1 point to points.json of --out.`);
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
@@ -5677,18 +5793,18 @@ test('end --offline: exit 3 when an input is missing or unreadable', () => {
     [broken((one) => fs.rmSync(one.artifacts, { recursive: true })), /^Give --artifacts a folder/],
     [broken((one) => fs.rmSync(one.store, { recursive: true })), /^Give --store a folder/],
     [broken((one) => fs.rmSync(one.out, { recursive: true })), /^Give --out a folder/],
-    [broken((one) => fs.rmSync(path.join(one.store, 'index.json'))), /it has no index\.json\.$/],
-    [broken((one) => write(one.store, 'index.json', index)), /^Pull the artifacts again: newest_version/],
+    [broken((one) => fs.rmSync(path.join(one.store, 'index.json'))), /^Pull the artifacts into the folder of --store\. .* has no index\.json\.$/],
+    [broken((one) => write(one.store, 'index.json', index)), /^Pull the artifacts again\. newest_version/],
     [broken((one) => fs.rmSync(one.verdict)), /^Name a file that exists and can be read/],
-    [broken((one) => fs.writeFileSync(one.verdict, '{')), /as valid JSON: it does not parse\.$/],
-    [broken((one) => fs.writeFileSync(one.verdict, '{"verdict":"maybe"}')), /its verdict is "maybe"\.$/],
-    [broken((one) => fs.writeFileSync(one.verdict, '[]')), /its verdict is a list\.$/],
-    [broken((one) => fs.writeFileSync(one.verdict, '{}')), /its verdict is missing\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '{')), /^Write verdict-\d+\.json as valid JSON\. .*verdict-\d+\.json does not parse\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '{"verdict":"maybe"}')), /The verdict of .*verdict-\d+\.json is "maybe"\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '[]')), /The verdict of .*verdict-\d+\.json is a list\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '{}')), /The verdict of .*verdict-\d+\.json is missing\.$/],
   ];
   for (const [one, pattern] of cases) {
     const result = offline(one);
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], pattern);
+    assert.match(result.findings[0], pattern);
     assert.equal(result.lines.at(-1), 'Checked nothing: the end could not read its input.');
     if (fs.existsSync(one.out)) assert.deepEqual(outFiles(one), []);
   }
@@ -5702,8 +5818,8 @@ test('end --offline: exit 4 with the fix first when the script crashes', () => {
   const ran = spawnSync(process.execPath, ['--require', preload, OFFLINE_SCRIPT, ...run.args],
     { cwd: tmp, env: { HOME: '/tmp' }, encoding: 'utf8' });
   assert.equal(ran.status, 4, ran.stderr);
-  assert.deepEqual(ran.stderr.split('\n').slice(0, 2), ['Send this error to the harness ' +
-    'maintainers: the end check after the session crashed, so it checked no draft and no ' +
+  assert.deepEqual(ran.stderr.split('\n').slice(0, 3), ['Send this error to the harness ' +
+    'maintainers.', '  The end check after the session crashed, so it checked no draft and no ' +
     'report.', 'Error: planted crash']);
   assert.deepEqual(outFiles(run), []);
 });
@@ -5727,9 +5843,9 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
   version(run.artifacts, 'spec', 1, 'spec.md', fs.readFileSync(path.join(run.artifacts, 'spec.md'), 'utf8'));
   const before = snapshot(run.artifacts);
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
-  fails(result, /^Fix the 2 findings of \.reports\/spec-reviewer-2\.md, the report of spec-reviewer, in the lines after this one:$/);
-  fails(result, /^End the report of spec-reviewer with one word/);
+  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
+  fails(result, /^Fix the 2 findings of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-2\.md, of spec-reviewer\.$/);
+  fails(result, /^End the report with one word.* of spec-reviewer /);
   assert.equal(result.lines.slice(0, -1).some((line) => /questions-reviewer|points\.json|results/.test(line)),
     false, result.out);
   assert.deepEqual(outPoints(run).map((point) => point.text), [
@@ -5747,8 +5863,8 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-writer-1.md'), WRITER_REPORT);
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'nobody-1.md'), 'Done.\n');
   const first = offline(run);
-  fails(first, /^Start spec-reviewer on the spec draft, and write its report to \.reports\/spec-reviewer-<n>\.md: the folder has no report of spec-reviewer\.$/);
-  assert.equal(first.lines.length, 2, first.out);
+  fails(first, /^Start spec-reviewer on the spec draft\. The folder has no report of spec-reviewer\. Its report goes to \.reports\/spec-reviewer-<n>\.md\.$/);
+  assert.equal(first.findings.length, 2, first.out);
   assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE('spec', 'spec-reviewer'),
     action: 'run_again' }]);
   // A link to a file with the bytes of the stored version is still a draft, and a finding.
@@ -5761,8 +5877,8 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   fs.symlinkSync(path.join(tmp, `moved-${folders}.md`),
     path.join(two.artifacts, '.reports', 'scenario-reviewer-1.md'));
   const second = offline(two);
-  fails(second, /^Name the file itself, not a link to it: .*acceptance-criteria\.md is a link\.$/);
-  fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file: it is not one\.$/);
+  fails(second, /^Name the file itself, not a link to it\. .*acceptance-criteria\.md is a link\.$/);
+  fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file\. \.reports\/scenario-reviewer-1\.md is not one\.$/);
 });
 
 test('end --offline: two drafts of one reviewer name the reviewer once', () => {
@@ -5776,7 +5892,7 @@ test('end --offline: two drafts of one reviewer name the reviewer once', () => {
 
 test('end and end --offline: a draft question takes the id prefixes of the modules', () => {
   const bare = { ...EXPORT_LIMIT, context: 'AC-3 asks for 50,000 rows.' };
-  const finding = /^\s*Quote the words of AC-3 beside it in the context of q7\.$/;
+  const finding = /^\s*Quote the words of AC-3 beside it in the context\.$/;
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
   data.questions.push(bare);
@@ -5933,7 +6049,7 @@ test('end --offline: exit 3 when the store lacks the folder of a base version', 
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
   assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull spec --version 2`, then ' +
-    'end again.', 'The --store folder lacks spec version 2, the newest version from before the ' +
+    'end again.', '  The --store folder lacks spec version 2, the newest version from before the ' +
     'run.']);
   assert.deepEqual(outFiles(run), []);
 });
@@ -5951,7 +6067,7 @@ test('end --offline: a version of a cancelled run is no base version', () => {
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
   assert.equal(result.lines[0], 'Run `qory artifact pull spec --version 1`, then end again.');
-  assert.match(result.lines[1], /^The --store folder lacks spec version 1,/);
+  assert.match(result.lines[1], /^  The --store folder lacks spec version 1,/);
 });
 
 test('end --offline: each changed type needs the report of its reviewer, and no other', () => {
@@ -5969,9 +6085,9 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
     }
     const result = offline(run);
     assert.equal(result.status, 1, `${type}: ${result.out}`);
-    assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft, ` +
-      `and write its report to .reports/${reviewers[type]}-<n>.md: the folder has no report of ` +
-      `${reviewers[type]}.`], type);
+    assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft.`,
+      `  The folder has no report of ${reviewers[type]}. Its report goes to ` +
+      `.reports/${reviewers[type]}-<n>.md.`], type);
     const words = { 'acceptance-criteria': 'acceptance criteria',
       'decision-record': 'technical decision record', 'demo-scenarios': 'demo scenarios' };
     assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE(words[type] || type, reviewers[type]),
@@ -5995,13 +6111,13 @@ function pushedSpec(writer, { continues = [], changed = false, top = null } = {}
   return offline(run, continues.length ? [...run.args, '--continues', continues.join(',')]
     : run.args);
 }
-const SPEC_REVIEW = /^Start spec-reviewer on the spec draft, and write its report to/;
+const SPEC_REVIEW = /^Start spec-reviewer on the spec draft\. The folder has no report of spec-reviewer\./;
 
 test('end --offline: a type that this run pushed needs its reviewer\'s report', () => {
   const mine = { kind: 'run', run_id: THIS_RUN };
   const missing = (result) => {
     fails(result, SPEC_REVIEW);
-    assert.equal(result.lines.length, 2, result.out);
+    assert.equal(result.findings.length, 2, result.out);
   };
   missing(pushedSpec(mine));
   // Also when the top copy is gone, or has the bytes of the base again.
@@ -6053,7 +6169,8 @@ test('end --offline: exit 3 for a version with no writer of kind run or person',
     fs.writeFileSync(file, JSON.stringify(index));
     const result = offline(run);
     assert.equal(result.status, 3, `${JSON.stringify(writer)}: ${result.out}`);
-    assert.match(result.lines[0], /^Pull the artifacts again: version 3 of spec in index\.json has no writer of kind run, with a run_id, or person\.$/);
+    assert.deepEqual(result.lines.slice(0, 2), ['Pull the artifacts again.', '  Version 3 of spec ' +
+      'in index.json has no writer of kind run, with a run_id, or person.']);
   }
 });
 
@@ -6085,10 +6202,9 @@ test('end --offline: a draft name that is a folder or a FIFO is a finding', () =
     const lines = ran.stdout.split('\n');
     // The questions draft reports the file once, and no other draft that reads it does.
     assert.deepEqual(lines.filter((line) => /questions\.json/.test(line)).map((line) =>
-      line.replace(run.artifacts, '<artifacts>')), ['Fix the 1 finding of the questions draft ' +
-      '(questions.json) in the lines after this one:', 'Name a file: <artifacts>/questions.json ' +
-      'is not one.'], ran.stdout);
-    assert.ok(lines.some((line) => /^Name a file: .*\/decision-record\.md is not one\.$/.test(line)), ran.stdout);
+      line.replace(run.artifacts, '<artifacts>')), ['  The questions draft has 1 file: ' +
+      'questions.json.', '  <artifacts>/questions.json is not a file.'], ran.stdout);
+    assert.ok(lines.some((line) => /^ {2}.*\/decision-record\.md is not a file\.$/.test(line)), ran.stdout);
   }
 });
 
@@ -6119,24 +6235,24 @@ test('end --offline: a report that cannot be read is a finding', () => {
   } finally {
     fs.chmodSync(report, 0o644);
   }
-  fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
-  fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
+  fails(result, /^Fix the 1 finding of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, of spec-reviewer\.$/);
+  fails(result, /^Name a file that exists and can be read\. \.reports\/spec-reviewer-1\.md cannot be read\.$/);
   assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
     action: 'run_again' }]);
 });
 
 test('end --offline: a reviewer\'s finding needs a Point: line with no agent name', () => {
   const cases = [
-    [reviewed(null), /^Add a "Point:" line to finding 1 of spec-reviewer: one sentence/],
+    [reviewed(null), /^Add a "Point:" line to finding 1 of spec-reviewer\. The line is one sentence/],
     [reviewed('The spec-writer left out how long a refund takes.'),
-      /^Remove the agent name spec-writer from the "Point:" line of finding 1 of spec-reviewer/],
+      /^Remove the agent name spec-writer from the "Point:" line of finding 1\. Name the work in place of spec-writer, .* The line is in the report of spec-reviewer\.$/],
   ];
   for (const [text, line] of cases) {
     const run = offlineRun();
     fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'), text);
     const result = offline(run);
     assert.equal(result.status, 1, result.out);
-    fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+    fails(result, /^Fix the 1 finding of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, of spec-reviewer\.$/);
     fails(result, line);
     assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
       action: 'run_again' }]);
@@ -6152,10 +6268,10 @@ test('end --offline: a top questions.json above 256 KB is one finding, of the qu
   const result = offline(run);
   assert.equal(result.status, 1, result.out);
   // The decision record and the replies read the questions too, and add no finding.
-  assert.equal(result.lines.length, 3, result.out);
-  assert.equal(result.lines[0], 'Fix the 1 finding of the questions draft (questions.json) in ' +
-    'the lines after this one:');
-  assert.match(result.lines[1], /^Cut questions\.json to at most 256 KB/);
+  assert.equal(result.lines.length, 5, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), ['Fix the 1 finding of the questions draft in ' +
+    'the lines after this one:', '  The questions draft has 1 file: questions.json.']);
+  assert.match(result.lines[2], /^Cut questions\.json to at most 256 KB/);
 });
 
 test('end --offline: a bad questions.json with the bytes of the base is still a finding', () => {
@@ -6170,7 +6286,7 @@ test('end --offline: a bad questions.json with the bytes of the base is still a 
   const result = offline(run);
   assert.equal(result.status, 1, result.out);
   fails(result, /^Cut questions\.json to at most 256 KB/);
-  assert.equal(result.lines.filter((line) => /questions\.json/.test(line)).length, 2, result.out);
+  assert.equal(result.lines.filter((line) => /questions\.json/.test(line)).length, 3, result.out);
 });
 
 // ---- The registry and a stack without software-factory ------------------------------------
@@ -6218,8 +6334,8 @@ for (const [name, text, pattern] of BROKEN) {
     const run = offlineRun();
     const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp', trusted }, run.args);
     assert.equal(result.status, 4, result.out);
-    assert.match(result.err, /^Send this error to the harness maintainers: the end check after the session crashed/);
-    assert.match(result.err.split('\n')[1], new RegExp(`^Error: ${pattern.source.slice(1)}`));
+    assert.match(result.err, /^Send this error to the harness maintainers\.\n  The end check after the session crashed/);
+    assert.match(result.err.split('\n')[2], new RegExp(`^Error: ${pattern.source.slice(1)}`));
     assert.deepEqual(outFiles(run), []);
   });
 }
@@ -6231,7 +6347,7 @@ test('registry: a fault of the registry is a crash of step and resume, with exit
   for (const argv of [['step', 'begin', 'plan', 'plan-the-build', 'x'], ['resume']]) {
     const result = call({ cwd: tmp, artifacts: [], plugin, trusted }, argv);
     assert.equal(result.status, 4, result.out);
-    assert.match(result.err, new RegExp(`^Send this error to the harness maintainers: checks\\.js ` +
+    assert.match(result.err, new RegExp('^Send this error to the harness maintainers\\.\n  checks\\.js ' +
       `${argv[0]} crashed, so the ledger may lack its last change\\.\nError: Fix .*workflow-checks` +
       '\\.js: loading it threw: boom'));
     // Started as a program, with the list that core ships, the refusal is a crash too.
@@ -6239,7 +6355,7 @@ test('registry: a fault of the registry is a crash of step and resume, with exit
       [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), ...argv],
       { cwd: tmp, encoding: 'utf8' });
     assert.equal(ran.status, 4, ran.stderr);
-    assert.match(ran.stderr.split('\n')[1], /^Error: Remove skills\/broken\/workflow-checks\.js from /);
+    assert.match(ran.stderr.split('\n')[2], /^Error: Remove skills\/broken\/workflow-checks\.js from /);
   }
 });
 
@@ -6255,7 +6371,8 @@ test('registry: starts, begin, panel, fixes and end outside a run do not load it
   const unread = call({ ...deps, env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
     ['fixes']);
   assert.equal(unread.status, 3, unread.out);
-  assert.match(unread.lines[0], /^Go on with no point to fix first: qory work-item show could not run: /);
+  assert.equal(unread.lines[0], 'Go on with no point to fix first.');
+  assert.match(unread.lines[1], /^ {2}qory work-item show could not run: /);
   const env = { ...process.env };
   delete env.QORY_RUN_ID;
   passes(call({ ...deps, env }, ['end', root]));
@@ -6378,7 +6495,7 @@ test('registry: a workflow-checks.js outside the list stops each verb before its
   const run = offlineRun();
   const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
   assert.equal(result.status, 4, result.out);
-  assert.match(result.err.split('\n')[1], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
+  assert.match(result.err.split('\n')[2], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
   assert.equal(fs.existsSync(marker), false, 'the code of the refused file ran');
 });
 
@@ -6854,9 +6971,10 @@ test('check and end: every finding of the extensions is reported, each with its 
     JSON.stringify({ version: 1, extensions: factory(changes) }));
   const ended = call({ cwd: folder, plugin: PLUGIN, env: RUN_ENV }, ['end', root]);
   assert.equal(ended.status, 1, ended.out);
-  assert.equal(ended.lines[0], 'Fix the 4 findings of the proposal draft (delayed-order-reply.svg, ' +
-    'proposal.md, sources.json) in the lines after this one:');
-  assert.deepEqual(ended.lines.slice(1, 3), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
+  assert.deepEqual(ended.lines.slice(0, 2), ['Fix the 4 findings of the proposal draft in the ' +
+    'lines after this one:', '  The proposal draft has 3 files: delayed-order-reply.svg, ' +
+    'proposal.md, sources.json.']);
+  assert.deepEqual(ended.lines.slice(2, 4), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
 });
 
 test('end: the header of a draft counts the findings that follow, and the lines of a finding stay after it', () => {
@@ -6872,16 +6990,17 @@ test('end: the header of a draft counts the findings that follow, and the lines 
     verdict: () => ['Record the verdict again.'] });
   const lines = (error) => endDrafts(root, tmp, [def(error)], { verdict: () => ({ verdict: 'passed' }) })
     .map((one) => one.line);
-  // A Missing with lines after its first line: they are no findings, and stay after the
-  // findings of the check and before the fixes of the verdict.
+  const header = (count) => `Fix the ${count} findings of the acceptance-criteria draft in the ` +
+    `lines after this one:\nThe acceptance-criteria draft has 6 files: ${names.join(', ')}.`;
+  // A Missing with lines after its first line: they are no findings, but the cause of the
+  // first, on its lines after it, before the fixes of the verdict.
   assert.deepEqual(lines(new Missing('Fix the draft.', ['The draft has a cause.', 'It has a value.'])), [
-    `Fix the 2 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
-    'Fix the draft.', 'The draft has a cause.', 'It has a value.', 'Record the verdict again.']);
+    header(2), 'Fix the draft.\nThe draft has a cause.\nIt has a value.',
+    'Record the verdict again.']);
   // A Missing that lists its findings: each counts.
   const listed = lines(new Missing('Fix one.', ['Fix two.', 'Fix three.'], true));
-  assert.deepEqual(listed, [
-    `Fix the 4 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
-    'Fix one.', 'Fix two.', 'Fix three.', 'Record the verdict again.']);
+  assert.deepEqual(listed, [header(4), 'Fix one.', 'Fix two.', 'Fix three.',
+    'Record the verdict again.']);
 });
 
 // A name of the longest length that an agent can have, 64 characters, ending in letter.
@@ -6909,6 +7028,75 @@ test('report: the finding about the record of the track has the fix first and th
   assert.equal(cause(recorded.lines).replace(agent, 'proposal-reviewer'), cause(short.lines));
   assert.match(cause(recorded.lines), /"Track review: changes-needed"[^.]*\.$/);
   assert.ok(!recorded.lines.slice(0, -1).some((line) => line.endsWith('...')), recorded.out);
+});
+
+test('report: a finding on the report of a long agent has its name whole on a later line', () => {
+  const agent = LONG_AGENT('d');
+  const plugin = path.join(tmp, `plugin-${++folders}`);
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  fs.copyFileSync(path.join(PLUGIN, 'agents', 'spec-reviewer.md'), path.join(plugin, 'agents', `${agent}.md`));
+  const result = report(reviewed(null), agent, plugin);
+  assert.equal(result.status, 1, result.out);
+  assert.match(result.lines[0], /^Add a "Point:" line to finding 1 of r+\.\.\.r+d\.$/);
+  assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
+  assert.equal(result.lines[2], `  The agent is ${agent}.`);
+});
+
+// The verbs other than report that take an agent name or a path, with an agent of 64
+// characters and a root folder about 200 characters deep: each call has findings, and the
+// first line of each has at most 100 characters.
+test('first lines: a long agent name and long paths keep each first line to 100 characters', () => {
+  const agent = LONG_AGENT('a');
+  let deep = path.join(tmp, `deep-${++folders}`);
+  while (deep.length < 200) deep = path.join(deep, 'd'.repeat(40));
+  const root = path.join(deep, 'artifacts');
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  // The agent reports as reviewing-changes lists, as the agents of findings add do.
+  const plugin = path.join(deep, 'plugin');
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  fs.cpSync(path.join(MODULES, 'core', 'skills', 'reviewing-changes'),
+    path.join(plugin, 'skills', 'reviewing-changes'), { recursive: true });
+  fs.writeFileSync(path.join(plugin, 'agents', `${agent}.md`), ['---', `name: ${agent}`, '---',
+    '', '## Expected output', '',
+    'Report as `reviewing-changes` lists in its section "The report".', ''].join('\n'));
+  const file = path.join(root, '.reports', `${agent}-1.md`);
+  fs.writeFileSync(file, ['What you read:', '- notes.md', '', 'Findings:', '1. Quote: "x"',
+    '   Problem: The notes break a rule.', '', 'changes-needed', ''].join('\n'));
+  fs.writeFileSync(path.join(root, 'spec.md'), '# Spec\n');
+  const deps = { cwd: deep, artifacts: [root], plugin };
+  passes(call(deps, ['starts', 'r1', agent, '1']));
+  // The disk has no room, so the member waits.
+  const panel = panelSetup({ members: [[agent]], free: 0, under: deep }).deps;
+  for (const [given, argv, status] of [
+    [deps, ['starts', 'r1', agent, '1'], 1],
+    [deps, ['findings', 'add', '1', agent, file], 1],
+    [deps, ['findings', 'close', agent, file], 3],
+    [deps, ['check', 'spec', path.join(root, 'spec.md')], 1],
+    [deps, ['lock', path.join(root, 'acceptance-lock.json')], 3],
+    [panel, ['panel', '--names', agent, '--files', path.join(panel.cwd, 'files.txt')], 1],
+  ]) {
+    // seen asserts the rule on each first line that main passes to firstLine.
+    const first = [];
+    const seen = watch();
+    const firstLine = (line) => {
+      first.push(line);
+      seen.firstLine(line);
+    };
+    const result = call({ ...given, firstLine }, argv);
+    seen.check(result.status, result.err);
+    const verb = argv.slice(0, 2).join(' ');
+    assert.equal(result.status, status, `${verb}: ${result.out}`);
+    // starts at its limit cuts the name on line 1 and prints the whole name indented below.
+    if (argv[0] === 'starts') {
+      assert.equal(result.lines.length, 2, result.out);
+      assert.match(result.lines[0],
+        /^Start no more r+\.\.\.r+a: it has had 1 start, and the limit is 1\.$/);
+      assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
+      assert.equal(result.lines[1], `  The limit counts the starts of ${agent}.`);
+    }
+    assert.ok(first.length, `${verb}: ${result.out}`);
+    for (const line of first) assert.ok([...line].length <= 100, `${verb}: ${line}`);
+  }
 });
 
 test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
@@ -7154,7 +7342,7 @@ test('end --offline: a withdrawn type of history needs the version before it in 
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
   assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull acceptance-criteria ' +
-    '--version 1`, then end again.', 'The --store folder lacks acceptance-criteria version 1, ' +
+    '--version 1`, then end again.', '  The --store folder lacks acceptance-criteria version 1, ' +
     'the version before the withdrawal.']);
 });
 

@@ -7,11 +7,11 @@ const path = require('node:path');
 
 module.exports = (lib) => {
   const {
-    address, areaOf, BadQuestions, blank, characters, codeSpans, factoryExtensions, fenceLine,
-    firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind, lines,
-    markdownText, Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
-    results, same, sections, sentences, sha256, table, topSections, TRACK_LISTS, trackLine, trackLists,
-    trackRecordOf, words,
+    address, areaOf, BadQuestions, blank, brief, characters, codeSpans, factoryExtensions,
+    fenceLine, firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind,
+    lines, markdownText, Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
+    results, same, sections, sentences, sha256, table, topSections, TRACK_LISTS, trackLine,
+    trackLists, trackRecordOf, words,
   } = lib;
 
   // The words of a proposal whose last full stop ends no sentence, and those whose full stop
@@ -251,7 +251,7 @@ module.exports = (lib) => {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
       if (wrong) {
-        run.find(`Write ## Sources of proposal.md as "- " items, or only "${NO_SOURCE}": line ` +
+        run.find(`Write ## Sources of proposal.md as "- " items, or only "${NO_SOURCE}".\nLine ` +
           `${wrong.number} is ${quote(wrong.text)}.`);
       }
     }
@@ -438,25 +438,29 @@ module.exports = (lib) => {
       const where = 'the recommendation that opens ## Proposed solution of proposal.md';
       if (said === 0) {
         run.find('Open ## Proposed solution of proposal.md with the recommendation in 1 ' +
-          'sentence of at most 30 words: it has none before its first part.');
+          'sentence of at most 30 words.\n## Proposed solution has no sentence before its first ' +
+          'part.');
       } else if (said > 1) {
-        run.find(`Write ${where} as 1 sentence: it has ${said}.`);
+        run.find(`Write ${where} as 1 sentence.\nThe recommendation has ${said} sentences.`);
       }
       if (words(opening) > 30) run.find(`Cut ${where} to 30 words: it has ${words(opening)}.`);
       const start = firstFilled(intro);
       if (said > 0 && start < intro.length && isRow(intro[start])) {
-        run.find(`Put ${where} before its table of alternatives.`);
+        run.find('Put the recommendation before the table of alternatives in ## Proposed ' +
+          'solution of proposal.md.');
       }
       for (const found of tablesOf(intro)) {
         if (!same(found.header, ALTERNATIVE_COLUMNS)) {
           run.find(`Give the table at line ${found.number} of proposal.md the columns ` +
-            'Alternative and Why not, or move it into a ### part.');
+            'Alternative and Why not.\nFor a table of another kind, move the table into a ### ' +
+            'part. Before its first part, ## Proposed solution has only the recommendation and a ' +
+            'table of alternatives.');
         } else if (found.rows.length > 3) {
           run.find(`Cut the table of alternatives at line ${found.number} of proposal.md to 3 ` +
             `rows: it has ${found.rows.length}.`);
         } else if (found.rows.length === 0) {
-          run.find(`Remove the table of alternatives at line ${found.number} of proposal.md: ` +
-            'with no alternative weighed, write no table.');
+          run.find(`Remove the table of alternatives at line ${found.number} of proposal.md.\n` +
+            'The table has no row. With no alternative weighed, write no table.');
         }
       }
       // writing-proposals (SKILL.md:130-132: "Each part has at most 120 words"): a part from its
@@ -464,8 +468,8 @@ module.exports = (lib) => {
       for (const unit of units.slice(1)) {
         const size = words(unit.title) + proposalWords(unit.lines);
         if (size > 120) {
-          run.find(`Cut the part ${quote(unit.title)} of proposal.md to 120 words: it has ` +
-            `${size}.`);
+          run.find(`Cut the part ${quote(brief(unit.title))} of proposal.md to 120 words.\n` +
+            `The part ${quote(unit.title)} has ${size} words.`);
         }
       }
     }
@@ -481,7 +485,7 @@ module.exports = (lib) => {
       const or = reasons.some((reason) => reason.now)
         ? ', or shorten a reason of a question that this run decided'
         : '';
-      run.find(`Cut proposal.md to ${Math.max(0, 450 - added)} words${or}: proposal.md has ` +
+      run.find(`Cut proposal.md to ${Math.max(0, 450 - added)} words${or}.\nproposal.md has ` +
         `${own}, and the ${one ? 'reason' : 'reasons'} of ` +
         `${plural(reasons.length, 'decided question')} ${one ? 'has' : 'have'} ${added}.`);
     } else if (own > 450) {
@@ -498,8 +502,8 @@ module.exports = (lib) => {
           const most = column === whyNot ? 15 : 12;
           const size = words(cell);
           if (size > most) {
-            run.find(`Cut the cell ${quote(cell)} of the table at ${at} to ${most} words: it ` +
-              `has ${size}.`);
+            run.find(`Cut the cell ${quote(brief(cell, 24))} of the table at ${at} to ${most} ` +
+              `words.\nThe cell ${quote(cell)} has ${size} words.`);
           }
         });
       }
@@ -507,20 +511,24 @@ module.exports = (lib) => {
       const after = found.header.indexOf('After');
       if (today < 0 || after < 0) continue;
       if (found.rows.length < 2 || found.rows.length > 6) {
-        run.find(`Give the Today/After table at ${at} 2 to 6 rows, or write a single change as ` +
-          `one sentence: it has ${found.rows.length}.`);
+        run.find(`Give the Today/After table at ${at} 2 to 6 rows.\nThe table has ` +
+          `${plural(found.rows.length, 'row')}. Write a single change as one sentence.`);
       }
-      for (const row of found.rows) {
+      // The rows are the last lines of the table, up to the index found.end of kept.
+      const rowsFrom = found.end - found.rows.length;
+      found.rows.forEach((row, place) => {
         const was = (row[today] || '').trim().toLowerCase();
         const now = (row[after] || '').trim().toLowerCase();
+        const which = `the row at line ${kept[rowsFrom + place].number} of proposal.md`;
+        const shown = `The row is ${quote(row.join(' | '))}.`;
         if (noChange(row[after] || '')) {
-          run.find(`Remove the row ${quote(row.join(' | '))} of the table at ${at}, or state ` +
-            `its change: its After cell ${quote(row[after])} states no change.`);
+          run.find(`Remove ${which}, or state its change.\n${shown}\nThe After cell ` +
+            `${quote(row[after])} of the row states no change.`);
         } else if (was === now) {
-          run.find(`Remove the row ${quote(row.join(' | '))} of the table at ${at}: its Today ` +
-            'and After cells are the same.');
+          run.find(`Remove ${which}.\n${shown}\nThe Today and After cells of the row are the ` +
+            'same.');
         }
-      }
+      });
     }
 
     // writing-proposals (SKILL.md:169-171: "It matches each phrase as whole words"): no line of
@@ -549,7 +557,7 @@ module.exports = (lib) => {
         if (seen.has(`${phrase} ${line.number}`)) continue;
         seen.add(`${phrase} ${line.number}`);
         run.find(`Remove "${phrase}" from line ${line.number} of proposal.md and state the ` +
-          `outcome: the line is ${quote(line.text)}.`);
+          `outcome.\nThe line is ${quote(line.text)}.`);
       }
     }
   }
@@ -577,8 +585,8 @@ module.exports = (lib) => {
     run.did('sections');
     const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
     if (!same(titles, PROPOSAL_SECTIONS)) {
-      run.find(`Give proposal.md the sections ${headings(PROPOSAL_SECTIONS)}, in this order: it ` +
-        `has ${headings(titles)}.`);
+      run.find(`Give proposal.md the ${PROPOSAL_SECTIONS.length} sections of its type, in their ` +
+        `order.\nThey are ${headings(PROPOSAL_SECTIONS)}.\nproposal.md has ${headings(titles)}.`);
     }
     const fast = trackForm(run, list);
     proposalLimits(run, list);
@@ -616,7 +624,9 @@ module.exports = (lib) => {
       const ref = typeof entry.ref === 'string' ? entry.ref : '';
       if (entry.kind === 'page') {
         const why = address(ref);
-        if (why) run.find(`Fix the ref ${quote(ref)} of ${where} in sources.json: ${why}.`);
+        if (why) {
+          run.find(`Fix the ref of ${where} in sources.json: ${why}.\nThe ref is ${quote(ref)}.`);
+        }
         entries.add(ref);
       } else if (entry.kind === 'file') {
         paths(run, 'sources.json', `ref of ${where}`, ref);
@@ -632,14 +642,14 @@ module.exports = (lib) => {
     const listed = sourceItems(md);
     for (const item of listed) {
       if (!entries.has(item)) {
-        run.find(`Add ${quote(item)} to sources.json, or remove it from ## Sources of ` +
-          'proposal.md.');
+        run.find(`Add ${quote(brief(item, 28))} to sources.json, or remove it from ## Sources ` +
+          `of proposal.md.\nThe item is ${quote(item)}.`);
       }
     }
     for (const item of entries) {
       if (!listed.has(item)) {
-        run.find(`List ${quote(item)} under ## Sources of proposal.md, or remove it from ` +
-          `sources.json.`);
+        run.find(`List ${quote(brief(item, 28))} under ## Sources of proposal.md, or remove it ` +
+          `from sources.json.\nThe item is ${quote(item)}.`);
       }
     }
     if (fast) fastTrack(run, fast, fileEntries);

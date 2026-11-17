@@ -59,7 +59,7 @@ module.exports = (lib) => {
     const ran = git(io, ['rev-parse', '--verify', 'HEAD^{commit}']);
     const id = ran.status === 0 ? ran.stdout.trim() : '';
     if (!COMMIT.test(id)) {
-      throw new Missing('Run step and resume in the checkout of the work: git rev-parse HEAD ' +
+      throw new Missing('Run step and resume in the checkout of the work.\ngit rev-parse HEAD ' +
         'failed in the working folder.');
     }
     return id;
@@ -79,7 +79,7 @@ module.exports = (lib) => {
   function changed(io) {
     const ran = git(io, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
     if (ran.status !== 0) {
-      throw new Missing('Run checks.js step in the checkout of the work: git status failed in ' +
+      throw new Missing('Run checks.js step in the checkout of the work.\ngit status failed in ' +
         'the working folder.');
     }
     const parts = ran.stdout.split('\0');
@@ -119,7 +119,7 @@ module.exports = (lib) => {
   function start(io, { ledger, mine, origin: first, crashed = [] }) {
     const top = head(io);
     if (typeof first !== 'string' || !COMMIT.test(first)) {
-      throw new Missing('Run checks.js resume, then step begin again: .reports/ledger.json has ' +
+      throw new Missing('Run checks.js resume, then step begin again.\n.reports/ledger.json has ' +
         'no head at which the session started.');
     }
     const before = ledger.steps.filter((row) => !mine.includes(row)).at(-1);
@@ -131,11 +131,11 @@ module.exports = (lib) => {
     // The checkout had no change when the failed step began, so each change is that step's.
     if (files.length && last && last.state === 'failed') {
       return { findings: [`Run git stash push --include-untracked -- ':/' ':!/.qory', then step ` +
-        `begin again: the failed step ${last.id} left ${count(files.length)} changed.`],
+        `begin again.\nThe failed step ${last.id} left ${count(files.length)} changed.`],
       members: {} };
     }
     if (files.length) {
-      return { findings: [`End the session, and keep the checkout as it is: ` +
+      return { findings: ['End the session, and keep the checkout as it is.\n' +
         `${count(files.length)} changed outside a step, such as ${quote(files[0])}.`],
       members: {} };
     }
@@ -147,12 +147,13 @@ module.exports = (lib) => {
     const failed = mine.slice(newest ? newest.place + 1 : 0).reverse()
       .find((row) => row.state === 'failed') || (newest ? null : stopped);
     if (failed && follows(io, base, top)) {
-      return { findings: [`Run git reset --keep ${brief(base)}, then step begin again: the ` +
+      return { findings: [`Run git reset --keep ${brief(base)}, then step begin again.\nThe ` +
         `failed step ${failed.id} left the commit ${brief(top)}.`], members: {} };
     }
     const where = newest ? `where ${newest.row.id} ended`
       : (stopped ? `where ${stopped.id} started` : 'where the session started');
-    return { findings: [`Return the checkout to ${brief(base)}, ${where}: the head ` +
+    // A step id has at most 44 characters, fix: and 40, so the first line stays within 100.
+    return { findings: [`Return the checkout to ${brief(base)}, ${where}.\nThe head ` +
       `${brief(top)} has a change that no step of this session made.`], members: {} };
   }
 
@@ -167,12 +168,13 @@ module.exports = (lib) => {
     if (files.length) {
       const differ = files.length === 1 ? 'file of the checkout differs'
         : 'files of the checkout differ';
-      findings.push(`Commit each change in the step, or undo it: ${files.length} ${differ} ` +
+      findings.push(`Commit each change in the step, or undo it.\n${files.length} ${differ} ` +
         `from ${brief(top)}, such as ${quote(files[0])}.`);
     }
     if (!follows(io, row.base, top)) {
-      findings.push(`Check out a commit that follows ${brief(row.base)}, where ${row.id} ` +
-        `started: the head ${brief(top)} does not follow it.`);
+      findings.push(`Check out a commit that follows ${brief(row.base)}, the base of the step.` +
+        `\n${row.id} started on ${brief(row.base)}, and the head ${brief(top)} does not follow ` +
+        'it.');
     }
     return { findings, members: findings.length ? {} : { commit: top } };
   }

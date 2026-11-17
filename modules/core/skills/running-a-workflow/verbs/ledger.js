@@ -40,7 +40,7 @@ const path = require('node:path');
 
 const {
   CONTROL_ALL, Missing, REFUSED_ALL, artifactFolder, cut, inside, isObject, plural, qoryPath,
-  quote, withLock, writeJson,
+  quote, short, withLock, writeJson,
 } = require('../lib/base.js');
 const { Context } = require('../lib/context.js');
 
@@ -77,7 +77,7 @@ const FULL = `Start no new step: the ledger has ${MAX_ROWS} rows, its limit. End
 // the number of the session in the run, QORY_SESSION, 1 for the first.
 const MARK = path.join('.reports', 'ledger.json');
 
-const crash = (verb) => `Send this error to the harness maintainers: checks.js ${verb} ` +
+const crash = (verb) => `Send this error to the harness maintainers.\nchecks.js ${verb} ` +
   'crashed, so the ledger may lack its last change.';
 
 const now = () => new Date().toISOString();
@@ -95,7 +95,7 @@ const fit = (head, tail) => `${head}${cut(String(tail).replace(CONTROL_ALL, ' ')
 function hook(io) {
   const found = io.registry().ledger;
   if (!found) {
-    throw new Missing('Add the module of the workflow to the stack: no skill adds the rules ' +
+    throw new Missing('Add the module of the workflow to the stack.\nNo skill adds the rules ' +
       'of the ledger, so step and resume cannot run.');
   }
   return found;
@@ -124,12 +124,12 @@ function parse(ledger, text, what) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Missing(`Run checks.js resume, then the verb again: ${what} cannot be read as ` +
+    throw new Missing(`Run checks.js resume, then the verb again.\n${what} cannot be read as ` +
       'JSON.');
   }
   const found = ledger.check(data);
   if (found.length) {
-    throw new Missing(fit(`Run checks.js resume, then the verb again: ${what} breaks its ` +
+    throw new Missing(fit(`Run checks.js resume, then the verb again.\n${what} breaks its ` +
       'schema: ', found[0]));
   }
   return data;
@@ -179,7 +179,7 @@ function current(io, root, ledger) {
   const what = `${path.join('.reports', ledger.file)} of the artifact folder`;
   if (text !== null) return parse(ledger, text, what);
   if (fs.existsSync(copy)) {
-    throw new Missing(`Run checks.js resume, then the verb again: ${what} cannot be read.`);
+    throw new Missing(`Run checks.js resume, then the verb again.\n${what} cannot be read.`);
   }
   const newest = stored(io, root, ledger);
   return newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
@@ -201,7 +201,7 @@ function writeText(file, text, verb) {
     fs.renameSync(temporary, file);
   } catch {
     throw new Missing(`Make the artifact folder writable, run checks.js resume, then ${verb} ` +
-      `again: ${path.basename(file)} cannot be written.`);
+      `again.\n${path.basename(file)} cannot be written.`);
   }
 }
 
@@ -212,13 +212,13 @@ function sessionOf(io) {
   const env = io.env || {};
   const run = env.QORY_RUN_ID;
   if (typeof run !== 'string' || !run) {
-    throw new Missing('Run step and resume in a run of qory: QORY_RUN_ID is not set, so the ' +
+    throw new Missing('Run step and resume in a run of qory.\nQORY_RUN_ID is not set, so the ' +
       'ledger cannot tell one session from the next.');
   }
   const number = env.QORY_SESSION === undefined || env.QORY_SESSION === '' ? '1'
     : env.QORY_SESSION;
   if (!/^[1-9][0-9]{0,5}$/.test(number)) {
-    throw new Missing('Run step and resume in a session of qory: QORY_SESSION is not a whole ' +
+    throw new Missing('Run step and resume in a session of qory.\nQORY_SESSION is not a whole ' +
       `number from 1 to 999999: ${quote(number)}.`);
   }
   return { run, session: Number(number) };
@@ -237,12 +237,12 @@ function readMark(io, root) {
       !Object.hasOwn(data, 'origin') || !Array.isArray(data.rows) ||
       !Array.isArray(data.replayed) || !Array.isArray(data.crashed) ||
       typeof data.full !== 'boolean') {
-    throw new Missing('Run checks.js resume first, once at the start of the session: the ' +
+    throw new Missing('Run checks.js resume first, once at the start of the session.\nThe ' +
       `artifact folder has no ${MARK} that resume writes.`);
   }
   const id = sessionOf(io);
   if (data.run !== id.run || data.session !== id.session) {
-    throw new Missing('Run checks.js resume first, once at the start of the session: ' +
+    throw new Missing('Run checks.js resume first, once at the start of the session.\n' +
       `${MARK} is from an earlier session.`);
   }
   return data;
@@ -262,8 +262,8 @@ function qory(io, ledger, action, verb, file) {
     { env: io.env, encoding: 'utf8', timeout: 100000 });
   // The name of the program, not its path, so that the line keeps room for the error.
   const command = `${path.basename(program)} artifact ${action} ${ledger.type}`;
-  const fix = action === 'push' ? `Run checks.js resume, then ${verb} again`
-    : 'Push nothing, and end the session with this line';
+  const fix = action === 'push' ? `Run checks.js resume, then ${verb} again.`
+    : 'Push nothing, and end the session with these lines.';
   let why = null;
   if (ran.error) why = `${command} could not run: ${ran.error.message}`;
   else if (ran.status !== 0) {
@@ -271,7 +271,7 @@ function qory(io, ledger, action, verb, file) {
       .find((line) => line.trim());
     why = `${command} exited with ${ran.status}${first ? `: ${first.trim()}` : ''}`;
   }
-  if (why) throw new Missing(fit(`${fix}: `, why));
+  if (why) throw new Missing(fit(`${fix}\n`, /[.!?]$/.test(why) ? why : `${why}.`));
 }
 
 // push pushes rows as a new version, from a file in a new temporary folder, and then writes the
@@ -301,8 +301,8 @@ function inputs(io, files) {
     try {
       bytes = fs.readFileSync(path.resolve(io.cwd, file));
     } catch {
-      throw new Missing(`Name input files that exist and can be read: ${quote(file)} cannot be ` +
-        'read.');
+      throw new Missing(`Name input files that exist and can be read.\n${quote(file)} cannot ` +
+        'be read.');
     }
     return crypto.createHash('sha256').update(bytes).digest('hex');
   });
@@ -330,11 +330,12 @@ function fullPoint(root, point) {
   }
   const findings = [];
   if (!list.some((one) => isObject(one) && one.text === point.text)) {
-    const head = `Raise this point again in the next session: points.json had ${MAX_POINTS} ` +
-      'points, its limit, so step begin removed it for the point of the full ledger: ';
+    const head = 'Raise a point that step begin removed again in the next session.\n' +
+      `points.json had ${MAX_POINTS} points, its limit, so step begin removed the point for ` +
+      'the point of the full ledger.\nThe point is ';
     for (const one of list.slice(MAX_POINTS - 1)) {
       const text = isObject(one) && typeof one.text === 'string' ? one.text : JSON.stringify(one);
-      const room = Math.max(FINDING - [...head].length - 3, 10);
+      const room = Math.max(FINDING - [...'The point is '].length - 3, 10);
       findings.push(`${head}"${cut(String(text).replace(CONTROL_ALL, ' ').trim(), room)}".`);
     }
     list = [...list.slice(0, MAX_POINTS - 1), point];
@@ -385,8 +386,9 @@ function beginLocked(io, planIo, root, ledger, { id, workflow, files }) {
   const rows = current(io, root, ledger);
   const open = rows.steps.findIndex((row) => row.state === 'running');
   if (open >= 0) {
-    return { status: 1, findings: [], last: `End the step ${rows.steps[open].id} with step end, ` +
-      `or run checks.js resume after a crash: row ${open + 1} of the ledger is running.` };
+    // The id is cut so that the line keeps 100 characters with a row of 3 digits.
+    return { status: 1, findings: [], last: `End the step ${short(rows.steps[open].id, 22)}, ` +
+      `row ${open + 1}, with step end, or run checks.js resume after a crash.` };
   }
   const hash = inputs(io, files);
   const last = highest(rows, id);
@@ -464,29 +466,29 @@ function reportText(io, root, file) {
   let real;
   try {
     if (fs.lstatSync(given).isSymbolicLink()) {
-      throw new Missing(`Name the report file, not a link to it: ${quote(file)} is a link.`);
+      throw new Missing(`Name the report file, not a link to it.\n${quote(file)} is a link.`);
     }
     real = fs.realpathSync(given);
   } catch (error) {
     if (error instanceof Missing) throw error;
-    throw new Missing(`Write the report first: ${quote(file)} does not exist.`);
+    throw new Missing(`Write the report first.\n${quote(file)} does not exist.`);
   }
   if (!inside(real, path.join(root, '.reports'))) {
-    throw new Missing(`Write the report under .reports of the artifact folder: ${quote(file)} ` +
-      'is not there.');
+    throw new Missing('Write the report under .reports of the artifact folder.\n' +
+      `${quote(file)} is not there.`);
   }
   let text;
   try {
     text = fs.readFileSync(real, 'utf8');
   } catch {
-    throw new Missing(`Name a report that can be read: ${quote(file)} cannot be read.`);
+    throw new Missing(`Name a report that can be read.\n${quote(file)} cannot be read.`);
   }
   const characters = [...text].length;
   const bytes = Buffer.byteLength(JSON.stringify(text), 'utf8') - 2;
   if (characters > REPORT_LENGTH || bytes > REPORT_BYTES) {
-    return { bytes, characters, finding: `Cut the report ${quote(path.basename(file))} to ` +
-      `${REPORT_BYTES} bytes as written in the ledger: it has ${bytes} in ${characters} ` +
-      'characters.' };
+    return { bytes, characters, finding: `Cut the report ${quote(short(path.basename(file)))} ` +
+      `to ${REPORT_BYTES} bytes as written in the ledger.\n${quote(path.basename(file))} has ` +
+      `${bytes} bytes in ${characters} characters.` };
   }
   return { text };
 }
@@ -503,8 +505,8 @@ function failedReport(io, root, file, notes) {
     return null;
   }
   if (report.finding) {
-    notes.push(`Keep the next report to ${REPORT_BYTES} bytes as written in the ledger: the ` +
-      `report ${quote(path.basename(file))} has ${report.bytes} in ${report.characters} ` +
+    notes.push(`Keep the next report to ${REPORT_BYTES} bytes as written in the ledger.\nThe ` +
+      `report ${quote(path.basename(file))} has ${report.bytes} bytes in ${report.characters} ` +
       'characters, so the row has none.');
     return null;
   }
@@ -530,8 +532,8 @@ function endLocked(io, root, ledger, { id, state, options }) {
     if (row.id === id) place = at;
   });
   if (place < 0 || rows.steps[place].state !== 'running') {
-    return { status: 1, findings: [], last: `Start ${id} with step begin first: the ledger has ` +
-      'no running row of it.' };
+    return { status: 1, findings: [], last: `Start ${short(id, 28)} with step begin first: the ` +
+      'ledger has no running row of it.' };
   }
   const notes = [];
   let text = null;
@@ -566,7 +568,8 @@ function endOptions(ledger, id, state, rest) {
     const more = ledger.flags[flag];
     if (flag !== '--report' && flag !== '--attempt' && flag !== '--pushed' && !more) {
       const all = ['--report', '--attempt', '--pushed', ...Object.keys(ledger.flags)];
-      return { wrong: `Give step end only ${all.join(', ')}: ${shown(flag)} is none.` };
+      return { wrong: 'Give step end only the flags that its usage lists.\nThe flags are ' +
+        `${all.join(', ')}, and ${shown(flag)} is none of them.` };
     }
     if (value === undefined || value.startsWith('--')) return { wrong: `Give ${flag} a value.` };
     if (flag === '--report') {
@@ -576,19 +579,19 @@ function endOptions(ledger, id, state, rest) {
       const [agent, role, tier, ...model] = value.split(',');
       const joined = model.join(',');
       if (!ok(agent) || !ok(role) || !TIERS.includes(tier) || !MODEL.test(joined)) {
-        return { wrong: `Give --attempt as <agent>,<role>,<tier>,<model>, with a tier of ` +
-          `${TIERS.join(', ')}: ${shown(value)} is not.` };
+        return { wrong: 'Give --attempt as <agent>,<role>,<tier>,<model>, with a tier of ' +
+          `${TIERS.join(', ')}.\n${shown(value)} is not.` };
       }
       options.attempts.push({ agent, role, tier, model: joined });
     } else if (flag === '--pushed') {
       const match = /^([^/]+)\/([^/]+)\/([1-9][0-9]{0,5})$/.exec(value);
       if (!match || !ok(match[1]) || !ok(match[2]) || Number(match[3]) > MAX_VERSION) {
-        return { wrong: `Give --pushed as <type>/<name>/<version>: ${shown(value)} is not.` };
+        return { wrong: `Give --pushed as <type>/<name>/<version>.\n${shown(value)} is not.` };
       }
       options.pushed.push({ type: match[1], name: match[2], version: Number(match[3]) });
     } else {
       if (Object.hasOwn(options.values, more.member)) return { wrong: `Give ${flag} once.` };
-      if (!more.valid(value)) return { wrong: `${more.wrong}: ${shown(value)} is not.` };
+      if (!more.valid(value)) return { wrong: `${more.wrong}.\n${shown(value)} is not.` };
       options.values[more.member] = value;
     }
   }
@@ -656,8 +659,8 @@ function resumeLocked(io, root, ledger, id, origin) {
   }
   writeMark(root, { ...id, origin, rows: [], replayed: [], crashed: stopped, full: false },
     'resume');
-  const lines = crashed.map((row) => `Run ${row.id} again: its pass ${row.pass} stopped ` +
-    `while it ran, so step begin starts pass ${row.pass + 1}.`);
+  const lines = crashed.map((row) => `Run ${short(row.id)} again.\nIts pass ${row.pass} of ` +
+    `${row.id} stopped while it ran, so step begin starts pass ${row.pass + 1}.`);
   const done = rows.steps.filter((row) => row.state === 'done').length;
   const read = newest ? `version ${newest.number} of the ledger` : 'no ledger';
   return { lines, last: `Read ${read}: ${plural(rows.steps.length, 'row')}, ${done} done, ` +
@@ -685,16 +688,16 @@ module.exports = {
       crash: crash('step'),
       args(io, what, rest) {
         if (what !== 'begin' && what !== 'end') {
-          return `Give step begin or step end: ${shown(what)} is neither.`;
+          return `Give step begin or step end.\n${shown(what)} is neither.`;
         }
         const ledger = hook(io);
         const [id, second, ...more] = rest;
         if (!ledger.id.test(id || '')) {
-          return `Give the id of a step, such as ${ledger.ids}: ${shown(id)} is none.`;
+          return `Give the id of a step, such as ${ledger.ids}.\n${shown(id)} is none.`;
         }
         if (what === 'begin') {
           if (!WORKFLOW.test(second || '')) {
-            return `Give the workflow of the session in lower case: ${shown(second)} is none.`;
+            return `Give the workflow of the session in lower case.\n${shown(second)} is none.`;
           }
           const options = beginOptions(more);
           if (options.wrong) return options.wrong;
@@ -705,7 +708,7 @@ module.exports = {
           return options.files.length ? null : 'Give step begin the files of the step\'s inputs.';
         }
         if (second !== 'done' && second !== 'failed') {
-          return `Give step end the state done or failed: ${shown(second)} is neither.`;
+          return `Give step end the state done or failed.\n${shown(second)} is neither.`;
         }
         return endOptions(ledger, id, second, more).wrong || null;
       },

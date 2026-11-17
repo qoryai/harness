@@ -10,8 +10,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  LIMIT, MAX_BYTES, Missing, NAME, artifactFolder, folderOf, inside, isObject, jsonKind,
-  parseJson, plural, readFile, sha256, withLock, writeJson,
+  LIMIT, MAX_BYTES, Missing, NAME, artifactFolder, folderOf, given, inside, isObject, jsonKind,
+  parseJson, plural, readFile, sha256, short, withLock, writeJson,
 } = require('../lib/base.js');
 const {
   BREAK_PROOFS, FINDING_ID, PROOFS, SEVERITIES, proofForm, readClosed, readEarlier, readFindings,
@@ -46,8 +46,8 @@ function readRecord(root) {
   const file = recordFile(root);
   if (!fs.existsSync(file)) return { findings: [], reports: [] };
   const data = parseJson(readFile(file, file), file, 'findings');
-  const broken = (detail) => new Missing(`Write ${file} only through checks.js findings: ` +
-    `${detail}.`);
+  const broken = (detail) => new Missing(`Write ${RECORD} only through checks.js findings.\n` +
+    `${file} breaks the form of the record: ${detail}.`);
   if (!Array.isArray(data.reports)) throw broken('it has no list reports');
   const seen = new Set();
   data.findings.forEach((one, place) => {
@@ -96,18 +96,19 @@ function reportOf(io, agent, file) {
   try {
     real = fs.realpathSync(file);
   } catch {
-    throw new Missing(`Write the report first: ${file} does not exist.`);
+    throw new Missing(`Write the report first.\n${file} does not exist.`);
   }
   const root = folderOf(io, real);
   if (!inside(real, path.join(root, '.reports'))) {
-    throw new Missing(`Write the report under ${path.join(root, '.reports')}: ${file} is ` +
-      `not there.`);
+    throw new Missing('Write the report under .reports of the artifact folder.\n' +
+      `${file} is not under ${path.join(root, '.reports')}.`);
   }
   const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
   const problems = size > MAX_BYTES
-    ? [`Cut the report of ${agent} to at most ${MAX_BYTES / 1024} KB: it has ${size} bytes.`]
+    ? [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ${size} ` +
+      'bytes.']
     : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops);
   const all = lines(text);
   const last = all.map((line) => line.text.trim()).filter(Boolean).pop() || '';
@@ -126,8 +127,8 @@ function recorded(record, real, agent, text) {
 function add(io, round, agent, file) {
   const report = reportOf(io, agent, file);
   if (!report.shape.proof) {
-    throw new Missing(`Give ${agent} the report of reviewing-changes: its "Expected output" ` +
-      'has no "Proof:" line in a finding.');
+    throw new Missing(`Give ${short(agent)} the report of reviewing-changes.\nThe "Expected ` +
+      `output" of ${agent} has no "Proof:" line in a finding.`);
   }
   return locked(io, report.root, () => addLocked(io, round, agent, report));
 }
@@ -143,8 +144,8 @@ function addLocked(io, round, agent, report) {
     return 0;
   }
   if (same) {
-    io.print([`Write a new report of ${agent} for round ${round}: ${RECORD} has ${same.file} ` +
-      `with the same bytes in round ${same.round}.`],
+    io.print([`Write a new report for round ${round}.\n${RECORD} has ${same.file}, a report ` +
+      `of ${agent} with the same bytes, in round ${same.round}.`],
     `Added nothing to ${RECORD}: the call of findings add has 1 problem.`);
     return 1;
   }
@@ -163,7 +164,8 @@ function addLocked(io, round, agent, report) {
   const twice = record.reports.find((one) => one.verb === 'add' && one.agent === agent &&
     one.round === round);
   if (twice) {
-    calls.push(`Add one report of ${agent} per round: round ${round} has ${twice.file}.`);
+    calls.push(`Add one report per round.\nRound ${round} of ${RECORD} has ${twice.file} of ` +
+      `${agent}.`);
   }
   const items = report.last === 'clean' ? [] : findingItems(report.all, report.shape);
   const found = readFindings(items, agent).findings;
@@ -172,8 +174,8 @@ function addLocked(io, round, agent, report) {
   // it adds no finding and judges no closure: a clean copy changes nothing.
   const copy = record.reports.find((one) => one.sha256 === sha256(report.text));
   if (copy && (found.length || earlier.length)) {
-    io.print([`Write a new report of ${agent} for round ${round}: ${RECORD} has a report ` +
-      `with the same bytes, ${copy.file} of ${copy.agent} in round ${copy.round}.`],
+    io.print([`Write a new report for round ${round}.\nThe report of ${agent} has the same ` +
+      `bytes as ${copy.file} of ${copy.agent} in round ${copy.round} of ${RECORD}.`],
     `Added nothing to ${RECORD}: the call of findings add has 1 problem.`);
     return 1;
   }
@@ -182,30 +184,30 @@ function addLocked(io, round, agent, report) {
   for (const item of earlier) {
     const one = byId.get(item.id);
     if (judged.has(item.id)) {
-      problems.push(`Judge ${item.id} once under "Earlier findings:" of ${agent}: it is there ` +
-        'twice.');
+      problems.push(`Judge ${item.id} once under "Earlier findings:".\nThe report of ${agent} ` +
+        'has the item twice.');
     } else if (!one || one.state !== 'closed') {
-      problems.push(`Judge only a closed finding under "Earlier findings:" of ${agent}: ` +
-        `${item.id} is ${one ? 'open' : `not in ${RECORD}`}.`);
+      problems.push('Judge only a closed finding under "Earlier findings:".\nThe item ' +
+        `${item.id} of the report of ${agent} is ${one ? 'open' : `not in ${RECORD}`}.`);
     } else if (item.holds) {
       const form = proofForm(one.proof, Object.keys(PROOFS)).form;
       if (proofForm(item.proof, Object.values(PROOFS)) && !proofForm(item.proof, [PROOFS[form]])) {
         problems.push(`Prove that ${item.id} holds with a closing proof that starts with ` +
-          `${PROOFS[form]}:, because its proof is a ${form}.`);
+          `${PROOFS[form]}:.\nThe proof of ${item.id} is a ${form}.`);
       }
     } else if (!item.raise && one.severity === 'break' &&
       proofForm(item.proof, Object.keys(PROOFS)) && !proofForm(item.proof, BREAK_PROOFS)) {
       problems.push(`Prove that ${item.id} is open again with a failing check, a planted fault ` +
-        'or the failing input: it is a break, and a broken rule proves no break.');
+        `or the failing input.\n${item.id} is a break, and a broken rule proves no break.`);
     }
     judged.add(item.id);
   }
   const unjudged = record.findings.filter((one) => one.by === agent && one.state === 'closed' &&
     !one.closure.held && !judged.has(one.id)).map((one) => one.id);
   if (unjudged.length) {
-    problems.push(`Add ${ids(unjudged)} to "Earlier findings:" of ${agent}: ${agent} made ` +
-      `${unjudged.length === 1 ? 'that finding' : 'those findings'}, and no review judged ` +
-      `the closure.`);
+    problems.push(`Add ${short(ids(unjudged))} to "Earlier findings:".\n${agent} made ` +
+      `${unjudged.length === 1 ? 'the finding' : 'the findings'} ${ids(unjudged)}, and no ` +
+      'review judged the closure.');
   }
   if (problems.length || calls.length) {
     const parts = [problems.length ? `${what} has ${plural(problems.length, 'finding')}` : '',
@@ -271,8 +273,8 @@ function addLocked(io, round, agent, report) {
 function close(io, agent, file) {
   const report = reportOf(io, agent, file);
   if (!report.shape.lists.includes('Closed:')) {
-    throw new Missing(`Add the list "Closed:" to the "Expected output" of ${agent}: findings ` +
-      'close reads it.');
+    throw new Missing(`Add the list "Closed:" to the "Expected output" of ${short(agent)}.\n` +
+      `findings close reads the list "Closed:" of the report of ${agent}.`);
   }
   return locked(io, report.root, () => closeLocked(io, agent, report));
 }
@@ -291,15 +293,16 @@ function closeLocked(io, agent, report) {
   for (const item of items) {
     const one = byId.get(item.id);
     if (seen.has(item.id)) {
-      problems.push(`Close ${item.id} once under "Closed:" of ${agent}: it is there twice.`);
+      problems.push(`Close ${item.id} once under "Closed:".\nThe report of ${agent} has the ` +
+        'item twice.');
     } else if (!one || one.state !== 'open') {
-      problems.push(`Close only an open finding under "Closed:" of ${agent}: ${item.id} is ` +
-        `${one ? 'closed' : `not in ${RECORD}`}.`);
+      problems.push('Close only an open finding under "Closed:".\nThe item ' +
+        `${item.id} of the report of ${agent} is ${one ? 'closed' : `not in ${RECORD}`}.`);
     } else {
       const form = proofForm(one.proof, Object.keys(PROOFS)).form;
       if (!proofForm(item.proof, [PROOFS[form]])) {
-        problems.push(`Close ${item.id} with a closing proof that starts with ${PROOFS[form]}:, ` +
-          `because its proof is a ${form}.`);
+        problems.push(`Close ${item.id} with a closing proof that starts with ` +
+          `${PROOFS[form]}:.\nThe proof of ${item.id} is a ${form}.`);
       }
     }
     seen.add(item.id);
@@ -335,8 +338,10 @@ function show(io) {
     if (!judges.has(one.by)) judges.set(one.by, []);
     judges.get(one.by).push(one.id);
   }
-  const starts = [...judges].map(([agent, list]) => `Start ${agent} again to judge the ` +
-    `${list.length === 1 ? 'closure' : 'closures'} of ${ids(list)}.`);
+  const starts = [...judges].map(([agent, list]) => `Start ${short(agent)} again to judge the ` +
+    `${list.length === 1 ? 'closure' : 'closures'} of ${short(ids(list))}.` +
+    (short(agent) === agent && short(ids(list)) === ids(list) ? ''
+      : `\nThe agent is ${agent}, and the findings are ${ids(list)}.`));
   const open = record.findings.filter((one) => one.state === 'open');
   const breaks = open.filter((one) => one.severity === 'break').length;
   const unjudged = record.findings.filter((one) => one.state === 'closed' &&
@@ -361,10 +366,11 @@ module.exports = {
         const [round, agent, file] = what === 'add' ? rest : [null, ...rest];
         if (!['add', 'close'].includes(what || '')) return 'Give findings add, close or show.';
         if (what === 'add' && !LIMIT.test(round || '')) {
-          return `Give findings add a round of 1 to 99: ${round}`;
+          return `Give findings add a round of 1 to 99.\nThe argument is ${given(round)}.`;
         }
         if (!NAME.test(agent || '')) {
-          return `Give an agent name of lower-case letters, digits and hyphens: ${agent}`;
+          return 'Give an agent name of lower-case letters, digits and hyphens.\nThe argument ' +
+            `is ${given(agent)}.`;
         }
         return file !== undefined && rest.length === (what === 'add' ? 3 : 2) ? null
           : `Give findings ${what} ${what === 'add' ? 'a round, ' : ''}an agent and one file.`;
