@@ -1452,14 +1452,20 @@ test('a write through an entry that an earlier command of the call makes is deni
       `cp -P old-link l2 && echo x > l2/${base}`, 'cp -r checks c4 && echo x > c4/a.ts',
       'rsync -a src/ out/ && echo done > out/stamp', 'tar -xf a.tar && echo x > src/a.ts',
       'unzip a.zip -d out && echo x > out/a.ts', 'node x.js l5 && echo x > l5/a.ts',
-      'cp a.ts $D && echo x > src/b.ts', 'mklink l6 src && echo x > src/b.ts']) {
+      'cp -a a.ts $D && echo x > src/b.ts', 'mklink l6 src && echo x > src/b.ts',
+      'cp --preserve=mode,links a.ts b.ts && echo x > b.ts', 'cp -Q a.ts b.ts && echo x > b.ts',
+      'cp --no-such-option a.ts b.ts && echo x > b.ts']) {
       firstLine(guard(codex('Bash', { command }, 'implementer')), start);
     }
     for (const command of ['ln -s ../shared lib && echo x > src/a.ts', 'ln -s a b',
       'mkdir -p out && ln -s ../out o', 'echo x > l/a.ts; ln -s checks l',
       'rsync -a src/ out/ && echo done > stamp', 'tar -czf a.tgz src && echo x > src/a.ts',
       'unzip a.zip -d out && echo x > src/a.ts', 'node x.js && echo x > src/a.ts',
-      'mkdir out && echo x > out/a.ts', 'touch a.ts && echo x > a.ts']) {
+      'mkdir out && echo x > out/a.ts', 'touch a.ts && echo x > a.ts',
+      // A cp with no option that keeps links follows each link and writes regular files.
+      'cp a.ts b.ts && echo x >> b.ts', 'cp -pv a.ts b.ts && echo x > b.ts',
+      'cp --preserve=mode a.ts b.ts && echo x > b.ts', 'cp -S .bak a.ts b.ts && echo x > b.ts',
+      'cp -t out a.ts && echo x > out/a.ts', 'cp --suffix .bak -f a.ts b.ts && echo x > b.ts']) {
       assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
     }
     // Such a write is unknown, so the step count reads it as no write.

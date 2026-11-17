@@ -1410,8 +1410,8 @@ function shown(full, folder, listed) {
 
 // madeAt returns the destinations at which segment, a simple command, makes or moves
 // entries, each as written, or null when the guard cannot tell them:
-// - cp, mv, rsync, ln, link and install: the folder of -t, else the last path; for ln or
-//   link with one path, the name of that path;
+// - cp that cpKeepsLinks finds, mv, rsync, ln, link and install: the folder of -t, else the
+//   last path; for ln or link with one path, the name of that path; another cp makes none;
 // - tar that extracts: the folder of -C or --directory, else .; a tar that creates makes
 //   only its archive, a file that is no link;
 // - unzip: the folder of -d, else .;
@@ -1438,12 +1438,55 @@ function madeAt(segment) {
     const at = words.indexOf('-d');
     const dir = words.find((word) => /^-d./.test(word));
     made = [at > 0 ? segment.words[at + 1] : dir ? dir.slice(2) : '.'];
+  } else if (tool === 'cp' && !cpKeepsLinks(words)) {
+    return [];
   } else {
     const { dest, sources } = copyParts(segment.words);
     made = [sources.length || !['ln', 'link'].includes(tool) ? dest : path.basename(dest || '')];
   }
   if (made.some((one) => one === undefined || vague(one) || wild(one))) return null;
   return made.map((one) => literal(patternOf(one)));
+}
+
+// The short options of GNU and macOS cp after which cp still follows each link and writes a
+// regular file, and those of them that take a value, as in -S .bak or -t <folder>.
+const CP_PLAIN = 'bcfinpuvxLNSTXZt';
+const CP_VALUED = 'St';
+// The long options of GNU cp after which cp still follows each link; --preserve keeps links
+// only with links or all in its list.
+const CP_PLAIN_LONG = new Set(['attributes-only', 'backup', 'copy-contents', 'debug',
+  'dereference', 'force', 'interactive', 'keep-directory-symlink', 'no-clobber',
+  'no-preserve', 'no-target-directory', 'one-file-system', 'parents', 'preserve', 'reflink',
+  'remove-destination', 'sparse', 'strip-trailing-slashes', 'suffix', 'target-directory',
+  'update', 'verbose', 'context', 'help', 'version']);
+
+// cpKeepsLinks reports whether cp with words can copy a link as a link, or make one: an
+// option of -a, -R, -r, -P, -d, -l, -s or -H, their long forms, --preserve with links or
+// all, or an option outside CP_PLAIN and CP_PLAIN_LONG, which the guard cannot read. Without
+// one, cp follows each link and writes regular files, so its destination makes no link.
+function cpKeepsLinks(words) {
+  for (let at = 1; at < words.length; at += 1) {
+    const word = words[at];
+    if (word === '--') return false;
+    if (!word.startsWith('-') || word === '-') continue;
+    if (word.startsWith('--')) {
+      const [name, value = ''] = word.slice(2).split(/=(.*)/s);
+      if (!CP_PLAIN_LONG.has(name)) return true;
+      if (name === 'preserve' && /(?:^|,)(?:links|all)(?:,|$)/.test(value)) return true;
+      if (['suffix', 'target-directory'].includes(name) && !word.includes('=')) {
+        at += 1;
+      }
+      continue;
+    }
+    for (let one = 1; one < word.length; one += 1) {
+      if (!CP_PLAIN.includes(word[one])) return true;
+      if (CP_VALUED.includes(word[one])) {
+        if (one === word.length - 1) at += 1;
+        break;
+      }
+    }
+  }
+  return false;
 }
 
 // madeBefore returns, for each command of all at its index, the paths at which the commands
