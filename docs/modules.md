@@ -2354,10 +2354,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
-and `full_suite`, 60, each from 1 to 60. In a line, a setting appears as its path below
+and `full_suite`, 60, each from 1 to 60. qory reads `full_suite` from the settings of the
+repository, not from the checkout, as the time limit of the full suite that it runs after
+the session. In a line, a setting appears as its path below
 `harness.extensions.software-factory`, such as `command_limits_minutes.targeted_checks in
-qory.yaml`. In a run, `run`, `probe`, `scope`, `freeze` and `prove` take `--inputs <path>`, the path
-of the run's `inputs.json` in the prompt, and read
+qory.yaml`. In a run, `run`, `probe`, `scope`, `freeze` and `prove` take
+`--inputs <path>`, the path of the run's `inputs.json` in the prompt, and read
 `qory.harness_extensions["software-factory"].command_limits_minutes` from it. With
 `--inputs`, a missing, unreadable or invalid file, a file with no `qory` or
 `qory.harness_extensions` member, which qory writes in every run, or an invalid
