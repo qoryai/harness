@@ -35,6 +35,8 @@ const POINT = {
 const NONE = { text: `${LIMIT} no planned change is built.`, action: 'run_again', fix: PLANNED };
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const T = '2026-11-15T10:00:00Z';
+// The text that the qory stub writes as another call during a push.
+const CHANGED = 'changed by another call';
 // The longest id of a row: fix: and 40 characters.
 const LONG = `fix:${'a'.repeat(40)}`;
 
@@ -69,8 +71,10 @@ function work() {
   w.args = path.join(w.bin, 'args');
   w.qory = path.join(w.bin, 'qory');
   // A push runs the push check in the store, then stores the next version; with the file
-  // fail-push it fails, and with stored-then-fail it stores the version and fails. A pull
-  // copies the versions and index.json into the artifact folder that ARTIFACTS names, and
+  // fail-push it fails, and with stored-then-fail it stores the version and fails. With the
+  // file change-copy or change-mark, it writes to the copy of the draft or to the mark in the
+  // artifact folder, as another call does between the read and the write of a step call. A
+  // pull copies the versions and index.json into the artifact folder that ARTIFACTS names, and
   // fails with the file fail-pull. With no version, it copies no version, as qory at the
   // pinned commit does.
   fs.writeFileSync(w.qory, `#!/bin/sh
@@ -84,6 +88,8 @@ case "$1 $2 $3" in
   for dir in build-ledger/main/v*; do [ -d "$dir" ] && n=$((n + 1)); done
   n=$((n + 1))
   mkdir -p "build-ledger/main/v$n" && cp "$4" "build-ledger/main/v$n/build-ledger.json"
+  [ -e '${w.bin}/change-copy' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/build-ledger.json"
+  [ -e '${w.bin}/change-mark' ] && echo '${CHANGED}' > "$ARTIFACTS/.reports/ledger.json"
   [ -e '${w.bin}/stored-then-fail' ] && { echo 'No response.' >&2; exit 1; }
   echo "Pushed build-ledger version $n."
   exit 0;;
@@ -1072,6 +1078,70 @@ test('ledger: resume of a withdrawn ledger takes the version before the withdraw
   ledgerIndex(plain, [{ number: 1 }, { number: 2 }, { number: 3, withdrawn: true }]);
   assert.equal(session(plain)('resume').lines.at(-1),
     'Read version 2 of the ledger: 3 rows, 3 done, 0 escalations.');
+});
+
+test('ledger: a file that another call changes during the push is not written, with exit 3', () => {
+  for (const [flag, name] of [['change-copy', 'build-ledger.json'], ['change-mark', 'ledger.json']]) {
+    const w = work();
+    const call = resumed(w);
+    fs.writeFileSync(path.join(w.bin, flag), '');
+    const result = begin(call, w, 'deliverable:d-1');
+    assert.equal(result.status, 3, result.out);
+    assert.equal(result.lines[0], 'Report to a member: checks.js step begin wrote nothing to ' +
+      `.reports/${name}, because another call changed it after this call read it.`);
+    const reports = path.join(call.artifacts, '.reports');
+    assert.equal(fs.readFileSync(path.join(reports, name), 'utf8'), `${CHANGED}\n`);
+    // A changed copy keeps the draft at the top unwritten too.
+    if (flag === 'change-copy') {
+      assert.equal(fs.existsSync(path.join(call.artifacts, 'build-ledger.json')), false);
+    }
+    assert.deepEqual(fs.readdirSync(reports).filter((one) => one.includes('.lock')), []);
+  }
+});
+
+test('ledger: step calls in parallel processes lose no entry of a call that passes', async () => {
+  const { spawn } = require('node:child_process');
+  const w = work();
+  const first = resumed(w);
+  const ids = Array.from({ length: 5 }, (_, n) => `deliverable:d-${n + 1}`);
+  for (const id of ids) deliver(first, w, id);
+  // In the next session, each call replays one done row: it adds to its replays and to the
+  // mark, the two files that the calls share.
+  const call = resumed(w);
+  const env = { ...w.env, ARTIFACTS: call.artifacts, QORY_RUN_ID: call.run };
+  delete env.QORY_SESSION;
+  const start = Date.now() + 1000;
+  const code = (id) => `const { main } = require(${JSON.stringify(SCRIPT)});
+let out = '';
+const sink = { write: (text) => { out += text; } };
+while (Date.now() < ${start});
+const status = main(${JSON.stringify(['step', 'begin', id, 'implement-changes', ...w.inputs])}, {
+  cwd: ${JSON.stringify(w.repo)}, artifacts: [${JSON.stringify(call.artifacts)}],
+  env: ${JSON.stringify(env)}, plugin: ${JSON.stringify(path.join(MODULES, 'core'))},
+  qory: ${JSON.stringify(w.qory)}, out: sink, err: sink,
+});
+process.stdout.write(JSON.stringify({ status, out }));`;
+  const runs = await Promise.all(ids.map((id) => new Promise((resolve) => {
+    const proc = spawn(process.execPath, ['-e', code(id)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', (data) => { out += data; });
+    proc.stderr.on('data', (data) => { out += data; });
+    proc.on('close', () => resolve({ id, ...JSON.parse(out) }));
+  })));
+  const passed = runs.filter((run) => run.status === 0);
+  assert.ok(passed.length >= 1, JSON.stringify(runs));
+  for (const run of runs.filter((one) => one.status !== 0)) {
+    assert.equal(run.status, 3, run.out);
+    assert.match(run.out, /^(?:Report to a member: |Run checks\.js resume, then step begin again)/);
+  }
+  const reports = path.join(call.artifacts, '.reports');
+  const copy = JSON.parse(fs.readFileSync(path.join(reports, 'build-ledger.json'), 'utf8'));
+  const mark = JSON.parse(fs.readFileSync(path.join(reports, 'ledger.json'), 'utf8'));
+  for (const run of passed) {
+    assert.equal(copy.steps.find((row) => row.id === run.id).replays, 1, run.id);
+    assert.ok(mark.replayed.includes(`${run.id}\n1`), run.id);
+  }
+  assert.deepEqual(fs.readdirSync(reports).filter((one) => one.includes('.lock')), []);
 });
 
 test('ledger: an input that cannot be read exits 3', () => {

@@ -5298,7 +5298,8 @@ test('reports-guard denies writes of .reports/*.json in a run, except through ch
     '/w/.qory/artifacts/.reports/sub/starts.json', '/w/.REPORTS/END.JSON',
     '/tmp/qory-artifacts/.reports/findings.json.lock', '.qory/artifacts/.reports/starts.json.lock',
     '/tmp/qory-artifacts/.reports/starts.json.lock.break',
-    '/tmp/qory-artifacts/.reports/results.json.lock']) {
+    '/tmp/qory-artifacts/.reports/results.json.lock',
+    '/tmp/qory-artifacts/.reports/build-ledger.json.lock', '.qory/artifacts/.reports/ledger.json.lock']) {
     assert.match(denied('write', { file_path: file }), /^Write no file under \.reports\//, file);
   }
   assert.ok(denied('write', '*** Update File: /tmp/qory-artifacts/.reports/end.json\n@@\n-1\n+0\n'));

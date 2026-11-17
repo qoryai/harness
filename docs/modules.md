@@ -1352,9 +1352,9 @@ folder, the draft, and to `.reports/build-ledger.json`, its copy. A failed push 
 as they were, exits 3, and its line starts "Run checks.js resume, then <verb> again",
 because the push may have stored the version. `step begin` and `step end` read the copy,
 else the version that `resume` reads, else an empty ledger. The push stores the version
-outside the artifact folder, so the newest version there is the one that `resume` pulled. The guard of
-`.reports/*.json` denies an agent writes to the copy, so an edit of the draft, such as a
-row marked `done`, changes no row that the verbs read.
+outside the artifact folder, so the newest version there is the one that `resume` pulled.
+The guard of `.reports/*.json` denies an agent writes to the copy, so an edit of the draft,
+such as a row marked `done`, changes no row that the verbs read.
 The verbs also write `.reports/ledger.json`, the mark of the session, which no push sends,
 and `points.json` at the 101st row. The mark contains the id of the session, the head at
 which the session started, and the rows that crashed in a session of the same run. The id
@@ -1365,6 +1365,17 @@ mark: the guard of `.reports/*.json` denies an agent any write to it.
 Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1 to 999999,
 `step` and `resume` exit 3. The line of a failed command shows the name of the program,
 `qory`, not its path.
+
+The copy and the mark each have a lock, `.reports/build-ledger.json.lock` and
+`.reports/ledger.json.lock`, which `withLock` of `lib/base.js` takes, as `report` takes the
+lock of `results.json`. A verb reads each file under its lock, and removes the lock before
+it pushes, because a push may take longer than the 10 s that another call waits for a lock.
+To write the file, it takes the lock again and compares the file with the text that it
+read. When another call changed the file in between, the verb writes nothing to that file,
+exits 3, and its first line is "Report to a member: checks.js <verb> wrote nothing to
+.reports/<file>, because another call changed it after this call read it." So two calls at
+once, such as from the session and from an agent with a shell, lose no row or mark of a
+call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.
 
 - `checks.js resume`: once, at the start of each Build session. It runs
   `qory artifact pull build-ledger`, which at qory 4314dbb8 exits 0 and writes no folder of

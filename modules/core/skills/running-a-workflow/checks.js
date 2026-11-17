@@ -30,11 +30,11 @@
 //
 // resume, step begin and step end keep the ledger of a session's steps, as verbs/ledger.js
 // lists, with the rules that a skill adds to the registry. They write the ledger's draft at
-// the top of the artifact folder and its copy under `.reports`, `.reports/ledger.json`,
-// `points.json` at the 101st row, and a file in a new temporary folder that they push and
-// remove. resume reads the version of the ledger that Context.history reads, and step begin
-// reads the build plan of the point of the full ledger as suite start does: from
-// --artifacts, or from qory.start_artifacts of --inputs.
+// the top of the artifact folder and its copy under `.reports`, `.reports/ledger.json`, the
+// locks of both files under `.reports`, `points.json` at the 101st row, and a file in a new
+// temporary folder that they push and remove. resume reads the version of the ledger that
+// Context.history reads, and step begin reads the build plan of the point of the full ledger
+// as suite start does: from --artifacts, or from qory.start_artifacts of --inputs.
 //
 // <type> is a type of the registry: questions, review-comments, and each type that a skill
 // adds with a file workflow-checks.js in its folder, as lib/registry.js lists. check also

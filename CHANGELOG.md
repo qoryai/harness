@@ -37,6 +37,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   session pushes again changes nothing in the point. Without either flag, the plan is the
   newest pulled version, never a draft. An inputs.json without `qory.start_commits` or
   `qory.start_artifacts` exits 3.
+- `step` and `resume` read `.reports/build-ledger.json` and `.reports/ledger.json` under
+  their locks, `.reports/build-ledger.json.lock` and `.reports/ledger.json.lock`, remove
+  each lock before the push, and take it again to write.
+  A file that another call changed in between gets no write, and the verb exits 3 with a
+  line that starts "Report to a member:".
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.js check points` checks by the rules of the text of a point. qory 4314dbb8
   refuses a point with `fix` until its verdict schema adds the member.

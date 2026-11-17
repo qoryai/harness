@@ -23,6 +23,13 @@
 // - pin(io, { inputs, artifacts }): at step begin, before any change, the io that point reads
 //   the build plan with, from the arguments --inputs and --artifacts, which may be undefined.
 //   Without pin, step begin exits 2 for either argument.
+//
+// .reports/build-ledger.json, the copy of the draft, and .reports/ledger.json, the mark, each
+// have a lock: the file with .lock at its end, as withLock of lib/base.js takes it. A verb
+// reads each file under its lock, and removes the lock before it pushes, because a push may
+// take longer than another call waits for a lock. To write the file, it takes the lock again
+// and compares the file with the text that it read: when another call changed the file in
+// between, it writes nothing and exits 3 with a line for a member.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -33,7 +40,7 @@ const path = require('node:path');
 
 const {
   CONTROL_ALL, Missing, REFUSED_ALL, artifactFolder, cut, inside, isObject, plural, qoryPath,
-  quote, writeJson,
+  quote, withLock, writeJson,
 } = require('../lib/base.js');
 const { Context } = require('../lib/context.js');
 
@@ -138,24 +145,54 @@ function textOf(file) {
   }
 }
 
-// current returns the rows that a step reads: the copy of the draft under .reports, else the
-// version that stored returns, else none.
-function current(io, root, ledger) {
-  const copy = copyOf(root, ledger);
-  if (fs.existsSync(copy)) {
-    return parse(ledger, textOf(copy) ?? '',
-      `${path.join('.reports', ledger.file)} of the artifact folder`);
+// readLocked returns the text of file, a file under .reports, as textOf reads it under the
+// lock of file.
+function readLocked(io, file, verb) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+  } catch {
+    // withLock gives the line of a lock that cannot be made.
   }
-  const newest = stored(io, root, ledger);
-  return newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
-    : { steps: [], escalations: [] };
+  return withLock(io, file, verb, () => textOf(file));
 }
 
-// writeDraft writes text to the draft at the top of the artifact folder and to its copy.
-function writeDraft(root, ledger, text, verb) {
-  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
-  writeText(copyOf(root, ledger), text, verb);
-  writeText(path.join(root, ledger.file), text, verb);
+// writeLocked runs write under the lock of file when file still has seen, the text that
+// readLocked returned, and else writes nothing and exits 3: another call changed file after
+// this call read it.
+function writeLocked(io, file, seen, verb, write) {
+  withLock(io, file, verb, () => {
+    if (textOf(file) !== seen) {
+      throw new Missing(`Report to a member: checks.js ${verb} wrote nothing to ` +
+        `${path.join('.reports', path.basename(file))}, because another call changed it after ` +
+        'this call read it.');
+    }
+    write();
+  });
+}
+
+// current returns { rows, seen }: the rows that a step reads, from the copy of the draft under
+// .reports, else from the version that stored returns, else none; and seen, the text of the
+// copy, or null without one.
+function current(io, root, ledger, verb) {
+  const copy = copyOf(root, ledger);
+  const seen = readLocked(io, copy, verb);
+  const what = `${path.join('.reports', ledger.file)} of the artifact folder`;
+  if (seen !== null) return { rows: parse(ledger, seen, what), seen };
+  if (fs.existsSync(copy)) {
+    throw new Missing(`Run checks.js resume, then the verb again: ${what} cannot be read.`);
+  }
+  const newest = stored(io, root, ledger);
+  return { rows: newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
+    : { steps: [], escalations: [] }, seen };
+}
+
+// writeDraft writes text to the copy of the draft and to the draft at the top of the artifact
+// folder, as writeLocked does with seen, the text of the copy that the verb read.
+function writeDraft(io, root, ledger, text, seen, verb) {
+  writeLocked(io, copyOf(root, ledger), seen, verb, () => {
+    writeText(copyOf(root, ledger), text, verb);
+    writeText(path.join(root, ledger.file), text, verb);
+  });
 }
 
 // writeText writes text to file through a temporary file.
@@ -189,12 +226,13 @@ function sessionOf(io) {
   return { run, session: Number(number) };
 }
 
-// readMark returns the mark of the session, or exits 3 when resume has not written one in this
-// session.
-function readMark(io, root) {
+// readMark returns { mark, seen }: the mark of the session and its text, or exits 3 when
+// resume has not written one in this session.
+function readMark(io, root, verb) {
+  const seen = readLocked(io, path.join(root, MARK), verb);
   let data = null;
   try {
-    data = JSON.parse(fs.readFileSync(path.join(root, MARK), 'utf8'));
+    data = JSON.parse(seen);
   } catch {
     // The line below.
   }
@@ -210,13 +248,16 @@ function readMark(io, root) {
     throw new Missing('Run checks.js resume first, once at the start of the session: ' +
       `${MARK} is from an earlier session.`);
   }
-  return data;
+  return { mark: data, seen };
 }
 
-const writeMark = (root, mark, verb) => {
-  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
-  writeText(path.join(root, MARK), `${JSON.stringify(mark, null, 2)}\n`, verb);
-};
+// writeMark writes mark, as writeLocked does with seen, the text of the mark that the verb
+// read.
+function writeMark(io, root, mark, seen, verb) {
+  const file = path.join(root, MARK);
+  writeLocked(io, file, seen, verb, () =>
+    writeText(file, `${JSON.stringify(mark, null, 2)}\n`, verb));
+}
 
 // qory runs `<qory> artifact <action> <type> [<file>]`, or throws the line to run: for a
 // push, resume and the verb again, because the push may have stored the version.
@@ -240,8 +281,9 @@ function qory(io, ledger, action, verb, file) {
 }
 
 // push pushes rows as a new version, from a file in a new temporary folder, and then writes the
-// same bytes to the draft and to its copy. A failed push leaves both as they were.
-function push(io, root, ledger, rows, verb) {
+// same bytes to the draft and to its copy, as writeDraft does with seen, the text of the copy
+// that the verb read. A failed push leaves both as they were.
+function push(io, root, ledger, rows, seen, verb) {
   const found = ledger.check(rows);
   // The frame builds each row from checked arguments, so a finding here is a fault of the
   // script, not of its input.
@@ -255,7 +297,7 @@ function push(io, root, ledger, rows, verb) {
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }
-  writeDraft(root, ledger, text, verb);
+  writeDraft(io, root, ledger, text, seen, verb);
 }
 
 // inputs returns the SHA-256 of the JSON list of the SHA-256 of each file, in the order given.
@@ -310,8 +352,9 @@ function fullPoint(root, point) {
 
 // full refuses the 101st row: it writes the point, which point of the hook reads with planIo,
 // records ledger-full once per session, and returns the refusal, with a finding for a failed
-// push of the escalation.
-function full(io, planIo, root, ledger, rows, mark, workflow) {
+// push of the escalation. read is what current and readMark returned.
+function full(io, planIo, root, ledger, read, workflow) {
+  const { rows, mark } = read;
   const findings = [];
   try {
     findings.push(...fullPoint(root, ledger.point(planIo, { ledger: rows, root })));
@@ -322,9 +365,9 @@ function full(io, planIo, root, ledger, rows, mark, workflow) {
   if (!mark.full && rows.escalations.length < MAX_ESCALATIONS) {
     rows.escalations.push({ workflow, reason: 'ledger-full', at: now() });
     try {
-      push(io, root, ledger, rows, 'step begin');
+      push(io, root, ledger, rows, read.seen, 'step begin');
       mark.full = true;
-      writeMark(root, mark, 'step begin');
+      writeMark(io, root, mark, read.markSeen, 'step begin');
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       findings.push(error.message);
@@ -340,8 +383,8 @@ function begin(io, id, workflow, files, options) {
   const ledger = hook(io);
   const planIo = ledger.pin ? ledger.pin(io, options) : io;
   const root = artifactFolder(io);
-  const mark = readMark(io, root);
-  const rows = current(io, root, ledger);
+  const { mark, seen: markSeen } = readMark(io, root, 'step begin');
+  const { rows, seen } = current(io, root, ledger, 'step begin');
   const open = rows.steps.findIndex((row) => row.state === 'running');
   if (open >= 0) {
     return { status: 1, findings: [], last: `End the step ${rows.steps[open].id} with step end, ` +
@@ -353,9 +396,9 @@ function begin(io, id, workflow, files, options) {
     if (!mark.rows.includes(key(last)) && !mark.replayed.includes(key(last)) &&
         last.replays < MAX_REPLAYS) {
       last.replays += 1;
-      push(io, root, ledger, rows, 'step begin');
+      push(io, root, ledger, rows, seen, 'step begin');
       mark.replayed.push(key(last));
-      writeMark(root, mark, 'step begin');
+      writeMark(io, root, mark, markSeen, 'step begin');
     }
     const has = typeof last.report === 'string' && last.report !== '';
     return { status: 0, findings: [], report: has ? last.report : null,
@@ -363,7 +406,7 @@ function begin(io, id, workflow, files, options) {
         `${has ? 'its report is above' : 'it has no report'}.` };
   }
   if (rows.steps.length >= MAX_ROWS) {
-    return full(io, planIo, root, ledger, rows, mark, workflow);
+    return full(io, planIo, root, ledger, { rows, seen, mark, markSeen }, workflow);
   }
   const mine = rows.steps.filter((row) => mark.rows.includes(key(row)));
   const crashed = rows.steps.filter((row) => mark.crashed.includes(key(row)));
@@ -378,9 +421,9 @@ function begin(io, id, workflow, files, options) {
     ...start.members, attempts: [], replays: 0, started_at: now(),
   };
   rows.steps.push(row);
-  push(io, root, ledger, rows, 'step begin');
+  push(io, root, ledger, rows, seen, 'step begin');
   mark.rows.push(key(row));
-  writeMark(root, mark, 'step begin');
+  writeMark(io, root, mark, markSeen, 'step begin');
   return { status: 0, findings: [],
     last: `Run ${id} as pass ${pass}: start its agent, then run step end.` };
 }
@@ -476,8 +519,8 @@ function failedReport(io, root, file, notes) {
 function end(io, id, state, options) {
   const ledger = hook(io);
   const root = artifactFolder(io);
-  readMark(io, root);
-  const rows = current(io, root, ledger);
+  readMark(io, root, 'step end');
+  const { rows, seen } = current(io, root, ledger, 'step end');
   let place = -1;
   rows.steps.forEach((row, at) => {
     if (row.id === id) place = at;
@@ -505,7 +548,7 @@ function end(io, id, state, options) {
     attempts: options.attempts });
   if (options.pushed.length) row.pushed = options.pushed;
   if (text !== null) row.report = text;
-  push(io, root, ledger, rows, 'step end');
+  push(io, root, ledger, rows, seen, 'step end');
   return { status: 0, findings: notes, last: `Recorded ${id}, pass ${row.pass}, as ${state}, ` +
     `${notes.length ? 'with no report, ' : ''}and pushed the ledger.` };
 }
@@ -557,12 +600,12 @@ function endOptions(ledger, id, state, rest) {
 
 // ---- resume ---------------------------------------------------------------------------------
 
-// sameRun returns the keys of the rows that the mark in the artifact folder lists as started
-// or crashed, when a session of the same run wrote it, else none.
-function sameRun(root, id) {
+// sameRun returns the keys of the rows that the mark, text, lists as started or crashed, when a
+// session of the same run wrote it, else none.
+function sameRun(text, id) {
   let data = null;
   try {
-    data = JSON.parse(fs.readFileSync(path.join(root, MARK), 'utf8'));
+    data = JSON.parse(text);
   } catch {
     return { rows: [], crashed: [] };
   }
@@ -583,11 +626,13 @@ function resume(io) {
   const origin = ledger.origin(io);
   qory(io, ledger, 'pull', 'resume');
   const root = artifactFolder(io);
+  const markSeen = readLocked(io, path.join(root, MARK), 'resume');
+  const seen = readLocked(io, copyOf(root, ledger), 'resume');
   const newest = stored(io, root, ledger);
   const rows = newest ? parse(ledger, newest.text, `${ledger.type} version ${newest.number}`)
     : { steps: [], escalations: [] };
   const crashed = rows.steps.filter((row) => row.state === 'running');
-  const before = sameRun(root, id);
+  const before = sameRun(markSeen, id);
   const stopped = [...new Set([...before.crashed,
     ...crashed.map(key).filter((one) => before.rows.includes(one))])];
   for (const row of crashed) {
@@ -595,15 +640,17 @@ function resume(io) {
     row.ended_at = now();
   }
   if (crashed.length) {
-    push(io, root, ledger, rows, 'resume');
+    push(io, root, ledger, rows, seen, 'resume');
   } else if (newest) {
-    writeDraft(root, ledger, JSON.stringify(rows), 'resume');
+    writeDraft(io, root, ledger, JSON.stringify(rows), seen, 'resume');
   } else {
-    fs.rmSync(path.join(root, ledger.file), { force: true });
-    fs.rmSync(copyOf(root, ledger), { force: true });
+    writeLocked(io, copyOf(root, ledger), seen, 'resume', () => {
+      fs.rmSync(path.join(root, ledger.file), { force: true });
+      fs.rmSync(copyOf(root, ledger), { force: true });
+    });
   }
-  writeMark(root, { ...id, origin, rows: [], replayed: [], crashed: stopped, full: false },
-    'resume');
+  writeMark(io, root, { ...id, origin, rows: [], replayed: [], crashed: stopped, full: false },
+    markSeen, 'resume');
   const lines = crashed.map((row) => `Run ${row.id} again: its pass ${row.pass} stopped ` +
     `while it ran, so step begin starts pass ${row.pass + 1}.`);
   const done = rows.steps.filter((row) => row.state === 'done').length;
