@@ -6940,6 +6940,18 @@ test('report: the finding about the record of the track has the fix first and th
   assert.ok(!recorded.lines.slice(0, -1).some((line) => line.endsWith('...')), recorded.out);
 });
 
+test('report: a finding on the report of a long agent has its name whole on a later line', () => {
+  const agent = LONG_AGENT('d');
+  const plugin = path.join(tmp, `plugin-${++folders}`);
+  fs.cpSync(PLUGIN, plugin, { recursive: true });
+  fs.copyFileSync(path.join(PLUGIN, 'agents', 'spec-reviewer.md'), path.join(plugin, 'agents', `${agent}.md`));
+  const result = report(reviewed(null), agent, plugin);
+  assert.equal(result.status, 1, result.out);
+  assert.match(result.lines[0], /^Add a "Point:" line to finding 1 of r+\.\.\.r+d\.$/);
+  assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
+  assert.equal(result.lines[2], `  The agent is ${agent}.`);
+});
+
 test('extensions: a long key is cut by its printed length, in a key and in a member of an area', () => {
   const settings = require('../modules/software-factory/skills/running-a-software-workflow/lib/repository-settings.js');
   for (const [name, key] of [['control character', '\u0001'.repeat(60)], ['line break', '\n'.repeat(60)],

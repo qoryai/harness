@@ -199,12 +199,18 @@ function findingItems(all, shape) {
   return items.filter((item) => item.length > 1 || item[0].text.trim() !== '- none');
 }
 
+// fullAgent returns a later line with the whole name of agent when short() cuts it on the
+// first line of a finding, or nothing.
+const fullAgent = (agent) => (short(agent) === agent ? '' : `\nThe agent is ${agent}.`);
+
 // pointLines checks that each finding of all has one "Point:" line outside a code block,
 // which passes the rules of the text of a point, as pointText checks them, on one line.
 // reviewing-drafts (SKILL.md:108-115: "Point: one sentence that a member reads") lists them.
 function pointLines(all, shape, agent, agents, rules) {
   const findings = [];
-  // A finding of pointText names the line by its place; the line after it names the agent.
+  const whole = fullAgent(agent);
+  // A finding of pointText contains the place of the line; the line after it contains the
+  // name of the agent.
   const sink = {
     find: (line) => findings.push(`${line}\nThe line is in the report of ${agent}.`),
     did: () => {},
@@ -216,11 +222,11 @@ function pointLines(all, shape, agent, agents, rules) {
       .filter((index) => index >= 0);
     if (!at.length) {
       findings.push(`Add a "Point:" line to ${which}.\nThe line is one sentence that a member ` +
-        'reads when the finding is left.');
+        `reads when the finding is left.${whole}`);
       return;
     }
     if (at.length > 1) {
-      findings.push(`Give ${which} one "Point:" line: it has ${at.length}.`);
+      findings.push(`Give ${which} one "Point:" line: it has ${at.length}.${whole}`);
       return;
     }
     // A wrap of the Point: line is indented, or has no blank line before it.
@@ -228,7 +234,7 @@ function pointLines(all, shape, agent, agents, rules) {
     if (next !== undefined && !next.fenced && !label(next) &&
       (/^\s/.test(next.text) || !next.gap)) {
       findings.push(`Write the "Point:" line of ${which} on one line.\nThe line after it is ` +
-        `${quote(next.text)}.`);
+        `${quote(next.text)}.${whole}`);
       return;
     }
     const text = item[at[0]].text.replace(/^\s*(?:\d+[.)]\s+)?Point:/, '').trim();
@@ -309,7 +315,7 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
   }
   if (blocked.length) {
     findings.push(`Remove "Blocked:" from the report of ${short(agent)}.\nOnly a blocked report ` +
-      'has it.');
+      `has it.${fullAgent(agent)}`);
   }
   const absent = shape.leftOut.get(last) || new Set();
   for (const heading of shape.lists) {
@@ -323,7 +329,8 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
     }
     if (at < 0) {
       if (!shape.optional.has(heading)) {
-        findings.push(`Add the list "${heading}" to the report of ${short(agent)}.`);
+        findings.push(`Add the list "${heading}" to the report of ${short(agent)}.` +
+          fullAgent(agent));
       }
     } else if (!/^\s*(- |\d+\. )/.test(list[at + 1] || '')) {
       const has = `The list "${heading}" of ${agent} has no item.`;
@@ -336,7 +343,7 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
   }
   for (const field of shape.fields) {
     if (!list.some((line) => line.startsWith(field))) {
-      findings.push(`Add the line "${field}" to the report of ${short(agent)}.`);
+      findings.push(`Add the line "${field}" to the report of ${short(agent)}.${fullAgent(agent)}`);
     }
   }
   if (shape.point && !absent.has('Findings:')) {
