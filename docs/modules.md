@@ -1037,7 +1037,10 @@ folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). Those rules cover no shell
 command, so on Claude Code and on Codex the tool guard, `tool-guard.js`, runs
 `reports-guard.js` for each `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch` and
-shell call, with the same rules and deny texts. It reads a shell command without the body
+shell call, with the same rules and deny texts, except that a shell command whose simple
+commands are each a read-only command with the options of its list in `READ_ONLY`, and
+write no file, reads `.reports/` and passes, as in `ls .reports` or
+`tail .reports/runs/<n>.log`. It reads a shell command without the body
 of a here-document that it reads as text, as `cat > notes.md <<'EOF'`, and checks the
 files of a patch that the shell call runs, as `apply_patch <<'EOF'`, as those of
 `apply_patch`. The tool guard does

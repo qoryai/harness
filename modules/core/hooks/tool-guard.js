@@ -258,6 +258,15 @@ const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown', 'chgrp', 'chfla
 const LAST_WRITTEN = new Set(['cp', 'install', 'ln', 'rsync']);
 // A command that runs another command with words from its input, as in `ls | xargs rm`.
 const FED = /(^|[\s/])(xargs|parallel)(?=\s|$)/;
+// readsOnlyCall reports whether each simple command of command, from cwd, is a command of
+// READ_ONLY with only the options of its list, and writes no file, as in `ls .reports` or
+// `tail .reports/runs/<n>.log`, so that the call reads and writes nothing.
+function readsOnlyCall(command, cwd) {
+  return segments(command, cwd).every((one) => !one.words.length ||
+    (READ_ONLY.has(path.basename(plainWords(one.words)[0] || '')) && !segmentWrites(one) &&
+      !opaque(one) && !FED.test(one.text)));
+}
+
 // shellArgs reports whether segment runs a shell with a -c text and words after the text, its
 // $0, $1 and on, as in sh -c ': > "$1"' _ <path>: the text can write each of them, and the
 // guard does not read which, so such a shell is opaque.
@@ -1747,9 +1756,13 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     : call.kind === 'shell' ? { command: dropBodies(call.command) } : input.tool_input;
   // The files of a patch that the shell call runs are checked as those of apply_patch, as
   // dropBodies drops the patch, a body that apply_patch reads.
-  const reports = reportsGuard.decide({ kind: call.kind, env, script, cwd: input.cwd, args,
-    globs: false }) || (call.kind === 'shell' && call.paths.length ? reportsGuard.decide(
-    { kind: 'write', env, script, cwd: input.cwd, args: { paths: call.paths } }) : null);
+  // A shell command of read-only commands only reads .reports/, as a reader of a locked file.
+  const reads = call.kind === 'shell' && readsOnlyCall(call.command,
+    typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
+  const reports = (reads ? null : reportsGuard.decide({ kind: call.kind, env, script,
+    cwd: input.cwd, args, globs: false })) || (call.kind === 'shell' && call.paths.length
+    ? reportsGuard.decide({ kind: 'write', env, script, cwd: input.cwd,
+      args: { paths: call.paths } }) : null);
   if (reports) return reports;
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
@@ -1768,7 +1781,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const walked = call.paths.map((one) => walkPath(joined(cwd, one)));
   const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
-  if (call.kind === 'shell' && !reportsGuard.runsChecks(call.command, env, script)) {
+  if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
       .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
     const reason = reportsGlob(call.command, cwd, [...new Set(dirs)], fold);

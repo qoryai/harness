@@ -1352,7 +1352,7 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
       'rm -rf .qory/artifacts/.reports']) {
       starts(guard(make('Bash', { command }, 'implementer')), shell);
     }
-    for (const command of ['rm -rf .qory/artifacts/.rep*', 'cat .qory/artifacts/.r*/f.json',
+    for (const command of ['rm -rf .qory/artifacts/.rep*', 'rm .qory/artifacts/.r*/f.json',
       'rm -rf .qory/artifacts/.{rep,x}orts', 'rm -rf .qory/artifacts/.rep{o..o}rts',
       "rm -rf .qory/artifacts/.rep''orts"]) {
       starts(guard(make('Bash', { command }, 'implementer')), hidden);
@@ -1362,6 +1362,17 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
     // The body of a here-document that bash runs is read; one that cat writes is text.
     starts(guard(make('Bash', { command: "bash <<'EOF'\nrm -rf .qory/artifacts/.reports\nEOF" },
       'implementer')), shell);
+    // A call of read-only commands only reads .reports/, as the running-checks skill says.
+    for (const command of ['ls .reports', 'cat .qory/artifacts/.reports/build-ledger.json',
+      'tail .qory/artifacts/.reports/runs/x.log', 'grep -rn red .qory/artifacts/.reports/runs',
+      'cd .qory/artifacts && head -n 20 .reports/findings.json', 'ls .qory/artifacts/.r*']) {
+      assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
+    }
+    for (const command of ['cat .qory/artifacts/.reports/f.json > copy.json',
+      'ls .qory/artifacts/.reports | xargs rm', 'rg --pre rm x .qory/artifacts/.reports',
+      'sort -o .qory/artifacts/.reports/f.json x']) {
+      starts(guard(make('Bash', { command }, 'implementer')), shell);
+    }
     // A * matches no leading dot, so it reaches no .reports folder.
     for (const command of ['ls .qory/artifacts/*', 'rm x{a,b}', 'cat src/*.ts',
       "cat > notes.md <<'EOF'\nClean .reports/ with checks.js.\nEOF"]) {
