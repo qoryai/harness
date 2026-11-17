@@ -610,15 +610,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   (`title`, `alt`, `placeholder`, `label`, `aria-label`, `aria-description`), a JSX
   component prop (`label`, `title`, `text`, `message`, `description`, `placeholder`), the
   message of `console.log` and its like, of `print` and `logging.info` and its like in
-  Python, and of an `Error` or `Exception` that `raise` or `throw` makes, or the default text of `t` and
-  `i18n.t`. Before, each string passed unless a deny rule found it code. A string in a
+  Python, of `new` or `throw` of an `…Error` in TypeScript and JavaScript, of `raise` of an
+  `…Error` or `…Exception` in Python, or the default text of `t` and `i18n.t`. Before, each string passed unless a deny rule found it code. A string in a
   constant, an object, a condition, a concatenation or a template with a substitution now
   takes the standard track, and so does the text of `gettext` and `_`, which is also their
   key. The deny list of links, markup, templates, SQL, shell syntax and paths still applies
   on top, to the string before and after the change. The positions are data in `kind_data`
   of `short-path.json` (`attributes`, `props`, and per language `output_calls`,
   `error_calls` and `i18n_calls`, each from the name of a callee to the index of its text
-  argument), so that a place is added there and in no code.
+  argument). To allow another position, add it there; no code changes.
 
 - The checks leave out a name of an artifact while its newest version in `index.json`, not
   counting cancelled ones, is a withdrawal of `qory artifact push --withdraw`: they read no
