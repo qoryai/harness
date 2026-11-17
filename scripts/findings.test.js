@@ -633,7 +633,7 @@ test('findings add and close: a lock that stays exits 3 with a line to report it
     assert.equal(result.status, 3, result.out);
     assert.equal(result.lines[0],
       'Report to a member: checks.js findings cannot run, because its lock file still exists.');
-    assert.equal(result.lines[1], plainLine(`${lock} still exists after 0.05 s of tries.`));
+    assert.equal(result.lines[1], `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`);
   }
   assert.equal(fs.existsSync(lock), true);
   assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
@@ -675,9 +675,9 @@ test('findings: each broken form of findings.json exits 3 and is left as it is',
   const lacks = 'f1 lacks a round, a reviewer, a severity, a proof or a history';
   const entry = 'an entry of reports lacks a file, an agent, a round, a sha256 or a verb';
   const broken = [
-    ['{"findings": [', (file) => `Write ${file} as valid JSON: it does not parse.`],
-    ['[]', (file) => `Give ${file} the list findings: it has none.`],
-    [{ findings: {}, reports: [] }, (file) => `Give ${file} the list findings: it has none.`],
+    ['{"findings": [', () => 'Write findings.json as valid JSON.'],
+    ['[]', () => 'Give findings.json the list findings.'],
+    [{ findings: {}, reports: [] }, () => 'Give findings.json the list findings.'],
     [{ findings: [] }, 'it has no list reports'],
     [{ findings: [null], reports: [] }, 'finding 1 is null'],
     [{ findings: [{ ...finding, id: 'x1' }], reports: [] },

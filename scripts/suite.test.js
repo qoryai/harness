@@ -325,7 +325,7 @@ test('suite start: inputs.json without qory.start_artifacts exits 3, sends nothi
   assert.equal(got.status, 3, got.out);
   assert.deepEqual(got.lines.slice(0, 2), [
     'Give --inputs the inputs.json that qory wrote for the run.',
-    'inputs.json has no member qory.start_artifacts, which qory writes, so the start of the ' +
+    '  inputs.json has no member qory.start_artifacts, which qory writes, so the start of the ' +
     'run is unknown.']);
   assert.deepEqual(route.requests(), []);
 });

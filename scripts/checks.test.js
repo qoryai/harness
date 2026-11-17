@@ -1419,7 +1419,7 @@ test('words: check proposal counts no reason of a questions.json that does not p
   passes(checkProposal(full));
   const questions = check(root, 'questions', path.join(root, 'questions.json'));
   assert.equal(questions.status, 3, questions.out);
-  assert.match(questions.out, /Write questions.json as valid JSON: it does not parse\./);
+  assert.match(questions.out, /Write questions\.json as valid JSON\.\n  questions\.json does not parse\./);
 });
 
 test('questions: a new or changed reason has at most 2 sentences and 40 words', () => {
@@ -1631,7 +1631,7 @@ test('ids: a withdrawal and a new push drop no id of the version before it', () 
     const checked = check(root, type, path.join(root, file));
     assert.equal(checked.status, 3, `${type}: ${checked.out}`);
     assert.deepEqual(checked.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version ` +
-      '1`, then check again.', `The store lacks ${type} version 1, the version before the ` +
+      '1`, then check again.', `  The store lacks ${type} version 1, the version before the ` +
       'withdrawal.'], type);
     // Version 3, a push after the withdrawal, is the version that a third push keeps.
     const again = fixture();
@@ -2783,7 +2783,7 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Report to a member: checks.js starts cannot run, because its lock file still exists.',
-      plainLine(`${lock} still exists after 0.05 s of tries.`),
+      `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.deepEqual(fs.readdirSync(reports), ['starts.json.lock']);
@@ -3092,14 +3092,14 @@ test('panel: the names pair with the members by position', (t) => {
   const swapped = panelCall(deps, ['harness:test-reviewer', 'harness:code-reviewer']);
   assert.equal(swapped.status, 3, swapped.out);
   assert.equal(swapped.lines[0], 'Pass panel the names of the group in the order of roles.json.');
-  assert.match(swapped.lines[1], /^Name 1, "harness:test-reviewer", is not the member code-reviewer of the group reviewers in .*roles\.json\.$/);
+  assert.match(swapped.lines[1], /^  Name 1, "harness:test-reviewer", is not the member code-reviewer of the group reviewers in .*roles\.json\.$/);
   const glued = panelCall(deps, ['xharness-code-reviewer', 'test-reviewer']);
   assert.equal(glued.status, 3, glued.out);
-  assert.match(glued.lines[1], /^Name 1, "xharness-code-reviewer", is not the member code-reviewer of /);
+  assert.match(glued.lines[1], /^  Name 1, "xharness-code-reviewer", is not the member code-reviewer of /);
   const short = panelCall(deps, ['code-reviewer']);
   assert.equal(short.status, 3);
   assert.equal(short.lines[0], 'Pass panel each name of the group from the reference of the workflow.');
-  assert.match(short.lines[1], /^--names has 1 name, and the group reviewers in .*roles\.json has 2 members\.$/);
+  assert.match(short.lines[1], /^  --names has 1 name, and the group reviewers in .*roles\.json has 2 members\.$/);
 });
 
 test('panel: --group picks another group role', () => {
@@ -3156,24 +3156,24 @@ test('panel: an input that is missing or does not fit exits 3', () => {
   ]);
   assert.ok(unread.lines[0].length <= 100, unread.lines[0]);
   for (const [roles, patterns] of [
-    ['[', /^Write .*roles\.json as valid JSON: it does not parse\.$/],
-    ['{}', /^Give .*roles\.json the list roles: it has none\.$/],
+    ['[', /^Write roles\.json as valid JSON\.$/],
+    ['{}', /^Give roles\.json the list roles\.$/],
     [JSON.stringify({ roles: [{ role: 'agents/developer', agent: 'x', from: 'base' }] }), [
       /^Compose the harness with qory again: roles\.json has no member of the group\.$/,
       /^.*roles\.json has no member of the group agents\/reviewers\.$/,
     ]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'Bad', group: true }] }), [
       /^Compose the harness with qory again: a row of roles\.json has no agent name\.$/,
-      /^Row 1 of .*roles\.json has no agent name\.$/,
+      /^  Row 1 of .*roles\.json has no agent name\.$/,
     ]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: 'x' }] }), [
       /^Compose the harness with qory again: the paths of a member in roles\.json are not a list of globs\.$/,
-      /^The paths of a-reviewer in .*roles\.json are not a list of globs\.$/,
+      /^  The paths of a-reviewer in .*roles\.json are not a list of globs\.$/,
     ]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [] }] }),
-      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+      [/are not a list of globs\.$/, /^  The paths of a-reviewer in /]],
     [JSON.stringify({ roles: [{ role: 'agents/reviewers', agent: 'a-reviewer', group: true, paths: [''] }] }),
-      [/are not a list of globs\.$/, /^The paths of a-reviewer in /]],
+      [/are not a list of globs\.$/, /^  The paths of a-reviewer in /]],
   ]) {
     const { deps } = panelSetup({ members: [], roles });
     expect3(deps, ['a-reviewer'], patterns);
@@ -3186,19 +3186,19 @@ test('panel: an input that is missing or does not fit exits 3', () => {
     const { deps, work } = panelSetup({ members: [['a-reviewer']] });
     fs.writeFileSync(path.join(work, 'files.txt'), `${line}\n`);
     const result = expect3(deps, ['a-reviewer'], /^Write each line of the file of --files as a path from the top of the working folder\.$/);
-    assert.match(result.lines[1], new RegExp(`^Line ${place} of .*files\\.txt, ".*", is not\\.$`));
+    assert.match(result.lines[1], new RegExp(`^  Line ${place} of .*files\\.txt, ".*", is not\\.$`));
   }
   const broken = panelSetup({ members: [['a-reviewer']] });
   broken.deps.freeBytes = () => { throw Object.assign(new Error('no disk'), { code: 'EIO' }); };
   const free = expect3(broken.deps, ['a-reviewer'],
     /^Check the disk of the working folder: its free space cannot be read\.$/);
-  assert.match(free.lines[1], /^The free space of the disk of .* cannot be read: EIO\.$/);
+  assert.match(free.lines[1], /^  The free space of the disk of .* cannot be read: EIO\.$/);
   // A failed count of the size names the count, not the free space.
   const count = panelSetup({ members: [['a-reviewer']] });
   count.deps.folderBytes = () => { throw Object.assign(new Error('no folder'), { code: 'EACCES' }); };
   const counted = expect3(count.deps, ['a-reviewer'],
     /^Make the working folder readable: the count of its size failed\.$/);
-  assert.match(counted.lines[1], /^The size of .* cannot be counted: EACCES\.$/);
+  assert.match(counted.lines[1], /^  The size of .* cannot be counted: EACCES\.$/);
   // An error with no code is a fault of the script, and no input.
   broken.deps.freeBytes = () => { throw new Error('a fault'); };
   assert.throws(() => panelCall(broken.deps, ['a-reviewer']), { message: 'a fault' });
@@ -3948,7 +3948,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume or hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.js lists\.\nThe verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume and hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {
@@ -4571,7 +4571,7 @@ test('report: exits 3 within the wait on an old lock of a live pid or with no pi
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Report to a member: checks.js report cannot run, because its lock file still exists.',
-      plainLine(`${lock} still exists after 0.2 s of tries.`),
+      `  ${plainLine(`${lock} still exists after 0.2 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
@@ -4592,7 +4592,7 @@ test('report: exits 3 after the wait on a new lock of a live process, and record
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Report to a member: checks.js report cannot run, because its lock file still exists.',
-      plainLine(`${lock} still exists after 0.05 s of tries.`),
+      `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`,
     ]);
     assert.equal(fs.readFileSync(lock, 'utf8'), text);
     assert.equal(fs.existsSync(path.join(root, '.reports', 'results.json')), false);
@@ -5088,7 +5088,7 @@ test('end: a results.json that cannot be read is a finding, not exit 3', () => {
   fs.writeFileSync(path.join(root, '.reports', 'results.json'), '{');
   fs.writeFileSync(path.join(root, '.reports', 'spec-reviewer-1.md'), CLEAN);
   const result = end(root);
-  fails(result, /results\.json as valid JSON: it does not parse\.$/);
+  fails(result, /^Write results\.json as valid JSON\. .*results\.json does not parse\.$/);
   assert.equal(result.status, 1);
 });
 
@@ -5680,7 +5680,7 @@ test('end --offline: exit 3 when an input is missing or unreadable', () => {
     [broken((one) => fs.rmSync(path.join(one.store, 'index.json'))), /it has no index\.json\.$/],
     [broken((one) => write(one.store, 'index.json', index)), /^Pull the artifacts again: newest_version/],
     [broken((one) => fs.rmSync(one.verdict)), /^Name a file that exists and can be read/],
-    [broken((one) => fs.writeFileSync(one.verdict, '{')), /as valid JSON: it does not parse\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '{')), /^Write verdict-\d+\.json as valid JSON\.$/],
     [broken((one) => fs.writeFileSync(one.verdict, '{"verdict":"maybe"}')), /its verdict is "maybe"\.$/],
     [broken((one) => fs.writeFileSync(one.verdict, '[]')), /its verdict is a list\.$/],
     [broken((one) => fs.writeFileSync(one.verdict, '{}')), /its verdict is missing\.$/],
@@ -5933,7 +5933,7 @@ test('end --offline: exit 3 when the store lacks the folder of a base version', 
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
   assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull spec --version 2`, then ' +
-    'end again.', 'The --store folder lacks spec version 2, the newest version from before the ' +
+    'end again.', '  The --store folder lacks spec version 2, the newest version from before the ' +
     'run.']);
   assert.deepEqual(outFiles(run), []);
 });
@@ -5951,7 +5951,7 @@ test('end --offline: a version of a cancelled run is no base version', () => {
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
   assert.equal(result.lines[0], 'Run `qory artifact pull spec --version 1`, then end again.');
-  assert.match(result.lines[1], /^The --store folder lacks spec version 1,/);
+  assert.match(result.lines[1], /^  The --store folder lacks spec version 1,/);
 });
 
 test('end --offline: each changed type needs the report of its reviewer, and no other', () => {
@@ -6120,7 +6120,7 @@ test('end --offline: a report that cannot be read is a finding', () => {
     fs.chmodSync(report, 0o644);
   }
   fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
-  fails(result, /^Name a file that exists and can be read: \.reports\/spec-reviewer-1\.md cannot be read\.$/);
+  fails(result, /^Name a file that exists and can be read\. \.reports\/spec-reviewer-1\.md cannot be read\.$/);
   assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
     action: 'run_again' }]);
 });
@@ -7154,7 +7154,7 @@ test('end --offline: a withdrawn type of history needs the version before it in 
   const result = offline(run);
   assert.equal(result.status, 3, result.out);
   assert.deepEqual(result.lines.slice(0, 2), ['Run `qory artifact pull acceptance-criteria ' +
-    '--version 1`, then end again.', 'The --store folder lacks acceptance-criteria version 1, ' +
+    '--version 1`, then end again.', '  The --store folder lacks acceptance-criteria version 1, ' +
     'the version before the withdrawal.']);
 });
 

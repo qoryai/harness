@@ -23,6 +23,10 @@ const LINE = 200;
 
 const QUOTE = 80;
 
+// The most characters of a name, a path or a value in the first line of a finding, so that
+// the first line keeps the fix within 100 characters. The lines after it have the whole value.
+const SHORT = 40;
+
 // A draft above this size is refused, so that no check runs long on it.
 const MAX_BYTES = 256 * 1024;
 
@@ -82,6 +86,16 @@ function cut(text, size) {
   return chars.length > size ? `${chars.slice(0, size - 3).join('')}...` : text;
 }
 
+// short returns text, or its start and its end with ... between them when it has more than
+// size characters, counted by code point, so that a first line keeps the fix within 100
+// characters. Give the whole text on a line after the first.
+function short(text, size = SHORT) {
+  const chars = [...String(text)];
+  if (chars.length <= size) return chars.join('');
+  const head = Math.ceil((size - 3) / 2);
+  return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
+}
+
 // plainLine removes control and refused characters, and cuts the line to LINE characters.
 function plainLine(text) {
   return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd(), LINE);
@@ -127,7 +141,7 @@ function readFile(file, what) {
   try {
     return fs.readFileSync(file, 'utf8');
   } catch {
-    throw new Missing(`Name a file that exists and can be read: ${what} cannot be read.`);
+    throw new Missing(`Name a file that exists and can be read.\n${what} cannot be read.`);
   }
 }
 
@@ -136,10 +150,12 @@ function parseJson(text, name, list) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Missing(`Write ${name} as valid JSON: it does not parse.`);
+    throw new Missing(`Write ${short(path.basename(name))} as valid JSON.\n` +
+      `${name} does not parse.`);
   }
   if (list && (!data || !Array.isArray(data[list]))) {
-    throw new Missing(`Give ${name} the list ${list}: it has none.`);
+    throw new Missing(`Give ${short(path.basename(name))} the list ${list}.\n` +
+      `${name} has no list ${list}.`);
   }
   return data;
 }
@@ -153,7 +169,7 @@ function writeJson(file, data, folder = 'the artifact folder') {
     fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
     fs.renameSync(temporary, file);
   } catch {
-    throw new Missing(`Make ${folder} writable: ${file} cannot be written.`);
+    throw new Missing(`Make ${folder} writable.\n${file} cannot be written.`);
   }
 }
 
@@ -242,7 +258,7 @@ function folderOf(deps, file) {
   try {
     real = fs.realpathSync(file);
   } catch {
-    throw new Missing(`Name a file that exists: ${file} does not.`);
+    throw new Missing(`Name a file that exists.\n${file} does not exist.`);
   }
   for (const folder of deps.artifacts) {
     let root;
@@ -253,8 +269,8 @@ function folderOf(deps, file) {
     }
     if (inside(real, root)) return root;
   }
-  throw new Missing(`Name a file under the artifact folder, ${deps.artifacts.join(' or ')}: ` +
-    `${file} is not.`);
+  throw new Missing('Name a file under the artifact folder.\n' +
+    `${file} is not under ${deps.artifacts.join(' or ')}.`);
 }
 
 // The most milliseconds that a call tries to take a lock, and the pause between two tries.
@@ -390,9 +406,9 @@ function artifactFolder(deps) {
 }
 
 module.exports = {
-  ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
+  ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, SHORT, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
   DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
-  CONTROL, CONTROL_ALL, hex, cut, plainLine, findingLines, quote, plural, inside, lexists,
+  CONTROL, CONTROL_ALL, hex, cut, short, plainLine, findingLines, quote, plural, inside, lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder, withLock,
 };

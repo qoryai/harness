@@ -1049,7 +1049,7 @@ test('ledger: step begin with an inputs.json without a start member exits 3', ()
     assert.equal(result.status, 3, result.out);
     assert.deepEqual(result.lines.slice(0, 2), [
       'Give --inputs the inputs.json that qory wrote for the run.',
-      `inputs.json has no member qory.${member}, which qory writes, so the start of the run is ` +
+      `  inputs.json has no member qory.${member}, which qory writes, so the start of the run is ` +
         'unknown.',
     ]);
   }
@@ -1118,7 +1118,7 @@ test('ledger: a withdrawn ledger whose earlier version was not pulled names its 
   assert.equal(result.status, 3, result.out);
   assert.deepEqual(result.lines.slice(0, 2), [
     'Run `qory artifact pull build-ledger --version 2`, then check again.',
-    'The store lacks build-ledger version 2, the version before the withdrawal.',
+    '  The store lacks build-ledger version 2, the version before the withdrawal.',
   ]);
 });
 
@@ -1186,7 +1186,7 @@ test('ledger: a call that waits for the lock too long exits 3 with nothing pushe
     assert.deepEqual(result.lines, [
       `Run ${verb} again after the other call finishes: another call held the ledger lock ` +
         'for 0.05 s.',
-      `.reports/${name}.lock still exists after 0.05 s of tries.`,
+      `  .reports/${name}.lock still exists after 0.05 s of tries.`,
     ]);
     assert.ok([...result.lines[0]].length <= 100, result.lines[0]);
     assert.equal(pushes(w), started, verb);

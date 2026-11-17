@@ -286,7 +286,7 @@ test('lock of acceptance-lock runs only in the top folder of the repository', ()
   fs.cpSync(inner, bare, { recursive: true });
   const none = lock(artifacts(), bare, DRAFT);
   assert.equal(none.status, 3, none.out);
-  if (none.lines[0] === TOP_LINE) assert.match(none.lines[1], /^The top folder is /);
+  if (none.lines[0] === TOP_LINE) assert.match(none.lines[1], /^  The top folder is /);
   else assert.deepEqual(none.lines[0], NO_REPOSITORY);
 });
 
@@ -319,7 +319,7 @@ test('lock of acceptance-lock gives a fix for each failure of git, and the line 
   // lock exits 3 with both lines.
   const result = lock(artifacts(), broken, DRAFT);
   assert.equal(result.status, 3, result.out);
-  assert.deepEqual(result.lines.slice(0, 2), [first, second]);
+  assert.deepEqual(result.lines.slice(0, 2), [first, `  ${second}`]);
 });
 
 test('lock of acceptance-lock reads no global or system git config', () => {
@@ -371,7 +371,7 @@ test('lock --verify of acceptance-lock names lock --verify in each line on the f
   assert.equal(result.lines[0], first);
   assert.deepEqual(type.lock.folder(sub, process.env, VERIFY), [first,
     `The top folder is ${work}, and lock --verify ran in ${sub}.`]);
-  assert.ok(result.lines[1].startsWith(`The top folder is ${work}, and lock --verify ran in `),
+  assert.ok(result.lines[1].startsWith(`  The top folder is ${work}, and lock --verify ran in `),
     result.out);
   assert.ok(first.length <= 100, first);
 });
@@ -608,19 +608,19 @@ test('the first line of each refusal of a repository has at most 100 characters'
   const LONGEST = 999999999;
   const cases = [];
   const below = lock(artifacts(), path.join(work, 'checks'), DRAFT);
-  cases.push([below, TOP_LINE, /^The top folder is .*, and lock ran in /]);
+  cases.push([below, TOP_LINE, /^  The top folder is .*, and lock ran in /]);
   const unlisted2 = verify(stored(artifacts(), 1, LOCK), work, ['--version', String(LONGEST)]);
-  cases.push([unlisted2, PASS_VERSION, /^index\.json lists no version 999999999\.$/]);
+  cases.push([unlisted2, PASS_VERSION, /^  index\.json lists no version 999999999\.$/]);
   const store = artifacts();
   listed(store, 'acceptance-criteria', LONGEST);
   const draft = path.join(next('files'), 'acceptance-criteria.md');
   writeJson(draft, fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
   const lacks = call({ cwd: store, artifacts: [] }, ['push', 'acceptance-criteria', draft]);
   cases.push([lacks, `Run \`qory artifact pull acceptance-criteria --version ${LONGEST}\`, ` +
-    'then check again.', /^The store lacks acceptance-criteria version 999999999, the newest /]);
+    'then check again.', /^  The store lacks acceptance-criteria version 999999999, the newest /]);
   cases.push([endOffline('review-comments', LONGEST), 'Run `qory artifact pull review-comments ' +
     `--version ${LONGEST}\`, then end again.`,
-  /^The --store folder lacks review-comments version 999999999, the newest version from /]);
+  /^  The --store folder lacks review-comments version 999999999, the newest version from /]);
   for (const [result, first, second] of cases) {
     assert.equal(result.status, 3, result.out);
     assert.equal(result.lines[0], first);
@@ -727,8 +727,8 @@ test('in a run with no QORY_RUN_REPOSITORIES, lock and lock --verify exit 3', ()
     `${verb} cannot check them.`;
   // Not set, empty, with an empty first entry, or blank: each is no list.
   for (const repositories of [null, '', ',', ',example-org/web', '  ']) {
-    const value = repositories === null ? 'QORY_RUN_REPOSITORIES is not set.'
-      : `QORY_RUN_REPOSITORIES is "${repositories}".`;
+    const value = repositories === null ? '  QORY_RUN_REPOSITORIES is not set.'
+      : `  QORY_RUN_REPOSITORIES is "${repositories}".`;
     const qory = fakeQory({ run: true, repositories: null });
     if (repositories !== null) qory.env.QORY_RUN_REPOSITORIES = repositories;
     const locked = lock(artifacts(), working(), DRAFT, qory);
@@ -986,16 +986,16 @@ test('lock --verify reads the newest lock that no cancelled run wrote', () => {
   const cancelled = verify(make(), working(), ['--version', '2']);
   assert.equal(cancelled.status, 3, cancelled.out);
   assert.deepEqual(cancelled.lines.slice(0, 2), [PASS_VERSION,
-    'A cancelled run wrote version 2, so it counts for nothing.']);
+    '  A cancelled run wrote version 2, so it counts for nothing.']);
   const unlisted = verify(make(), working(), ['--version', '7']);
   assert.equal(unlisted.status, 3, unlisted.out);
-  assert.deepEqual(unlisted.lines.slice(0, 2), [PASS_VERSION, 'index.json lists no version 7.']);
+  assert.deepEqual(unlisted.lines.slice(0, 2), [PASS_VERSION, '  index.json lists no version 7.']);
   // With no version that counts, the line is the same.
   const none = verify(stored(artifacts(), 1, LOCK, { cancelled: true }), working(),
     ['--version', '1']);
   assert.equal(none.status, 3, none.out);
   assert.deepEqual(none.lines.slice(0, 2), [PASS_VERSION,
-    'A cancelled run wrote version 1, so it counts for nothing.']);
+    '  A cancelled run wrote version 1, so it counts for nothing.']);
   for (const bad of [['--version'], ['--version', '0'], ['--version', 'x'], ['--all']]) {
     assert.equal(verify(make(), working(), bad).status, 2, bad.join(' '));
   }
@@ -1460,7 +1460,7 @@ test('every type family exits 3 when the store lacks the newest version that cou
     const result = call({ cwd: store, artifacts: [] }, ['push', pushed, path.join(files, draft)]);
     assert.equal(result.status, 3, `${pushed}: ${result.out}${result.err}`);
     assert.deepEqual(result.lines.slice(0, 2), [`Run \`qory artifact pull ${type} --version 1\`, ` +
-      'then check again.', `The store lacks ${type} version 1, the newest version that counts.`],
+      'then check again.', `  The store lacks ${type} version 1, the newest version that counts.`],
     pushed);
   }
 });

@@ -368,7 +368,8 @@ test('run: no artifact folder, no index.json or no build plan exits 3', () => {
   fs.rmSync(path.join(dir, '.qory/artifacts/build-plan'), { recursive: true });
   const got = call(dir, ['run', 'targeted']);
   assert.equal(got.status, 3);
-  assert.match(got.lines[0], /^Name a file that exists and can be read: build-plan version 1 cannot be read\.$/);
+  assert.match(got.lines[0], /^Name a file that exists and can be read\.$/);
+  assert.equal(got.lines[1], '  build-plan version 1 cannot be read.');
   write(dir, '.qory/artifacts/index.json', JSON.stringify({ artifacts: [] }));
   assert.match(call(dir, ['run', 'targeted']).lines[0], /^Push the build plan, then pull the artifacts: index\.json lists no version of build-plan\.$/);
   fs.rmSync(path.join(dir, '.qory/artifacts/index.json'));
@@ -450,7 +451,7 @@ test('limits: an inputs.json with no qory or qory.harness_extensions member exit
     const got = call(dir, ['run', 'targeted', '--inputs', inputsFile(value)]);
     assert.equal(got.status, 3, got.out);
     assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-    assert.match(got.lines[1], /^inputs\.json has no member qory(\.harness_extensions)?, which qory writes, so the (settings|start)/);
+    assert.match(got.lines[1], /^  inputs\.json has no member qory(\.harness_extensions)?, which qory writes, so the (settings|start)/);
   }
 });
 
@@ -1296,7 +1297,7 @@ test('probe: a link to a system file is kept; a link into the checkout or its .g
   const into = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(into.status, 3, into.out);
   assert.deepEqual(into.lines.slice(0, 2), ['Make the link "lib-in" relative, inside the checkout, then probe again.',
-    'Its real path is in the checkout or its .git folder, so a test in the copy could change them.']);
+    '  Its real path is in the checkout or its .git folder, so a test in the copy could change them.']);
   fs.rmSync(path.join(dir, 'lib-in'));
   fs.symlinkSync(path.join(dir, '.git/config'), path.join(dir, 'lib-git'));
   commit('into .git');
@@ -1308,7 +1309,7 @@ test('probe: a link to a system file is kept; a link into the checkout or its .g
   const gone = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
   assert.equal(gone.status, 3, gone.out);
   assert.deepEqual(gone.lines.slice(0, 2), ['Remove the link "lib-gone", or make its target, then probe again.',
-    'It leads to no file, so a test in the copy could make one outside the copy.']);
+    '  It leads to no file, so a test in the copy could make one outside the copy.']);
 });
 
 test('run, then diff and probe: an untracked result file is no change', () => {
@@ -1627,16 +1628,16 @@ test('--artifacts: a newer build plan version in the artifact folder of the sess
   const other = call(dir, ['run', 'lint', '--inputs', inputs, '--artifacts', '.qory/artifacts']);
   assert.equal(other.status, 3);
   assert.equal(other.lines[0], 'Leave out --artifacts, or give it the folder of qory.start_artifacts in inputs.json.');
-  assert.match(other.lines[1], /^--artifacts is not the folder of qory\.start_artifacts, ".*"\.$/);
+  assert.match(other.lines[1], /^  --artifacts is not the folder of qory\.start_artifacts, ".*"\.$/);
   assert.equal(call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--artifacts', '.qory/artifacts']).status, 3);
   const none = call(dir, ['scope', 'deliverable:d-1', '--artifacts', path.join(tmp, 'no-such-folder')]);
   assert.equal(none.status, 3);
   assert.equal(none.lines[0], 'Give --artifacts the folder of the pulled build plans.');
-  assert.match(none.lines[1], /^".*no-such-folder" is no folder\.$/);
+  assert.match(none.lines[1], /^  ".*no-such-folder" is no folder\.$/);
   const gone = call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: path.join(tmp, 'gone') } })]);
   assert.equal(gone.status, 3);
   assert.equal(gone.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-  assert.match(gone.lines[1], /^its qory\.start_artifacts, ".*gone", is no folder, so the start of the run is unknown\.$/);
+  assert.match(gone.lines[1], /^  its qory\.start_artifacts, ".*gone", is no folder, so the start of the run is unknown\.$/);
   assert.equal(call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: 'relative' } })]).status, 3);
 });
 
@@ -1709,18 +1710,18 @@ test('start_commits: a --base other than the start commit, no entry, a bad commi
     const got = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs, '--base', base]);
     assert.equal(got.status, 3, got.out);
     assert.equal(got.lines[0], 'Leave out --base, or give it the start commit in inputs.json.');
-    assert.match(got.lines[1], new RegExp(`^"${base}" is not ${start}, and another base widens`));
+    assert.match(got.lines[1], new RegExp(`^  "${base}" is not ${start}, and another base widens`));
   }
   const none = call(dir, ['freeze', 'deliverable:d-1', '--inputs', started(path.join(tmp, 'other'), start)]);
   assert.equal(none.status, 3);
   assert.equal(none.lines[0], 'Run freeze in a checkout that qory.start_commits in inputs.json lists.');
-  assert.match(none.lines[1], /^".*" is none of them, so its start commit is unknown\.$/);
+  assert.match(none.lines[1], /^  ".*" is none of them, so its start commit is unknown\.$/);
   for (const value of [{ start_commits: {} }, { start_commits: [{ path: dir, commit: start.slice(0, 12) }] },
     { start_commits: [{ path: 'relative', commit: start }] }, { start_commits: [{ path: dir, commit: start.toUpperCase() }] }]) {
     const got = call(dir, ['scope', '--plan', '--inputs', inputsFile({ qory: { harness_extensions: {}, ...value } })]);
     assert.equal(got.status, 3, JSON.stringify(value));
     assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-    assert.match(got.lines[1], /, so the start of the run is unknown\.$/);
+    assert.match(got.lines[1], /^  .*, so the start of the run is unknown\.$/);
   }
   // HEAD on another history: the start commit is no ancestor of HEAD.
   sh(dir, 'checkout', '-q', '--orphan', 'other');
@@ -1728,7 +1729,7 @@ test('start_commits: a --base other than the start commit, no entry, a bad commi
   const away = call(dir, ['scope', '--plan', '--inputs', inputs]);
   assert.equal(away.status, 3);
   assert.equal(away.lines[0], 'Restore the history of the run on HEAD, then run scope again.');
-  assert.match(away.lines[1], new RegExp(`^HEAD does not descend from ${start.slice(0, 12)}`));
+  assert.match(away.lines[1], new RegExp(`^  HEAD does not descend from ${start.slice(0, 12)}`));
 });
 
 test('start: an inputs.json with no qory.start_commits or no qory.start_artifacts exits 3 for each verb', () => {
@@ -1748,7 +1749,7 @@ test('start: an inputs.json with no qory.start_commits or no qory.start_artifact
       const got = call(dir, [...argv, '--inputs', inputs, ...(argv[0] === 'run' || argv[0] === 'probe' ? [] : ['--artifacts', artifacts])]);
       assert.equal(got.status, 3, `${missing}: ${argv.join(' ')}: ${got.out}`);
       assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-      assert.equal(got.lines[1], `inputs.json has no member qory.${missing}, which qory writes, so the start of the run is unknown.`);
+      assert.equal(got.lines[1], `  inputs.json has no member qory.${missing}, which qory writes, so the start of the run is unknown.`);
     }
   }
 });
@@ -1977,7 +1978,7 @@ test('a checkout of another user exits 3 with the fix first, since no safe.direc
     const got = call(dir, argv, { env });
     assert.equal(got.status, 3, `${argv.join(' ')}: ${got.out}`);
     assert.deepEqual(got.lines.slice(0, 2), ['Run the check as the user that owns the checkout.',
-      'git exits with "dubious ownership" in a checkout of another user, and the check reads no safe.directory setting.']);
+      '  git exits with "dubious ownership" in a checkout of another user, and the check reads no safe.directory setting.']);
   }
 });
 
@@ -2143,7 +2144,7 @@ test('run: the path of --inputs with a key in it is not shown', () => {
   const got = call(dir, ['run', 'targeted', 'tests/a.test.js', '--inputs', path.join(tmp, `${TOKEN}.json`)]);
   assert.equal(got.status, 3, got.out);
   assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-  assert.match(got.lines[1], /^a path with a key in its name cannot be read/);
+  assert.match(got.lines[1], /^  a path with a key in its name cannot be read/);
   assert.ok(!got.out.includes(TOKEN) && !got.err.includes(TOKEN));
 });
 
@@ -2410,7 +2411,7 @@ test('run locked: a start from a subfolder exits 3 with a line that names run lo
   // The output cuts a line after 200 characters, and the length of the paths depends on
   // TMPDIR: the whole second line is the one of the type, and the output starts with it.
   const sub = path.join(dir, 'tests');
-  assert.ok(got.lines[1].startsWith('The top folder is '), got.out);
+  assert.ok(got.lines[1].startsWith('  The top folder is '), got.out);
   const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
   const { plainLine } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/base.js'));
   const type = require(path.join(SKILL, 'workflow-checks.js'))(LIBRARY).types
@@ -2418,7 +2419,7 @@ test('run locked: a start from a subfolder exits 3 with a line that names run lo
   // The verb passes the real path of the working folder to the type.
   const line = type.lock.folder(fs.realpathSync(sub), process.env, 'run locked')[1];
   assert.ok(line.endsWith(`, and run locked ran in ${fs.realpathSync(sub)}.`), line);
-  assert.equal(got.lines[1], plainLine(line));
+  assert.equal(got.lines[1], `  ${plainLine(line)}`);
 });
 
 test('cap: a types or build command stops 60 seconds before the cap of the Bash call', () => {
@@ -2805,7 +2806,7 @@ test('scope and freeze print no line over 100 characters for a long argument, pa
     assert.ok(got.lines.length > 0, argv.join(' '));
     for (const line of argv[2] === 'x'.repeat(90) || argv[2] === 'foo' ? ours(got) : got.lines) assert.ok(line.length <= 100, `${argv.join(' ').slice(0, 40)}: ${line.length}: ${line}`);
   }
-  assert.match(outputs[3].got.lines[1], /^--artifacts is not the folder of qory\.start_artifacts, "\.\.\./);
+  assert.match(outputs[3].got.lines[1], /^  --artifacts is not the folder of qory\.start_artifacts, "\.\.\./);
   assert.match(outputs[5].got.lines[0], /^Give freeze a deliverable of the build plan: version 1 has no d-9{25}\.\.\.\.$/);
   assert.match(outputs[6].got.lines[0], /^Froze no new commit for deliverable:d-1: no change; 0 commits since [0-9a-f]{12} passed\.$/);
   // freeze with a label of 22 characters and 500 commits is the longest of that line.
