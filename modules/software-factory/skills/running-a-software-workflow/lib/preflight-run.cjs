@@ -94,8 +94,12 @@ async function stop(child) {
   signal('SIGKILL');
 }
 
+// The browser while it runs, which a signal stops.
+let running = null;
+
 async function signIns(spec) {
   const browser = new Browser(spec.browser);
+  running = browser;
   const results = [];
   try {
     await browser.start();
@@ -122,6 +126,7 @@ async function main() {
   let child = null;
   for (const name of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
     process.on(name, () => {
+      if (running && running.proc) running.proc.kill('SIGKILL');
       if (child && child.pid) {
         try {
           process.kill(-child.pid, 'SIGKILL');

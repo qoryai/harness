@@ -23,8 +23,17 @@ const RUNNER = path.join(__dirname, 'preflight-run.cjs');
 
 // The time for the address of the app to return a response after the serve command starts.
 const START_MS = 120000;
-// The most time that one sign-in may take in the runner, on top of START_MS.
-const SIGN_IN_MS = 60000;
+// The most time that an open action waits for its page, as lib/browser.cjs has it, the time
+// of a press, and the time to start the browser and open a page for a sign-in.
+const OPEN_MS = 15000;
+const PRESS_MS = 1000;
+const PAGE_MS = 15000;
+
+// signInMs returns the most time that the replay of actions may take, by the limit of each
+// action, with the time after the last action and the time to open its page.
+const signInMs = (actions, actionMs, signedInMs) => PAGE_MS + signedInMs +
+  actions.reduce((sum, one) => sum + ({ open: OPEN_MS, press: PRESS_MS }[one.do] ||
+    (one.do === 'wait' && one.timeout_ms) || actionMs), 0);
 
 // The texts of the points. A text with a value of the run, such as the serve command, takes
 // the words of its fallback when the value would break the rules of a point, as a value with
@@ -135,21 +144,22 @@ module.exports = (lib) => {
       return JSON.parse(line);
     } catch {
       const why = ran.error ? ran.error.message : `it exited with ${ran.status}`;
-      throw new Error(`lib/preflight-run.cjs gave no result: ${why}. ${String(ran.stderr || '')
-        .slice(-500)}`);
+      throw new Missing('Run preflight again: the check of the app and the sign-in returned no ' +
+        `result.\nThe runner ${why}. ${String(ran.stderr || '').trim().split('\n').pop() || ''}`);
     }
   }
 
   // savePoints writes points to points.json of root, after each point of a points.json there
-  // that passes the check of a point and differs from them, at most MAX_POINTS in all.
-  function savePoints(root, points, checks) {
+  // whose text differs from theirs, at most MAX_POINTS in all. check points judges the points
+  // that it keeps, an answer point with its open question too.
+  function savePoints(root, points) {
     const file = path.join(root, 'points.json');
     let kept = [];
     try {
       const list = JSON.parse(fs.readFileSync(file, 'utf8'));
       if (Array.isArray(list)) {
         kept = list.filter((one) => one && typeof one === 'object' &&
-          !points.some((point) => point.text === one.text) && passes(one, checks));
+          !points.some((point) => point.text === one.text));
       }
     } catch {
       // No points.json, or one that cannot be read: the new points take its place.
@@ -177,12 +187,16 @@ module.exports = (lib) => {
       log = path.join(root, '.reports', 'preflight', 'serve.log');
       fs.mkdirSync(path.dirname(log), { recursive: true });
       const startMs = options.startMs || START_MS;
+      const actionMs = options.actionMs || ACTION_MS;
+      const signedInMs = options.signedInMs || SIGNED_IN_MS;
+      // The time of the start, of each sign-in by its actions, and of the stop of the app.
+      const limitMs = startMs + 30000 + setups.reduce((sum, setup) =>
+        sum + signInMs(setup.actions, actionMs, signedInMs), 0);
       const result = waited(io, {
         serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
         browser, setups: setups.map(({ actions, names }) => ({ actions, names })),
-        startMs, actionMs: options.actionMs || ACTION_MS,
-        signedInMs: options.signedInMs || SIGNED_IN_MS,
-      }, startMs + setups.length * SIGN_IN_MS + 30000);
+        startMs, actionMs, signedInMs,
+      }, limitMs);
       if (!result.app.started) {
         found.push({ kind: 'app', value: serve.command,
           why: `${result.app.why}. The output of the command is in ${log}.` });
@@ -208,7 +222,7 @@ module.exports = (lib) => {
         `${signIn}.` };
     }
     const points = found.map((one) => pointOf(one.kind, one.value, checks));
-    savePoints(root, points, checks);
+    savePoints(root, points);
     const findings = found.map((one, at) => `${FIRST[one.kind]}\n${one.why}\n` +
       `The fix of its point: ${points[at].fix}`);
     return { status: 1, findings, points, last: `${checked}: ${found.length} of ` +
@@ -216,5 +230,5 @@ module.exports = (lib) => {
       'points.json has a point run_again for each.' };
   }
 
-  return { preflight, demoScripts, pointOf, joined };
+  return { preflight, demoScripts, pointOf, joined, signInMs };
 };

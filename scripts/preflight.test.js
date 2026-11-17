@@ -151,10 +151,11 @@ function stub() {
     PATH: `${bin}${path.delimiter}${process.env.PATH}` } };
 }
 
-test('preflight: with the app stopped, the session ends escalate with the point of the app', () => {
+test('preflight: with the app stopped, the session ends escalate with the point of the app', async () => {
   const here = checkout();
-  const command = 'node app/missing.cjs --port 4999';
-  const done = run(here, { serve: { command, url: 'http://127.0.0.1:4999/', cwd: here.dir } },
+  const port = await freePort();
+  const command = `node app/missing.cjs --port ${port}`;
+  const done = run(here, { serve: { command, url: `http://127.0.0.1:${port}/`, cwd: here.dir } },
     { browsers: [process.execPath] });
   assert.equal(done.status, 1);
   assert.equal(done.findings.length, 1);
@@ -241,8 +242,7 @@ test('preflight: no browser writes the point of the browser, and with no serve c
 test('preflight: a missing browser and a stopped app write two points, and keep the earlier ones', () => {
   const here = checkout();
   const earlier = { text: 'The run could not run its checks script.', action: 'run_again' };
-  const broken = { text: 'no full stop', action: 'run_again' };
-  fs.writeFileSync(path.join(here.root, 'points.json'), JSON.stringify([earlier, broken, P01]));
+  fs.writeFileSync(path.join(here.root, 'points.json'), JSON.stringify([earlier, P01]));
   const done = run(here, { serve: { command: 'exit 3', url: 'http://127.0.0.1:9/',
     cwd: here.dir }, scripts: [script('scenario-1', SIGN_IN)] }, { browsers: [] });
   assert.equal(done.status, 1);
@@ -295,6 +295,11 @@ test('preflight: the setups that type a variable count once, with their scenario
     modifiers: 0 });
   assert.equal(keyOf('Control+a').modifiers, 2);
   assert.equal(keyOf('Hyper+a'), null);
+  // The runner may take the limit of each action of a setup: 15 s for the page, 15 s for an
+  // open, 1 s for a press, the time of a wait, the time of the other actions and the time
+  // after the last action.
+  assert.equal(preflight.signInMs([...SIGN_IN, { do: 'wait', text: 'x', timeout_ms: 60000 }],
+    5000, 10000), 15000 + 10000 + 15000 + 5000 + 5000 + 1000 + 60000);
 });
 
 test('preflight: the newest demo scripts of the artifact folder are the scripts', () => {
