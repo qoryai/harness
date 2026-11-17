@@ -43,8 +43,8 @@ module.exports = (lib) => {
   // short returns the first 12 digits of a commit, or the words for none.
   const short = (commit) => (commit ? commit.slice(0, 12) : 'a checkout with no commit');
 
-  // whole returns a finding that is a line, or a list of lines, as one text: its first line
-  // has the fix, and checks.js prints the lines after it indented.
+  // whole returns a finding that is an entry, or a list of entries, as one text: its first
+  // line has the fix, and checks.js prints the lines after it indented.
   const whole = (finding) => [].concat(finding).join('\n');
 
   function args(io, kind, paths) {
@@ -93,24 +93,26 @@ module.exports = (lib) => {
       clean: changed.length === 0 && !work.excluded, build_plan: plan.version,
       at: new Date().toISOString(),
     };
-    const done = (state, reasons, last, extra = {}) => {
-      record.write({ ...base, ...extra, state, reasons });
-      io.print([...reasons, record.line], last);
+    // done writes the record with the entries of findings in one list, and prints each
+    // finding as one text.
+    const done = (state, findings, last, extra = {}) => {
+      record.write({ ...base, ...extra, state, reasons: findings.flat() });
+      io.print([...findings.map(whole), record.line], last);
       return state === 'red' ? 1 : 0;
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
     if (work.excluded) return done('red', [git.EXCLUDED], `Ran no ${kind} command ${where}.`);
     // A plan with no targeted command runs zero tests, and zero tests are red.
     if (!row.command && kind === 'targeted') {
-      return done('red', ['Set a targeted command in ## Commands of the build plan, then push it.' +
-        '\nWithout one no test runs, and a run with zero tests is red.'],
+      return done('red', [['Set a targeted command in ## Commands of the build plan, then push it.',
+        'Without one no test runs, and a run with zero tests is red.']],
       `Ran no targeted command ${where}.`);
     }
     if (!row.command) {
       return done('none', [], `Ran no ${kind} command ${where}: the build plan has none.`);
     }
     if (limit.problem) {
-      return done('red', [whole([limit.problem, ...limit.more])], `Ran no ${kind} command ` +
+      return done('red', [[limit.problem, ...limit.more]], `Ran no ${kind} command ` +
         `${where}: its time limit is unknown, so the check is red.`,
       { limit_source: limit.source });
     }
@@ -120,8 +122,8 @@ module.exports = (lib) => {
     if (kind === 'targeted') {
       const resultFile = row.resultFile && runner.relative(work.top, row.resultFile);
       if (!resultFile) {
-        return done('red', ['Set the Result file of targeted in the build plan to a path in the ' +
-          'checkout, then push it.\nWithout it no test counts, so the check is red.'],
+        return done('red', [['Set the Result file of targeted in the build plan to a path in the ' +
+          'checkout, then push it.', 'Without it no test counts, so the check is red.']],
         `Ran no targeted command ${where}.`, extra);
       }
       // A failed test runs alone only from a path of the run, or with no path, from a file
@@ -150,7 +152,7 @@ module.exports = (lib) => {
       counts ? `, ${plural(counts.tests, 'test')}` : '',
       flaky.length ? `, ${plural(alone.length, 'file')} green only alone` : '',
     ].join('');
-    return done(result.state, [...result.reasons, ...flaky],
+    return done(result.state, [...result.findings, ...flaky],
       `Ran ${kind} ${where}: ${result.state}${told}.`, {
       ...extra,
       exit: result.result.exit,
@@ -204,9 +206,11 @@ module.exports = (lib) => {
       clean: changed.length === 0 && !work.excluded, build_plan: plan.version,
       at: new Date().toISOString(),
     };
-    const done = (state, reasons, last, extra = {}) => {
-      record.write({ ...base, ...extra, state, reasons });
-      io.print([...reasons, record.line], last);
+    // done writes the record with the entries of findings in one list, and prints each
+    // finding of shown as one text. shown has the findings in the order of the print.
+    const done = (state, findings, last, extra = {}, shown = findings) => {
+      record.write({ ...base, ...extra, state, reasons: findings.flat() });
+      io.print([...shown.map(whole), record.line], last);
       return state === 'red' ? 1 : 0;
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
@@ -218,17 +222,17 @@ module.exports = (lib) => {
     }
     const problems = changedFiles(io, def, lock, 'run locked again', 'run locked');
     if (problems.length) {
-      return done('red', problems.map(whole), `Ran no locked check ${where}: ` +
+      return done('red', problems, `Ran no locked check ${where}: ` +
         `${plural(problems.length, 'finding')} on the files of ${lock.what}.`);
     }
     const resultFile = row && row.resultFile && runner.relative(work.top, row.resultFile);
     if (!resultFile) {
-      return done('red', ['Set the Result file of targeted in the build plan to a path in the ' +
-        'checkout, then push it.\nWithout it no test of a locked check counts, so the ' +
-        'check is red.'], none);
+      return done('red', [['Set the Result file of targeted in the build plan to a path in the ' +
+        'checkout, then push it.', 'Without it no test of a locked check counts, so the ' +
+        'check is red.']], none);
     }
     if (limit.problem) {
-      return done('red', [whole([limit.problem, ...limit.more])], `Ran no locked check ` +
+      return done('red', [[limit.problem, ...limit.more]], `Ran no locked check ` +
         `${where}: its time limit is unknown, so the check is red.`,
       { limit_source: limit.source });
     }
@@ -246,6 +250,8 @@ module.exports = (lib) => {
     'run locked');
     const support = lock.data.support || [];
     let swapped = [];
+    // The findings of each check that ran, by its place in results, for the print.
+    const byCheck = [];
     const results = checks.map((check, at) => {
       const notRun = (reason) => ({ criterion: check.criterion,
         path: secrets.shown(check.path, values), command: check.command, state: 'red',
@@ -257,6 +263,7 @@ module.exports = (lib) => {
       const got = runner.locked({ cwd: work.top, criterion: check.criterion,
         command: check.command, resultFile, minutes, log: record.log(at), env: io.env,
         minuteMs: io.minuteMs, cap, proc: io.proc });
+      byCheck[at] = got.findings;
       return {
         criterion: check.criterion, path: secrets.shown(check.path, values),
         command: check.command, state: got.state, reasons: got.reasons,
@@ -275,25 +282,26 @@ module.exports = (lib) => {
       .map((one) => one.criterion);
     const skipped = notRun(NOT_RUN);
     const unsafe = notRun(UNSAFE);
-    // The line of the checks that did not run after a locked file changed is a line of the
-    // last finding on the files: a change of a locked file is why they did not run.
-    const onFiles = swapped.map(whole);
-    const notSafe = `${plural(unsafe.length, 'check')} did not run: a locked file changed ` +
-      'during the call.';
-    if (unsafe.length && onFiles.length) onFiles[onFiles.length - 1] += `\n${notSafe}`;
-    else if (unsafe.length) onFiles.push(notSafe);
-    const lines = [...onFiles, ...red.filter((one) => ![NOT_RUN, UNSAFE]
-      .includes(one.reasons[0])).flatMap((one) => one.reasons), ...(skipped.length
-      ? [`Run locked again for ${cut(skipped.join(' '), 40)}, in fewer checks per call.\n` +
-        `${plural(skipped.length, 'check')} did not run: the call ran out of time, ` +
-        `${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call.`] : [])];
-    return done(red.length || swapped.length ? 'red' : 'green', lines,
+    const ran = results.flatMap((one, at) => (one.state !== 'green' &&
+      ![NOT_RUN, UNSAFE].includes(one.reasons[0]) ? byCheck[at] : []));
+    const ranOut = skipped.length ? [[`Run locked again for ${cut(skipped.join(' '), 40)}, in ` +
+      'fewer checks per call.', `${plural(skipped.length, 'check')} did not run: the call ran ` +
+      `out of time, ${runner.RESERVE_MS / 1000} seconds before the cap of the Bash call.`]] : [];
+    const notSafe = unsafe.length ? [`${plural(unsafe.length, 'check')} did not run: a locked ` +
+      'file changed during the call.'] : [];
+    // The record has the line of the checks that did not run after a locked file changed last.
+    // The print has it as a line of the last finding on the files: a change of a locked file
+    // is why they did not run.
+    const onFiles = swapped.length ? swapped.map((one, at) => (at === swapped.length - 1
+      ? [].concat(one, notSafe) : one)) : notSafe;
+    return done(red.length || swapped.length ? 'red' : 'green',
+      [...swapped, ...ran, ...ranOut, ...notSafe],
       `Ran ${plural(results.length, 'locked check')} of ${lock.what} ${where}: ` +
       `${results.length - red.length} green, ${red.length} red` +
       `${swapped.length ? `, and ${plural(swapped.length, 'finding')} on the files of ` +
       `${lock.what}` : ''}.`,
       { limit_minutes: minutes, limit_source: limit.source, checks: results,
-        ...(swapped.length ? { changed: swapped.map(whole) } : {}) });
+        ...(swapped.length ? { changed: swapped.flat() } : {}) }, [...onFiles, ...ran, ...ranOut]);
   }
 
   return {

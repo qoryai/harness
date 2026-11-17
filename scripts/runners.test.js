@@ -251,6 +251,27 @@ test('run targeted: a skipped test, a failed test and a missing result file are 
   '  The Result file is out/junit.xml. This run wrote no such file, so no test counts.']);
 });
 
+test('run targeted: the record keeps the fix and the cause of a finding as two reasons', () => {
+  const dir = checkout();
+  // A finding with its cause in a separate sentence has two reasons in the record, and one
+  // finding in the print: the fix on its first line, the cause indented on the next.
+  const zero = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'zero' } });
+  assert.equal(zero.status, 1, zero.out);
+  assert.deepEqual(lastRecord(dir).reasons, ['Give run targeted the path of a test file, or fix the command.',
+    'It ran zero tests, and a run with zero tests is red.']);
+  write(dir, 'src/a.js', 'exports.add = (a, b) => a - b;\n');
+  const fail = call(dir, ['run', 'targeted']);
+  assert.equal(fail.status, 1, fail.out);
+  assert.deepEqual(fail.lines.slice(0, 2), ['Fix the failed tests of one file, then run targeted again.',
+    '  The tests of "tests/a.test.js" failed again when run alone.']);
+  assert.deepEqual(lastRecord(dir).reasons, ['Fix the failed tests of one file, then run targeted again.',
+    'The tests of "tests/a.test.js" failed again when run alone.']);
+  // A finding of one sentence in the record stays one reason.
+  const skip = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'skip' } });
+  assert.equal(skip.status, 1, skip.out);
+  assert.equal(lastRecord(dir).reasons.length, 1);
+});
+
 test('run targeted: a failed test that passes alone counts as passed, and the line says so', () => {
   const dir = checkout();
   const got = call(dir, ['run', 'targeted'], { env: { FAKE_MODE: 'once', FAKE_COUNT: path.join(dir, 'count') } });
@@ -648,6 +669,27 @@ test('scope --base: a committed name with a line break is one path, not two', ()
   assert.match(got.lines[0], /^Take "src\/a\.js lib\/x" out of the commits since the base: it is outside the scope\.$/);
   assert.deepEqual(got.lines.slice(-2), [`Scanned 2 commits since ${start.slice(0, 12)} for keys: 0 findings.`,
     'Checked 1 changed path against the files of d-1: 1 outside.']);
+});
+
+test('scope --base: past 500 commits, the scan for keys counts the fix and its cause as 2 findings', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const branch = sh(dir, 'symbolic-ref', 'HEAD');
+  // 501 empty commits on the branch, in one call of git fast-import.
+  const stream = Array.from({ length: 501 }, (_, at) => `commit ${branch}\n` +
+    `committer t <t@example.com> ${at} +0000\ndata 2\nc\n${at ? '' : `from ${start}\n`}\n`).join('');
+  const imported = childProcess.spawnSync('git', ['-C', dir, 'fast-import', '--quiet'], { input: stream });
+  assert.equal(imported.status, 0, String(imported.stderr));
+  const fix = `Push at most 500 commits since ${start.slice(0, 12)}, such as by squashing them, then scope again.`;
+  const got = call(dir, ['scope', 'deliverable:d-1', '--base', start]);
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), [fix, '  scope scans at most 500 commits for keys, and there are more.']);
+  assert.ok(got.lines[0].length <= 100, got.lines[0]);
+  assert.deepEqual(got.lines.slice(-2), [`Scanned 501 commits since ${start.slice(0, 12)} for keys: 2 findings.`,
+    'Checked 0 changed paths against the files of d-1: 0 outside.']);
+  const frozen = call(dir, ['freeze', 'deliverable:d-1', '--base', start]);
+  assert.equal(frozen.status, 1, frozen.out);
+  assert.equal(frozen.lines.at(-1), 'Froze nothing: the scan for keys has 2 findings.');
 });
 
 test('scope --base: a committed path under .qory is outside a scope that lists .qory/', () => {
@@ -1218,8 +1260,7 @@ test('cap: a command that would run past the cap of the Bash call stops 60 secon
     'Run locked again for ac-2, in fewer checks per call.',
     '  1 check did not run: the call ran out of time, 60 seconds before the cap of the Bash call.']);
   assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state, one.reasons[0]]), [
-    ['ac-1', 'red', 'Give run locked fewer criteria, then run the others in another call.\nThe script ' +
-      'stopped it 60 seconds before the cap of the Bash call, 60 minutes.'],
+    ['ac-1', 'red', 'Give run locked fewer criteria, then run the others in another call.'],
     ['ac-2', 'red', 'not run: the call ran out of time'],
   ]);
   write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;', 'exports.add = () => { for (;;); };'));

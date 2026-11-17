@@ -259,7 +259,7 @@ module.exports = (lib) => {
         count: 0 };
     const keys = scanHistory(io, work.top, base, 'scope');
     const scanned = `Scanned ${plural(keys.commits, 'commit')} ${since(base)} for keys: ` +
-      `${plural(keys.lines.length, 'finding')}.`;
+      `${plural(keys.count, 'finding')}.`;
     if (!done.findings.length && !keys.lines.length && !work.excluded) {
       io.print([], `Passed: ${plural(done.count, 'changed path')} prove ${quote(track.kind)}, ` +
         `${plural(keys.commits, 'commit')} with no key.`);
@@ -285,7 +285,7 @@ module.exports = (lib) => {
     }
     // The scan result is the line before the result of the check, so that no line is long.
     const scanned = keys ? [`Scanned ${plural(keys.commits, 'commit')} ${since(found.base)} ` +
-      `for keys: ${plural(keys.lines.length, 'finding')}.`] : [];
+      `for keys: ${plural(keys.count, 'finding')}.`] : [];
     io.print([...outsideLines(io, found), ...(keys ? keys.lines : []), ...scanned],
       `Checked ${plural(found.counted.length, 'changed path')} against ${checkedWords(found)}: ` +
       `${found.outside.length} outside.`);
@@ -411,12 +411,14 @@ module.exports = (lib) => {
     }))];
   }
 
-  // scanHistory returns { lines, commits }: a line for each key in the commits that qory
-  // pushes, as git.unpushed lists them for base, and the number of those commits.
+  // scanHistory returns { lines, commits, count }: a line for each key in the commits that
+  // qory pushes, as git.unpushed lists them for base, the number of those commits, and the
+  // count of findings for the summary line. Past MOST_COMMITS commits, the one line has the
+  // fix and its cause, and count is 2, one for each.
   function scanHistory(io, top, base, verb) {
     const commits = git.unpushed(Missing, top, io.env, base, MOST_COMMITS);
     if (commits.length > MOST_COMMITS) {
-      return { commits: commits.length, lines: base
+      return { commits: commits.length, count: 2, lines: base
         ? [`Push at most ${MOST_COMMITS} commits since ${base.slice(0, 12)}, such as by ` +
           `squashing them, then ${verb} again.\n${verb} scans at most ${MOST_COMMITS} ` +
           'commits for keys, and there are more.']
@@ -425,16 +427,14 @@ module.exports = (lib) => {
           `most ${MOST_COMMITS}.`] };
     }
     const empty = commits.length ? git.emptyTree(Missing, top, io.env) : null;
-    return {
-      commits: commits.length,
-      lines: commits.flatMap((commit) => {
-        const parent = git.git(top, ['rev-parse', '--verify', '-q', `${commit}^1`],
-          { env: io.env });
-        const from = parent.status === 0 ? parent.stdout.trim() : empty;
-        return [...scanCommit(io, top, commit, verb),
-          ...scan(io, top, from, commit, commit, verb)];
-      }),
-    };
+    const lines = commits.flatMap((commit) => {
+      const parent = git.git(top, ['rev-parse', '--verify', '-q', `${commit}^1`],
+        { env: io.env });
+      const from = parent.status === 0 ? parent.stdout.trim() : empty;
+      return [...scanCommit(io, top, commit, verb),
+        ...scan(io, top, from, commit, commit, verb)];
+    });
+    return { commits: commits.length, lines, count: lines.length };
   }
 
   // message returns the one-line message of the commit of step.
@@ -516,9 +516,11 @@ module.exports = (lib) => {
         return 1;
       }
       const history = scanHistory(io, top, found.base, 'freeze');
-      const keys = [...history.lines, ...(change ? scan(io, top, head, tree) : [])];
+      const scanned = change ? scan(io, top, head, tree) : [];
+      const keys = [...history.lines, ...scanned];
       if (keys.length) {
-        io.print(keys, `Froze nothing: the scan for keys has ${plural(keys.length, 'finding')}.`);
+        io.print(keys, 'Froze nothing: the scan for keys has ' +
+          `${plural(history.count + scanned.length, 'finding')}.`);
         return 1;
       }
       if (!change) {

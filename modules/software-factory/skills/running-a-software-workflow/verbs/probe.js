@@ -277,10 +277,11 @@ module.exports = (lib) => {
       base.before = first.state;
       if (changedRepository({})) return NO_PROOF;
       if (first.state !== 'green') {
+        // The record lists each entry of the reasons; the print has each finding as one text.
         record.write({ ...base, state: 'no proof', reasons: first.reasons });
         io.print([`Make ${named(check)} green on ${short} first, then probe again.\nWithout ` +
-          `the patch ${shown(check)} is red, so the probe proves nothing.`, ...first.reasons],
-        last);
+          `the patch ${shown(check)} is red, so the probe proves nothing.`,
+        ...first.findings.map((one) => one.join('\n'))], last);
         return NO_PROOF;
       }
       git.ok(Missing, dest, ['apply', file], `Write the patch against ${short}`,

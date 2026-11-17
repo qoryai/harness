@@ -399,6 +399,8 @@ test('suite start: each error of the route prints a line that starts with the fi
     assert.equal(route.requests().length, 1);
     assert.deepEqual([lastRecord(dir).state, lastRecord(dir).status],
       ['error', answer.size ? null : answer.status]);
+    // The record keeps the fix and the last line of the cause as two reasons.
+    assert.equal(lastRecord(dir).reasons.length, 2, got.out);
   }
 });
 
@@ -477,6 +479,7 @@ test('suite result: failed, timeout and stopped are red, each with its fix', asy
     assert.ok(lines[0].length <= 100, lines[0]);
     assert.match(got.lines.at(-1), new RegExp(`: ${state}, 12 tests, 3 minutes\\.$`));
     assert.deepEqual([lastRecord(dir).state, lastRecord(dir).suite_state], ['red', state]);
+    assert.deepEqual(lastRecord(dir).reasons, lines.map((line) => line.trim()));
   }
 });
 
