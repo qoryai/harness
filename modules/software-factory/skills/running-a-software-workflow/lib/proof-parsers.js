@@ -93,10 +93,20 @@ module.exports = (lib) => {
     return found;
   }
 
-  // classes returns the classes of a dump line with a list of them, or null.
+  // classes returns the classes of a dump line, as the list of the keys of its CLASSES, or null.
+  // An ELEMENT line is JSON, and a class list is the value of one of its attributes.
   function classes(line) {
+    if (line.startsWith('ELEMENT ')) {
+      try {
+        const found = JSON.parse(line.slice(8))[2].map((attr) => attr[attr.length - 1])
+          .filter((value) => typeof value === 'string' && value.startsWith('CLASSES '));
+        return found.length ? found.flatMap((value) => value.slice(8).split(' ')) : null;
+      } catch {
+        return null;
+      }
+    }
     const at = line.indexOf('CLASSES ');
-    return at < 0 ? null : line.slice(at + 8).replace(/["\]\\,}]+$/, '').split(' ');
+    return at < 0 ? null : line.slice(at + 8).split(' ');
   }
 
   // classChange returns the first class of the two lines of a difference that the table of

@@ -27,6 +27,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const { layout, shellComments } = require('./layout.js');
+
 // The absolute paths of the interpreters. Only the tests change them, in the test process.
 const TOOLS = { bash: '/bin/bash', python: '/usr/bin/python3' };
 const LIMIT_MS = 10000;
@@ -41,7 +43,7 @@ const LANGUAGES = { '.sh': 'sh', '.bash': 'sh', '.py': 'py' };
 // The program that prints the dump of a Python file: stdin is the file, stdout the dump, and
 // stderr "parse error: <reason>" with exit status 3 when the file does not parse.
 const PY_DUMP = String.raw`
-import ast, io, re, sys, tokenize
+import ast, io, json, re, sys, tokenize
 PY_DIRECTIVE = re.compile(
     r"noqa|nosec|pragma\s*:?\s*no\s*(cover|branch)|(^|#)\s*type\s*:"
     r"|\b(pyright|mypy|pylint|isort|fmt|ruff|yapf|pyre|pytype)\s*:"
@@ -51,6 +53,46 @@ PY_DIRECTIVE = re.compile(
 )
 PY_CODING = re.compile(rb"^[ \t\f]*#.*?coding[:=]", re.I)
 MODE = sys.argv[1] if len(sys.argv) > 1 else "comment"
+
+def layout(text, comments, masks):
+    """The text with the comments left out and each mask replaced by one mark (lib/layout.js)."""
+    ranges = sorted([(s, min(e, len(text)), True) for s, e in masks] +
+                    [(s, min(e, len(text)), False) for s, e in comments],
+                    key=lambda r: (r[0], -r[1]))
+    ranges = [r for r in ranges if 0 <= r[0] < r[1]]
+    out, at = [], 0
+    for s, e, mask in ranges:
+        if s < at:
+            continue
+        if mask:
+            out.append(text[at:s])
+            out.append("\u0001")
+            at = e
+            continue
+        frm = s
+        while frm > at and text[frm - 1] in " \t":
+            frm -= 1
+        line_start = frm == 0 or text[frm - 1] in "\r\n"
+        after = e
+        while after < len(text) and text[after] in " \t":
+            after += 1
+        line_end = after >= len(text) or text[after] in "\r\n"
+        if line_start and line_end:
+            to = after
+            if text[to:to + 2] == "\r\n":
+                to += 2
+            elif to < len(text):
+                to += 1
+            out.append(text[at:frm])
+            at = to
+        elif line_start:
+            out.append(text[at:s])
+            at = after
+        else:
+            out.append(text[at:frm])
+            at = e
+    out.append(text[at:])
+    return re.sub(r"[ \t]+(?=\r?\n|\r|$)", "", "".join(out))
 def fail(reason):
     sys.stderr.write("parse error: " + reason.replace("\n", " ") + "\n")
     sys.exit(3)
@@ -129,6 +171,22 @@ try:
             out.append("%s STR" % tokenize.tok_name[t.type])
         else:
             out.append("%s %r" % (tokenize.tok_name[t.type], t.string))
+    # The layout: the text without the comments, and with each masked string a mark.
+    src = data.decode(tokenize.detect_encoding(io.BytesIO(data).readline)[0])
+    starts, total = [], 0
+    for one in src.split("\n"):
+        starts.append(total)
+        total += len(one) + 1
+    comment_ranges, mask_ranges = [], []
+    fstring_middle = getattr(tokenize, "FSTRING_MIDDLE", -1)
+    for t in tokenize.generate_tokens(io.StringIO(src).readline):
+        if t.type == tokenize.COMMENT and MODE != "text" and not PY_DIRECTIVE.search(t.string):
+            comment_ranges.append((starts[t.start[0] - 1] + t.start[1],
+                                   starts[t.end[0] - 1] + t.end[1]))
+        elif MODE == "text" and t.type in (tokenize.STRING, fstring_middle):
+            mask_ranges.append((starts[t.start[0] - 1] + t.start[1],
+                                starts[t.end[0] - 1] + t.end[1]))
+    out.append("LAYOUT " + json.dumps(layout(src, comment_ranges, mask_ranges)))
 except RecursionError:
     fail("the file nests too deeply")
 except MemoryError:
@@ -215,6 +273,10 @@ module.exports = (lib) => {
     for (const line of lines) {
       if (SHELL_DIRECTIVE.test(line)) out.push(`DIRECTIVE ${line.trim()}`);
     }
+    // The layout leaves out each comment but a directive and the shebang.
+    const kept = shellComments(text).filter(([start, end]) => !(start === 0 && text[1] === '!') &&
+      !SHELL_DIRECTIVE.test(text.slice(start, end)));
+    out.push(`LAYOUT ${JSON.stringify(layout(text, kept))}`);
     return { dump: out.join('\n') };
   }
 
@@ -294,6 +356,10 @@ module.exports = (lib) => {
   const LEFT_OUT = { comment: 'the comments are left out', text: 'the text values are masked',
     look: 'the look values are masked' };
 
+  // What the layout leaves out, by mode, for the cause of a change of layout.
+  const LEFT_OUT_OF = { comment: 'the comments', text: 'the text values',
+    look: 'the look values' };
+
   // compare returns the problems of one changed file as a list of { fix, cause }, or [] for a
   // file whose two dumps are the same: dumpOf(bytes) returns { dump } or { problem, closes },
   // note is added to the cause of a file that does not parse.
@@ -309,6 +375,10 @@ module.exports = (lib) => {
     }
     if (dumps[0] === dumps[1]) return [];
     const found = difference(dumps[0], dumps[1]);
+    if (found.before.startsWith('LAYOUT') || found.after.startsWith('LAYOUT')) {
+      return [{ fix: 'layout', cause: `The text outside ${LEFT_OUT_OF[mode]} has other white space ` +
+        'or other characters at HEAD.' }];
+    }
     return [{ fix: found.directive ? 'directive' : 'code', before: found.before,
       after: found.after, cause: `The first difference once ${LEFT_OUT[mode]}: ` +
         `${short(found.before)} became ${short(found.after)}.` }];

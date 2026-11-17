@@ -256,6 +256,20 @@ for (const word of ['nosemgrep', 'lgtm[js/x]', 'gitleaks:allow', 'pragma: allowl
 COMMENT_CASES.push(['sql-suppression', { 'a.sql': '-- note\nSELECT 1;\n' }, { 'a.sql': '-- nosemgrep\nSELECT 1;\n' }, 1]);
 COMMENT_CASES.push(['html-suppression', { 'a.html': h('<!-- a -->') }, { 'a.html': h('<!-- nosemgrep -->') }, 1]);
 
+// A change of white space outside the comments, with a change of a comment, fails; a comment added,
+// removed or moved with its line passes.
+COMMENT_CASES.push(
+  ['ts: a comment and spaces around code', { 'a.ts': '// a\nconst x=1+2;\n' }, { 'a.ts': '// b\nconst x = 1 + 2;\n' }, 1],
+  ['ts: a comment and a new indentation', { 'a.ts': 'if (a) {\n  b(); // a\n}\n' }, { 'a.ts': 'if (a) {\n    b(); // b\n}\n' }, 1],
+  ['ts: a comment line removed passes', { 'a.ts': '// a\nf();\n' }, { 'a.ts': 'f();\n' }, 0],
+  ['ts: a comment line removed in a block passes', { 'a.ts': 'if (a) {\n  // a\n  b();\n}\n' }, { 'a.ts': 'if (a) {\n  b();\n}\n' }, 0],
+  ['ts: a trailing comment added passes', { 'a.ts': 'f();\n' }, { 'a.ts': 'f(); // a\n' }, 0],
+  ['ts: a block comment before code passes', { 'a.ts': '  f();\n' }, { 'a.ts': '  /* a */ f();\n' }, 0],
+  ['ts: a blank line added with a comment fails', { 'a.ts': '// a\nf();\n' }, { 'a.ts': '// b\n\nf();\n' }, 1],
+  ['sql: a comment and spaces', { 'a.sql': '-- a\nselect 1+2;\n' }, { 'a.sql': '-- b\nselect 1 + 2;\n' }, 1],
+  ['sql: a comment line removed passes', { 'a.sql': '-- a\nselect 1;\n' }, { 'a.sql': 'select 1;\n' }, 0],
+  ['html: a comment and spaces', { 'a.html': h('<!-- a --><p>a</p>') }, { 'a.html': h('<!-- b --><p>a </p>') }, 1],
+);
 cases(COMMENT, COMMENT_CASES);
 // A TypeScript file and a Python file, both with comments only.
 test('a comment: two languages, comments only', { skip: NO_PARSERS || NO_PYTHON }, () => {
@@ -299,6 +313,11 @@ const TEXT_CASES = [
   ['html: a changed tag fails', { 'a.html': h('<p>Hi</p>') }, { 'a.html': h('<div>Hi</div>') }, 1],
   ['html: a changed comment fails', { 'a.html': h('<!-- a --><p>Hi</p>') }, { 'a.html': h('<!-- b --><p>Hi</p>') }, 1],
 ];
+TEXT_CASES.push(
+  ['a string and spaces around code', { 'a.ts': "export const a = 'x';\n" }, { 'a.ts': "export  const a = 'y';\n" }, 1],
+  ['a string and a new line', { 'a.ts': "export const a = 'x';\n" }, { 'a.ts': "export const a =\n  'y';\n" }, 1],
+  ['html: a text and spaces in a tag', { 'a.html': h('<p class="a">x</p>') }, { 'a.html': h('<p  class="a">y</p>') }, 1],
+);
 cases(TEXT, TEXT_CASES);
 
 const PY_TEXT_CASES = [
@@ -386,12 +405,34 @@ for (const [prop, value] of [['color', 'color-mix(in srgb, red 50%, blue)'],
   LOOK_CASES.push([`a value with ${value.split('(')[0]} passes`, { 'a.css': `a { ${prop}: #fff; }\n` },
     { 'a.css': `a { ${prop}: ${value}; }\n` }, 0]);
 }
+LOOK_CASES.push(
+  ['a value and spaces in CSS', { 'a.css': 'a{color:red}\n' }, { 'a.css': 'a { color: blue }\n' }, 1],
+  ['a value and an indentation in CSS', { 'a.css': 'a {\n  color: red;\n}\n' }, { 'a.css': 'a {\n    color: blue;\n}\n' }, 1],
+  ['a value in CSS with the same layout passes', { 'a.css': 'a { color : red ; }\n' }, { 'a.css': 'a { color : blue ; }\n' }, 0],
+  ['a value and spaces in SCSS', { 'a.scss': '$a:#333;\n' }, { 'a.scss': '$a: #444;\n' }, 1],
+  ['a class and spaces in a tag', { 'a.tsx': 'export const A = <div className="p-2">x</div>;\n' }, { 'a.tsx': 'export const A = <div  className="p-4">x</div>;\n' }, 1],
+  ['a design token and an indentation', { 'a.tokens.json': '{\n  "c": { "$value": "#333", "$type": "color" }\n}\n' }, { 'a.tokens.json': '{\n    "c": { "$value": "#444", "$type": "color" }\n}\n' }, 1],
+  ['a design token with the same layout passes', { 'a.tokens.json': '{\n  "c": { "$value": "#333", "$type": "color" }\n}\n' }, { 'a.tokens.json': '{\n  "c": { "$value": "#4444", "$type": "color" }\n}\n' }, 0],
+  ['a CSS-in-JS value and spaces', { 'a.ts': "export const s = { color: 'red' };\n" }, { 'a.ts': "export const s = {color: 'blue'};\n" }, 1],
+  ['a CSS-in-JS template value and spaces', { 'a.ts': 'export const B = css`color:red;`;\n' }, { 'a.ts': 'export const B = css`color: blue;`;\n' }, 1],
+  ['a class with an arbitrary value ends with a bracket', { 'a.tsx': 'export const A = <div className="text-[#fff] p-2">x</div>;\n' }, { 'a.tsx': 'export const A = <div className="text-[#000] p-2">x</div>;\n' }, 1],
+);
 cases(LOOK, LOOK_CASES);
 
 test('a class that the table lacks says to propose the standard track', { skip: NO_PARSERS }, () => {
   const found = run(LOOK, { 'a.tsx': CLASSES }, { 'a.tsx': r(CLASSES, 'p-2', 'flex') });
   assert.equal(found.length, 1);
   assert.match(found[0], /^Propose the standard track: the class "flex" is not a look-only class\./);
+});
+
+test('a class with an arbitrary value is named whole, with its brackets', { skip: NO_PARSERS }, () => {
+  const base = 'export const A = <div className="text-[#fff]">x</div>;\n';
+  const found = run(LOOK, { 'a.tsx': base }, { 'a.tsx': r(base, 'text-[#fff]', 'text-[#000]') });
+  assert.equal(found.length, 1);
+  assert.match(found[0], /^Propose the standard track: the class "text-\[#fff\]" is not a look-only class\./);
+  const html = '<p class="text-[#fff]">x</p>';
+  const inHtml = run(LOOK, { 'a.html': h(html) }, { 'a.html': h(r(html, '[#fff]', '[#000]')) });
+  assert.match(inHtml[0], /^Propose the standard track: the class "text-\[#fff\]" is not a look-only class\./);
 });
 
 test('a layout change names the code that changed', { skip: NO_PARSERS }, () => {

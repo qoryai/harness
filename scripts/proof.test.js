@@ -457,6 +457,29 @@ test('prove: a folder of languages groups the files of the same name', () => {
   fails(prove(lacking), /^Add the entry "a" to "i18n\/de\/common\.json"/);
 });
 
+test('prove: a changed text and a new indentation of the translation file fail', () => {
+  const en = { save: 'Save', cancel: 'Cancel' };
+  const run = scene({ 'locales/en.json': json(en), 'locales/de.json': json(en) }, TEXT);
+  const reindented = JSON.stringify({ ...en, save: 'Save it' }, null, 4);
+  commit(run.dir, { 'locales/en.json': `${reindented}\n` });
+  fails(prove(run), /^Take "locales\/en\.json" out of the commits since the base: it changes white space outside the texts\./);
+  // The same change with the layout of the file passes.
+  const same = scene({ 'locales/en.json': json(en), 'locales/de.json': json(en) }, TEXT);
+  commit(same.dir, { 'locales/en.json': json({ ...en, save: 'Save it' }) });
+  passes(prove(same));
+});
+
+test('prove: a byte of a character is no white space', () => {
+  // U+0120 is the bytes C4 A0, and a lone C4 is no UTF-8: read as text they differ, and read as
+  // single bytes, with A0 as a space, they would not.
+  const run = scene({ 'docs/a.md': 'Open \u0120.\n' });
+  fs.writeFileSync(path.join(run.dir, 'docs/a.md'), Buffer.concat([Buffer.from('Open '),
+    Buffer.from([0xc4]), Buffer.from('.\n')]));
+  sh(run.dir, 'add', '-A');
+  sh(run.dir, 'commit', '-q', '-m', 'bytes');
+  passes(prove(run));
+});
+
 test('prove: a new or a deleted language file, and white space alone, fail', () => {
   const added = scene(LOCALES, TEXT);
   commit(added.dir, { 'locales/fr.json': json(EN) });

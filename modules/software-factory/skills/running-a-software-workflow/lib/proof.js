@@ -227,6 +227,8 @@ module.exports = (lib) => {
     parse: (name) => `Make ${name} parse at both commits.`,
     closes: (name) => `Take the unmatched "}" out of ${name}: it closes the proof's wrapper.`,
     directive: (name) => `Take the change to a directive out of ${name}: a tool reads it.`,
+    layout: (name, problem, what) => `Take the white space change out of ${name}: only ${what} may ` +
+      'change.',
     code: (name, problem, what) => (problem.unknown
       ? `Propose the standard track: the class ${quote(cut(problem.unknown, 30))} is not a ` +
         'look-only class.'
@@ -279,7 +281,7 @@ module.exports = (lib) => {
         }
         const read = blobs(ctx, change, found);
         if (!read) continue;
-        if (whitespace(read.before.toString('latin1'), read.after.toString('latin1'))) {
+        if (whitespace(read.before.toString('utf8'), read.after.toString('utf8'))) {
           found.push(whitespaceFinding(ctx, change.file));
           continue;
         }

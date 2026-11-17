@@ -12,6 +12,7 @@
 'use strict';
 
 const git = require('./git.js');
+const { jsonLayout } = require('./layout.js');
 
 // The code of a language in a pattern: two or three letters, and parts after - or _.
 const LANG_CODE = '(?<lang>[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]+)*)';
@@ -147,8 +148,15 @@ module.exports = (lib) => {
         `At ${bad[0]}, ${bad[1].problem}.`));
         continue;
       }
+      const already = found.length;
       const keys = entriesProblem(ctx, change, before.entries, after.entries, expression, found,
         h);
+      if (found.length === already && jsonLayout(read.before) !== jsonLayout(read.after)) {
+        found.push(h.takeOut(ctx, change.file, 'it changes white space outside the texts',
+          'The kind changes the wording of entries, and the layout of the file, its white space ' +
+            'and its other characters, stays as at the start commit.'));
+        continue;
+      }
       if (keys.length) changed.push({ change, group, keys });
     }
     missingEntries(ctx, found, changed, patterns, h);

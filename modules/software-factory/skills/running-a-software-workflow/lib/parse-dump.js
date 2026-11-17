@@ -14,6 +14,8 @@
 //   shadow masked, in CSS, SCSS, CSS variables, design tokens, CSS-in-JS and the classes of
 //   Tailwind, by the tables in the JSON argument. Layout, @font-face and anything that loads a
 //   file never mask. Every comment stays in the dump.
+// The dump ends with a line LAYOUT: the text with the comments left out and each masked value
+// replaced by a mark (lib/layout.js), so that a change of white space outside them differs too.
 // It prints the dump on stdout and exits 0. A file that does not parse exits 2 with "parse error:
 // <reason>" on stderr, and a parser that the folder lacks exits 3 with "missing <package>". It
 // loads each parser with require() by its absolute path in the folder, and runs nothing of the
@@ -24,9 +26,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
+const { layout, jsonLayout } = require('./layout.js');
+
 const [folder, language, mode, dataText] = process.argv.slice(2);
 const data = JSON.parse(dataText || '{}');
-const text = fs.readFileSync(0).toString('utf8');
+const source = fs.readFileSync(0);
+const text = source.toString('utf8');
 const out = [];
 
 function fail(reason, code = 2) {
@@ -171,15 +176,24 @@ const classesLine = (value) => `CLASSES ${value.split(/\s+/).filter(Boolean).map
 
 // cssWalk pushes the dump of the postcss node to sink, at depth. raw is true inside a rule that
 // never counts, such as @font-face.
-function cssWalk(node, depth, raw, sink) {
+function cssWalk(node, depth, raw, sink, ranges, base) {
   const ind = ' '.repeat(depth);
   if (node.type === 'comment') {
     sink.push(`${ind}COMMENT ${JSON.stringify(node.text)}`);
     return;
   }
   if (node.type === 'decl') {
-    sink.push(ind + (raw ? `DECL ${node.prop}: ${node.value}${node.important ? ' !important' : ''}`
-      : declaration(node.prop, node.value, node.important)));
+    const line = raw ? `DECL ${node.prop}: ${node.value}${node.important ? ' !important' : ''}`
+      : declaration(node.prop, node.value, node.important);
+    sink.push(ind + line);
+    // A masked value is a range of the layout: from the colon and its white space to the end of
+    // the value, as postcss reads it.
+    if (!raw && ranges && /^DECL [^:]*<[a-z]+>/.test(line) && node.source && node.source.start) {
+      const value = (node.raws.value && node.raws.value.raw) || node.value;
+      const start = base + node.source.start.offset + node.prop.length +
+        (node.raws.between || ':').length;
+      ranges.push([start, start + value.trimEnd().length]);
+    }
     return;
   }
   let kept = raw;
@@ -193,14 +207,14 @@ function cssWalk(node, depth, raw, sink) {
   } else {
     sink.push(`${ind}${String(node.type).toUpperCase()}`);
   }
-  for (const child of node.nodes || []) cssWalk(child, depth + 1, kept, sink);
+  for (const child of node.nodes || []) cssWalk(child, depth + 1, kept, sink, ranges, base);
 }
 
-// cssLines returns the dump lines of the CSS source at depth, parsed with syntax, or throws the
-// syntax error.
-function cssLines(syntax, source, depth) {
+// cssLines returns the dump lines of the CSS text at depth, parsed with syntax, or throws the
+// syntax error. With ranges, it adds to it the range of each masked value, from base.
+function cssLines(syntax, css, depth, ranges = null, base = 0) {
   const sink = [];
-  cssWalk(syntax.parse(source), depth, false, sink);
+  cssWalk(syntax.parse(css), depth, false, sink, ranges, base);
   return sink;
 }
 
@@ -255,6 +269,8 @@ async function typescript() {
     return lines.length > 1 ? lines : [];
   }
 
+  const commentRanges = [];
+  const maskRanges = [];
   const seen = new Set();
   function comments(token) {
     const ranges = (ts.getLeadingCommentRanges(text, token.pos) || [])
@@ -267,6 +283,7 @@ async function typescript() {
         out.push(`COMMENT ${JSON.stringify(comment)}`);
       } else {
         if (DIRECTIVE.test(comment)) out.push(`DIRECTIVE ${JSON.stringify(comment)}`);
+        else commentRanges.push([range.pos, range.end]);
         if (jsFile && comment.startsWith('/**')) {
           for (const line of jsdocTags(comment)) out.push(`JSDOC ${line}`);
         }
@@ -377,6 +394,7 @@ async function typescript() {
           ? init.expression : null);
       if (value) {
         out.push(`${ind}JsxAttribute ${JSON.stringify(attributeName(node))} ${classesLine(value.text)}`);
+        maskRanges.push([value.getStart(sf), value.end]);
         sweep(node);
         return true;
       }
@@ -386,6 +404,9 @@ async function typescript() {
       const value = literalValue(node.initializer);
       if (GROUPS.has(prop) && value !== null) {
         out.push(`${ind}PropertyAssignment ${declaration(prop, value, false)}`);
+        if (/<[a-z]+>/.test(declaration(prop, value, false))) {
+          maskRanges.push([node.initializer.getStart(sf), node.initializer.end]);
+        }
         sweep(node);
         return true;
       }
@@ -403,8 +424,14 @@ async function typescript() {
         node.template.kind === K.NoSubstitutionTemplateLiteral &&
         CSS_TAG.test(node.tag.getText(sf).replace(/\s+/g, ''))) {
         try {
+          const found = [];
+          const lines = cssLines(postcss, node.template.text, 1, found,
+            node.template.getStart(sf) + 1);
+          // The offsets are those of the cooked text, so a template with an escape has none.
+          const exact = node.template.getText(sf).slice(1, -1) === node.template.text;
+          if (exact) maskRanges.push(...found);
           templates.set(node, [`TaggedTemplateExpression ${JSON.stringify(node.tag.getText(sf))}`,
-            ...cssLines(postcss, node.template.text, 1)]);
+            ...lines]);
         } catch {
           // A template that is no CSS is code, and walk dumps it as such.
         }
@@ -424,9 +451,11 @@ async function typescript() {
     for (const child of node.children) {
       if (child.kind === K.JsxText) {
         buffer += cookJsxText(child.getText(sf));
+        if (mode === 'text') maskRanges.push([child.pos, child.end]);
         comments(child);
       } else if (child.kind === K.JsxExpression && !child.expression && !child.dotDotDotToken) {
         for (const token of child.getChildren(sf)) comments(token);
+        if (mode === 'comment') commentRanges.push([child.getStart(sf), child.end]);
       } else {
         flush();
         walk(child, depth);
@@ -456,8 +485,9 @@ async function typescript() {
     let line = ind + K[node.kind];
     if (node.flags & ts.NodeFlags.BlockScoped) line += ` flags=${node.flags & ts.NodeFlags.BlockScoped}`;
     if (children.length === 0) {
-      line += mode === 'text' && MASKED.has(node.kind) && !codeString(node) ? ' STR'
-        : ` ${JSON.stringify(node.getText(sf))}`;
+      const masked = mode === 'text' && MASKED.has(node.kind) && !codeString(node);
+      if (masked) maskRanges.push([node.getStart(sf), node.end]);
+      line += masked ? ' STR' : ` ${JSON.stringify(node.getText(sf))}`;
       comments(node);
     }
     out.push(line);
@@ -465,6 +495,7 @@ async function typescript() {
   }
 
   walk(sf, 0);
+  out.push(`LAYOUT ${JSON.stringify(layout(text, commentRanges, maskRanges))}`);
 }
 
 // ---- SQL ------------------------------------------------------------------------------------
@@ -494,17 +525,25 @@ async function sql() {
     return value;
   };
   out.push(`TREE ${JSON.stringify(tree, strip, 1)}`);
+  // The offsets of the tokens are bytes, so the layout reads the text one byte to a character.
+  const bytes = source.toString('latin1');
+  const commentRanges = [];
+  const maskRanges = [];
   for (const token of scan.tokens) {
     const comment = token.tokenName === 'C_COMMENT' || token.tokenName === 'SQL_COMMENT';
     if (!comment) {
       const masked = mode === 'text' && ['SCONST', 'USCONST'].includes(token.tokenName);
+      if (masked) maskRanges.push([token.start, token.end]);
       out.push(`TOKEN ${JSON.stringify(masked ? 'STR' : token.text)}`);
     } else if (mode !== 'comment') {
       out.push(`COMMENT ${JSON.stringify(token.text)}`);
     } else if (SQL_DIRECTIVE.test(token.text)) {
       out.push(`DIRECTIVE ${JSON.stringify(token.text)}`);
+    } else {
+      commentRanges.push([token.start, token.end]);
     }
   }
+  out.push(`LAYOUT ${JSON.stringify(layout(bytes, commentRanges, maskRanges))}`);
 }
 
 // ---- HTML -----------------------------------------------------------------------------------
@@ -523,12 +562,29 @@ async function html() {
   // Scripting off: <noscript> content is parsed as markup, as a browser without JS does.
   const doc = parse(text, { sourceCodeLocationInfo: true, scriptingEnabled: false });
   const cut = [];
+  const maskRanges = [];
+
+  // valueRange adds the range of the value of an attribute of the element to the masks.
+  function maskValue(element, attr) {
+    const where = element.sourceCodeLocation && element.sourceCodeLocation.attrs &&
+      element.sourceCodeLocation.attrs[attr.name.toLowerCase()];
+    if (!where) return;
+    const equals = text.slice(where.startOffset, where.endOffset).indexOf('=');
+    if (equals >= 0) maskRanges.push([where.startOffset + equals + 1, where.endOffset]);
+  }
 
   function attribute(depth, element, attr) {
     const name = attr.name.toLowerCase();
-    if (mode === 'text' && TEXT_ATTRIBUTES.has(name)) return [attr.name, 'STR'];
-    if (mode === 'look' && name === 'class') return [attr.name, classesLine(attr.value)];
+    if (mode === 'text' && TEXT_ATTRIBUTES.has(name)) {
+      maskValue(element, attr);
+      return [attr.name, 'STR'];
+    }
+    if (mode === 'look' && name === 'class') {
+      maskValue(element, attr);
+      return [attr.name, classesLine(attr.value)];
+    }
     if (mode === 'look' && name === 'style') {
+      maskValue(element, attr);
       try {
         return [attr.name, cssLines(postcss, attr.value, 0).map((line) => line.trim()).join(' ')];
       } catch {
@@ -572,6 +628,11 @@ async function html() {
         }
       } else if (child.nodeName === '#text') {
         buffer = (buffer || '') + child.value;
+        const raw = ['script', 'style'].includes(tag);
+        if (child.sourceCodeLocation && ((mode === 'text' && !raw) ||
+          (mode === 'look' && tag === 'style'))) {
+          maskRanges.push([child.sourceCodeLocation.startOffset, child.sourceCodeLocation.endOffset]);
+        }
       } else if (child.nodeName === '#documentType') {
         flush();
         out.push(`${ind}DOCTYPE ${JSON.stringify([child.name, child.publicId, child.systemId])}`);
@@ -599,6 +660,7 @@ async function html() {
     rest += text.slice(at);
     out.push(`SOURCE WITHOUT COMMENTS ${JSON.stringify(rest)}`);
   }
+  out.push(`LAYOUT ${JSON.stringify(layout(text, mode === 'comment' ? cut : [], maskRanges))}`);
 }
 
 // ---- CSS, SCSS and design tokens -------------------------------------------------------------
@@ -607,7 +669,9 @@ async function css() {
   const postcss = await load('postcss');
   const syntax = language === 'scss' ? await load('postcss-scss') : postcss;
   try {
-    out.push(...cssLines(syntax, text, 0));
+    const ranges = [];
+    out.push(...cssLines(syntax, text, 0, ranges));
+    out.push(`LAYOUT ${JSON.stringify(layout(text, [], ranges))}`);
   } catch (error) {
     fail(error.reason || error.message);
   }
@@ -644,6 +708,7 @@ function tokens() {
     }
   };
   walk(value, 0, null, '');
+  out.push(`LAYOUT ${JSON.stringify(jsonLayout(text))}`);
 }
 
 // ---- python-free main -------------------------------------------------------------------------
