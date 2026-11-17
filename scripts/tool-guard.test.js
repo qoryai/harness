@@ -1203,4 +1203,16 @@ test('the body of a here-document with a quoted end is text, unless a shell can 
     `cat <<<'x' > a\nrm ${CHECK_PATH}`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
+  // A shell after a prefix, and an interpreter that runs code from its input, keep the body.
+  for (const runner of ['. /dev/stdin', 'source /dev/stdin', 'exec bash', 'env sh', 'command bash',
+    'busybox sh', '/bin/sh -s', 'eval "$(cat)"', 'python', 'python3', 'python3.12 -',
+    '/usr/bin/python3', 'node', 'perl', 'ruby', 'php', 'osascript', 'awk -f -', 'tclsh', 'lua',
+    'deno run -', 'xargs -I{} sh -c {}']) {
+    const command = `${runner} <<'EOF'\nrm ${CHECK_PATH}\nEOF`;
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
+  for (const command of [`cat > run.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
+    `cat > app.py <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
 });

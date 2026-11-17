@@ -495,9 +495,12 @@ function walk(parts, start) {
 // A here-document operator: group 1 is - for <<-, group 2 the word of a quoted end, as in
 // <<'EOF', <<"EOF" or <<\EOF, and group 3 the word of an unquoted end, as in <<EOF.
 const HEREDOC = /<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\([^\s;&|<>()'"]+)|([^\s;&|<>()'"]+))/y;
-// The commands that run the lines of a here-document as commands or as their words.
-const RUNS_INPUT = new RegExp('(?:^|[^\\w.-])(?:sh|bash|zsh|dash|ksh|mksh|fish|eval|source|' +
-  'xargs|parallel)(?![\\w.-])');
+// A word of a command that runs the lines of a here-document as commands, as their words, or
+// as code: a shell, `.`, source, eval, xargs or parallel, or an interpreter that runs code from
+// its input, by its name after a folder and with a version, as in /usr/bin/python3.12.
+const RUNS_INPUT = new RegExp('(?:^|[\\s;&|(`])(?:\\.(?=\\s)|(?:[^\\s;&|()`]*/)?(?:sh|bash|zsh|' +
+  'dash|ksh|mksh|fish|eval|source|xargs|parallel|python|node|nodejs|perl|ruby|php|osascript|' +
+  'awk|gawk|mawk|nawk|tclsh|lua|luajit|deno|bun)[\\d.]*(?=$|[\\s;&|)`]))');
 
 // dropBodies returns command without the body of each here-document whose end word is quoted,
 // such as <<'EOF', because the shell reads such a body as text, with no $( ... ) or
