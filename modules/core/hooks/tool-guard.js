@@ -692,8 +692,8 @@ function walk(parts, start, flags) {
 // <<'EOF', <<"EOF" or <<\EOF, and group 3 the word of an unquoted end, as in <<EOF.
 const HEREDOC = /<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\([^\s;&|<>()'"]+)|([^\s;&|<>()'"]+))/y;
 // The commands whose input is text that they copy to a file or to their output, as in
-// `cat > a.ts <<'EOF'`.
-const READERS = new Set(['cat', 'tee']);
+// `cat > a.ts <<'EOF'`, and apply_patch, whose input is a patch whose files patchPaths reads.
+const READERS = new Set(['cat', 'tee', 'apply_patch']);
 // A function definition, as in `cat() { sh; }`, `cat () { sh; }` or `function cat { sh; }`, in
 // any form and with any name, so that a function named cat or tee is never read as cat or tee.
 const DEFINES = /(?:^|[^\w$-])function(?![\w-])|\(\s*\)/;
@@ -702,9 +702,9 @@ const DEFINES = /(?:^|[^\w$-])function(?![\w-])|\(\s*\)/;
 const PLAIN = new Set(['echo', 'ls', 'mkdir', 'true']);
 
 // dropBodies returns command without the body of each here-document whose end word is quoted,
-// such as <<'EOF', and whose command, after PREFIXES, is cat or tee with no pipe after it,
-// because the shell reads such a body as text, with no $( ... ) or backticks, and passes it
-// to cat or tee as their input. Any other command could run the lines of the body, so its
+// such as <<'EOF', and whose command, after PREFIXES, is one of READERS with no pipe after
+// it, because the shell reads such a body as text, with no $( ... ) or backticks, and passes
+// it to that command as its input. Any other command could run the lines of the body, so its
 // body stays. It reads the command once, line by line, and returns it as it is when a body
 // has no end, when the command ends in a quote or after a backslash, when heredocs returns
 // null, when another command of the lines outside the bodies is not one of PLAIN or a cat or
@@ -1236,9 +1236,10 @@ function names(full, cwds, root) {
 // tool_name, tool_input, cwd and, in an agent's call, agent_id; cwd only resolves the paths
 // of the call. root is the working folder of the run, as rootOf of step-limit.js finds it;
 // with no root, decide denies each write and shell command. locked returns the files of the
-// lock, as lockedFiles does; it runs only for a write below root.
+// lock, as lockedFiles does; it runs only for a write below root. runFolder is the artifact
+// folder of a run, as end-gate.js has it, unless the caller sets another.
 function decide({ input, env = process.env, script = process.argv[1], locked, root: start,
-  deadline }) {
+  deadline, runFolder }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   if (call.kind === 'agent') return call.reason;
@@ -1279,10 +1280,12 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   if (agent) return null;
-  const artifacts = artifactFolder(root, env);
+  const artifacts = artifactFolder(root, env, runFolder);
   const outside = paths.find((full) => !artifacts || !inside(full, artifacts));
   if (!outside) return null;
-  if (!artifacts) return `${LINKED}${folder(root, env)} is a link; this call writes ${outside}.`;
+  if (!artifacts) {
+    return `${LINKED}${folder(root, env, runFolder)} is a link; this call writes ${outside}.`;
+  }
   return `${MAIN}${artifacts}; this call writes ${outside}.`;
 }
 
@@ -1592,8 +1595,8 @@ function placeOf(input, root, env) {
 // env, with the folders above it read through their links, or null when the folder itself is
 // a link: an agent that replaces the folder with a link to / would make every write a write
 // in the artifact folder.
-function artifactFolder(root, env) {
-  const dir = folder(root, env);
+function artifactFolder(root, env, runFolder) {
+  const dir = folder(root, env, runFolder);
   try {
     if (fs.lstatSync(dir).isSymbolicLink()) return null;
   } catch {

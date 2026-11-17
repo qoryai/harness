@@ -60,9 +60,10 @@ function inputsFile(env = process.env) {
   return fs.existsSync(file) ? file : null;
 }
 
-// folder returns the artifact folder for a session in the working folder cwd.
-function folder(cwd, env = process.env) {
-  if (env.QORY_RUN_ID && fs.existsSync(RUN_FOLDER)) return RUN_FOLDER;
+// folder returns the artifact folder for a session in the working folder cwd. run is the
+// folder of a run, RUN_FOLDER unless the caller sets another.
+function folder(cwd, env = process.env, run = RUN_FOLDER) {
+  if (env.QORY_RUN_ID && fs.existsSync(run)) return run;
   return path.join(base(cwd, env), '.qory', 'artifacts');
 }
 

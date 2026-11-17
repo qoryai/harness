@@ -15,11 +15,16 @@ const test = require('node:test');
 const MODULES = path.join(__dirname, '../modules');
 const HOOKS = path.join(MODULES, 'core', 'hooks');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
-const { decide, lockedFiles, patchPaths, countsAsWrite } = require(path.join(HOOKS,
-  'tool-guard.js'));
+const guardModule = require(path.join(HOOKS, 'tool-guard.js'));
+const { lockedFiles, patchPaths, countsAsWrite } = guardModule;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tool-guard-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+// The artifact folder of a run, which no test makes, so that a /tmp/qory-artifacts that
+// another run left on this machine changes no test.
+const RUN_FOLDER = path.join(tmp, 'qory-artifacts');
+const decide = (args) => guardModule.decide({ runFolder: RUN_FOLDER, ...args });
 
 let folders = 0;
 const next = (name) => path.join(tmp, `${name}-${++folders}`);
@@ -383,7 +388,13 @@ test('patchPaths reads each file of a Codex patch', () => {
 function harnessHome() {
   const home = next('home');
   fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
-  fs.symlinkSync(HOOKS, path.join(home, 'hooks'));
+  // The hooks are a copy whose artifact folder of a run is RUN_FOLDER.
+  fs.cpSync(HOOKS, path.join(home, 'hooks'), { recursive: true });
+  const gate = path.join(home, 'hooks', 'end-gate.js');
+  const text = fs.readFileSync(gate, 'utf8');
+  const line = "const RUN_FOLDER = '/tmp/qory-artifacts';";
+  assert.ok(text.includes(line), 'end-gate.js sets the artifact folder of a run');
+  fs.writeFileSync(gate, text.replace(line, `const RUN_FOLDER = ${JSON.stringify(RUN_FOLDER)};`));
   for (const module of ['core', 'software-factory']) {
     fs.symlinkSync(path.join(MODULES, module), path.join(home, 'modules', module));
   }
@@ -932,7 +943,7 @@ test('only a write below the working folder outside .qory/, or a push, resets th
 test('a writer at the limit writes its draft in the artifact folder, and the count resets', () => {
   const { folder } = require(path.join(HOOKS, 'end-gate.js'));
   const { root, env, hook } = stepRun();
-  const artifacts = folder(root, env);
+  const artifacts = folder(root, env, RUN_FOLDER);
   const place = { cwd: root, root,
     artifacts: fs.existsSync(artifacts) ? fs.realpathSync.native(artifacts) : artifacts };
   assert.equal(countsAsWrite('Write', { file_path: path.join(artifacts, 'spec.md') }, place),
