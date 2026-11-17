@@ -82,7 +82,8 @@ const REMOVERS = new Set(['rm', 'rmdir', 'unlink', 'mv']);
 const PREFIXES = { env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string'],
   command: [], exec: ['-a'], nice: ['-n', '--adjustment'],
   timeout: ['-s', '--signal', '-k', '--kill-after'],
-  sudo: ['-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T'], nohup: [],
+  sudo: ['-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T'],
+  sudoedit: ['-u', '-g', '-C', '-D', '-h', '-p', '-r', '-t', '-U', '-T'], nohup: [],
   time: ['-f', '--format', '-o', '--output'], stdbuf: ['-i', '-o', '-e'],
   xargs: ['-I', '-L', '-n', '-P', '-s', '-d', '-E', '-a', '--arg-file', '--delimiter',
     '--max-args', '--max-procs', '--max-chars', '--max-lines', '--replace', '--eof'],
@@ -221,7 +222,7 @@ function commands(command, depth = 0) {
   if (depth >= SHELL_DEPTH) return out;
   for (const match of command.matchAll(SHELL_C)) {
     const text = match[1] === '"' ? match[2].replace(/\\(["\\$`])/g, '$1') : match[2];
-    out.push(...commands(text, depth + 1));
+    for (const one of commands(text, depth + 1)) out.push(one);
   }
   return out;
 }
@@ -367,7 +368,7 @@ function braces(word) {
 // The short options of time and sudo that take a value, as in `time -f %e -o <file>`; in a
 // group of short options, as in `time -ao <file>`, the value is the rest of the group or the
 // next word.
-const VALUED = { time: 'fo', sudo: 'ugCDhprtUT' };
+const VALUED = { time: 'fo', sudo: 'ugCDhprtUT', sudoedit: 'ugCDhprtUT' };
 
 // prefixOutputs reads the option of a word of PREFIXES at words[at], as in `time -o <file>`
 // or `sudo -e <file>`, and returns { skip, files, edit }: skip is the number of words that
@@ -401,7 +402,7 @@ function prefixOutputs(prefix, words, at) {
 // GROUPS, and each word of PREFIXES with its options and, for timeout, its time. dirs are the
 // folders that `env -C <folder>` or `env --chdir=<folder>` runs the command in. outputs are
 // the words of the files that a prefix writes: `time -o <file>`, and each file after the
-// options of `sudo -e`, which edits them.
+// options of `sudo -e` or sudoedit, which edit them.
 function commandWords(words) {
   const dirs = [];
   const outputs = [];
@@ -415,6 +416,7 @@ function commandWords(words) {
     }
     const prefix = path.basename(word);
     if (!Object.hasOwn(PREFIXES, prefix)) break;
+    if (prefix === 'sudoedit') edit = true;
     at += 1;
     while (at < words.length && words[at].startsWith('-')) {
       const option = unquote(words[at]);
@@ -424,7 +426,7 @@ function commandWords(words) {
       if (prefix === 'env' && option.startsWith('--chdir=')) dirs.push(option.slice(8));
       const read = prefixOutputs(prefix, words, at);
       if (read) {
-        outputs.push(...read.files);
+        for (const file of read.files) outputs.push(file);
         edit = edit || read.edit;
         at += read.skip;
       } else at += PREFIXES[prefix].includes(words[at]) ? 2 : 1;
@@ -433,8 +435,7 @@ function commandWords(words) {
     if (edit) break;
   }
   const rest = words.slice(at);
-  if (edit) outputs.push(...rest);
-  return { words: rest, dirs, outputs };
+  return { words: rest, dirs, outputs: edit ? outputs.concat(rest) : outputs };
 }
 
 // segments returns the simple commands of a shell command and of the text of each shell in it
@@ -561,13 +562,15 @@ const PLAIN = new Set(['echo', 'ls', 'mkdir', 'true']);
 function dropBodies(command) {
   if (!command.includes('<<')) return command;
   const kept = [];
+  // The here-documents whose bodies come next, from pending[head] on.
   const pending = [];
+  let head = 0;
   const scan = heredocs();
   let dropped = false;
   for (const line of command.split('\n')) {
-    if (pending.length) {
-      const [{ end, dash, drop }] = pending;
-      if ((dash ? line.replace(/^\t+/, '') : line) === end) pending.shift();
+    if (head < pending.length) {
+      const { end, dash, drop } = pending[head];
+      if ((dash ? line.replace(/^\t+/, '') : line) === end) head += 1;
       if (drop) dropped = true;
       else kept.push(line);
       continue;
@@ -575,9 +578,9 @@ function dropBodies(command) {
     kept.push(line);
     const found = scan.next(line);
     if (!found) return command;
-    pending.push(...found);
+    for (const one of found) pending.push(one);
   }
-  if (pending.length || scan.open() || !dropped || scan.other()) return command;
+  if (head < pending.length || scan.open() || !dropped || scan.other()) return command;
   const rest = kept.join('\n');
   return DEFINES.test(rest) ? command : rest;
 }

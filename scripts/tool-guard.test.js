@@ -152,7 +152,8 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
       `time -o ${file} true`, `/usr/bin/time -o ${file} true`,
       `command time --output=${file} true`, `time -a -o ${file} true`, `time -ao ${file} true`,
       `time -o${file} true`, `time --output ${file} true`, `env time -f %e -o '${file}' true`,
-      `sudo -e ${file}`, `sudo --edit ${file}`, `sudo -u root -e ${file}`]) {
+      `sudo -e ${file}`, `sudo --edit ${file}`, `sudo -u root -e ${file}`,
+      `sudoedit ${file}`, `/usr/bin/sudoedit -u root ${file}`]) {
       firstLine(guard(claude('Bash', { command }, 'implementer')), start);
       firstLine(guard(codex('Bash', { command })), start);
     }
@@ -1198,6 +1199,15 @@ test('the guard reads 256 KB of one character beside a here-document in under 50
       const ms = Number(process.hrtime.bigint() - start) / 1e6;
       assert.ok(ms < 500, `${JSON.stringify(char)}: ${ms} ms`);
     }
+  }
+});
+
+test('a call of 1 MB with many words or operators returns a decision', () => {
+  const MB = 1 << 20;
+  for (const command of [`sudo -e ${'a '.repeat(MB / 2)}`, `sudoedit ${'a '.repeat(MB / 2)}`,
+    `cat ${'<<a '.repeat(MB / 4)}\na`, `sh -c "${"sh -c 'a' ".repeat(MB / 10)}"`]) {
+    const reason = guard(codex('Bash', { command }, 'implementer'));
+    assert.ok(reason === null || typeof reason === 'string');
   }
 });
 

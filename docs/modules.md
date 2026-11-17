@@ -1145,8 +1145,8 @@ guard skips the options before the subcommand, and passes a `restore` with `--st
 deep. It skips the options before `-c`, `-o <value>` and `-O <value>` included. The guard
 reads the command after `env`, `command`, `exec`, `nice`, `timeout`, `sudo`, `nohup`,
 `time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with their options, and reads the
-file of `time -o`, `--output` or `--output=`, and each file after `sudo -e` or
-`sudo --edit`, as a file that the command writes, and in a group such as `( ... )`,
+file of `time -o`, `--output` or `--output=`, and each file after `sudo -e`, `sudo --edit`
+or `sudoedit`, as a file that the command writes, and in a group such as `( ... )`,
 `{ ...; }`, `then ...`, `$( ... )` or backticks. It reads `>|` as a redirect, as `>`. It
 skips the body of a here-document whose end word is quoted, such as `<<'EOF'`, only when the
 command of the here-document, after the words before a command, is `cat` or `tee` with no
