@@ -121,7 +121,6 @@
       ],
       "javascript": {
         "output_calls": {
-          "print": 0,
           "console.log": 0,
           "console.info": 0,
           "console.warn": 0,

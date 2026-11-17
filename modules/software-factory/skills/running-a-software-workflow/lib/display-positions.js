@@ -12,6 +12,10 @@
 //   last part starts with a capital letter and ends with `Error`, such as `Error`, `TypeError`
 //   and `errors.HttpError`, and never `setError` or `handleError`). The first entry that matches
 //   a name sets the index.
+// Besides these tables, the dump of JSX and HTML never reads the text of <script>, <style> and
+// <noscript> as text, and never an attribute of <link> and <style>. In TypeScript and JavaScript,
+// an error counts only as `new X(...)` or `throw X(...)` with a bare name X, as `raise` does in
+// Python.
 // A string passes the proof as text only when it is itself one of these places, never by the
 // name that it was bound to or the expression that contains it (lib/parse-dump.js for
 // TypeScript, JavaScript and HTML, lib/proof-comments.js for Python), and when the deny list of

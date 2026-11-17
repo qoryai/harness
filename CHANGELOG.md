@@ -609,8 +609,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   when the string is itself in a display position: JSX text, an HTML or JSX attribute
   (`title`, `alt`, `placeholder`, `label`, `aria-label`, `aria-description`), a JSX
   component prop (`label`, `title`, `text`, `message`, `description`, `placeholder`), the
-  message of `print`, `console.log` and its like, `logging.info` and its like, and of an
-  `Error` or `Exception` that `raise` or `throw` uses, or the default text of `t` and
+  message of `console.log` and its like, of `print` and `logging.info` and its like in
+  Python, and of an `Error` or `Exception` that `raise` or `throw` makes, or the default text of `t` and
   `i18n.t`. Before, each string passed unless a deny rule found it code. A string in a
   constant, an object, a condition, a concatenation or a template with a substitution now
   takes the standard track, and so does the text of `gettext` and `_`, which is also their

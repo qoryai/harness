@@ -236,6 +236,11 @@ const JS_CALLS = SHOWN.javascript;
 const ATTRIBUTES = new Set(SHOWN.attributes);
 const HTML_ATTRIBUTES = new Set(SHOWN.attributes.map((name) => name.toLowerCase()));
 const PROPS = new Set(SHOWN.props);
+// The elements whose content is code or a hint for a browser, never text for a person: their text
+// children are compared as code. The elements whose attributes select a style sheet group
+// (<link title> and <style title> name a group), so that no attribute of them is text.
+const CODE_CONTENT_TAGS = new Set(['script', 'style', 'noscript']);
+const NO_TEXT_ATTRIBUTE_TAGS = new Set(['link', 'style']);
 const CSS_TAG = new RegExp('^(?:css|keyframes|createGlobalStyle|injectGlobal|' +
   'styled(?:\\.[A-Za-z0-9_]+|\\([^)]*\\))(?:\\.attrs\\([^)]*\\))?)$');
 
@@ -347,9 +352,15 @@ async function typescript() {
   // attributes, or one of the props when the element is a component.
   function attributeShows(attribute) {
     const name = attributeName(attribute);
-    return ATTRIBUTES.has(name) ||
-      (PROPS.has(name) && isComponent(attribute.parent.parent.tagName.getText(sf)));
+    const tag = attribute.parent.parent.tagName.getText(sf);
+    if (NO_TEXT_ATTRIBUTE_TAGS.has(tag)) return false;
+    return ATTRIBUTES.has(name) || (PROPS.has(name) && isComponent(tag));
   }
+
+  // showsChildren reports whether the text children of a JSX element or fragment are text for a
+  // person: no for <script>, <style> and <noscript>.
+  const showsChildren = (element) => element.kind !== K.JsxElement ||
+    !CODE_CONTENT_TAGS.has(element.openingElement.tagName.getText(sf));
 
   // atArgument reports whether node is the argument of call that table lists for the callee:
   // the argument itself, with no spread before it.
@@ -360,6 +371,12 @@ async function typescript() {
     const list = call.arguments;
     return list[index] === node && !list.slice(0, index + 1).some((one) => one.kind === K.SpreadElement);
   }
+
+  // raisesError reports whether a call or a new expression makes an error, as Python's raise does:
+  // new X(...), or throw X(...), with a bare name as the callee. A call anywhere else, a method
+  // (x.Error(...)), a member class (new net.Error(...)) and a decorator are code.
+  const raisesError = (call) => call.expression.kind === K.Identifier &&
+    (call.kind === K.NewExpression || call.parent.kind === K.ThrowStatement);
 
   // displayText reports whether a string, or a template with no substitution, is a text for a
   // person: it is itself, with nothing around it, the value of an attribute or a prop of
@@ -376,10 +393,11 @@ async function typescript() {
       case K.JsxExpression: {
         const holder = parent.parent;
         if (holder.kind === K.JsxAttribute) return attributeShows(holder);
-        return holder.kind === K.JsxElement || holder.kind === K.JsxFragment;
+        return (holder.kind === K.JsxElement || holder.kind === K.JsxFragment) &&
+          showsChildren(holder);
       }
       case K.CallExpression: case K.NewExpression:
-        return atArgument(node, parent, JS_CALLS.error_calls) ||
+        return (raisesError(parent) && atArgument(node, parent, JS_CALLS.error_calls)) ||
           (parent.kind === K.CallExpression && (atArgument(node, parent, JS_CALLS.output_calls) ||
             atArgument(node, parent, JS_CALLS.i18n_calls)));
       default:
@@ -463,6 +481,7 @@ async function typescript() {
   }
 
   function walkJsxChildren(node, depth) {
+    const shown = showsChildren(node);
     let buffer = '';
     let plain = true;
     const flush = () => {
@@ -477,7 +496,7 @@ async function typescript() {
       if (child.kind === K.JsxText) {
         const cooked = cookJsxText(child.getText(sf));
         buffer += cooked;
-        if (!isPlain(cooked)) plain = false;
+        if (!shown || !isPlain(cooked)) plain = false;
         else if (mode === 'text') maskRanges.push([child.pos, child.end]);
         comments(child);
       } else if (child.kind === K.JsxExpression && !child.expression && !child.dotDotDotToken) {
@@ -602,7 +621,8 @@ async function html() {
 
   function attribute(depth, element, attr) {
     const name = attr.name.toLowerCase();
-    if (mode === 'text' && HTML_ATTRIBUTES.has(name) && isPlain(attr.value)) {
+    if (mode === 'text' && HTML_ATTRIBUTES.has(name) && isPlain(attr.value) &&
+      !NO_TEXT_ATTRIBUTE_TAGS.has(element.tagName)) {
       maskValue(element, attr);
       return [attr.name, 'STR'];
     }
