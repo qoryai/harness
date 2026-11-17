@@ -921,7 +921,7 @@ prints the hashes that the list must contain.
   commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
-  --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]`:
+  --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
   result that the agent writes changes the outcome. Besides the agents and skills of the
   harness home, it reads only its arguments; give each argument once. `--artifacts` is a
@@ -936,11 +936,10 @@ prints the hashes that the list must contain.
   version whose writer is neither `--run` nor a run of `--continues`, and that no cancelled
   run wrote. `--verdict` is a JSON file with the verdict body that the run recorded, such as
   `{"verdict":"passed"}`, or `{"verdict":null}` for none, where verdict is `passed`,
-  `changes-requested` or `escalate`. `--out` is the folder for `points.json`. `--suite` is
-  reserved: it takes a path, and the script reads nothing from it. All but `--continues`,
-  `--suite` and `--inputs` are required. Of the environment, it reads only `HOME`. After the
-  verdict `escalate`, it checks nothing and exits 0. Else the store needs the folder of the
-  base of each type, `<type>/<name>/v<N>/`, or the script exits 3 with "Run
+  `changes-requested` or `escalate`. `--out` is the folder for `points.json`. All but
+  `--continues` and `--inputs` are required. Of the environment, it reads only `HOME`.
+  After the verdict `escalate`, it checks nothing and exits 0. Else the store needs the
+  folder of the base of each type, `<type>/<name>/v<N>/`, or the script exits 3 with "Run
   `qory artifact pull <type> --version <N>`, then end again." and the line "The --store
   folder lacks <type> version N, the newest version from before the run.". It checks each
   draft at the top of the copy as `end` does, with the base of each type as its stored
@@ -2917,7 +2916,7 @@ the rule passes on that file.
     folder name, with the dot directly before it. `test`, `commit` and `deploy` have plain
     senses too, and core uses a plain word, such as check, record or send, in their place.
     Words that core needs in a sense outside software work stay off the list: `code`,
-    `merge`, `database`, `API`, `wireframe`, `mockup`, `suite`, `ticket` and `build`.
+    `merge`, `database`, `API`, `wireframe`, `mockup`, `ticket` and `build`.
     `checkout` and `bug` stay off too, because customer care uses them for a shop's checkout
     and a fault that a customer reports. `scripts/check.sh` states the reason for each word
     above `CORE_WORDS`. `simple-communication` is exempt, because it holds the writing rules

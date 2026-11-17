@@ -58,7 +58,6 @@ BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?
 #   binds an agent in every kind of work.
 # - API: the run API of Qory Apiary.
 # - wireframe and mockup: the picture of a screen, an email or a form.
-# - suite: the --suite flag of the end check.
 # - ticket: the work that a run takes in, in every kind of workspace.
 # - build: "build on it", for an answer that settles a question, and building a name.
 # checkout and bug appear in no file of core. A shop's checkout and a fault that a customer

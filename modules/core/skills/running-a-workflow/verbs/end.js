@@ -357,7 +357,7 @@ function end(io, folder) {
 
 // The usage of end --offline, on two lines.
 const OFFLINE_USAGE = 'end --offline --artifacts <dir> --store <dir> --verdict <file> ' +
-  '--out <dir>\n       --run <id> [--continues <id>[,<id>...]] [--suite <file>] [--inputs <file>]';
+  '--out <dir>\n       --run <id> [--continues <id>[,<id>...]] [--inputs <file>]';
 
 module.exports = {
   verbs: {
