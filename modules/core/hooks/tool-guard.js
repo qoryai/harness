@@ -495,61 +495,98 @@ function walk(parts, start) {
 // A here-document operator: group 1 is - for <<-, group 2 the word of a quoted end, as in
 // <<'EOF', <<"EOF" or <<\EOF, and group 3 the word of an unquoted end, as in <<EOF.
 const HEREDOC = /<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\([^\s;&|<>()'"]+)|([^\s;&|<>()'"]+))/y;
-// A word of a command that runs the lines of a here-document as commands, as their words, or
-// as code: a shell, `.`, source, eval, xargs or parallel, or an interpreter that runs code from
-// its input, by its name after a folder and with a version, as in /usr/bin/python3.12.
-const RUNS_INPUT = new RegExp('(?:^|[\\s;&|(`])(?:\\.(?=\\s)|(?:[^\\s;&|()`]*/)?(?:sh|bash|zsh|' +
-  'dash|ksh|mksh|fish|eval|source|xargs|parallel|python|node|nodejs|perl|ruby|php|osascript|' +
-  'awk|gawk|mawk|nawk|tclsh|lua|luajit|deno|bun)[\\d.]*(?=$|[\\s;&|)`]))');
+// The commands whose input is text that they copy to a file or to their output, as in
+// `cat > a.ts <<'EOF'`.
+const READERS = new Set(['cat', 'tee']);
 
 // dropBodies returns command without the body of each here-document whose end word is quoted,
-// such as <<'EOF', because the shell reads such a body as text, with no $( ... ) or
-// backticks, and passes it to the command as its input. It returns command as it is when the
-// rest of the command runs a shell, xargs or parallel, which could read the body as commands.
-// It reads the command once, line by line, and returns it as it is when a body has no end.
+// such as <<'EOF', and whose command, after PREFIXES, is cat or tee with no pipe after it,
+// because the shell reads such a body as text, with no $( ... ) or backticks, and passes it
+// to cat or tee as their input. Any other command could run the lines of the body, so its
+// body stays. It reads the command once, line by line, and returns it as it is when a body
+// has no end.
 function dropBodies(command) {
   if (!command.includes('<<')) return command;
   const kept = [];
   const pending = [];
+  let dropped = false;
   for (const line of command.split('\n')) {
     if (pending.length) {
       const [{ end, dash, drop }] = pending;
       if ((dash ? line.replace(/^\t+/, '') : line) === end) pending.shift();
-      if (!drop) kept.push(line);
+      if (drop) dropped = true;
+      else kept.push(line);
       continue;
     }
     kept.push(line);
     pending.push(...heredocs(line));
   }
-  const rest = kept.join('\n');
-  if (pending.length || rest.length === command.length || RUNS_INPUT.test(rest)) return command;
-  return rest;
+  return pending.length || !dropped ? command : kept.join('\n');
+}
+
+// reads reports whether text, a simple command with its here-document operators removed, is
+// cat or tee after PREFIXES other than xargs, which would run the command once for each line.
+function reads(text) {
+  const all = text.trim().split(/\s+/).filter(Boolean);
+  const { words } = commandWords(all);
+  const before = all.slice(0, all.length - words.length);
+  return words.length > 0 && READERS.has(words[0]) &&
+    !before.some((word) => path.basename(unquote(word)) === 'xargs');
 }
 
 // heredocs returns { end, dash, drop } of each here-document operator of line, in order: its
-// end word, whether it is <<-, and whether the end word is quoted. It skips a << in quotes,
+// end word, whether it is <<-, and whether its body is text to drop: the end word is quoted
+// and the command of the operator reads. A command ends at ; & | ( ) ` and the end of the
+// line, but not at the & or | of a redirect such as 2>&1, &> or >|; a command that ends at
+// a pipe, a ( or a backtick sends its input on, so its body stays. It skips a << in quotes,
 // after a backslash, or in a comment, which starts with a # at the start of a word.
 function heredocs(line) {
   const out = [];
   let quote = null;
+  let text = '';
+  let found = [];
+  const close = (after) => {
+    const reader = !/[|(`]/.test(after) && reads(text);
+    for (const one of found) out.push({ ...one, drop: one.quoted && reader });
+    text = '';
+    found = [];
+  };
   for (let at = 0; at < line.length; at += 1) {
     const char = line[at];
     if (quote) {
       if (char === quote) quote = null;
-      else if (char === '\\' && quote === '"') at += 1;
-    } else if (char === '\\') at += 1;
-    else if (char === "'" || char === '"') quote = char;
-    else if (char === '#' && (at === 0 || /\s/.test(line[at - 1]))) break;
+      else if (char === '\\' && quote === '"') {
+        text += char;
+        at += 1;
+      }
+      text += line[at] || '';
+    } else if (char === '\\') {
+      text += line.slice(at, at + 2);
+      at += 1;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+      text += char;
+    } else if (char === '#' && (at === 0 || /\s/.test(line[at - 1]))) break;
     else if (char === '<' && line[at + 1] === '<' && line[at + 2] !== '<') {
       HEREDOC.lastIndex = at;
       const match = HEREDOC.exec(line);
       if (match) {
         const quoted = match[2] || match[3] || match[4];
-        out.push({ end: quoted || match[5], dash: match[1] === '-', drop: Boolean(quoted) });
+        found.push({ end: quoted || match[5], dash: match[1] === '-', quoted: Boolean(quoted) });
+        text += ' ';
         at = HEREDOC.lastIndex - 1;
+      } else {
+        text += '<<';
+        at += 1;
       }
-    } else if (char === '<' && line[at + 1] === '<') at += 2;
+    } else if (char === '<' && line[at + 1] === '<') {
+      text += '<<<';
+      at += 2;
+    } else if (/[;)(`]/.test(char) || (char === '|' && line[at - 1] !== '>') ||
+      (char === '&' && !/[<>]/.test(line[at - 1] || '') && line[at + 1] !== '>')) close(char);
+    else text += char;
   }
+  close('');
   return out;
 }
 

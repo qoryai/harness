@@ -1181,7 +1181,7 @@ test('a wildcard path whose folder lies in the working folder counts as a write'
   }
 });
 
-test('the body of a here-document with a quoted end is text, unless a shell can run it', () => {
+test('the body of a here-document with a quoted end is text only for cat or tee', () => {
   const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   const MB = 1 << 20;
   const body = 'a.b(c);d&&e||f(g)/h.i>j;k=(l|m);'.repeat(Math.ceil(MB / 33));
@@ -1203,7 +1203,6 @@ test('the body of a here-document with a quoted end is text, unless a shell can 
     `cat <<<'x' > a\nrm ${CHECK_PATH}`]) {
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
-  // A shell after a prefix, and an interpreter that runs code from its input, keep the body.
   for (const runner of ['. /dev/stdin', 'source /dev/stdin', 'exec bash', 'env sh', 'command bash',
     'busybox sh', '/bin/sh -s', 'eval "$(cat)"', 'python', 'python3', 'python3.12 -',
     '/usr/bin/python3', 'node', 'perl', 'ruby', 'php', 'osascript', 'awk -f -', 'tclsh', 'lua',
@@ -1211,7 +1210,23 @@ test('the body of a here-document with a quoted end is text, unless a shell can 
     const command = `${runner} <<'EOF'\nrm ${CHECK_PATH}\nEOF`;
     firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
   }
+  // Any command other than cat or tee keeps the body: a shell by any name, a command that
+  // starts a shell, and a program that runs the commands of its input.
+  for (const runner of ["bash<<'EOF'", `"bash" <<'EOF'`, "b\\ash <<'EOF'", "$SHELL <<'EOF'",
+    `"$SHELL" -s <<'EOF'`, "$0 <<'EOF'", "bash-5.2 <<'EOF'", "ash <<'EOF'", "csh <<'EOF'",
+    "tcsh <<'EOF'", "pwsh <<'EOF'", "sudo -s <<'EOF'", "su - x <<'EOF'",
+    "ssh localhost <<'EOF'", "script -q /dev/null <<'EOF'", "at now <<'EOF'", "expect <<'EOF'",
+    "ex -s f <<'EOF'", "xargs tee <<'EOF'", "cat <<'EOF' 2>&1 | sh", "cat <<'EOF' > >(sh)"]) {
+    const command = `${runner}\nrm ${CHECK_PATH}\nEOF`;
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
+  for (const command of [`sqlite3 db <<'EOF'\n.shell rm ${CHECK_PATH}\nEOF`,
+    `make -f - <<'EOF'\nall:\n\trm ${CHECK_PATH}\nEOF`]) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
   for (const command of [`cat > run.sh <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
+    `tee -a notes.md > /dev/null <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
+    `X=1 command cat <<'EOF' > notes.md && echo done\nrm ${CHECK_PATH}\nEOF`,
     `cat > app.py <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
