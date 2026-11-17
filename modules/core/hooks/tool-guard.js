@@ -232,6 +232,7 @@ function commands(command, depth = 0) {
 // [ or ], or a backslash that quotes or a backslash made literal keeps a backslash before it,
 // so that the result is a pattern for globMatch whose live wildcards are the unquoted ones.
 function shellText(word, keep) {
+  if (!/['"\\]/.test(word)) return word;
   const one = (char) => (keep && /[*?[\]\\]/.test(char) ? `\\${char}` : char);
   let out = '';
   let quote = null;
@@ -399,8 +400,8 @@ function commandWords(words) {
 // known folders that the command can run in, as folders finds them from cwd; at the folder it
 // runs in, as walk finds it, or null when that is unknown; and dots whether a wildcard
 // matches a leading dot.
-function segments(command, cwd = process.cwd()) {
-  const texts = commands(command).map((one, index) => {
+function segments(command, cwd = process.cwd(), keep = () => true) {
+  const texts = commands(dropBodies(command)).map((one, index) => {
     // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
     const pieces = one.replace(/>\|/g, '>').replace(/\\[()]/g, ' ').split(/([;&|\n()`]+)/);
     const out = [];
@@ -419,7 +420,7 @@ function segments(command, cwd = process.cwd()) {
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
   const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
-  return parts.map(({ text, words, dirs, at }) => {
+  return parts.filter(keep).map(({ text, words, dirs, at }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
     const cwds = from.map((one) => known.reduce((to, dir) => path.resolve(to, dir), one));
@@ -489,6 +490,64 @@ function walk(parts, start) {
       at = stat && stat.isDirectory() ? next : null;
     }
   }
+}
+
+// A here-document operator: group 1 is - for <<-, group 2 the word of a quoted end, as in
+// <<'EOF', <<"EOF" or <<\EOF, and group 3 the word of an unquoted end, as in <<EOF.
+const HEREDOC = /<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\([^\s;&|<>()'"]+)|([^\s;&|<>()'"]+))/y;
+// The commands that run the lines of a here-document as commands or as their words.
+const RUNS_INPUT = new RegExp('(?:^|[^\\w.-])(?:sh|bash|zsh|dash|ksh|mksh|fish|eval|source|' +
+  'xargs|parallel)(?![\\w.-])');
+
+// dropBodies returns command without the body of each here-document whose end word is quoted,
+// such as <<'EOF', because the shell reads such a body as text, with no $( ... ) or
+// backticks, and passes it to the command as its input. It returns command as it is when the
+// rest of the command runs a shell, xargs or parallel, which could read the body as commands.
+// It reads the command once, line by line, and returns it as it is when a body has no end.
+function dropBodies(command) {
+  if (!command.includes('<<')) return command;
+  const kept = [];
+  const pending = [];
+  for (const line of command.split('\n')) {
+    if (pending.length) {
+      const [{ end, dash, drop }] = pending;
+      if ((dash ? line.replace(/^\t+/, '') : line) === end) pending.shift();
+      if (!drop) kept.push(line);
+      continue;
+    }
+    kept.push(line);
+    pending.push(...heredocs(line));
+  }
+  const rest = kept.join('\n');
+  if (pending.length || rest.length === command.length || RUNS_INPUT.test(rest)) return command;
+  return rest;
+}
+
+// heredocs returns { end, dash, drop } of each here-document operator of line, in order: its
+// end word, whether it is <<-, and whether the end word is quoted. It skips a << in quotes,
+// after a backslash, or in a comment, which starts with a # at the start of a word.
+function heredocs(line) {
+  const out = [];
+  let quote = null;
+  for (let at = 0; at < line.length; at += 1) {
+    const char = line[at];
+    if (quote) {
+      if (char === quote) quote = null;
+      else if (char === '\\' && quote === '"') at += 1;
+    } else if (char === '\\') at += 1;
+    else if (char === "'" || char === '"') quote = char;
+    else if (char === '#' && (at === 0 || /\s/.test(line[at - 1]))) break;
+    else if (char === '<' && line[at + 1] === '<' && line[at + 2] !== '<') {
+      HEREDOC.lastIndex = at;
+      const match = HEREDOC.exec(line);
+      if (match) {
+        const quoted = match[2] || match[3] || match[4];
+        out.push({ end: quoted || match[5], dash: match[1] === '-', drop: Boolean(quoted) });
+        at = HEREDOC.lastIndex - 1;
+      }
+    } else if (char === '<' && line[at + 1] === '<') at += 2;
+  }
+  return out;
 }
 
 // The commands that change the folder of the commands after them.
@@ -563,17 +622,32 @@ function subIndex(words) {
 // name, a command of WRITERS or with a subcommand of SUB_WRITERS, or sed -i or perl -i.
 // With nocase, name matches in any case.
 function writes(segment, name, nocase = false) {
-  const flags = nocase ? 'i' : '';
-  const at = new RegExp(`(^|[\\s'"=(:>])(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` +
-    '(?=$|[\\s\'")<>;|&/])', flags);
-  if (!at.test(segment.text)) return false;
+  const { at, target } = namePatterns(name, nocase);
+  if (!segment.text.includes(nocase ? '' : path.basename(name)) || !at.test(segment.text)) {
+    return false;
+  }
   const [first] = segment.words;
   const tool = path.basename(first.replace(/^['"]|['"]$/g, ''));
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (inPlace(tool, segment.words) || findParts(segment.words).writes) return true;
-  const target = new RegExp(`>>?\\s*['"]?(\\./)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
-    flags);
   return REDIRECT.test(segment.text) && target.test(segment.text);
+}
+
+// The patterns of namePatterns, by name and case.
+const NAMED = new Map();
+
+// namePatterns returns { at, target } for name: at matches name as a word of a command, and
+// target as the target of a redirect. With nocase, they match in any case. They are made once
+// for each name.
+function namePatterns(name, nocase) {
+  const key = `${nocase ? 'i' : ''}:${name}`;
+  if (!NAMED.has(key)) {
+    const flags = nocase ? 'i' : '';
+    const text = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    NAMED.set(key, { at: new RegExp(`(^|[\\s'"=(:>])(\\./)?${text}(?=$|[\\s'")<>;|&/])`, flags),
+      target: new RegExp(`>>?\\s*['"]?(\\./)?${text}`, flags) });
+  }
+  return NAMED.get(key);
 }
 
 // A redirect target that is no file.
@@ -809,7 +883,7 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
   if (name !== 'Bash') return false;
   const command = String(args.command || '');
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
-  return segments(command, cwd).some((segment) => {
+  return segments(command, cwd, segmentWrites).some((segment) => {
     const at = (word) => !vague(word) && (wild(word) ? work(globFolder(word), segment.at)
       : work(literal(word), segment.at));
     const words = segment.words.map(unquote);
@@ -899,7 +973,7 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
 // harness home below the working folder, or a file of the lock, as its text shows. lockOf
 // returns the files of the lock; with nocase, a name matches in any case.
 function shellReason(command, { cwd, root, lockOf, nocase, home }) {
-  const parts = segments(command, cwd).filter(segmentWrites);
+  const parts = segments(command, cwd, segmentWrites);
   if (!parts.length) return null;
   const cwds = [...new Set(parts.flatMap((one) => one.cwds))];
   const known = new Map();

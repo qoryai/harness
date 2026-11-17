@@ -1180,3 +1180,27 @@ test('a wildcard path whose folder lies in the working folder counts as a write'
     assert.equal(counts(command), false, command);
   }
 });
+
+test('the body of a here-document with a quoted end is text, unless a shell can run it', () => {
+  const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  const MB = 1 << 20;
+  const body = 'a.b(c);d&&e||f(g)/h.i>j;k=(l|m);'.repeat(Math.ceil(MB / 33));
+  const start = process.hrtime.bigint();
+  assert.equal(guard(codex('Bash', { command: `cat > src/min.js <<'EOF'\n${body}\nEOF` },
+    'implementer')), null);
+  const ms = Number(process.hrtime.bigint() - start) / 1e6;
+  assert.ok(ms < 100, `${ms} ms`);
+  for (const command of [`cat > notes.md <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
+    `cat > notes.md <<"EOF"\nrm ${CHECK_PATH}\nEOF`,
+    `cat > notes.md <<\\EOF\nrm ${CHECK_PATH}\nEOF`,
+    `cat > notes.md <<-'EOF'\n\trm ${CHECK_PATH}\n\tEOF`]) {
+    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+  }
+  for (const command of [`bash <<'EOF'\nrm ${CHECK_PATH}\nEOF`,
+    `cat <<'EOF' | sh\nrm ${CHECK_PATH}\nEOF`, `echo "<<'X'"\nrm ${CHECK_PATH}\nX`,
+    `# <<'X'\nrm ${CHECK_PATH}\nX`, `cat > a <<'X'\nrm ${CHECK_PATH}`,
+    `cat > a <<EOF\n$(rm ${CHECK_PATH})\nEOF`, `cat > a <<'EOF'\nx\nEOF\nrm ${CHECK_PATH}`,
+    `cat <<<'x' > a\nrm ${CHECK_PATH}`]) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
+});
