@@ -1,10 +1,11 @@
 // The check of the type build-plan: build-plan.md, with the sections Summary, Deliverables and
 // Commands, checked against the criteria version that criteriaTarget of lib/build.cjs returns.
+// A plan with a serve row has the line "App address: <url>" in Summary (lib/plan.cjs).
 'use strict';
 
 module.exports = (lib) => {
   const {
-    brief, criterionList, filesCell, inOrder, liveCriteria, markdownText, plural, quote,
+    appAddress, brief, criterionList, filesCell, inOrder, liveCriteria, markdownText, plural, quote,
     sectionTable, sectionTitles, short, wrongWords,
   } = lib;
 
@@ -153,6 +154,21 @@ module.exports = (lib) => {
       !seen.has('serve')) {
       run.find(`Add the kind serve to ## Commands of ${FILE}.\nA criterion is planned as Demo.`);
     }
+    return seen;
+  }
+
+  // address finds, in a plan with a serve row, no line "App address: <url>" in ## Summary, or
+  // one whose value is no http or https URL: the preflight opens the app at that address.
+  function address(run, part) {
+    run.did('app address');
+    const { value, url } = appAddress(part.lines);
+    if (value === null) {
+      run.find(`Add the line "App address: <url>" to ## Summary of ${FILE}.\nThe plan has ` +
+        'the kind serve, and the preflight opens the app at that address.');
+    } else if (!url) {
+      run.find(`Set the App address in ## Summary of ${FILE} to an http or https URL.\nThe ` +
+        `value is ${short(value, 80)}.`);
+    }
   }
 
   // buildPlan reads the criteria first: a finding of that read is the one finding, so that
@@ -165,7 +181,8 @@ module.exports = (lib) => {
     if (inOrder(run, FILE, parts, SECTIONS)) {
       const rows = deliverables(run, parts[1]);
       if (rows) criteria(run, rows, live);
-      commands(run, parts[2], live);
+      const kinds = commands(run, parts[2], live);
+      if (kinds && kinds.has('serve')) address(run, parts[0]);
       if (rows) run.note = plural(rows.length, 'deliverable');
     }
     markdownText(run, FILE, md);
