@@ -1864,6 +1864,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   as the system interpreter of a `.venv`, stays a link in the copy. A test still runs as
   the same user: full isolation needs another user or a mount namespace.
 
+- `prove --inputs <path> [--artifacts <folder>]`: proves the commits from the start commit
+  to HEAD against the kind of the fast track (see [The proof of the fast
+  track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
+  proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
+  3 for a missing input, such as a pulled artifact folder with no proposal.
+
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
 and `full_suite`, 60, each from 1 to 60. In a line, a setting appears as its path below
@@ -1970,6 +1976,58 @@ Exit status:
 
 `freeze --plan` with the same arguments runs the same checks and exits the same way, with no
 commit.
+
+### The proof of the fast track
+
+When the newest proposal that the run pulled is on the fast track, the commits of the run
+must prove the kind that its `## Track` declares. `prove` runs the proof, and `check` and
+`end` run it with the check of `submission`, in a checkout, with `--inputs`. A push form
+(`push`) and `end --offline` run no proof: the working folder of a push is the store of
+the push, not a checkout, and `end --offline` runs no program. With the fast track and no
+`--inputs`, `check submission` has a finding, never a pass.
+
+The commits are those from `qory.start_commits` of `inputs.json` to the HEAD of the
+checkout, which the proof reads as objects, never as files of the working folder. No
+`--base` changes the start commit, and a call with it exits 2. The proposal is the newest
+one in the folder of `qory.start_artifacts`, so a proposal that an agent writes into the
+artifact folder of the session counts as none. A change in the working folder that no
+commit has is not proved: `freeze` and `scope` judge it.
+
+The proofs, in order:
+
+1. No path that a commit touches is in a sensitive area, with a rename counted as its two
+   paths and a path that a later commit changes back counted too. The areas are those of
+   `short-path.json` as the repository changes them.
+2. The kind is one that `short-path.json` and `qory.yaml` leave to the fast track.
+3. For "a document", each touched path matches a pattern of `files` under that kind in
+   `kind_data` of `short-path.json`.
+4. For "a text that the product shows", each touched path matches a pattern of `files`
+   under that kind, where `<lang>` is the code of a language. Each changed file is a JSON
+   object at both commits, with the same keys, and its entries are texts, or the same
+   value as before. A changed text has the same placeholders, by the expressions of
+   `placeholders` under that kind, and each placeholder that no number or name marks, such
+   as `%s`, keeps its place. Each entry with changed text is in every other file of its
+   group at HEAD: the files whose path differs only in the code of the language. A new or
+   deleted language file fails.
+5. A file that is not a regular file of one mode at both commits, or is over 4 MiB, fails.
+   So does a file whose change only adds or removes white space: with all white space
+   taken out, the two blobs are the same. Until a parser tells the comments apart, a change
+   inside a comment that only adds or removes white space fails too.
+6. "a comment", "a text value in a code file" and "a look-only change" wait for a parser of
+   the language of each file. The proof reports that the kind cannot be proved yet, and
+   the fix is to propose the standard track.
+
+Each finding has its fix on the first line, at most 100 characters, and its cause on the
+lines after it, such as:
+
+```
+Take "src/app.js" out of the commits since the base: it is no document.
+  The kind "a document" changes documents only, and "src/app.js" matches no file pattern of
+  that kind in short-path.json.
+```
+
+The values of `kind_data` are in `short-path.json`, beside `kinds`, and no setting of
+`qory.yaml` changes them.
 
 ## The process template, process.yaml
 

@@ -8,6 +8,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `checks.js prove --inputs <path>` proves the commits of a fast-track run: the commits from
+  `qory.start_commits` of `inputs.json` to HEAD, against the kind that `## Track` of the
+  pulled proposal declares. `check submission` and the end check run the same proof. No path
+  that a commit touches is in a sensitive area; "a document" changes documents only; "a text
+  that the product shows" changes the wording of entries of JSON translation files, with the
+  same keys and placeholders, in files that every language has; a change that only adds or
+  removes white space fails. The other kinds report that they cannot be proved yet, and the
+  fix is the standard track. `short-path.json` has the file patterns and placeholders in
+  `kind_data`, next to the kinds.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two

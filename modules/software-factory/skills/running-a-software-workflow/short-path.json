@@ -7,6 +7,40 @@
     "a text value in a code file",
     "a look-only change"
   ],
+  "kind_data": {
+    "a document": {
+      "files": [
+        "**/*.md",
+        "**/*.mdx",
+        "**/*.markdown",
+        "**/*.rst",
+        "**/*.adoc",
+        "**/*.txt",
+        "**/README",
+        "**/CHANGELOG",
+        "**/LICENSE",
+        "**/NOTICE"
+      ]
+    },
+    "a text that the product shows": {
+      "files": [
+        "**/locales/<lang>.json",
+        "**/locales/<lang>/*.json",
+        "**/i18n/<lang>.json",
+        "**/i18n/<lang>/*.json",
+        "**/translations/<lang>.json",
+        "**/lang/<lang>.json",
+        "**/messages/<lang>.json"
+      ],
+      "placeholders": [
+        "\\{\\{[^{}]*\\}\\}",
+        "\\{[^{}]*\\}",
+        "%\\{[^{}]*\\}",
+        "%(?:\\d+\\$)?[-+ 0#]*\\d*(?:\\.\\d+)?[sdifuxXeEgGcb]",
+        "</?[A-Za-z][^<>]*>"
+      ]
+    }
+  },
   "sensitive_areas": [
     {
       "name": "sign-in and permissions",

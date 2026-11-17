@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code or a locked check, start or read the full suite, check the write scope of a step, freeze a step, read the diff of a change or probe a planted fault, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, suite, scope, freeze, diff and probe of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, start or read the full suite, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault or prove the commits of a fast-track change, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, suite, scope, freeze, diff, probe and prove of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -26,6 +26,7 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.js diff --from <commit>
 <skill folder>/checks.js probe <patch> targeted <path> [--inputs <path>]
     [--artifacts <folder>]
+<skill folder>/checks.js prove --inputs <path> [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
@@ -314,3 +315,24 @@ system interpreter of a `.venv`, stays a link. The checkout stays as it is.
 The copy keeps a test from finding the repository by a relative path, not from reaching
 it: a test runs as the same user and can open the checkout by its absolute path. Full
 isolation needs another user or a mount namespace.
+
+## The proof of the fast track
+
+`prove` runs when the proposal that the run pulled is on the fast track. It proves the
+commits from `qory.start_commits` of `inputs.json` to HEAD against the kind of `## Track`,
+and takes no `--base`. Run it after your last commit, with the `--inputs` path of the
+prompt. `check submission` and the end check run the same proof, so a fast-track session
+that ends with a failed proof does not end.
+
+It passes only when each path of the commits is of the kind and in no sensitive area. For
+"a document", each path is a document by the file patterns of `short-path.json`. For "a
+text that the product shows", each path is a JSON translation file, with the same keys and
+placeholders as at the start commit, and each entry that you reworded is in every other
+language file of its folder. A change that only adds or removes white space fails for every
+kind. "a comment", "a text value in a code file" and "a look-only change" cannot be proved
+yet: the finding for them says to propose the standard track, and no change to the commits
+removes it.
+
+Each finding starts with the fix, such as "Take "<path>" out of the commits since the
+base", and the lines after it give the cause. Take the path out of the commits as the
+section "Scope" describes for `scope`, then run `prove` again.
