@@ -531,9 +531,10 @@ name, it loads the first. The file exports a function that takes the library of
 `verbs/lock.cjs`, and `pointCheck`, `pointRules` and `MAX_POINTS` of `types/points.cjs`,
 the check of a point of `points.json`, and returns `types`, the patterns of "Blocked:"
 lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `verbs`,
-and `ledger`, the rules of the build ledger. Only `check`, `push`, `report`, `end`, `step`, `resume`, a verb of the
-registry and the usage read the registry; `starts`, `begin` and `fixes` never load it. A
-type that two skills add stops each verb that reads the registry with exit 3. A
+and `ledger`, the rules of the build ledger. Only `check`, `push`, `report`, `end`,
+`step`, `resume`, a verb of the registry and the usage read the registry; `starts`,
+`begin` and `fixes` never load it. A type that two skills add stops each verb that reads
+the registry with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
 the harness: the verb stops with an error that names the file and exit 3, and `end
 --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
