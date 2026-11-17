@@ -273,6 +273,18 @@ test('a command whose writes the guard does not read is denied when it reaches a
       'Leave .qory/build/ as it is');
     firstLine(guard(codex('Bash', { command: 'rm -rf {c..c}hecks' }, 'implementer')),
       'Leave the locked file as it is');
+    // xargs and parallel run a writer or an opaque command with words from their input.
+    for (const command of ['echo checks | xargs rm -rf', 'echo checks | parallel rm -rf',
+      `printf '%s' ${file} | xargs -n1 node x.js`]) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), opaque);
+    }
+    assert.equal(guard(codex('Bash', { command: 'echo checks | xargs rm -rf' },
+      'implementer')).split('\n')[1], 'The guard cannot tell what xargs rm writes, and the ' +
+      'call contains checks, which reaches checks/corrected-reply.check.ts.');
+    for (const command of ['echo src/a | xargs rm -f', 'find checks -name x | xargs grep -n y',
+      "find checks -name '*.ts' | xargs wc -l"]) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    }
     // A read-only command keeps only its read-only options: any other option, such as one
     // that runs a command, makes it opaque.
     for (const command of ['rg --pre=rm x checks', `rg --pre=sh x ${file}`,

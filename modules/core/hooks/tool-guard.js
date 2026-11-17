@@ -249,6 +249,8 @@ const PREFIXES = { env: ['-u', '--unset', '-C', '--chdir', '-S', '--split-string
 const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown', 'chgrp', 'chflags']);
 // The commands that write only their last path, as cp writes the copy and reads the rest.
 const LAST_WRITTEN = new Set(['cp', 'install', 'ln', 'rsync']);
+// A command that runs another command with words from its input, as in `ls | xargs rm`.
+const FED = /(^|[\s/])(xargs|parallel)(?=\s|$)/;
 // The commands that make a link: a path through it leads where the guard does not read.
 const LINKERS = new Set(['ln', 'link', 'mklink']);
 // The words that open a group, or the then, do or else part, before a command, as in
@@ -1772,7 +1774,10 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   spend(command.length >> 10);
   const all = segments(command, cwd);
   const parts = all.filter(segmentWrites);
-  const dark = all.find(opaque);
+  // A writer or an opaque command that xargs or parallel runs takes its paths from its
+  // input, which the guard does not read.
+  const dark = all.find(opaque) || all.find((one) => FED.test(one.text) &&
+    (segmentWrites(one) || opaque(one)));
   if (!parts.length && !dark) return null;
   const cwds = [...new Set(parts.flatMap((one) => one.cwds))];
   const known = new Map();
@@ -1811,7 +1816,8 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   const reached = dark && reaches(all, files, path.join(root, BUILD), root, how);
   if (reached) {
     const shown = under(reached.file, root) ? path.relative(root, reached.file) : reached.file;
-    const name = path.basename(dark.words[0]);
+    const fed = FED.exec(dark.text);
+    const name = `${fed ? `${fed[2]} ` : ''}${path.basename(dark.words[0])}`;
     return `${reached.file === path.join(root, BUILD) ? BUILT : OPAQUE}The guard cannot tell ` +
       `what ${name} writes, and the call contains ${reached.word}, which reaches ${shown}.`;
   }
