@@ -912,7 +912,7 @@ test('lock takes one file, acceptance-lock.json, under the artifact folder', () 
   writeJson(other, DRAFT);
   const wrongName = call({ cwd: work, artifacts: [root] }, ['lock', other]);
   assert.equal(wrongName.status, 2);
-  assert.match(wrongName.err, /^Give lock the file acceptance-lock\.json\.\nlock\.json is another file\./);
+  assert.match(wrongName.err, /^Give lock the file acceptance-lock\.json\.\n  lock\.json is another file\./);
   assert.equal(call({ cwd: work, artifacts: [root] }, ['lock']).status, 2);
   assert.equal(call({ cwd: work, artifacts: [root] }, ['lock', other, other]).status, 2);
   const outside = path.join(work, 'acceptance-lock.json');

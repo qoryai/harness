@@ -2903,8 +2903,8 @@ test('starts --subject: a wrong reviewer, subject or count of arguments exits 2'
   fs.mkdirSync(root);
   const start = (...argv) => call({ cwd: tmp, artifacts: [root] }, ['starts', 'r1', ...argv]);
   for (const [argv, why] of [
-    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>\.\nThe argument is Bad Name\.\n/],
-    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change\.\nThe argument is Change\.\n/],
+    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>\.\n  The argument is Bad Name\.\n/],
+    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change\.\n  The argument is Change\.\n/],
     [['code-reviewer', '--subject'], /^Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer and --subject <subject>\.\n/],
     [['code-reviewer', '--subject', 'change', 'more'], /^Give starts a run, a name and a limit/],
   ]) {
@@ -3157,11 +3157,11 @@ test('panel: wrong arguments exit 2', () => {
     [['panel', '--names', 'a', '--names', 'a', '--files', 'files.txt'], usage],
     [['panel', '--names', 'a', '--files', 'files.txt', '--other', 'x'], usage],
     [['panel', '--names', 'a', '--files'], usage],
-    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n"" is neither\.\n/],
-    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n"Bad Name" is neither\.\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens\.\nThe argument is X\.\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99\.\nThe argument is 100\.\n/],
-    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99\.\nThe argument is -1\.\n/],
+    [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n  "" is neither\.\n/],
+    [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n  "Bad Name" is neither\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens\.\n  The argument is X\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '100'], /^Give --after a whole number of 0 to 99\.\n  The argument is 100\.\n/],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--after', '-1'], /^Give --after a whole number of 0 to 99\.\n  The argument is -1\.\n/],
   ]) {
     const result = call(deps, argv);
     assert.equal(result.status, 2, argv.join(' '));
@@ -4047,7 +4047,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.js lists\.\nThe verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume and hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.js lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume and hello\./);
 });
 
 test('workflow-checks.js push runs the push of checks.js from the harness home', () => {

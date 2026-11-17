@@ -60,11 +60,11 @@ module.exports = (lib) => {
   const { Missing, cut, plural, quote } = lib;
   const starts = require('../lib/start.js')(lib);
 
-  // fitted returns line(quote(name)) with name cut so that the line has at most 100 characters,
-  // down to 6 characters of the name.
-  function fitted(name, line) {
+  // fitted returns line(quote(name)) with name cut so that the line has at most width
+  // characters, 100 by default, down to 6 characters of the name.
+  function fitted(name, line, width = 100) {
     let text = line(quote(name));
-    for (let size = 80; text.length > 100 && size > 6; size -= 1) {
+    for (let size = 80; text.length > width && size > 6; size -= 1) {
       text = line(quote(cut(name, size)));
     }
     return text;
@@ -91,10 +91,11 @@ module.exports = (lib) => {
       } else if (got.step === null && lib.STEP.test(arg || '')) {
         got.step = arg;
       } else {
+        // The cause prints indented by two spaces, so it has at most 98 characters.
         const shown = secrets.shown(String(arg), secrets.secretValues(io.env));
         return { problem: `Give ${verb} deliverable:d-<N>, fix:f<N> or --plan, then only ` +
           '--base, --inputs and --artifacts.\n' +
-          `${fitted(shown, (name) => `${name} is none of them.`)}` };
+          `${fitted(shown, (name) => `${name} is none of them.`, 98)}` };
       }
     }
     if ((got.step === null) === !got.plan) {

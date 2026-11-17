@@ -371,8 +371,10 @@ function main(argv, deps = {}) {
       return 3;
     }
   }
+  // The lines of why after its first line are its cause, indented as in a finding.
   const wrong = (why) => {
-    io.err.write(`${why}\n${usage(io, verbs)}\n`);
+    const fix = why.split('\n').map((line, at) => (at ? `  ${line}` : line)).join('\n');
+    io.err.write(`${fix}\n${usage(io, verbs)}\n`);
     return 2;
   };
   if (!Object.hasOwn(verbs, verb || '')) {
