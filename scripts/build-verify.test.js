@@ -379,6 +379,17 @@ test('process.yaml lists the eight types of Build and Verify last, at the defaul
   }
 });
 
+// A run cannot withdraw a name of acceptance-lock or build-ledger. The flag is a plain YAML
+// bool: qory exits with an error for any other form, such as a quoted "false".
+test('process.yaml sets withdrawable: false for acceptance-lock and build-ledger alone', () => {
+  const flags = Object.fromEntries(templateEntries()
+    .filter((entry) => 'withdrawable' in entry)
+    .map((entry) => [entry.name, entry.withdrawable]));
+  assert.deepEqual(flags, { 'build-ledger': 'false', 'acceptance-lock': 'false' });
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  assert.equal((yaml.match(/withdrawable:/g) || []).length, 2);
+});
+
 test('each JSON Schema of schemas/ is the json_schema of its type in process.yaml', () => {
   const entries = templateEntries().filter((entry) => entry.json_schema);
   assert.deepEqual(entries.map((entry) => entry.name).sort(), [...JSON_TYPES].sort());
