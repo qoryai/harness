@@ -30,9 +30,20 @@ module.exports = (lib) => {
   // changes on any row, when a later session replays it.
   const ENDED = ['state', 'commit', 'script_sha256', 'ended_at', 'attempts', 'pushed', 'report'];
 
-  // COMPACT is the line of a ledger that is not one line of compact JSON. The file is then the
-  // text that JSON.stringify writes for its value, so its size is the size of that text.
-  const COMPACT = `Write ${FILE} as one line of compact JSON, as JSON.stringify writes it:`;
+  // An example id of each kind, for the line after the fix.
+  const EXAMPLES = {
+    plan: 'plan',
+    checks: 'checks',
+    'small-change': 'small-change',
+    deliverable: 'deliverable:d-1',
+    fix: 'fix:f1',
+    script: 'script:scenario-1',
+  };
+
+  // COMPACT is the first line of a ledger that is not one line of compact JSON. The file is
+  // then the text that JSON.stringify writes for its value, so its size is the size of that
+  // text.
+  const COMPACT = `Write ${FILE} as one line of compact JSON, as JSON.stringify writes it.`;
 
   // strings returns the text in the file of each string member of each object of the lists
   // steps and escalations, with its quotes, by "<list>/<place>/<member>". It reads only a text
@@ -87,16 +98,17 @@ module.exports = (lib) => {
     steps.forEach((step, place) => {
       const row = `row ${place + 1} of ${FILE}`;
       if (!IDS[step.kind].test(step.id)) {
-        run.find(`Write the id ${short(step.id)} of ${row} in the form of its kind ` +
-          `${step.kind}, such as ${step.kind === 'script' ? 'script:scenario-1' : step.kind}.`);
+        run.find(`Write the id of ${row} in the form of its kind ${step.kind}.\nThe id is ` +
+          `${short(step.id, 80)}. An id of the kind ${step.kind} is such as ` +
+          `${EXAMPLES[step.kind]}.`);
       }
       const pair = `${step.id}\n${step.pass}`;
       const next = (highest.get(step.id) || 0) + 1;
       if (pairs.has(pair)) {
-        run.find(`Give ${row} the next pass of ${step.id}: pass ${step.pass} is there twice.`);
+        run.find(`Give ${row} the next pass of ${step.id}.\nPass ${step.pass} is there twice.`);
       } else if (step.pass !== next) {
-        run.find(`Set the pass of ${row} to ${next}, one more than the highest pass of ` +
-          `${step.id}: it is ${step.pass}.`);
+        run.find(`Set the pass of ${row} to ${next}.\nPass ${next} is one more than the highest ` +
+          `pass of ${step.id}. The row has pass ${step.pass}.`);
       }
       pairs.add(pair);
       highest.set(step.id, Math.max(highest.get(step.id) || 0, step.pass));
@@ -111,7 +123,7 @@ module.exports = (lib) => {
       const bytes = step.report === undefined ? 0 : written(raw.get(`steps/${place}/report`));
       if (bytes > REPORT_BYTES) {
         run.find(`Cut the report of row ${place + 1} of ${FILE} to ${REPORT_BYTES} bytes as ` +
-          `written: it has ${bytes}.`);
+          `written.\nIt has ${bytes}.`);
       }
     });
     data.escalations.forEach((escalation, place) => {
@@ -119,7 +131,7 @@ module.exports = (lib) => {
         : written(raw.get(`escalations/${place}/detail`));
       if (bytes > DETAIL_BYTES) {
         run.find(`Cut the detail of escalation ${place + 1} of ${FILE} to ${DETAIL_BYTES} bytes ` +
-          `as written: it has ${bytes}.`);
+          `as written.\nIt has ${bytes}.`);
       }
     });
   }
@@ -134,7 +146,7 @@ module.exports = (lib) => {
       .steps;
     if (steps.length < before.length) {
       run.find(`Keep the ${before.length} rows of build-ledger version ${previous.number} in ` +
-        `${FILE}: it has ${steps.length}.`);
+        `${FILE}.\nIt has ${steps.length}.`);
     }
     before.slice(0, steps.length).forEach((stored, place) => {
       const old = isObject(stored) ? stored : {};
@@ -145,7 +157,7 @@ module.exports = (lib) => {
         canonical(old[key]) !== canonical(now[key]));
       if (changed.length) {
         run.find(`Keep row ${place + 1} of ${FILE} as build-ledger version ${previous.number} ` +
-          `has it: ${changed.join(', ')} changed.`);
+          `has it.\nThese members changed: ${changed.join(', ')}.`);
       }
     });
   }
@@ -157,14 +169,14 @@ module.exports = (lib) => {
     run.did('compact JSON');
     const line = text.endsWith('\n') ? text.slice(0, -1) : text;
     const count = line.split('\n').length;
-    if (count > 1) run.find(`${COMPACT} it has ${count} lines.`);
+    if (count > 1) run.find(`${COMPACT}\nIt has ${count} lines.`);
     const data = jsonFile(run, 'build-ledger', FILE, text);
     if (!data) return;
     const compact = JSON.stringify(data);
     if (count === 1 && line !== compact) {
       let at = 0;
       while (line[at] === compact[at]) at += 1;
-      run.find(`${COMPACT} character ${at + 1} differs from that form.`);
+      run.find(`${COMPACT}\nCharacter ${at + 1} differs from that form.`);
     }
     rows(run, data.steps);
     sizes(run, data, line);

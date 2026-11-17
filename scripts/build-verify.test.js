@@ -605,24 +605,25 @@ test('build-plan: at most 7 deliverables, each with a different id d-<N>', () =>
     `| d-${place + 1} | Change part ${place + 1}. | ${ALL} | \`a.ts\` | \`tests/a.test.ts\` |`);
   const md = PLAN.replace(/\| d-1 .*\n\| d-2 .*\n/, `${rows.join('\n')}\n`);
   fails(push(fixture(), 'build-plan', planFile(md)),
-    /^Cut build-plan.md to 7 deliverables, or end the session with escalate: it has 8\.$/);
+    /^Cut build-plan.md to 7 deliverables, or end the session with escalate\. It has 8\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| d-2 |', '| d-1 |'))),
-    /^Give each deliverable of build-plan.md a different id: d-1 is there twice\.$/);
+    /^Give each deliverable of build-plan.md a different id\. d-1 is there twice\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| d-2 |', '| 2 |'))),
-    /^Write the id "2" of deliverable 2 in build-plan.md as d-<N>\.$/);
+    /^Write the id of deliverable 2 in build-plan.md as d-<N>\. The id is "2"\.$/);
 });
 
 test('build-plan: each criterion is one of the approved criteria, and each is in a row', () => {
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(CR3, 'AC-9, "A closed day"'))),
-    /^Remove "AC-9" from d-1 of build-plan.md: the acceptance criteria have no such criterion/);
+    /^Remove "AC-9" from d-1 of build-plan.md\. The acceptance criteria have no such criterion/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(`; ${CR3}`, ''))),
-    /^Add AC-3 to the Criteria of a deliverable of build-plan.md: no row lists it\.$/);
+    /^Add AC-3 to the Criteria of a deliverable of build-plan.md\. No row lists AC-3\.$/);
   // The id matches in any case.
   passes(push(fixture(), 'build-plan', planFile(PLAN.replace('AC-1, "', 'ac-1, "'))), 'build-plan');
 });
 
-// FORM is the fixed part of the line of a Criteria cell with an id that has no text in quotes.
-const FORM = 'as AC-<N>, "<first sentence>"; ...: it has ';
+// FORM is the fixed part of the finding of a Criteria cell with an id that has no text in
+// quotes, from the form to the cell.
+const FORM = 'as AC-<N>, "<first sentence>".\nPut "; " between two criteria. The cell has ';
 
 // quoteLine is the line of a text in quotes beside the id of criterion in where, which differs
 // from the words of the criterion.
@@ -638,21 +639,22 @@ test('build-plan: each criterion of a deliverable is its id and its text in quot
       'ac-1, ac-2, ac-3'))), line('d-1', 'ac-1, ac-2, ac-3'));
     exactly(mode(fixture(), 'build-plan', planFile(PLAN.replace(CR3, 'AC-3'))), line('d-1', 'AC-3'));
   }
-  // A row with an id of another form is named by its place, and the line stays within 100
-  // characters before the cell.
+  // A row with an id of another form is named by its place, and the first line stays within
+  // 100 characters.
   const result = push(fixture(), 'build-plan', planFile(PLAN.replace('| d-2 |', '| 2 |')
     .replace(CR4, 'AC-4')));
-  fails(result, /^Write the id "2" of deliverable 2 in build-plan\.md as d-<N>\.$/);
+  fails(result, /^Write the id of deliverable 2 in build-plan\.md as d-<N>\. The id is "2"\.$/);
   const named = line('deliverable 2', 'AC-4');
-  fails(result, new RegExp(`^${named.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
-  assert.ok(named.indexOf(' it has ') + ' it has '.length <= 100, named);
+  fails(result, new RegExp(`^${named.replace(/\n/g, ' ').replace(/[.*+?^${}()|[\]\\]/g,
+    '\\$&')}$`));
+  assert.ok(named.split('\n')[0].length <= 100, named);
   // A long cell keeps the finding within 196 characters.
   const long = push(fixture(), 'build-plan', planFile(PLAN.replace(CR3, `AC-3 ${'x'.repeat(300)}`)));
   assert.equal(long.status, 1, long.out);
   for (const finding of long.lines) assert.ok(finding.length <= 196, finding);
   // A value that is no id keeps its case in the finding, and has no text in quotes.
   const tbd = push(fixture(), 'build-plan', planFile(PLAN.replace(CR4, 'to be decided')));
-  fails(tbd, /^Remove "to be decided" from d-2 of build-plan\.md: the acceptance criteria have no such /);
+  fails(tbd, /^Remove "to be decided" from d-2 of build-plan\.md\. The acceptance criteria have no such /);
   fails(tbd, /^Quote each criterion in d-2 of build-plan\.md as AC-<N>, /);
 });
 
@@ -748,22 +750,23 @@ test('build-plan: a criterion planned as Demo has the id of its scenario', () =>
     const result = push(fixture(), 'build-plan', planFile(md));
     for (const id of ['AC-1', 'AC-2', 'AC-3']) {
       fails(result, new RegExp(`^Give a deliverable of ${id} in build-plan.md the id of its ` +
-        'scenario in Check, such as scenario-1: the criterion is planned as Demo\\.$'));
+        'scenario in Check\\. The criterion is planned as Demo\\. A scenario id is such as ' +
+        'scenario-1\\.$'));
     }
   }
 });
 
 test('build-plan: each kind of command once, its source, and serve for a Demo criterion', () => {
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| lint |', '| style |'))),
-    /^Set the kind "style" in ## Commands of build-plan.md to one of targeted, lint, types, build, full, serve\.$/);
+    /^Set the kind "style" in ## Commands of build-plan.md to one of the 6 kinds\. The kinds are targeted, lint, types, build, full, serve\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| lint |', '| full |'))),
     /^Give the kind full one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(`${PLAN}| serve | \`npm start\` | none | module: typescript |\n`)),
     /^Give the kind serve one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('found: `package.json:12`', 'package.json'))),
-    /^Write the Source of full in build-plan.md as "repository: <file>", "module: <name>"/);
+    /^Write the Source of full in build-plan.md in one of its three forms\. The forms are "repository: <file>", "module: <name>" and "found: <file>:<line>"\. The Source is "package.json"\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(/\| serve .*\n/, ''))),
-    /^Add the kind serve to ## Commands of build-plan.md: a criterion is planned as Demo\.$/);
+    /^Add the kind serve to ## Commands of build-plan.md\. A criterion is planned as Demo\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('The storefront has no linter.', ''))),
     /^Write in Source why lint has no command in build-plan.md\.$/);
 });
@@ -772,8 +775,8 @@ test('build-plan: a row for each of targeted, lint, types, build and full', () =
   for (const kind of ['targeted', 'lint', 'types', 'build', 'full']) {
     const md = PLAN.replace(new RegExp(`\\| ${kind} \\|.*\\n`), '');
     fails(push(fixture(), 'build-plan', planFile(md)),
-      new RegExp(`^Add the kind ${kind} to ## Commands of build-plan.md: with no command, write ` +
-        'none in Command and the reason in Source\\.$'));
+      new RegExp(`^Add the kind ${kind} to ## Commands of build-plan.md\\. With no command, ` +
+        'write none in Command and the reason in Source\\.$'));
   }
 });
 
@@ -847,7 +850,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
     }
     return folder;
   };
-  const add = 'Add AC-5 to the Criteria of a deliverable of build-plan.md: no row lists it.';
+  const add = 'Add AC-5 to the Criteria of a deliverable of build-plan.md.\nNo row lists AC-5.';
   const row = 'Give AC-5 one row in ## Matrix of verification.md: it has 0.';
   for (const mode of [check, push]) {
     exactly(mode(root(true), 'build-plan', planFile(PLAN)), add);
@@ -889,9 +892,9 @@ test('build-report: the sections of the full path, or of a short session', () =>
   const swapped = REPORT_FULL.replace('## Steps', '## Counts x').replace('## Counts\n', '## Steps\n')
     .replace('## Counts x', '## Counts');
   fails(push(fixture(), 'build-report', ['build-report.md', swapped]),
-    /^Give build-report.md the sections of the full path or of a short session, in order: it has ## Summary, ## Counts/);
+    /^Give build-report.md the sections of the full path or of a short session, in order\. It has ## Summary, ## Counts/);
   fails(push(fixture(), 'build-report',
-    ['build-report.md', `${REPORT_FULL}\n${section('Escalation')}`]), /it has .*## Escalation\.$/);
+    ['build-report.md', `${REPORT_FULL}\n${section('Escalation')}`]), /It has .*## Escalation\.$/);
 });
 
 // ---- build-ledger -------------------------------------------------------------------------
@@ -906,8 +909,10 @@ test('build-ledger: both valid samples pass check and push', () => {
   }
 });
 
-// COMPACT starts the line of a ledger that is not one line of compact JSON.
-const COMPACT = 'Write build-ledger.json as one line of compact JSON, as JSON.stringify writes it: ';
+// COMPACT is the first line of a ledger that is not one line of compact JSON, and the line
+// break before its cause.
+const COMPACT = 'Write build-ledger.json as one line of compact JSON, as JSON.stringify ' +
+  'writes it.\n';
 
 test('build-ledger: one line of compact JSON, as JSON.stringify writes it', () => {
   const line = JSON.stringify(LEDGER);
@@ -915,9 +920,9 @@ test('build-ledger: one line of compact JSON, as JSON.stringify writes it', () =
   // A pretty-printed ledger, and one with two newlines at its end.
   for (const mode of [push, check]) {
     exactly(mode(fixture(), 'build-ledger', ['build-ledger.json',
-      JSON.stringify(LEDGER, null, 2)]), `${COMPACT}it has ${lines} lines.`);
+      JSON.stringify(LEDGER, null, 2)]), `${COMPACT}It has ${lines} lines.`);
     exactly(mode(fixture(), 'build-ledger', ['build-ledger.json', `${line}\n\n`]),
-      `${COMPACT}it has 2 lines.`);
+      `${COMPACT}It has 2 lines.`);
     // One newline at the end passes.
     passes(mode(fixture(), 'build-ledger', ['build-ledger.json', `${line}\n`]), 'build-ledger');
   }
@@ -926,7 +931,7 @@ test('build-ledger: one line of compact JSON, as JSON.stringify writes it', () =
   for (const [other, place] of [[`${line.slice(0, at)} ${line.slice(at)}`, at + 1],
     [line.replace('"plan"', '"\\u0070lan"'), line.indexOf('"plan"') + 2]]) {
     exactly(push(fixture(), 'build-ledger', ['build-ledger.json', other]),
-      `${COMPACT}character ${place} differs from that form.`);
+      `${COMPACT}Character ${place} differs from that form.`);
   }
 });
 
@@ -966,7 +971,8 @@ test('build-ledger: each id in the form of its kind', () => {
     const doc = clone(LEDGER);
     Object.assign(doc.steps[0], { id, kind, script_sha256: H });
     fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
-      new RegExp(`^Write the id "${id}" of row 1 of build-ledger.json in the form of its kind ${kind}`));
+      new RegExp(`^Write the id of row 1 of build-ledger.json in the form of its kind ${kind}\\. ` +
+        `The id is "${id}"\\. An id of the kind ${kind} is such as `));
   }
 });
 
@@ -974,13 +980,13 @@ test('build-ledger: the passes of an id count 1, 2, 3, never twice', () => {
   const doc = clone(LEDGER);
   doc.steps[2].pass = 1;
   fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
-    /^Give row 3 of build-ledger.json the next pass of deliverable:d-1: pass 1 is there twice\.$/);
+    /^Give row 3 of build-ledger.json the next pass of deliverable:d-1\. Pass 1 is there twice\.$/);
   doc.steps[2].pass = 3;
   fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
-    /^Set the pass of row 3 of build-ledger.json to 2, one more than the highest pass of deliverable:d-1: it is 3\.$/);
+    /^Set the pass of row 3 of build-ledger.json to 2\. Pass 2 is one more than the highest pass of deliverable:d-1\. The row has pass 3\.$/);
   doc.steps[2].pass = 2;
   doc.steps[0].pass = 2;
-  fails(push(fixture(), 'build-ledger', ledgerFile(doc)), /^Set the pass of row 1 .* to 1,/);
+  fails(push(fixture(), 'build-ledger', ledgerFile(doc)), /^Set the pass of row 1 .* to 1\./);
 });
 
 test('build-ledger: a report of 8,192 bytes and a detail of 1,000 bytes as written', () => {
@@ -989,11 +995,11 @@ test('build-ledger: a report of 8,192 bytes and a detail of 1,000 bytes as writt
   passes(push(fixture(), 'build-ledger', ledgerFile(doc)), 'build-ledger');
   doc.steps[0].report = 'é'.repeat(4097);
   fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
-    /^Cut the report of row 1 of build-ledger.json to 8192 bytes as written: it has 8194\.$/);
+    /^Cut the report of row 1 of build-ledger.json to 8192 bytes as written\. It has 8194\.$/);
   doc.steps[0].report = 'x';
   doc.escalations[0].detail = '"'.repeat(501);
   fails(push(fixture(), 'build-ledger', ledgerFile(doc)),
-    /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written: it has 1002\.$/);
+    /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written\. It has 1002\.$/);
 });
 
 test('build-ledger: the bytes of a report as written in the file, also as escapes', () => {
@@ -1006,8 +1012,10 @@ test('build-ledger: the bytes of a report as written in the file, also as escape
     const result = mode(fixture(), 'build-ledger', ['build-ledger.json', escaped]);
     assert.equal(result.status, 1, result.out);
     assert.deepEqual(result.lines.slice(0, -1), [
-      `${COMPACT}character ${JSON.stringify(doc).indexOf('é') + 1} differs from that form.`,
-      'Cut the report of row 1 of build-ledger.json to 8192 bytes as written: it has 12000.']);
+      ...printed(`${COMPACT}Character ${JSON.stringify(doc).indexOf('é') + 1} differs from ` +
+        'that form.'),
+      ...printed('Cut the report of row 1 of build-ledger.json to 8192 bytes as written.\n' +
+        'It has 12000.')]);
   }
   passes(push(fixture(), 'build-ledger', ledgerFile(doc)), 'build-ledger');
   // An escaped detail counts the same way.
@@ -1015,7 +1023,7 @@ test('build-ledger: the bytes of a report as written in the file, also as escape
   detail.escalations[0].detail = 'é'.repeat(200);
   fails(push(fixture(), 'build-ledger', ['build-ledger.json',
     JSON.stringify(detail).replace(/é/g, '\\u00e9')]),
-  /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written: it has 1200\.$/);
+  /^Cut the detail of escalation 1 of build-ledger.json to 1000 bytes as written\. It has 1200\.$/);
 });
 
 test('build-ledger: a withdrawal and a new push drop no row of the version before it', () => {
@@ -1030,7 +1038,7 @@ test('build-ledger: a withdrawal and a new push drop no row of the version befor
   const removed = clone(LEDGER);
   removed.steps.pop();
   const line = new RegExp(`^Keep the ${LEDGER.steps.length} rows of build-ledger version 1 in ` +
-    'build-ledger.json: it has');
+    'build-ledger.json\\. It has');
   fails(push(root(), 'build-ledger', ledgerFile(removed)), line);
   fails(check(root(), 'build-ledger', ledgerFile(removed)), line);
   passes(push(root(), 'build-ledger', ledgerFile(LEDGER)), 'build-ledger');
@@ -1071,10 +1079,10 @@ test('build-ledger: each row of the newest version stays, but a running row may 
   const changed = clone(stored);
   changed.steps[0].inputs = 'f'.repeat(64);
   fails(push(root(), 'build-ledger', ledgerFile(changed)),
-    /^Keep row 1 of build-ledger.json as build-ledger version 1 has it: inputs changed\.$/);
+    /^Keep row 1 of build-ledger.json as build-ledger version 1 has it\. These members changed: inputs\.$/);
   const doneChanged = clone(stored);
   doneChanged.steps[0].commit = C2;
-  fails(push(root(), 'build-ledger', ledgerFile(doneChanged)), /^Keep row 1 .*: commit changed\.$/);
+  fails(push(root(), 'build-ledger', ledgerFile(doneChanged)), /^Keep row 1 .* These members changed: commit\.$/);
   // A running row may change only the members that step end sets.
   assert.equal(stored.steps[2].state, 'running');
   for (const [member, value] of [['inputs', 'f'.repeat(64)], ['workflow', 'fix-a-finding'],
@@ -1082,12 +1090,12 @@ test('build-ledger: each row of the newest version stays, but a running row may 
     const running = clone(stored);
     running.steps[2][member] = value;
     exactly(push(root(), 'build-ledger', ledgerFile(running)), 'Keep row 3 of build-ledger.json ' +
-      `as build-ledger version 1 has it: ${member} changed.`);
+      `as build-ledger version 1 has it.\nThese members changed: ${member}.`);
   }
   const removed = clone(stored);
   removed.steps.pop();
   fails(push(root(), 'build-ledger', ledgerFile(removed)),
-    /^Keep the 5 rows of build-ledger version 1 in build-ledger.json: it has 4\.$/);
+    /^Keep the 5 rows of build-ledger version 1 in build-ledger.json\. It has 4\.$/);
 });
 
 // ---- acceptance-lock ----------------------------------------------------------------------
@@ -2170,7 +2178,7 @@ test('explainer: the explainer passes check and push', () => {
 });
 
 test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () => {
-  const pattern = /^Give explainer.md ## Summary, ## AC-<N>, "<first sentence>" by number, ## Risk on merge: it has /;
+  const pattern = /^Give explainer.md ## Summary, ## AC-<N>, "<first sentence>" by number, ## Risk on merge\. It has /;
   fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge', '## Risks'))), pattern);
   fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## AC-4,', '## AC-1,'))), pattern);
   fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## AC-4, "Each', '## "Each'))), pattern);
@@ -2178,15 +2186,15 @@ test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () 
 
 test('explainer: the criterion sections by their heading, with no ## Summary first', () => {
   // The line of the order, and no line to add a section: each criterion has its section.
-  const shape = 'Give explainer.md ## Summary, ## AC-<N>, "<first sentence>" by number, ' +
-    '## Risk on merge: it has ## AC-1, "The saved reply for delayed orders ' +
-    'lists the support hours as 8:00 ....';
+  const shape = printed('Give explainer.md ## Summary, ## AC-<N>, "<first sentence>" by ' +
+    'number, ## Risk on merge.\nIt has ## AC-1, "The saved reply for delayed orders lists the ' +
+    'support hours as 8:00 to 20:00", ## AC-2, "The reply states th....');
   const noSummary = EXPLAINER.replace(/^## Summary\n\n.*\n\n/, '');
   assert.ok(noSummary.startsWith('## AC-1, '));
   // A U+FEFF before ## Summary makes that line text before the first heading.
   const bom = ['Start explainer.md with its first ## heading: it has text before that heading.',
-    shape, 'Remove the refused character U+FEFF from explainer.md.'];
-  for (const [md, lines] of [[noSummary, [shape]], [`\uFEFF${EXPLAINER}`, bom]]) {
+    ...shape, 'Remove the refused character U+FEFF from explainer.md.'];
+  for (const [md, lines] of [[noSummary, shape], [`\uFEFF${EXPLAINER}`, bom]]) {
     for (const mode of [check, push]) {
       const result = mode(explained(), 'explainer', explainerFile(md));
       assert.equal(result.status, 1, result.out);
@@ -2207,9 +2215,9 @@ test('explainer: a long claim takes time in proportion to its length', () => {
 
 test('explainer: each claim ends with its source', () => {
   fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(', `replies/delayed-order.md:3`', ''))),
-    /^End the claim "- The reply has the new hours\." in ## AC-1 of explainer.md with its source, a path:line or a matrix row\.$/);
+    /^End the claim "- The reply has the new hours\." in ## AC-1 of explainer.md with its source\. The source is a path:line or a matrix row\.$/);
   fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
-    /^End the claim "- The job sends one reply per custome\.\.\." in ## AC-4 of explainer\.md /);
+    /^End the claim "- The job sends o\.\.\.r, the job file\." in ## AC-4 of explainer\.md with its source\. The source is a path:line or a matrix row\. The claim is "- The job sends one reply per customer, the job file\."\.$/);
   for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
     '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.',
     '(matrix row ac-4)']) {
@@ -2229,14 +2237,16 @@ test('explainer: the commit of the verification', () => {
   const root = fixture();
   version(root, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
   fails(push(root, 'explainer', explainerFile(EXPLAINER)),
-    new RegExp(`^Set the commit of explainer.md to the verified commit ${C1}: it is ${C2}\\.$`));
+    new RegExp(`^Set the commit of explainer.md to ${C1}\\. That id is the verified commit, and ` +
+      `explainer.md has ${C2}\\.$`));
   // A push reads the newest verification, version 2 here, which verified C2.
   const newer = fixture();
   version(newer, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
   version(newer, 'verification', 'main', 2, 'verification.md', VERIFICATION);
   passes(push(newer, 'explainer', explainerFile(EXPLAINER)), 'explainer');
   fails(push(newer, 'explainer', explainerFile(EXPLAINER.replace(C2, C1))),
-    new RegExp(`^Set the commit of explainer.md to the verified commit ${C2}: it is ${C1}\\.$`));
+    new RegExp(`^Set the commit of explainer.md to ${C2}\\. That id is the verified commit, and ` +
+      `explainer.md has ${C1}\\.$`));
   // In a check, the draft verification.md at the top of the folder is the verification.
   const top = fixture();
   version(top, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
@@ -2247,8 +2257,8 @@ test('explainer: the commit of the verification', () => {
 });
 
 test('explainer: a verification with no full verified commit is a finding', () => {
-  const line = 'Start a line of ## Summary of verification.md with "Commit: " and the full id ' +
-    'of the verified commit, then push verification.md and explainer.md again.';
+  const line = 'Start a line of ## Summary of verification.md with "Commit: " and the ' +
+    'verified commit\'s full id.\nThen push verification.md and explainer.md again.';
   for (const verification of [VERIFICATION.replace(`Commit: ${C2}. `, ''),
     VERIFICATION.replace(`Commit: ${C2}`, 'Commit: a1b2c3d'),
     VERIFICATION.replace('## Summary', '## Overview')]) {
@@ -2272,8 +2282,8 @@ test('explainer: each line of a criterion section is a claim, a bullet', () => {
     '- The film shows them, matrix row ac-1.\n\nThe reply is now correct for every customer.');
   for (const mode of [push, check]) {
     exactly(mode(explained(), 'explainer', explainerFile(paragraph)), 'Write ## AC-1 of ' +
-      'explainer.md as bullets, each a claim that ends with its source: it has the text ' +
-      '"The reply is now correct for every cu...".');
+      'explainer.md as bullets, each a claim that ends with its source.\nThe section has the ' +
+      'text "The reply is now correct for every customer.".');
   }
   // A paragraph with a source is still no bullet, and neither is a table or a fence.
   for (const text of ['The reply is correct, `replies/delayed-order.md:3`.',
@@ -2292,10 +2302,10 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
   for (const mode of [push, check]) {
     exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       /## AC-2, [^]*?(?=## AC-3)/, ''))), 'Add the section ## AC-2, "<first sentence>" ' +
-      'to explainer.md: no section has AC-2.');
+      'to explainer.md.\nNo section has AC-2.');
     exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
       '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
-      '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md: the ' +
+      '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md.\nThe ' +
       'acceptance criteria have no such criterion that is not removed.');
   }
   // The text in quotes of a heading is the first sentence of the criterion, with no regard to
@@ -2310,7 +2320,7 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
   const twice = explainerFile(EXPLAINER.replace('## AC-2, "The reply',
     '## ac-1, "The saved reply"\n\n- Again, matrix row ac-1.\n\n## AC-2, "The reply'));
   const result = push(explained(), 'explainer', twice);
-  fails(result, /^Give AC-1 one section in explainer\.md: it has 2\.$/);
+  fails(result, /^Give AC-1 one section in explainer\.md\. It has 2\.$/);
   fails(result, /^Give explainer\.md ## Summary, ## AC-<N>, "<first sentence>" by number, /);
   // A removed criterion has no section: version 2 of the criteria removes ac-3.
   const removed = () => {
@@ -2331,14 +2341,14 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
   for (const mode of [push, check]) {
     passes(mode(removed(), 'explainer', noThree), 'explainer');
     exactly(mode(removed(), 'explainer', explainerFile(EXPLAINER)), 'Remove the section ' +
-      '## AC-3 from explainer.md: the acceptance criteria have no such criterion that ' +
+      '## AC-3 from explainer.md.\nThe acceptance criteria have no such criterion that ' +
       'is not removed.');
   }
 });
 
 test('explainer: a push with no verification version is a finding', () => {
-  const line = 'Push the verification before the explainer: the artifacts have no verification ' +
-    'version.';
+  const line = 'Push the verification before the explainer.\nThe artifacts have no ' +
+    'verification version.';
   exactly(push(fixture(), 'explainer', explainerFile(EXPLAINER)), line);
   exactly(check(fixture(), 'explainer', explainerFile(EXPLAINER)), line);
   // With any commit: the push compares none.

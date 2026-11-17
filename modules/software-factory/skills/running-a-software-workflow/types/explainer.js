@@ -4,8 +4,8 @@
 
 module.exports = (lib) => {
   const {
-    COMMIT, commitLine, cut, headings, isPoint, liveCriteria, markdownText, sectionTitles, short,
-    verifiedCommit, wrongWords,
+    brief, COMMIT, commitLine, cut, headings, isPoint, liveCriteria, markdownText, quote,
+    sectionTitles, short, verifiedCommit, wrongWords,
   } = lib;
 
   const FILE = 'explainer.md';
@@ -52,7 +52,7 @@ module.exports = (lib) => {
     if (titles[0] !== 'Summary' || titles.at(-1) !== 'Risk on merge' || titles.length < 2 ||
       !ordered) {
       run.find(`Give ${FILE} ## Summary, ## AC-<N>, "<first sentence>" by number, ` +
-        `## Risk on merge: it has ${cut(headings(titles), 80)}.`);
+        `## Risk on merge.\nIt has ${cut(headings(titles), 120)}.`);
     }
     const live = criteria.map((criterion) => criterion.id);
     const counts = new Map();
@@ -62,15 +62,17 @@ module.exports = (lib) => {
     }
     for (const [id, count] of counts) {
       if (!live.includes(id)) {
-        run.find(`Remove the section ## ${id.toUpperCase()} from ${FILE}: the acceptance ` +
+        run.find(`Remove the section ## ${id.toUpperCase()} from ${FILE}.\nThe acceptance ` +
           'criteria have no such criterion that is not removed.');
       } else if (count > 1) {
-        run.find(`Give ${id.toUpperCase()} one section in ${FILE}: it has ${count}.`);
+        run.find(`Give ${id.toUpperCase()} one section in ${FILE}.\nIt has ${count}.`);
       }
     }
+    // A criterion id of the criteria may have any number of digits: the first line has its
+    // start and its end.
     for (const id of live.filter((one) => !counts.has(one))) {
-      run.find(`Add the section ## ${id.toUpperCase()}, "<first sentence>" to ${FILE}: no ` +
-        `section has ${id.toUpperCase()}.`);
+      run.find(`Add the section ## ${brief(id.toUpperCase(), 24)}, "<first sentence>" to ` +
+        `${FILE}.\nNo section has ${id.toUpperCase()}.`);
     }
     // The text in quotes of each heading of a criterion that the criteria have.
     const byId = new Map(criteria.map((criterion) => [criterion.id, criterion]));
@@ -95,12 +97,13 @@ module.exports = (lib) => {
       const found = claims(part);
       if (found.other !== null) {
         run.find(`Write ## ${id} of ${FILE} as bullets, each a claim that ends with its ` +
-          `source: it has the text ${short(found.other)}.`);
+          `source.\nThe section has the text ${short(found.other, 80)}.`);
       }
       for (const claim of found.claims) {
         if (!sourced(claim)) {
-          run.find(`End the claim ${short(claim)} in ## ${id} of ${FILE} with its source, a ` +
-            'path:line or a matrix row.');
+          const whole = brief(claim, 36) === claim ? '' : ` The claim is ${short(claim, 80)}.`;
+          run.find(`End the claim ${quote(brief(claim, 36))} in ## ${id} of ${FILE} with its ` +
+            `source.\nThe source is a path:line or a matrix row.${whole}`);
         }
       }
     }
@@ -113,15 +116,15 @@ module.exports = (lib) => {
         run.find(`Start a line of ## Summary of ${FILE} with "Commit: " and the full id of the ` +
           'verified commit.');
       } else if (!verified) {
-        run.find(`Push the verification before the explainer: the artifacts have no ` +
+        run.find('Push the verification before the explainer.\nThe artifacts have no ' +
           'verification version.');
       } else if (!verified.commit || !COMMIT.test(verified.commit)) {
         // With no full verified commit, the check has no commit to compare: a finding.
-        run.find('Start a line of ## Summary of verification.md with "Commit: " and the full id ' +
-          `of the verified commit, then push verification.md and ${FILE} again.`);
+        run.find('Start a line of ## Summary of verification.md with "Commit: " and the ' +
+          `verified commit's full id.\nThen push verification.md and ${FILE} again.`);
       } else if (commit !== verified.commit) {
-        run.find(`Set the commit of ${FILE} to the verified commit ${verified.commit}: it is ` +
-          `${commit}.`);
+        run.find(`Set the commit of ${FILE} to ${verified.commit}.\nThat id is the verified ` +
+          `commit, and ${FILE} has ${commit}.`);
       }
     }
     markdownText(run, FILE, md);

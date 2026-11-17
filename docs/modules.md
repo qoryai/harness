@@ -1654,9 +1654,9 @@ find:
   id, or one other than the verified commit: in a check, that of `verification.md` at the
   top of the artifact folder, else of the newest verification version; in a push, that of
   the newest verification version, which the push check reads. With no verification, the
-  line is "Push the verification before the explainer: the artifacts have no verification
-  version." A verification with no line `Commit: ` and a full commit id in its summary is a
-  finding of the explainer too, in a check and in a push.
+  finding is "Push the verification before the explainer.", with the line "The artifacts
+  have no verification version." after it. A verification with no line `Commit: ` and a
+  full commit id in its summary is a finding of the explainer too, in a check and in a push.
 
 A Build session records each step it runs in the build ledger, so that a session that stops
 resumes where it stopped, and a step that is done replays and does not run again. The verbs
