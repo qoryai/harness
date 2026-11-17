@@ -1304,10 +1304,12 @@ The limits of the guard:
   contains the path.
 - A command whose writes the guard does not read, such as `node -e`, `python3 -c`,
   `curl -o`, `tar -x`, `make` or `npm run`, is opaque. Writers, redirects, the files of
-  prefixes, a shell with `-c` and a quoted text, and the read-only commands are not: `cat`,
-  `grep`, `rg`, `ls`, `head`, `tail`, `wc`, `diff`, `sed` that only prints, `find` with no
-  `-delete`, `-fprint` or opaque `-exec`, `sort` with no `-o`, `git diff`, `log`, `show`,
-  `status` and a few more. In a call with an opaque command, the guard denies the call
+  prefixes, a shell with `-c` and a quoted text, a subcommand `restore`, `checkout`, `rm` or
+  `mv`, which the guard reads, and the read-only commands are not: `cat`, `grep`, `rg`,
+  `ls`, `head`, `tail`, `wc`, `cmp`, `sed` that only prints, `find` with no `-delete`,
+  `-fprint` or opaque `-exec`, `sort` with no `-o`, and a few more. Rule 11 keeps the words
+  of software work, such as `diff` and `git`, out of `core`, so `git diff` and `git log`
+  are opaque. In a call with an opaque command, the guard denies the call
   when its text reaches a locked file or `.qory/build/`: a word that resolves to the file
   or a folder above it, the working folder included, from the folder of its command after
   links; a wildcard that can match it; or the name of a locked file anywhere in the text.

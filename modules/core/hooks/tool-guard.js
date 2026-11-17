@@ -66,16 +66,12 @@ const NO_ROOT = 'Start the session through qory: the tool guard found no working
 // The commands that write no file, each with the options that make it write one, as in
 // `sort -o <file>`. Any other command whose writes the guard does not read is opaque.
 const READ_ONLY = new Map(Object.entries({ cat: [], grep: [], egrep: [], fgrep: [], rg: [],
-  ls: [], head: [], tail: [], wc: [], diff: [], cmp: [], echo: [], printf: ['-v'], true: [],
-  false: [], test: [], '[': [], pwd: [], which: [], type: [], stat: [], file: [],
+  ls: [], head: [], tail: [], wc: [], cmp: [], echo: [], printf: ['-v'], true: [],
+  false: [], '[': [], pwd: [], which: [], type: [], stat: [], file: [],
   basename: [], dirname: [], realpath: [], readlink: [], date: [], sleep: [], cut: [], tr: [],
   nl: [], sha256sum: [], shasum: [], md5sum: [], du: [], tree: ['-o'],
   sort: ['-o', '--output'], jq: [], cd: [], pushd: [], popd: [], exit: [], export: [],
   set: [], unset: [], wait: [], find: ['-delete', '-fprint', '-fprint0', '-fprintf', '-fls'] }));
-// The subcommands of the version control tool that write no file of the working folder,
-// without --output.
-const GIT_READS = new Set(['diff', 'log', 'show', 'status', 'rev-parse', 'ls-files', 'blame',
-  'grep', 'shortlog', 'describe', 'cat-file', 'merge-base']);
 // The words before a command that run it on a condition, and the words of a loop, a case or
 // the end of a group, which run no command.
 const CONDITIONS = new Set(['if', 'elif', 'while', 'until', '!']);
@@ -1308,10 +1304,10 @@ const SED_READS = /^(?:[\d,$]*[pdq=]?|\/[^/]*\/[pd]?|s(.)(?:(?!\1).)*\1(?:(?!\1)
 
 // opaque reports whether segment, a simple command, can write files that the guard does not
 // read: it is no write that the guard reads, and no command of READ_ONLY without its write
-// options, of GIT_READS after the version control tool, a subcommand of SUB_WRITERS, which
-// subWrites reads, or of SHAPES, after the words of CONDITIONS. A shell with -c and a quoted
-// text, which commands reads, is not opaque, and sed is not with scripts that SED_READS
-// matches. find is opaque when a command of its -exec is.
+// options, with a subcommand of SUB_WRITERS, which subWrites reads, or of SHAPES, after the
+// words of CONDITIONS. A shell with -c and a quoted text, which commands reads, is not
+// opaque, and sed is not with scripts that SED_READS matches. find is opaque when a command
+// of its -exec is.
 function opaque(segment) {
   if (segmentWrites(segment)) return false;
   const words = segment.words.map(unquote);
@@ -1320,11 +1316,7 @@ function opaque(segment) {
   if (at >= words.length || SHAPES.has(words[at])) return false;
   const rest = words.slice(at);
   const name = path.basename(rest[0]);
-  if (name === 'git') {
-    const sub = rest[subIndex(rest)];
-    return !(GIT_READS.has(sub) || SUB_WRITERS.has(sub)) ||
-      rest.some((word) => word.startsWith('--output'));
-  }
+  if (SUB_WRITERS.has(rest[subIndex(rest)])) return false;
   if (/^(?:sh|bash|zsh|dash)$/.test(name)) {
     const raw = segment.words.slice(words.length - rest.length);
     const at = rest.findIndex((word) => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
