@@ -559,9 +559,10 @@ function withRepository(work, list, repository, at = 2) {
   return lock(artifacts(), work, draft, qory);
 }
 
-// The first line of each refusal of a repository, for support file `at`.
+// The first line of each refusal of a repository, for support file `at`: the run's
+// repository, or one that the run does not have.
 const OWN = (at) => `Remove \`repository\` from support file ${at} of acceptance-lock.json.`;
-const UNLISTED = (at) => `Remove \`repository\` from support file ${at} of acceptance-lock.json.`;
+const UNLISTED = OWN;
 
 test('lock refuses a repository that is the path of the run\'s repository', () => {
   const work = working();

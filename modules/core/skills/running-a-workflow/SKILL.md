@@ -515,13 +515,13 @@ workflow lists. On Claude Code, the allow rule matches these forms:
   agent that wrote the files.
 - When a line of `lock` starts with "Ask a member", only a member can open a new lock. Push
   nothing more, and end the run as "Points" lists, with one `run_again` point. Write its
-  text for the member from that line and the line after it, in plain words: first the
-  action, addressed to the member, then the reason after the colon of the second line.
-  Leave out the step that starts the second line with "Then": the run takes it. Call a
-  version of the lock "the lock", and keep each other version number. "Ask a member to
-  upload the X they accept as a new version." with the line "Then lock that version:
-  <type> version 1 already locks X version 1." becomes "Upload the X you accept as a new
-  version: the lock already locks X version 1."
+  text for the member from that line and the indented lines after it, in plain words:
+  first the action, addressed to the member, then the reason, after a colon or on a later
+  line. Leave out the step after "then" or "Then": the run takes it. Call a version of the
+  lock "the lock", and keep each other version number. "Ask a member to upload the X they
+  accept as a new version." with the line "Then lock that version: <type> version 1
+  already locks X version 1." becomes "Upload the X you accept as a new version: the lock
+  already locks X version 1."
 - Run `lock --verify` from the working folder. It exits with 0 when every locked
   file has its locked bytes, or when no lock counts. It exits with 1 when a locked file
   changed, with one line per file. Then follow the skill of your workflow for that case,

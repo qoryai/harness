@@ -19,6 +19,10 @@ module.exports = (lib) => {
   // idOf returns an id as the first line of a finding shows it: up to 24 characters, else its
   // start and its end. A heading may have any number of digits, and a Shows: line any text.
   const idOf = (id) => short(id, 24);
+  // whole returns a later line with each id that idOf shortens, and nothing for an id that
+  // the first line shows whole.
+  const whole = (...ids) => ids.filter((id) => idOf(id) !== id)
+    .map((id) => `\nThe whole id is ${id}.`).join('');
 
   // scenarios reads demo-scenarios.md: one entry per ### heading.
   function scenarios(text) {
@@ -56,28 +60,29 @@ module.exports = (lib) => {
           `between.\nThe Evidence line is ${EVIDENCE_TEXT}.\n${id} has no Evidence line.`);
       } else {
         run.find(`Put an Evidence line right after the Shows: line of ${name}.\nThe Evidence ` +
-          `line is ${EVIDENCE_TEXT}.\n${quote(filled[0].text)} is there.`);
+          `line is ${EVIDENCE_TEXT}.\n${quote(filled[0].text)} is there.${whole(id)}`);
       }
       return;
     }
     for (const stray of filled.slice(0, at)) {
       run.find(`Remove ${quote(short(stray.text))} from ${name}.\nThe line is ` +
-        `${quote(stray.text)}. Only the Evidence line follows the Shows: line.`);
+        `${quote(stray.text)}. Only the Evidence line follows the Shows: line.${whole(id)}`);
     }
     for (const extra of filled.slice(at + 1)) {
       run.find(`End ${name} with its Evidence line.\n${quote(extra.text)} comes after the ` +
-        'Evidence line.');
+        `Evidence line.${whole(id)}`);
     }
     const line = filled[at];
     if (/^\s/.test(line.text)) {
-      run.find(`Start the Evidence line of ${name} with "Evidence:", with no space before it.`);
+      run.find(`Start the Evidence line of ${name} with "Evidence:", with no space before it.` +
+        whole(id));
     } else if (!EVIDENCE.includes(line.text)) {
       run.find(`Set the Evidence line of ${name} to ${EVIDENCE_TEXT}.\nThe Evidence line is ` +
-        `${quote(line.text)}.`);
+        `${quote(line.text)}.${whole(id)}`);
     }
     if (at === 0 && line.at === 0) {
       run.find(`Put a blank line between the Shows: line and the Evidence line of ${name}.\n` +
-        'Without the blank line, Markdown shows the two lines as one paragraph.');
+        `Without the blank line, Markdown shows the two lines as one paragraph.${whole(id)}`);
     }
   }
 
@@ -199,6 +204,7 @@ module.exports = (lib) => {
     let shown = 0;
     for (const scenario of all) {
       const name = scenario.id && idOf(scenario.id);
+      const full = scenario.id ? whole(scenario.id) : '';
       if (!scenario.id) {
         run.find(`Write the heading ${quote(short(scenario.heading, 24))} of demo-scenarios.md ` +
           `as ### scenario-<N>: <title>.\nThe heading is ${quote(scenario.heading)}.`);
@@ -206,7 +212,7 @@ module.exports = (lib) => {
       }
       if (scenario.removed) continue;
       if (scenario.marked) {
-        run.find(`Give the removed ${name} only the line "Removed, because <the reason>."`);
+        run.find(`Give the removed ${name} only the line "Removed, because <the reason>."${full}`);
         continue;
       }
       shown += 1;
@@ -216,24 +222,24 @@ module.exports = (lib) => {
       const tail = found ? scenario.lines.slice(found.end) : [];
       const shows = tail.findIndex((line) => !blank(line));
       if (!first || !first.text.startsWith('Starting state: ')) {
-        run.find(`Start ${name} with a line "Starting state: <the state>".`);
+        run.find(`Start ${name} with a line "Starting state: <the state>".${full}`);
       } else if (!found || !same(found.header, STEP_COLUMNS)) {
         run.find(`Put a step table after the starting state of ${name}.\nThe step table has ` +
-          `the columns ${STEP_COLUMNS.join(', ')}.`);
+          `the columns ${STEP_COLUMNS.join(', ')}.${full}`);
       } else if (shows === -1 || !tail[shows].text.startsWith('Shows:')) {
-        run.find(`Put one line "Shows: <ac-N>, ..." right after the table of ${name}.`);
+        run.find(`Put one line "Shows: <ac-N>, ..." right after the table of ${name}.${full}`);
         // With no Shows: line at all, the same round also checks the Evidence line.
         if (!tail.some((line) => line.text.trim().startsWith('Shows:'))) {
           evidence(run, scenario.id, tail);
         }
       } else {
         if (scenario.shows.length === 0) {
-          run.find(`List at least one ac-N on the Shows: line of ${name}.`);
+          run.find(`List at least one ac-N on the Shows: line of ${name}.${full}`);
         }
         evidence(run, scenario.id, tail.slice(shows + 1));
       }
       if (found && found.rows.length > 8) {
-        run.find(`Cut ${name} to 8 steps: it has ${found.rows.length}.`);
+        run.find(`Cut ${name} to 8 steps: it has ${found.rows.length}.${full}`);
       }
     }
     if (shown > 12) run.find(`Cut demo-scenarios.md to 12 scenarios that are not removed: it has ` +
@@ -270,7 +276,8 @@ module.exports = (lib) => {
     for (const scenario of open) {
       if (byTitle.has(scenario.title)) {
         run.find(`Give ${idOf(scenario.id)} a title that no other scenario has.\n` +
-          `${byTitle.get(scenario.title)} has the title ${quote(scenario.title)} too.`);
+          `${byTitle.get(scenario.title)} has the title ${quote(scenario.title)} too.` +
+          whole(scenario.id));
       } else byTitle.set(scenario.title, scenario.id);
     }
     for (const criterion of byId.values()) {
@@ -279,7 +286,7 @@ module.exports = (lib) => {
       const scenario = open.find((candidate) => candidate.title === title);
       if (!scenario) {
         run.find(`Add a scenario with the title that ${idOf(criterion.id)} plans as its demo.\n` +
-          `The title is ${quote(title)}.`);
+          `The title is ${quote(title)}.${whole(criterion.id)}`);
       } else if (!scenario.shows.includes(criterion.id)) {
         run.find(`Add ${idOf(criterion.id)} to the Shows: line of ${idOf(scenario.id)}.\n` +
           `${criterion.id} plans ${scenario.id} as its demo.`);
@@ -290,7 +297,7 @@ module.exports = (lib) => {
         const criterion = byId.get(id);
         if (!criterion || criterion.removed || criterion.check !== `Demo: ${scenario.title}`) {
           run.find(`Remove ${idOf(id)} from the Shows: line of ${idOf(scenario.id)}.\nThe ` +
-            `criteria do not plan ${id} as "Demo: ${scenario.title}".`);
+            `criteria do not plan ${id} as "Demo: ${scenario.title}".${whole(scenario.id)}`);
         }
       }
     }

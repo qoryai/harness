@@ -797,6 +797,18 @@ test('scenarios: each scenario ends with Evidence: film or Evidence: pictures', 
     /^End scenario-2 with its Evidence line\. "Evidence: film" comes after the Evidence line\.$/);
 });
 
+test('scenarios: a long scenario id is shortened on line 1 and whole on a later line', () => {
+  const id = `scenario-${'7'.repeat(30)}`;
+  const result = push(fixture(['demo-scenarios.md', '### scenario-2:', `### ${id}:`],
+    ['demo-scenarios.md', /Evidence: pictures\n$/, 'Evidence: video\n']), 'demo-scenarios');
+  const at = result.lines.findIndex((line) => line.startsWith('Set the Evidence line of '));
+  assert.ok(at >= 0, result.out);
+  assert.equal(result.lines[at], 'Set the Evidence line of scenario-77...7777777777 to ' +
+    '"Evidence: film" or "Evidence: pictures".');
+  assert.deepEqual(result.lines.slice(at + 1, at + 3), ['  The Evidence line is "Evidence: video".',
+    `  The whole id is ${id}.`]);
+});
+
 test('scenarios: with no Shows: line, the same round checks the Evidence line', () => {
   const neither = push(fixture(['demo-scenarios.md', /Shows: ac-3\n\nEvidence: pictures\n$/, '']), 'demo-scenarios');
   fails(neither, /^Put one line "Shows: <ac-N>, \.\.\." right after the table of scenario-2\.$/);

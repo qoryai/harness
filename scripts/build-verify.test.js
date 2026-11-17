@@ -1169,7 +1169,7 @@ test('withdrawn criteria: the lock and the build plan say they are withdrawn', (
 test('acceptance-lock: the criteria version is approved, and no newer than the approval', () => {
   both(unapproved, LOCK_DOC, (result) => exactly(result, UNAPPROVED));
   // A run's version 2 above the approval: the push gets only version 2, so a check and a
-  // push get the line that starts with ASK.
+  // push get the line that starts with UPLOAD.
   const doc = clone(LOCK_DOC);
   doc.criteria.version = 2;
   const run = () => criteriaVersion(fixture(), 2, { at: LATER });
@@ -1411,7 +1411,7 @@ function twoLocks() {
 
 // follow runs the lock doc in mode on a new folder of make, then the lock with the criteria
 // version in the fix of the finding, until the lock passes or gets a line that starts with
-// ASK or is UNAPPROVED. It returns each finding in order and the end: pass, ask or
+// UPLOAD or is UNAPPROVED. It returns each finding in order and the end: pass, ask or
 // unapproved.
 function follow(make, mode, doc) {
   const seen = [];
@@ -1424,7 +1424,7 @@ function follow(make, mode, doc) {
     assert.equal(result.findings.length, 2, result.out);
     const line = result.findings[0];
     seen.push(line);
-    if (line.startsWith(ASK) || line.startsWith(UPLOAD)) return { seen, end: 'ask' };
+    if (line.startsWith(UPLOAD)) return { seen, end: 'ask' };
     if (line === UNAPPROVED) return { seen, end: 'unapproved' };
     const to = /^(?:Set \/criteria\/version of acceptance-lock\.json to |Lock version )([0-9]+)[ ,.]/
       .exec(line);
@@ -1470,7 +1470,7 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
 
   // The loop of the last round: a lock of each version on the first store. The push gets
   // only the run's version 3, so a check and a push of any lock get one line, which starts
-  // with ASK. Lock 2 pushed again, also pretty-printed, gets the same line.
+  // with UPLOAD. Lock 2 pushed again, also pretty-printed, gets the same line.
   const runAfter = stores['two locks, then a run'];
   const counts = askMounted(2, 3, false);
   for (const doc of [LOCK_2, LOCK_DOC, lockOf(LOCK_DOC, 3), lockOf(WEAK, 2),
@@ -1725,7 +1725,7 @@ test('acceptance-lock: with no lock, only a lock of the target passes', () => {
   }
   both(person, lockOf(LOCK_DOC, 998), (result) => passes(result, 'acceptance-lock'));
   // A run's version 999 after the approval: the push gets only version 999, so a check and a
-  // push of every lock get the line that starts with ASK.
+  // push of every lock get the line that starts with UPLOAD.
   const run = () => big({ approved: 997, persons: { 995: EARLIER }, folders: [995, 996, 997, 999] });
   for (const number of [995, 996, 997, 999]) {
     both(run, lockOf(LOCK_DOC, number), (result) => exactly(result, askMounted(997, 999)));
