@@ -182,6 +182,36 @@ test('a command name with quotes or backslashes is read as the shell reads it', 
     'Leave the mode and owner of .qory/ and the folders above it as they are.');
 });
 
+test('a path is read through its links before each .., as the system reads it', () => {
+  const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  const outside = next('outside');
+  fs.mkdirSync(path.join(outside, 'd'), { recursive: true });
+  const made = ['checks/x', 'l4', 'lf4', 'dl4', 'dirl4'].map((one) => path.join(WORK, one));
+  fs.mkdirSync(made[0]);
+  fs.symlinkSync('checks/x', made[1]);
+  fs.symlinkSync(CHECK_PATH, made[2]);
+  fs.symlinkSync(path.join(outside, 'missing'), made[3]);
+  fs.symlinkSync(path.join(outside, 'd'), made[4]);
+  try {
+    for (const command of ['echo y > l4/../corrected-reply.check.ts', 'echo y > lf4',
+      'rm l4/../corrected-reply.check.ts']) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+    }
+    firstLine(guard(claude('Write', { file_path: `${WORK}/l4/../corrected-reply.check.ts`,
+      content: 'x' }, 'implementer')), locked);
+    firstLine(guard(codex('Bash', { command: 'mkdir -p checks/y && ln -s checks/y l5 && ' +
+      'echo y > l5/../corrected-reply.check.ts' }, 'implementer')),
+    'Write the path without a .. after a folder that does not exist yet');
+    const counts = (command) => countsAsWrite('Bash', { command }, PLACE);
+    assert.equal(counts('echo x > dirl4/../x'), false);
+    assert.equal(counts('echo x > dl4'), false);
+    assert.equal(counts('echo x > l4/y'), true);
+  } finally {
+    for (const one of made.slice(1)) fs.rmSync(one, { force: true });
+    fs.rmSync(made[0], { recursive: true, force: true });
+  }
+});
+
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
   const start = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +

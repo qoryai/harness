@@ -63,6 +63,8 @@ const LINKED = 'Replace the link at the artifact folder with a folder: a link is
   'folder.\nThe main session writes only in the artifact folder, and ';
 const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
   'the run.\nOn Claude Code it reads CLAUDE_PROJECT_DIR, and on Codex the folder of the hook.';
+const UNSURE = 'Write the path without a .. after a folder that does not exist yet: the ' +
+  'guard cannot tell\nwhere such a .. leads, as a later command can make that folder a link. ';
 const NOT_JSON = 'Report this error in your output: the tool guard got hook input that is ' +
   'not JSON.\nIn a run, the guard denies a call whose input it cannot read.';
 
@@ -135,31 +137,77 @@ function kindOf(name, input) {
 // The longest path that the system opens: a longer one fails with ENAMETOOLONG.
 const PATH_MAX = 4096;
 
-// real returns full with each part that exists read through its links, in the case of its
-// name on the disk, so that /tmp/x and /private/tmp/x are one path on macOS, and so are
-// Checks/a.ts and checks/a.ts on a disk that ignores case. It reads the parts from the top
-// once, up to the first that does not exist, and adds the rest as they are. A path longer
-// than PATH_MAX, with its .. parts resolved, names no file, and real returns it resolved.
-function real(full) {
-  const resolved = path.resolve(full);
-  if (resolved.length > PATH_MAX) return resolved;
-  const { root } = path.parse(resolved);
-  const parts = resolved.slice(root.length).split(path.sep).filter(Boolean);
-  let found = root;
-  let at = 0;
-  for (; at < parts.length; at += 1) {
-    const next = path.join(found, parts[at]);
-    if (!fs.existsSync(next)) break;
-    found = next;
+// The most links that walkPath reads in one path; the system stops with ELOOP after 40.
+const LINKS = 40;
+
+// walkPath reads full, an absolute path that may contain . and .. parts, as the system does,
+// and returns { real, unsure }. It reads the parts from the top once: it reads a link
+// through to its target and applies a .. to the real path of the folder before it, so
+// l/../x is x in the folder above the target of l. From the first part that does not exist,
+// it adds the rest as text, with .. parts resolved as text, and a .. there makes unsure true,
+// as the system reads it only after a later command makes that part. real is in the case of
+// the names on the disk, so that /tmp/x and /private/tmp/x are one path on macOS, and so are
+// Checks/a.ts and checks/a.ts on a disk that ignores case. A path longer than PATH_MAX names
+// no file, and walkPath returns it resolved as text.
+function walkPath(full) {
+  if (full.length > PATH_MAX) return { real: path.resolve(full), unsure: false };
+  const { root } = path.parse(full);
+  // The parts still to read, the next one last.
+  const todo = full.slice(root.length).split(path.sep).filter(Boolean).reverse();
+  let at = root;
+  let links = 0;
+  while (todo.length) {
+    const part = todo.pop();
+    if (part === '.') continue;
+    if (part === '..') {
+      at = path.dirname(at);
+      continue;
+    }
+    const next = path.join(at, part);
+    let stat;
+    try {
+      stat = fs.lstatSync(next, { throwIfNoEntry: false });
+    } catch {
+      // A part below a file, a folder that cannot be read, or a name too long: no file.
+    }
+    let target = null;
+    if (stat && stat.isSymbolicLink() && links < LINKS) {
+      try {
+        target = fs.readlinkSync(next);
+      } catch {
+        // A link that cannot be read is read as a part that does not exist.
+      }
+    }
+    if (!stat || (stat.isSymbolicLink() && target === null)) {
+      todo.push(part);
+      break;
+    }
+    if (target === null) {
+      at = next;
+      continue;
+    }
+    links += 1;
+    if (path.isAbsolute(target)) at = path.parse(target).root;
+    const parts = target.split(path.sep).filter(Boolean);
+    for (let one = parts.length - 1; one >= 0; one -= 1) todo.push(parts[one]);
   }
-  let base;
+  let base = at;
   try {
-    base = fs.realpathSync.native(found);
+    base = fs.realpathSync.native(at);
   } catch {
-    return resolved;
+    // The folder exists and holds no link, so the path as it is serves.
   }
-  return at < parts.length ? path.join(base, parts.slice(at).join(path.sep)) : base;
+  const rest = todo.reverse();
+  return { real: rest.length ? path.resolve(base, rest.join(path.sep)) : base,
+    unsure: rest.includes('..') };
 }
+
+// real returns the path that full names, as walkPath reads it.
+const real = (full) => walkPath(full).real;
+
+// joined returns word, a path of a command, from the folder from, with its . and .. parts kept
+// for walkPath, which applies them after the links before them.
+const joined = (from, word) => (path.isAbsolute(word) ? word : `${from}${path.sep}${word}`);
 
 const under = (full, dir) => full === dir || full.startsWith(`${dir}${path.sep}`);
 
@@ -963,14 +1011,13 @@ function pathHits(segment, full, folder, how) {
   const restorer = sub === 'restore' || sub === 'checkout';
   const named = sub !== 'checkout' || words.includes('--');
   const target = fold(full);
-  const base = path.basename(target);
   const nocase = fold('A') === 'a';
   const find = findParts(segment.words);
   if (find.writes) {
     // find writes the paths below each start that its -name options match.
     return find.exec.some((exec) => pathHits({ ...segment, words: exec }, full, folder, how)) ||
       segment.cwds.some((cwd) => find.starts.some((start) => {
-        const at = fold(realOf(path.resolve(cwd, start)));
+        const at = fold(realOf(joined(cwd, start)));
         if (!under(target, at) && !(folder && under(at, target))) return false;
         return !find.names.length || find.names.some(({ pattern, nocase: other }) =>
           shown(full, folder).some((name) => globMatch(pattern, name,
@@ -990,7 +1037,7 @@ function pathHits(segment, full, folder, how) {
           .length]);
     })) return true;
     if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
-      const resolved = realOf(path.resolve(cwd, literal(dest)));
+      const resolved = realOf(joined(cwd, literal(dest)));
       const at = fold(resolved);
       if (at === target || !under(target, at)) return false;
       const stat = fs.statSync(resolved, { throwIfNoEntry: false });
@@ -1007,11 +1054,7 @@ function pathHits(segment, full, folder, how) {
         (reach === 'above' && (remover || (!folder && restorer)));
     }
     const word = literal(shown);
-    const lexical = fold(path.resolve(cwd, word));
-    // Only a word that can match is resolved through the disk.
-    if (!path.isAbsolute(word) && path.basename(lexical) !== base && !under(target, lexical) &&
-      !(folder && under(lexical, target))) return false;
-    const resolved = realOf(path.resolve(cwd, word));
+    const resolved = realOf(joined(cwd, word));
     const exact = fold(resolved);
     if (exact === target || (folder && under(exact, target))) return true;
     if (!under(target, exact)) return false;
@@ -1044,7 +1087,7 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
     return under(full, fold(root)) && !under(full, qory);
   };
   const work = (word, from = cwd) => (path.isAbsolute(word) ? place(word)
-    : from !== null && place(path.resolve(from, word)));
+    : from !== null && place(joined(from, word)));
   if (Object.hasOwn(WRITE_TOOLS, name)) {
     return WRITE_TOOLS[name].some((key) => typeof args[key] === 'string' && args[key] !== '' &&
       work(args[key]));
@@ -1113,7 +1156,8 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
     }
     return lock;
   };
-  const paths = call.paths.map((one) => real(path.resolve(cwd, one)));
+  const walked = call.paths.map((one) => walkPath(joined(cwd, one)));
+  const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
   if (call.kind === 'shell') {
     const reason = shellReason(call.command, { cwd, root, lockOf, nocase, home });
@@ -1130,6 +1174,8 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
     const file = paths.find((full) => files.some((one) => fold(one) === fold(full)));
     if (file) return lockedReason(file, root, what);
   }
+  const unsure = walked.find((one) => one.unsure);
+  if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   if (agent) return null;
   const artifacts = artifactFolder(root, env);
@@ -1170,7 +1216,13 @@ function shellReason(command, { cwd, root, lockOf, nocase, home }) {
   const { files = [], what, problem, type } = lockOf();
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));
-  return file ? lockedReason(file, root, what) : null;
+  if (file) return lockedReason(file, root, what);
+  for (const one of parts) {
+    const word = pathWords(one).find((each) => !vague(each) && !wild(each) &&
+      one.cwds.some((from) => walkPath(joined(from, literal(each))).unsure));
+    if (word !== undefined) return `${UNSURE}The command writes ${word}.`;
+  }
+  return null;
 }
 
 // wild reports whether word has a wildcard of the shell, *, ? or [, that no backslash escapes.
