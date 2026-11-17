@@ -126,7 +126,7 @@ The new support hours go into the saved reply in two deliverables.
 const section = (title) => `## ${title}\n\nNone.\n`;
 const REPORT_FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'Not run']
   .map(section).join('\n');
-const REPORT_SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Full suite', 'Not run']
+const REPORT_SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run']
   .map(section).join('\n');
 
 const VERIFICATION = `## Summary

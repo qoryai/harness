@@ -1549,8 +1549,8 @@ find:
   other columns than those that the check reads, or a second table with them;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
-  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Full suite` and
-  `## Not run`, with `## Escalation` after them when the session escalated;
+  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion` and `## Not run`, with
+  `## Escalation` after them when the session escalated;
 - `build-ledger`: a file other than one line of compact JSON, the text that
   `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
   `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and

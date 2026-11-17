@@ -8,7 +8,7 @@ module.exports = (lib) => {
   const FILE = 'build-report.md';
   // The sections of the full path, and those of a short session.
   const FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'Not run'];
-  const SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Full suite', 'Not run'];
+  const SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run'];
   // A short session that escalated adds this section at the end.
   const ESCALATION = 'Escalation';
 
