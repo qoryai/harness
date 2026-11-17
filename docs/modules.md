@@ -1983,8 +1983,10 @@ When the newest proposal that the run pulled is on the fast track, the commits o
 must prove the kind that its `## Track` declares. `prove` runs the proof, and `check` and
 `end` run it with the check of `submission`, in a checkout, with `--inputs`. A push form
 (`push`) and `end --offline` run no proof: the working folder of a push is the store of
-the push, not a checkout, and `end --offline` runs no program. With the fast track and no
-`--inputs`, `check submission` has a finding, never a pass.
+the push, not a checkout, and `end --offline` runs no program. `end` checks a draft that
+differs from the newest stored version, so it runs no proof for a submission that equals
+its stored version. With the fast track and no `--inputs`, `check submission` has a
+finding, never a pass.
 
 The commits are those from `qory.start_commits` of `inputs.json` to the HEAD of the
 checkout, which the proof reads as objects, never as files of the working folder. No

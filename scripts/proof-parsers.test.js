@@ -375,7 +375,7 @@ test('a layout change names the code that changed', { skip: NO_PARSERS }, () => 
 
 // ---- the folder of the parsers ---------------------------------------------------------------
 
-test('a checkout with its own node_modules changes no result', { skip: NO_PARSERS }, () => {
+test('a checkout with a node_modules folder of the same names changes no result', { skip: NO_PARSERS }, () => {
   // A package of the checkout that always fails, and one that always passes, are never loaded:
   // the proof loads the parsers from the folder that it is given, by absolute path.
   const trap = "throw new Error('loaded from the checkout');\n";

@@ -425,6 +425,38 @@ test('check submission: on the fast track the commits are proved, in check and e
   assert.equal(pushed.status, 0, pushed.out + pushed.err);
 });
 
+test('end: a submission that equals its stored version is no draft, so end runs no proof', () => {
+  // end checks a draft that differs from the newest stored version only. After the session
+  // pushed the submission, end reads it as unchanged and runs no proof of the commits: prove is
+  // the proof that binds a push.
+  const run = scene(BASE);
+  commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  const folder = session(run);
+  const stored = path.join(folder, 'submission', 'main', 'v1');
+  fs.mkdirSync(stored, { recursive: true });
+  fs.copyFileSync(path.join(folder, 'submission.json'), path.join(stored, 'submission.json'));
+  fs.writeFileSync(path.join(folder, 'index.json'), JSON.stringify({ artifacts: [{
+    type: 'submission', name: 'main', newest_version: 1, approved_version: null,
+    versions: [{ id: 'ver_1', number: 1 }] }] }));
+  const ended = call(run.dir, ['end', folder, '--inputs', run.inputs()],
+    { artifacts: [folder], env: { ...ENV, QORY_RUN_ID: 'run_1' } });
+  assert.equal(ended.status, 0, ended.out);
+  // The same proof still fails in prove.
+  fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is no document\./);
+});
+
+test('check submission: a proposal that the session wrote counts as none', () => {
+  // The proposal of the run is the one in start_artifacts. A fast track that the session writes
+  // into its artifact folder changes nothing.
+  const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
+  commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  const folder = session(run);
+  fs.writeFileSync(path.join(folder, 'proposal', 'main', 'v1', 'proposal.md'),
+    fastTrack(DOCUMENT));
+  passes(call(run.dir, ['check', 'submission', '--inputs', run.inputs(),
+    path.join(folder, 'submission.json')], { artifacts: [folder] }));
+});
+
 test('check submission: without the parsers, end leaves the proof to prove', {
   skip: fs.existsSync('/opt/qory/parsers/node_modules') && 'the parsers are installed',
 }, () => {

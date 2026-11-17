@@ -1,5 +1,5 @@
 // The proof of the kind "a comment" for shell and Python files: the change from the start
-// commit to HEAD changes comments only. The proof compares what each language's own parser
+// commit to HEAD changes comments only. The proof compares what the parser of each language
 // makes of the two blobs, and runs no code of the repository:
 // - Python: the program PY_DUMP, run by the python3 of TOOLS, prints the AST of the file with
 //   ast.parse, which compiles and runs nothing, and the token stream without comments, so that

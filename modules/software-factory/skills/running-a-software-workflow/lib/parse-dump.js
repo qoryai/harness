@@ -215,7 +215,7 @@ async function typescript() {
   if (shebang) out.push(`SHEBANG ${shebang}`);
 
   // In .js and .jsx files, tsc with checkJs reads JSDoc tags as types and modifiers. Each /**
-  // comment is parsed on its own, and its tags are compared without their prose.
+  // comment is parsed alone, and its tags are compared without their prose.
   const jsFile = language === 'js' || language === 'jsx';
   const PROSE = new Set([K.JSDocText, K.JSDocLink, K.JSDocLinkCode, K.JSDocLinkPlain]);
   function jsdocTags(comment) {
@@ -603,8 +603,8 @@ function tokens() {
       out.push(`${ind}${JSON.stringify(key)}: ${JSON.stringify(node)}`);
       return;
     }
-    const own = node.$type !== undefined ? node.$type : node.type;
-    const kind = typeof own === 'string' ? own : inherited;
+    const declared = node.$type !== undefined ? node.$type : node.type;
+    const kind = typeof declared === 'string' ? declared : inherited;
     const member = Object.hasOwn(node, '$value') ? '$value' : Object.hasOwn(node, 'value') ? 'value'
       : null;
     out.push(`${ind}${JSON.stringify(key)}: ${Array.isArray(node) ? 'LIST' : 'OBJECT'}`);

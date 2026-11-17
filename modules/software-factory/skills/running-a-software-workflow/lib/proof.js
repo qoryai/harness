@@ -31,7 +31,7 @@ const MODES = new Set(['100644', '100755']);
 const ZERO = /^0+$/;
 
 module.exports = (lib) => {
-  const { Missing, areaOf, cut, globRegExp, quote, trackLine, trackLists } = lib;
+  const { Context, Missing, areaOf, cut, globRegExp, quote, trackLine, trackLists } = lib;
   const starts = require('./start.js')(lib);
   const text = require('./proof-text.js')(lib);
   const comments = require('./proof-comments.js')(lib);
@@ -335,7 +335,17 @@ module.exports = (lib) => {
     const context = run.context;
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;
     try {
-      const track = proposalTrack(context);
+      // With the inputs of the run, the proposal is the one that qory pulled at the start, as
+      // prove reads it, so that a version written into the artifact folder of the session
+      // counts as none. Without them, it is the newest version of that folder.
+      let source = context;
+      if (context.inputs) {
+        const start = starts.readStart(context.workingFolder, context.inputs, process.env);
+        source = new Context(start.artifacts, 'check', process.env.HOME, start.artifacts);
+        source.inputs = context.inputs;
+        source.workingFolder = context.workingFolder;
+      }
+      const track = proposalTrack(source);
       if (!track || !track.fast) return;
       run.did('proof of the fast track');
       if (!context.inputs) {
