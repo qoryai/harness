@@ -1334,14 +1334,15 @@ The limits of the guard:
 - A guard that throws denies the call, with the error, and so does hook input that is not
   JSON. In a run, the `PreToolUse` command exits 2 when `node` does not start or exits with
   an error, and both runtimes then block the call with the text on stderr. Outside a run,
-  the command starts no `node`. The guard compares at most 200,000 paths with files in
-  one call and stops after 20 seconds; past either, it denies the call with "Split this
-  command into smaller calls", and the step count counts the call as no write. A guard
-  that runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock,
-  or fails to start, blocks the call on Claude Code 2.1.295 or later, through the key
+  the command starts no `node`. The guard counts its work in one call: each comparison of a
+  path with a file, each read of the disk, and each step through a long word or pattern. It
+  stops after 200,000 units or 20 seconds; past either, it denies the call with "Split this
+  command into smaller calls", and the step count counts the call as no write. A guard that
+  runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock, or
+  fails to start, blocks the call on Claude Code 2.1.295 or later, through the key
   `onFailure: "block"` of the `PreToolUse` hook. Earlier Claude Code builds drop that key,
-  and there, as on Codex, such a call runs. A change to a locked file still fails the
-  push check.
+  and there, as on Codex, such a call runs. A change to a locked file still fails the push
+  check.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the

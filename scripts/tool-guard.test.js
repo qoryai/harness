@@ -1391,11 +1391,45 @@ test('a call past the work limit is denied in under 5 seconds and counts as no w
     locked: () => ({ what: 'acceptance-lock version 1', files }) });
   const ms = Number(process.hrtime.bigint() - start) / 1e6;
   assert.ok(ms < 5000, `${ms} ms`);
-  firstLine(reason, 'Split this command into smaller calls: the guard compares at most');
+  firstLine(reason, 'Split this command into smaller calls: the guard stopped before it read');
   const counted = process.hrtime.bigint();
   assert.equal(countsAsWrite('Bash', { command: `rm -f ${'/tmp/x '.repeat(250000)}a.ts` },
     PLACE), false);
   assert.ok(Number(process.hrtime.bigint() - counted) / 1e6 < 5000);
+});
+
+test('each loop of the guard ends in under 5 seconds on a large call', () => {
+  // A working folder whose .qory/build/ has 1,200 files, and a link L whose target goes 200
+  // folders down and up again, so that each L costs 400 reads of the disk.
+  const root = next('loops');
+  const build = path.join(root, '.qory', 'build');
+  fs.mkdirSync(build, { recursive: true });
+  for (let at = 0; at < 1200; at += 1) fs.writeFileSync(path.join(build, `s${at}.json`), '{}');
+  fs.mkdirSync(path.join(root, 'd', ...Array(200).fill('a')), { recursive: true });
+  fs.symlinkSync(['d', ...Array(200).fill('a'), ...Array(201).fill('..')].join('/'),
+    path.join(root, 'L'));
+  fs.mkdirSync(path.join(root, 'checks'));
+  const files = [path.join(root, 'checks', 'a.check.ts')];
+  fs.writeFileSync(files[0], CHECK_TEXT);
+  const deep = Array(41).fill('L').join('/');
+  const patched = `*** Begin Patch\n${`*** Add File: ${deep}/x\n`.repeat(1000)}*** End Patch\n`;
+  const calls = [['Bash', { command: `find . -name ${'['.repeat(60000)} -delete` }],
+    ['Bash', { command: `find . ${'-name z '.repeat(12500)}-delete` }],
+    ['Bash', { command: `git ${'-C d '.repeat(20000)}rm x` }],
+    ['Bash', { command: `env ${'-C d '.repeat(20000)}touch x` }],
+    ['Bash', { command: `find . ${'-exec rm + '.repeat(10000)}-delete` }],
+    ['Bash', { command: `cd d/${Array(200).fill('a').join('/')}; ${'cd a; cd ..; '.repeat(8000)}` +
+      'touch x' }],
+    ['apply_patch', { command: patched }]];
+  const place = { cwd: root, root };
+  for (const [tool, args] of calls) {
+    const start = process.hrtime.bigint();
+    decide({ input: { ...codex(tool, args, 'implementer'), cwd: root }, env: RUN, root,
+      locked: () => ({ what: 'acceptance-lock version 1', files }) });
+    countsAsWrite(tool, args, place);
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    assert.ok(ms < 5000, `${args.command.slice(0, 30)}: ${ms} ms`);
+  }
 });
 
 test('the body of a here-document with a quoted end is text only for cat or tee', () => {

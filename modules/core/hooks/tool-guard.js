@@ -86,9 +86,9 @@ const TOKEN = /[^\s'"`(),;=<>|&]+/g;
 // timeout of 120 s, and the guard ends well before that.
 const WORK_LIMIT = 200000;
 const TIME_LIMIT = 20000;
-const TOO_MUCH = 'Split this command into smaller calls: the guard compares at most ' +
-  `${WORK_LIMIT} paths in one call.\nThe guard stopped reading this call before it could ` +
-  'tell what the call writes. ';
+const TOO_MUCH = 'Split this command into smaller calls: the guard stopped before it read ' +
+  `the whole call.\nThe guard does at most ${WORK_LIMIT} units of work in one call and stops ` +
+  `after ${TIME_LIMIT / 1000} s, so it cannot tell what this call writes.`;
 const OPAQUE = 'Run the checks with no file path or with `checks.js run locked`: this command ' +
   'reaches a locked file.\n';
 const LOST = 'Write with a path that starts with /: the guard cannot tell the folder that ' +
@@ -137,7 +137,7 @@ const IN_PLACE = /^(?:sed|perl)$/;
 
 // inPlace reports whether tool, with the words of its command, edits its files in place: sed
 // or perl with -i, as in -i, -i.bak or -pi, or sed with --in-place or --in-place=<suffix>.
-const inPlace = (tool, words) => IN_PLACE.test(tool) && words.map(unquote).some((word) =>
+const inPlace = (tool, words) => IN_PLACE.test(tool) && plainWords(words).some((word) =>
   /^-[A-Za-z]*i/.test(word) || (tool === 'sed' && /^--in-place(?:=|$)/.test(word)));
 
 // patchPaths returns the paths that a Codex patch adds, changes, deletes or moves to.
@@ -171,6 +171,67 @@ const PATH_MAX = 4096;
 // The most links that walkPath reads in one path; the system stops with ELOOP after 40.
 const LINKS = 40;
 
+// Spent is the error that a budget throws when a call needs more work than the guard does.
+class Spent extends Error {}
+
+// budget returns spend(units, clock), which counts units of work of one call and throws Spent
+// past WORK_LIMIT units or past deadline, a time in ms. It reads the clock when clock is true,
+// as before each read of the disk, and after each 64 units.
+function budget(deadline = Date.now() + TIME_LIMIT) {
+  let left = WORK_LIMIT;
+  let since = 0;
+  return (units = 1, clock = false) => {
+    left -= units;
+    since += units;
+    if (left < 0) throw new Spent();
+    if (clock || since >= 64) {
+      since = 0;
+      if (Date.now() > deadline) throw new Spent();
+    }
+  };
+}
+
+// The spend of the budget of the call that the guard reads, or null outside one.
+let meter = null;
+
+// metered returns fn(), with spend as the meter while fn runs.
+function metered(spend, fn) {
+  const before = meter;
+  meter = spend;
+  try {
+    return fn();
+  } finally {
+    meter = before;
+  }
+}
+
+// charge spends units from the meter, when there is one.
+const charge = (units = 1, clock = false) => {
+  if (meter) meter(units, clock);
+};
+
+// disk reads the disk as fs does. Before each read it reads the clock and charges the meter a
+// unit, and one more for each 64 characters of the path, as the system reads a path part by
+// part.
+// A read that fails returns the fallback: for a part below a file, a folder that cannot be
+// read, a name too long or a NUL. Only Spent leaves a read of disk.
+function read(full, fn, fallback) {
+  charge(1 + (String(full).length >> 6), true);
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+}
+const disk = {
+  lstat: (full) => read(full, () => fs.lstatSync(full, { throwIfNoEntry: false }), undefined),
+  stat: (full) => read(full, () => fs.statSync(full, { throwIfNoEntry: false }), undefined),
+  readlink: (full) => read(full, () => fs.readlinkSync(full), null),
+  realpath: (full) => read(full, () => fs.realpathSync.native(full), null),
+  exists: (full) => read(full, () => fs.existsSync(full), false),
+  readdir: (full) => read(full, () => fs.readdirSync(full, { withFileTypes: true }), []),
+};
+
 // walkPath reads full, an absolute path that may contain . and .. parts, as the system does,
 // and returns { real, unsure }. It reads the parts from the top once: it reads a link
 // through to its target and applies a .. to the real path of the folder before it, so
@@ -195,20 +256,10 @@ function walkPath(full) {
       continue;
     }
     const next = path.join(at, part);
-    let stat;
-    try {
-      stat = fs.lstatSync(next, { throwIfNoEntry: false });
-    } catch {
-      // A part below a file, a folder that cannot be read, or a name too long: no file.
-    }
-    let target = null;
-    if (stat && stat.isSymbolicLink() && links < LINKS) {
-      try {
-        target = fs.readlinkSync(next);
-      } catch {
-        // A link that cannot be read is read as a part that does not exist.
-      }
-    }
+    // A part that cannot be read is no file, and a link that cannot be read is read as a
+    // part that does not exist.
+    const stat = disk.lstat(next);
+    const target = stat && stat.isSymbolicLink() && links < LINKS ? disk.readlink(next) : null;
     if (!stat || (stat.isSymbolicLink() && target === null)) {
       todo.push(part);
       break;
@@ -222,12 +273,8 @@ function walkPath(full) {
     const parts = target.split(path.sep).filter(Boolean);
     for (let one = parts.length - 1; one >= 0; one -= 1) todo.push(parts[one]);
   }
-  let base = at;
-  try {
-    base = fs.realpathSync.native(at);
-  } catch {
-    // The folder exists and holds no link, so the path as it is serves.
-  }
+  // A folder that exists and cannot be read through holds no link, so the path as it is serves.
+  const base = disk.realpath(at) || at;
   const rest = todo.reverse();
   return { real: rest.length ? path.resolve(base, rest.join(path.sep)) : base,
     unsure: rest.includes('..') };
@@ -240,21 +287,6 @@ const real = (full) => walkPath(full).real;
 // for walkPath, which applies them after the links before them.
 const joined = (from, word) => (path.isAbsolute(word) ? word : `${from}${path.sep}${word}`);
 
-// Spent is the error that a budget throws when a call needs more work than the guard does.
-class Spent extends Error {}
-
-// budget returns spend(units), which counts units of work of one call and throws Spent past
-// WORK_LIMIT units or past deadline, a time in ms, which it reads once in 256 calls.
-function budget(deadline = Date.now() + TIME_LIMIT) {
-  let left = WORK_LIMIT;
-  let calls = 0;
-  return (units = 1) => {
-    left -= units;
-    calls += 1;
-    if (left < 0 || (calls % 256 === 0 && Date.now() > deadline)) throw new Spent();
-  };
-}
-
 const under = (full, dir) => full === dir || full.startsWith(`${dir}${path.sep}`);
 
 // caseless reports whether the disk of dir, a folder that exists, ignores case: dir with its
@@ -264,11 +296,8 @@ function caseless(dir) {
   const swapped = dir.replace(/[A-Za-z]/g, (one) => (one === one.toLowerCase()
     ? one.toUpperCase() : one.toLowerCase()));
   if (swapped === dir) return false;
-  try {
-    return fs.realpathSync.native(swapped) === fs.realpathSync.native(dir);
-  } catch {
-    return false;
-  }
+  const one = disk.realpath(swapped);
+  return one !== null && one === disk.realpath(dir);
 }
 
 // lockedFiles returns { what, files } of the lock that counts: files are the real paths of
@@ -346,6 +375,22 @@ function commands(command, depth = 0) {
 // so that the result is a pattern for globMatch whose live wildcards are the unquoted ones.
 function shellText(word, keep) {
   if (!/['"\\]/.test(word)) return word;
+  const cache = keep ? PATTERNS : PLAIN_TEXTS;
+  if (cache.has(word)) return cache.get(word);
+  charge(1 + (word.length >> 8));
+  if (cache.size >= 4096) cache.clear();
+  const out = readShellText(word, keep);
+  cache.set(word, out);
+  return out;
+}
+
+// The answers of shellText by word, with keep and without: the guard reads a word once for
+// each file of the lock.
+const PATTERNS = new Map();
+const PLAIN_TEXTS = new Map();
+
+// readShellText returns the answer of shellText for a word with a quote or a backslash.
+function readShellText(word, keep) {
   const one = (char) => (keep && /[*?[\]\\]/.test(char) ? `\\${char}` : char);
   let out = '';
   let quote = null;
@@ -398,6 +443,16 @@ function ansi(word, at) {
 
 // unquote returns word as the shell reads it, without quotes and escapes.
 const unquote = (word) => shellText(word, false);
+
+// plainWords returns words as the shell reads them, with unquote, once for each array of words.
+function plainWords(words) {
+  if (!PLAIN_WORDS.has(words)) {
+    charge(1 + (words.length >> 6));
+    PLAIN_WORDS.set(words, words.map(unquote));
+  }
+  return PLAIN_WORDS.get(words);
+}
+const PLAIN_WORDS = new WeakMap();
 
 // patternOf returns word as a pattern of globMatch: its quoted wildcards escaped.
 const patternOf = (word) => shellText(word, true);
@@ -584,11 +639,22 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
-    const cwds = from.map((one) => known.reduce((to, dir) => path.resolve(to, dir), one));
+    const cwds = from.map((one) => into(one, known));
     const sure = at !== null && known.length === chdirs.length;
     return { text, words, outputs, cwds, lost,
-      at: sure ? known.reduce((to, dir) => path.resolve(to, dir), at) : null, dots };
+      at: sure ? into(at, known) : null, dots };
   });
+}
+
+// into returns the folder that a command runs in from the folder from after a cd to each of
+// dirs, in order. It charges each step by the length of the path, which grows with each step.
+function into(from, dirs) {
+  let at = from;
+  for (const dir of dirs) {
+    charge(1 + ((at.length + dir.length) >> 8));
+    at = path.resolve(at, dir);
+  }
+  return at;
 }
 
 // link returns the kind of a separator between two commands of a shell text, without its
@@ -677,12 +743,8 @@ function walk(parts, start, flags) {
     else if (at !== null) {
       if (tool === 'pushd') pushed.push(at);
       const next = path.resolve(at, to);
-      let stat = null;
-      try {
-        stat = fs.statSync(next, { throwIfNoEntry: false });
-      } catch {
-        // A folder that cannot be read, a name too long or a NUL: the cd fails.
-      }
+      // A folder that cannot be read, a name too long or a NUL: the cd fails.
+      const stat = disk.stat(next);
       at = stat && stat.isDirectory() ? next : null;
     }
   }
@@ -870,6 +932,7 @@ function folders(parts, cwd) {
     const to = words.slice(1).map(unquote).find((word) => !/^-[LPe@]+$/.test(word) &&
       word !== '--');
     if (tool === 'popd' || to === undefined || vague(to)) continue;
+    charge(list.length * (1 + ((list[0].length + to.length) >> 8)));
     const more = [...new Set([...list, ...list.map((one) => path.resolve(one, to))])];
     if (more.length <= FOLDERS) list = more;
   }
@@ -880,9 +943,10 @@ function folders(parts, cwd) {
 // each -C <folder> before the subcommand, as in `<tool> -C <folder> restore <path>`.
 function toolDirs(words) {
   if (!subWrites(words)) return [];
-  const plain = words.map(unquote);
+  const plain = plainWords(words);
   const out = [];
-  for (let at = 1; at < subIndex(plain); at += 1) {
+  const end = subIndex(plain);
+  for (let at = 1; at < end; at += 1) {
     if (plain[at] === '-C') out.push(plain[at + 1] || '');
   }
   return out;
@@ -894,7 +958,7 @@ function toolDirs(words) {
 // command in `sh -c 'rm <path>'` is read. A restore with --staged or -S and no --worktree,
 // or a start of it such as --work, or -W changes only the index, so it writes no file.
 function subWrites(words) {
-  const plain = words.map(unquote);
+  const plain = plainWords(words);
   const at = subIndex(plain);
   const sub = plain[at];
   if (!SUB_WRITERS.has(sub)) return false;
@@ -909,11 +973,19 @@ function subWrites(words) {
 // subIndex returns the index in words of the subcommand: the first word after the tool and
 // its options, as subWrites reads them.
 function subIndex(words) {
+  if (!SUB_INDEX.has(words)) SUB_INDEX.set(words, readSubIndex(words));
+  return SUB_INDEX.get(words);
+}
+const SUB_INDEX = new WeakMap();
+
+// readSubIndex returns the answer of subIndex.
+function readSubIndex(words) {
   let at = 1;
   while (at < words.length && words[at].startsWith('-')) {
     const value = words[at] === '-C' || (words[at] === '-c' && (words[at + 1] || '').includes('='));
     at += value ? 2 : 1;
   }
+  charge(1 + (at >> 6));
   return at;
 }
 
@@ -956,7 +1028,7 @@ const NO_FILE = /^['"]?\/dev\/(?:null|stdout|stderr|tty)['"]?$/;
 // command of WRITERS or with a subcommand of SUB_WRITERS, sed -i or perl -i,
 // `qory artifact push`, or has a redirect to a file.
 function segmentWrites(segment) {
-  const [first, second, third] = segment.words.map(unquote);
+  const [first, second, third] = plainWords(segment.words);
   const tool = path.basename(first);
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (inPlace(tool, segment.words) || findParts(segment.words).writes) return true;
@@ -980,7 +1052,17 @@ function redirectTargets(segment) {
 // option or of a word with =, as in dd of=<path>. It leaves out the script of sed and perl.
 // Each word is a pattern of patternOf, with its quoted wildcards escaped.
 function pathWords(segment) {
-  const words = segment.words.map(unquote);
+  if (!worded.has(segment)) worded.set(segment, readPathWords(segment));
+  return worded.get(segment);
+}
+
+// The answers of pathWords by segment.
+const worded = new WeakMap();
+
+// readPathWords returns the answer of pathWords.
+function readPathWords(segment) {
+  charge(1 + (segment.words.length >> 6));
+  const words = plainWords(segment.words);
   const tool = path.basename(words[0]);
   const sub = subWrites(segment.words) ? subIndex(words) : -1;
   const out = redirectTargets(segment);
@@ -1016,7 +1098,10 @@ function pathWords(segment) {
 function findParts(words) {
   const out = { starts: [], names: [], exec: [], writes: false };
   if (path.basename(unquote(words[0] || '')) !== 'find') return out;
-  const plain = words.map(unquote);
+  if (found.has(words)) return found.get(words);
+  charge(1 + (words.length >> 6));
+  found.set(words, out);
+  const plain = plainWords(words);
   let at = 1;
   while (at < plain.length && /^-(?:[HLP]|O\d*|D)$/.test(plain[at])) {
     at += plain[at] === '-D' ? 2 : 1;
@@ -1033,7 +1118,9 @@ function findParts(words) {
       at += 1;
     } else if (word === '-delete') out.writes = true;
     else if (/^-(?:exec|execdir|ok|okdir)$/.test(word)) {
-      const end = plain.findIndex((one, index) => index > at && (one === ';' || one === '+'));
+      let end = at + 1;
+      while (end < plain.length && plain[end] !== ';' && plain[end] !== '+') end += 1;
+      if (end === plain.length) end = -1;
       const exec = plain.slice(at + 1, end < 0 ? plain.length : end)
         .filter((one) => one !== '{}');
       const tool = path.basename(exec[0] || '');
@@ -1047,18 +1134,28 @@ function findParts(words) {
   return out;
 }
 
+// The answers of findParts by the words that it read, as the guard reads one command once for
+// each file of the lock.
+const found = new WeakMap();
+
 // shown returns the names that a -name option of find can match for full: its name and, for a
-// folder, the name of each entry below it, up to 1000.
-function shown(full, folder) {
+// folder, the name of each entry below it, up to 1000, read folder by folder from the top.
+// It reads each folder once in a call, as listed keeps the names by folder.
+function shown(full, folder, listed) {
+  if (!folder) return [path.basename(full)];
+  if (listed.has(full)) return listed.get(full);
   const out = [path.basename(full)];
-  if (!folder) return out;
-  try {
-    for (const entry of fs.readdirSync(full, { recursive: true }).slice(0, 1000)) {
-      out.push(path.basename(String(entry)));
-    }
-  } catch {
+  const todo = [full];
+  for (let at = 0; at < todo.length && out.length <= 1000; at += 1) {
     // A folder that cannot be read has only its name.
+    for (const entry of disk.readdir(todo[at])) {
+      if (out.length > 1000) break;
+      charge();
+      out.push(entry.name);
+      if (entry.isDirectory()) todo.push(path.join(todo[at], entry.name));
+    }
   }
+  listed.set(full, out);
   return out;
 }
 
@@ -1088,7 +1185,7 @@ function copyParts(words) {
 // not. fold and realOf compare and resolve paths.
 function pathHits(segment, full, folder, how) {
   const { fold, realOf, spend } = how;
-  const words = segment.words.map(unquote);
+  const words = plainWords(segment.words);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
   const remover = REMOVERS.has(path.basename(words[0])) || REMOVERS.has(sub);
   const restorer = sub === 'restore' || sub === 'checkout';
@@ -1098,13 +1195,15 @@ function pathHits(segment, full, folder, how) {
   const find = findParts(segment.words);
   if (find.writes) {
     // find writes the paths below each start that its -name options match.
-    return find.exec.some((exec) => pathHits({ ...segment, words: exec }, full, folder, how)) ||
+    // The redirects of the text are find's, so an -exec command is read by its words.
+    return find.exec.some((exec) => pathHits({ ...segment, words: exec, text: exec.join(' '),
+      outputs: [] }, full, folder, how)) ||
       segment.cwds.some((cwd) => find.starts.some((start) => {
         spend();
         const at = fold(realOf(joined(cwd, start)));
         if (!under(target, at) && !(folder && under(at, target))) return false;
         return !find.names.length || find.names.some(({ pattern, nocase: other }) =>
-          shown(full, folder).some((name) => globMatch(pattern, name,
+          shown(full, folder, how.listed).some((name) => globMatch(pattern, name,
             { nocase: nocase || other, dots: true })));
       }));
   }
@@ -1126,13 +1225,13 @@ function pathHits(segment, full, folder, how) {
       const resolved = realOf(joined(cwd, literal(dest)));
       const at = fold(resolved);
       if (at === target || !under(target, at)) return false;
-      const stat = fs.statSync(resolved, { throwIfNoEntry: false });
+      const stat = disk.stat(resolved);
       if (!dest.endsWith('/') && !(stat && stat.isDirectory())) return false;
       return named(path.relative(at, target).split(path.sep)[0]);
     })) return true;
   }
   return pathWords(segment).some((shown) => segment.cwds.some((cwd) => {
-    spend();
+    spend(1 + (shown.length >> 8));
     if (wild(shown)) {
       // A glob writes each path it matches: full, a folder above it for a remover or a
       // restore, or a path below full when full is a folder.
@@ -1146,7 +1245,7 @@ function pathHits(segment, full, folder, how) {
     if (exact === target || (folder && under(exact, target))) return true;
     if (!under(target, exact)) return false;
     // A restore writes only tracked files, and .qory/build/ holds none.
-    return remover || (!folder && restorer && (named || fs.existsSync(resolved)));
+    return remover || (!folder && restorer && (named || disk.exists(resolved)));
   }));
 }
 
@@ -1163,8 +1262,9 @@ function pathHits(segment, full, folder, how) {
 // as its folder before the first part with a wildcard. A call that needs more work than a
 // budget allows, to deadline, a time in ms, counts as no write.
 function countsAsWrite(name, input, place, deadline) {
+  const spend = budget(deadline);
   try {
-    return countWrite(name, input, place, budget(deadline));
+    return metered(spend, () => countWrite(name, input, place, spend));
   } catch (error) {
     if (error instanceof Spent) return false;
     throw error;
@@ -1199,7 +1299,7 @@ function countWrite(name, input, { cwd, root, artifacts }, spend) {
   return segments(command, cwd, segmentWrites).some((segment) => {
     const at = (word) => !vague(word) && (wild(word) ? work(globFolder(word), segment.at)
       : work(literal(word), segment.at));
-    const words = segment.words.map(unquote);
+    const words = plainWords(segment.words);
     const tool = path.basename(words[0]);
     if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;
     const checkout = subWrites(segment.words) && words[subIndex(words)] === 'checkout' &&
@@ -1237,9 +1337,21 @@ function names(full, cwds, root) {
 // of the call. root is the working folder of the run, as rootOf of step-limit.js finds it;
 // with no root, decide denies each write and shell command. locked returns the files of the
 // lock, as lockedFiles does; it runs only for a write below root. runFolder is the artifact
-// folder of a run, as end-gate.js has it, unless the caller sets another.
-function decide({ input, env = process.env, script = process.argv[1], locked, root: start,
-  deadline, runFolder }) {
+// folder of a run, as end-gate.js has it, unless the caller sets another. A call that needs more
+// work than a budget allows, to deadline, a time in ms, is denied.
+function decide(args) {
+  const spend = budget(args.deadline);
+  try {
+    return metered(spend, () => decideCall({ ...args, spend }));
+  } catch (error) {
+    if (error instanceof Spent) return TOO_MUCH;
+    throw error;
+  }
+}
+
+// decideCall returns the answer of decide, and spends from spend.
+function decideCall({ input, env = process.env, script = process.argv[1], locked, root: start,
+  spend, runFolder }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   if (call.kind === 'agent') return call.reason;
@@ -1262,7 +1374,7 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
   const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
   if (call.kind === 'shell') {
-    const reason = shellReason(call.command, { cwd, root, lockOf, nocase, home, deadline });
+    const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend });
     if (reason || !paths.length) return reason;
   }
   const homed = home && paths.find((full) => inside(full, home));
@@ -1289,18 +1401,6 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
   return `${MAIN}${artifacts}; this call writes ${outside}.`;
 }
 
-// shellReason returns the reason to deny a shell command: it writes .qory/build/, home, the
-// harness home below the working folder, or a file of the lock, as its text shows. lockOf
-// returns the files of the lock; with nocase, a name matches in any case.
-function shellReason(command, { cwd, root, lockOf, nocase, home, deadline }) {
-  try {
-    return readShell(command, { cwd, root, lockOf, nocase, home, spend: budget(deadline) });
-  } catch (error) {
-    if (error instanceof Spent) return TOO_MUCH;
-    throw error;
-  }
-}
-
 // A sed script that only prints, deletes or substitutes in its output, as in 1,20p, /x/p or
 // s/a/b/g: no w, W, e or r command and no w or e flag.
 const SED_READS = /^(?:[\d,$]*[pdq=]?|\/[^/]*\/[pd]?|s(.)(?:(?!\1).)*\1(?:(?!\1).)*\1[gpI\d]*)$/;
@@ -1313,7 +1413,7 @@ const SED_READS = /^(?:[\d,$]*[pdq=]?|\/[^/]*\/[pd]?|s(.)(?:(?!\1).)*\1(?:(?!\1)
 // of its -exec is.
 function opaque(segment) {
   if (segmentWrites(segment)) return false;
-  const words = segment.words.map(unquote);
+  const words = plainWords(segment.words);
   let at = 0;
   while (at < words.length && CONDITIONS.has(words[at])) at += 1;
   if (at >= words.length || SHAPES.has(words[at])) return false;
@@ -1365,13 +1465,41 @@ function opaque(segment) {
 function reaches(parts, files, folder, root, { realOf, fold, spend }) {
   const top = fold(root);
   const depth = top.split(path.sep).filter(Boolean).length;
-  const folded = files.map((file) => ({ file, full: fold(file), name: fold(path.basename(file)) }))
-    .concat([{ file: folder, full: fold(folder), name: null, folder: true }]);
+  // The paths that a word reaches, each file and each folder above it below root, with the
+  // file they reach, and the names of files of word characters.
+  const reached = new Map();
+  const named = new Map();
+  const odd = [];
+  for (const file of [...files, folder]) {
+    spend(1 + (file.length >> 8));
+    for (let at = fold(file); under(at, top) && at !== top; at = path.dirname(at)) {
+      if (!reached.has(at)) reached.set(at, file);
+    }
+    if (file === folder) continue;
+    const name = fold(path.basename(file));
+    if (/^[\w.-]+$/.test(name)) named.set(name, file);
+    else odd.push({ name, file });
+  }
+  const longest = Math.max(0, ...[...named.keys()].map((name) => name.length));
+  const full = fold(folder);
+  const hit = (at) => reached.get(at) || (under(at, full) ? folder : null);
   for (const one of parts) {
     if (one.words.length && CD.has(path.basename(one.words[0]))) continue;
     const text = fold(one.text);
-    for (const { file, name } of folded) {
-      if (name === null) continue;
+    // A name reaches where no word character or . comes before it and no word character
+    // after it: it starts a run of word characters, dots and dashes, and a dot or the end of
+    // the run follows it.
+    for (const run of text.match(/[\w.-]+/g) || []) {
+      const end = Math.min(run.length, longest);
+      spend(1 + (end >> 6));
+      for (let at = 1; at <= end; at += 1) {
+        if (at < run.length && run[at] !== '.') continue;
+        const file = named.get(run.slice(0, at));
+        if (file) return { word: path.basename(file), file };
+      }
+    }
+    for (const { name, file } of odd) {
+      spend(1 + (text.length >> 10));
       for (let at = text.indexOf(name); at >= 0; at = text.indexOf(name, at + 1)) {
         spend();
         if (!/[\w.-]/.test(text[at - 1] || '') && !/[\w-]/.test(text[at + name.length] || '')) {
@@ -1383,23 +1511,27 @@ function reaches(parts, files, folder, root, { realOf, fold, spend }) {
       if (vague(token)) continue;
       for (const cwd of one.lost ? [] : one.cwds) {
         spend();
+        if (!wild(token)) {
+          const file = hit(fold(realOf(joined(cwd, unquote(token)))));
+          if (file) return { word: token, file };
+          continue;
+        }
         const pattern = path.resolve(cwd, patternOf(token));
-        const hit = wild(token) ? pattern.split(path.sep).filter(Boolean).length > depth &&
-          folded.find(({ full }) => ['equal', 'above'].includes(globReach(pattern, full, fold,
-            true)))
-          : folded.find(({ full, folder: below }) => {
-            const at = fold(realOf(joined(cwd, unquote(token))));
-            return (under(full, at) && under(at, top) && at !== top) ||
-              (below && under(at, full));
-          });
-        if (hit) return { word: token, file: hit.file };
+        // A wildcard reaches a file that it matches, or a folder above one below root.
+        if (pattern.split(path.sep).filter(Boolean).length <= depth) continue;
+        const file = [...files, folder].find((each) => ['equal', 'above'].includes(
+          globReach(pattern, fold(each), fold, true)));
+        if (file) return { word: token, file };
       }
     }
   }
   return null;
 }
 
-// readShell returns the reason of shellReason, and spends a unit of spend for each comparison.
+// readShell returns the reason to deny a shell command: it writes .qory/build/, home, the
+// harness home below the working folder, or a file of the lock, as its text shows, or an
+// opaque command of it reaches one of them. lockOf returns the files of the lock; with
+// nocase, a name matches in any case. It spends a unit of spend for each comparison.
 function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   spend(command.length >> 10);
   const all = segments(command, cwd);
@@ -1412,7 +1544,8 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
     if (!known.has(full)) known.set(full, real(full));
     return known.get(full);
   };
-  const how = { realOf, spend, fold: (full) => (nocase ? full.toLowerCase() : full) };
+  const how = { realOf, spend, listed: new Map(),
+    fold: (full) => (nocase ? full.toLowerCase() : full) };
   const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
     names(full, cwds, root).some((name) => parts.some((one) => {
       spend(1 + (one.text.length >> 12));
@@ -1480,7 +1613,11 @@ const literal = (word) => word.replace(/\\(.)/g, '$1');
 // negate, items, bad } for [...], whose items are [low, high] ranges. A range whose low is
 // above its high makes bad true, and a [ with no ] is a char.
 function globParts(part) {
+  if (parsed.part === part) return parsed.tokens;
+  charge(1 + (part.length >> 8));
   const out = [];
+  // The last ], past which no [ starts a class.
+  const last = part.lastIndexOf(']');
   for (let at = 0; at < part.length; at += 1) {
     const one = part[at];
     if (one === '\\' && at + 1 < part.length) {
@@ -1489,8 +1626,8 @@ function globParts(part) {
     } else if (one === '*') {
       if (!out.length || out[out.length - 1].kind !== 'star') out.push({ kind: 'star' });
     } else if (one === '?') out.push({ kind: 'any' });
-    else if (one === '[' && classEnd(part, at) > 0) {
-      const end = classEnd(part, at);
+    else if (one === '[' && classEnd(part, at, last) > 0) {
+      const end = classEnd(part, at, last);
       let body = part.slice(at + 1, end);
       const negate = body.startsWith('!') || body.startsWith('^');
       if (negate) body = body.slice(1);
@@ -1505,15 +1642,22 @@ function globParts(part) {
       at = end;
     } else out.push({ kind: 'char', char: one });
   }
+  parsed.part = part;
+  parsed.tokens = out;
   return out;
 }
 
+// The part that globParts read last, and its tokens: globMatch reads one pattern with many
+// names.
+const parsed = { part: null, tokens: null };
+
 // classEnd returns the index of the ] that closes the [ at at in part, or -1. A ] right after
-// the [ or after its ! or ^ is a member.
-function classEnd(part, at) {
+// the [ or after its ! or ^ is a member. last is the index of the last ] of part, so that a [
+// after it costs no search.
+function classEnd(part, at, last) {
   let from = at + 1;
   if (part[from] === '!' || part[from] === '^') from += 1;
-  return part.indexOf(']', from + 1);
+  return last < from + 1 ? -1 : part.indexOf(']', from + 1);
 }
 
 // globMatch reports whether name, one part of a path, matches part, one part of a pattern. It
@@ -1522,6 +1666,7 @@ function classEnd(part, at) {
 // of part, as the shell does without dotglob. With nocase, letters match in any case.
 function globMatch(part, name, { nocase = false, dots = false } = {}) {
   const tokens = globParts(part);
+  charge(1 + ((tokens.length * (name.length + 1)) >> 10));
   const first = tokens[0];
   if (!dots && name.startsWith('.') && !(first && first.kind === 'char' && first.char === '.')) {
     return false;
@@ -1573,6 +1718,7 @@ function globMeets(pattern, dir, { realOf, fold }, dots) {
 // paths below full, and null when it matches none of them. fold compares the parts, and with
 // dots a wildcard matches a leading dot.
 function globReach(pattern, full, fold, dots) {
+  charge(1 + ((pattern.length + full.length) >> 8));
   const parts = pattern.split(path.sep).filter(Boolean);
   const wanted = full.split(path.sep).filter(Boolean);
   const nocase = fold('A') === 'a';
