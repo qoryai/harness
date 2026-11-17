@@ -771,9 +771,12 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
     [['step', 'end', 'plan', 'done', '--script-sha256', 'ABC'], /^Give --script-sha256 64 lower-case hex digits: "ABC" is not\./],
     [['step', 'end', 'plan', 'done', '--ot\u0007her', 'x'], /^Give step end only --report, --attempt, --pushed, --script-sha256: "--ot her" is none\./],
     [['resume', 'now'], /^Give resume no argument\./],
-    [['step', 'begin', 'plan', 'implement-changes', 'x', '--inputs'], /^Give --inputs once, with the path of inputs\.json from the prompt\./],
-    [['step', 'begin', 'plan', 'implement-changes', '--inputs', 'a', '--inputs', 'b', 'x'], /^Give --inputs once/],
-    [['step', 'begin', 'plan', 'implement-changes', '--artifacts', '--inputs', 'a', 'x'], /^Give --artifacts once, with the path of the folder of the pulled build plans\./],
+    [['step', 'begin', 'plan', 'implement-changes', 'x', '--inputs'],
+      /^Give --inputs once, with the path of inputs\.json from the prompt\./],
+    [['step', 'begin', 'plan', 'implement-changes', '--inputs', 'a', '--inputs', 'b', 'x'],
+      /^Give --inputs once/],
+    [['step', 'begin', 'plan', 'implement-changes', '--artifacts', '--inputs', 'a', 'x'],
+      /^Give --artifacts once, with the path of the folder of the pulled build plans\./],
     [['step', 'begin', 'plan', 'implement-changes', '--inputs', 'a'], /^Give step begin the files/],
   ];
   for (const [argv, pattern] of cases) {
@@ -886,7 +889,8 @@ function criteriaFiles(call, texts) {
     ...rows, ''].join('\n'));
   const plan = path.join(root, 'build-plan', 'main', 'v1');
   fs.mkdirSync(plan, { recursive: true });
-  fs.writeFileSync(path.join(plan, 'build-plan.md'), planText(texts.map((_, n) => [`ac-${n + 1}`])));
+  fs.writeFileSync(path.join(plan, 'build-plan.md'),
+    planText(texts.map((_, n) => [`ac-${n + 1}`])));
 }
 
 // fullWith returns the point that step begin writes at the 101st row, with the criteria texts
@@ -1083,7 +1087,8 @@ test('ledger: resume of a withdrawn ledger takes the version before the withdraw
 });
 
 test('ledger: a file that another call changes during the push is not written, with exit 3', () => {
-  for (const [flag, name] of [['change-copy', 'build-ledger.json'], ['change-mark', 'ledger.json']]) {
+  const cases = [['change-copy', 'build-ledger.json'], ['change-mark', 'ledger.json']];
+  for (const [flag, name] of cases) {
     const w = work();
     const call = resumed(w);
     fs.writeFileSync(path.join(w.bin, flag), '');
