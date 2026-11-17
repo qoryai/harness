@@ -417,6 +417,18 @@ test('patchPaths reads each file of a Codex patch', () => {
   assert.deepEqual(patchPaths('*** Begin Patch\n*** Update File: a.ts\n*** Move to: b.ts\n' +
     '@@\n-x\n+y\n*** Delete File: c.ts\n*** Add File: d/e.ts\n+z\n*** End Patch\n'),
   ['a.ts', 'b.ts', 'c.ts', 'd/e.ts']);
+  // Codex trims white space from both ends of a line before it reads a header: U+0085 too.
+  assert.deepEqual(patchPaths(' *** Delete File: a.ts\n\t*** Move to: b.ts \r\n' +
+    '\u00a0*** Add File: c.ts\u3000\n\u0085*** Update File: d.ts\n*** Add File:e.ts\n'),
+  ['a.ts', 'b.ts', 'c.ts', 'd.ts']);
+  const start = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  for (const header of [' *** Delete File: ', '\t*** Update File: ', '  *** Move to: ']) {
+    const text = `*** Begin Patch\n*** Update File: src/a.ts\n${header}${CHECK_PATH}\n` +
+      '*** End Patch\n';
+    firstLine(guard(codex('apply_patch', { command: text }, 'default')), start);
+    firstLine(guard(codex('Bash', { command: `apply_patch <<'EOF'\n${text}EOF\n` }, 'default')),
+      start);
+  }
 });
 
 // harnessHome makes a folder with the layout of a composed harness, hooks/ and

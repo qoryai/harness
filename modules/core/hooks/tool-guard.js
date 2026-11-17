@@ -36,8 +36,15 @@ const WRITE_TOOLS = { Write: ['file_path'], Edit: ['file_path'], MultiEdit: ['fi
   NotebookEdit: ['notebook_path'] };
 // The tools that start an agent on Claude Code.
 const AGENT_TOOLS = new Set(['Agent', 'Task']);
-// A line of a Codex patch that names a file it adds, changes, deletes or moves to.
-const PATCH_FILE = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm;
+// The white space that Codex's patch parser trims from a line, as Rust's trim does: the
+// characters of Unicode's White_Space. JavaScript's \s lacks U+0085 and adds U+FEFF.
+const PATCH_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f' +
+  '\\u205f\\u3000';
+// A line of a Codex patch that names a file it adds, changes, deletes or moves to. Codex
+// trims white space from both ends of a line before it reads a header, and the path is the
+// rest of the line after the header and its one space.
+const PATCH_FILE = new RegExp(`^[${PATCH_SPACE}]*\\*\\*\\* (?:Add File|Update File|Delete File|` +
+  `Move to): ([^]*?)[${PATCH_SPACE}]*$`);
 // The folder of the build ledger and the step counts, below the working folder.
 const BUILD = path.join('.qory', 'build');
 // The first line of a Codex patch, which apply_patch also takes through the shell.
@@ -257,9 +264,11 @@ const IN_PLACE = /^(?:sed|perl)$/;
 const inPlace = (tool, words) => IN_PLACE.test(tool) && plainWords(words).some((word) =>
   /^-[A-Za-z]*i/.test(word) || (tool === 'sed' && /^--in-place(?:=|$)/.test(word)));
 
-// patchPaths returns the paths that a Codex patch adds, changes, deletes or moves to.
+// patchPaths returns the paths that a Codex patch adds, changes, deletes or moves to, from
+// each line that Codex can read as a header. Codex splits the patch at line feeds.
 function patchPaths(patch) {
-  return [...String(patch).matchAll(PATCH_FILE)].map((match) => match[1].trim());
+  return String(patch).split('\n').map((line) => PATCH_FILE.exec(line))
+    .filter((match) => match && match[1] !== '').map((match) => match[1]);
 }
 
 // kindOf returns { kind, paths } of a call: kind is 'write', 'shell', 'agent' or null.
