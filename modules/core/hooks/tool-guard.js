@@ -1567,15 +1567,18 @@ function pathHits(segment, full, folder, how) {
 // countsAsWrite reports whether a call writes for the step count: it writes a file in
 // artifacts, the artifact folder, which may lie in root/.qory/, or below root, the working
 // folder, outside root/.qory/, or runs `qory artifact push`. cwd is the folder of the call,
-// and all three, and each written path, are read through their links, a new file through the
-// deepest folder above it that exists. A path of a shell command that vague reports, as in
-// `~/x`, `$HOME/x` or `"$f"`, counts as no write. A write elsewhere in /tmp, mkdir, rmdir,
-// chmod, chown, chgrp, chflags and a checkout with no `--` count as no write, and of cp,
-// install, ln and rsync only the last path counts. A relative path of a shell command is
-// read from the folder that walk finds for its command, after a cd, pushd, popd, -C or
-// env -C, and counts as no write when that folder is unknown. A path with a wildcard counts
-// as its folder before the first part with a wildcard. A call that needs more work than a
-// budget allows, to deadline, a time in ms, counts as no write.
+// and all three, and each written path, are read through their links, a new file through
+// the deepest folder above it that exists. A path of a shell command that vague reports, as
+// in `~other/x`, `$HOME/x` or `"$f"`, counts as no write; a path that starts with ~ or ~+
+// counts by the folder that it resolves to, as shellText reads it. A path through an entry
+// that an earlier command of the call makes or moves, as madeBefore finds it, counts as no
+// write. A write elsewhere in /tmp, mkdir, rmdir, chmod, chown, chgrp, chflags and a
+// checkout with no `--` count as no write, and of cp, install, ln and rsync only the last
+// path counts. A relative path of a shell command is read from the folder that walk finds
+// for its command, after a cd, pushd, popd, -C or env -C, and counts as no write when that
+// folder is unknown. A path with a wildcard counts as its folder before the first part with
+// a wildcard. A call that needs more work than a budget allows, to deadline, a time in ms,
+// counts as no write.
 function countsAsWrite(name, input, place, deadline) {
   const spend = budget(deadline);
   setHome(process.env.HOME);

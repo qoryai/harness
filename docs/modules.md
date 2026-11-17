@@ -1237,24 +1237,26 @@ one of its calls writes a file, by the rules above, below the working folder out
 `qory artifact push`. So a writer agent that writes its draft in the artifact folder resets
 the count. The step limit reads each path through its links, a new file through the deepest
 folder above it that exists. A write elsewhere in `/tmp`, a write through a link that leads
-out of the working folder, a shell path that starts with `~` or contains `$` or a backtick,
-such as `~/x` or `"$f"`, a relative path whose folder is unknown, a path with a wildcard
-whose folder before the first wildcard, such as `src` of `src/*/build`, lies outside the
-working folder or in `.qory/`, `mkdir`, `rmdir`, `chmod`, `chown`, `chgrp`, `chflags` and a
-`checkout` with no `--` are no write, and of `cp`, `install`, `ln` and `rsync` only the last
-path counts. The step limit reads a relative path from the folder that the shell runs its
-command in: after each `cd`, `pushd` and `popd` before it, with `-C` of `git -C` or
-`env -C`, and back to the folder before a `( ... )`, `$( ... )` or backtick group at its
-end. The folder is unknown after a `cd` to a folder with `~`, `$` or a backtick or to one
-that does not exist, a `cd` in a pipe or in the background, a `popd` with no `pushd`, a
-command after `cd ... ||`, a command that `;` or `||` joins after a `cd` that ran only after
-`&&`, and in the text of `sh -c` after a `cd` anywhere in the command. The guard reads such
-paths from every folder the command can reach, so it denies more than the step limit counts.
-After 12 steps in a row that write nothing, the guard denies every call of the agent except
-a write, with the reason "Write your output now: 12 steps in a row wrote nothing." The next
-step that writes sets the count back to 0. The main session, whose input has no `agent_id`,
-and, on Claude Code, a read-only agent are exempt: their stop is the time limit and the end
-check. A read-only agent is one whose file `modules/<module>/agents/<name>.md` under
+out of the working folder, a shell path that starts with `~user` or `~-` or contains `$` or
+a backtick, such as `~other/x` or `"$f"`, a relative path whose folder is unknown, a path
+with a wildcard whose folder before the first wildcard, such as `src` of `src/*/build`, lies
+outside the working folder or in `.qory/`, `mkdir`, `rmdir`, `chmod`, `chown`, `chgrp`,
+`chflags` and a `checkout` with no `--` are no write, and of `cp`, `install`, `ln` and
+`rsync` only the last path counts. A path that starts with `~` or `~/` counts by the folder
+of `$HOME` that it leads to, and one that starts with `~+` by the folder of the command. The
+step limit reads a relative path from the folder that the shell runs its command in: after
+each `cd`, `pushd` and `popd` before it, with `-C` of `git -C` or `env -C`, and back to the
+folder before a `( ... )`, `$( ... )` or backtick group at its end. The folder is unknown
+after a `cd` to a folder with `~user`, `~-`, `$` or a backtick or to one that does not
+exist, a `cd` in a pipe or in the background, a `popd` with no `pushd`, a command after
+`cd ... ||`, a command that `;` or `||` joins after a `cd` that ran only after `&&`, and in
+the text of `sh -c` after a `cd` anywhere in the command. The guard reads such paths from
+every folder the command can reach, so it denies more than the step limit counts. After 12
+steps in a row that write nothing, the guard denies every call of the agent except a write,
+with the reason "Write your output now: 12 steps in a row wrote nothing." The next step that
+writes sets the count back to 0. The main session, whose input has no `agent_id`, and, on
+Claude Code, a read-only agent are exempt: their stop is the time limit and the end check. A
+read-only agent is one whose file `modules/<module>/agents/<name>.md` under
 `$QORY_HARNESS_HOME` has a `tools` key that lists tools, none of them `Write`, `Edit`,
 `MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. The key lists them on its line or as a
 YAML list. `agent_type` must be `harness:<name>`: a bare name can also be an agent of the
