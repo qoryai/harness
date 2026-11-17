@@ -1305,6 +1305,23 @@ test('a path of 1 MB returns a decision in under 2 seconds, and .. parts reach a
     firstLine(timed(codex('Bash', { command: `rm ${back}` }, 'implementer')), locked);
   });
 
+test('a call past the work limit is denied in under 5 seconds and counts as no write', () => {
+  const files = Array.from({ length: 20 }, (_, at) => path.join(WORK, 'checks', `f${at}.check.ts`));
+  const word = `zq${'{a,b}'.repeat(6)}*/* `;
+  const command = `cd a1; cd a2; cd a3; cd a4; rm -f ${word.repeat(Math.ceil((128 << 10) /
+    word.length))}; rm checks/f19.check.ts`;
+  const start = process.hrtime.bigint();
+  const reason = decide({ input: codex('Bash', { command }, 'implementer'), env: RUN, root: WORK,
+    locked: () => ({ what: 'acceptance-lock version 1', files }) });
+  const ms = Number(process.hrtime.bigint() - start) / 1e6;
+  assert.ok(ms < 5000, `${ms} ms`);
+  firstLine(reason, 'Split this command into smaller calls: the guard compares at most');
+  const counted = process.hrtime.bigint();
+  assert.equal(countsAsWrite('Bash', { command: `rm -f ${'/tmp/x '.repeat(250000)}a.ts` },
+    PLACE), false);
+  assert.ok(Number(process.hrtime.bigint() - counted) / 1e6 < 5000);
+});
+
 test('the body of a here-document with a quoted end is text only for cat or tee', () => {
   const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
   const MB = 1 << 20;

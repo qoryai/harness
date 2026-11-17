@@ -1317,9 +1317,12 @@ The limits of the guard:
 - A guard that throws denies the call, with the error, and so does hook input that is not
   JSON. In a run, the `PreToolUse` command exits 2 when `node` does not start or exits with
   an error, and both runtimes then block the call with the text on stderr. Outside a run,
-  the command starts no `node`. A guard that runs past the hook's timeout of 120 seconds,
-  such as during a slow pull of the lock, fails, and on both runtimes the call then runs.
-  A change to a locked file still fails the push check.
+  the command starts no `node`. The guard compares at most 200,000 paths with files in
+  one call and stops after 20 seconds; past either, it denies the call with "Split this
+  command into smaller calls", and the step count counts the call as no write. A guard
+  that runs past the hook's timeout of 120 seconds, such as during a slow pull of the lock,
+  fails, and on both runtimes the call then runs. A change to a locked file still fails
+  the push check.
 
 The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 `demo-scenarios`, `questions`, `review-comments`, and the types of Build and Verify that the

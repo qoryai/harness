@@ -63,6 +63,14 @@ const LINKED = 'Replace the link at the artifact folder with a folder: a link is
   'folder.\nThe main session writes only in the artifact folder, and ';
 const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
   'the run.\nOn Claude Code it reads CLAUDE_PROJECT_DIR, and on Codex the folder of the hook.';
+// The most comparisons of a path, a pattern or a word with a file that the guard makes in
+// one call, and the most time it spends, in ms: the runtime runs a call whose hook passes its
+// timeout of 120 s, and the guard ends well before that.
+const WORK_LIMIT = 200000;
+const TIME_LIMIT = 20000;
+const TOO_MUCH = 'Split this command into smaller calls: the guard compares at most ' +
+  `${WORK_LIMIT} paths in one call.\nThe guard stopped reading this call before it could ` +
+  'tell what the call writes. ';
 const LOST = 'Write with a path that starts with /: the guard cannot tell the folder that ' +
   'this command runs in.\nA cd after builtin, eval, source or ., with CDPATH, in a branch, a ' +
   'loop or a function, or to a folder that a variable names makes the folder unknown. ';
@@ -211,6 +219,21 @@ const real = (full) => walkPath(full).real;
 // joined returns word, a path of a command, from the folder from, with its . and .. parts kept
 // for walkPath, which applies them after the links before them.
 const joined = (from, word) => (path.isAbsolute(word) ? word : `${from}${path.sep}${word}`);
+
+// Spent is the error that a budget throws when a call needs more work than the guard does.
+class Spent extends Error {}
+
+// budget returns spend(units), which counts units of work of one call and throws Spent past
+// WORK_LIMIT units or past deadline, a time in ms, which it reads once in 256 calls.
+function budget(deadline = Date.now() + TIME_LIMIT) {
+  let left = WORK_LIMIT;
+  let calls = 0;
+  return (units = 1) => {
+    left -= units;
+    calls += 1;
+    if (left < 0 || (calls % 256 === 0 && Date.now() > deadline)) throw new Spent();
+  };
+}
 
 const under = (full, dir) => full === dir || full.startsWith(`${dir}${path.sep}`);
 
@@ -1044,7 +1067,7 @@ function copyParts(words) {
 // when it exists, so `checkout .` is one and `checkout <name>` of a name that is no path is
 // not. fold and realOf compare and resolve paths.
 function pathHits(segment, full, folder, how) {
-  const { fold, realOf } = how;
+  const { fold, realOf, spend } = how;
   const words = segment.words.map(unquote);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
   const remover = REMOVERS.has(path.basename(words[0])) || REMOVERS.has(sub);
@@ -1057,6 +1080,7 @@ function pathHits(segment, full, folder, how) {
     // find writes the paths below each start that its -name options match.
     return find.exec.some((exec) => pathHits({ ...segment, words: exec }, full, folder, how)) ||
       segment.cwds.some((cwd) => find.starts.some((start) => {
+        spend();
         const at = fold(realOf(joined(cwd, start)));
         if (!under(target, at) && !(folder && under(at, target))) return false;
         return !find.names.length || find.names.some(({ pattern, nocase: other }) =>
@@ -1071,12 +1095,14 @@ function pathHits(segment, full, folder, how) {
     const named = (first) => sources.some((source) => vague(source) || /\/\.?$/.test(source) ||
       globMatch(path.basename(source), first, { nocase, dots: segment.dots }));
     if (dest && !vague(dest) && wild(dest) && segment.cwds.some((cwd) => {
+      spend();
       const pattern = path.resolve(cwd, dest);
       return globReach(pattern, target, fold, segment.dots) === 'above' &&
         named(target.split(path.sep).filter(Boolean)[pattern.split(path.sep).filter(Boolean)
           .length]);
     })) return true;
     if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
+      spend();
       const resolved = realOf(joined(cwd, literal(dest)));
       const at = fold(resolved);
       if (at === target || !under(target, at)) return false;
@@ -1086,6 +1112,7 @@ function pathHits(segment, full, folder, how) {
     })) return true;
   }
   return pathWords(segment).some((shown) => segment.cwds.some((cwd) => {
+    spend();
     if (wild(shown)) {
       // A glob writes each path it matches: full, a folder above it for a remover or a
       // restore, or a path below full when full is a folder.
@@ -1113,14 +1140,26 @@ function pathHits(segment, full, folder, how) {
 // install, ln and rsync only the last path counts. A relative path of a shell command is
 // read from the folder that walk finds for its command, after a cd, pushd, popd, -C or
 // env -C, and counts as no write when that folder is unknown. A path with a wildcard counts
-// as its folder before the first part with a wildcard.
-function countsAsWrite(name, input, { cwd, root, artifacts }) {
+// as its folder before the first part with a wildcard. A call that needs more work than a
+// budget allows, to deadline, a time in ms, counts as no write.
+function countsAsWrite(name, input, place, deadline) {
+  try {
+    return countWrite(name, input, place, budget(deadline));
+  } catch (error) {
+    if (error instanceof Spent) return false;
+    throw error;
+  }
+}
+
+// countWrite returns the answer of countsAsWrite, and spends a unit of spend for each path.
+function countWrite(name, input, { cwd, root, artifacts }, spend) {
   const args = input !== null && typeof input === 'object' ? input : {};
   const nocase = caseless(root);
   const fold = (full) => (nocase ? full.toLowerCase() : full);
   const qory = fold(path.join(root, '.qory'));
   const known = new Map();
   const place = (lexical) => {
+    spend();
     if (!known.has(lexical)) known.set(lexical, real(lexical));
     const full = fold(known.get(lexical));
     if (artifacts && under(full, fold(artifacts))) return true;
@@ -1135,6 +1174,7 @@ function countsAsWrite(name, input, { cwd, root, artifacts }) {
   if (name === 'apply_patch') return patchPaths(args.command || '').some((one) => work(one));
   if (name !== 'Bash') return false;
   const command = String(args.command || '');
+  spend(command.length >> 10);
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
   return segments(command, cwd, segmentWrites).some((segment) => {
     const at = (word) => !vague(word) && (wild(word) ? work(globFolder(word), segment.at)
@@ -1177,7 +1217,8 @@ function names(full, cwds, root) {
 // of the call. root is the working folder of the run, as rootOf of step-limit.js finds it;
 // with no root, decide denies each write and shell command. locked returns the files of the
 // lock, as lockedFiles does; it runs only for a write below root.
-function decide({ input, env = process.env, script = process.argv[1], locked, root: start }) {
+function decide({ input, env = process.env, script = process.argv[1], locked, root: start,
+  deadline }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   if (call.kind === 'agent') return call.reason;
@@ -1200,7 +1241,7 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
   const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
   if (call.kind === 'shell') {
-    const reason = shellReason(call.command, { cwd, root, lockOf, nocase, home });
+    const reason = shellReason(call.command, { cwd, root, lockOf, nocase, home, deadline });
     if (reason || !paths.length) return reason;
   }
   const homed = home && paths.find((full) => inside(full, home));
@@ -1228,7 +1269,18 @@ function decide({ input, env = process.env, script = process.argv[1], locked, ro
 // shellReason returns the reason to deny a shell command: it writes .qory/build/, home, the
 // harness home below the working folder, or a file of the lock, as its text shows. lockOf
 // returns the files of the lock; with nocase, a name matches in any case.
-function shellReason(command, { cwd, root, lockOf, nocase, home }) {
+function shellReason(command, { cwd, root, lockOf, nocase, home, deadline }) {
+  try {
+    return readShell(command, { cwd, root, lockOf, nocase, home, spend: budget(deadline) });
+  } catch (error) {
+    if (error instanceof Spent) return TOO_MUCH;
+    throw error;
+  }
+}
+
+// readShell returns the reason of shellReason, and spends a unit of spend for each comparison.
+function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
+  spend(command.length >> 10);
   const parts = segments(command, cwd, segmentWrites);
   if (!parts.length) return null;
   const cwds = [...new Set(parts.flatMap((one) => one.cwds))];
@@ -1237,16 +1289,21 @@ function shellReason(command, { cwd, root, lockOf, nocase, home }) {
     if (!known.has(full)) known.set(full, real(full));
     return known.get(full);
   };
-  const how = { realOf, fold: (full) => (nocase ? full.toLowerCase() : full) };
+  const how = { realOf, spend, fold: (full) => (nocase ? full.toLowerCase() : full) };
   const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
-    names(full, cwds, root).some((name) => parts.some((one) => writes(one, name, nocase)));
+    names(full, cwds, root).some((name) => parts.some((one) => {
+      spend(1 + (one.text.length >> 12));
+      return writes(one, name, nocase);
+    }));
   const fold = how.fold;
   const qory = path.join(root, '.qory');
   for (const one of parts) {
     if (!MODES.has(path.basename(unquote(one.words[0])))) continue;
     if (fold(one.text).includes(fold('.qory'))) return `${MODED}${one.text.trim()}.`;
-    const word = pathWords(one).find((each) => one.cwds.some((cwd) =>
-      globMeets(path.resolve(cwd, each), qory, how, one.dots)));
+    const word = pathWords(one).find((each) => one.cwds.some((cwd) => {
+      spend();
+      return globMeets(path.resolve(cwd, each), qory, how, one.dots);
+    }));
     if (word !== undefined) return `${MODED}${word}.`;
   }
   if (hit(path.join(root, BUILD), true) || parts.some((one) => writes(one, BUILD, nocase))) {
@@ -1265,7 +1322,10 @@ function shellReason(command, { cwd, root, lockOf, nocase, home }) {
   }
   for (const one of parts) {
     const word = pathWords(one).find((each) => !vague(each) && !wild(each) &&
-      one.cwds.some((from) => walkPath(joined(from, literal(each))).unsure));
+      one.cwds.some((from) => {
+        spend();
+        return walkPath(joined(from, literal(each))).unsure;
+      }));
     if (word !== undefined) return `${UNSURE}The command writes ${word}.`;
   }
   return null;
@@ -1492,10 +1552,11 @@ function run({ runtime, before } = {}) {
   }
   let reason;
   try {
+    const deadline = Date.now() + TIME_LIMIT;
     const write = countsAsWrite(input.tool_name, input.tool_input,
-      placeOf(input, args.root, env));
+      placeOf(input, args.root, env), deadline);
     reason = steps.limited(args, write) || (before && before(input)) ||
-      decide({ input, env, script, root: args.root });
+      decide({ input, env, script, root: args.root, deadline });
     // A denied call wrote nothing: on Codex its line has write false, and on Claude Code
     // PostToolBatch counts no write of a call whose id is in the denied file. A count
     // folder that cannot be written keeps the reason: limited reads that folder.
