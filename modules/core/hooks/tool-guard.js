@@ -218,12 +218,16 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
   }
 }
 
+// The quotes and backslashes that the shell drops from the letters of a command name, as in
+// \sh, "s"h, s''h or $'sh'.
+const QUOTES = `(?:\\\\|\\$?'|")*`;
 // A shell that runs the text after -c, as in `sh -c '<text>'` or `bash -o pipefail -lc
 // "<text>"`: group 1 is the quote, and group 2 the text. Each repeat in it has one way to
 // match a given text, so the time to match grows in a line with the length of the command:
 // the path before the shell stops at ; & | ( ) and spaces, an option is - and letters or
 // -o and -O with a value, and the -c option is read ahead once.
-const SHELL_C = new RegExp('(?:^|[;&|\\n(\\s])(?:[^\\s;&|()]*/)?(?:sh|bash|zsh|dash)\\s+' +
+const SHELL_C = new RegExp(`(?:^|[;&|\\n(\\s])(?:[^\\s;&|()]*/)?(?:${['sh', 'bash', 'zsh', 'dash']
+  .map((name) => [...name].map((char) => `${QUOTES}${char}`).join('')).join('|')})${QUOTES}\\s+` +
   '(?:-[oO]\\s+[^-\\s]\\S*\\s+|-[A-Za-z-]+\\s+)*-(?=[A-Za-z]*c)[A-Za-z]+\\s+' +
   '([\'"])((?:(?!\\1)[^\\\\]|\\\\.)*)\\1', 'g');
 // The depth of shells in shells whose text the guard reads.
@@ -413,10 +417,11 @@ function prefixOutputs(prefix, words, at) {
 
 // commandWords returns { words, dirs, outputs } of a simple command: words are the words from
 // the command that runs, without the NAME=value words that set variables, the words of
-// GROUPS, and each word of PREFIXES with its options and, for timeout, its time. dirs are the
-// folders that `env -C <folder>` or `env --chdir=<folder>` runs the command in. outputs are
-// the words of the files that a prefix writes: `time -o <file>`, and each file after the
-// options of `sudo -e` or sudoedit, which edit them.
+// GROUPS, and each word of PREFIXES with its options and, for timeout, its time; the first
+// word, the name of the command, is read as the shell reads it, as in \cp, "c"p or c''p.
+// dirs are the folders that `env -C <folder>` or `env --chdir=<folder>` runs the command in.
+// outputs are the words of the files that a prefix writes: `time -o <file>`, and each file
+// after the options of `sudo -e` or sudoedit, which edit them.
 function commandWords(words) {
   const dirs = [];
   const outputs = [];
@@ -449,6 +454,7 @@ function commandWords(words) {
     if (edit) break;
   }
   const rest = words.slice(at);
+  if (rest.length) rest[0] = unquote(rest[0]);
   return { words: rest, dirs, outputs: edit ? outputs.concat(rest) : outputs };
 }
 
@@ -785,8 +791,7 @@ function writes(segment, name, nocase = false) {
   if (!segment.text.includes(nocase ? '' : path.basename(name)) || !at.test(segment.text)) {
     return false;
   }
-  const [first] = segment.words;
-  const tool = path.basename(first.replace(/^['"]|['"]$/g, ''));
+  const tool = path.basename(segment.words[0]);
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (inPlace(tool, segment.words) || findParts(segment.words).writes) return true;
   if ((segment.outputs || []).some((word) => at.test(word))) return true;
@@ -817,7 +822,7 @@ const NO_FILE = /^['"]?\/dev\/(?:null|stdout|stderr|tty)['"]?$/;
 // command of WRITERS or with a subcommand of SUB_WRITERS, sed -i or perl -i,
 // `qory artifact push`, or has a redirect to a file.
 function segmentWrites(segment) {
-  const [first, second, third] = segment.words.map((word) => word.replace(/^['"]|['"]$/g, ''));
+  const [first, second, third] = segment.words.map(unquote);
   const tool = path.basename(first);
   if (WRITERS.has(tool) || subWrites(segment.words)) return true;
   if (inPlace(tool, segment.words) || findParts(segment.words).writes) return true;

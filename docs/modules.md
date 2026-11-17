@@ -1168,8 +1168,9 @@ that `cat` writes, as in `cat > x.sh <<'EOF'` and then `sh x.sh`. So
 `git commit` or `npm test` in the same call has its body read. A quote or a backslash at the
 end of a line goes on to the next line, as in the shell, so a `<<` in a string of several
 lines is text; the guard reads every body of a command line of more than one line, and of a
-line with `$(` or a backtick in double quotes. It reads each word as the shell does: without
-its quotes and the backslashes that escape a character, so `rm c"h"ecks/a.ts` and
+line with `$(` or a backtick in double quotes. It reads each word, the name of the command
+too, as the shell does, so `\cp`, `c\p`, `"c"p`, `c''p` and `$'cp'` are `cp`: without its
+quotes and the backslashes that escape a character, so `rm c"h"ecks/a.ts` and
 `rm \checks/a.ts` write `checks/a.ts`, while a quoted wildcard, as in `rm 'chec*'`, is a
 character of the name. It reads `$'...'` as single quotes with the escapes of the shell,
 such as `\x63`. It expands braces, so `rm -rf {checks,x}` removes `checks`, up to 64 words

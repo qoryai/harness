@@ -166,6 +166,22 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
     }
   });
 
+test('a command name with quotes or backslashes is read as the shell reads it', () => {
+  const locked = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+  const built = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step';
+  for (const command of [`\\cp /dev/null ${CHECK_PATH}`, `c\\p /dev/null ${CHECK_PATH}`,
+    `"c"p /dev/null ${CHECK_PATH}`, `c''p /dev/null ${CHECK_PATH}`, `$'cp' /dev/null ${CHECK_PATH}`,
+    `"rm" ${CHECK_PATH}`, `env \\rm ${CHECK_PATH}`, `\\sh -c 'rm ${CHECK_PATH}'`,
+    `"ba"sh -c 'rm ${CHECK_PATH}'`]) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+  }
+  for (const command of ['\\cp /tmp/z .qory/build/steps/s.json', '\\rm -rf .qory/build']) {
+    firstLine(guard(codex('Bash', { command }, 'implementer')), built);
+  }
+  firstLine(guard(codex('Bash', { command: '\\chmod -R a-w .qory/build' }, 'implementer')),
+    'Leave the mode and owner of .qory/ and the folders above it as they are.');
+});
+
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
   const start = 'Leave .qory/build/ as it is: the harness keeps the build ledger and step ' +
