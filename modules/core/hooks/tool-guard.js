@@ -258,6 +258,16 @@ const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown', 'chgrp', 'chfla
 const LAST_WRITTEN = new Set(['cp', 'install', 'ln', 'rsync']);
 // A command that runs another command with words from its input, as in `ls | xargs rm`.
 const FED = /(^|[\s/])(xargs|parallel)(?=\s|$)/;
+// shellArgs reports whether segment runs a shell with a -c text and words after the text, its
+// $0, $1 and on, as in sh -c ': > "$1"' _ <path>: the text can write each of them, and the
+// guard does not read which, so such a shell is opaque.
+function shellArgs(segment) {
+  if (!SHELL_NAMES.test(path.basename(plainWords(segment.words)[0] || ''))) return false;
+  // matchAll reads a copy of SHELL_C, so the lastIndex of SHELL_C stays 0 for other reads.
+  const [match] = segment.text.matchAll(SHELL_C);
+  return match !== undefined && segment.text.slice(match.index + match[0].length).trim() !== '';
+}
+
 // The commands that make or move entries at a destination, any of which can be a link: a
 // path through it leads where the guard does not read. An opaque command counts too; mkdir
 // and touch make no link.
@@ -478,6 +488,8 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
   }
 }
 
+// The names of the shells whose -c text the guard reads.
+const SHELL_NAMES = /^(?:sh|bash|zsh|dash)$/;
 // The quotes and backslashes that the shell drops from the letters of a command name, as in
 // \sh, "s"h, s''h or $'sh'.
 const QUOTES = `(?:\\\\|\\$?'|")*`;
@@ -1248,7 +1260,7 @@ function redirectTargets(segment) {
   // The quoted text of a shell's -c is a command of that shell, as in sh -c 'echo x > a', so
   // its redirects count with or without quotes.
   const plain = plainWords(segment.words);
-  const shell = /^(?:sh|bash|zsh|dash)$/.test(path.basename(plain[0] || '')) &&
+  const shell = SHELL_NAMES.test(path.basename(plain[0] || '')) &&
     plain.some((word) => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
   const words = shell ? [...segment.text.matchAll(/(?:^|[^>0-9&])&?[0-9]?>>?(?![>&])\s*(\S*)/g)]
     .map((match) => match[1]) : redirectWords(segment.text);
@@ -1342,8 +1354,8 @@ function readPathWords(segment) {
 // findParts returns { starts, names, exec, writes } of a find command of words: the paths it
 // starts from, . when none; the patterns of its -name and -iname options, each as
 // { pattern, nocase }; the words of each command that its -exec, -execdir, -ok or -okdir
-// runs and that writes; and whether it writes: with -delete, or an exec of a command that
-// writes. It returns writes false for any other command.
+// runs and that writes or is a shell; and whether it writes: with -delete, or an exec of a
+// command that writes or of a shell. It returns writes false for any other command.
 function findParts(words) {
   const out = { starts: [], names: [], exec: [], writes: false };
   if (path.basename(unquote(words[0] || '')) !== 'find') return out;
@@ -1373,7 +1385,8 @@ function findParts(words) {
       const exec = plain.slice(at + 1, end < 0 ? plain.length : end)
         .filter((one) => one !== '{}');
       const tool = path.basename(exec[0] || '');
-      if (WRITERS.has(tool) || subWrites(exec) || inPlace(tool, exec)) {
+      // A shell that an -exec runs gets each path as $0 or $1 and on, which it can write.
+      if (WRITERS.has(tool) || subWrites(exec) || inPlace(tool, exec) || SHELL_NAMES.test(tool)) {
         out.writes = true;
         out.exec.push(exec);
       }
@@ -1810,7 +1823,7 @@ function opaque(segment) {
   // A read-only command has no subcommand: in `rg --pre rm x <path>`, rm is the value of an
   // option outside the list of rg, which makes rg opaque.
   if (!READ_ONLY.has(name) && SUB_WRITERS.has(rest[subIndex(rest)])) return false;
-  if (/^(?:sh|bash|zsh|dash)$/.test(name)) {
+  if (SHELL_NAMES.test(name)) {
     const raw = segment.words.slice(words.length - rest.length);
     const at = rest.findIndex((word) => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
     return at < 0 || !/^\$?['"]/.test(raw[at + 1] || '');
@@ -1972,7 +1985,7 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   // A writer or an opaque command that xargs or parallel runs takes its paths from its
   // input, which the guard does not read.
   const dark = all.find(opaque) || all.find((one) => FED.test(one.text) &&
-    (segmentWrites(one) || opaque(one)));
+    (segmentWrites(one) || opaque(one))) || all.find(shellArgs);
   if (!parts.length && !dark) return null;
   const cwds = [...new Set(parts.flatMap((one) => one.cwds))];
   const known = new Map();

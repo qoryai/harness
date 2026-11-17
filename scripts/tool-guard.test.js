@@ -1385,6 +1385,32 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
   }
 });
 
+test('a shell gets each word after its -c text as a path it can write', () => {
+  const opaque = 'Run the checks with no file path or';
+  const built = 'Leave .qory/build/ as it is';
+  const locked = 'Leave the locked file as it is';
+  for (const shell of ['sh', 'bash', 'zsh', 'dash', '/bin/sh']) {
+    firstLine(guard(codex('Bash', { command: `${shell} -c ': > "$1"' _ ${CHECK_PATH}` },
+      'implementer')), opaque);
+    firstLine(guard(codex('Bash', { command: `${shell} -c 'echo x > $0' ${CHECK_PATH}` },
+      'implementer')), opaque);
+    firstLine(guard(codex('Bash', { command: `${shell} -c ': > "$1"' _ .qory/build/steps/s.json` },
+      'implementer')), built);
+    // find gets the paths that it walks to the shell of its -exec.
+    for (const command of [`find ${CHECK_PATH} -exec ${shell} -c 'cat /dev/null > $0' {} \\;`,
+      `find checks -exec ${shell} -c 'echo > "$1"' _ {} +`,
+      `find . -name '*.ts' -execdir ${shell} -c ': > "$0"' {} \\;`]) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), locked);
+    }
+    firstLine(guard(codex('Bash', { command: `find .qory/build -exec ${shell} -c ': > $0' {} +` },
+      'implementer')), built);
+    for (const command of [`${shell} -c 'echo hi'`, `${shell} -c 'echo $1' _ src/a.ts`,
+      `find src -exec ${shell} -c 'wc -l "$0"' {} \\;`]) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    }
+  }
+});
+
 test('each redirect of bash and zsh that writes a file is read as one', () => {
   const locked = 'Leave the locked file as it is';
   for (const op of ['>!', '>>!', '>|', '>>|', '&>', '&>>', '&>!', '&>|', '&>>!', '&>>|', '>&',

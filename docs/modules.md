@@ -1158,7 +1158,10 @@ guard skips the options before the subcommand, and passes a `restore` with `--st
 `--worktree` or start of it, such as `--work`, which changes only the index. When `sh`,
 `bash`, `zsh` or `dash` runs a quoted text with `-c`, as in `sh -c 'cp a <path>'` or
 `bash -lc "tee <path>"`, the guard reads that text with the same rules, down to two shells
-deep. It skips the options before `-c`, `-o <value>` and `-O <value>` included. The guard
+deep. It skips the options before `-c`, `-o <value>` and `-O <value>` included. A shell
+with words after its `-c` text, as in `sh -c ': > "$1"' _ <path>`, is opaque, since the
+text can write each of them as `$0`, `$1` and on. A `find` whose `-exec`, `-execdir`, `-ok`
+or `-okdir` runs such a shell writes each path that it walks, as with `-delete`. The guard
 reads the command after `env`, `command`, `exec`, `nice`, `timeout`, `sudo`, `nohup`,
 `time`, `stdbuf`, `xargs`, `doas`, `ionice` and `busybox` with their options, and reads the
 file of `time -o`, `--output` or `--output=`, and each file after `sudo -e`, `sudo --edit`
@@ -1336,22 +1339,23 @@ The limits of the guard:
   paths from its input.
 - A command whose writes the guard does not read, such as `node -e`, `python3 -c`,
   `curl -o`, `tar -x`, `make` or `npm run`, is opaque. Writers, redirects, the files of
-  prefixes, a shell with `-c` and a quoted text, a subcommand `restore`, `checkout`, `rm` or
-  `mv`, which the guard reads, and the read-only commands are not: `cat`, `grep`, `rg`,
-  `ls`, `head`, `tail`, `wc`, `cmp`, `sed` that only prints, `find` with no opaque `-exec`,
-  `sort`, and a few more. A read-only command stays read-only only with the options of its
-  list in `READ_ONLY` of `tool-guard.js`; any other option, such as `rg --pre`, `sort -o` or
-  `find -delete`, makes it opaque. Rule 11 keeps the words of software work, such as `diff`
-  and `git`, out of `core`, so `git diff` and `git log` are opaque. In a call with an opaque
-  command, the guard denies the call when its text reaches a locked file or `.qory/build/`:
-  a word that resolves to the file or a folder between it and the working folder, from the
-  folder of its command after links; a wildcard that can match it; or the name of a locked
-  file anywhere in the text. The working folder and the folders above it reach no file, as a
-  command with no path runs over the whole working folder too. The text includes each
-  here-document body that the call does not give to `cat`, `tee` or `apply_patch`. So
-  `npm run check -- checks/a.check.ts` and `git add checks/a.check.ts` are denied, and
-  `git add .` and `npx eslint .` pass. The deny says to run the checks with no file path or
-  with `checks.js run locked`. A `cd` folder reaches no file.
+  prefixes, a shell with `-c` and a quoted text and no words after it, a subcommand
+  `restore`, `checkout`, `rm` or `mv`, which the guard reads, and the read-only commands are
+  not: `cat`, `grep`, `rg`, `ls`, `head`, `tail`, `wc`, `cmp`, `sed` that only prints,
+  `find` with no opaque `-exec`, `sort`, and a few more. A read-only command stays read-only
+  only with the options of its list in `READ_ONLY` of `tool-guard.js`; any other option,
+  such as `rg --pre`, `sort -o` or `find -delete`, makes it opaque. Rule 11 keeps the words
+  of software work, such as `diff` and `git`, out of `core`, so `git diff` and `git log` are
+  opaque. In a call with an opaque command, the guard denies the call when its text reaches
+  a locked file or `.qory/build/`: a word that resolves to the file or a folder between it
+  and the working folder, from the folder of its command after links; a wildcard that can
+  match it; or the name of a locked file anywhere in the text. The working folder and the
+  folders above it reach no file, as a command with no path runs over the whole working
+  folder too. The text includes each here-document body that the call does not give to
+  `cat`, `tee` or `apply_patch`. So `npm run check -- checks/a.check.ts` and
+  `git add checks/a.check.ts` are denied, and `git add .` and `npx eslint .` pass. The deny
+  says to run the checks with no file path or with `checks.js run locked`. A `cd` folder
+  reaches no file.
 - On Codex, a shell that the model starts with a terminal takes later commands through
   `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
   starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for
