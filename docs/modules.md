@@ -1300,16 +1300,18 @@ The limits of the guard:
   `checks.js lock --verify` keeps the lock, the push check of `build-ledger` keeps the build
   ledger, and the report checks keep the reports. The guard covers each form in which a
   locked path or `.qory/build/` appears literally in the call, also after the shell removes
-  quotes, as in `ch''ecks`, `"checks"`, `\checks` or `$'\x63hecks'`, and expands braces,
-  sequences such as `{c..c}hecks` included. It reads a shell command as text, on both
-  runtimes, and runs no shell. So a variable, a `$( ... )`, a backtick and `eval` are its
-  limit: a write whose path only they make passes, as in `D=lock; echo x > ${D}ed/f`, and so
-  does a shell three shells deep, and a here-document body that `cat` writes to a file in
-  one call and a later call runs. A `cp` that reads a locked file is denied, as it contains
-  the path. A link that a command of the call makes, with `ln`, `link`, `cp -l` or `-s`, or
-  `rsync -a`, `-l` or `-H`, does not exist yet when the guard reads the call, so each other
-  write at or below that link is denied. A writer or an opaque command that `xargs` or
-  `parallel` runs counts as opaque, since it takes its paths from its input.
+  quotes, as in `ch''ecks`, `"checks"`, `\checks` or `$'\x63hecks'`, expands braces,
+  sequences such as `{c..c}hecks` included, and expands a `~` or `~/` at the start of a word
+  outside quotes to the folder of `$HOME`. It reads a shell command as text, on both
+  runtimes, and runs no shell. So a variable, `$HOME` and `${HOME}` included, a `~user`, a
+  `$( ... )`, a backtick and `eval` are its limit: a write whose path only they make passes,
+  as in `D=lock; echo x > ${D}ed/f`, and so does a shell three shells deep, and a
+  here-document body that `cat` writes to a file in one call and a later call runs. A `cp`
+  that reads a locked file is denied, as it contains the path. A link that a command of the
+  call makes, with `ln`, `link`, `cp -l` or `-s`, or `rsync -a`, `-l` or `-H`, does not
+  exist yet when the guard reads the call, so each other write at or below that link is
+  denied. A writer or an opaque command that `xargs` or `parallel` runs counts as opaque,
+  since it takes its paths from its input.
 - A command whose writes the guard does not read, such as `node -e`, `python3 -c`,
   `curl -o`, `tar -x`, `make` or `npm run`, is opaque. Writers, redirects, the files of
   prefixes, a shell with `-c` and a quoted text, a subcommand `restore`, `checkout`, `rm` or

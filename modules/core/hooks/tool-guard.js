@@ -16,8 +16,9 @@
 // the paths of its file_path, notebook_path or patch; or a shell command whose text contains
 // the path and writes, as WRITERS reads it. The guard gives a clear message for each form in
 // which a locked path or .qory/build/ appears literally in the call, also after the shell
-// removes quotes and expands braces. It reads a shell command as text and runs no shell, so
-// a write whose path only a variable, a $( ... ), a backtick or eval makes passes, as in
+// removes quotes, expands braces and expands a ~ or ~/ at the start of a word to $HOME. It
+// reads a shell command as text and runs no shell, so a write whose path only a variable,
+// $HOME, ${HOME}, a ~user, a $( ... ), a backtick or eval makes passes, as in
 // `D=lock; echo x > ${D}ed/f`. checks.js lock --verify keeps the lock for that write, and the
 // push check of build-ledger and the report checks keep the build ledger, whose copy is
 // .reports/build-ledger.json, and the reports. No rule covers
@@ -504,7 +505,13 @@ function commands(command, depth = 0) {
 // that ansi reads. With keep, a wildcard, *, ?,
 // [ or ], or a backslash that quotes or a backslash made literal keeps a backslash before it,
 // so that the result is a pattern for globMatch whose live wildcards are the unquoted ones.
+// A ~ at the start of word, alone or before a /, becomes homeDir, as the shell expands it; a
+// quoted ~ and a ~user stay as they are.
 function shellText(word, keep) {
+  if (homeDir !== null && /^~(?:\/|$)/.test(word)) {
+    const home = keep ? homeDir.replace(/[*?[\]\\]/g, '\\$&') : homeDir;
+    return `${home}${shellText(word.slice(1), keep)}`;
+  }
   if (!/['"\\]/.test(word)) return word;
   const cache = keep ? PATTERNS : PLAIN_TEXTS;
   if (cache.has(word)) return cache.get(word);
@@ -519,6 +526,19 @@ function shellText(word, keep) {
 // each file of the lock.
 const PATTERNS = new Map();
 const PLAIN_TEXTS = new Map();
+// The home folder of the call that decide reads, from $HOME when it is an absolute path, or
+// null. With null, a ~ at the start of a word stays, and the path of the word is vague.
+let homeDir = null;
+
+// setHome sets homeDir from home, the value of $HOME.
+function setHome(home) {
+  const next = typeof home === 'string' && path.isAbsolute(home) ? path.normalize(home) : null;
+  if (next === homeDir) return;
+  // The answers of shellText depend on homeDir.
+  PATTERNS.clear();
+  PLAIN_TEXTS.clear();
+  homeDir = next;
+}
 
 // readShellText returns the answer of shellText for a word with a quote or a backslash.
 function readShellText(word, keep) {
@@ -1077,8 +1097,10 @@ const CD = new Set(['cd', 'pushd', 'popd']);
 const FOLDERS = 16;
 
 // vague reports whether the folder or file of word is unknown before the shell runs: it
-// starts with ~, contains $ or a backtick, is - for the folder before, or is empty.
-const vague = (word) => word === '' || word === '-' || word.startsWith('~') || /[$`]/.test(word);
+// starts with a ~user, or a ~ with no homeDir, contains $ or a backtick, is - for the folder
+// before, or is empty.
+const vague = (word) => word === '' || word === '-' || /[$`]/.test(word) ||
+  (word.startsWith('~') && (homeDir === null || !/^~(?:\/|$)/.test(word)));
 
 // folders returns the known folders that the commands of parts can run in: cwd and each
 // folder that a cd or pushd in parts changes to, from each folder before it, since a cd can
@@ -1509,6 +1531,7 @@ function pathHits(segment, full, folder, how) {
 // budget allows, to deadline, a time in ms, counts as no write.
 function countsAsWrite(name, input, place, deadline) {
   const spend = budget(deadline);
+  setHome(process.env.HOME);
   try {
     return metered(spend, () => countWrite(name, input, place, spend));
   } catch (error) {
@@ -1591,6 +1614,7 @@ function names(full, cwds, root) {
 // work than a budget allows, to deadline, a time in ms, is denied.
 function decide(args) {
   const spend = budget(args.deadline);
+  setHome((args.env || process.env).HOME);
   try {
     return metered(spend, () => decideCall({ ...args, spend }));
   } catch (error) {
