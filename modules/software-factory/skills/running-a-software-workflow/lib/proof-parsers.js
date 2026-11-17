@@ -18,7 +18,7 @@ const path = require('node:path');
 
 const comments = require('./proof-comments.js');
 
-// The folder of the parser packages in the run image.
+// The folder of the parser packages in qory's agent image.
 const PARSERS = '/opt/qory/parsers/node_modules';
 // The time that one dump may take, in milliseconds.
 const DUMP_MS = 30000;
@@ -37,7 +37,7 @@ const PACKAGES = {
 };
 const MODES = {
   comment: ['ts', 'tsx', 'js', 'jsx', 'sql', 'html'],
-  text: ['ts', 'tsx', 'js', 'jsx', 'sql', 'html'],
+  text: ['ts', 'tsx', 'js', 'jsx', 'html'],
   look: ['ts', 'tsx', 'js', 'jsx', 'html', 'css', 'scss', 'tokens'],
 };
 

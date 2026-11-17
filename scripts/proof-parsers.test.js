@@ -283,6 +283,8 @@ test('a comment: two languages, comments only', { skip: NO_PARSERS || NO_PYTHON 
 const LABEL = "export const saveLabel = 'Save';\nexport const cancelLabel = 'Cancel';\n";
 const BUTTON = 'export function Save() {\n  return <button title="Save" className="btn">Save</button>;\n}\n';
 
+// A SQL file has no text value proof: each SQL case below fails with the finding to propose the
+// standard track.
 const TEXT_CASES = [
   ['a changed button label in a TypeScript file passes', { 'a.ts': LABEL }, { 'a.ts': r(LABEL, "'Save'", "'Save it'") }, 0],
   ['a changed label in JSX text and in a title passes', { 'a.tsx': BUTTON }, { 'a.tsx': r(r(BUTTON, '>Save<', '>Save it<'), 'title="Save"', 'title="Save it"') }, 0],
@@ -301,7 +303,7 @@ const TEXT_CASES = [
   ['a changed template text with the same substitution passes', { 'a.ts': 'export const m = (n: string) => `Hello ${n}`;\n' }, { 'a.ts': 'export const m = (n: string) => `Hi ${n}`;\n' }, 0],
   ['a changed substitution fails', { 'a.ts': 'export const m = (n: string, k: string) => `Hello ${n}`;\n' }, { 'a.ts': 'export const m = (n: string, k: string) => `Hello ${k}`;\n' }, 1],
   ['a changed number fails', { 'a.ts': 'export const n = 1;\n' }, { 'a.ts': 'export const n = 2;\n' }, 1],
-  ['sql: a changed string constant passes', { 'a.sql': "SELECT 'a' AS label FROM t;\n" }, { 'a.sql': "SELECT 'b' AS label FROM t;\n" }, 0],
+  ['sql: a changed string constant has no proof', { 'a.sql': "SELECT 'a' AS label FROM t;\n" }, { 'a.sql': "SELECT 'b' AS label FROM t;\n" }, 1],
   ['sql: a changed identifier fails', { 'a.sql': "SELECT 'a' AS label FROM t;\n" }, { 'a.sql': "SELECT 'a' AS name FROM t;\n" }, 1],
   ['sql: a changed number fails', { 'a.sql': 'SELECT 1 FROM t;\n' }, { 'a.sql': 'SELECT 2 FROM t;\n' }, 1],
   ['sql: a changed function body fails', { 'a.sql': 'CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql;\n' }, { 'a.sql': 'CREATE FUNCTION f() RETURNS int AS $$ SELECT 2 $$ LANGUAGE sql;\n' }, 1],
@@ -318,6 +320,80 @@ TEXT_CASES.push(
   ['a string and a new line', { 'a.ts': "export const a = 'x';\n" }, { 'a.ts': "export const a =\n  'y';\n" }, 1],
   ['html: a text and spaces in a tag', { 'a.html': h('<p class="a">x</p>') }, { 'a.html': h('<p  class="a">y</p>') }, 1],
 );
+// The deny list of the kind (lib/text-deny.js), and the places that are no text.
+const tsCase = (before, after, expected = 1) => [`ts: ${after.trim().slice(0, 60)}`,
+  { 'a.ts': `${before}\n` }, { 'a.ts': `${after}\n` }, expected];
+TEXT_CASES.push(
+  // a comparison, in each form
+  tsCase('export const f = (role: string) => role === "admin";', 'export const f = (role: string) => role === "guest";'),
+  tsCase('export const f = (role: string) => role == "admin";', 'export const f = (role: string) => role == "guest";'),
+  tsCase('export const f = (role: string) => role !== "admin";', 'export const f = (role: string) => role !== "guest";'),
+  tsCase('export const f = (role: string) => "admin" === role;', 'export const f = (role: string) => "guest" === role;'),
+  tsCase('export const f = (k: string, o: object) => "a" in o;', 'export const f = (k: string, o: object) => "b" in o;'),
+  // a case label
+  tsCase('export function f(x: string) { switch (x) { case "a": return 1; default: return 2; } }', 'export function f(x: string) { switch (x) { case "b": return 1; default: return 2; } }'),
+  // the text that a case returns is text
+  tsCase('export function f(x: string) { switch (x) { case "a": return "One"; default: return "Two"; } }', 'export function f(x: string) { switch (x) { case "a": return "First"; default: return "Two"; } }', 0),
+  // a type
+  tsCase('export let x: "a" | "b" = "a";', 'export let x: "a" | "c" = "a";'),
+  tsCase('export type K = "a" | "b";', 'export type K = "a" | "c";'),
+  // membership: includes, indexOf and has, with the strings as the list and as the argument
+  tsCase('export const f = (x: string) => ["a", "b"].includes(x);', 'export const f = (x: string) => ["a", "c"].includes(x);'),
+  tsCase('export const f = (x: string) => ["a", "b"].indexOf(x) >= 0;', 'export const f = (x: string) => ["a", "c"].indexOf(x) >= 0;'),
+  tsCase('export const f = (x: string) => new Set(["a", "b"]).has(x);', 'export const f = (x: string) => new Set(["a", "c"]).has(x);'),
+  tsCase('export const f = (x: string) => x.includes("a");', 'export const f = (x: string) => x.includes("b");'),
+  tsCase('export const f = (x: string) => x.startsWith("a");', 'export const f = (x: string) => x.startsWith("b");'),
+  tsCase('export const f = (x: string) => x.endsWith("a");', 'export const f = (x: string) => x.endsWith("b");'),
+  tsCase('export const f = (x: string) => x.match("a");', 'export const f = (x: string) => x.match("b");'),
+  tsCase('export const f = (m: Map<string, number>) => m.has("a");', 'export const f = (m: Map<string, number>) => m.has("b");'),
+  // eval-like calls and commands
+  tsCase('eval("a()");', 'eval("b()");'),
+  tsCase('export const f = new Function("return 1");', 'export const f = new Function("return 2");'),
+  tsCase('setTimeout("a()", 1);', 'setTimeout("b()", 1);'),
+  tsCase('setInterval("a()", 1);', 'setInterval("b()", 1);'),
+  tsCase('execSync("ls");', 'execSync("pwd");'),
+  tsCase('exec("ls");', 'exec("pwd");'),
+  tsCase('spawn("ls", ["-la"]);', 'spawn("ls", ["-lh"]);'),
+  tsCase('db.query("x");', 'db.query("y");'),
+  tsCase('db.execute("x");', 'db.execute("y");'),
+  tsCase('fetch("a");', 'fetch("b");'),
+  tsCase('const a = require("a");', 'const a = require("b");'),
+  tsCase('const a = import("a");', 'const a = import("b");'),
+  // a selector and a test id
+  tsCase('document.querySelector("#a");', 'document.querySelector("#b");'),
+  tsCase('screen.getByText("Save");', 'screen.getByText("Saved");'),
+  tsCase('page.locator("text=Save");', 'page.locator("text=Saved");'),
+  ['ts: a test id', { 'a.tsx': 'export const A = <i data-testid="a">x</i>;\n' }, { 'a.tsx': 'export const A = <i data-testid="b">x</i>;\n' }, 1],
+  // the content of a string
+  tsCase('export const a = "See https://a.example/x";', 'export const a = "See https://b.example/x";'),
+  tsCase('export const a = "See the page";', 'export const a = "See https://b.example/x";'),
+  tsCase('export const a = "<b>Save</b>";', 'export const a = "<b>Saved</b>";'),
+  tsCase('export const a = "Hello";', 'export const a = "Hello {{ name }}";'),
+  tsCase('export const a = "Hello";', 'export const a = "<%= name %>";'),
+  tsCase('export const a = "Hello";', 'export const a = "Hello ${name}";'),
+  tsCase('export const a = "select * from t";', 'export const a = "select * from u";'),
+  tsCase('export const a = "Hello";', 'export const a = "delete from users where id = 1";'),
+  tsCase('export const a = "ls";', 'export const a = "rm -rf /tmp/x";'),
+  tsCase('export const a = "Hello";', 'export const a = "echo a && echo b";'),
+  tsCase('export const a = "/etc/hosts";', 'export const a = "/etc/passwd";'),
+  tsCase('export const a = "Hello";', 'export const a = "../../etc/passwd";'),
+  // text for a person passes
+  tsCase('export const label = "Save";', 'export const label = "Save it";', 0),
+  tsCase('console.log("Saved");', 'console.log("Saved.");', 0),
+  tsCase('throw new Error("Failed");', 'throw new Error("Failed to save");', 0),
+  tsCase('alert("Saved");', 'alert("Saved the file");', 0),
+  tsCase('export const a = "Yes/No";', 'export const a = "Yes/No/Maybe";'),
+  tsCase('export const a = "Yes/No";', 'export const a = "Yes or No";', 0),
+  ['ts: a JSX label and a title', { 'a.tsx': 'export const A = <b title="Save">Save</b>;\n' }, { 'a.tsx': 'export const A = <b title="Save it">Save it</b>;\n' }, 0],
+);
+
+// SQL files have no text value proof.
+test('a text value in a SQL file has no proof', { skip: NO_PARSERS }, () => {
+  const found = run(TEXT, { 'a.sql': "SELECT 'a';\n" }, { 'a.sql': "SELECT 'b';\n" });
+  assert.equal(found.length, 1);
+  assert.match(found[0], /^Propose the standard track: "a\.sql" has no text value proof yet\./);
+});
+
 cases(TEXT, TEXT_CASES);
 
 const PY_TEXT_CASES = [
@@ -329,6 +405,47 @@ const PY_TEXT_CASES = [
   ['python: a changed comment fails', { 'a.py': '# a\nx = "a"\n' }, { 'a.py': '# b\nx = "a"\n' }, 1],
   ['python: a changed number fails', { 'a.py': 'x = 1\n' }, { 'a.py': 'x = 2\n' }, 1],
 ];
+const pyCase = (before, after, expected = 1) => [`python: ${after.trim().slice(0, 60)}`,
+  { 'a.py': `${before}\n` }, { 'a.py': `${after}\n` }, expected];
+PY_TEXT_CASES.push(
+  pyCase('role = get()\nif role == "admin":\n    pass', 'role = get()\nif role == "guest":\n    pass'),
+  pyCase('x = y != "a"', 'x = y != "b"'),
+  pyCase('x = "a" in y', 'x = "b" in y'),
+  pyCase('x = y in ["a", "b"]', 'x = y in ["a", "c"]'),
+  pyCase('x = y in {"a", "b"}', 'x = y in {"a", "c"}'),
+  pyCase('x = y.index("a")', 'x = y.index("b")'),
+  pyCase('x = y.startswith("a")', 'x = y.startswith("b")'),
+  pyCase('x = y.endswith("a")', 'x = y.endswith("b")'),
+  pyCase('x = d.get("a")', 'x = d.get("b")'),
+  pyCase('x = re.match("a", y)', 'x = re.match("b", y)'),
+  pyCase('match x:\n    case "a":\n        pass', 'match x:\n    case "b":\n        pass'),
+  pyCase('match x:\n    case "a":\n        y = "One"', 'match x:\n    case "a":\n        y = "First"', 0),
+  pyCase('x: "A" = 1', 'x: "B" = 1'),
+  pyCase('def f(a: "A"):\n    pass', 'def f(a: "B"):\n    pass'),
+  pyCase('def f() -> "A":\n    pass', 'def f() -> "B":\n    pass'),
+  pyCase('eval("a()")', 'eval("b()")'),
+  pyCase('exec("a()")', 'exec("b()")'),
+  pyCase('os.system("ls")', 'os.system("pwd")'),
+  pyCase('subprocess.run(["ls", "-la"])', 'subprocess.run(["ls", "-lh"])'),
+  pyCase('subprocess.check_output("ls", shell=True)', 'subprocess.check_output("pwd", shell=True)'),
+  pyCase('cur.execute("a")', 'cur.execute("b")'),
+  pyCase('requests.get("a")', 'requests.get("b")'),
+  pyCase('__import__("a")', '__import__("b")'),
+  pyCase('x = soup.select("a")', 'x = soup.select("b")'),
+  pyCase('x = driver.find_element("a")', 'x = driver.find_element("b")'),
+  pyCase('x = "See https://a.example"', 'x = "See https://b.example"'),
+  pyCase('x = "Hello"', 'x = "<b>Hello</b>"'),
+  pyCase('x = "Hello"', 'x = "Hello {{ name }}"'),
+  pyCase('x = "Hello"', 'x = "select * from users"'),
+  pyCase('x = "Hello"', 'x = "rm -rf /tmp/x"'),
+  pyCase('x = "/etc/hosts"', 'x = "/etc/passwd"'),
+  pyCase('print("Saved")', 'print("Saved.")', 0),
+  pyCase('print("Saved")', 'print("Saved the file")', 0),
+  pyCase('sys.exit("Failed")', 'sys.exit("Failed to save")', 0),
+  pyCase('raise ValueError("bad")', 'raise ValueError("bad value")', 0),
+  pyCase('parser.add_argument("--count", help="Count")', 'parser.add_argument("--count", help="Total")', 0),
+  pyCase('parser.add_argument("--count", help="Count")', 'parser.add_argument("--total", help="Count")'),
+);
 cases(TEXT, PY_TEXT_CASES, NO_PYTHON);
 
 test('a text value in a shell file has no proof', { skip: NO_PARSERS }, () => {

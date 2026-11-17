@@ -182,16 +182,24 @@ module.exports = (lib) => {
   // notOfKind returns the finding for a path that matches no pattern of the kind.
   const notOfKind = (ctx, file, what, ...cause) => takeOut(ctx, file, `it is not ${what}`, ...cause);
 
-  // documentProof adds the findings of the kind "a document".
+  // documentProof adds the findings of the kind "a document": each touched path matches a file
+  // pattern of the kind, and no pattern of the files that the kind excludes, the files that steer
+  // an agent.
   function documentProof(ctx, found) {
     const kind = 'a document';
-    const patterns = ctx.lists.kindData[kind].files.map((pattern) => globRegExp(pattern));
-    const documents = (file) => patterns.some((pattern) => pattern.test(file));
+    const data = ctx.lists.kindData[kind];
+    const patterns = data.files.map((pattern) => globRegExp(pattern));
+    const excluded = data.exclude.map((pattern) => globRegExp(pattern));
+    const instruction = (file) => excluded.some((pattern) => pattern.test(file));
+    const documents = (file) => patterns.some((pattern) => pattern.test(file)) &&
+      !instruction(file);
     for (const file of ctx.paths) {
       if (!documents(file)) {
-        found.push(notOfKind(ctx, file, 'a document file',
-          `The kind ${quote(kind)} changes documents only, and ${quote(shown(ctx, file))} ` +
-          'matches no file pattern of that kind in short-path.json.'));
+        found.push(notOfKind(ctx, file, 'a document file', instruction(file)
+          ? `${quote(shown(ctx, file))} steers an agent, so it is no document, and a change to it ` +
+            'takes the standard track.'
+          : `The kind ${quote(kind)} changes documents only, and ${quote(shown(ctx, file))} ` +
+            'matches no file pattern of that kind in short-path.json.'));
       }
     }
     for (const change of ctx.net) {

@@ -28,6 +28,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   them, `prove` has the finding to propose the standard track. A file of another language,
   and a class that the Tailwind table lacks, have the same finding. `short-path.json` has
   the file patterns, placeholders and tables in `kind_data`, next to the kinds.
+- The proof of the fast track hashes each commit, tree and blob that it reads, and sets
+  `log.showSignature=false` and the gpg programs to `/dev/null` for every git call, so a
+  session that owns `.git` cannot forge an object or run a planted program. A change of a
+  comment, a text value or a look value that also changes white space outside them fails.
+  "a text value in a code file" never changes a string with a link, markup, a template,
+  SQL, shell syntax or a path, an operand of a comparison or a `case` label, a key, a
+  type, a selector, a test id, or an argument of `eval`, `exec`, `query`, `fetch` and
+  `require`, and SQL files have no such proof. "a document" has no `.txt` file but
+  `README.txt`, `LICENSE.txt` and the like, no `.mdx` file, and none of the files that
+  steer an agent (`CLAUDE.md`, `AGENTS.md`, `.claude/**`). A look value calls only colour,
+  number and length functions. The sensitive areas match file names such as `session.ts`
+  and `GNUmakefile`. The proof takes at most 200 files and 60 s.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two

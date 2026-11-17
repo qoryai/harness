@@ -177,7 +177,7 @@ module.exports = (lib) => {
   // The kinds whose proofs read data, with the members of their entry in kind_data. A pattern
   // of a translation file has <lang> once, where the code of the language is.
   const KIND_DATA = {
-    'a document': ['files'],
+    'a document': ['files', 'exclude'],
     'a text that the product shows': ['files', 'placeholders'],
     'a look-only change': ['token_files', 'token_types', 'properties', 'variable_words',
       'tailwind'],
@@ -273,7 +273,8 @@ module.exports = (lib) => {
       if (missing) return `the entry ${quote(kind)} has no ${missing}`;
       let why = null;
       if (kind === 'a document') {
-        why = filePatterns(entry.files, 0);
+        why = filePatterns(entry.files, 0) || (filePatterns(entry.exclude, 0) &&
+          `has exclude that ${filePatterns(entry.exclude, 0)}`);
       } else if (kind === 'a text that the product shows') {
         why = filePatterns(entry.files, 1);
         for (const item of why ? [] : entry.placeholders) {

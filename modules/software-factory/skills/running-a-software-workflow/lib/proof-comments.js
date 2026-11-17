@@ -17,7 +17,7 @@
 //   file. A directive is a shebang on line 1 and each line with "shellcheck".
 // Each run stops after 10 s and after 16 MiB of output, so a closed wrapper with a loop ends
 // by the time limit. A file of more than 1 MiB fails. TOOLS holds the absolute paths of the
-// two interpreters; the run image has bash 5.2 and Python 3.13. Python 3.13 parses no
+// two interpreters; qory's agent image has bash 5.2 and Python 3.13. Python 3.13 parses no
 // t-string, so a file with one fails.
 'use strict';
 
@@ -28,6 +28,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { layout, shellComments } = require('./layout.js');
+const { PATTERNS } = require('./text-deny.js');
 
 // The absolute paths of the interpreters. Only the tests change them, in the test process.
 const TOOLS = { bash: '/bin/bash', python: '/usr/bin/python3' };
@@ -98,22 +99,48 @@ def fail(reason):
     sys.exit(3)
 data = sys.stdin.buffer.read()
 
+DENY = re.compile("|".join("(?:%s)" % one for one in json.loads(
+    sys.argv[2] if len(sys.argv) > 2 else "[]")), re.I)
+ARGUMENT_CALLS = re.compile(
+    r"^(?:eval|exec|compile|system|popen|spawn|call|check_call|check_output|run|Popen|"
+    r"getoutput|getstatusoutput|query|execute|executemany|executescript|fetch|fetchone|"
+    r"__import__|import_module|getattr|setattr|hasattr|delattr|open|get|pop|setdefault|"
+    r"has_key|index|count|find|rfind|startswith|endswith|match|fullmatch|search|sub|subn|"
+    r"findall|finditer|split|select|select_one|find_element|find_elements|find_all|xpath|css|"
+    r"locator|query_selector|query_selector_all|get_by_\w+|wait_for_selector|redirect|"
+    r"url_for|reverse|render_template|send_file|send_from_directory|loads|load|Template|"
+    r"literal_eval|environ|getenv|putenv|connect|request|urlopen|post|put|patch|delete|head)$")
+RECEIVER_CALLS = re.compile(r"^(?:startswith|endswith|find|rfind|index|count|join|match)$")
+
+MATCH = getattr(ast, "Match", ())
+
+def call_name(call):
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
 class Keep(ast.NodeVisitor):
-    """Marks the strings that are no text value: docstrings, keys, names, comparisons, format
-    specifications, the names of imports and attributes."""
+    """Marks the strings that are no text for a person. A string is no text by its place:
+    a docstring, a key, a subscript, a format specification, a comparison, a match pattern, a
+    type, a name of an import or an attribute, an argument of a command, a lookup or a selector.
+    Its content decides too: a link, markup, a template, SQL, shell syntax or a path (DENY)."""
     def __init__(self):
         self.kept = set()
     def mark(self, node):
-        if isinstance(node, ast.Constant):
-            self.kept.add(id(node))
         for child in ast.walk(node):
             if isinstance(child, ast.Constant):
                 self.kept.add(id(child))
     def visit(self, node):
         body = getattr(node, "body", None)
         if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) \
-                and isinstance(body, list) and body and isinstance(body[0], ast.Expr):
+                and isinstance(body, list) and body and isinstance(body[0], ast.Expr) \
+                and isinstance(body[0].value, ast.Constant):
             self.mark(body[0].value)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and DENY.search(node.value):
+            self.kept.add(id(node))
         if isinstance(node, ast.Dict):
             for key in node.keys:
                 if key is not None:
@@ -125,12 +152,32 @@ class Keep(ast.NodeVisitor):
         elif isinstance(node, ast.Compare):
             for operand in [node.left] + node.comparators:
                 self.mark(operand)
+        elif isinstance(node, MATCH):
+            for case in node.cases:
+                self.mark(case.pattern)
+                if case.guard is not None:
+                    self.mark(case.guard)
+        elif isinstance(node, ast.arg) and node.annotation is not None:
+            self.mark(node.annotation)
+        elif isinstance(node, ast.AnnAssign):
+            self.mark(node.annotation)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns is not None:
+            self.mark(node.returns)
         elif isinstance(node, ast.Call):
-            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
-            if name in ("getattr", "setattr", "hasattr", "delattr", "__import__", "import_module",
-                        "open", "compile", "eval", "exec", "re"):
-                for arg in node.args[:1]:
+            name = call_name(node)
+            if name and ARGUMENT_CALLS.search(name):
+                for arg in node.args:
                     self.mark(arg)
+                for keyword in node.keywords:
+                    self.mark(keyword.value)
+            if name and RECEIVER_CALLS.search(name) and isinstance(node.func, ast.Attribute):
+                self.mark(node.func.value)
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) \
+                    and node.func.value.id in ("subprocess", "os", "re", "shlex", "sqlite3"):
+                for arg in node.args:
+                    self.mark(arg)
+                for keyword in node.keywords:
+                    self.mark(keyword.value)
         elif isinstance(node, ast.Assign) and any(
                 isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets):
             self.mark(node.value)
@@ -285,7 +332,8 @@ module.exports = (lib) => {
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-proof-'));
     let ran;
     try {
-      ran = spawn(Missing, TOOLS.python, ['-I', '-S', '-c', PY_DUMP, mode], bytes, folder);
+      ran = spawn(Missing, TOOLS.python, ['-I', '-S', '-c', PY_DUMP, mode,
+        JSON.stringify(PATTERNS)], bytes, folder);
     } finally {
       fs.rmSync(folder, { recursive: true, force: true });
     }

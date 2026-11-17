@@ -11,15 +11,39 @@
     "a document": {
       "files": [
         "**/*.md",
-        "**/*.mdx",
         "**/*.markdown",
         "**/*.rst",
         "**/*.adoc",
-        "**/*.txt",
         "**/README",
+        "**/README.txt",
         "**/CHANGELOG",
+        "**/CHANGELOG.txt",
         "**/LICENSE",
-        "**/NOTICE"
+        "**/LICENSE.txt",
+        "**/LICENCE",
+        "**/LICENCE.txt",
+        "**/NOTICE",
+        "**/NOTICE.txt",
+        "**/AUTHORS",
+        "**/AUTHORS.txt",
+        "**/CONTRIBUTORS",
+        "**/CONTRIBUTORS.txt",
+        "**/COPYING",
+        "**/COPYING.txt",
+        "**/CHANGES",
+        "**/CHANGES.txt",
+        "**/HISTORY",
+        "**/HISTORY.txt"
+      ],
+      "exclude": [
+        "**/CLAUDE.md",
+        "**/AGENTS.md",
+        "**/GEMINI.md",
+        "**/.claude/**",
+        ".github/copilot-instructions.md",
+        "**/.cursor/**",
+        "**/.cursorrules",
+        "**/.windsurfrules"
       ]
     },
     "a text that the product shows": {

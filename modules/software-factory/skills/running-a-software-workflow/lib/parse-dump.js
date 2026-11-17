@@ -8,7 +8,9 @@
 //   comments and white space only. A comment that a tool reads (a type check directive, a
 //   bundler or linter marker, a hint, a conditional comment) stays in the dump with its text;
 // - text: the tree with each text value that a person reads masked: the strings of a code file
-//   that are no key, address, module name or comparison, the text of a page. Every comment stays
+//   that are text for a person, by the deny list of lib/text-deny.js and the places that are no
+//   text (a comparison, a case label, a key, a type, a selector, the argument of a command), and the
+//   text of a page. SQL has no text mode. Every comment stays
 //   in the dump;
 // - look: the tree with each value of colour, typography, spacing, border, corner radius and
 //   shadow masked, in CSS, SCSS, CSS variables, design tokens, CSS-in-JS and the classes of
@@ -27,6 +29,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const { layout, jsonLayout } = require('./layout.js');
+const { isPlain } = require('./text-deny.js');
 
 const [folder, language, mode, dataText] = process.argv.slice(2);
 const data = JSON.parse(dataText || '{}');
@@ -220,9 +223,14 @@ function cssLines(syntax, css, depth, ranges = null, base = 0) {
 
 // ---- TypeScript and JavaScript ------------------------------------------------------------
 
-// The attributes of a JSX element that hold text for a person.
-const TEXT_ATTRIBUTES = new Set(['title', 'alt', 'placeholder', 'label', 'aria-label',
-  'aria-description', 'aria-placeholder', 'aria-roledescription']);
+// The attributes of a tag that are no text for a person: addresses, names, identifiers, classes,
+// styles, test ids, handlers and the like. Any other attribute may hold text, such as title, alt,
+// placeholder, label or aria-label.
+const DENIED_ATTRIBUTES = new RegExp('^(?:data-.*|id|class|classname|href|src|srcset|action|' +
+  'formaction|for|htmlfor|name|type|role|rel|target|style|key|ref|slot|is|value|method|enctype|' +
+  'accept|autocomplete|pattern|min|max|step|width|height|lang|dir|charset|content|http-equiv|' +
+  'property|on.*|aria-(?:labelledby|describedby|controls|owns|activedescendant|flowto|details|' +
+  'errormessage)|xmlns.*|viewbox|d|points|transform|fill|stroke.*|to|as|use|testid|test-id)$', 'i');
 const CSS_TAG = new RegExp('^(?:css|keyframes|createGlobalStyle|injectGlobal|' +
   'styled(?:\\.[A-Za-z0-9_]+|\\([^)]*\\))(?:\\.attrs\\([^)]*\\))?)$');
 
@@ -315,14 +323,97 @@ async function typescript() {
 
   const attributeName = (attribute) => attribute.name.getText(sf);
 
-  // codeString reports whether a string, or the static text of a template, is no text value: a
-  // key, a name, a module, a comparison, a directive, a tag's template or an attribute that is no
-  // text.
+  // The calls whose string arguments are no text: they run, select, fetch, load or look up what
+  // the string says. A name that a call has, as a function or a method.
+  const ARGUMENT_CALLS = new RegExp('^(?:eval|Function|setTimeout|setInterval|setImmediate|exec|' +
+    'execSync|execFile|execFileSync|spawn|spawnSync|fork|system|query|execute|executeQuery|' +
+    'fetch|require|import|includes|indexOf|lastIndexOf|has|get|startsWith|endsWith|' +
+    'match|matchAll|test|search|querySelector|querySelectorAll|getElementById|' +
+    'getElementsByClassName|getElementsByName|getElementsByTagName|closest|matches|locator|' +
+    'waitForSelector|\\$|\\$\\$|(?:get|query|find)(?:All)?By[A-Z]\\w*|' +
+    'queryRaw|\\$queryRaw|\\$executeRaw|raw|open|sendFile|redirect|navigate|addEventListener|' +
+    'removeEventListener)$');
+  // The methods whose receiver, a list or a set of strings, is a set of values that code tests.
+  const MEMBERSHIP = new Set(['includes', 'indexOf', 'lastIndexOf', 'has', 'startsWith',
+    'endsWith', 'match', 'matchAll', 'test', 'search', 'some', 'every', 'find', 'findIndex']);
+  const COMPARISONS = new Set([K.EqualsEqualsToken, K.EqualsEqualsEqualsToken,
+    K.ExclamationEqualsToken, K.ExclamationEqualsEqualsToken, K.InKeyword, K.InstanceOfKeyword,
+    K.LessThanToken, K.GreaterThanToken, K.LessThanEqualsToken, K.GreaterThanEqualsToken]);
+
+  // calleeName returns the name that a call has: an identifier, the name of a method, or import.
+  function calleeName(call) {
+    const callee = call.expression;
+    if (callee.kind === K.Identifier) return callee.text;
+    if (callee.kind === K.PropertyAccessExpression) return callee.name.text;
+    return callee.kind === K.ImportKeyword ? 'import' : null;
+  }
+
+  // The nodes that a string may sit in on its way up to a call, a comparison or a type.
+  const PASSING = new Set([K.ArrayLiteralExpression, K.ParenthesizedExpression,
+    K.SpreadElement, K.ConditionalExpression, K.AsExpression, K.NonNullExpression,
+    K.TemplateSpan, K.TemplateExpression, K.SatisfiesExpression, K.AwaitExpression]);
+
+  // inCall reports whether a string is an argument of a call that runs or looks up what it says,
+  // or an element of the list or set that a membership method tests.
+  function inCall(node) {
+    let at = node;
+    for (;;) {
+      const parent = at.parent;
+      if (!parent) return false;
+      if (PASSING.has(parent.kind) ||
+        (parent.kind === K.BinaryExpression && parent.operatorToken.kind === K.PlusToken)) {
+        at = parent;
+      } else if ((parent.kind === K.CallExpression || parent.kind === K.NewExpression) &&
+        parent.arguments && parent.arguments.includes(at)) {
+        const name = parent.kind === K.NewExpression ? null : calleeName(parent);
+        if (parent.kind === K.NewExpression && parent.expression.kind === K.Identifier &&
+          ['RegExp', 'Function'].includes(parent.expression.text)) return true;
+        if (parent.kind === K.NewExpression && parent.expression.kind === K.Identifier &&
+          ['Set', 'Map', 'WeakSet'].includes(parent.expression.text)) {
+          at = parent;
+        } else {
+          return Boolean(name) && ARGUMENT_CALLS.test(name);
+        }
+      } else if (parent.kind === K.PropertyAccessExpression && parent.expression === at) {
+        const call = parent.parent;
+        return call.kind === K.CallExpression && call.expression === parent &&
+          MEMBERSHIP.has(parent.name.text);
+      } else {
+        return false;
+      }
+    }
+  }
+
+  // inType reports whether a node is inside a type: a string literal type, a template type.
+  function inType(node) {
+    for (let at = node.parent; at; at = at.parent) {
+      if (ts.isTypeNode(at) && at.kind !== K.ExpressionWithTypeArguments) return true;
+      if (ts.isStatement(at) || ts.isSourceFile(at)) return false;
+    }
+    return false;
+  }
+
+  // inComparison reports whether a string is an operand of a comparison.
+  function inComparison(node) {
+    let at = node;
+    while (at.parent && [K.ParenthesizedExpression, K.AsExpression, K.NonNullExpression]
+      .includes(at.parent.kind)) at = at.parent;
+    const parent = at.parent;
+    return Boolean(parent) && parent.kind === K.BinaryExpression &&
+      COMPARISONS.has(parent.operatorToken.kind);
+  }
+
+  // codeString reports whether a string, or the static text of a template, is no text for a
+  // person. Its place decides: a comparison, a case label, a key, a name, a module, a type, a
+  // directive, a tag's template, a selector or test id, the argument of a command or a lookup.
+  // Its content decides too: a link, markup, a template, SQL, shell syntax or a path.
   function codeString(node) {
+    if (!isPlain(node.text)) return true;
+    if (inType(node) || inComparison(node) || inCall(node)) return true;
     const parent = node.parent;
     switch (parent.kind) {
       case K.ImportDeclaration: case K.ExportDeclaration: case K.ExternalModuleReference:
-      case K.LiteralType: case K.ModuleDeclaration: case K.ImportAttribute: case K.ImportSpecifier:
+      case K.ModuleDeclaration: case K.ImportAttribute: case K.ImportSpecifier:
       case K.ExportSpecifier: case K.PropertySignature: case K.MethodSignature:
       case K.PropertyDeclaration: case K.MethodDeclaration: case K.GetAccessor: case K.SetAccessor:
       case K.EnumMember: case K.BindingElement: case K.ComputedPropertyName: case K.CaseClause:
@@ -332,16 +423,6 @@ async function typescript() {
         return parent.name === node;
       case K.ElementAccessExpression:
         return parent.argumentExpression === node;
-      case K.BinaryExpression:
-        return [K.EqualsEqualsToken, K.EqualsEqualsEqualsToken, K.ExclamationEqualsToken,
-          K.ExclamationEqualsEqualsToken, K.InKeyword, K.InstanceOfKeyword, K.LessThanToken,
-          K.GreaterThanToken, K.LessThanEqualsToken, K.GreaterThanEqualsToken]
-          .includes(parent.operatorToken.kind);
-      case K.CallExpression:
-        return parent.expression.kind === K.ImportKeyword ||
-          (parent.expression.kind === K.Identifier && parent.expression.text === 'require');
-      case K.NewExpression:
-        return parent.expression.kind === K.Identifier && parent.expression.text === 'RegExp';
       case K.TemplateExpression: case K.TemplateSpan:
         return (parent.kind === K.TemplateSpan ? parent.parent : parent).parent.kind ===
           K.TaggedTemplateExpression;
@@ -355,10 +436,10 @@ async function typescript() {
           one.expression.kind === K.StringLiteral);
       }
       case K.JsxAttribute:
-        return !TEXT_ATTRIBUTES.has(attributeName(parent));
+        return DENIED_ATTRIBUTES.test(attributeName(parent));
       case K.JsxExpression:
-        return !(parent.parent.kind === K.JsxAttribute &&
-          TEXT_ATTRIBUTES.has(attributeName(parent.parent)));
+        return parent.parent.kind === K.JsxAttribute &&
+          DENIED_ATTRIBUTES.test(attributeName(parent.parent));
       default:
         return false;
     }
@@ -442,16 +523,21 @@ async function typescript() {
 
   function walkJsxChildren(node, depth) {
     let buffer = '';
+    let plain = true;
     const flush = () => {
       if (buffer) {
-        out.push(`${' '.repeat(depth)}JsxTextCooked ${mode === 'text' ? 'STR' : JSON.stringify(buffer)}`);
+        const masked = mode === 'text' && plain;
+        out.push(`${' '.repeat(depth)}JsxTextCooked ${masked ? 'STR' : JSON.stringify(buffer)}`);
       }
       buffer = '';
+      plain = true;
     };
     for (const child of node.children) {
       if (child.kind === K.JsxText) {
-        buffer += cookJsxText(child.getText(sf));
-        if (mode === 'text') maskRanges.push([child.pos, child.end]);
+        const cooked = cookJsxText(child.getText(sf));
+        buffer += cooked;
+        if (!isPlain(cooked)) plain = false;
+        else if (mode === 'text') maskRanges.push([child.pos, child.end]);
         comments(child);
       } else if (child.kind === K.JsxExpression && !child.expression && !child.dotDotDotToken) {
         for (const token of child.getChildren(sf)) comments(token);
@@ -575,7 +661,7 @@ async function html() {
 
   function attribute(depth, element, attr) {
     const name = attr.name.toLowerCase();
-    if (mode === 'text' && TEXT_ATTRIBUTES.has(name)) {
+    if (mode === 'text' && !DENIED_ATTRIBUTES.test(name) && isPlain(attr.value)) {
       maskValue(element, attr);
       return [attr.name, 'STR'];
     }
@@ -610,7 +696,8 @@ async function html() {
           }
         }
         const raw = ['script', 'style'].includes(tag);
-        out.push(`${ind}TEXT ${mode === 'text' && !raw ? 'STR' : JSON.stringify(buffer)}`);
+        out.push(`${ind}TEXT ${mode === 'text' && !raw && isPlain(buffer) ? 'STR'
+          : JSON.stringify(buffer)}`);
       }
       buffer = null;
     };
@@ -629,7 +716,7 @@ async function html() {
       } else if (child.nodeName === '#text') {
         buffer = (buffer || '') + child.value;
         const raw = ['script', 'style'].includes(tag);
-        if (child.sourceCodeLocation && ((mode === 'text' && !raw) ||
+        if (child.sourceCodeLocation && ((mode === 'text' && !raw && isPlain(child.value)) ||
           (mode === 'look' && tag === 'style'))) {
           maskRanges.push([child.sourceCodeLocation.startOffset, child.sourceCodeLocation.endOffset]);
         }

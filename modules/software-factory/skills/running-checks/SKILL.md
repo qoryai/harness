@@ -318,32 +318,49 @@ isolation needs another user or a mount namespace.
 
 ## The proof of the fast track
 
-`prove` is the one entry point of the proof of a fast-track run: three calls run it. qory's
-push step runs `scope --plan` before the first push, and when the proposal in its folder is
-on the fast track, `scope --plan` proves the commits against the kind of `## Track` in place
-of the Files of a build plan; a failed proof exits 1 and stops every push. `check submission`
-and the end check run it in your session, and `prove` runs it by hand. The start commit is
-`--base`, else `qory.start_commits` of `inputs.json`: pass the `--inputs` path of the prompt,
-and no other `--base`. Run `prove` after your last commit. With the parsers missing from your
-machine, `check` and `end` write one line on stderr, "Run the push step: it proves <kind>",
-and leave the files that need a parser to `scope --plan`.
+`prove` is the one entry point of the proof of a fast-track run: three calls run it.
+qory's push step runs `scope --plan` before the first push, and when the proposal in its
+folder is on the fast track, `scope --plan` proves the commits against the kind of `##
+Track` in place of the Files of a build plan; a failed proof exits 1 and stops every push.
+`check submission` and the end check run it in your session, and `prove` runs it by hand.
+The start commit is `--base`, else `qory.start_commits` of `inputs.json`: pass the
+`--inputs` path of the prompt, and no other `--base`. Run `prove` after your last commit.
+With the parsers missing from your machine, `check` and `end` write one line on stderr,
+"Run the push step: it proves <kind>", and leave the files that need a parser to `scope
+--plan`.
 
-It passes only when each path of the commits is of the kind and in no sensitive area. For
-"a document", each path is a document by the file patterns of `short-path.json`. For "a
-text that the product shows", each path is a JSON translation file, with the same keys and
-placeholders as at the start commit, and each entry that you reworded is in every other
-language file of its folder. A change that only adds or removes white space fails for every
-kind. For "a comment", each changed file is a shell, Python, TypeScript, JavaScript, SQL or
-HTML file whose two commits parse to the same tree once the comments are left out; a
-comment that a tool reads, such as `shellcheck`, `noqa`, `type:` or `@ts-ignore`, is part of
-the tree. For "a text value in a code file", the tree is the same once each text that a
-person reads is masked, such as a label, and the comments are the same. For "a look-only
-change", the tree is the same once each value of colour, typography, spacing, border, corner
-radius and shadow is masked, in CSS, SCSS, design tokens, CSS-in-JS and Tailwind classes;
-layout never counts. A file of another language, or a Tailwind class that the table of
-`short-path.json` lacks, has the finding "Propose the standard track", and no change to the
-commits removes it. The parsers are in `/opt/qory/parsers/node_modules`; without them, `prove`
-and `scope --plan` have that finding for each file that needs one.
+It passes only when each path of the commits is of the kind and in no sensitive area, and
+each object that it reads has the hash of its id. A change of a comment, a text value or a
+look value that also changes white space outside them fails, as does a change that only
+adds or removes white space.
+
+- "a document": each path is a document by the file patterns of `short-path.json`:
+  Markdown, reStructuredText and AsciiDoc files, and files such as `README` and
+  `LICENSE.txt`. A text file such as `requirements.txt`, an `.mdx` file and a file that
+  steers an agent (`CLAUDE.md`, `AGENTS.md`, `.claude/**`,
+  `.github/copilot-instructions.md`) are no document.
+- "a text that the product shows": each path is a JSON translation file, with the same
+  keys and placeholders as at the start commit, and each entry that you reworded is in
+  every other language file of its folder. A changed text with a link or markup fails.
+- "a comment": each changed file is a shell, Python, TypeScript, JavaScript, SQL or HTML
+  file whose two commits parse to the same tree once the comments are left out. A comment
+  that a tool reads is part of the tree: `shellcheck`, `noqa`, `type:`, `@ts-ignore`,
+  `nosemgrep`, `gitleaks:allow` and the like.
+- "a text value in a code file": the tree is the same once each text that a person reads
+  is masked, such as a label or a message, and the comments are the same. A string with a
+  link, markup, a template, SQL, shell syntax or a path, an operand of a comparison, a
+  `case` label, a key, a type, a selector, a test id, and an argument of `eval`, `exec`,
+  `query`, `fetch`, `require` and the like, is no text and is compared as code. SQL and
+  shell files have no such proof, so a changed string of one takes the standard track.
+- "a look-only change": the tree is the same once each value of colour, typography,
+  spacing, border, corner radius and shadow is masked, in CSS, SCSS, design tokens,
+  CSS-in-JS and Tailwind classes. A value may call only colour, number and length
+  functions, so `url()` and the gradients fail. Layout never counts.
+
+A file of another language, or a Tailwind class that the table of `short-path.json` lacks,
+has the finding "Propose the standard track", and no change to the commits removes it. The
+parsers are in `/opt/qory/parsers/node_modules` of qory's agent image; without them,
+`prove` and `scope --plan` have that finding for each file that needs one.
 
 Each finding starts with the fix, such as "Take "<path>" out of the commits since the
 base", and the lines after it give the cause. Take the path out of the commits as the
