@@ -63,6 +63,28 @@ const LINKED = 'Replace the link at the artifact folder with a folder: a link is
   'folder.\nThe main session writes only in the artifact folder, and ';
 const NO_ROOT = 'Start the session through qory: the tool guard found no working folder of ' +
   'the run.\nOn Claude Code it reads CLAUDE_PROJECT_DIR, and on Codex the folder of the hook.';
+// The commands that write no file, each with the options that make it write one, as in
+// `sort -o <file>`. Any other command whose writes the guard does not read is opaque.
+const READ_ONLY = new Map(Object.entries({ cat: [], grep: [], egrep: [], fgrep: [], rg: [],
+  ls: [], head: [], tail: [], wc: [], diff: [], cmp: [], echo: [], printf: ['-v'], true: [],
+  false: [], test: [], '[': [], pwd: [], which: [], type: [], stat: [], file: [],
+  basename: [], dirname: [], realpath: [], readlink: [], date: [], sleep: [], cut: [], tr: [],
+  nl: [], sha256sum: [], shasum: [], md5sum: [], du: [], tree: ['-o'],
+  sort: ['-o', '--output'], jq: [], cd: [], pushd: [], popd: [], exit: [], export: [],
+  set: [], unset: [], wait: [], find: ['-delete', '-fprint', '-fprint0', '-fprintf', '-fls'] }));
+// The subcommands of the version control tool that write no file of the working folder,
+// without --output.
+const GIT_READS = new Set(['diff', 'log', 'show', 'status', 'rev-parse', 'ls-files', 'blame',
+  'grep', 'shortlog', 'describe', 'cat-file', 'merge-base']);
+// The words before a command that run it on a condition, and the words of a loop, a case or
+// the end of a group, which run no command.
+const CONDITIONS = new Set(['if', 'elif', 'while', 'until', '!']);
+const SHAPES = new Set(['for', 'select', 'case', 'in', 'fi', 'done', 'esac', 'then', 'do',
+  'else', '{', '}']);
+// A word of a shell text that can name a path, also inside quotes or code, as in
+// node -e "fs.rmSync('checks/a.ts')": the text between spaces, quotes, parentheses, commas, =,
+// ;, <, >, | and &.
+const TOKEN = /[^\s'"`(),;=<>|&]+/g;
 // The most comparisons of a path, a pattern or a word with a file that the guard makes in
 // one call, and the most time it spends, in ms: the runtime runs a call whose hook passes its
 // timeout of 120 s, and the guard ends well before that.
@@ -71,8 +93,10 @@ const TIME_LIMIT = 20000;
 const TOO_MUCH = 'Split this command into smaller calls: the guard compares at most ' +
   `${WORK_LIMIT} paths in one call.\nThe guard stopped reading this call before it could ` +
   'tell what the call writes. ';
+const OPAQUE = 'Leave the locked file out of this command: the guard cannot tell what the ' +
+  'command writes.\n';
 const LOST = 'Write with a path that starts with /: the guard cannot tell the folder that ' +
-  'this command runs in.\nA cd after builtin, eval, source or ., with CDPATH, in a branch, a ' +
+  'this command runs in.\nA cd after builtin, eval, source or ., with CDPATH, in an if, a ' +
   'loop or a function, or to a folder that a variable names makes the folder unknown. ';
 const UNSURE = 'Write the path without a .. after a folder that does not exist yet: the ' +
   'guard cannot tell\nwhere such a .. leads, as a later command can make that folder a link. ';
@@ -582,7 +606,7 @@ function link(separator) {
   return plain.includes('&') ? '&' : '';
 }
 
-// The words that open a branch, a loop or a case, and the words that close one.
+// The words that open an if, a loop or a case, and the words that close one.
 const OPENS = new Set(['if', 'while', 'until', 'for', 'select', 'case']);
 const CLOSES = new Set(['fi', 'done', 'esac']);
 // The commands after which the folder is unknown: eval and source run text that the guard
@@ -594,7 +618,7 @@ const LOSES = new Set(['eval', 'source', '.']);
 // changes the folder of the commands after it, and the end of its ( ... ), $( ... ) or
 // backtick group sets the folder back. The folder is unknown from a command on whose folder
 // after it the guard cannot tell: a cd to a vague folder, a cd in a pipe, a popd with no
-// pushd, a cd after builtin, a cd while CDPATH may be set, a cd in a branch, a loop, a case or
+// pushd, a cd after builtin, a cd while CDPATH may be set, a cd in an if, a loop, a case or
 // a { ... } body, which includes a function, eval, source or ., and a call that may set
 // auto_cd, where a folder name runs as a cd. From such a command on, walk also sets lost on
 // each part: then even folders cannot list the folders that the part can run in. The folder
@@ -1278,11 +1302,108 @@ function shellReason(command, { cwd, root, lockOf, nocase, home, deadline }) {
   }
 }
 
+// A sed script that only prints, deletes or substitutes in its output, as in 1,20p, /x/p or
+// s/a/b/g: no w, W, e or r command and no w or e flag.
+const SED_READS = /^(?:[\d,$]*[pdq=]?|\/[^/]*\/[pd]?|s(.)(?:(?!\1).)*\1(?:(?!\1).)*\1[gpI\d]*)$/;
+
+// opaque reports whether segment, a simple command, can write files that the guard does not
+// read: it is no write that the guard reads, and no command of READ_ONLY without its write
+// options, of GIT_READS after the version control tool, a subcommand of SUB_WRITERS, which
+// subWrites reads, or of SHAPES, after the words of CONDITIONS. A shell with -c and a quoted
+// text, which commands reads, is not opaque, and sed is not with scripts that SED_READS
+// matches. find is opaque when a command of its -exec is.
+function opaque(segment) {
+  if (segmentWrites(segment)) return false;
+  const words = segment.words.map(unquote);
+  let at = 0;
+  while (at < words.length && CONDITIONS.has(words[at])) at += 1;
+  if (at >= words.length || SHAPES.has(words[at])) return false;
+  const rest = words.slice(at);
+  const name = path.basename(rest[0]);
+  if (name === 'git') {
+    const sub = rest[subIndex(rest)];
+    return !(GIT_READS.has(sub) || SUB_WRITERS.has(sub)) ||
+      rest.some((word) => word.startsWith('--output'));
+  }
+  if (/^(?:sh|bash|zsh|dash)$/.test(name)) {
+    const raw = segment.words.slice(words.length - rest.length);
+    const at = rest.findIndex((word) => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
+    return at < 0 || !/^\$?['"]/.test(raw[at + 1] || '');
+  }
+  if (name === 'sed') {
+    const scripts = [];
+    let file = false;
+    for (let one = 1; one < rest.length; one += 1) {
+      if (rest[one] === '-e' || rest[one] === '--expression') scripts.push(rest[(one += 1)] || '');
+      else if (rest[one].startsWith('--expression=')) scripts.push(rest[one].slice(13));
+      else if (/^-[a-zA-Z]*f$|^--file/.test(rest[one])) file = true;
+      else if (!rest[one].startsWith('-') && !scripts.length && !file) scripts.push(rest[one]);
+    }
+    return file || !scripts.length || scripts.some((one) => one.split(/[;\n]/)
+      .some((part) => !SED_READS.test(part.trim())));
+  }
+  if (!READ_ONLY.has(name)) return true;
+  if (name === 'find') {
+    for (let one = 1; one < rest.length; one += 1) {
+      if (!/^-(?:exec|execdir|ok|okdir)$/.test(rest[one])) continue;
+      let end = one + 1;
+      while (end < rest.length && rest[end] !== ';' && rest[end] !== '+') end += 1;
+      const exec = rest.slice(one + 1, end);
+      if (exec.length && opaque({ words: exec, text: exec.join(' '), outputs: [] })) return true;
+      one = end;
+    }
+  }
+  const options = READ_ONLY.get(name);
+  return rest.slice(1).some((word) => options.some((option) => word === option ||
+    word.startsWith(`${option}=`) || (option.length === 2 && !option.startsWith('--') &&
+    word.startsWith(option) && name !== 'find')));
+}
+
+// reaches returns the first word of the texts of parts that reaches one of files or a folder
+// above one, from a folder of its command, after links: a word that resolves to it, a
+// wildcard that can match it, or the name of a file of files, as in 'a.ts' for checks/a.ts.
+// folder, a folder, is reached by a word in it or above it, but not by its name. It returns
+// { word, file }, or null. A word of a command whose folder is lost is read only by its name,
+// and the folder of a cd, which walk follows, is no word that reaches.
+function reaches(parts, files, folder, { realOf, fold, spend }) {
+  const folded = files.map((file) => ({ file, full: fold(file), name: fold(path.basename(file)) }))
+    .concat([{ file: folder, full: fold(folder), name: null, folder: true }]);
+  for (const one of parts) {
+    if (one.words.length && CD.has(path.basename(one.words[0]))) continue;
+    const text = fold(one.text);
+    for (const { file, name } of folded) {
+      if (name === null) continue;
+      for (let at = text.indexOf(name); at >= 0; at = text.indexOf(name, at + 1)) {
+        spend();
+        if (!/[\w.-]/.test(text[at - 1] || '') && !/[\w-]/.test(text[at + name.length] || '')) {
+          return { word: path.basename(file), file };
+        }
+      }
+    }
+    for (const token of one.text.match(TOKEN) || []) {
+      if (vague(token)) continue;
+      for (const cwd of one.lost ? [] : one.cwds) {
+        spend();
+        const hit = wild(token) ? folded.find(({ full }) => ['equal', 'above'].includes(
+          globReach(path.resolve(cwd, patternOf(token)), full, fold, true)))
+          : folded.find(({ full, folder: below }) => {
+            const at = fold(realOf(joined(cwd, unquote(token))));
+            return under(full, at) || (below && under(at, full));
+          });
+        if (hit) return { word: token, file: hit.file };
+      }
+    }
+  }
+  return null;
+}
+
 // readShell returns the reason of shellReason, and spends a unit of spend for each comparison.
 function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   spend(command.length >> 10);
-  const parts = segments(command, cwd, segmentWrites);
-  if (!parts.length) return null;
+  const all = segments(command, cwd);
+  const parts = all.filter(segmentWrites);
+  const dark = all.find(opaque);
+  if (!parts.length && !dark) return null;
   const cwds = [...new Set(parts.flatMap((one) => one.cwds))];
   const known = new Map();
   const realOf = (full) => {
@@ -1314,6 +1435,15 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));
   if (file) return lockedReason(file, root, what);
+  // A command whose writes the guard does not read: a locked file or .qory/build/ in the text
+  // of the call denies it.
+  const reached = dark && reaches(all, files, path.join(root, BUILD), how);
+  if (reached) {
+    const shown = under(reached.file, root) ? path.relative(root, reached.file) : reached.file;
+    const name = path.basename(dark.words[0]);
+    return `${reached.file === path.join(root, BUILD) ? BUILT : OPAQUE}The guard reads no write ` +
+      `of ${name}, and the call contains ${reached.word}, which reaches ${shown}.`;
+  }
   for (const one of parts) {
     if (!one.lost) continue;
     const word = pathWords(one).concat(findParts(one.words).writes ? findParts(one.words).starts

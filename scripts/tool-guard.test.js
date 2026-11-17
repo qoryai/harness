@@ -118,7 +118,7 @@ test('a write to a locked path is denied, on Claude Code and on Codex', () => {
     firstLine(guard(codex('Bash', { command })), start);
   }
   // Reads of the locked file pass.
-  for (const command of [`cat ${CHECK_PATH}`, `npm run check -- ${CHECK_PATH} 2>&1`,
+  for (const command of [`cat ${CHECK_PATH}`,
     `grep -n reply ${CHECK_PATH} > /tmp/out.txt`, 'echo x > checks/other.check.ts',
     `git restore --staged ${CHECK_PATH}`, `git -C . restore -S ${CHECK_PATH}`,
     `sh -c 'ls ${CHECK_PATH}'`, `X=1 git -c a=b log ${CHECK_PATH}`]) {
@@ -211,6 +211,32 @@ test('a path is read through its links before each .., as the system reads it', 
     fs.rmSync(made[0], { recursive: true, force: true });
   }
 });
+
+test('a command whose writes the guard does not read is denied when it reaches a locked file',
+  () => {
+    const opaque = 'Leave the locked file out of this command: the guard cannot tell what the';
+    const file = CHECK_PATH;
+    for (const command of [`node -e "require('fs').writeFileSync('${file}', 'x')"`,
+      `python3 -c "open('${file}', 'w')"`, `bash -c rm\\ ${file}`, `printf 'rm ${file}' | bash`,
+      `curl -o ${file} https://example.com/x`, 'tar -xf a.tar checks', 'tar -xf a.tar -C .',
+      `cd checks && node -e "require('fs').rmSync('corrected-reply.check.ts')"`,
+      'node x.js checks/*.ts', `npm run check -- ${file}`,
+      `python3 <<'EOF'\nopen('${file}', 'w')\nEOF`, `make -C checks`, `\\node -e "rm('${file}')"`,
+      `find . -name x -exec node {} \\;`]) {
+      const reason = guard(codex('Bash', { command }, 'implementer'));
+      assert.ok(typeof reason === 'string' && [opaque, 'Leave the locked file as it is']
+        .some((one) => reason.startsWith(one)), `${command}: ${reason}`);
+    }
+    firstLine(guard(codex('Bash', { command: "node -e \"fs.writeFileSync('.qory/build/steps/s." +
+      "json', '{}')\"" }, 'implementer')), 'Leave .qory/build/ as it is');
+    for (const command of ['node -e "console.log(1)"', 'npm test', 'npm run build',
+      'python3 -c "print(1)"', 'curl -o /tmp/x https://example.com', `sed -n 1,20p ${file}`,
+      `git diff ${file}`, `grep -n x ${file}`, "find checks -name '*.ts'", `sh -c 'ls ${file}'`,
+      'make build', `git log -p ${file}`, `if grep -q x ${file}; then echo y; fi`,
+      `for f in checks/*; do echo "$f"; done`, `cat ${file} | wc -l`]) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    }
+  });
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');

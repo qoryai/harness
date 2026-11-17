@@ -1298,10 +1298,22 @@ The limits of the guard:
 
 - The guard reads a shell command as text, on both runtimes, and runs no shell. A write
   whose path the text does not contain passes, as in `D=lock; echo x > ${D}ed/f`, and so
-  does a write from a script, `node -e` or `python -c`, a write by `git apply`, a shell
-  three shells deep, and a here-document body that `cat` writes to a file in one call and a
-  later call runs. `checks.js lock --verify` after each step and the push check keep the
-  lock for such a write. A `cp` that reads a locked file is denied, as it contains the path.
+  does a shell three shells deep, and a here-document body that `cat` writes to a file in
+  one call and a later call runs. `checks.js lock --verify` after each step and the push
+  check keep the lock for such a write. A `cp` that reads a locked file is denied, as it
+  contains the path.
+- A command whose writes the guard does not read, such as `node -e`, `python3 -c`,
+  `curl -o`, `tar -x`, `make` or `npm run`, is opaque. Writers, redirects, the files of
+  prefixes, a shell with `-c` and a quoted text, and the read-only commands are not: `cat`,
+  `grep`, `rg`, `ls`, `head`, `tail`, `wc`, `diff`, `sed` that only prints, `find` with no
+  `-delete`, `-fprint` or opaque `-exec`, `sort` with no `-o`, `git diff`, `log`, `show`,
+  `status` and a few more. In a call with an opaque command, the guard denies the call
+  when its text reaches a locked file or `.qory/build/`: a word that resolves to the file
+  or a folder above it, the working folder included, from the folder of its command after
+  links; a wildcard that can match it; or the name of a locked file anywhere in the text.
+  The text includes each here-document body that the call does not give to `cat` or `tee`.
+  So `npm run check -- checks/a.check.ts`, `git add .` and `npx eslint .` are denied; run
+  `npm run check` with no path, and name the files to add. A `cd` folder reaches no file.
 - On Codex, a shell that the model starts with a terminal takes later commands through
   `write_stdin`, which runs no hook. With `features.unified_exec_tty = false`, Codex
   starts no such shell. A hook in `$CODEX_HOME` runs only when its hash is trusted, as for
