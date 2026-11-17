@@ -54,6 +54,12 @@ async function load(name) {
 
 // ---- the look values ----------------------------------------------------------------------
 
+// The words of a comment that a scanner or a linter reads as a suppression: the comment is code.
+const SUPPRESSION = ['nosemgrep', 'nosec', 'nosonar', 'sonar', 'lgtm', 'codeql', 'gitleaks',
+  String.raw`allowlist\s+secret`, String.raw`pragma:\s*allowlist`, String.raw`pyre-(?:ignore|fixme)`,
+  'snyk', 'trufflehog', 'detect-secrets', 'bandit', 'noqa', 'tslint', 'jshint', 'jslint',
+  'stylelint', 'rubocop', 'pylint', String.raw`type:\s*ignore`].join('|');
+
 const GROUPS = new Map();
 for (const [group, names] of Object.entries(data.properties || {})) {
   for (const name of names) GROUPS.set(name, group);
@@ -61,10 +67,25 @@ for (const [group, names] of Object.entries(data.properties || {})) {
 const VARIABLE_WORDS = data.variable_words || {};
 const COLOR_VALUE = /^(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\([^()]*\)|transparent|currentcolor)$/i;
 
-// valueOk reports whether a value loads nothing and builds nothing: no url(), image-set(),
-// expression(), escape, @import or interpolation.
-const valueOk = (value) => typeof value === 'string' && value.trim() !== '' &&
-  !/url\s*\(|image-set\s*\(|expression\s*\(|\\|@import|#\{|\$\{/i.test(value);
+// The functions that a look value may call: colours, numbers and lengths. Any other function,
+// such as url(), image(), image-set(), src(), element(), paint(), cross-fade() or a gradient,
+// can load a file or draw one.
+const VALUE_FUNCTIONS = new Set(['rgb', 'rgba', 'hsl', 'hsla', 'hwb', 'lab', 'lch', 'oklab',
+  'oklch', 'color', 'color-mix', 'light-dark', 'calc', 'min', 'max', 'clamp', 'var', 'abs',
+  'sign', 'round', 'mod', 'rem', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'pow',
+  'sqrt', 'hypot', 'log', 'exp']);
+
+// valueOk reports whether a value loads nothing and builds nothing: it has no escape, @import
+// or interpolation, and each function that it calls is one of VALUE_FUNCTIONS.
+function valueOk(value) {
+  if (typeof value !== 'string' || value.trim() === '' || /\\|@import|#\{|\$\{/i.test(value)) {
+    return false;
+  }
+  for (const call of value.matchAll(/([A-Za-z_-][\w-]*)\s*\(/g)) {
+    if (!VALUE_FUNCTIONS.has(call[1].toLowerCase())) return false;
+  }
+  return true;
+}
 
 // variableGroup returns the group of a CSS variable or an SCSS variable by the first word of
 // its name, or colour for a colour value, or null.
@@ -198,7 +219,7 @@ const DIRECTIVE = new RegExp([
   'webpack', '@vite-ignore', 'sourcemappingurl', 'sourceurl', '@flow', '@noflow',
   'eslint', 'prettier-ignore', 'biome-ignore', 'deno-lint-ignore', 'dprint-ignore',
   'istanbul', String.raw`c8\s+ignore`, String.raw`v8\s+ignore`,
-  String.raw`^/\*\s*(globals?|exported)\b`,
+  String.raw`^/\*\s*(globals?|exported)\b`, SUPPRESSION,
 ].join('|'), 'i');
 
 async function typescript() {
@@ -451,7 +472,7 @@ async function typescript() {
 const SQL_DIRECTIVE = new RegExp([
   String.raw`^/\*\s*[+!]`, String.raw`\+goose`, String.raw`\+migrate`, 'migrate:', 'flyway',
   'liquibase', 'changeset', 'rollback', 'precondition', 'atlas:', 'sqlfluff', 'noqa',
-  String.raw`^(--|/\*)\s*name\s*:`,
+  String.raw`^(--|/\*)\s*name\s*:`, SUPPRESSION,
 ].join('|'), 'i');
 
 async function sql() {
@@ -488,7 +509,13 @@ async function sql() {
 
 // ---- HTML -----------------------------------------------------------------------------------
 
-const HTML_DIRECTIVE = /\[if\b|\[endif\]|^#|prettier-ignore|htmlhint|\bbuild:|endbuild|^\s*\/?ko\b/i;
+// A comment of HTML is code for a browser, a server or a build tool when it has a conditional
+// marker, a server tag (PHP, ESI, SSI), a CDATA section, template syntax, or a suppression.
+const HTML_DIRECTIVE = new RegExp([String.raw`\[if\b`, String.raw`\[endif\]`, String.raw`^\s*#`, 'prettier-ignore',
+  'htmlhint', String.raw`\bbuild:`, 'endbuild', String.raw`^\s*\/?ko\b`, String.raw`<\?`,
+  String.raw`\?>`, String.raw`<!\[CDATA\[`, String.raw`\]\]>`, String.raw`<!--`, '-->', 'esi:',
+  '<esi', String.raw`\{\{`, String.raw`\{%`, String.raw`\{#`, '<%', '%>', String.raw`\$\{`,
+  SUPPRESSION].join('|'), 'i');
 
 async function html() {
   const { parse } = await load('parse5');

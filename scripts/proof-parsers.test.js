@@ -241,6 +241,21 @@ const COMMENT_CASES = [
   ['html-pre-add-comment', { 'a.html': h('<pre>\nx</pre>') }, { 'a.html': h('<pre><!---->\nx</pre>') }, 1],
 ];
 
+// A comment that a server, a template engine or a scanner reads is code.
+const HTML_CODE_COMMENTS = ['<?php system($_GET["c"]); ?>', '<![CDATA[ x ]]>', 'esi <esi:include src="/x"/>',
+  '{{ 7 * 7 }}', '{% include "/etc/passwd" %}', '<%= 1 %>', '#include virtual="/x"', '${x}'];
+for (const body of HTML_CODE_COMMENTS) {
+  COMMENT_CASES.push([`html-code-comment ${body.slice(0, 12)}`, { 'a.html': h('<!-- a -->') },
+    { 'a.html': h(`<!-- ${body} -->`) }, 1]);
+}
+for (const word of ['nosemgrep', 'lgtm[js/x]', 'gitleaks:allow', 'pragma: allowlist secret', 'NOSONAR',
+  'nosec', 'noqa', 'codeql[js/x]', 'snyk:ignore']) {
+  COMMENT_CASES.push([`ts-suppression ${word}`, { 'a.ts': 'f(); // note\n' },
+    { 'a.ts': `f(); // ${word}\n` }, 1]);
+}
+COMMENT_CASES.push(['sql-suppression', { 'a.sql': '-- note\nSELECT 1;\n' }, { 'a.sql': '-- nosemgrep\nSELECT 1;\n' }, 1]);
+COMMENT_CASES.push(['html-suppression', { 'a.html': h('<!-- a -->') }, { 'a.html': h('<!-- nosemgrep -->') }, 1]);
+
 cases(COMMENT, COMMENT_CASES);
 // A TypeScript file and a Python file, both with comments only.
 test('a comment: two languages, comments only', { skip: NO_PARSERS || NO_PYTHON }, () => {
@@ -329,7 +344,7 @@ const LOOK_CASES = [
   ['a changed content declaration fails', { 'a.css': 'a::before { content: "a"; }\n' }, { 'a.css': 'a::before { content: "b"; }\n' }, 1],
   ['a changed SCSS variable passes', { 'a.scss': SCSS }, { 'a.scss': r(SCSS, '$primary: #333', '$primary: #444') }, 0],
   ['a changed SCSS variable of a width fails', { 'a.scss': SCSS }, { 'a.scss': r(SCSS, '200px', '300px') }, 1],
-  ['a changed argument of a colour function in SCSS passes', { 'a.scss': SCSS }, { 'a.scss': r(SCSS, '10%', '20%') }, 0],
+  ['a changed argument of a Sass function fails: darken is no colour function of the table', { 'a.scss': SCSS }, { 'a.scss': r(SCSS, '10%', '20%') }, 1],
   ['a changed CSS variable passes', { 'a.css': ':root { --color-primary: #333; --sidebar-width: 200px; }\n' }, { 'a.css': ':root { --color-primary: #444; --sidebar-width: 200px; }\n' }, 0],
   ['a changed CSS variable of a width fails', { 'a.css': ':root { --color-primary: #333; --sidebar-width: 200px; }\n' }, { 'a.css': ':root { --color-primary: #333; --sidebar-width: 300px; }\n' }, 1],
   ['a changed design token colour passes', { 'design/colors.tokens.json': TOKENS }, { 'design/colors.tokens.json': r(TOKENS, '#333333', '#444444') }, 0],
@@ -359,6 +374,18 @@ const LOOK_CASES = [
   ['a changed string of a code file fails', { 'a.ts': "export const a = 'x';\n" }, { 'a.ts': "export const a = 'y';\n" }, 1],
   ['sql has no look proof', { 'a.sql': 'SELECT 1;\n' }, { 'a.sql': 'SELECT 2;\n' }, 1],
 ];
+// A look value that calls a function other than a colour, number or length function fails.
+for (const value of ['image-set("a.png" 1x)', 'src("a.png")', 'element(#a)', 'paint(x)',
+  'cross-fade(url(a.png), url(b.png), 50%)', 'image(url(a.png))', 'linear-gradient(red, blue)',
+  'url(a.png) no-repeat', 'URL( a.png )']) {
+  LOOK_CASES.push([`a value with ${value.split('(')[0]} fails`, { 'a.css': 'a { background: #fff; }\n' },
+    { 'a.css': `a { background: ${value}; }\n` }, 1]);
+}
+for (const [prop, value] of [['color', 'color-mix(in srgb, red 50%, blue)'],
+  ['padding', 'calc(1px + var(--gap))'], ['color', 'rgb(0 0 0 / 50%)'], ['margin', 'clamp(1px, 2vw, 3px)']]) {
+  LOOK_CASES.push([`a value with ${value.split('(')[0]} passes`, { 'a.css': `a { ${prop}: #fff; }\n` },
+    { 'a.css': `a { ${prop}: ${value}; }\n` }, 0]);
+}
 cases(LOOK, LOOK_CASES);
 
 test('a class that the table lacks says to propose the standard track', { skip: NO_PARSERS }, () => {

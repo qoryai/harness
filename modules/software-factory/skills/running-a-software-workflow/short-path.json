@@ -36,7 +36,7 @@
         "\\{\\{[^{}]*\\}\\}",
         "\\{[^{}]*\\}",
         "%\\{[^{}]*\\}",
-        "%(?:\\d+\\$)?[-+ 0#]*\\d*(?:\\.\\d+)?[sdifuxXeEgGcb]",
+        "%(?:\\d+\\$)?[-+ #]*\\d*(?:\\.\\d+)?[sdifuxXeEgGcb]",
         "</?[A-Za-z][^<>]*>"
       ]
     },
@@ -630,7 +630,12 @@
         "**/polic*/**",
         "**/rbac/**",
         "**/oauth*/**",
-        "**/*auth*.*"
+        "**/*auth*.*",
+        "**/session*.*",
+        "**/permission*.*",
+        "**/rbac*.*",
+        "**/login*.*",
+        "**/polic*.*"
       ]
     },
     {
@@ -694,7 +699,12 @@
         "**/vercel.json",
         "**/netlify.toml",
         "**/render.yaml",
-        "**/serverless.yml"
+        "**/serverless.yml",
+        "**/GNUmakefile",
+        "**/*.mk",
+        "**/Rakefile",
+        "**/justfile",
+        "**/Taskfile.*"
       ]
     },
     {

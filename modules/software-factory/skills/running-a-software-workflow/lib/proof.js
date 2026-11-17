@@ -29,6 +29,9 @@ const MAX_FILE = 4 * 1024 * 1024;
 const FIX = 'Run the proof again';
 const MODES = new Set(['100644', '100755']);
 const ZERO = /^0+$/;
+// The most changed files that the proof takes, and the time that it takes in all, in milliseconds.
+const MOST_FILES = 200;
+const BUDGET_MS = 60000;
 
 module.exports = (lib) => {
   const { Context, Missing, areaOf, cut, globRegExp, quote, trackLine, trackLists } = lib;
@@ -104,6 +107,17 @@ module.exports = (lib) => {
   const takeOut = (ctx, file, why, ...cause) => finding(
     fitted(shown(ctx, file), (name) => `Take ${name} out of the commits since the base: ${why}.`),
     ...cause);
+
+  // late reports whether the time budget of the proof is spent, and adds the finding, once.
+  function late(ctx, found) {
+    if (Date.now() <= ctx.deadline) return false;
+    if (!ctx.spent) {
+      ctx.spent = true;
+      found.push(finding('Propose the standard track: the proof ran out of time.',
+        `The proof takes at most ${ctx.limits.ms / 1000} s for all the files of a change.`));
+    }
+    return true;
+  }
 
   // sensitive adds a finding for each path in a sensitive area.
   function sensitive(ctx, found) {
@@ -181,6 +195,7 @@ module.exports = (lib) => {
       }
     }
     for (const change of ctx.net) {
+      if (late(ctx, found)) return;
       if (!documents(change.file) || !regular(ctx, change, found)) continue;
       const read = contents(ctx, change, found);
       if (read && whitespace(read.before, read.after)) {
@@ -233,6 +248,7 @@ module.exports = (lib) => {
       const tokenFiles = mode === 'look' ? look.token_files.map((one) => globRegExp(one)) : [];
       const missing = new Set();
       for (const change of ctx.net) {
+        if (late(ctx, found)) return;
         if (!regular(ctx, change, found)) continue;
         const language = parsers.languageOf(change.file, mode,
           tokenFiles.some((pattern) => pattern.test(change.file)));
@@ -268,7 +284,7 @@ module.exports = (lib) => {
           continue;
         }
         const problems = language ? parsers.parsedChange({ language, mode, before: read.before,
-          after: read.after, folder: ctx.parsers.dir, data: look })
+          after: read.after, folder: ctx.parsers.dir, data: look, deadline: ctx.deadline })
           : comments.commentChange(change.file, read.before, read.after, mode);
         for (const problem of problems) {
           const key = problem.closes ? 'closes' : problem.fix;
@@ -283,7 +299,7 @@ module.exports = (lib) => {
   const PROOFS = {
     'a document': documentProof,
     'a text that the product shows': (ctx, found) => text.productTextProof(ctx, found, {
-      blob, contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
+      blob, late, contents, regular, whitespace, whitespaceFinding, notOfKind, takeOut, shown, fitted,
       finding,
     }),
     'a comment': parsedProof('a comment'),
@@ -297,7 +313,8 @@ module.exports = (lib) => {
   // folder lacks, with parsers.leave. The start commit is base, a full commit id, when given,
   // else qory.start_commits of the inputs.json at inputs; with both, they must be the same. A
   // missing or bad input throws Missing.
-  function prove({ cwd, env, inputs, base: given, kind, lists, parsers: where = {} }) {
+  function prove({ cwd, env, inputs, base: given, kind, lists, parsers: where = {},
+    limits: bound = {} }) {
     if ((inputs === undefined || inputs === null) && !given) {
       throw new Missing('Give --inputs, or --base, to say where the commits of the run start.',
         ['The proof reads the start commit from qory.start_commits of inputs.json, or from ' +
@@ -312,7 +329,8 @@ module.exports = (lib) => {
     const found = [];
     try {
       objects.verifyHistory({ top, env, base });
-      return proveRange({ top, env, base, head, kind, lists, where, found });
+      return proveRange({ top, env, base, head, kind, lists, where, found,
+        limits: { files: bound.files || MOST_FILES, ms: bound.ms || BUDGET_MS } });
     } catch (error) {
       if (!(error instanceof objects.Forged)) throw error;
       found.push(finding('Rewrite the history: an object of the repository does not match its id.',
@@ -324,16 +342,22 @@ module.exports = (lib) => {
 
   // proveRange proves the commits from base to head, once the objects that it reads match their
   // ids; it throws Forged for a blob that does not.
-  function proveRange({ top, env, base, head, kind, lists, where, found }) {
+  function proveRange({ top, env, base, head, kind, lists, where, found, limits }) {
     const paths = git.changedSince(Missing, top, env, base);
     const ctx = { top, env, base, head, paths, lists, values: secrets.secretValues(env),
-      net: null, left: false,
+      net: null, left: false, limits, deadline: Date.now() + limits.ms, spent: false,
       parsers: { dir: where.dir || parsers.PARSERS, leave: Boolean(where.leave) } };
     if (!paths.length) {
       found.push(finding('Commit the change of the fast track: the commits since the base ' +
         'change no file.', `HEAD is ${head.slice(0, 12)}, the start commit is ` +
         `${base.slice(0, 12)}, and no commit lies between them.`));
       return { findings: found, count: 0, left: false };
+    }
+    if (paths.length > limits.files) {
+      found.push(finding('Propose the standard track: the change has too many files.',
+        `The change touches ${paths.length} files, and the fast track proves at most ` +
+        `${limits.files}.`));
+      return { findings: found, count: paths.length, left: false };
     }
     sensitive(ctx, found);
     if (!lists.kinds.includes(kind)) {

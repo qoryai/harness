@@ -32,6 +32,10 @@ const TOOLS = { bash: '/bin/bash', python: '/usr/bin/python3' };
 const LIMIT_MS = 10000;
 const MAX_OUTPUT = 16 * 1024 * 1024;
 const MAX_FILE = 1024 * 1024;
+// The words of a line of shell that a linter or a scanner reads: the line is code.
+const SHELL_DIRECTIVE = new RegExp(['shellcheck', 'shfmt', 'nosemgrep', 'nosec', 'nosonar', 'lgtm',
+  'codeql', 'gitleaks', String.raw`allowlist\s+secret`, 'snyk', 'trufflehog', 'detect-secrets',
+  'noqa', 'bandit'].join('|'), 'i');
 const LANGUAGES = { '.sh': 'sh', '.bash': 'sh', '.py': 'py' };
 
 // The program that prints the dump of a Python file: stdin is the file, stdout the dump, and
@@ -40,7 +44,9 @@ const PY_DUMP = String.raw`
 import ast, io, re, sys, tokenize
 PY_DIRECTIVE = re.compile(
     r"noqa|nosec|pragma\s*:?\s*no\s*(cover|branch)|(^|#)\s*type\s*:"
-    r"|\b(pyright|mypy|pylint|isort|fmt|ruff|yapf|pyre|pytype)\s*:",
+    r"|\b(pyright|mypy|pylint|isort|fmt|ruff|yapf|pyre|pytype)\s*:"
+    r"|nosemgrep|nosonar|lgtm|codeql|gitleaks|allowlist\s+secret|pyre-(ignore|fixme)|snyk"
+    r"|trufflehog|detect-secrets|bandit",
     re.I,
 )
 PY_CODING = re.compile(rb"^[ \t\f]*#.*?coding[:=]", re.I)
@@ -207,7 +213,7 @@ module.exports = (lib) => {
     const lines = text.split(/\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/);
     if (lines.length && lines[0].startsWith('#!')) out.push(`DIRECTIVE shebang ${lines[0]}`);
     for (const line of lines) {
-      if (line.toLowerCase().includes('shellcheck')) out.push(`DIRECTIVE ${line.trim()}`);
+      if (SHELL_DIRECTIVE.test(line)) out.push(`DIRECTIVE ${line.trim()}`);
     }
     return { dump: out.join('\n') };
   }

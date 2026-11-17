@@ -16,6 +16,12 @@ const git = require('./git.js');
 // The code of a language in a pattern: two or three letters, and parts after - or _.
 const LANG_CODE = '(?<lang>[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]+)*)';
 const MARK = 'LANGMARK';
+// A changed text that has a link, markup, an entity or a template expression is no plain text: the
+// kind never changes it. A placeholder such as {{name}} or {count} is no template expression.
+const RISKY = new RegExp([String.raw`[a-z][a-z0-9+.-]*://`, String.raw`(?:^|[\s(])//[a-z0-9]`,
+  String.raw`\bwww\.`, String.raw`\b(?:mailto|javascript|data|tel):`, String.raw`<[a-z/!?]`,
+  String.raw`&[a-z#0-9]+;`, String.raw`\$\{`, String.raw`\{%`, String.raw`%\}`, '<%', '%>',
+  String.raw`\{#`, String.raw`#\}`, String.raw`\{\{(?!\s*[\w.]+\s*\}\})`].join('|'), 'i');
 
 module.exports = (lib) => {
   const { Missing, cut, globRegExp, quote } = lib;
@@ -116,6 +122,7 @@ module.exports = (lib) => {
     }
     const changed = [];
     for (const change of ctx.net) {
+      if (h.late(ctx, found)) return;
       const group = groupOf(patterns, change.file);
       if (!group || !h.regular(ctx, change, found)) continue;
       if (change.status !== 'M') {
@@ -174,6 +181,14 @@ module.exports = (lib) => {
             (name) => `Take the change to ${quote(cut(dotted(was), 30))} out of ${name}: ` +
               'it is no text.'),
           `The kind changes text only, and the entry is ${was.type}.`));
+          continue;
+        }
+        if (RISKY.test(was.value) || RISKY.test(now.value)) {
+          found.push(h.finding(h.fitted(shownFile,
+            (name) => `Take the change to ${quote(cut(dotted(was), 30))} out of ${name}: it has a ` +
+              'link or markup.'),
+          'A changed text with a link, markup or a template expression on either side is no ' +
+            'plain wording, and the kind never changes it.'));
           continue;
         }
         const one = placeholders(expression, was.value);

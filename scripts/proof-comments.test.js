@@ -165,6 +165,8 @@ const SHELL_CASES = [
   ['sh-func-comment-in-body', { 'a.sh': 'f() {\n  # a\n  echo\n}\n' }, { 'a.sh': 'f() {\n  # b\n  echo\n}\n' }, 0],
   ['sh-hash-in-assign', { 'a.sh': 'a=#x\n' }, { 'a.sh': 'a=#y\n' }, 1],
   ['sh-hash-in-array', { 'a.sh': 'a=(1 #x\n2)\n' }, { 'a.sh': 'a=(1 #y\n2)\n' }, 0],
+  ['sh-nosemgrep', { 'a.sh': 'x=1 # note\n' }, { 'a.sh': 'x=1 # nosemgrep\n' }, 1],
+  ['sh-gitleaks', { 'a.sh': 'x=1 # note\n' }, { 'a.sh': 'x=1 # gitleaks:allow\n' }, 1],
   ['sh-bash-extension', { 'a.bash': 'x=1 # a\n' }, { 'a.bash': 'x=1 # b\n' }, 0],
   ['sh-comment-backslash-hides-code', { 'a.sh': 'echo a # x\\\necho b\n' }, { 'a.sh': 'echo a # x\\\necho c\n' }, 1],
   ['sh-comment-backslash-hides-rm', { 'a.sh': '# note \\\necho safe\n' }, { 'a.sh': '# note \\\nrm -rf /tmp/zz\n' }, 1],
@@ -210,6 +212,10 @@ const PYTHON_CASES = [
   ['py-tab-indent-comment', { 'a.py': 'if 1:\n\tx = 1 # a\n' }, { 'a.py': 'if 1:\n\tx = 1 # b\n' }, 0],
   ['py-comment-only-file', { 'a.py': '# a\n' }, { 'a.py': '# b\n' }, 0],
   ['py-cr-only', { 'a.py': 'x = 1 # a\ry = 2\r' }, { 'a.py': 'x = 1 # b\ry = 2\r' }, 0],
+  ['py-nosemgrep', { 'a.py': 'x = 1  # note\n' }, { 'a.py': 'x = 1  # nosemgrep\n' }, 1],
+  ['py-pyre-ignore', { 'a.py': 'x = 1  # note\n' }, { 'a.py': 'x = 1  # pyre-ignore[1]\n' }, 1],
+  ['py-allowlist-secret', { 'a.py': 'x = 1  # note\n' }, { 'a.py': 'x = 1  # pragma: allowlist secret\n' }, 1],
+  ['py-nosonar', { 'a.py': 'x = 1  # note\n' }, { 'a.py': 'x = 1  # NOSONAR\n' }, 1],
   ['py-parse-error', { 'a.py': 'x = 1\n' }, { 'a.py': 'x = (\n' }, 1],
 ];
 

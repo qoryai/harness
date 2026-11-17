@@ -16,6 +16,8 @@ const MODULES = path.join(__dirname, '../modules');
 const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.js'));
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
 const SAMPLES = require('./testdata/build-verify-samples.json');
+const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.js'));
+const proofLib = require(path.join(SKILL, 'workflow-checks.js'))(LIBRARY).proof;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'proof-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -369,6 +371,31 @@ test('prove: a commit with a code file beside a translation fails', () => {
   fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is not a translation file\./);
 });
 
+test('prove: a changed text with a link, markup or a template fails', () => {
+  const en = (value) => json({ help: value });
+  const lang = (value) => ({ 'locales/en.json': en(value), 'locales/de.json': en('x') });
+  for (const [before, after] of [
+    ['See https://docs.example/a', 'See https://docs.example/b'],
+    ['See the page', 'See https://evil.example/a'],
+    ['Go to //evil.example/x now', 'Go now'],
+    ['Press <b>Save</b>', 'Press <b>Save it</b>'],
+    ['Press Save', 'Press <img src=x onerror=a>'],
+    ['Hello', '${name} hello'],
+    ['Hello', '{% include "x" %} hello'],
+    ['Hello', '<%= name %> hello'],
+    ['Hello', '{{ 7*7 }} hello'],
+    ['Fish &amp; chips', 'Fish &lt; chips'],
+  ]) {
+    const run = scene(lang(before), TEXT);
+    commit(run.dir, { 'locales/en.json': en(after) });
+    fails(prove(run), /^Take the change to "help" out of "locales\/en\.json": it has a link or markup\./);
+  }
+  // A plain wording change, and a placeholder, pass.
+  const plain = scene(lang('Hello {{name}}'), TEXT);
+  commit(plain.dir, { 'locales/en.json': en('Hi {{name}}') });
+  passes(prove(plain));
+});
+
 test('prove: a changed placeholder fails, a moved one in the text passes', () => {
   const run = scene(LOCALES, TEXT);
   commit(run.dir, { 'locales/en.json': reword(EN, (d) => { d.greeting = 'Hello {{user}}'; }) });
@@ -383,7 +410,7 @@ test('prove: a changed placeholder fails, a moved one in the text passes', () =>
   fails(prove(percent), /^Restore the placeholders of "a" in "locales\/en\.json"\./);
   const tag = scene({ 'locales/en.json': json({ b: '<b>Hi</b>' }), 'locales/de.json': json({ b: '<b>Hallo</b>' }) }, TEXT);
   commit(tag.dir, { 'locales/en.json': json({ b: '<i>Hi</i>' }) });
-  fails(prove(tag), /^Restore the placeholders of "b" in "locales\/en\.json"\./);
+  fails(prove(tag), /^Take the change to "b" out of "locales\/en\.json": it has a link or markup\./);
 });
 
 test('prove: other keys fail, an added one, a removed one and a changed type', () => {
@@ -614,6 +641,49 @@ test('prove: a planted gpg program never runs', () => {
   fs.rmSync(ran);
   passes(prove(run));
   assert.ok(!fs.existsSync(ran), 'the planted program ran');
+});
+
+test('prove: a file name that names a sensitive area, with no folder, is in the area', () => {
+  for (const file of ['src/session.ts', 'src/permissions.ts', 'src/rbac.ts', 'src/login.py',
+    'GNUmakefile', 'build/rules.mk', 'Rakefile']) {
+    const run = scene({ ...BASE, [file]: 'one\n' });
+    commit(run.dir, { [file]: 'two\n' });
+    fails(prove(run), /it is in a sensitive area\./);
+  }
+  // A document that names none of them passes.
+  const run = scene({ ...BASE, 'docs/guide.md': 'one\n' });
+  commit(run.dir, { 'docs/guide.md': 'two\n' });
+  passes(prove(run));
+});
+
+test('prove: more files than the limit, or more time than the budget, is a finding', () => {
+  const run = scene(BASE);
+  commit(run.dir, { 'docs/hours.md': 'Open from 9 to 20.\n', 'README': 'Hello there.\n' });
+  const cap = (limits) => {
+    const found = scene(BASE);
+    commit(found.dir, { 'docs/hours.md': 'Open from 9 to 20.\n', 'README': 'Hello there.\n' });
+    const context = { extensions: () => ({}) };
+    return proofLib.prove({ cwd: found.dir, env: ENV, inputs: found.inputs(), kind: DOCUMENT,
+      lists: proofLib.trackLists(context), limits });
+  };
+  const files = cap({ files: 1 });
+  assert.match(files.findings[0], /^Propose the standard track: the change has too many files\.\nThe change touches 2 files, and the fast track proves at most 1\./);
+  const late = cap({ ms: -1000 });
+  assert.match(late.findings[0], /^Propose the standard track: the proof ran out of time\./);
+  assert.equal(late.findings.length, 1);
+  assert.deepEqual(cap({}).findings, []);
+});
+
+test('short-path.json: no placeholder expression takes quadratic time', () => {
+  const data = require(path.join(SKILL, 'short-path.json'));
+  const expression = new RegExp(data.kind_data[TEXT].placeholders.map((one) => `(?:${one})`)
+    .join('|'), 'gu');
+  const started = Date.now();
+  for (const text of [`%${'0'.repeat(100000)}q`, '{{'.repeat(50000), '%0'.repeat(50000),
+    `<a${' x'.repeat(50000)}`, `%{${'a'.repeat(100000)}`]) {
+    text.match(expression);
+  }
+  assert.ok(Date.now() - started < 1000, `${Date.now() - started} ms`);
 });
 
 // ---- the data of short-path.json -------------------------------------------------------------

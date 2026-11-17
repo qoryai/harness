@@ -57,7 +57,7 @@ module.exports = (lib) => {
     !fs.existsSync(path.join(folder, name, 'package.json'))) || null;
 
   // dumpOf returns a function from bytes to { dump } or { problem, missing }.
-  function dumpOf(folder, language, mode, data) {
+  function dumpOf(folder, language, mode, data, deadline) {
     return (bytes) => {
       const lack = missing(folder, language);
       if (lack) return { problem: `the folder ${folder} has no ${lack}`, missing: lack };
@@ -65,7 +65,8 @@ module.exports = (lib) => {
       let ran;
       try {
         ran = comments.spawn(Missing, process.execPath, [SCRIPT, folder, language, mode,
-          JSON.stringify(data)], bytes, empty, DUMP_MS);
+          JSON.stringify(data)], bytes, empty,
+          Math.max(1000, Math.min(DUMP_MS, deadline - Date.now())));
       } finally {
         fs.rmSync(empty, { recursive: true, force: true });
       }
@@ -80,10 +81,10 @@ module.exports = (lib) => {
   // parsedChange returns the problems of one changed file, as shared.compare returns them:
   // language is from languageOf, mode is comment, text or look, data the tables of the kind
   // for look, and folder the folder of the packages.
-  function parsedChange({ language, mode, before, after, folder, data }) {
+  function parsedChange({ language, mode, before, after, folder, data, deadline = Infinity }) {
     const common = shared.commonProblems(before, after);
     if (common) return common;
-    const found = shared.compare(before, after, dumpOf(folder, language, mode, data), mode);
+    const found = shared.compare(before, after, dumpOf(folder, language, mode, data, deadline), mode);
     for (const problem of found) {
       if (problem.fix !== 'code') continue;
       const unknown = classChange(problem.before, problem.after);
