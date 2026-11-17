@@ -1847,12 +1847,15 @@ as its escape, such as `\u0002`, and a list or an object is cut too. A finding c
 list of headings, of allowed values or a schema pattern, so that each line has at most 196
 characters.
 
-A line is one finding that starts with the fix, of at most 200 characters, with no control
-character, and a quote from a draft of at most 80 characters. At most 50 findings are
-printed, then one line with the number left out. The findings and that line have at most
-200 lines together, because qory keeps at most 200 lines of the stdout of a push check and
-drops the rest with no line that counts them. A finding prints whole or not at all, and the
-first finding prints whole even past 200 lines. The last line states what the script
+Line 1 of each finding is the fix, in the imperative, in at most 100 characters, with a
+long agent name or path too, because a log viewer or an agent often reads only that line.
+The cause and the full values follow on lines indented by two spaces. Each line has at most
+200 characters, with no control character, and a quote from a draft of at most 80
+characters. At most 50 findings are printed, then one line with the number left out. The
+findings and that line have at most 200 lines together, because qory keeps at most 200
+lines of the stdout of a push check and drops the rest with no line that counts them. A
+finding prints whole or not at all, and the first finding prints whole even past 200 lines.
+The last line states what the script
 checked, and names only the checks that ran. `check`, `push`, `end` and `end --offline`
 print that line on stderr, after the findings, and print only the findings on stdout,
 because qory reads each line of the stdout of a push check as a finding; a run with no
@@ -2198,10 +2201,10 @@ The skill `running-checks` of `software-factory` lists the verbs that run every 
 code in a Build workflow. `running-a-software-workflow/workflow-checks.js` adds them to the
 checks script, each in a file of `verbs/`. Each but `suite` reads its commands and its write
 scope from the newest version of `build-plan` that the session pulled, never from a draft.
-Each prints each finding as a line with its fix, at times with a second line with the
-reason, then one line of what it did. Exit status: 0 passed, 1 red or found something, 2
-wrong arguments, 3 missing input or, for `suite`, a failed request to qory, and for `probe`,
-4 no proof.
+Each prints each finding with its fix on line 1, at most 100 characters, and the reason on
+lines indented by two spaces, then one line of what it did. Exit status: 0 passed, 1 red or
+found something, 2 wrong arguments, 3 missing input or, for `suite`, a failed request to
+qory, and for `probe`, 4 no proof.
 
 Run each verb as the user that owns the checkout, by the same uid. With git 2.32 or later,
 git runs with no global or system config (an older git reads `~/.gitconfig`), so no
