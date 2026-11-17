@@ -1852,7 +1852,11 @@ path or an agent name of 64 characters too, because a log viewer or an agent oft
 only that line. The `Start:` and `Wait:` lines of `panel` keep the whole name of the member,
 so with a module prefix such as `harness:` they can pass 100 characters. The line of
 `starts` at its limit keeps the whole name too, so a long name can take it past 100
-characters. The cause and the full values follow on lines indented by two spaces. Each line
+characters. Two lines that print among the findings are information, not findings: each
+states a result and has no fix: the line
+`Scanned <N> commits since <commit> for keys: <M> findings.` of `scope`, and the line
+`The output and the record are in .reports/runs/, as <id>.` of `run`, `probe` and `suite`.
+The cause and the full values follow on lines indented by two spaces. Each line
 has at most 200 characters, with no control character, and a quote from a draft of at most
 80 characters. At most 50 findings are printed, then one line with the number left out. The
 findings and that line have at most 200 lines together, because qory keeps at most 200 lines
