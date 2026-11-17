@@ -77,7 +77,7 @@ const FULL = `Start no new step: the ledger has ${MAX_ROWS} rows, its limit. End
 // the number of the session in the run, QORY_SESSION, 1 for the first.
 const MARK = path.join('.reports', 'ledger.json');
 
-const crash = (verb) => `Send this error to the harness maintainers: checks.js ${verb} ` +
+const crash = (verb) => `Send this error to the harness maintainers.\nchecks.js ${verb} ` +
   'crashed, so the ledger may lack its last change.';
 
 const now = () => new Date().toISOString();

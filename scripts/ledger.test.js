@@ -1338,7 +1338,7 @@ test('ledger: a crash of step or resume exits 4 with the fix first on stderr', (
     err: { write: (text) => { err += text; } },
   });
   assert.equal(status, 4);
-  assert.match(err, /^Send this error to the harness maintainers: checks\.js resume crashed, so the ledger may lack its last change\.\nError: boom\n/);
+  assert.match(err, /^Send this error to the harness maintainers\.\n  checks\.js resume crashed, so the ledger may lack its last change\.\nError: boom\n/);
 });
 
 test('ledger: each finding line has at most 196 characters with ids of 44 characters', () => {

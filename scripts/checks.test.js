@@ -4031,7 +4031,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
   const inRun = spawnSync(process.execPath, [checks, 'end', broken],
     { cwd: tmp, encoding: 'utf8', env: RUN_ENV });
   assert.equal(inRun.status, 1, inRun.stdout + inRun.stderr);
-  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft \(spec\.md\) in the lines after this one:/);
+  assert.match(inRun.stdout, /^Fix the 1 finding of the spec draft in the lines after this one:\n  The spec draft has 1 file: spec\.md\.\n/);
   assert.doesNotMatch(inRun.stdout, /^Checked /m);
   assert.equal(inRun.stderr.split('\n').filter(Boolean).length, 1, inRun.stderr);
   assert.match(inRun.stderr, new RegExp(`^Checked the drafts and reports at the end: ${starts(inRun.stdout)} findings?; check 1 of 3\\.`));
@@ -4040,7 +4040,7 @@ test('check, push, end and end --offline print only the findings on stdout, and 
     { cwd: tmp, env: { PATH: process.env.PATH, HOME: tmp }, encoding: 'utf8' });
   const found = offlineChild(offlineRun({ edits: [['spec.md', '## Background', '## Context']] }));
   assert.equal(found.status, 1, found.stdout + found.stderr);
-  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:/);
+  assert.match(found.stdout, /^Fix the \d+ findings? of the spec draft in the lines after this one:\n  The spec draft has 1 file: spec\.md\.\n/);
   assert.doesNotMatch(found.stdout, /^Checked /m);
   assert.match(found.stderr, new RegExp(`^Checked the drafts and reports after the session: ${starts(found.stdout)} findings; wrote 1 point to points\\.json of --out\\.\\n$`));
   const clean = offlineChild(offlineRun());
@@ -4905,9 +4905,11 @@ test('end: at most 20 points, with one point of end in place of its others', () 
   assert.deepEqual(points.at(-1), { text: 'The run left out 2 more points, which its output ' +
     'on the Run page lists, and another round starts the workflow again to fix them.',
     action: 'run_again' });
-  const left = result.lines.filter((line) => line.startsWith('Point left out of points.json: '));
+  const left = result.lines.filter((line) => line === 'Fix the problem of the point on the next ' +
+    'line, which points.json left out.');
   assert.equal(left.length, 2, result.out);
-  assert.deepEqual(result.lines.slice(0, 2), left);
+  assert.deepEqual([result.lines[0], result.lines[2]], left);
+  assert.match(result.lines[1], /^  The draft of the spec breaks 1 format rule/);
   // A points.json that is no list keeps no point.
   write(root, 'points.json', { text: 'x' });
   older(root);
@@ -4971,7 +4973,7 @@ function countsNewer(root, type, number) {
 
 // pullLines returns the two lines of a store that lacks version number of type.
 const pullLines = (type, number) => [`Run \`qory artifact pull ${type} --version ${number}\`, ` +
-  'then check again.', `The store lacks ${type} version ${number}, the newest version that ` +
+  'then check again.', `  The store lacks ${type} version ${number}, the newest version that ` +
   'counts.'];
 
 test('end: a draft check that exits 3 shows the fix, then the value', () => {
@@ -4982,9 +4984,10 @@ test('end: a draft check that exits 3 shows the fix, then the value', () => {
   const result = end(root);
   assert.equal(result.status, 1, result.out);
   const at = result.lines.findIndex((line) =>
-    /^Fix the 1 finding of the [a-z-]+ draft \(.*\) in the lines after this one:$/.test(line));
+    /^Fix the 1 finding of the [a-z-]+ draft in the lines after this one:$/.test(line));
   assert.ok(at >= 0, result.out);
-  assert.deepEqual(result.lines.slice(at + 1, at + 3), pullLines('acceptance-criteria', 2));
+  assert.match(result.lines[at + 1], /^  The [a-z-]+ draft has 1 file: [a-z-]+\.md\.$/);
+  assert.deepEqual(result.lines.slice(at + 2, at + 4), pullLines('acceptance-criteria', 2));
 });
 
 test('end: points.json whose check exits 3 shows the fix, then the value', () => {
@@ -5013,7 +5016,7 @@ test('end: a copy with the bytes of its newest version is no draft of the run', 
   version(root, 'spec', 1, 'spec.md', fs.readFileSync(path.join(root, 'spec.md'), 'utf8'));
   passes(end(root));
   fs.appendFileSync(path.join(root, 'spec.md'), '\nOne more line.\n');
-  fails(end(root), /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+  fails(end(root), /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
 });
 
 test('end: each report finding', () => {
@@ -5027,11 +5030,11 @@ test('end: each report finding', () => {
   // A report that passed as another agent's report counts as not checked.
   passes(reportIn(root, 'questions-reviewer', 'shape-reviewer-1.md', CLEAN));
   const result = end(root);
-  fails(result, /^Run checks\.js report spec-writer on \.reports\/spec-writer-1\.md: no check of it as the report of spec-writer is recorded\.$/);
-  fails(result, /^Run checks\.js report shape-reviewer on \.reports\/shape-reviewer-1\.md: no check of it as the report of shape-reviewer/);
-  fails(result, /^Fix \.reports\/decision-writer-1\.md: it failed its report check\. Start decision-writer again/);
-  fails(result, /^Run checks\.js report spec-reviewer on \.reports\/spec-reviewer-1\.md again: the report changed/);
-  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  fails(result, /^Run checks\.js report on \.reports\/spec-writer-1\.md\. No check of \.reports\/spec-writer-1\.md as the report of spec-writer is recorded\.$/);
+  fails(result, /^Run checks\.js report on \.reports\/shape-reviewer-1\.md\. No check of \.reports\/shape-reviewer-1\.md as the report of shape-reviewer/);
+  fails(result, /^Start decision-writer again to fix the report that failed its check\. \.reports\/decision-writer-1\.md failed its report check\. Give decision-writer the findings of that check\.$/);
+  fails(result, /^Run checks\.js report on \.reports\/spec-reviewer-1\.md again\. The report of spec-reviewer changed/);
+  fails(result, /^Write the report of questions-reviewer, and run checks\.js report on it\. starts\.json counts a start of questions-reviewer, and the agent has no report\. The report goes to \.reports\/questions-reviewer-<n>\.md\.$/);
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
@@ -5039,7 +5042,7 @@ test('end: a start on a subject needs the report of its reviewer', () => {
   const root = fixture();
   started(root, { 'change/questions-reviewer': 1, 'change/no-such-reviewer': 1 });
   const result = end(root);
-  fails(result, /^Write the report of questions-reviewer to \.reports\/questions-reviewer-<n>\.md, and run checks\.js/);
+  fails(result, /^Write the report of questions-reviewer, and run checks\.js report on it\. /);
   assert.ok(!result.out.includes('no-such-reviewer'), result.out);
 });
 
@@ -5051,7 +5054,7 @@ test('end: the third failed check writes points.json and records the verdict esc
   const { args, env } = stub();
   for (const at of [1, 2]) {
     const result = end(root, env);
-    fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
+    fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
     assert.match(result.lines.at(-1), new RegExp(`; check ${at} of 3\\. `));
     assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
   }
@@ -5635,9 +5638,9 @@ test('end --offline: exit 0 when the drafts and the reviewers\' reports pass', (
 test('end --offline: a finding fails at once, with exit 1 and points.json in --out', () => {
   const run = offlineRun({ edits: [['spec.md', '## Background', '## Context']] });
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\) in the lines after this one:$/);
+  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
   assert.equal(result.lines.at(-1), 'Checked the drafts and reports after the session: ' +
-    `${result.lines.length - 1} findings; wrote 1 point to points.json of --out.`);
+    `${result.findings.length - 1} findings; wrote 1 point to points.json of --out.`);
   assert.deepEqual(outFiles(run), ['points.json']);
   const points = outPoints(run);
   assert.equal(points.length, 1);
@@ -5682,18 +5685,18 @@ test('end --offline: exit 3 when an input is missing or unreadable', () => {
     [broken((one) => fs.rmSync(one.artifacts, { recursive: true })), /^Give --artifacts a folder/],
     [broken((one) => fs.rmSync(one.store, { recursive: true })), /^Give --store a folder/],
     [broken((one) => fs.rmSync(one.out, { recursive: true })), /^Give --out a folder/],
-    [broken((one) => fs.rmSync(path.join(one.store, 'index.json'))), /it has no index\.json\.$/],
+    [broken((one) => fs.rmSync(path.join(one.store, 'index.json'))), /^Pull the artifacts into the folder of --store\. .* has no index\.json\.$/],
     [broken((one) => write(one.store, 'index.json', index)), /^Pull the artifacts again: newest_version/],
     [broken((one) => fs.rmSync(one.verdict)), /^Name a file that exists and can be read/],
-    [broken((one) => fs.writeFileSync(one.verdict, '{')), /^Write verdict-\d+\.json as valid JSON\.$/],
-    [broken((one) => fs.writeFileSync(one.verdict, '{"verdict":"maybe"}')), /its verdict is "maybe"\.$/],
-    [broken((one) => fs.writeFileSync(one.verdict, '[]')), /its verdict is a list\.$/],
-    [broken((one) => fs.writeFileSync(one.verdict, '{}')), /its verdict is missing\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '{')), /^Write verdict-\d+\.json as valid JSON\. .*verdict-\d+\.json does not parse\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '{"verdict":"maybe"}')), /The verdict of .*verdict-\d+\.json is "maybe"\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '[]')), /The verdict of .*verdict-\d+\.json is a list\.$/],
+    [broken((one) => fs.writeFileSync(one.verdict, '{}')), /The verdict of .*verdict-\d+\.json is missing\.$/],
   ];
   for (const [one, pattern] of cases) {
     const result = offline(one);
     assert.equal(result.status, 3, result.out);
-    assert.match(result.lines[0], pattern);
+    assert.match(result.findings[0], pattern);
     assert.equal(result.lines.at(-1), 'Checked nothing: the end could not read its input.');
     if (fs.existsSync(one.out)) assert.deepEqual(outFiles(one), []);
   }
@@ -5707,8 +5710,8 @@ test('end --offline: exit 4 with the fix first when the script crashes', () => {
   const ran = spawnSync(process.execPath, ['--require', preload, OFFLINE_SCRIPT, ...run.args],
     { cwd: tmp, env: { HOME: '/tmp' }, encoding: 'utf8' });
   assert.equal(ran.status, 4, ran.stderr);
-  assert.deepEqual(ran.stderr.split('\n').slice(0, 2), ['Send this error to the harness ' +
-    'maintainers: the end check after the session crashed, so it checked no draft and no ' +
+  assert.deepEqual(ran.stderr.split('\n').slice(0, 3), ['Send this error to the harness ' +
+    'maintainers.', '  The end check after the session crashed, so it checked no draft and no ' +
     'report.', 'Error: planted crash']);
   assert.deepEqual(outFiles(run), []);
 });
@@ -5732,8 +5735,8 @@ test('end --offline: ignores results.json, starts.json, end.json, points.json, c
   version(run.artifacts, 'spec', 1, 'spec.md', fs.readFileSync(path.join(run.artifacts, 'spec.md'), 'utf8'));
   const before = snapshot(run.artifacts);
   const result = offline(run);
-  fails(result, /^Fix the \d+ findings? of the spec draft \(spec\.md\)/);
-  fails(result, /^Fix the 2 findings of \.reports\/spec-reviewer-2\.md, the report of spec-reviewer, in the lines after this one:$/);
+  fails(result, /^Fix the \d+ findings? of the spec draft in the lines after this one: The spec draft has 1 file: spec\.md\.$/);
+  fails(result, /^Fix the 2 findings of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-2\.md, of spec-reviewer\.$/);
   fails(result, /^End the report with one word.* of spec-reviewer /);
   assert.equal(result.lines.slice(0, -1).some((line) => /questions-reviewer|points\.json|results/.test(line)),
     false, result.out);
@@ -5752,8 +5755,8 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-writer-1.md'), WRITER_REPORT);
   fs.writeFileSync(path.join(run.artifacts, '.reports', 'nobody-1.md'), 'Done.\n');
   const first = offline(run);
-  fails(first, /^Start spec-reviewer on the spec draft, and write its report to \.reports\/spec-reviewer-<n>\.md: the folder has no report of spec-reviewer\.$/);
-  assert.equal(first.lines.length, 2, first.out);
+  fails(first, /^Start spec-reviewer on the spec draft\. The folder has no report of spec-reviewer\. Its report goes to \.reports\/spec-reviewer-<n>\.md\.$/);
+  assert.equal(first.findings.length, 2, first.out);
   assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE('spec', 'spec-reviewer'),
     action: 'run_again' }]);
   // A link to a file with the bytes of the stored version is still a draft, and a finding.
@@ -5767,7 +5770,7 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
     path.join(two.artifacts, '.reports', 'scenario-reviewer-1.md'));
   const second = offline(two);
   fails(second, /^Name the file itself, not a link to it: .*acceptance-criteria\.md is a link\.$/);
-  fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file: it is not one\.$/);
+  fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file\. \.reports\/scenario-reviewer-1\.md is not one\.$/);
 });
 
 test('end --offline: two drafts of one reviewer name the reviewer once', () => {
@@ -5974,9 +5977,9 @@ test('end --offline: each changed type needs the report of its reviewer, and no 
     }
     const result = offline(run);
     assert.equal(result.status, 1, `${type}: ${result.out}`);
-    assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft, ` +
-      `and write its report to .reports/${reviewers[type]}-<n>.md: the folder has no report of ` +
-      `${reviewers[type]}.`], type);
+    assert.deepEqual(result.lines.slice(0, -1), [`Start ${reviewers[type]} on the ${type} draft.`,
+      `  The folder has no report of ${reviewers[type]}. Its report goes to ` +
+      `.reports/${reviewers[type]}-<n>.md.`], type);
     const words = { 'acceptance-criteria': 'acceptance criteria',
       'decision-record': 'technical decision record', 'demo-scenarios': 'demo scenarios' };
     assert.deepEqual(outPoints(run), [{ text: REVIEW_NONE(words[type] || type, reviewers[type]),
@@ -6000,13 +6003,13 @@ function pushedSpec(writer, { continues = [], changed = false, top = null } = {}
   return offline(run, continues.length ? [...run.args, '--continues', continues.join(',')]
     : run.args);
 }
-const SPEC_REVIEW = /^Start spec-reviewer on the spec draft, and write its report to/;
+const SPEC_REVIEW = /^Start spec-reviewer on the spec draft\. The folder has no report of spec-reviewer\./;
 
 test('end --offline: a type that this run pushed needs its reviewer\'s report', () => {
   const mine = { kind: 'run', run_id: THIS_RUN };
   const missing = (result) => {
     fails(result, SPEC_REVIEW);
-    assert.equal(result.lines.length, 2, result.out);
+    assert.equal(result.findings.length, 2, result.out);
   };
   missing(pushedSpec(mine));
   // Also when the top copy is gone, or has the bytes of the base again.
@@ -6090,9 +6093,8 @@ test('end --offline: a draft name that is a folder or a FIFO is a finding', () =
     const lines = ran.stdout.split('\n');
     // The questions draft reports the file once, and no other draft that reads it does.
     assert.deepEqual(lines.filter((line) => /questions\.json/.test(line)).map((line) =>
-      line.replace(run.artifacts, '<artifacts>')), ['Fix the 1 finding of the questions draft ' +
-      '(questions.json) in the lines after this one:', 'Name a file: <artifacts>/questions.json ' +
-      'is not one.'], ran.stdout);
+      line.replace(run.artifacts, '<artifacts>')), ['  The questions draft has 1 file: ' +
+      'questions.json.', 'Name a file: <artifacts>/questions.json is not one.'], ran.stdout);
     assert.ok(lines.some((line) => /^Name a file: .*\/decision-record\.md is not one\.$/.test(line)), ran.stdout);
   }
 });
@@ -6124,7 +6126,7 @@ test('end --offline: a report that cannot be read is a finding', () => {
   } finally {
     fs.chmodSync(report, 0o644);
   }
-  fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+  fails(result, /^Fix the 1 finding of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, of spec-reviewer\.$/);
   fails(result, /^Name a file that exists and can be read\. \.reports\/spec-reviewer-1\.md cannot be read\.$/);
   assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
     action: 'run_again' }]);
@@ -6141,7 +6143,7 @@ test('end --offline: a reviewer\'s finding needs a Point: line with no agent nam
     fs.writeFileSync(path.join(run.artifacts, '.reports', 'spec-reviewer-1.md'), text);
     const result = offline(run);
     assert.equal(result.status, 1, result.out);
-    fails(result, /^Fix the 1 finding of \.reports\/spec-reviewer-1\.md, the report of spec-reviewer, in the lines after this one:$/);
+    fails(result, /^Fix the 1 finding of the report of spec-reviewer in the lines after this one: The report is \.reports\/spec-reviewer-1\.md, of spec-reviewer\.$/);
     fails(result, line);
     assert.deepEqual(outPoints(run), [{ text: REPORT_BROKEN('spec-reviewer'),
       action: 'run_again' }]);
@@ -6157,10 +6159,10 @@ test('end --offline: a top questions.json above 256 KB is one finding, of the qu
   const result = offline(run);
   assert.equal(result.status, 1, result.out);
   // The decision record and the replies read the questions too, and add no finding.
-  assert.equal(result.lines.length, 3, result.out);
-  assert.equal(result.lines[0], 'Fix the 1 finding of the questions draft (questions.json) in ' +
-    'the lines after this one:');
-  assert.match(result.lines[1], /^Cut questions\.json to at most 256 KB/);
+  assert.equal(result.lines.length, 4, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), ['Fix the 1 finding of the questions draft in ' +
+    'the lines after this one:', '  The questions draft has 1 file: questions.json.']);
+  assert.match(result.lines[2], /^Cut questions\.json to at most 256 KB/);
 });
 
 test('end --offline: a bad questions.json with the bytes of the base is still a finding', () => {
@@ -6223,8 +6225,8 @@ for (const [name, text, pattern] of BROKEN) {
     const run = offlineRun();
     const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp', trusted }, run.args);
     assert.equal(result.status, 4, result.out);
-    assert.match(result.err, /^Send this error to the harness maintainers: the end check after the session crashed/);
-    assert.match(result.err.split('\n')[1], new RegExp(`^Error: ${pattern.source.slice(1)}`));
+    assert.match(result.err, /^Send this error to the harness maintainers\.\n  The end check after the session crashed/);
+    assert.match(result.err.split('\n')[2], new RegExp(`^Error: ${pattern.source.slice(1)}`));
     assert.deepEqual(outFiles(run), []);
   });
 }
@@ -6236,7 +6238,7 @@ test('registry: a fault of the registry is a crash of step and resume, with exit
   for (const argv of [['step', 'begin', 'plan', 'plan-the-build', 'x'], ['resume']]) {
     const result = call({ cwd: tmp, artifacts: [], plugin, trusted }, argv);
     assert.equal(result.status, 4, result.out);
-    assert.match(result.err, new RegExp(`^Send this error to the harness maintainers: checks\\.js ` +
+    assert.match(result.err, new RegExp('^Send this error to the harness maintainers\\.\n  checks\\.js ' +
       `${argv[0]} crashed, so the ledger may lack its last change\\.\nError: Fix .*workflow-checks` +
       '\\.js: loading it threw: boom'));
     // Started as a program, with the list that core ships, the refusal is a crash too.
@@ -6244,7 +6246,7 @@ test('registry: a fault of the registry is a crash of step and resume, with exit
       [path.join(plugin, 'skills', 'running-a-workflow', 'checks.js'), ...argv],
       { cwd: tmp, encoding: 'utf8' });
     assert.equal(ran.status, 4, ran.stderr);
-    assert.match(ran.stderr.split('\n')[1], /^Error: Remove skills\/broken\/workflow-checks\.js from /);
+    assert.match(ran.stderr.split('\n')[2], /^Error: Remove skills\/broken\/workflow-checks\.js from /);
   }
 });
 
@@ -6383,7 +6385,7 @@ test('registry: a workflow-checks.js outside the list stops each verb before its
   const run = offlineRun();
   const result = call({ cwd: tmp, plugin, env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
   assert.equal(result.status, 4, result.out);
-  assert.match(result.err.split('\n')[1], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
+  assert.match(result.err.split('\n')[2], /^Error: Remove skills\/x\/workflow-checks\.js from team: /);
   assert.equal(fs.existsSync(marker), false, 'the code of the refused file ran');
 });
 
@@ -6859,9 +6861,10 @@ test('check and end: every finding of the extensions is reported, each with its 
     JSON.stringify({ version: 1, extensions: factory(changes) }));
   const ended = call({ cwd: folder, plugin: PLUGIN, env: RUN_ENV }, ['end', root]);
   assert.equal(ended.status, 1, ended.out);
-  assert.equal(ended.lines[0], 'Fix the 4 findings of the proposal draft (delayed-order-reply.svg, ' +
-    'proposal.md, sources.json) in the lines after this one:');
-  assert.deepEqual(ended.lines.slice(1, 3), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
+  assert.deepEqual(ended.lines.slice(0, 2), ['Fix the 4 findings of the proposal draft in the ' +
+    'lines after this one:', '  The proposal draft has 3 files: delayed-order-reply.svg, ' +
+    'proposal.md, sources.json.']);
+  assert.deepEqual(ended.lines.slice(2, 4), ['Write remove_kinds in qory.yaml as a list.', '  It is text.']);
 });
 
 test('end: the header of a draft counts the findings that follow, and the lines of a finding stay after it', () => {
@@ -6877,16 +6880,17 @@ test('end: the header of a draft counts the findings that follow, and the lines 
     verdict: () => ['Record the verdict again.'] });
   const lines = (error) => endDrafts(root, tmp, [def(error)], { verdict: () => ({ verdict: 'passed' }) })
     .map((one) => one.line);
-  // A Missing with lines after its first line: they are no findings, and stay after the
-  // findings of the check and before the fixes of the verdict.
+  const header = (count) => `Fix the ${count} findings of the acceptance-criteria draft in the ` +
+    `lines after this one:\nThe acceptance-criteria draft has 6 files: ${names.join(', ')}.`;
+  // A Missing with lines after its first line: they are no findings, but the cause of the
+  // first, on its lines after it, before the fixes of the verdict.
   assert.deepEqual(lines(new Missing('Fix the draft.', ['The draft has a cause.', 'It has a value.'])), [
-    `Fix the 2 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
-    'Fix the draft.', 'The draft has a cause.', 'It has a value.', 'Record the verdict again.']);
+    header(2), 'Fix the draft.\nThe draft has a cause.\nIt has a value.',
+    'Record the verdict again.']);
   // A Missing that lists its findings: each counts.
   const listed = lines(new Missing('Fix one.', ['Fix two.', 'Fix three.'], true));
-  assert.deepEqual(listed, [
-    `Fix the 4 findings of the acceptance-criteria draft (${names.join(', ')}) in the lines after this one:`,
-    'Fix one.', 'Fix two.', 'Fix three.', 'Record the verdict again.']);
+  assert.deepEqual(listed, [header(4), 'Fix one.', 'Fix two.', 'Fix three.',
+    'Record the verdict again.']);
 });
 
 // A name of the longest length that an agent can have, 64 characters, ending in letter.

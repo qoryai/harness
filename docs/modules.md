@@ -912,8 +912,9 @@ prints the hashes that the list must contain.
   group in its order, and adds one point with the count left out, such as "The run left out
   2 more points, which its output on the Run page lists, and another round starts the
   workflow again to fix them."
-  Its output starts with a line `Point left out of points.json: <text>` per point left out,
-  cut to 200 characters as each line. `end --offline` cuts its points the same way. These
+  Its output starts with a finding per point left out: the line `Fix the problem of the
+  point on the next line, which points.json left out.`, then the text of the point, cut to
+  200 characters as each line. `end --offline` cuts its points the same way. These
   commands use `/qory/qory`,
   or `qory` from `PATH` when `/qory/qory` does not exist.
 - `checks.js end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
