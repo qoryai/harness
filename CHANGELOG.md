@@ -1097,6 +1097,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A check and a push check read the newest version of a type from `index.json`: the newest
+  version that it lists and no cancelled run wrote. Before, they read the highest version
+  folder, so a folder that an earlier pull left, and that `index.json` does not list,
+  decided the version that a push was compared with. Only with no `index.json`, or one that
+  does not list the name of the type, the highest version folder counts.
 - `checks.js suite start` takes `--inputs <path>` and `--artifacts <folder>`, as `run`
   does, and reads the build plan from `qory.start_artifacts` or the folder of
   `--artifacts`. The build plan sets the result files that count as no change. Before,

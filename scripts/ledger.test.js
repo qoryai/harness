@@ -1107,6 +1107,21 @@ test('ledger: resume of a withdrawn ledger takes the version before the withdraw
     'Read version 2 of the ledger: 3 rows, 3 done, 0 escalations.');
 });
 
+test('ledger: a withdrawn ledger whose earlier version was not pulled names its pull', () => {
+  const w = work();
+  store(w, rowsOf(w, 2));
+  store(w, rowsOf(w, 3));
+  ledgerIndex(w, [{ number: 1 }, { number: 2 }, { number: 3, withdrawn: true }]);
+  // A plain pull skips version 2, the version before the withdrawal.
+  fs.rmSync(path.join(w.store, 'build-ledger', 'main', 'v2'), { recursive: true });
+  const result = session(w)('resume');
+  assert.equal(result.status, 3, result.out);
+  assert.deepEqual(result.lines.slice(0, 2), [
+    'Run `qory artifact pull build-ledger --version 2`, then check again.',
+    'The store lacks build-ledger version 2, the version before the withdrawal.',
+  ]);
+});
+
 test('ledger: a stale v<N> folder does not decide where resume starts', () => {
   const w = work();
   store(w, rowsOf(w, 2));
@@ -1121,15 +1136,18 @@ test('ledger: a stale v<N> folder does not decide where resume starts', () => {
   const copy = JSON.parse(fs.readFileSync(path.join(call.artifacts, '.reports',
     'build-ledger.json'), 'utf8'));
   assert.equal(copy.steps.length, 3);
-  // Without the copy, step begin reads the same version, with v3 left in the artifact folder.
-  // The store loses v3, which the push check of the stub reads by its folders.
+  // Without the copy, step begin reads the same version, with v3 left in the artifact folder,
+  // and its push passes the push check, which compares it with version 2, with v3 left in the
+  // store.
   assert.ok(fs.existsSync(path.join(call.artifacts, 'build-ledger', 'main', 'v3')));
-  fs.rmSync(stale, { recursive: true });
   fs.rmSync(path.join(call.artifacts, '.reports', 'build-ledger.json'));
   const begun = begin(call, w, 'fix:f1');
   assert.equal(begun.status, 0, begun.out);
   assert.match(begun.lines.at(-1), /^Replay fix:f1 from pass 1/);
-  assert.equal(stored(w).ledger.steps.length, 3);
+  assert.ok(fs.existsSync(path.join(stale, 'build-ledger.json')));
+  const pushed = stored(w);
+  assert.equal(pushed.number, 4);
+  assert.equal(pushed.ledger.steps.length, 3);
 });
 
 test('ledger: both locks exist during every push and pull of qory', () => {

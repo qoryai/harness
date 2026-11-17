@@ -104,29 +104,18 @@ function hook(io) {
 // ---- The ledger, its draft and the mark of the session --------------------------------------
 
 // stored returns the number and the text of the version of the ledger that a push of a new
-// version is compared with: the newest version of main that index.json lists, with no version
-// that a cancelled run wrote, and while main is withdrawn, the newest version before the
-// withdrawal, as Context.counted and Context.before read them. A version folder that
-// index.json does not list, such as one that an earlier pull left, counts for nothing. Only
-// an artifact folder with no index.json falls back to the folders, as Context.history reads
-// them. It returns null when the ledger has none.
+// version is compared with, as Context.history reads it for the push check: the newest version
+// of main that index.json lists, with no version that a cancelled run wrote, and while main is
+// withdrawn, the newest version before the withdrawal. A version folder that index.json does
+// not list, such as one that an earlier pull left, counts for nothing. Only with no index.json,
+// or one that does not list the ledger, the highest version folder counts. A version that the
+// artifact folder lacks exits 3 with the line of Context.history, which names the qory
+// artifact pull of that version: a plain pull skips the version before a withdrawal. It
+// returns null when the ledger has none.
 function stored(io, root, ledger) {
-  const context = new Context(root, 'check', io.env && io.env.HOME);
-  if (!context.index) {
-    const found = context.history(ledger.type, ledger.file);
-    return found ? { number: found.number, text: found.text } : null;
-  }
-  const number = context.withdrawn(ledger.type) ? context.before(ledger.type)
-    : context.counted(ledger.type);
-  if (number === null) return null;
-  const file = path.join(root, ledger.type, 'main', `v${number}`, ledger.file);
-  const text = textOf(file);
-  if (text === null) {
-    throw new Missing('Run checks.js resume again: the pull left out a version of the ledger.',
-      [`${ledger.type} version ${number}, the version that index.json lists, is not in the ` +
-        'artifact folder.']);
-  }
-  return { number, text };
+  const found = new Context(root, 'check', io.env && io.env.HOME).history(ledger.type,
+    ledger.file);
+  return found ? { number: found.number, text: found.text } : null;
 }
 
 // parse returns the rows of text, which what names, after the schema of the hook passes.

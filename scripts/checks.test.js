@@ -1546,11 +1546,24 @@ test('criteria: no id renumbered or reused against the newest version', () => {
   const reused = fixture();
   version(reused, 'acceptance-criteria', 2, 'acceptance-criteria.md',
     top.replace(/\| ac-4 .*/, '| ac-4 | Removed, because it ended. | None |\n| ac-6 | Removed, because it ended. | None |'));
+  withdrawIn(reused, 'acceptance-criteria', 2, false);
   const draft = `${top.trimEnd()}\n| ac-5 | The reply states the hours. | Tests |\n| ac-6 | Removed, because it ended. | None |\n`;
   fs.writeFileSync(path.join(reused, 'acceptance-criteria.md'), draft);
   const result = push(reused, 'acceptance-criteria');
   fails(result, /^Keep ac-4 removed in acceptance-criteria.md: version 2 removed it/);
   fails(result, /^Give the new criterion ac-5 in acceptance-criteria.md a number above 6/);
+});
+
+test('push: a version folder that index.json does not list counts for nothing', () => {
+  const root = fixture();
+  const top = fs.readFileSync(path.join(root, 'acceptance-criteria.md'), 'utf8');
+  // A folder v2, as an earlier pull can leave it, with ac-4 removed.
+  version(root, 'acceptance-criteria', 2, 'acceptance-criteria.md',
+    top.replace(/\| ac-4 .*/, '| ac-4 | Removed, because it ended. | None |'));
+  passes(push(root, 'acceptance-criteria'));
+  // Listed, version 2 is the newest version, so the push keeps ac-4 removed.
+  withdrawIn(root, 'acceptance-criteria', 2, false);
+  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 removed in acceptance-criteria.md/);
 });
 
 test('scenarios: no id renumbered or reused against the newest version', () => {
@@ -1566,6 +1579,7 @@ test('decision record: no id renumbered or reused against the newest version', (
   const root = fixture();
   const text = fs.readFileSync(path.join(root, 'decision-record.md'), 'utf8');
   version(root, 'decision-record', 3, 'decision-record.md', text);
+  withdrawIn(root, 'decision-record', 3, false);
   write(root, 'decision-record.md', text.replace('`decision-1`', '`decision-2`'));
   fails(push(root, 'decision-record'), /^Keep decision-1 in decision-record.md.*version 3 has it/);
 });
@@ -3359,6 +3373,7 @@ test('a type with two names and no main, or a version with no file, exits 3', ()
   assert.match(two.lines[0], /acceptance-criteria has the names first, other and no main/);
   const empty = fixture();
   fs.mkdirSync(path.join(empty, 'acceptance-criteria', 'main', 'v2'));
+  withdrawIn(empty, 'acceptance-criteria', 2, false);
   const result = push(empty, 'demo-scenarios');
   assert.equal(result.status, 3);
   assert.match(result.lines[0], /^Pull the artifacts again: acceptance-criteria\/main\/v2 has no acceptance-criteria.md/);

@@ -1101,9 +1101,13 @@ The types are `proposal`, `spec`, `acceptance-criteria`, `decision-record`,
 next paragraphs list. A check reads the newest version of the type that it checks for ids,
 and the newest version of the types it relates to: `demo-scenarios` reads the criteria,
 `decision-record` the criteria and the questions, and `review-comments` the questions and
-`index.json`. A type with no version counts as empty. A type with two names and no `main`, a
-version folder without its file, an `index.json` that contradicts itself, and
-`review-comments` with no `index.json` exit 3. The checks:
+`index.json`. The newest version is the newest that `index.json` lists and no cancelled run
+wrote; a version folder that `index.json` does not list, such as one that an earlier pull
+left, counts for nothing. Only with no `index.json`, or one that does not list the name of
+the type, the highest version folder is the newest version. A type with no version counts as
+empty. A type with two names and no `main`, a version folder without its file, an
+`index.json` that contradicts itself, and `review-comments` with no `index.json` exit 3.
+The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
   skills state them;
@@ -1392,8 +1396,10 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   compares a new version with: the newest version of `main` that `index.json` lists and no
   cancelled run wrote, and while `main` is withdrawn, the newest such version before the
   withdrawal. A version folder that `index.json` does not list, such as one that an
-  earlier pull left, counts for nothing; it exits 3 when the listed version has no folder.
-  Only an artifact folder with no `index.json` falls back to the highest version folder.
+  earlier pull left, counts for nothing. When the listed version has no folder, it exits 3
+  with the line to run `qory artifact pull build-ledger --version <N>`, because a plain pull
+  skips the version before a withdrawal. Only with no `index.json`, or one that does not
+  list the build ledger, the highest version folder counts.
   For
   each such row it prints "Run <id> again: its pass <N> stopped while it ran, so step begin
   starts pass <N+1>.", then a line with the counts of rows, done rows and escalations.
