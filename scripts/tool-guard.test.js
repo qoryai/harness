@@ -1477,6 +1477,39 @@ test('env, sudo or doas with an option that the guard does not read is opaque', 
   }
 });
 
+test('shell options are read in any spelling that zsh accepts, and set -k makes NAME=value',
+  () => {
+    const opaque = 'Run the checks with no file path or';
+    const lost = 'Write with a path that starts with /: the guard cannot tell the folder';
+    const built = 'Leave .qory/build/ as it is';
+    for (const make of [claude, codex]) {
+      for (const command of ['set -o ALL_EXPORT; X=1; rg x checks',
+        'set -o all_export; X=1; rg x checks', 'set -o All_Export; X=1; rg x checks',
+        'set +o noallexport; X=1; rg x checks', 'set -eao pipefail; X=1; rg x checks',
+        'set -k; rg x checks', 'set -k\nrg x checks', 'set -ek\n\nrg x checks',
+        'set -o KEYWORD_ARGS; rg x checks', 'set -o keyword_args\nrg x checks',
+        "bash -a -c 'X=1; rg x checks'", "zsh -o all_export -c 'X=1; rg x checks'",
+        "bash -kc 'rg x checks'"]) {
+        firstLine(guard(make('Bash', { command }, 'implementer')), opaque);
+      }
+      for (const command of ['setopt AUTO__CD; .qory; touch build/x',
+        'set -J; .qory; touch build/x', 'setopt A_u_t_o_C_d; .qory; touch build/x',
+        "setopt 'auto'cd; .qory; touch build/x"]) {
+        const reason = guard(make('Bash', { command }, 'implementer'));
+        assert.ok(typeof reason === 'string' && [lost, built].some((one) => reason.startsWith(one)),
+          `${command}: ${reason}`);
+      }
+      for (const command of ['setopt GLOB__DOTS && rm -rf */build', 'set -4; rm -rf */build',
+        'setopt Glob_Dots; rm -rf */build']) {
+        firstLine(guard(make('Bash', { command }, 'implementer')), built);
+      }
+      for (const command of ['set -euo pipefail; rg x checks', 'set -e\nrg x checks',
+        'set -o pipefail; X=1; rg x checks']) {
+        assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
+      }
+    }
+  });
+
 test('a recursive cp with -T copies into the locked folder', () => {
   for (const command of ['cp -rT src checks', 'cp -r -T src checks', 'cp -aT src checks/',
     'cp --recursive --no-target-directory src checks', 'cp -RT src ./checks']) {

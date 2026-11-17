@@ -1212,9 +1212,9 @@ file, and a `checkout` of such a folder, after `--` or as a path that exists, su
 path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
 `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
-matches a leading dot only when the command contains `dotglob`, `globdots`, `GLOB_DOTS` or
-`GLOBIGNORE`, so `rm -rf */build` passes and `rm -rf .q*` does not; `rm -rf node_mod*`
-passes. The guard matches a wildcard part by part with no regular expression, in time that
+matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
+of zsh, such as `GLOB_DOTS` or `set -4`, or `GLOBIGNORE`, so `rm -rf */build` passes and
+`rm -rf .q*` does not; `rm -rf node_mod*` passes. The guard matches a wildcard part by part with no regular expression, in time that
 grows with the length of the part times the length of the name, and a bracket with a range
 such as `[z-a]` matches nothing. A `cp`, `install`, `ln` or `rsync` into a folder above a
 locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or `cp -t checks a.ts`,
@@ -1354,11 +1354,15 @@ The limits of the guard:
   setting, as a variable can change what the command runs (`RIPGREP_CONFIG_PATH`,
   `LESSOPEN`, `PAGER`, `GREP_OPTIONS`): a `NAME=value` before the command or after `env`, or
   an earlier `export`, `declare -x`, `typeset -x`, `local -x`, `readonly -x`, `set -a`,
-  `set -o allexport` or `setopt allexport` in the call. A command after `env`, `sudo` or
-  `doas` with an option other than those that set no variable, run no shell and pass no
-  command line is opaque too: `env` with any option but `-i`, `-u <name>`, `-0` and `--`,
-  such as `-S`, `-C` or `-P`, and `sudo -E`, `sudo -i`, `sudo -s`, `sudo -D` or `doas -s`.
-  Rule 11 keeps the words of software
+  `set -k`, `set -o allexport` or `setopt allexport` in the call, or a shell started with
+  `-a`, `-k` or `-o allexport`. The guard reads each option name of `set -o`, `set +o`,
+  `setopt` and `unsetopt` as zsh does, in any case, without `_` and with or without a `no`
+  before it, so `ALL_EXPORT`, `all_export` and `noallexport` are all `allexport`; it reads
+  `auto_cd`, `glob_dots` and `keyword_args` the same way, with the letters `-J`, `-4` and
+  `-k`. A command after `env`, `sudo` or `doas` with an option other than those that set no
+  variable, run no shell and pass no command line is opaque too: `env` with any option but
+  `-i`, `-u <name>`, `-0` and `--`, such as `-S`, `-C` or `-P`, and `sudo -E`, `sudo -i`,
+  `sudo -s`, `sudo -D` or `doas -s`. Rule 11 keeps the words of software
   work, such as `diff` and `git`, out of `core`, so `git diff` and `git log` are opaque. In
   a call with an opaque command, the guard denies the call when its text reaches a locked
   file or `.qory/build/`: a word that resolves to the file or a folder between it and the

@@ -886,8 +886,8 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
     return out;
   });
   const all = texts.flat();
-  // After an export, declare -x, typeset -x or set -a, each later command runs with the
-  // variables that the call sets.
+  // After an export, declare -x, typeset -x, set -a or set -k, each later command runs with
+  // the variables that the call sets.
   let exported = false;
   for (const one of all) {
     one.vars = one.vars || (exported && one.words.length > 0);
@@ -896,13 +896,13 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   const changes = all.some((one) => one.words.length &&
     CD.has(path.basename(unquote(one.words[0]))));
   const flags = { cdpath: /\bCDPATH=/.test(command) || Boolean(process.env.CDPATH),
-    autocd: /auto_?cd/i.test(command) };
+    autocd: optionsIn(command, all, ['autocd']) };
   for (const parts of texts) walk(parts, parts[0].index === 0 || !changes ? cwd : null, flags);
   const parts = all.filter((one) => one.words.length);
   const from = folders(parts, cwd);
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
-  // globdots or GLOB_DOTS in zsh, or GLOBIGNORE, which turns dotglob on.
-  const dots = /dotglob|globdots|GLOB_DOTS|GLOBIGNORE/i.test(command);
+  // globdots in zsh in any spelling, or GLOBIGNORE, which turns dotglob on.
+  const dots = optionsIn(command, all, ['dotglob', 'globdots', 'globignore']);
   return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars, blind }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
@@ -914,8 +914,9 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
 }
 
 // exports reports whether words, the words of a simple command, export variables to the
-// commands after it: export, a declare, typeset, local or readonly with -x, or a set or
-// setopt that turns on allexport, as set -a does.
+// commands after it, or make later NAME=value words set variables: export, a declare,
+// typeset, local or readonly with -x, or a set, setopt, unsetopt, emulate or shell that
+// shellOptions finds to name allexport, as set -a does, or keywordargs, as set -k does.
 function exports(words) {
   const plain = plainWords(words);
   const name = path.basename(plain[0] || '');
@@ -924,11 +925,57 @@ function exports(words) {
   if (['declare', 'typeset', 'local', 'readonly'].includes(name)) {
     return options.some((word) => /^-[A-Za-z]*x/.test(word));
   }
-  if (name === 'set') {
-    return options.some((word) => /^-[A-Za-z]*a/.test(word)) ||
-      plain.some((word, at) => word === 'allexport' && plain[at - 1] === '-o');
+  const named = shellOptions(words);
+  return named.has('allexport') || named.has('keywordargs');
+}
+
+// The commands that set shell options, besides a shell itself, as in `bash -a -c <text>`.
+const OPTION_SETTERS = new Set(['set', 'setopt', 'unsetopt', 'emulate']);
+// The letters of the options that the guard reads, in bash or zsh: -a allexport, -k
+// keywordargs, -J autocd and -4 globdots.
+const OPTION_LETTERS = { a: 'allexport', k: 'keywordargs', J: 'autocd', 4: 'globdots' };
+
+// shellOptions returns the names of the shell options that words, a simple command, turn on
+// or off, as zsh reads a name: in lower case, without _ or -, and also without a no before
+// it, so that ALL_EXPORT and noallexport are both allexport. It reads each letter of
+// OPTION_LETTERS in a -x or +x word, the name after -o or +o, a --name of a shell and, for
+// setopt and unsetopt, each word that is no option. set and a shell stop at the first word
+// that is no option.
+function shellOptions(words) {
+  const plain = plainWords(words);
+  const name = path.basename(plain[0] || '');
+  const out = new Set();
+  if (!OPTION_SETTERS.has(name) && !SHELL_NAMES.test(name)) return out;
+  const add = (option) => {
+    const one = option.toLowerCase().replace(/[_-]/g, '');
+    out.add(one);
+    if (one.startsWith('no')) out.add(one.slice(2));
+  };
+  const listed = name === 'setopt' || name === 'unsetopt';
+  for (let at = 1; at < plain.length; at += 1) {
+    const word = plain[at];
+    if (word === '--' && !listed) break;
+    if (word.startsWith('--')) add(word.slice(2));
+    else if (/^[-+]./.test(word)) {
+      for (const letter of word.slice(1)) {
+        if (Object.hasOwn(OPTION_LETTERS, letter)) out.add(OPTION_LETTERS[letter]);
+        if (letter === 'o') add(plain[(at += 1)] || '');
+      }
+    } else if (listed) add(word);
+    else break;
   }
-  return name === 'setopt' && plain.some((word) => /^all_?export$/i.test(word));
+  return out;
+}
+
+// optionsIn reports whether command, a shell command of all, its simple commands, can turn on
+// an option of names: a shell option that shellOptions finds, or a name in the text, which
+// eval or a script can run, in lower case without _, - and quotes. It charges a unit for each
+// KB of the text.
+function optionsIn(command, all, names) {
+  charge(1 + (command.length >> 10));
+  const text = command.toLowerCase().replace(/[_\-'"\\]/g, '');
+  return names.some((one) => text.includes(one)) ||
+    all.some((one) => [...shellOptions(one.words)].some((option) => names.includes(option)));
 }
 
 // into returns the folder that a command runs in from the folder from after a cd to each of
