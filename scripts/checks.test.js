@@ -2389,6 +2389,26 @@ test('report: the last line is a word the agent may end with', () => {
   fails(report('What you read:\n- a\n\ndone\n', 'spec-reviewer'), /^End the report with one word, clean.* of spec-reviewer /);
 });
 
+test('report: a report over about 2,000 tokens is refused, not counting "Files:"', () => {
+  // The bytes of WRITER_REPORT that count: all but "Files:" and its one item.
+  const counted = Buffer.byteLength(WRITER_REPORT) - Buffer.byteLength('Files:\n- spec.md\n');
+  const read = (size) => WRITER_REPORT.replace('inputs.json\n',
+    `inputs.json\n- docs/${'a'.repeat(size - counted - '- docs/.md\n'.length)}.md\n`);
+  passes(report(read(8000), 'spec-writer'));
+  exactly(report(read(8001), 'spec-writer'), 'Cut the report to about 2,000 tokens, counted as ' +
+    '8,000 bytes.\n  The report of spec-writer has 8001 bytes, not counting the list "Files:".');
+  // A list "Files:" of 400 paths, about 9,000 bytes, adds nothing to the count.
+  const files = Array.from({ length: 400 }, (_, at) => `- pages/page-${at}.md`).join('\n');
+  passes(report(read(8000).replace('- spec.md', files), 'spec-writer'));
+  // A report with no list "Files:", and a blocked report, count every byte.
+  const reviewer = `What you read:\n- ${'b'.repeat(8000)}\n\nclean\n`;
+  exactly(report(reviewer, 'spec-reviewer'), 'Cut the report to about 2,000 tokens, counted as ' +
+    `8,000 bytes.\n  The report of spec-reviewer has ${Buffer.byteLength(reviewer)} bytes.`);
+  const blocked = `What you read:\n- a\n\nBlocked: ${'c'.repeat(8000)}\nblocked\n`;
+  fails(report(blocked, 'spec-reviewer'), new RegExp('^Cut the report to about 2,000 tokens, ' +
+    'counted as 8,000 bytes\\. The report of spec-reviewer has 80\\d\\d bytes\\.$'));
+});
+
 test('report: lines after the last word are no finding, and the check reads them', () => {
   const writer = [
     'What you read:',
@@ -2473,7 +2493,8 @@ test('report: each list that Expected output names is there, with an item', () =
     /^End the report with one word.* of proposal-writer /);
   assert.deepEqual(report(WRITER_REPORT.replace('Criteria:\n- ac-1: added\n', ''), 'proposal-writer').lines,
     ['Add the line "Direction:" to the report of proposal-writer.',
-      'Checked the report of proposal-writer: last word, lists and Blocked: line; 1 finding. ' +
+      'Checked the report of proposal-writer: size, last word, lists and Blocked: line; 1 ' +
+        'finding. ' +
         'Start proposal-writer again with these findings to fix its report: fix 1 of 2.']);
   passes(report('What you searched:\n- nothing: no target\n\ndone\n', 'code-explorer'));
 });
@@ -2496,8 +2517,8 @@ const GOOD_POINT = 'The spec does not state how long a refund takes.';
 test('report: each finding of a reviewer has one Point: line that a point can copy', () => {
   const result = report(reviewed(GOOD_POINT), 'spec-reviewer');
   passes(result);
-  assert.equal(result.lines.at(-1), 'Checked the report of spec-reviewer: last word, lists, ' +
-    'Blocked: line and Point: lines; 0 findings.');
+  assert.equal(result.lines.at(-1), 'Checked the report of spec-reviewer: size, last word, ' +
+    'lists, Blocked: line and Point: lines; 0 findings.');
   fails(report(reviewed(null), 'spec-reviewer'), new RegExp('^Add a "Point:" line to finding 1 ' +
     'of spec-reviewer\\. The line is one sentence that a member reads when the finding is left\\.$'));
   fails(report(reviewed(GOOD_POINT, null), 'spec-reviewer'), /^Add a "Point:" line to finding 2 of spec-reviewer/);
@@ -4753,6 +4774,35 @@ test('end: a run that ended with points.json records the verdict escalate, also 
   const again = end(root, failing.env);
   passes(again);
   assert.match(again.lines.at(-1), /, and qory run verdict escalate exited with 1: Recorded/);
+});
+
+test('end: a runtime that starts no agents ends the run with escalate and its point', () => {
+  // The text and the fix of the point, as running-a-workflow lists them under "Failures".
+  const skill = fs.readFileSync(path.join(MODULES, 'core/skills/running-a-workflow/SKILL.md'),
+    'utf8').replace(/\s+/g, ' ');
+  const lines = new RegExp('When your runtime has no tool that starts an agent, .*? Its text ' +
+    'is "([^"]+)":.*?Its `fix` is "([^"]+)"').exec(skill);
+  assert.ok(lines, 'running-a-workflow lists no point for a runtime that starts no agents');
+  const point = { text: lines[1].replace('<agent>', 'questions writer')
+    .replace('<runtime>', 'Sample CLI'), action: 'run_again', fix: lines[2] };
+  assert.equal(point.text, 'The questions writer did not start on Sample CLI, which starts ' +
+    'no agents.');
+  assert.equal(point.fix, 'Compose the harness for a runtime that starts agents, then start ' +
+    'another round.');
+  // The session starts no agent, writes points.json, checks it and ends.
+  const root = fixture();
+  started(root, {});
+  const points = path.join(root, 'points.json');
+  write(root, 'points.json', [point]);
+  older(root);
+  passes(check(root, 'points', points));
+  const { args, env } = stub();
+  const ended = end(root, env);
+  passes(ended);
+  assert.equal(ended.lines.at(-1), 'Checked points.json: the run ended with it, and qory run ' +
+    'verdict escalate exited with 0: Recorded the verdict escalate.');
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${points}`]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')), [point]);
 });
 
 test('end: a points.json that breaks its rules is a finding, and its third check keeps the good points', () => {

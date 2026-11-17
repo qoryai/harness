@@ -593,6 +593,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
   path. `checks.cjs end` prints a finding for each reviewer that such a start counts and
   that has no report.
+- A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
+  bytes, set once in `lib/reports.cjs` for every agent. `checks.cjs report`, `findings` and
+  `end --offline` refuse a longer report, and the finding states the limit in both units, so
+  that the agent can count its text. The list "Files:" of a writer, the files it wrote, does
+  not count. The 256 KB limit stays. `running-a-workflow` tells the session to give each
+  agent the limit at each start. The last line of `report`, on what it checked, lists
+  "size" first.
+- A run on a runtime with no tool that starts an agent ends with `escalate`: the session
+  starts no agent, pushes nothing, and writes one `run_again` point, "The <agent> did not
+  start on <runtime>, which starts no agents.", with the fix "Compose the harness for a
+  runtime that starts agents, then start another round." On a runtime whose end hook runs,
+  the end check records the verdict through `points.json`, as for every end through
+  "Points".
 
 ### Changed
 

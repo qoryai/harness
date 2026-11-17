@@ -205,7 +205,7 @@ test('report: a finding of a change without a proof is refused', () => {
   const check = (text) => call(root, ['report', REVIEWER, put(root, `${REVIEWER}-1.md`, text)]);
   const result = check(review([{}]));
   passes(result);
-  assert.equal(result.lines.at(-1), `Checked the report of ${REVIEWER}: last word, lists, ` +
+  assert.equal(result.lines.at(-1), `Checked the report of ${REVIEWER}: size, last word, lists, ` +
     'Blocked: line, and Point:, Proof: and Severity: lines; 0 findings.');
   fails(check(review([{}, { Proof: null }])), new RegExp('^Add a "Proof:" line to finding 2\\. ' +
     'The proof is a failing check, a planted fault that the checks miss, the failing input, ' +
@@ -606,8 +606,8 @@ test('report: the last line of a report with a proof and no point', () => {
     'changes-needed', ''].join('\n');
   const result = call(root, ['report', PROOF_ONLY, put(root, `${PROOF_ONLY}-1.md`, text)]);
   passes(result);
-  assert.equal(result.lines.at(-1), `Checked the report of ${PROOF_ONLY}: last word, lists, ` +
-    'Blocked: line, and Proof: and Severity: lines; 0 findings.');
+  assert.equal(result.lines.at(-1), `Checked the report of ${PROOF_ONLY}: size, last word, ` +
+    'lists, Blocked: line, and Proof: and Severity: lines; 0 findings.');
 });
 
 test('findings add: CRLF, a BOM and a tab pass, and a control character is refused', () => {

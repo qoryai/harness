@@ -40,6 +40,10 @@ Pass each agent the input file's absolute path from the prompt, which ends in
 unchanged, and a writer the lists of its newest report and the findings you quote. Give a
 reviewer paths and values, never a summary or your reasoning.
 
+Tell each agent at each start that its report has at most about 2,000 tokens, counted as
+8,000 bytes, and that a list "Files:" of the files it wrote does not count. The report
+check refuses a longer report, as "Check each report" lists.
+
 Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
 as the id of the run's stage, because the first round of a stage lasts until a person
 writes a questions version in it. With no `stage.id`, give none.
@@ -136,6 +140,13 @@ finding has `person` or `writer`, `direction` or `no direction`, and `break` or 
 A fourth mark, `sentence`, comes only with `writer`, `no direction` and `no break`: a
 finding marked `sentence` with any other marks has an unknown mark.
 
+When your runtime has no tool that starts an agent, start no agent, push nothing, and end
+the run as "Points" lists, with one `run_again` point. Its text is "The <agent> did not
+start on <runtime>, which starts no agents.": `<agent>` is the first agent that the
+workflow starts, in plain words, such as "questions writer", and `<runtime>` is the name of
+your runtime. Its `fix` is "Compose the harness for a runtime that starts agents, then
+start another round."
+
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
 the run stops, except for `fixes`, as "Points to fix first" lists: push nothing more, and
 use "The run stopped at <the step>, because <the cause>." The step is the step of this
@@ -230,8 +241,9 @@ Each point has these members, and no other:
 - `question`: only with `answer`, the id of an open question in `questions.json` at the top
   of the artifact folder, the draft that the run pushes before the verdict: the question
   that the point asks the member to answer.
-- `fix`: only with `run_again`, and only where the workflow you follow lists one: the step
-  for the member, by the rules of `text`, as one sentence that states the step.
+- `fix`: only with `run_again`, and only where this skill or the workflow you follow lists
+  one: the step for the member, by the rules of `text`, as one sentence that states the
+  step.
 
 With more than 20 points, keep 19: the `answer` points first, each with its `question`,
 then the `run_again` points, each group in its order. Add as the last point a `run_again`
@@ -371,11 +383,13 @@ rules, so the run pushed no <output>."
 After each agent returns, write its report, unchanged, to
 `<folder>/.reports/<agent>-<n>.md`, where `<agent>` is the agent's name and `<n>` counts
 that agent's reports in this run from 1. Then run `checks.cjs report <agent> <that file>`.
-It checks the last word, each list that the agent's "Expected output" requires, that a
-"Blocked:" line that starts with `needs` is one that "Failures" or another skill of your
-workflow lists, and each finding's `Point:` line of a reviewer. The last word is the last
-line that is only one of the agent's last words, with no indent, and with a blank line or
-the end of the report after it. A line in a code block is no last word.
+It checks the size, the last word, each list that the agent's "Expected output" requires,
+that a "Blocked:" line that starts with `needs` is one that "Failures" or another skill of
+your workflow lists, and each finding's `Point:` line of a reviewer. The size is at most
+about 2,000 tokens, counted as 8,000 bytes, not counting a list "Files:". A report above
+256 KB gets only the finding on its size. The last word is the last line that is only one
+of the agent's last words, with no indent, and with a blank line or the end of the report
+after it. A line in a code block is no last word.
 
 With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
 2.", start the same agent again with the input it got, the path of its report and every

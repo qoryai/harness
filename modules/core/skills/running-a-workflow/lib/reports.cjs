@@ -13,7 +13,7 @@ const { fence, lines, sections } = require('./markdown.cjs');
 const { pointRules, pointText } = require('../types/points.cjs');
 
 // The "Blocked:" line that
-// running-a-workflow (SKILL.md:155-157: "One that starts with `needs <type>`") lists by its
+// running-a-workflow (SKILL.md:166-168: "One that starts with `needs <type>`") lists by its
 // start. A module adds the lines of its skills as the stops of its workflow-checks.cjs. Any
 // other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [/^needs (?!a\b)[a-z0-9-]+\.?$/];
@@ -269,7 +269,39 @@ function listLines(list, at, heading, agent, shape) {
   return findings;
 }
 
-// reportCheck checks the report text of agent against shape, what expected returns. The
+// The most tokens of a report, counted as 4 bytes each, so that an agent can count its text.
+const REPORT_TOKENS = 2000;
+
+// reportBytes returns the bytes of text, a report of shape, that count toward REPORT_TOKENS:
+// all but the list "Files:", the files that a writer wrote, when shape has that list. The
+// list is its first heading outside a code block and its lines up to the next blank line.
+function reportBytes(text, shape) {
+  const all = lines(text);
+  const at = shape.lists.includes('Files:')
+    ? all.findIndex((line) => !line.fenced && line.text.trimEnd() === 'Files:')
+    : -1;
+  let size = Buffer.byteLength(text);
+  if (at < 0) return size;
+  for (const [place, line] of all.slice(at).entries()) {
+    if (place && !line.text.trim()) break;
+    size -= Buffer.byteLength(line.text) + 1;
+  }
+  return Math.max(size, 0);
+}
+
+// sizeLine returns the finding of a report of agent with more bytes than REPORT_TOKENS
+// allows, or null.
+function sizeLine(text, agent, shape) {
+  const size = reportBytes(text, shape);
+  const most = REPORT_TOKENS * 4;
+  if (size <= most) return null;
+  const files = shape.lists.includes('Files:') ? ', not counting the list "Files:"' : '';
+  return `Cut the report to about ${REPORT_TOKENS.toLocaleString('en-US')} tokens, counted as ` +
+    `${most.toLocaleString('en-US')} bytes.\nThe report of ${agent} has ${size} bytes${files}.`;
+}
+
+// reportCheck checks the report text of agent against shape, what expected returns. A report
+// with more bytes than REPORT_TOKENS allows, as sizeLine counts them, is a finding. The
 // last word is the last line that is only one of shape.words, with no indent, and with a
 // blank line or the end of the text after it, and outside a code block, so that a wrapped
 // line of an item, a line of a code block or a line of a cut text is no last word. lines
@@ -281,7 +313,8 @@ function listLines(list, at, heading, agent, shape) {
 // the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines
 // checks the proofs, severities, judgements and closures.
 function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {}) {
-  const findings = [];
+  const size = sizeLine(text, agent, shape);
+  const findings = size ? [size] : [];
   const all = lines(text);
   while (all.length && !all[all.length - 1].text.trim()) all.pop();
   const list = all.map((line) => line.text.trimEnd());
