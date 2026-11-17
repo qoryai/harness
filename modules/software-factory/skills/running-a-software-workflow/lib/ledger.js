@@ -200,7 +200,8 @@ module.exports = (lib) => {
   }
 
   // planned returns the deliverables of the newest build plan, else of the top draft, each
-  // { id, criteria }, or null when there is none.
+  // { id, criteria }, where criteria has the ids of the Criteria cell, or null when there is
+  // none.
   function planned(context) {
     let text = null;
     const newest = context.newest('build-plan', 'build-plan.md');
@@ -216,7 +217,7 @@ module.exports = (lib) => {
     const found = part && lib.table(part.lines, part.lines.findIndex(lib.isRow));
     if (!found) return null;
     return found.rows.map(([id = '', , criteria = '']) => ({ id: id.replace(/`/g, '').trim(),
-      criteria: lib.criterionList(criteria) }));
+      criteria: lib.criterionList(criteria).map((one) => one.id) }));
   }
 
   // targetCriteria returns the live criteria of the version that criteriaTarget returns, or
