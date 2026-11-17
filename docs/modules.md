@@ -1315,11 +1315,16 @@ The limits of the guard:
   `$( ... )`, a backtick and `eval` are its limit: a write whose path only they make passes,
   as in `D=lock; echo x > ${D}ed/f`, and so does a shell three shells deep, and a
   here-document body that `cat` writes to a file in one call and a later call runs. A `cp`
-  that reads a locked file is denied, as it contains the path. A link that a command of the
-  call makes, with `ln`, `link`, `cp -l` or `-s`, or `rsync -a`, `-l` or `-H`, does not
-  exist yet when the guard reads the call, so each other write at or below that link is
-  denied. A writer or an opaque command that `xargs` or `parallel` runs counts as opaque,
-  since it takes its paths from its input.
+  that reads a locked file is denied, as it contains the path. An earlier command of the
+  call that makes or moves entries, `cp`, `mv`, `rsync`, `ln`, `link`, `mklink`, `install`,
+  a `tar` that extracts, `unzip` or an opaque command, can make a link that does not exist
+  yet when the guard reads the call. So a later write whose path goes through its
+  destination is denied, and the step count reads it as no write. The destination is the
+  folder of `-t`, `-C` or `-d`, else the last path, `.` for `tar -x` and `unzip` with no
+  folder, and each word of an opaque command. A destination that the guard cannot tell, such
+  as one with a variable, makes each later write unknown. `mkdir` and `touch` make no link.
+  A writer or an opaque command that `xargs` or `parallel` runs counts as opaque, since it
+  takes its paths from its input.
 - A command whose writes the guard does not read, such as `node -e`, `python3 -c`,
   `curl -o`, `tar -x`, `make` or `npm run`, is opaque. Writers, redirects, the files of
   prefixes, a shell with `-c` and a quoted text, a subcommand `restore`, `checkout`, `rm` or

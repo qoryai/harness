@@ -1425,20 +1425,40 @@ test('braces are expanded in linear time, and a brace past the cap or nested is 
       null);
   });
 
-test('a write through a link that the same call makes is denied', () => {
-  const start = 'Make the link in one call and write through it in a later call: the guard ' +
-    'cannot follow it.';
-  for (const command of [`ln -s checks l && echo x > l/${path.basename(CHECK_PATH)}`,
-    'ln -s .qory q && echo 0 > q/build/steps/s.json',
-    `cp -al checks c2 && echo x > c2/${path.basename(CHECK_PATH)}`,
-    `ln -s checks l; cd l && echo x > ${path.basename(CHECK_PATH)}`,
-    'rsync -a checks/ c3/ && rm c3/*', 'ln -s "$D" l && echo x > l/a.ts',
-    'echo x > l/a.ts; ln -s checks l']) {
-    firstLine(guard(codex('Bash', { command }, 'implementer')), start);
-  }
-  for (const command of ['ln -s ../shared lib && echo x > src/a.ts', 'ln -s a b',
-    'cp -r checks c4 && echo x > c4/a.ts', 'mkdir -p out && ln -s ../out o']) {
-    assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+test('a write through an entry that an earlier command of the call makes is denied', () => {
+  const start = 'Copy, move or link in one call, and write below the result in a later call.';
+  const base = path.basename(CHECK_PATH);
+  // A link to the locked folder that an earlier call made.
+  const old = path.join(WORK, 'old-link');
+  fs.symlinkSync('checks', old);
+  try {
+    for (const command of [`ln -s checks l && echo x > l/${base}`,
+      'ln -s .qory q && echo 0 > q/build/steps/s.json',
+      `cp -al checks c2 && echo x > c2/${base}`, `ln -s checks l; cd l && echo x > ${base}`,
+      'rsync -a checks/ c3/ && rm c3/*', 'ln -s "$D" l && echo x > l/a.ts',
+      `cp -a old-link l2 && echo x > l2/${base}`, `cp -R old-link l2 && echo x > l2/${base}`,
+      `cp -P old-link l2 && echo x > l2/${base}`, 'cp -r checks c4 && echo x > c4/a.ts',
+      'rsync -a src/ out/ && echo done > out/stamp', 'tar -xf a.tar && echo x > src/a.ts',
+      'unzip a.zip -d out && echo x > out/a.ts', 'node x.js l5 && echo x > l5/a.ts',
+      'cp a.ts $D && echo x > src/b.ts', 'mklink l6 src && echo x > src/b.ts']) {
+      firstLine(guard(codex('Bash', { command }, 'implementer')), start);
+    }
+    for (const command of ['ln -s ../shared lib && echo x > src/a.ts', 'ln -s a b',
+      'mkdir -p out && ln -s ../out o', 'echo x > l/a.ts; ln -s checks l',
+      'rsync -a src/ out/ && echo done > stamp', 'tar -czf a.tgz src && echo x > src/a.ts',
+      'unzip a.zip -d out && echo x > src/a.ts', 'node x.js && echo x > src/a.ts',
+      'mkdir out && echo x > out/a.ts', 'touch a.ts && echo x > a.ts']) {
+      assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
+    }
+    // Such a write is unknown, so the step count reads it as no write.
+    const outside = next('made');
+    fs.mkdirSync(outside);
+    const count = (command) => countsAsWrite('Bash', { command }, PLACE);
+    assert.equal(count(`cp -a old-link ${outside}/l && echo x > ${outside}/l/a.ts`), false);
+    assert.equal(count(`cp -a old-link ${outside}/l && echo x > src/a.ts`), true);
+    assert.equal(count(`mkdir ${outside}/m && echo x > src/a.ts`), true);
+  } finally {
+    fs.unlinkSync(old);
   }
 });
 

@@ -220,9 +220,9 @@ const OPAQUE = 'Run the checks with no file path or with `checks.js run locked`:
 const LOST = 'Write with a path that starts with /: the guard cannot tell the folder that ' +
   'this command runs in.\nA cd after builtin, eval, source or ., with CDPATH, in an if, a ' +
   'loop or a function, or to a folder that a variable names makes the folder unknown. ';
-const LINK_MADE = 'Make the link in one call and write through it in a later call: the guard ' +
-  'cannot follow it.\nThe guard reads links on the disk, and a link that a command of this ' +
-  'call makes does not exist yet. ';
+const LINK_MADE = 'Copy, move or link in one call, and write below the result in a later ' +
+  'call.\nThe guard reads links on the disk, and an entry that an earlier command of this ' +
+  'call makes or moves can be a link that does not exist yet. ';
 const UNSURE = 'Write the path without a .. after a folder that does not exist yet: the ' +
   'guard cannot tell\nwhere such a .. leads, as a later command can make that folder a link. ';
 const NOT_JSON = 'Report this error in your output: the tool guard got hook input that is ' +
@@ -258,8 +258,10 @@ const FOLDER_ONLY = new Set(['mkdir', 'rmdir', 'chmod', 'chown', 'chgrp', 'chfla
 const LAST_WRITTEN = new Set(['cp', 'install', 'ln', 'rsync']);
 // A command that runs another command with words from its input, as in `ls | xargs rm`.
 const FED = /(^|[\s/])(xargs|parallel)(?=\s|$)/;
-// The commands that make a link: a path through it leads where the guard does not read.
-const LINKERS = new Set(['ln', 'link', 'mklink']);
+// The commands that make or move entries at a destination, any of which can be a link: a
+// path through it leads where the guard does not read. An opaque command counts too; mkdir
+// and touch make no link.
+const MAKERS = new Set(['cp', 'mv', 'rsync', 'ln', 'link', 'mklink', 'install', 'tar', 'unzip']);
 // The words that open a group, or the then, do or else part, before a command, as in
 // `{ cp a b; }`.
 const GROUPS = new Set(['{', '}', 'then', 'do', 'else', '!']);
@@ -1403,42 +1405,70 @@ function shown(full, folder, listed) {
   return out;
 }
 
-// makesLink reports whether segment, a simple command, makes a link: a command of LINKERS, a
-// cp with -l, -s, --link or --symbolic-link, or an rsync with -a, -l, -H, --archive,
-// --links, --hard-links or --link-dest, which copies or makes links.
-function makesLink(segment) {
+// madeAt returns the destinations at which segment, a simple command, makes or moves
+// entries, each as written, or null when the guard cannot tell them:
+// - cp, mv, rsync, ln, link and install: the folder of -t, else the last path; for ln or
+//   link with one path, the name of that path;
+// - tar that extracts: the folder of -C or --directory, else .; a tar that creates makes
+//   only its archive, a file that is no link;
+// - unzip: the folder of -d, else .;
+// - an opaque command: each word of its text after the first, as reaches reads the text.
+// mklink, a lost folder, and a vague destination or one with a wildcard are unknown.
+function madeAt(segment) {
   const words = plainWords(segment.words);
   const tool = path.basename(words[0] || '');
-  if (LINKERS.has(tool)) return true;
-  if (tool !== 'cp' && tool !== 'rsync') return false;
-  const end = words.indexOf('--');
-  const options = words.slice(1, end < 0 ? words.length : end)
-    .filter((word) => word.startsWith('-') && word !== '-');
-  if (tool === 'cp') {
-    return options.some((word) => /^--(?:link|symbolic-link)$/.test(word) ||
-      /^-[A-Za-z]*[ls]/.test(word));
+  if (!MAKERS.has(tool) && !opaque(segment)) return [];
+  if (tool === 'mklink' || segment.lost) return null;
+  let made;
+  if (!MAKERS.has(tool)) {
+    made = (segment.text.match(TOKEN) || []).slice(1).filter((word) => !word.startsWith('-'));
+  } else if (tool === 'tar') {
+    // The mode is in an option, as in -xzf, or in the first word, as in tar xzf.
+    const extracts = words.some((word) => /^--(?:extract|get)$/.test(word) ||
+      /^-[A-Za-z]*x/.test(word)) || /^[A-Za-z]*x/.test(words[1] || '');
+    if (!extracts && vague(segment.words[1] || '')) return null;
+    if (!extracts) return [];
+    const at = words.findIndex((word) => word === '-C' || word === '--directory');
+    const dir = words.find((word) => word.startsWith('--directory='));
+    made = [at > 0 ? segment.words[at + 1] : dir ? dir.slice(12) : '.'];
+  } else if (tool === 'unzip') {
+    const at = words.indexOf('-d');
+    const dir = words.find((word) => /^-d./.test(word));
+    made = [at > 0 ? segment.words[at + 1] : dir ? dir.slice(2) : '.'];
+  } else {
+    const { dest, sources } = copyParts(segment.words);
+    made = [sources.length || !['ln', 'link'].includes(tool) ? dest : path.basename(dest || '')];
   }
-  return options.some((word) => /^--(?:archive|links|hard-links|link-dest)(?:=|$)/.test(word) ||
-    /^-[A-Za-z]*[alH]/.test(word));
+  if (made.some((one) => one === undefined || vague(one) || wild(one))) return null;
+  return made.map((one) => literal(patternOf(one)));
 }
 
-// linksMade returns the paths at which the commands of all that makesLink finds make a link,
-// from each folder of a command, or null when the guard cannot tell one of them: the folder
-// of -t, the last path or, for ln with one path, the name of that path in the folder. A
-// path through a link at a folder of the list is a path below that folder.
-function linksMade(all) {
+// madeBefore returns, for each command of all at its index, the paths at which the commands
+// before it make or move entries, from each folder of those commands, or null when the guard
+// cannot tell one of them.
+function madeBefore(all) {
   const out = [];
+  let paths = [];
   for (const one of all) {
-    if (!makesLink(one)) continue;
-    const words = plainWords(one.words);
-    if (path.basename(words[0]) === 'mklink' || one.lost) return null;
-    const { dest, sources } = copyParts(one.words);
-    if (dest === undefined || vague(dest) || wild(dest)) return null;
-    const made = sources.length || path.basename(words[0]) !== 'ln' ? literal(dest)
-      : path.basename(literal(dest));
-    for (const cwd of one.cwds) out.push(path.resolve(cwd, made));
+    out.push(paths);
+    if (paths === null) continue;
+    const made = madeAt(one);
+    charge(1 + (made ? made.length * one.cwds.length : 0));
+    paths = made === null ? null
+      : paths.concat(made.flatMap((each) => one.cwds.map((cwd) => path.resolve(cwd, each))));
   }
   return out;
+}
+
+// through reports whether word, a path word of segment, leads at or below a path of made,
+// from a folder of segment; with made null, each word does.
+function through(word, segment, made, fold) {
+  if (made === null) return true;
+  return segment.cwds.some((cwd) => made.some((at) => {
+    charge();
+    if (wild(word)) return globReach(path.resolve(cwd, word), at, fold, true) !== null;
+    return under(fold(path.resolve(cwd, literal(word))), fold(at));
+  }));
 }
 
 // copyParts returns { dest, sources } of a cp, install, ln or rsync of words: the folder of
@@ -1579,13 +1609,17 @@ function countWrite(name, input, { cwd, root, artifacts }, spend) {
   const command = String(args.command || '');
   spend(command.length >> 10);
   if (command.includes(PATCH) && patchPaths(command).some((one) => work(one))) return true;
-  return segments(command, cwd, segmentWrites).some((whole) => {
+  const all = segments(command, cwd, (one) => segmentWrites(one) || opaque(one));
+  // A path through an entry that an earlier command makes or moves is unknown: no write.
+  const made = madeBefore(all);
+  return all.some((whole, index) => {
+    if (!segmentWrites(whole)) return false;
     // A word that starts with # starts a comment, which runs nothing.
     const cut = whole.words.findIndex((word) => word.startsWith('#'));
     if (cut === 0) return false;
     const segment = cut < 0 ? whole : { ...whole, words: whole.words.slice(0, cut) };
-    const at = (word) => !vague(word) && (wild(word) ? work(globFolder(word), segment.at)
-      : work(literal(word), segment.at));
+    const at = (word) => !vague(word) && !through(word, segment, made[index], fold) &&
+      (wild(word) ? work(globFolder(word), segment.at) : work(literal(word), segment.at));
     const words = plainWords(segment.words);
     const tool = path.basename(words[0]);
     if (tool === 'qory' && words[1] === 'artifact' && words[2] === 'push') return true;
@@ -1928,23 +1962,20 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
     return `${reached.file === path.join(root, BUILD) ? BUILT : OPAQUE}The guard cannot tell ` +
       `what ${name} writes, and the call contains ${reached.word}, which reaches ${shown}.`;
   }
-  // A write through a link that the call makes: the guard reads its path as it is now.
-  const links = all.some(makesLink) ? linksMade(all) : [];
-  for (const one of parts) {
-    if (makesLink(one) || (links !== null && !links.length)) continue;
-    const word = pathWords(one).find((each) => !vague(each) && (links === null ||
-      one.cwds.some((cwd) => links.some((link) => {
-        spend();
-        if (wild(each)) return globReach(path.resolve(cwd, each), link, fold, true) !== null;
-        return under(fold(path.resolve(cwd, literal(each))), fold(link));
-      }))));
-    if (word !== undefined) return `${LINK_MADE}The command writes ${word}.`;
-  }
   for (const one of parts) {
     if (!one.lost) continue;
     const word = pathWords(one).concat(findParts(one.words).writes ? findParts(one.words).starts
       : []).find((each) => !vague(each) && !each.startsWith('/'));
     if (word !== undefined) return `${LOST}The command writes ${word}.`;
+  }
+  // A write through an entry that an earlier command of the call makes or moves: the guard
+  // reads its path as it is now.
+  const made = madeBefore(all);
+  for (const one of parts) {
+    const before = made[all.indexOf(one)];
+    if (before !== null && !before.length) continue;
+    const word = pathWords(one).find((each) => !vague(each) && through(each, one, before, fold));
+    if (word !== undefined) return `${LINK_MADE}The command writes ${word}.`;
   }
   for (const one of parts) {
     const word = pathWords(one).find((each) => !vague(each) && !wild(each) &&
