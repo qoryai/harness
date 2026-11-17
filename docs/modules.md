@@ -1857,9 +1857,9 @@ that print among the findings are information, not findings. Each states a resul
 no fix: the line
 `Scanned <N> commits since <commit> (or on no remote branch) for keys: <M> findings.` of
 `scope`, and the line `The output and the record are in .reports/runs/, as <id>.` of `run`,
-`probe` and `suite`. Each line
-has at most 200 characters, with no control character, and a quote from a draft of at most
-80 characters. At most 50 findings are printed, then one line with the number left out. The
+`probe` and `suite`. Each line of a finding has at most 200 characters, with no control
+character, and a quote from a draft of at most 80 characters. At most 50 findings are
+printed, then one line with the number left out. The
 findings and that line have at most 200 lines together, because qory keeps at most 200 lines
 of the stdout of a push check and drops the rest with no line that counts them. A finding
 prints whole or not at all, and the first finding prints whole even past 200 lines. The last
