@@ -155,7 +155,7 @@ function questionsCheck(run, files) {
   };
   all.forEach((question) => {
     const which = label(question, 'question', places.get(question) + 1);
-    // writing-questions (SKILL.md:76-77, 91-92, 156-157: "a number that no question"):
+    // writing-questions (SKILL.md:76-77, 96-97, 163-164: "a number that no question"):
     // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
     if (seen.has(question.id)) run.find('Give each question in questions.json a different id.\n' +
@@ -168,7 +168,7 @@ function questionsCheck(run, files) {
     }
     seen.add(question.id);
     aboutCheck(run, which, question, old.get(question.id), readable);
-    // writing-questions (SKILL.md:93-102, 154-155: "the options the run considered, 2 to 4"): a
+    // writing-questions (SKILL.md:98-107, 161-162: "the options the run considered, 2 to 4"): a
     // decided question has 2 to 4 options, none recommended, and a decision; a chosen option is the
     // title of an option.
     run.did('decided questions');
@@ -192,7 +192,7 @@ function questionsCheck(run, files) {
           `options.\n${key}.option of ${which} is ${quote(chosen.option)}, the title of none.`);
       }
     }
-    // writing-questions (SKILL.md:78, 118, 126: "plain text on one line with no tab:"): members
+    // writing-questions (SKILL.md:78, 125, 133: "plain text on one line with no tab:"): members
     // read question, context, title and explanation; question and title have no tab, and title
     // no line feed.
     if (typeof question.question === 'string') {
@@ -239,7 +239,7 @@ function questionsCheck(run, files) {
       return;
     }
     newQuestion(run, which, question);
-    // writing-questions (SKILL.md:78-86, 126-128: "one sentence of 1 to 500 characters"):
+    // writing-questions (SKILL.md:78-91, 133-135: "one sentence of 1 to 500 characters"):
     // in a new question, question is one sentence of 1 to 500 characters with no Markdown, context
     // 1 to 20000 characters and at most 120 words, title 1 to 200 characters, and explanation 1 to
     // 2000 characters and at most 2 sentences.
@@ -256,7 +256,7 @@ function questionsCheck(run, files) {
           `mark.\nThe question of ${which} has a Markdown mark.`);
       }
     }
-    // writing-questions (SKILL.md:80-88: "the fact that the answer depends on"): a new open
+    // writing-questions (SKILL.md:85-93: "the fact that the answer depends on"): a new open
     // question has a context with a character other than a space, and a list of options,
     // empty when it asks for a value.
     run.did('asks');
@@ -289,7 +289,7 @@ function questionsCheck(run, files) {
           `${where} has ${count}.`);
       }
     });
-    // writing-questions (SKILL.md:84-86: "Write the words of the item in quotes"): words in
+    // writing-questions (SKILL.md:89-91: "Write the words of the item in quotes"): words in
     // quotes beside the id of an item, in each text that members read.
     run.did('ids');
     const texts = [['the question', question.question], ['the context', question.context],
@@ -333,8 +333,8 @@ function sameJson(a, b) {
 }
 
 // newQuestion checks the state of a question that the newest questions do not have:
-// writing-questions (SKILL.md:149-150: "adds an `open` question with a `decision`") and
-// writing-questions (SKILL.md:151-152: "adds a decided question whose `decision.run` is not"):
+// writing-questions (SKILL.md:156-157: "adds an `open` question with a `decision`") and
+// writing-questions (SKILL.md:158-159: "adds a decided question whose `decision.run` is not"):
 // open with no decision, or decided with a decision by the run that asked it. A decided
 // question with no decision has its finding in questionsCheck.
 function newQuestion(run, which, question) {
@@ -362,8 +362,8 @@ function newQuestion(run, which, question) {
 function keptQuestion(run, which, earlier, question, number) {
   run.did('kept questions');
   const was = `questions version ${number}`;
-  // writing-questions (SKILL.md:151-152: "or sets an existing question to `decided`") and
-  // writing-questions (SKILL.md:153: "removes, changes or adds a `decision`"): no question that
+  // writing-questions (SKILL.md:158-159: "or sets an existing question to `decided`") and
+  // writing-questions (SKILL.md:160: "removes, changes or adds a `decision`"): no question that
   // exists becomes decided, and its decision stays as it is, or absent.
   if (question.state === 'decided' && earlier.state !== 'decided') {
     run.find(`Keep the state of ${short(which, 24)}, and decide in a new question.\n${was} has ` +
@@ -375,7 +375,7 @@ function keptQuestion(run, which, earlier, question, number) {
     else if (!('decision' in earlier)) what = `${was} has no decision of ${which}.`;
     run.find(`Keep the decision of ${short(which, 24)} as ${was} has it.\n${what}`);
   }
-  // writing-questions (SKILL.md:143-144: "or that has a `decision`, in any state"): a question
+  // writing-questions (SKILL.md:150-151: "or that has a `decision`, in any state"): a question
   // with a decision keeps its question and options.
   if ('decision' in earlier) {
     for (const key of ['question', 'options']) {
@@ -385,7 +385,7 @@ function keptQuestion(run, which, earlier, question, number) {
       }
     }
   }
-  // writing-questions (SKILL.md:145: "changes the `context` of a question that stays answered"):
+  // writing-questions (SKILL.md:152: "changes the `context` of a question that stays answered"):
   // a question that stays answered, or stays decided, keeps its context. A reopen may add to it.
   if ((earlier.state === 'answered' || earlier.state === 'decided') &&
     question.state === earlier.state && !sameJson(question.context, earlier.context)) {
