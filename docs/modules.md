@@ -574,12 +574,14 @@ under `types/`. `lib/registry.cjs` adds what another module checks: it loads
 skill is in a module of the harness home, from the skills of each module beside it, as
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
 name, it loads the first. The file exports a function that takes the library of
-`checks.cjs`, the exports of its `lib/` files and `lockReader`, the reader of the lock of
-`verbs/lock.cjs`, and returns `types`, the patterns of "Blocked:" lines as `stops`, the
-prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `verbs`, and `ledger`, the rules
-of the build ledger. Only `check`, `push`, `report`, `end`, `step`, `resume`, a verb of the
-registry and the usage read the registry; `starts`, `begin` and `fixes` never load it. A
-type that two skills add stops each verb that reads the registry with exit 3. A
+`checks.cjs`, the exports of its `lib/` files, `lockReader`, the reader of the lock of
+`verbs/lock.cjs`, and `pointCheck`, `pointRules` and `MAX_POINTS` of `types/points.cjs`,
+the check of a point of `points.json`, and returns `types`, the patterns of "Blocked:"
+lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `verbs`,
+and `ledger`, the rules of the build ledger. Only `check`, `push`, `report`, `end`,
+`step`, `resume`, a verb of the registry and the usage read the registry; `starts`,
+`begin` and `fixes` never load it. A type that two skills add stops each verb that reads
+the registry with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
 the harness: the verb stops with an error that names the file and exit 3, and `end
 --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
@@ -1613,8 +1615,13 @@ find:
   `full` and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`,
   `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
-  criterion is planned as Demo; and, in `## Deliverables` or `## Commands`, a table with
-  other columns than those that the check reads, or a second table with them;
+  criterion is planned as Demo; with a `serve` row, no line `App address: <url>` in
+  `## Summary`, or a value that is no http or https URL whose host has only letters,
+  digits, `.` and `-`, starts and ends with a letter or digit and has no `..`, or is an
+  IPv6 address in brackets, where an http address goes in
+  backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links
+  finds a bare http link; and, in `## Deliverables` or `## Commands`, a table with other
+  columns than those that the check reads, or a second table with them;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
   session, `## Summary`, `## Change`, `## Proofs`, `## Criterion` and `## Not run`, with
@@ -2464,6 +2471,86 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
   proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
   3 for a missing input, such as a pulled artifact folder with no proposal.
+- `preflight [--inputs <path>] [--artifacts <folder>]`: before the first demo of the app,
+  checks the parts of the dev container that a demo of the app needs, and for each missing
+  part writes a point `run_again` with its `fix` to `points.json` of the artifact folder of
+  the session. A Build session runs it right before a scenario script runs for the first
+  time, and a Verify session first, before any film. The parts are a browser, the first
+  that exists of `/usr/bin/chromium`, `chromium`, `chromium-browser`, `google-chrome` and
+  `google-chrome-stable`, which starts within 15 seconds; the app, which the `serve` command
+  of the build plan starts in the top folder of the checkout, and whose address, the line
+  `App address: <url>` in `## Summary`, returns a status below 500 within 120 seconds; and
+  the sign-in, the setup of each demo script that types a variable, which passes in the
+  browser with the values of the variables in the environment. When another process
+  already returns a response at the address, the app counts as not started and the command
+  does not run; a command that starts the app in the background and exits 0 counts once the
+  address responds. The command gets the environment of `preflight` without each variable
+  of qory or of an agent, or token of a code forge, such as `QORY_RUN_KEY`,
+  `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`, and without each variable that a `type` action of
+  a demo script types, in a setup or a step, such as `DEMO_PASSWORD`; of the names of
+  qory, it gets only `QORY_CHECK_MARK`, the mark of the supervisor. In a walled run, a
+  secret of the run reaches `preflight` only as a placeholder of the gateway, so a
+  variable that passes is a variable of the workspace or a placeholder. In a walled run on
+  Linux, the command can still read the environment of the runner of the check in
+  `/proc/$PPID/environ`. A sign-in passes when each action passes and each field that a
+  variable was typed into is gone within 10 seconds of the last action, or when its last
+  action is a `wait` that passes. Each browser call has a time limit, and the browser
+  dismisses each dialog of the app, such as an alert.
+
+  The sign-in loads only pages of the origin of the app's address. The browser fails the
+  load of each document of another origin, in the tab and in each frame, whether an `open`,
+  a redirect, a link or a script starts it, and no later action of that setup runs; the
+  point then has the text "The sign-in of the app at <App address> opens <origin>, and the
+  run may open only the app's pages." The browser starts with `--proxy-server` set to
+  `http://127.0.0.1:9`, a port where nothing listens, and with only the app's host and port
+  in `--proxy-bypass-list`, after `<-loopback>`: every other request, such as a `fetch`, a
+  beacon, an image, a WebSocket or a request of a service worker, fails. With
+  `--webrtc-ip-handling-policy=disable_non_proxied_udp`, WebRTC sends only through the
+  proxy, so in tests on Chrome 157 and Chromium 153 it sends no UDP packet. In tests on
+  Chrome 157 and Chromium 153, a local TURN server over TCP and a local HTTP/3 server get
+  no connection and no packet. The check of the build plan takes only an App address whose
+  host has letters, digits, `.` and `-`, starts and ends with a letter or digit and has no
+  `..`, or is an IPv6 address in brackets, so the host adds no other entry to the bypass
+  list. `--host-resolver-rules` fails the lookup of each host name except 127.0.0.1 and
+  the app's host. The browser pauses each new window of the page, such as one of
+  `window.open` or of a form or link with `target="_blank"`, fails its first request and
+  closes it; the point then has the origin of that request. For a window with no request,
+  or with one to the app's origin, the point has the text "The app at <App address> opens
+  a new window during sign-in, and the run closed it: a run uses one window." An origin
+  that contains a typed value, in any case, is "another origin" in the point and the
+  finding. A `type` and a `press` act only on a page of the app's origin whose focus is in
+  no frame, and a `type` only when the focus is in the element of its target. The replay
+  gets only the variables that its setup types, and a setup that types a variable of qory
+  or of an agent, such as `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a token of a code
+  forge, such as `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the app starts.
+
+  With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
+  app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
+  `qory.start_artifacts`, as `run` does, and the demo scripts from the artifact folder of
+  the session, the store of the run, since the folder of the build plans holds only build
+  plans: of each name that `index.json` lists, the newest version that it counts, so a
+  version folder or a name that `index.json` does not list is not read. The output of the
+  serve command goes to `.reports/preflight/serve.log`, a new file in place of whatever was
+  at that path. After the check, also on a failure or a signal, the process group of the
+  command stops, and on Linux each process with the mark of the supervisor of `run`. The
+  runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
+  in the group kills the process group of the browser and then the group when the runner
+  ends, also on SIGKILL. The browser starts as
+  the leader of a new process group, and each stop of the browser kills that group, so a
+  child of the browser that stays in the group stops with it. A process that leaves
+  the group by `setsid` and removes the mark from its environment keeps running, as
+  `lib/supervise.cjs` states, and after a SIGKILL of the runner, so does every process that
+  left the group. The sign-ins stop after at most 570
+  seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
+  Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
+  points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
+  no build plan, a `serve` command with no address of the app or one whose host breaks the
+  host rule, no demo script, a demo script that cannot be read or breaks its format rules,
+  a demo script that types a key of qory or of an agent, or a check of the app that fails
+  or runs past its limit. With each of these exits 3, a line that starts with `Cause:`
+  contains the cause for the line that ends the run, as `running-checks` lists it; after a
+  check that did not finish, the session ends the run. The session then checks the points
+  with `check points` and ends: the end check sends them with the verdict `escalate`.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
@@ -2515,8 +2602,8 @@ writes before the session, set the base and the build plan that the checks use i
   commits; no entry for the checkout; an entry that is not a map with an absolute path and
   a full commit id; or a HEAD that does not descend from the commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
-  `run`, `probe`, `scope` and `freeze` use it as `--artifacts` when `--artifacts` is not
-  given; both, with different real paths, exit 3.
+  `run`, `probe`, `scope`, `freeze` and `preflight` use it as `--artifacts` when
+  `--artifacts` is not given; both, with different real paths, exit 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with
@@ -3047,7 +3134,7 @@ there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order m
 read the same file without it.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
-`scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js` and
-rule 9 with `node`, and exits 1 at
-its start with an instruction to install `node` when `node` is missing. These tests start
-no browser.
+`scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
+`scripts/preflight.test.js` and rule 9 with `node`, and exits 1 at its start with an
+instruction to install `node` when `node` is missing. Only the sign-in tests of
+`scripts/preflight.test.js` start a browser, and they skip when the machine has none.

@@ -1,12 +1,12 @@
 // The parts of the build plan that the check runners read: the Files of each deliverable, the
-// write scope of its step, and the command of each kind of check. They read the version of
-// build-plan that newest_version of the pulled index.json lists, never a draft and never a
-// version folder that index.json does not list. This stops a version folder that an agent
-// writes beside the pulled ones, such as build-plan/main/v9/, from changing a command or a
-// scope. In the artifact folder of the session, an agent can still rewrite index.json or a
-// pulled version. So a verb reads the plan from the folder of --artifacts, or of
-// qory.start_artifacts in inputs.json, when one is given: the build plans that qory pulled at
-// the start of the run (lib/start.cjs).
+// write scope of its step, the command of each kind of check, and the address of the app that
+// the preflight opens. They read the version of build-plan that newest_version of the pulled
+// index.json lists, never a draft and never a version folder that index.json does not list.
+// This stops a version folder that an agent writes beside the pulled ones, such as
+// build-plan/main/v9/, from changing a command or a scope. In the artifact folder of the
+// session, an agent can still rewrite index.json or a pulled version. So a verb reads the plan
+// from the folder of --artifacts, or of qory.start_artifacts in inputs.json, when one is
+// given: the build plans that qory pulled at the start of the run (lib/start.cjs).
 'use strict';
 
 const path = require('node:path');
@@ -48,6 +48,41 @@ module.exports = (lib) => {
     const code = /^`([^`]+)`$/.exec(cell.trim());
     return code ? code[1].trim() : cell.replace(/`/g, '').trim();
   };
+
+  // The line of the address of the app in ## Summary of the build plan, which the preflight
+  // opens: "App address: <url>", with the URL in backticks or not.
+  const ADDRESS = /^App address:(.*)$/;
+
+  // The host of an App address: letters, digits, . and -, starting and ending with a letter or
+  // digit, with no empty part between dots, or an IPv6 address in brackets. The browser of the
+  // preflight gets the host in --proxy-bypass-list, where a ; or a , would add an entry, a *
+  // would match other hosts, and a leading . would match each host under it, so a URL with
+  // another host is none.
+  const HOST = /^(?:(?!.*\.\.)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:.]+\])$/;
+
+  // appAddress returns { value, url, badHost } of the first line "App address:" of summary,
+  // the lines of ## Summary: value is the text after the colon, and url the http or https
+  // URL that it is, with a host that HOST matches, or null when it is none. badHost is true
+  // for an http or https URL whose host HOST does not match. value and url are null with no
+  // such line outside a code block.
+  function appAddress(summary) {
+    const line = summary.find((one) => !one.fenced && ADDRESS.test(one.text.trim()));
+    if (!line) return { value: null, url: null, badHost: false };
+    const value = ADDRESS.exec(line.text.trim())[1].trim();
+    const plain = value.replace(/^`([^`]*)`$/, '$1');
+    let url = null;
+    let badHost = false;
+    try {
+      const parsed = new URL(plain);
+      if (['http:', 'https:'].includes(parsed.protocol) && !/\s/.test(plain)) {
+        if (HOST.test(parsed.hostname)) url = parsed.href;
+        else badHost = true;
+      }
+    } catch {
+      // No URL: url stays null.
+    }
+    return { value, url, badHost };
+  }
 
   // sectionRows returns the rows of the first table of the ## section title of text, each an
   // object by the header's names, or throws when the table has another header.
@@ -105,7 +140,10 @@ module.exports = (lib) => {
     return { number, text: text.replace(/\r\n?/g, '\n') };
   }
 
-  // readPlan returns { version, deliverables, commands } of the newest pulled build plan:
+  // readPlan returns { version, address, badHost, deliverables, commands } of the newest
+  // pulled build plan: address is the URL of the line "App address:" of ## Summary, or null
+  // for none, and badHost is the value of that line when it has a URL whose host breaks
+  // HOST, or null;
   // each deliverable { id, change, criteria, files, problem }, where criteria has the ids of
   // the Criteria cell, and each command by its kind,
   // { command, resultFile, source }, with null for none. With none set, and a folder that
@@ -115,7 +153,14 @@ module.exports = (lib) => {
   function readPlan(io, { none = false } = {}) {
     const root = artifactFolder(io);
     const newest = pulled(root, io, none && io.pinned);
-    if (!newest) return { root, version: null, deliverables: [], commands: {}, none: true };
+    if (!newest) {
+      return { root, version: null, address: null, badHost: null, deliverables: [], commands: {},
+        none: true };
+    }
+    const summary = sections(lines(newest.text), 2).find((one) => one.title === 'Summary');
+    const found = appAddress(summary ? summary.lines : []);
+    const { url: address } = found;
+    const badHost = found.badHost ? found.value : null;
     const deliverables = sectionRows(newest.text, 'Deliverables',
       ['Id', 'Change', 'Criteria', 'Files', 'Check']).map((row) => {
       const files = filesCell(row.Files);
@@ -130,7 +175,7 @@ module.exports = (lib) => {
         command: none(row.Command), resultFile: none(row['Result file']), source: row.Source.trim(),
       };
     }
-    return { root, version: newest.number, deliverables, commands };
+    return { root, version: newest.number, address, badHost, deliverables, commands };
   }
 
   // STEP matches the id of a step of the build ledger that changes files.
@@ -192,5 +237,5 @@ module.exports = (lib) => {
     return work.changed.filter((file) => !(work.untracked.has(file) && results.has(file)));
   }
 
-  return { filesCell, covers, plainCell, readPlan, writeScope, changesOf, STEP };
+  return { filesCell, covers, plainCell, appAddress, readPlan, writeScope, changesOf, STEP };
 };

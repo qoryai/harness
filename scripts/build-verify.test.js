@@ -104,6 +104,8 @@ const PLAN = `## Summary
 
 The new support hours go into the saved reply in two deliverables.
 
+App address: \`http://localhost:3000/\`
+
 ## Deliverables
 
 | Id | Change | Criteria | Files | Check |
@@ -773,6 +775,43 @@ test('build-plan: each kind of command once, its source, and serve for a Demo cr
     /^Add the kind serve to ## Commands of build-plan.md\. A criterion is planned as Demo\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('The storefront has no linter.', ''))),
     /^Write in Source why lint has no command in build-plan.md\.$/);
+});
+
+test('build-plan: a plan with a serve row has the address of the app in its Summary', () => {
+  const ADDRESS = 'App address: `http://localhost:3000/`';
+  for (const value of ['`https://shop.example.com:8443/sign-in`', '`http://[::1]:3000/`']) {
+    passes(push(fixture(), 'build-plan', planFile(PLAN.replace(ADDRESS, `App address: ${value}`))),
+      'build-plan');
+  }
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(`${ADDRESS}\n`, ''))),
+    /^Add the line "App address: <url>" to ## Summary of build-plan.md\. The preflight opens the app there\. Write an http address in backticks: `http:\/\/localhost:3000\/`\.$/);
+  for (const value of ['localhost:3000', 'ftp://localhost/', '/sign-in', 'http://local host/',
+    '']) {
+    fails(push(fixture(), 'build-plan', planFile(PLAN.replace(ADDRESS, `App address: ${value}`))),
+      new RegExp('^Set the App address in ## Summary of build-plan.md to an http or https ' +
+        `URL\\. The value is "${value.replace(/[./]/g, '\\$&')}"\\.$`));
+  }
+  // A host other than letters, digits, . and -, starting and ending with a letter or digit
+  // and with no empty part between dots, or an IPv6 address in brackets, is none: the
+  // preflight gives the host to the browser in a list where ; and , separate entries.
+  for (const value of ['http://127.0.0.1;example.com:3000/', 'http://localhost,example.com:3000/',
+    'http://*.example.com:3000/', 'http://local%3Bhost:3000/', 'http://.example.test:3000/',
+    'http://example.test.:3000/', 'http://a..b:3000/']) {
+    fails(push(fixture(), 'build-plan', planFile(PLAN.replace(ADDRESS, `App address: ${value}`))),
+      new RegExp('^Set the App address host in ## Summary of build-plan.md to letters, digits, ' +
+        '\\. and -\\. The host starts and ends with a letter or digit and has no \\.\\., or is ' +
+        `an IPv6 address in brackets\\. The value is "${value.replace(/[.*/]/g, '\\$&')}"\\.$`));
+  }
+  // A line in a code block is no address, and a plan with no serve row needs none.
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(ADDRESS, `\`\`\`\n${ADDRESS}\n\`\`\``))),
+    /^Add the line "App address: <url>" to ## Summary of build-plan.md\./);
+  const noServe = push(fixture(), 'build-plan', planFile(PLAN.replace(`${ADDRESS}\n`, '')
+    .replace(/\| serve .*\n/, '')));
+  assert.ok(!noServe.lines.some((line) => /App address/.test(line)), noServe.out);
+  // A serve row with the command none starts no app, so it needs no address either.
+  const noCommand = push(fixture(), 'build-plan', planFile(PLAN.replace(`${ADDRESS}\n`, '')
+    .replace(/\| serve .*\n/, '| serve | none | none | The job has no screen. |\n')));
+  assert.ok(!noCommand.lines.some((line) => /App address/.test(line)), noCommand.out);
 });
 
 test('build-plan: a row for each of targeted, lint, types, build and full', () => {

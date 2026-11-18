@@ -2507,6 +2507,9 @@ expect "the build ledger's tests pass" 0 "$ROOT" node --test scripts/ledger.test
 expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
+# The tests of the preflight: the browser, the app of the serve command and the sign-in of
+# the demo scripts. The sign-in tests start a browser, and skip when the machine has none.
+expect "the preflight tests pass" 0 "$ROOT" node --test scripts/preflight.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the

@@ -38,8 +38,11 @@ const NETWORK_FLAGS = ['--no-proxy-server', '--host-resolver-rules=MAP * ~NOTFOU
 // of the run's image does not start without it, as the image's docs state. The pack refuses
 // every script in a page, and refusalOf blocks each request but the page itself, data: and
 // about:blank, so a page runs no script and loads nothing from outside.
+// --use-mock-keychain and --password-store=basic, because Chrome on macOS otherwise opens the
+// keychain and can show a dialog to the person at the screen.
 const FLAGS = [
   '--headless=new', '--hide-scrollbars', '--no-sandbox', '--remote-debugging-pipe', ...NETWORK_FLAGS,
+  '--use-mock-keychain', '--password-store=basic',
 ];
 
 // A browser ignores these at-rules, so a sheet with them has no effect and gives no error.
@@ -142,6 +145,23 @@ class Browser {
     };
     const args = [...FLAGS, `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
     this.proc = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env });
+    // A process that exits with the browser still running, as by process.exit, kills it and
+    // removes its temporary folder.
+    const kill = () => {
+      try {
+        this.proc.kill('SIGKILL');
+      } catch {
+        // The browser has ended.
+      }
+      try {
+        fs.rmSync(this.dir, { recursive: true, force: true });
+      } catch {
+        // A child of the browser can still write here.
+      }
+    };
+    process.once('exit', kill);
+    this.proc.once('exit', () => process.removeListener('exit', kill));
+    this.proc.once('error', () => process.removeListener('exit', kill));
     this.proc.stdout.on('data', (d) => { this.output += d; });
     this.proc.stderr.on('data', (d) => { this.output += d; });
     this.exited = new Promise((resolve) => {

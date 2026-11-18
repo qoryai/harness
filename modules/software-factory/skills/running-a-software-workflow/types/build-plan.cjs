@@ -1,10 +1,11 @@
 // The check of the type build-plan: build-plan.md, with the sections Summary, Deliverables and
 // Commands, checked against the criteria version that criteriaTarget of lib/build.cjs returns.
+// A plan with a serve row has the line "App address: <url>" in Summary (lib/plan.cjs).
 'use strict';
 
 module.exports = (lib) => {
   const {
-    brief, criterionList, filesCell, inOrder, liveCriteria, markdownText, plural, quote,
+    appAddress, brief, criterionList, filesCell, inOrder, liveCriteria, markdownText, plural, quote,
     sectionTable, sectionTitles, short, wrongWords,
   } = lib;
 
@@ -122,11 +123,13 @@ module.exports = (lib) => {
     }
   }
 
+  // commands checks ## Commands, and returns the kinds whose Command is not none.
   function commands(run, part, live) {
     const found = sectionTable(run, FILE, part, COMMAND_COLUMNS);
     if (!found) return;
     run.did('commands');
     const seen = new Set();
+    const given = new Set();
     for (const [kind = '', command = '', , source = ''] of found.rows) {
       const name = plainCell(kind);
       if (!KINDS.includes(name)) {
@@ -138,7 +141,10 @@ module.exports = (lib) => {
       seen.add(name);
       if (plainCell(command) === 'none') {
         if (!source.trim()) run.find(`Write in Source why ${name} has no command in ${FILE}.`);
-      } else if (!/^(?:repository|module): \S/.test(source) &&
+        continue;
+      }
+      given.add(name);
+      if (!/^(?:repository|module): \S/.test(source) &&
         !/^found: `?[^\s`]+:[1-9][0-9]*`?$/.test(source)) {
         run.find(`Write the Source of ${name} in ${FILE} in one of its three forms.\nThe forms ` +
           'are "repository: <file>", "module: <name>" and "found: <file>:<line>". The Source ' +
@@ -153,6 +159,26 @@ module.exports = (lib) => {
       !seen.has('serve')) {
       run.find(`Add the kind serve to ## Commands of ${FILE}.\nA criterion is planned as Demo.`);
     }
+    return given;
+  }
+
+  // address finds, in a plan with a serve command, no line "App address: <url>" in ## Summary,
+  // one whose value is no http or https URL, or one whose host breaks the host rule of
+  // lib/plan.cjs: the preflight opens the app at that address.
+  function address(run, part) {
+    run.did('app address');
+    const { value, url, badHost } = appAddress(part.lines);
+    if (value === null) {
+      run.find(`Add the line "App address: <url>" to ## Summary of ${FILE}.\nThe preflight ` +
+        'opens the app there. Write an http address in backticks: `http://localhost:3000/`.');
+    } else if (badHost) {
+      run.find(`Set the App address host in ## Summary of ${FILE} to letters, digits, . and -.` +
+        '\nThe host starts and ends with a letter or digit and has no .., or is an IPv6 ' +
+        `address in brackets. The value is ${short(value, 80)}.`);
+    } else if (!url) {
+      run.find(`Set the App address in ## Summary of ${FILE} to an http or https URL.\nThe ` +
+        `value is ${short(value, 80)}.`);
+    }
   }
 
   // buildPlan reads the criteria first: a finding of that read is the one finding, so that
@@ -165,7 +191,8 @@ module.exports = (lib) => {
     if (inOrder(run, FILE, parts, SECTIONS)) {
       const rows = deliverables(run, parts[1]);
       if (rows) criteria(run, rows, live);
-      commands(run, parts[2], live);
+      const kinds = commands(run, parts[2], live);
+      if (kinds && kinds.has('serve')) address(run, parts[0]);
       if (rows) run.note = plural(rows.length, 'deliverable');
     }
     markdownText(run, FILE, md);

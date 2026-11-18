@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault or prove the commits of a fast-track change, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe and prove of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault, prove the commits of a fast-track change or check the dev container before the first demo of the app, in the main session of a Build or Verify workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe, prove and preflight of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -25,11 +25,12 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.cjs probe <patch> targeted <path> [--inputs <path>]
     [--artifacts <folder>]
 <skill folder>/checks.cjs prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]
+<skill folder>/checks.cjs preflight [--inputs <path>] [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
 `/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
-`freeze` and `probe`. The script reads these from it:
+`freeze`, `probe` and `preflight`. The script reads these from it:
 
 - the time limits, when the file has them;
 - `qory.start_commits`, the commit of the checkout at the start of the run, which `scope`
@@ -87,15 +88,18 @@ the section "Diff and probe".
 
 ## When each check runs
 
-1. The agent that changes code runs `run targeted` with the paths of the test files of its
+1. In a Build workflow, the session runs `preflight` right before a scenario script runs
+   for the first time. In Verify, the session runs `preflight` first, before any film. See
+   the section "Preflight".
+2. The agent that changes code runs `run targeted` with the paths of the test files of its
    change, after each change, until they are green.
-2. After each agent of a step, the session runs `scope <step>`, then `run lint`,
+3. After each agent of a step, the session runs `scope <step>`, then `run lint`,
    `run types`, `run build` and `run targeted`, then `freeze <step>`.
-3. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and
+4. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and
    reads the file whose path the line prints.
-4. A reviewer that proves a planted fault writes the patch to a file in the artifact
+5. A reviewer that proves a planted fault writes the patch to a file in the artifact
    folder, then runs `probe <patch> targeted <path>`.
-5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
+6. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
 
 The full suite runs after the session, started by qory; a red or missing result reaches the
 next session as a finding.
@@ -130,6 +134,75 @@ the line starts with "Report to a member". `run locked` reads the lock from a st
 the agent can change, so its result is an early warning, as the result of `lock --verify`
 is in Build. Verify runs the locked checks that bind, on the clean checkout of the
 submitted commit.
+
+## Preflight
+
+`preflight` checks that the dev container has what a demo of the app needs, before the
+first demo:
+
+1. A browser: the first that exists of `/usr/bin/chromium`, `chromium`,
+   `chromium-browser`, `google-chrome` and `google-chrome-stable`, and that starts.
+2. The app: the `serve` command of the build plan starts it in the top folder of the
+   checkout, and its address returns a status below 500 within 120 seconds. The address is
+   the line `App address: <url>` in `## Summary` of the build plan, with an http address
+   in backticks, such as ``App address: `http://localhost:3000/` ``: the check of links
+   finds a bare http link. The host of the address has only letters, digits, `.` and `-`,
+   starts and ends with a letter or digit, and has no `..`; or it is an IPv6 address in
+   brackets. When another process already returns a response at the address, the app
+   counts as not started, and the command does not run. A command
+   that starts the app in the background and exits 0 works. The command gets no variable
+   of qory or of an agent, no token of a code forge, such as `QORY_RUN_KEY` or
+   `GITHUB_TOKEN`, and no variable that a demo script types, in a setup or a step, such as
+   `DEMO_PASSWORD`; of the names of qory, it gets only the mark `QORY_CHECK_MARK`. In a
+   walled run, a secret of the run reaches `preflight` only as a placeholder of the
+   gateway. In a walled run on Linux, the command can still read the environment of the
+   runner of the check in `/proc/$PPID/environ`.
+3. The sign-in: the setup of each demo script that types a variable passes in the browser,
+   with the values of the variables in the environment. The browser loads no page of
+   another origin than the app's address, in the tab or in a frame, whether an `open`, a
+   redirect, a link or a script starts the load: the load fails, and the sign-in fails
+   before its next action. The browser sends each other request to a host and port other
+   than the app's, such as a `fetch`, an image, a WebSocket or a request of a service
+   worker, to a proxy at port 9 of 127.0.0.1, where nothing listens, so the request
+   fails. In tests on Chrome 157 and Chromium 153, WebRTC sends no UDP packet and opens
+   no TCP connection to a TURN server, and WebTransport and HTTP/3 send no QUIC packet.
+   The lookup of each host name fails, except of 127.0.0.1 and the app's host. A new
+   window of the page closes before its first request, and the sign-in fails. A `type` or
+   `press` acts only on a page of the app's origin, and a `type` only when the focus is in
+   the element of its target. The replay gets only the variables that its setup types.
+
+`preflight` reads the demo scripts from the artifact folder of the session: of each name,
+the newest version that `index.json` counts. With no `serve` command in the build plan, it
+checks the browser alone. The output of the serve command is in
+`.reports/preflight/serve.log` of the artifact folder. After the check, the process group
+of the command stops, also when the check fails, stops on a signal, or `preflight` ends.
+On Linux, each process with the mark `QORY_CHECK_MARK` stops too, as in `run`. A process
+that leaves the group by `setsid` and removes the mark from its environment keeps
+running. After a SIGKILL of the runner of the check, the process groups of the command
+and of the browser stop, and every process that left them keeps running.
+
+For each missing part, `preflight` writes a point `run_again` with its fix to `points.json`
+of the artifact folder, and exits 1. Then change no code: run `check points` on
+`points.json`, and end the session. The end check sends the points with the verdict
+`escalate`, and a member reads in the fix line of each point what to change before the
+next round. A sign-in that loads a page of another origin, or opens a new window, writes
+such a point too. Its text contains that origin, or "another origin" when the origin
+contains a value that the sign-in typed. For a new window that sent no request to another
+origin, the text is "The app at <App address> opens a new window during sign-in, and the
+run closed it: a run uses one window."
+
+Exit 3 means that an input is missing or the check did not finish. The line of the output
+that starts with `Cause:` contains the cause, in the words of the line that ends the run,
+"The run stopped at the app check, because <cause>.":
+
+- "the build plan is missing", "the build plan has no App address", "the App address of
+  the build plan has a host other than letters, digits, . and -", "no demo script exists
+  for the app", "the run could not read version <N> of a demo script", "a demo script
+  breaks its format rules", or "a demo script types <NAME>, which the run keeps from
+  scripts": fix the input as the first line of the output states, then run `preflight`
+  again. If you cannot fix it, end the run with the line.
+- "the browser check did not finish: <reason>": the check of the app failed or ran past
+  its limit. End the run with the line.
 
 ## Red and green
 
@@ -203,15 +276,17 @@ Probe a test file that runs faster, or, for a limit under 60, raise
 ### The Bash timeout on Claude Code
 
 On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
-set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`
-and `probe` the timeout 3600000 ms. The script stops every command of a call 60 seconds
-before those 60 minutes, counted from the start of the script, so the call still writes its
-record and its red line. The commands of one call share that time: the reruns of
-`run targeted`, the two runs of `probe` and the checks of `run locked`. A locked check that
-the call has no time left for does not run, and is red: run fewer checks per call. Run the
-verb as the only command of the Bash call: the script counts the 60 minutes from the start
-of the script, so a command before it in the same call, such as `npm ci`, uses up the
-reserve.
+set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`,
+`probe` and `preflight` the timeout 3600000 ms. The Bash tool of Claude Code stops a command
+at 600 seconds, whatever its timeout, so `preflight` stops its sign-ins after at most 570
+seconds and ends within 585 seconds. In `run` and `probe`, the script stops every command
+of a call 60 seconds before those 60 minutes, counted from the start of the script, so the
+call still writes its record and its red line. The commands of one call share that time:
+the reruns of `run targeted`, the two runs of `probe` and the checks of `run locked`. A
+locked check that the call has no time left for does not run, and is red: run fewer checks
+per call. Run the verb as the only command of the Bash call: the script counts the 60
+minutes from the start of the script, so a command before it in the same call, such as
+`npm ci`, uses up the reserve.
 
 ## Scope
 
