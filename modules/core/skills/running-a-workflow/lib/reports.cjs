@@ -10,6 +10,7 @@ const {
 } = require('./base.cjs');
 const { FINDING_FIELD, changeLines } = require('./findings.cjs');
 const { fence, lines, sections } = require('./markdown.cjs');
+const { READ_HEADING, notesLines } = require('./notes.cjs');
 const { pointRules, pointText } = require('../types/points.cjs');
 
 // The "Blocked:" line that
@@ -191,7 +192,7 @@ function findingItems(all, shape) {
       continue;
     }
     if (shape.lists.includes(text) || text.startsWith('Blocked:') ||
-      shape.words.includes(text)) break;
+      shape.words.includes(text) || text === READ_HEADING) break;
     if (ITEM.test(text)) items.push([{ ...line, gap }]);
     else if (items.length) items[items.length - 1].push({ ...line, gap });
     gap = false;
@@ -251,7 +252,7 @@ function pointLines(all, shape, agent, agents, rules) {
 function listLines(list, at, heading, agent, shape) {
   const items = [];
   for (const line of list.slice(at + 1)) {
-    if (!line.trim()) break;
+    if (!line.trim() || line.trim() === READ_HEADING) break;
     if (/^\s*- /.test(line)) items.push(line.replace(/^\s*- /, '').trim());
     else if (items.length) items[items.length - 1] += ` ${line.trim()}`;
   }
@@ -323,8 +324,12 @@ function sizeLine(text, agent, shape) {
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
 // checks against agents, the agent names, and the rules that pointRules reads from registry,
 // the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines
-// checks the proofs, severities, judgements and closures.
-function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {}) {
+// checks the proofs, severities, judgements and closures. A report that is not blocked lists
+// each name of notes.names, the role notes of the starts of agent that count for the report,
+// under "Role notes read:", and the notes file of those starts has not changed, as notesLines
+// checks.
+function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {},
+  notes = { names: [], changed: [] }) {
   const size = sizeLine(text, agent, shape);
   const findings = size ? [size] : [];
   const all = lines(text);
@@ -398,6 +403,7 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
     const items = absent.has('Findings:') ? [] : findingItems(all, shape);
     findings.push(...changeLines(all, shape, agent, items, last));
   }
+  findings.push(...notesLines(all, notes, agent));
   for (const one of shape.records || []) {
     const error = one.check(text);
     if (error) {

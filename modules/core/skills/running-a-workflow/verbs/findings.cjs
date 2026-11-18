@@ -17,6 +17,7 @@ const {
   BREAK_PROOFS, FINDING_ID, PROOFS, SEVERITIES, proofForm, readClosed, readEarlier, readFindings,
 } = require('../lib/findings.cjs');
 const { lines } = require('../lib/markdown.cjs');
+const { markPassed, runKey, startNotes } = require('../lib/notes.cjs');
 const { agentNames } = require('../lib/plugin.cjs');
 const { expected, findingItems, reportCheck } = require('../lib/reports.cjs');
 
@@ -106,13 +107,16 @@ function reportOf(io, agent, file) {
   const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
+  const run = runKey(io, root);
+  const mine = { file: path.basename(real), sha256: sha256(text) };
   const problems = size > MAX_BYTES
     ? [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ${size} ` +
       'bytes.']
-    : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops);
+    : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops, undefined,
+      startNotes(root, run, agent, mine));
   const all = lines(text);
   const last = all.map((line) => line.text.trim()).filter(Boolean).pop() || '';
-  return { root, real, text, shape, problems, all, last };
+  return { root, real, text, shape, problems, all, last, run, mine };
 }
 
 // recorded returns the entry of reports for the same file, agent and bytes, if any: a report
@@ -120,6 +124,14 @@ function reportOf(io, agent, file) {
 function recorded(record, real, agent, text) {
   return record.reports.find((one) => one.file === path.basename(real) && one.agent === agent &&
     one.sha256 === sha256(text));
+}
+
+// passed adds the mark of a report that findings accepted, when status is 0, to the record of
+// the starts, as report does, and returns status.
+function passed(io, agent, report, status) {
+  if (status === 0) markPassed(io, report.root, report.run, agent, report.mine.file,
+    report.mine.sha256);
+  return status;
 }
 
 // add records the findings of the report of agent, a reviewer of round, and its judgements of
@@ -130,7 +142,8 @@ function add(io, round, agent, file) {
     throw new Missing(`Give ${short(agent)} the report of reviewing-changes.\nThe "Expected ` +
       `output" of ${agent} has no "Proof:" line in a finding.`);
   }
-  return locked(io, report.root, () => addLocked(io, round, agent, report));
+  return passed(io, agent, report,
+    locked(io, report.root, () => addLocked(io, round, agent, report)));
 }
 
 function addLocked(io, round, agent, report) {
@@ -276,7 +289,8 @@ function close(io, agent, file) {
     throw new Missing(`Add the list "Closed:" to the "Expected output" of ${short(agent)}.\n` +
       `findings close reads the list "Closed:" of the report of ${agent}.`);
   }
-  return locked(io, report.root, () => closeLocked(io, agent, report));
+  return passed(io, agent, report,
+    locked(io, report.root, () => closeLocked(io, agent, report)));
 }
 
 function closeLocked(io, agent, report) {

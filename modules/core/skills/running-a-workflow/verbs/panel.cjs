@@ -266,6 +266,7 @@ function panel(io, options) {
 }
 
 module.exports = {
+  changed,
   folderBytes,
   verbs: {
     panel: {

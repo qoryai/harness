@@ -5,8 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, Missing, NAME, folderOf, given, inside, plural, readFile,
+  MAX_BYTES, Missing, NAME, folderOf, given, inside, plural, readFile, sha256,
 } = require('../lib/base.cjs');
+const { markPassed, runKey, startNotes } = require('../lib/notes.cjs');
 const { agentNames } = require('../lib/plugin.cjs');
 const { REPORT_FIXES, expected, record, reportCheck } = require('../lib/reports.cjs');
 
@@ -27,11 +28,13 @@ function report(io, agent, file) {
   const shape = expected(io.plugin, agent, [io.plugin], io.registry().records);
   const size = fs.statSync(real).size;
   const text = readFile(real, file);
+  const run = runKey(io, root);
+  const mine = { file: path.basename(real), sha256: sha256(text) };
   const findings = size > MAX_BYTES
     ? [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ${size} ` +
       'bytes.']
     : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops,
-      io.registry());
+      io.registry(), startNotes(root, run, agent, mine));
   let checked = 'size, last word, lists and Blocked: line';
   if (size > MAX_BYTES) {
     checked = 'its size';
@@ -45,6 +48,7 @@ function report(io, agent, file) {
     checked = 'size, last word, lists, Blocked: line and closures';
   }
   const failed = record(io, root, agent, real, text, !findings.length);
+  if (!findings.length) markPassed(io, root, run, agent, mine.file, mine.sha256);
   let next = '';
   if (failed > REPORT_FIXES) {
     next = ` Start no fix: the report of ${agent} failed ${failed} checks in a row.`;
