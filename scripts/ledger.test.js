@@ -942,12 +942,12 @@ function criteriaFiles(call, texts) {
       versions: [{ id: 'av_bp1', number: 1, writer: { kind: 'run', run_id: 'run-1' } }] },
   ] };
   fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(index));
-  const rows = texts.map((text, n) => `| ac-${n + 1} | ${text} | Tests |`);
   const criteria = path.join(root, 'acceptance-criteria', 'main', 'v1');
   fs.mkdirSync(criteria, { recursive: true });
-  fs.writeFileSync(path.join(criteria, 'acceptance-criteria.md'), ['## Summary', '',
-    'What the shop needs.', '', '| Id | Criterion | Planned check |', '| --- | --- | --- |',
-    ...rows, ''].join('\n'));
+  fs.writeFileSync(path.join(criteria, 'acceptance-criteria.json'), JSON.stringify({
+    summary: 'What the shop needs.',
+    criteria: texts.map((text, n) => ({ id: `ac-${n + 1}`, text, check: 'Tests' })),
+  }, null, 2));
   const plan = path.join(root, 'build-plan', 'main', 'v1');
   fs.mkdirSync(plan, { recursive: true });
   fs.writeFileSync(path.join(plan, 'build-plan.md'),
