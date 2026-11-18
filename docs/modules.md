@@ -2415,18 +2415,18 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `--webrtc-ip-handling-policy=disable_non_proxied_udp`, WebRTC sends only through the
   proxy, so it sends no UDP packet. Chrome 157 ignores the older name of that flag,
   `--force-webrtc-ip-handling-policy`, and the browser gets both. `--host-resolver-rules`
-  fails the lookup of each host name except 127.0.0.1 and the app's host. The browser pauses each new window of the page,
-  such as one of `window.open` or of a form or link with `target="_blank"`, fails its first
-  request and closes it; the point then has the origin of that request. For a window with
-  no request, or with one to the app's origin, the point has the text "The app at <App
-  address> opens a new window during sign-in, and the run closed it: a run uses one
-  window." An origin that contains a typed value, in any case, is "another origin" in the
-  point and the finding. A
-  `type` and a `press` act only on a page of the app's origin whose focus is in no frame,
-  and a `type` only when the focus is in the element of its target. The replay gets only
-  the variables that its setup types, and a setup that types a variable of qory or of an
-  agent, such as `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a token of a code forge, such
-  as `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the app starts.
+  fails the lookup of each host name except 127.0.0.1 and the app's host. The browser
+  pauses each new window of the page, such as one of `window.open` or of a form or link
+  with `target="_blank"`, fails its first request and closes it; the point then has the
+  origin of that request. For a window with no request, or with one to the app's origin,
+  the point has the text "The app at <App address> opens a new window during sign-in, and
+  the run closed it: a run uses one window." An origin that contains a typed value, in any
+  case, is "another origin" in the point and the finding. A `type` and a `press` act only
+  on a page of the app's origin whose focus is in no frame, and a `type` only when the
+  focus is in the element of its target. The replay gets only the variables that its setup
+  types, and a setup that types a variable of qory or of an agent, such as `QORY_RUN_KEY`
+  or `ANTHROPIC_API_KEY`, or a token of a code forge, such as `GITLAB_TOKEN` or
+  `BITBUCKET_TOKEN`, exits 3 before the app starts.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
