@@ -260,18 +260,11 @@ module.exports = (lib) => {
   }
 
   // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
-  // the store, or null when the store has no folder of that version. A folder with no such
-  // file, such as one with only the acceptance-criteria.md of the earlier format, throws
-  // Missing with the line of Context.newest: pull the artifacts again.
+  // the store, or null when the store has no such file.
   function criteriaFile(context, number) {
-    const dir = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`);
-    const file = path.join(dir, 'acceptance-criteria.json');
-    if (fs.existsSync(file)) return file;
-    if (fs.existsSync(dir)) {
-      throw new Missing('Pull the artifacts again.\n' +
-        `acceptance-criteria/main/v${number} has no acceptance-criteria.json.`);
-    }
-    return null;
+    const file = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`,
+      'acceptance-criteria.json');
+    return fs.existsSync(file) ? file : null;
   }
 
   // newestCriteria returns the number of the newest criteria version in index.json that no

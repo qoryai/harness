@@ -1014,24 +1014,6 @@ test('ledger: the point of the full ledger names the criteria that are not built
     fix: POINT.fix }]);
 });
 
-test('ledger: the point of the full ledger stops on a stored Markdown criteria version', () => {
-  // A version folder with only the acceptance-criteria.md of the earlier format gives the line
-  // to pull, and no point. Step begin still refuses row 101, so it exits 1, as for any point
-  // that cannot be written.
-  const w = work();
-  store(w, fullLedger(w));
-  const call = resumed(w);
-  criteriaFiles(call, ['Orders export as CSV.']);
-  const dir = path.join(call.artifacts, 'acceptance-criteria', 'main', 'v1');
-  fs.rmSync(path.join(dir, 'acceptance-criteria.json'));
-  fs.writeFileSync(path.join(dir, 'acceptance-criteria.md'), '## Summary\n\nA table.\n');
-  const result = begin(call, w, 'plan');
-  assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines, ['Pull the artifacts again.',
-    '  acceptance-criteria/main/v1 has no acceptance-criteria.json.', FULL], result.out);
-  assert.equal(fs.existsSync(path.join(call.artifacts, 'points.json')), false);
-});
-
 // The check of a point refuses a file name of a run in its text, so the point leaves out a
 // criterion whose first sentence contains one, also a script name that ends in .cjs.
 test('ledger: the point of the full ledger leaves out a criterion with a file name', () => {

@@ -214,8 +214,7 @@ module.exports = (lib) => {
   }
 
   // targetCriteria returns the live criteria of the version that criteriaTarget returns, or
-  // null when there is none or its file cannot be read. A version folder with no
-  // acceptance-criteria.json throws Missing, as criteriaFile does.
+  // null when there is none or its file cannot be read.
   function targetCriteria(context) {
     const target = lib.criteriaTarget(context, 'the build plan');
     if (target === null) return null;
@@ -268,7 +267,6 @@ module.exports = (lib) => {
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
     }
-    // A stored criteria version with no acceptance-criteria.json stops with the line to pull.
     if (context) live = targetCriteria(context);
     try {
       plan = planned(io);

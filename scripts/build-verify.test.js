@@ -2585,27 +2585,6 @@ test('build-plan, verification and explainer: no criteria version in index.json'
   }
 });
 
-test('build-plan, verification, explainer and acceptance-lock: a stored Markdown version', () => {
-  // A version folder with only the acceptance-criteria.md of the earlier format exits 3 with
-  // the line to pull, as a version folder that lacks its file does for Context.newest.
-  const markdown = () => {
-    const folder = explained();
-    const dir = path.join(folder, 'acceptance-criteria', 'main', 'v1');
-    fs.rmSync(path.join(dir, 'acceptance-criteria.json'));
-    fs.writeFileSync(path.join(dir, 'acceptance-criteria.md'), '## Summary\n\nA table.\n');
-    return folder;
-  };
-  const lines = [...READERS, ['acceptance-lock', lockFile(LOCK_DOC)]];
-  for (const mode of [check, push]) {
-    for (const [type, file] of lines) {
-      const result = mode(markdown(), type, file);
-      assert.equal(result.status, 3, result.out);
-      assert.deepEqual(result.lines.slice(0, 2), ['Pull the artifacts again.',
-        '  acceptance-criteria/main/v1 has no acceptance-criteria.json.'], result.out);
-    }
-  }
-});
-
 test('build-plan, verification and explainer: no approved criteria version', () => {
   // With no approval there is no target, also when a person stored version 1 and a run
   // stored version 2: no version is read in place of the target.
