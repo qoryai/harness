@@ -76,8 +76,11 @@ function aboutCheck(run, which, question, earlier, readable) {
   const output = isObject(about) && !('work_item' in about) &&
     typeof about.type === 'string' && typeof about.name === 'string';
   if (!workItem && !output) {
-    // JSON text escapes each control character; the refused characters are removed.
-    const value = short(JSON.stringify(about).replace(REFUSED_ALL, ''), 60);
+    // A list or an object shows as its kind, so that no value of any depth is walked. JSON
+    // text escapes each control character; the refused characters are removed.
+    const value = about !== null && typeof about === 'object'
+      ? jsonKind(about)
+      : short(JSON.stringify(about).replace(REFUSED_ALL, ''), 60);
     run.find(`Write about of ${who} in one of its two forms.\nIt is ${value}.\n${ABOUT_FORMS}`);
     return;
   }
@@ -346,17 +349,29 @@ function outputForm(run, which, about) {
 }
 
 // sameJson compares two JSON values: objects by their members in any order, and numbers by value,
-// as JSON.parse already reads 3.0 as 3.
+// as JSON.parse already reads 3.0 as 3. It walks with a list in place of recursion, so that a
+// value of any depth gives an answer and no stack overflow.
 function sameJson(a, b) {
-  if (a === b) return true;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length &&
-      a.every((item, place) => sameJson(item, b[place]));
+  const open = [[a, b]];
+  while (open.length) {
+    const [one, other] = open.pop();
+    if (one === other) continue;
+    if (Array.isArray(one) || Array.isArray(other)) {
+      if (!Array.isArray(one) || !Array.isArray(other) || one.length !== other.length) {
+        return false;
+      }
+      one.forEach((item, place) => open.push([item, other[place]]));
+      continue;
+    }
+    if (!isObject(one) || !isObject(other)) return false;
+    const keys = Object.keys(one);
+    if (keys.length !== Object.keys(other).length) return false;
+    for (const key of keys) {
+      if (!Object.hasOwn(other, key)) return false;
+      open.push([one[key], other[key]]);
+    }
   }
-  if (!isObject(a) || !isObject(b)) return false;
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length &&
-    keys.every((key) => Object.hasOwn(b, key) && sameJson(a[key], b[key]));
+  return true;
 }
 
 // newQuestion checks the state of a question that the newest questions do not have:

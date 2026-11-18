@@ -3966,13 +3966,31 @@ test('questions: each question has an about of one of its two forms', () => {
   assert.ok(about);
   exactly(add(none), 'Add about to q7: {"work_item": true}, or the type and name of an ' +
     'output.\n  q7 has no about.');
-  for (const [form, shown] of [[{ work_item: false }, '{"work_item":false}'],
-    [{ type: 'spec' }, '{"type":"spec"}'], ['the work item', '"the work item"'], [3, '3'],
-    [null, 'null']]) {
+  // A list or an object shows as its kind, and a scalar as its JSON.
+  for (const [form, shown] of [[{ work_item: false }, 'an object'], [{ type: 'spec' }, 'an object'],
+    [['work_item'], 'a list'], ['the work item', '"the work item"'], [3, '3'], [null, 'null']]) {
     exactly(add(q7({ about: form })), 'Write about of q7 in one of its two forms.\n  It is ' +
       `${shown}.\n  The forms are {"work_item": true}, and {"type": ..., "name": ...} with an ` +
       'optional "item".');
   }
+});
+
+test('questions: an about of 10,000 levels gets its finding with no stack overflow', () => {
+  const deep = `${'['.repeat(10000)}${']'.repeat(10000)}`;
+  const deepened = (data) => JSON.stringify(data).replace('"DEEP"', deep);
+  exactly(questionsAfter((byId, data) => {
+    data.questions.push(q7({ about: 'DEEP' }));
+    return deepened(data);
+  }), 'Write about of q7 in one of its two forms.\n  It is a list.\n  The forms are ' +
+    '{"work_item": true}, and {"type": ..., "name": ...} with an optional "item".');
+  // An item of 10,000 levels that the newest questions have too is the same about.
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.find((question) => question.id === 'q2').about =
+    { type: 'mockup', name: 'main', item: 'DEEP' };
+  version(root, 'questions', 2, 'questions.json', deepened(data));
+  write(root, 'questions.json', deepened(data));
+  passes(push(root, 'questions'));
 });
 
 test('questions: an output about has only type, name and item, in the forms of the format', () => {
