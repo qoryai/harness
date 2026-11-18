@@ -605,9 +605,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   nothing more. It sends each other request to a host and port other than the app's, such
   as a `fetch`, an image, a WebSocket or a request of a service worker, to a proxy at port 9
   of 127.0.0.1, where nothing listens, and it closes each new window before its first
-  request, which also writes the point. An origin in the point that contains a typed value is written as
-  "another origin". A `type` acts only on the app's origin, with the focus in the element
-  of its target. The replay gets only the variables that its setup types, and a setup that
+  request, which also writes the point. An origin in the point that contains a typed
+  value is written as "another origin". A `type` acts only on the app's origin, with the
+  focus in the element of its target. The replay gets only the variables that its setup types, and a setup that
   types a variable of qory or of an agent, or a token of a code forge such as
   `GITLAB_TOKEN`, exits 3. After the check, also on a failure, a signal or the end of
   `preflight`, the process group of the serve command stops, and on Linux each process
