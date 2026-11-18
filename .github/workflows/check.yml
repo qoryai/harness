@@ -26,9 +26,9 @@ jobs:
       # modules/software-factory/process.yaml, has no `--points` on
       # `qory run verdict escalate`, which the workflow skills run, has no `--track` on
       # `qory run verdict`, which the Explore session runs, and has no `fix` on a point of a
-      # verdict. This commit, the head of qory's 544-build-verify branch after
-      # qoryai/qory#127, not main, has all six, and its middle model tier is `balanced`, the
-      # tier of modules/software-factory/agents/code-explorer.md. It also has the contract's
+      # verdict. This commit, the merge of qoryai/qory#127 into qory's 544-build-verify
+      # branch, not main, has all six, and its middle model tier is `balanced`, the tier of
+      # modules/software-factory/agents/code-explorer.md. It also has the contract's
       # acceptance criteria and verification formats and `about` on each question, which
       # modules/software-factory/process.yaml and the questions check follow. Move to a
       # release when one has them.

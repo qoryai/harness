@@ -82,7 +82,8 @@ artifact_types:
     base_view: structured
     size_limit: 65536
     max_files: 1
-    # The same JSON Schema is in running-a-software-workflow/schemas/acceptance-criteria.schema.json.
+    # The same JSON Schema is in
+    # running-a-software-workflow/schemas/acceptance-criteria.schema.json.
     json_schema:
       {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

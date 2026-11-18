@@ -56,11 +56,11 @@ function outputs(context, types) {
 }
 
 // aboutCheck checks about of question, which in a new question, or one whose about differs from
-// earlier, the same question in the newest questions, names the work item or an output that the
-// run can read, as readable returns it. Its item has the form and is one of the ids of the
-// reader of the type's items, from the registry; for a type with no reader, the item is 1 to 32
-// characters on one line, as qory's questions format requires. A question with an option that
-// has a proposal has an output with an item as about, as the format also requires:
+// earlier, the same question in the newest questions, is set to the work item or to an output
+// that the run can read, as readable returns it. Its item has the form and is one of the ids
+// of the reader of the type's items, from the registry; for a type with no reader, the item is
+// 1 to 32 characters on one line, as qory's questions format requires. A question with an
+// option that has a proposal has an output with an item as about, as the format also requires:
 // writing-questions (SKILL.md:80-84: "for an output"), and
 // writing-questions (SKILL.md:176-177: "has a question with no `about`").
 function aboutCheck(run, which, question, earlier, readable) {
@@ -137,7 +137,7 @@ function questionsCheck(run, files) {
   }, 0);
   const places = new Map(list.map((entry, place) => [entry, place]));
   const seen = new Set();
-  // What the run can read, read once, and only when an about names an output.
+  // What the run can read, read once, and only when an about is set to an output.
   let read = null;
   const readable = () => {
     if (!read) {

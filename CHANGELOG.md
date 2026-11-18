@@ -390,8 +390,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or the
   `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, has
-  `qory run verdict --track`, or has `fix` on a point. The pin is `0e02282`, qory's commit
-  after qoryai/qory#127.
+  `qory run verdict --track`, or has `fix` on a point. The pin is `0e02282`, the merge
+  of qoryai/qory#127.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -671,7 +671,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Every question of `questions.json` has `about`, as qory's questions format requires:
   `{"work_item": true}`, or an output as `type` and `name`, with `item` for one entry of it,
   such as a criterion id. `questions-writer` sets it by `writing-questions`. The questions
-  check refuses a question with no `about`, and a new or changed `about` that names an
+  check refuses a question with no `about`, and a new or changed `about` that is set to an
   output that the run cannot read. A module adds a reader of the ids of a type as `items`;
   `running-a-software-workflow` adds one for the acceptance criteria, so the check refuses
   an `item` that the criteria do not have. An `item` of any other type is 1 to 32
@@ -686,15 +686,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The schema check of `running-a-software-workflow` applies `uniqueItems`, which the
   verification format uses, shows a pattern's control characters as escapes, and writes
   "at least 1 entry" in place of "at least 1 entries".
-- `.github/workflows/check.yml` builds qory at `0e02282`, qory's commit after
+- `.github/workflows/check.yml` builds qory at `0e02282`, the merge of
   qoryai/qory#127, which has the acceptance criteria and verification formats and `about`
   on each question, in place of `1deb56e`.
 - The middle model tier is `balanced` in place of `fast`, qory's name for it.
   qory at `0e02282` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the
   tier `light`, `balanced` or `thinking`, and rule 3 of `scripts/check.sh` fails on
-  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `0e02282`, qory's commit
-  after qoryai/qory#127, in place of `91f02f0`.
+  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `0e02282`, the merge
+  of qoryai/qory#127, in place of `91f02f0`.
 - Each script of `core` and `software-factory` ends in `.cjs` in place of `.js`: the
   hooks, `checks.cjs` with `lib/`, `verbs/` and `types/`, `versions.cjs`, `push-check.cjs`,
   `workflow-checks.cjs` with its files, and the scripts of `designing-mockups`. Node loads a
@@ -801,13 +801,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The explainer of `software-factory` shows a criterion as its id and its text in quotes,
   such as `AC-1, "Export saves a CSV file"`, in each criterion heading; the check reads the
   id in any case. The Criteria cell of a build plan lists each criterion in that form too,
-  with `; ` between them, and the check refuses an id with no text in quotes, such as
-  `ac-1, ac-2`. The checks of the build plan, the verification and the explainer refuse a
-  text in quotes beside an id that is not the criterion's first sentence in the criteria
-  version that they read: in a Criteria cell, in an explainer heading, and in each
-  `evidence` and `reason` of `verification.json`. The comparison ignores backticks, runs of spaces and one `.`, `!` or
-  `?` at the end of the quote. The finding starts with the fix and gives the words, or,
-  when the line would have more than 200 characters, points to the criterion.
+  with `; ` between them, and the check refuses an id with no text in quotes, such as `ac-1,
+  ac-2`. The checks of the build plan, the verification and the explainer refuse a text in
+  quotes beside an id that is not the criterion's first sentence in the criteria version
+  that they read: in a Criteria cell, in an explainer heading, and in each `evidence` and
+  `reason` of `verification.json`. The comparison ignores backticks, runs of spaces and one
+  `.`, `!` or `?` at the end of the quote. The finding starts with the fix and gives the
+  words, or, when the line would have more than 200 characters, points to the criterion.
 - Each stop on the spec ends with the change after a colon, such as
   `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
   rows`, and the session copies the change into the point.

@@ -47,27 +47,27 @@ For the writer before it reports, and for a reviewer:
 When you review, the run gives you the lines of its checks script under "Checks:", as
 `reviewing-drafts` lists. In `questions.json`, the script checks that each id is there once
 and that `follows` lists only questions before it. It checks that a decided question has 2
-to 4 options, none with `recommended`, and a `decision`, and that each `decision.option`
-and `answer.option` is the title of an option. It checks that a new question is `open`
-with no `decision`, or `decided` with `decision.run` equal to `asked.run`. Against the
-newest questions, it checks that no question that exists became `decided` or had its
-`decision` added, changed or removed, that a question with a `decision` kept its
-`question` and `options`, and that a question that stayed answered or decided kept its
-`context`. In a new question, it checks that `question` is one sentence of 1 to 500
-characters with no Markdown, that each `title` has 1 to 200 characters, each `explanation`
-1 to 2000 and `context` 1 to 20000, that `context` has at most 120 words and each
-`explanation` at most 2 sentences, and that a new decided question's id is above every id
-of the newest questions. It checks that a new open question has a `context`, that a new
-question has an `options` list, and that no id of an item, such as `q4`, or `step-2` when a
-module gives that prefix, stands with no words in quotes beside it in a new question's
-texts. It checks that each question has an `about`, and that a new or changed `about`
-names the work item or an output that the run can read. An `item` is an id that the output
-has when a module reads the ids of its type, else 1 to 32 characters on one line. A
-question with an option that has a `proposal` needs an output and its `item`. It checks the
-characters of each text and the links of each `context`. Judge the rest of the check list.
+to 4 options, none with `recommended`, and a `decision`, and that each `decision.option` and
+`answer.option` is the title of an option. It checks that a new question is `open` with no
+`decision`, or `decided` with `decision.run` equal to `asked.run`. Against the newest
+questions, it checks that no question that exists became `decided` or had its `decision`
+added, changed or removed, that a question with a `decision` kept its `question` and
+`options`, and that a question that stayed answered or decided kept its `context`. In a new
+question, it checks that `question` is one sentence of 1 to 500 characters with no Markdown,
+that each `title` has 1 to 200 characters, each `explanation` 1 to 2000 and `context` 1 to
+20000, that `context` has at most 120 words and each `explanation` at most 2 sentences, and
+that a new decided question's id is above every id of the newest questions. It checks that a
+new open question has a `context`, that a new question has an `options` list, and that no id
+of an item, such as `q4`, or `step-2` when a module gives that prefix, stands with no words
+in quotes beside it in a new question's texts. It checks that each question has an `about`,
+and that a new or changed `about` is set to the work item or to an output that the run can
+read. An `item` is an id that the output has when a module reads the ids of its type, else 1
+to 32 characters on one line. A question with an option that has a `proposal` needs an
+output and its `item`. It checks the characters of each text and the links of each
+`context`. Judge the rest of the check list.
 
-- Each `about` names what the question is about: the output and its entry when the question
-  concerns one, else the work item.
+- Each `about` is set to what the question is about: the output and its entry when the
+  question concerns one, else the work item.
 - Each new open or reopened question is one only a person can answer: nothing in the input
   file, the newest artifacts or the target's files settles it, and by the rule "Decide or
   ask" of `writing-questions`, a person must answer it.
