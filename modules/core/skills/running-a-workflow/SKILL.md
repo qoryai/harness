@@ -41,8 +41,8 @@ unchanged, and a writer the lists of its newest report and the findings you quot
 reviewer paths and values, never a summary or your reasoning.
 
 Pass each agent at each start the limit of its report: at most about 2,000 tokens, counted
-as 8,000 bytes, not counting a list "Files:" of the files it wrote. A longer report fails
-the report check, as "Check each report" lists.
+as 8,000 bytes. Only the list "Files:" with one path per line, each item `- <path>`, is
+left out. A longer report fails the report check, as "Check each report" lists.
 
 Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
 as the id of the run's stage, because the first round of a stage lasts until a person
@@ -386,10 +386,11 @@ that agent's reports in this run from 1. Then run `checks.cjs report <agent> <th
 It checks the size, the last word, each list that the agent's "Expected output" requires,
 that a "Blocked:" line that starts with `needs` is one that "Failures" or another skill of
 your workflow lists, and each finding's `Point:` line of a reviewer. The size is at most
-about 2,000 tokens, counted as 8,000 bytes, not counting a list "Files:". A report above
-256 KB gets only the finding on its size. The last word is the last line that is only one
-of the agent's last words, with no indent, and with a blank line or the end of the report
-after it. A line in a code block is no last word.
+about 2,000 tokens, counted as 8,000 bytes. Only the list "Files:" with one path per line,
+each item `- <path>`, is left out. A report above 256 KB gets only the finding on its size.
+The last word is the last line that is only one of the agent's last words, with no indent,
+and with a blank line or the end of the report after it. A line in a code block is no last
+word.
 
 With 1, fix the report: when the script's last line ends with "fix 1 of 2." or "fix 2 of
 2.", start the same agent again with the input it got, the path of its report and every

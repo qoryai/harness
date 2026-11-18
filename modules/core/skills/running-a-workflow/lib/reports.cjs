@@ -277,13 +277,16 @@ const REPORT_TOKENS = 2000;
 const headingAt = (all, heading) => all.findIndex((line) => !line.fenced &&
   line.text.trim() === heading);
 
-// A line under "Files:" that is one path item, and so does not count toward REPORT_TOKENS.
-const PATH_ITEM = /^\s*- \S+$/;
+// A line under "Files:" that is one path item, "- " and 1 to 255 characters with no space,
+// counted by code point, and so does not count toward REPORT_TOKENS. A longer item is another
+// line: it counts, and it ends the list.
+const PATH_ITEM = /^\s*- \S{1,255}$/u;
 
 // reportBytes returns the bytes of text, a report of shape, that count toward REPORT_TOKENS:
 // all but the list "Files:", the files that a writer wrote, when shape has that list. The
 // list is its heading, as headingAt finds it, and the lines directly under it that are one
-// path item each, up to the first other line. Each counts with its line ending, LF or CRLF.
+// path item each, as PATH_ITEM matches them, up to the first other line. Each counts with its
+// line ending, LF or CRLF.
 function reportBytes(text, shape) {
   const all = lines(text);
   const at = shape.lists.includes('Files:') ? headingAt(all, 'Files:') : -1;

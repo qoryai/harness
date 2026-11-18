@@ -2426,6 +2426,14 @@ test('report: only the path items directly under "Files:" are left out of the si
   const code = '```text\nspec.md\n```\n';
   fails(report(read(8000).replace('- spec.md\n', `- spec.md\n${code}`), 'spec-writer'),
     over(8000 + Buffer.byteLength(code)));
+  // A path item of at most 255 characters after "- " is left out. A longer one counts, and it
+  // ends the list, so the "- spec.md" after it counts too.
+  const long = (size, length) => read(size).replace('- spec.md',
+    `- ${'p'.repeat(length)}\n- spec.md`);
+  passes(report(long(8000, 255), 'spec-writer'));
+  fails(report(long(8001, 255), 'spec-writer'), over(8001));
+  fails(report(long(8000, 256), 'spec-writer'),
+    over(8000 + Buffer.byteLength(`- ${'p'.repeat(256)}\n- spec.md\n`)));
   // A blocked report of a writer counts its "Blocked:" line, also right after "Files:".
   const blocked = (size) => {
     const start = 'What you read:\n- a\n\nFiles:\n- spec.md\nBlocked: ';

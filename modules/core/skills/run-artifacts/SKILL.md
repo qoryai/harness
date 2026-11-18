@@ -14,7 +14,8 @@ An agent that a run started runs no pull and no `<qory> work-item show`. It read
 artifact folder that the run gave it, and takes the run's number from the run. Every rule
 below on a command that stores something does not apply to it: it runs no such command. It
 writes only the files that its section `## Guardrails` lists. Its report has at most about
-2,000 tokens, counted as 8,000 bytes, not counting a list "Files:" of the files it wrote.
+2,000 tokens, counted as 8,000 bytes. Only the list "Files:" of the files it wrote, with one
+path per line, each item `- <path>`, is left out.
 
 ## The run
 

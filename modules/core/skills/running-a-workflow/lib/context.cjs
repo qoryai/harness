@@ -45,7 +45,7 @@ class Context {
   }
 
   // checkIndex refuses an index.json that contradicts itself, because the checks of ids rest on it:
-  // run-artifacts (SKILL.md:74-76: "`index.json` lists every version") lists every version in it,
+  // run-artifacts (SKILL.md:75-77: "`index.json` lists every version") lists every version in it,
   // and the newest version is the largest number.
   checkIndex() {
     const ids = new Set();
