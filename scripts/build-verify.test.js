@@ -663,11 +663,18 @@ test('each finding of the schema check has the member and the fix of its keyword
 
 test('the pointer of the depth finding escapes each key, and adds no line or reversal', () => {
   const lists = `${'['.repeat(65)}${']'.repeat(65)}`;
-  // A bidirectional mark, a line feed, a / and a ~ in the keys of a file 68 levels deep.
-  const doc = JSON.parse(`{"\\u202e": {"a\\nb/c~d": {"e": ${lists}}}}`);
+  // Keys short enough that the cut pointer keeps each escape: U+202E and "~/" at the start,
+  // and a key with a line feed as the last member, 65 levels deep.
+  const doc = JSON.parse(`{"\\u202e": {"~/": ${'['.repeat(61)}{"x\\ny": []}${']'.repeat(61)}}}`);
   const found = schema.errors(schema.load('verification'), doc, 'verification.json');
   assert.deepEqual(found, ['Cut the nesting of verification.json to 64 levels.\nThe list at ' +
-    '/\\u202e/a\\nb~.../0/0/0/0/0/0 is 65 levels deep.']);
+    '/\\u202e/~0~1/...0/0/0/0/x\\ny is 65 levels deep.']);
+  const pointer = found[0].split('\n')[1];
+  // ~ is ~0 and / is ~1, as JSON Pointer escapes them; U+202E and the line feed are their
+  // escapes as text, a backslash and letters.
+  assert.ok(pointer.includes('/~0~1/'), pointer);
+  assert.ok(pointer.includes('/\\u202e/'), pointer);
+  assert.ok(pointer.includes('/x\\ny '), pointer);
   assert.equal(found[0].split('\n').length, 2);
   assert.ok(!found[0].includes('\u202e'));
   // A key that looks like an integer comes first, from the lowest, as Object.keys takes it.

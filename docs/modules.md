@@ -1663,7 +1663,8 @@ find:
   an escape such as `\u00e9` counts its 6 bytes; and a row of the newest version removed or
   changed, but `replays`, and on a `running` row the members that `step end` sets. Its file
   may have up to 1 MiB, the size limit of the type, where every other draft has at most
-  256 KB;
+  256 KB. A newest version nested deeper than 64 levels exits 3 with "Report to a member:
+  build-ledger version <N> nests deeper than 64 levels.", before its rows are compared;
 - `acceptance-lock`: any lock when `index.json` has no approved criteria version, with the
   one line "Ask a member to approve the acceptance criteria, then lock the checks: no
   version is approved.", also when a person stored a criteria version, because a person's

@@ -715,7 +715,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   than 64 levels deep, before any other step of the check, with the JSON pointer of the
   first list or object past that depth: "Cut the nesting of verification.json to 64
   levels." The deepest schema needs 5 levels, and a file of any depth gets this finding
-  with no stack overflow.
+  with no stack overflow. A stored `build-ledger` version nested deeper than 64 levels
+  exits 3 with "Report to a member: build-ledger version <N> nests deeper than 64 levels.".
 - Every question of `questions.json` has `about`, as qory's questions format requires:
   `{"work_item": true}`, or an output as `type` and `name`, with `item` for one entry of it,
   such as a criterion id. `questions-writer` sets it by `writing-questions`. The questions
