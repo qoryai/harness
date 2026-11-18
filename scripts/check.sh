@@ -264,6 +264,13 @@ rule_tools() {
 			printf '%s\n' "$agent_text" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
 				add "Remove $tool from the tools key of $file, or add the line 'Tool exception: $tool, because <reason>' to its body."
 		done
+		# The tool guard matches the agent_type of a call, which is the name in the front matter,
+		# so an agent that lists Write has the name of its file.
+		if printf '%s\n' "$tools" | grep -Eq '(^|[^[:alnum:]_])Write([^[:alnum:]_]|$)'; then
+			agent_name=$(front_matter "$file" | awk "$NAME_AWK")
+			[ "$agent_name" = "$(basename "$file" .md)" ] ||
+				add "Set name: $(basename "$file" .md) in the front matter of $file: an agent that lists Write has the name of its file, and the tool guard reads that name."
+		fi
 		for tool in Agent NotebookEdit MultiEdit; do
 			printf '%s\n' "$tools" |
 				grep -Eq "(^|[^[:alnum:]_])$tool([^[:alnum:]_]|\$)" &&
@@ -1561,10 +1568,10 @@ for bad_name in sample-reviewer spec-reviewer code-reviewer code-explorer shape-
 	fixture
 	good_agent >"$FIX/$bad_file"
 	expect_passes "rule 2 passes on the four read tools in $bad_name" rule_tools "$FIX"
-	good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
+	good_agent | sed -e "s/^name: .*/name: $bad_name/" -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
 	printf '\nTool exception: Write, because the role needs it.\n' >>"$FIX/$bad_file"
 	expect_broken "rule 2 fails on Write in $bad_name, also with an exception" "Remove Write" rule_tools "$FIX"
-	good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
+	good_agent | sed -e "s/^name: .*/name: $bad_name/" -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
 	printf '\n%s\n' "$REVIEWER_EXCEPTION" >>"$FIX/$bad_file"
 	case $bad_name in
 	*-reviewer)
@@ -1578,29 +1585,40 @@ for bad_name in sample-reviewer spec-reviewer code-reviewer code-explorer shape-
 	expect_broken "rule 2 fails on any other tool in $bad_name" "Remove Task" rule_tools "$FIX"
 done
 fixture
-good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write, Bash/' >"$FIX/modules/core/agents/code-reviewer.md"
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write, Bash/' >"$FIX/modules/core/agents/code-reviewer.md"
 printf '\n%s\nTool exception: Bash, because the role needs it.\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
 expect_broken "rule 2 fails on Bash in a reviewer with the line of the report file and an exception for Bash" "Remove Bash" rule_tools "$FIX"
 fixture
-good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
 printf '\nTool exception: Write, because it writes the one report file of a review round, and more.\n' >>"$FIX/modules/core/agents/code-reviewer.md"
 expect_broken "rule 2 fails on Write in a reviewer when the line of the report file differs by a word" "Remove Write" rule_tools "$FIX"
 fixture
-good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
 printf '\n```text\n%s\n```\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
 expect_broken "rule 2 fails on Write in a reviewer when the line of the report file is in a code fence" "Remove Write" rule_tools "$FIX"
 fixture
-good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
 printf '\nNote: %s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
 expect_broken "rule 2 fails on Write in a reviewer when a line only ends with the line of the report file" "Remove Write" rule_tools "$FIX"
 fixture
-good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
 printf '\n%s Do as you like.\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
 expect_broken "rule 2 fails on Write in a reviewer when a line only starts with the line of the report file" "Remove Write" rule_tools "$FIX"
 fixture
-good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
 printf '\n %s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
 expect_broken "rule 2 fails on Write in a reviewer when the line has a space before it" "Remove Write" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: other-agent/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n%s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on a reviewer that lists Write when its name differs from its file name" "Set name: code-reviewer" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: other-agent/' >"$FIX/modules/core/agents/code-reviewer.md"
+expect_passes "rule 2 passes on a reviewer with no Write when its name differs from its file name" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: sample-agent/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n%s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on a reviewer that lists Write with the name of another file" "Set name: code-reviewer" rule_tools "$FIX"
 fixture
 good_agent | sed 's/^tools: .*/tools: Read, Bash, Edit/' >"$AGENT"
 printf '\nTool exception: Bash, because the role needs it.\n' >>"$AGENT"

@@ -2062,18 +2062,78 @@ test('a reviewer session writes no file of the artifact folder, a subagent of a 
       ONLY);
   }
   assert.equal(guard(write(file), env), null);
-  // An agent whose type ends in -reviewer writes no file, in any session, and the report path
-  // only in a session of a reviewer.
+  // An agent whose type ends in -reviewer writes no file, in any session, the report path
+  // included: only the main session of a reviewer writes the report.
   const sub = (target, type) => claude('Write', { file_path: target, content: '{}' }, type);
+  const NOT = 'Report in your text and write no file';
   for (const type of ['spec-reviewer', 'code-reviewer']) {
-    firstLine(guard(sub(points, type), RUN), 'Report in your text and write no file');
-    firstLine(guard(sub(points, type), env), 'Report in your text and write no file');
-    firstLine(guard(sub(file, type), RUN), 'Report in your text and write no file');
+    firstLine(guard(sub(points, type), RUN), NOT);
+    firstLine(guard(sub(points, type), env), NOT);
+    firstLine(guard(sub(file, type), RUN), NOT);
+    firstLine(guard(sub(file, type), env), NOT);
   }
-  assert.equal(guard(sub(file, 'code-reviewer'), env), null);
-  // Another agent writes as before.
-  assert.equal(guard(sub(points, 'implementer'), env), null);
+  // Another agent writes as before in a session that is no reviewer's.
+  assert.equal(guard(sub(points, 'implementer'), RUN), null);
   assert.equal(guard(sub(points, 'reviewer-notes'), RUN), null);
+});
+
+test('in a reviewer session each agent, of any type, writes no file and starts no agent', () => {
+  const { env, file } = reviewSetup();
+  const victim = path.join(WORK, 'src', 'victim.ts');
+  const folder = path.join(WORK, '.qory', 'artifacts');
+  const NOT = 'Report in your text and write no file';
+  const calls = {
+    'Write': (agent) => claude('Write', { file_path: victim, content: 'x' }, agent),
+    'Write to the report path': (agent) => claude('Write', { file_path: file, content: '{}' }, agent),
+    'Write in the artifact folder': (agent) => claude('Write', { file_path: path.join(folder, 'points.json'), content: '{}' }, agent),
+    'Edit': (agent) => claude('Edit', { file_path: victim, old_string: 'a', new_string: 'b' }, agent),
+    'apply_patch': (agent) => codex('apply_patch', { command: add(victim) }, agent),
+    'apply_patch of the report': (agent) => codex('apply_patch', { command: add(file) }, agent),
+  };
+  for (const [name, make] of Object.entries(calls)) {
+    // A worker agent writes in a session that is no reviewer's, and not in a reviewer's.
+    for (const type of ['worker', 'implementer', 'code-explorer']) {
+      assert.equal(guard(make(type), RUN), null, `${name} by ${type} outside a review`);
+      firstLine(guard(make(type), env), NOT);
+    }
+  }
+  // A shell command that may write, by an agent: denied in a reviewer session and allowed as
+  // before in any other. A read-only command runs in both. The main session of a reviewer has
+  // no shell, and the guard does not restrict its shell writes.
+  for (const command of [`echo x > ${victim}`, `rm ${victim}`, `tee ${victim}`,
+    `sed -i s/a/b/ ${victim}`, `node -e "require('fs').writeFileSync('${victim}','x')"`,
+    'npm run build', `apply_patch <<'EOF'\n${add(victim)}EOF\n`]) {
+    assert.equal(guard(claude('Bash', { command }, 'worker'), RUN), null, command);
+    firstLine(guard(claude('Bash', { command }, 'worker'), env), NOT);
+  }
+  for (const command of [`ls ${WORK}`, `cat ${file}`, `grep -n a ${victim}`]) {
+    assert.equal(guard(claude('Bash', { command }, 'worker'), env), null, command);
+  }
+  // No agent starts in a reviewer session: Claude Code's Agent and Task, and Codex's spawn_agent.
+  const START = 'Start no agent';
+  for (const [tool, args] of [['Agent', { prompt: 'x', subagent_type: 'worker' }],
+    ['Task', { prompt: 'x' }], ['spawn_agent', { message: 'x' }]]) {
+    firstLine(guard(claude(tool, args), env), START);
+    firstLine(guard(claude(tool, args, 'worker'), env), START);
+    assert.equal(guard(claude(tool, args), RUN), null, tool);
+    assert.equal(guard(claude(tool, args, 'worker'), RUN), null, tool);
+  }
+  // An agent in the background is still denied first, in any session.
+  firstLine(guard(claude('Agent', { prompt: 'x', run_in_background: true }), env), 'Start the agent');
+});
+
+test('a patch of the report path through a link is decided as a Write of it is', () => {
+  const { env, file } = reviewSetup();
+  const alias = next('review-alias');
+  fs.symlinkSync(path.dirname(file), alias);
+  const through = path.join(alias, path.basename(file));
+  const other = path.join(alias, 'other.json');
+  for (const [target, allowed] of [[through, true], [other, false]]) {
+    const write = guard(claude('Write', { file_path: target, content: '{}' }), env);
+    const patch = guard(patchOf(add(target)), env);
+    assert.equal(write === null, allowed, target);
+    assert.equal(patch === null, write === null, `${target}: patch as Write`);
+  }
 });
 
 test('a link, a folder or a bad path at qory.review.report allows no write', () => {
@@ -2245,8 +2305,11 @@ test('a reviewer writes its report with apply_patch only as a patch that adds ex
   for (const type of ['code-reviewer', 'spec-reviewer']) {
     assert.equal(typeof guard(codex('apply_patch', { command: add(file) }, type), env), 'string', type);
   }
-  // An agent of another type patches as before.
-  assert.equal(guard(codex('apply_patch', { command: add(file) }, 'implementer'), env), null);
+  // An agent of another type patches as before in a session that is no reviewer's, and not in a
+  // reviewer's.
+  assert.equal(guard(codex('apply_patch', { command: add(file) }, 'implementer'), RUN), null);
+  assert.equal(typeof guard(codex('apply_patch', { command: add(file) }, 'implementer'), env),
+    'string');
   firstLine(guard(patchOf(add(file)), RUN), 'Start an agent to change');
   // A Write of the same path is allowed as before.
   assert.equal(guard(write(file), env), null);

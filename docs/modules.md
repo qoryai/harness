@@ -248,7 +248,9 @@ An agent that the table does not list sets no `model` key.
   main agent of a separate session, lists Write beside the four read tools and writes at one
   path, its report: the body has the line `Tool exception: Write, because it writes the one
   report file of a review round.` The tool guard denies each other write of that session, and
-  each write of an agent of a session whose type ends in `-reviewer`. A subagent keeps the
+  each write of an agent of that session; an agent whose type ends in `-reviewer` writes no
+  file in any session. The name in the front matter of an agent that lists Write equals its
+  file name without `.md`, because the guard reads that name. A subagent keeps the
   session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and
   `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and `grep` still
   run in the main session, so "only `qory` commands and the read forms" is a rule in the
@@ -1239,31 +1241,40 @@ tool's error. The first line of each reason starts with what to do. The guard de
   read through the links of the folders above it with no `..` after a folder that does not
   exist, when no link, folder or file with more than one link is at the path, and when it
   lies neither below `.git` nor below `.claude` of the working folder. The compare ignores
-  case on a disk that ignores case. An agent whose type ends in `-reviewer` writes no file,
-  except that path in a session of a reviewer. Those denies come after the denies for
-  `.qory/build/`, a locked file and the harness home. When the harness home is below the
-  working folder, the deny of a write below the harness home, the bullet on
-  `$QORY_HARNESS_HOME` above, also denies a report path in it, so the report folder must be
-  outside the home. When the home is outside the working folder, that deny does not apply:
-  the report path may be in the home, and a write there is allowed. The accepted
-  `apply_patch` form is the tool, not the shell form `apply_patch <<'EOF'`, which stays
-  denied in a reviewer session. Only the main session of a reviewer may use it; an agent of
-  a session is denied. The patch text, split at line feeds, is exactly: the line `*** Begin
-  Patch`; the line `*** Add File: <path>`, with one space after the colon and a path that
-  has no white space at either end; zero or more lines that each start with `+`; the line
-  `*** End Patch`, with one line feed after it or none. The guard compares each line as it
-  is and trims no white space. `<path>` is the report path: absolute, with no `.` or `..`
-  part, no empty part and no trailing slash, and at most 4096 characters, and the same path
-  rules as for `Write` apply. The guard denies each other patch: an update, a delete or a
-  move; a second header, also a second add of the same file; a line that does not start with
-  `+`, a blank line or a line after the end line; a carriage return, so also CRLF line ends;
-  a NUL; white space before or after a header, or between the colon and the path; a path
-  outside the report path, with `..`, relative or empty; a patch that is no text; and any
-  text that this form does not match. The guard denies a write only: a shell command of the
-  reviewer is read as for any main session, and a reviewer has no shell. Whether the core
-  hooks load in a reviewer session that qory starts, and whether `QORY_RUN_ID` and
-  `QORY_HARNESS_HOME` are set there, is not decided: qory's start of a reviewer is not
-  built.
+  case on a disk that ignores case. An agent writes no file, the report path included, when
+  its type ends in `-reviewer`, in any session, and when it runs in a session of a reviewer,
+  whatever its type: only the main session of a reviewer writes the report. An agent of any
+  other type in a session that is no reviewer's writes as before. The main session of a
+  reviewer starts no agent (`Agent`, `Task` and `spawn_agent`, also for an agent of that
+  session). An agent of a reviewer session runs read-only shell commands only; any other
+  shell command of it is denied. The main session of a reviewer has no shell tool, and the
+  guard reads which files a command writes only from the paths in its text, so it cannot tell
+  a write that a variable or a program makes. Those denies come after the denies for `.qory/build/`, a locked file and the
+  harness home. When the harness home is below the working folder, the deny of a write below
+  the harness home, the bullet on `$QORY_HARNESS_HOME` above, also denies a report path in
+  it, so the report folder must be outside the home. When the home is outside the working
+  folder, that deny does not apply: the report path may be in the home, and a write there is
+  allowed. The accepted `apply_patch` form is the tool, not the shell form `apply_patch
+  <<'EOF'`, which stays denied in a reviewer session. Only the main session of a reviewer
+  may use it; an agent is denied, also one of a `-reviewer` type. The patch text, split at
+  line feeds, is exactly: the line `*** Begin Patch`; the line `*** Add File: <path>`, with
+  one space after the colon and a path that has no white space at either end; zero or more
+  lines that each start with `+`; the line `*** End Patch`, with one line feed after it or
+  none. The guard compares each line as it is and trims no white space. `<path>` is the
+  report path: absolute, with no `.` or `..` part, no empty part and no trailing slash, and
+  at most 4096 characters, and the same path rules as for `Write` apply. The guard denies
+  each other patch: an update, a delete or a move; a second header, also a second add of the
+  same file; a line that does not start with `+`, a blank line or a line after the end line;
+  a carriage return, so also CRLF line ends; a NUL; white space before or after a header, or
+  between the colon and the path; a path outside the report path, with `..`, relative or
+  empty; a patch that is no text; and any text that this form does not match. Limits, not
+  promises: the guard runs only on Claude Code and on Codex. On Cursor, Copilot CLI and
+  Gemini CLI only the `reports-guard` hooks exist, so the rule on the report path does not
+  run there, and a reviewer agent on those runtimes is not confined by it. The guard allows
+  a tool name that it does not know, because `kindOf` returns no kind for it, so a tool of
+  another name than those above is not confined either. Whether the core hooks load in a
+  reviewer session that qory starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are
+  set there, is not decided: qory's start of a reviewer is not built.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
@@ -2978,7 +2989,8 @@ the rule passes on that file.
    `*-reviewer` agent, `code-explorer` or `shape-planner` lists only Read, Grep, Glob and
    Skill. A `*-reviewer` agent also lists Write when the body has the line `Tool exception:
    Write, because it writes the one report file of a review round.`, exactly, outside a
-   code fence, and no other tool.
+   code fence, and no other tool. An agent that lists Write has a `name` in its front matter
+   that equals its file name without `.md`.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `pack-mockups.cjs` and `render-mockups.cjs`, and

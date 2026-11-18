@@ -15,8 +15,11 @@
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
 //   started. A reviewer of a change, which qory starts as the main agent of its session, is
 //   the other way round: when $QORY_HARNESS_HOME/inputs.json has the member qory.review, the
-//   main session writes one path, qory.review.report, with a Write, and no other file, the
-//   artifact folder included. An agent whose type ends in -reviewer writes no file.
+//   main session writes one path, qory.review.report, with a Write or an apply_patch that adds
+//   it, and no other file, the artifact folder included. It starts no agent. An agent of that
+//   session, whatever its type, and an agent whose type ends in -reviewer in any session,
+//   write no file, the report path included; an agent of a reviewer session also runs read-only
+//   shell commands only.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -45,7 +48,7 @@ const reportsGuard = require('./reports-guard.cjs');
 const WRITE_TOOLS = { Write: ['file_path'], Edit: ['file_path'], MultiEdit: ['file_path'],
   NotebookEdit: ['notebook_path'] };
 // The tools that start an agent on Claude Code.
-const AGENT_TOOLS = new Set(['Agent', 'Task']);
+const AGENT_TOOLS = new Set(['Agent', 'Task', 'spawn_agent']);
 // The white space that Codex's patch parser trims from a line, as Rust's trim does: the
 // characters of Unicode's White_Space. JavaScript's \s lacks U+0085 and adds U+FEFF.
 const PATCH_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f' +
@@ -1915,7 +1918,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   spend, runFolder }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
-  if (call.kind === 'agent') return call.reason;
+  if (call.kind === 'agent') {
+    // A reviewer session starts no agent, as reviewReport reads it; any other session starts
+    // one as before, and an agent in the background is denied.
+    return call.reason || (reviewReport(env) ? REVIEW_NO_AGENT : null);
+  }
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
   // reports-guard.cjs denies a write of .reports/*.json and a shell command that reaches
   // .reports/ other than checks.cjs alone, with the same reasons on each runtime. It reads a
@@ -1932,6 +1939,12 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     ? reportsGuard.decide({ kind: 'write', env, script, cwd: input.cwd,
       args: { paths: call.paths } }) : null);
   if (reports) return reports;
+  // The guard reads the files that a shell command writes only from the paths in its text, so
+  // an agent of a reviewer session runs read-only commands only.
+  if (call.kind === 'shell' && !reads && typeof input.agent_id === 'string' &&
+    input.agent_id !== '' && reviewReport(env)) {
+    return `${REVIEW_AGENT}The call runs a command that may write.`;
+  }
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
   const root = real(start);
@@ -1974,10 +1987,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   if (agent) {
-    // An agent that a session starts, of a type that ends in -reviewer, such as a reviewer of
-    // a draft, reads and reports in its text; it writes no file.
-    return /-reviewer$/.test(String(input.agent_type)) ? reviewDeny({ call, input, paths, env,
-      root, nocase, agent: true }) : null;
+    // An agent that a session starts writes no file when its type ends in -reviewer, such as a
+    // reviewer of a draft, which reads and reports in its text, and when the session is a
+    // reviewer's, whatever the type. Any other agent writes as before.
+    return /-reviewer$/.test(String(input.agent_type)) || reviewReport(env) ? reviewDeny({
+      call, input, paths, env, root, nocase, agent: true }) : null;
   }
   if (reviewReport(env)) return reviewDeny({ call, input, paths, env, root, nocase });
   const artifacts = artifactFolder(root, env, runFolder);
@@ -2463,11 +2477,15 @@ const REVIEW_ONLY = 'Write only the file at qory.review.report, with Write: a re
   'one link and a path below .git or .claude of the working folder are denied. ';
 const REVIEW_NONE = 'Stop the review and write no file: qory.review.report cannot be used.\n' +
   'It must be an absolute path with no . or .. part, no double or trailing slash. ';
-const REVIEW_AGENT = 'Report in your text and write no file: an agent whose type ends in ' +
-  '-reviewer writes no file.\n';
+const REVIEW_AGENT = 'Report in your text and write no file: a reviewer agent writes no file.\n' +
+  'It applies to each agent of a reviewer session and to each agent whose type ends in ' +
+  '-reviewer. ';
+const REVIEW_NO_AGENT = 'Start no agent: a reviewer reads the change and writes its report ' +
+  'itself.\nThe session has qory.review in inputs.json of the harness home.';
 
-// reviewDeny returns the deny of a write from a reviewer, or null for the one write that a
-// reviewer may make: a Write, with one path, to qory.review.report of reviewReport. The path
+// reviewDeny returns the deny of a write from a reviewer, or null for the one write that the
+// main session of a reviewer may make: a Write, with one path, or an apply_patch of the form
+// of reportPatch, to qory.review.report of reviewReport. An agent never may. The path
 // is read through the links of the folders above it; a link, a folder or a file with more than
 // one link at the path, a path below .git or .claude of the working folder, and a path that the
 // guard cannot read through are no report path. On a disk that ignores case, the compare
@@ -2477,10 +2495,20 @@ const REVIEW_AGENT = 'Report in your text and write no file: an agent whose type
 function reviewDeny({ call, input, paths, env, root, nocase, agent = false }) {
   const review = reviewReport(env);
   const report = review ? review.report : null;
-  const patched = input.tool_name === 'apply_patch' && !agent &&
-    reportPatch((input.tool_input || {}).command) !== null;
-  if (report && (input.tool_name === 'Write' || patched) && call.kind === 'write' &&
-    paths.length === 1) {
+  // The real path that the call writes, for the one form of call that may write the report: a
+  // Write with one path, or an apply_patch of exactly the form that reportPatch reads, of the
+  // main session. The path of a patch is the one that reportPatch returns.
+  let asked = null;
+  if (!agent && call.kind === 'write') {
+    if (input.tool_name === 'Write' && paths.length === 1) {
+      asked = paths[0];
+    } else if (input.tool_name === 'apply_patch') {
+      const file = reportPatch((input.tool_input || {}).command);
+      const walked = file === null ? null : walkPath(file);
+      if (walked && !walked.unsure) asked = walked.real;
+    }
+  }
+  if (report && asked !== null) {
     const stat = disk.lstat(report);
     const named = walkPath(report);
     if ((!stat || (stat.isFile() && stat.nlink === 1)) && !named.unsure) {
@@ -2488,7 +2516,7 @@ function reviewDeny({ call, input, paths, env, root, nocase, agent = false }) {
       const fold = (full) => (folded ? full.toLowerCase() : full);
       const kept = ['.git', '.claude'].some((name) =>
         under(fold(named.real), fold(path.join(root, name))));
-      if (!kept && fold(paths[0]) === fold(named.real)) return null;
+      if (!kept && fold(asked) === fold(named.real)) return null;
     }
   }
   const head = agent ? REVIEW_AGENT : report ? REVIEW_ONLY : REVIEW_NONE;

@@ -135,7 +135,8 @@ with the `tools` key.
 - List no Agent, NotebookEdit or MultiEdit. A `*-reviewer` agent, `code-explorer` or
   `shape-planner` lists only Read, Grep, Glob and Skill. A `*-reviewer` agent also lists
   Write when the body has the line `Tool exception: Write, because it writes the one report
-  file of a review round.`, exactly, and no other tool.
+  file of a review round.`, exactly, and no other tool. An agent that lists Write has a
+  `name` in its front matter that equals its file name without `.md`.
 - On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
   exception for Bash also drops those two tools or states how the agent searches.
 

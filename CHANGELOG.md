@@ -278,7 +278,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   overwrites the file. A path that is not absolute, has a `.` or `..` part, a double or
   trailing slash, a NUL or more than 4096 characters, a link, a folder, a file with more than
   one link, or a path below `.git` or `.claude` of the working folder, is no report path.
-  An agent whose type ends in `-reviewer` writes no file. The denies for `.qory/build/`, a
+  An agent writes no file, the report path included, when its type ends in `-reviewer`, in
+  any session, and when it runs in a session of a reviewer, whatever its type; this settles
+  that a `-reviewer` agent may not write the report path either. The main session of a
+  reviewer starts no agent (`Agent`, `Task`, `spawn_agent`), and an agent of that session
+  runs read-only shell commands only. The denies for `.qory/build/`, a
   locked file and the harness home still come first: when the harness home is below the
   working folder, a report path in it is denied, so the report folder must be outside the
   home; when the home is outside the working folder, a write to a report path in it is
@@ -287,7 +291,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the lines `*** Begin Patch`, `*** Add File: <report path>`, zero or more lines that start
   with `+`, and `*** End Patch`, with the same path rules as for `Write`. An update, a delete,
   a move, a second file, a second add of the same file, white space around a header, a
-  carriage return, any other line and the shell form `apply_patch <<'EOF'` are denied.
+  carriage return, any other line and the shell form `apply_patch <<'EOF'` are denied. The
+  guard runs only on Claude Code and Codex: on Cursor, Copilot CLI and Gemini CLI the rule on
+  the report path does not run, and the guard allows a tool name that it does not know.
   Open questions: whether the core hooks load in a reviewer session that qory starts, and
   whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, are not decided, because qory's
   start of a reviewer is not built; nor is where qory puts the folder of the report, which the
@@ -295,7 +301,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Rule 2 of `scripts/check.sh` lets a `*-reviewer` agent, such as `code-reviewer`, list
   `Write` beside Read, Grep, Glob and Skill, when the body has the line `Tool exception:
   Write, because it writes the one report file of a review round.` as a whole line outside a
-  code fence. No other tool passes. The tool guard limits that `Write` to the report path.
+  code fence. No other tool passes. An agent file that lists `Write` has a front-matter
+  `name` equal to its file name without `.md`, because the tool guard reads that name. The
+  tool guard limits that `Write` to the main session and the report path.
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
