@@ -90,6 +90,18 @@ function statusOf(url) {
   });
 }
 
+// openLog removes what is at file, then creates a new regular file there and returns its
+// descriptor. An open of an existing file could follow a symbolic link, or wait for a reader
+// of a FIFO until the limit of the runner.
+function openLog(file) {
+  try {
+    fs.unlinkSync(file);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  return fs.openSync(file, 'wx', 0o644);
+}
+
 // start runs the serve command and resolves to { started, ran, why }.
 async function start(serve, startMs, proc) {
   if (await statusOf(serve.url) !== null) {
@@ -98,7 +110,7 @@ async function start(serve, startMs, proc) {
   }
   const value = crypto.randomBytes(16).toString('hex');
   running.marks = proc ? marker(proc, value) : null;
-  const out = fs.openSync(serve.log, 'w');
+  const out = openLog(serve.log);
   let exit = null;
   try {
     running.child = childProcess.spawn('/bin/sh', ['-c', serve.command], {

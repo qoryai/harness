@@ -618,6 +618,32 @@ test('preflight: a command that starts the app in the background and exits 0 pas
   assert.equal(await isFree(port), true);
 });
 
+test('preflight: a FIFO or a symbolic link at the log of the serve command gives way to a new file', async () => {
+  for (const kind of ['fifo', 'link']) {
+    const here = checkout();
+    const port = await freePort();
+    const log = path.join(here.root, '.reports', 'preflight', 'serve.log');
+    fs.mkdirSync(path.dirname(log), { recursive: true });
+    const target = path.join(here.dir, 'kept.txt');
+    if (kind === 'fifo') {
+      assert.equal(childProcess.spawnSync('mkfifo', [log]).status, 0);
+    } else {
+      fs.writeFileSync(target, 'kept\n');
+      fs.symlinkSync(target, log);
+    }
+    const started = Date.now();
+    const done = run(here, { serve: { command: 'echo serving; node app/server.cjs',
+      url: `http://127.0.0.1:${port}/`, cwd: here.dir } },
+    { browsers: [process.execPath], env: { APP_PORT: String(port) } });
+    assert.deepEqual(done.findings, [], kind);
+    assert.ok(Date.now() - started < 10000, kind);
+    assert.equal(fs.lstatSync(log).isFile(), true, kind);
+    assert.equal(fs.readFileSync(log, 'utf8'), 'serving\n', kind);
+    if (kind === 'link') assert.equal(fs.readFileSync(target, 'utf8'), 'kept\n');
+    assert.equal(await isFree(port), true, kind);
+  }
+});
+
 // A process that leaves the group of the serve command: it starts ESCAPED in a new session,
 // writes its pid to FAKE_PID, and writes an entry of it to the folder FAKE_PROC, as
 // /proc/<pid>/environ shows it on Linux. Then it starts the app.
