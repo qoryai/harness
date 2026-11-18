@@ -368,8 +368,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and a skill are laid out.
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or the
-  `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, or has
-  `fix` on a point. The pin is `1deb56e`, qory's commit after qoryai/qory#125.
+  `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, has
+  `qory run verdict --track`, or has `fix` on a point. The pin is `1deb56e`, the merge of
+  qoryai/qory#125.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -621,12 +622,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The middle model tier is `balanced` in place of `fast`, the name that qory gives it.
+- The middle model tier is `balanced` in place of `fast`, qory's name for it.
   qory at `1deb56e` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the
   tier `light`, `balanced` or `thinking`, and rule 3 of `scripts/check.sh` fails on
-  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `1deb56e`, qory's commit
-  after qoryai/qory#125, in place of `91f02f0`.
+  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `1deb56e`, the merge of
+  qoryai/qory#125, in place of `91f02f0`.
 - Each script of `core` and `software-factory` ends in `.cjs` in place of `.js`: the
   hooks, `checks.cjs` with `lib/`, `verbs/` and `types/`, `versions.cjs`, `push-check.cjs`,
   `workflow-checks.cjs` with its files, and the scripts of `designing-mockups`. Node loads a

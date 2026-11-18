@@ -822,6 +822,7 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],
     [['step', 'end', 'plan'], /^Give step end the state done or failed\.\n  nothing is neither\./],
     [['step', 'end', 'plan', 'done', '--attempt', 'a,b,slow,m'], /^Give --attempt as/],
+    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,fast,m'], /^Give --attempt as/],
     [['step', 'end', 'plan', 'done', ...attempt, ...attempt, ...attempt, ...attempt], /^Give --attempt at most 3 times/],
     [['step', 'end', 'plan', 'done', '--pushed', 'spec/main/0'], /^Give --pushed as/],
     [['step', 'end', 'plan', 'done', ...pushed, ...pushed, ...pushed, ...pushed, ...pushed], /^Give --pushed at most 4 times/],
