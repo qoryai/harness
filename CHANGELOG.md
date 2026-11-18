@@ -597,30 +597,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   scenario script runs for the first time, and a Verify session first, before any film. It
   checks that the dev container has a browser that starts, that the `serve` command of the
   build plan starts the app at its address, and that the setup of each demo script that
-  types a variable signs in to the app. For each missing part it writes a point
-  `run_again` with its fix to `points.json`, so the session ends with `escalate`. Another
-  process at the address counts as an app that did not start. The browser fails the load of
-  each document of another origin than the app's, in the tab and in each frame, after an
-  `open`, a redirect, a link or a script, and the sign-in then writes a point and types
-  nothing more. It sends each other request to a host and port other than the app's, such
-  as a `fetch`, an image, a WebSocket or a request of a service worker, to a proxy at port 9
-  of 127.0.0.1, where nothing listens, and it closes each new window before its first
-  request, which also writes the point. An origin in the point that contains a typed
-  value is written as "another origin". A `type` acts only on the app's origin, with the
-  focus in the element of its target. The replay gets only the variables that its setup types, and a setup that
+  types a variable signs in to the app. For each missing part it writes a point `run_again`
+  with its fix to `points.json`, so the session ends with `escalate`. Another process at the
+  address counts as an app that did not start. The browser fails the load of each document
+  of another origin than the app's, in the tab and in each frame, after an `open`, a
+  redirect, a link or a script, and the sign-in then writes a point and types nothing more.
+  It sends each other request to a host and port other than the app's, such as a `fetch`, an
+  image, a WebSocket or a request of a service worker, to a proxy at port 9 of 127.0.0.1,
+  where nothing listens, and it closes each new window before its first request, which also
+  writes the point. An origin in the point that contains a typed value is written as
+  "another origin". A `type` acts only on the app's origin, with the focus in the element of
+  its target. The replay gets only the variables that its setup types, and a setup that
   types a variable of qory or of an agent, or a token of a code forge such as
   `GITLAB_TOKEN`, exits 3. After the check, also on a failure, a signal or the end of
-  `preflight`, the process group of the serve command stops, and on Linux each process
-  with the mark of `run`; a process that leaves the group and removes the mark keeps
-  running, and after a SIGKILL of the runner of the check, so does every process that left
-  the group. `preflight` ends within 585 seconds, below the 600 seconds after which the Bash
-  tool of Claude Code stops a command. Each browser call has a time limit, and the browser
-  dismisses dialogs. An exit 3 for a missing build plan, a missing address, a demo script
-  that is missing, cannot be read, breaks its format rules or types such a key, or a check
-  that did not finish prints a line `Cause:` for the line that ends the run. The
-  build plan has the address as a line `App address: <url>` in `## Summary`,
-  an http address in backticks, and its check finds a plan with a `serve` command and no
-  such line, or a value that is no http or https URL.
+  `preflight`, the process group of the serve command stops, and on Linux each process with
+  the mark of `run`; a process that leaves the group and removes the mark keeps running, and
+  after a SIGKILL of the runner of the check, so does every process that left the group.
+  `preflight` ends within 585 seconds, below the 600 seconds after which the Bash tool of
+  Claude Code stops a command. Each browser call has a time limit, and the browser dismisses
+  dialogs. An exit 3 for a missing build plan, a missing address, a demo script that is
+  missing, cannot be read, breaks its format rules or types such a key, or a check that did
+  not finish prints a line `Cause:` for the line that ends the run. The build plan has the
+  address as a line `App address: <url>` in `## Summary`, an http address in backticks, and
+  its check finds a plan with a `serve` command and no such line, or a value that is no http
+  or https URL.
 
 ### Changed
 
