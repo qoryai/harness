@@ -1666,14 +1666,25 @@ test('criteria: a file that breaks a rule of the type check gets the fix line of
 
 test('criteria: a file nested deeper than 64 levels is refused with no stack overflow', () => {
   const root = fixture();
-  for (const deep of [`${'['.repeat(10000)}${']'.repeat(10000)}`,
-    `{"summary": "One.", "criteria": ${'['.repeat(65)}${']'.repeat(65)}}`]) {
-    fs.writeFileSync(path.join(root, CRITERIA), deep);
-    for (const result of [check(root, 'acceptance-criteria', path.join(root, CRITERIA)),
-      push(root, 'acceptance-criteria')]) {
-      exactly(result, 'Cut the nesting of acceptance-criteria.json to 64 levels.\n  It has ' +
-        'objects or lists more than 64 levels deep.');
+  const run = (text) => {
+    fs.writeFileSync(path.join(root, CRITERIA), text);
+    return [check(root, 'acceptance-criteria', path.join(root, CRITERIA)),
+      push(root, 'acceptance-criteria')];
+  };
+  for (const [deep, at] of [
+    [`${'['.repeat(10000)}${']'.repeat(10000)}`, '/0/0/0/0/0/0/.../0/0/0/0/0/0'],
+    [`{"summary": "One.", "criteria": ${'['.repeat(65)}${']'.repeat(65)}}`,
+      '/criteria/0/0.../0/0/0/0/0/0'],
+  ]) {
+    for (const result of run(deep)) {
+      exactly(result, 'Cut the nesting of acceptance-criteria.json to 64 levels.\n  The list ' +
+        `at ${at} is 65 levels deep.`);
     }
+  }
+  // 64 levels pass the depth check, and the schema check reads the document.
+  for (const result of run(`{"summary": "One.", "criteria": ${'['.repeat(63)}${']'.repeat(63)}}`)) {
+    assert.ok(!result.findings.some((line) => line.startsWith('Cut the nesting')), result.out);
+    fails(result, /^Write \/criteria\/0 of acceptance-criteria\.json as an object\./);
   }
 });
 

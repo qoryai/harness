@@ -62,18 +62,29 @@ function brief(text, size) {
 // from the limit of the call stack.
 const MAX_DEPTH = 64;
 
-// tooDeep reports whether value nests objects and lists more than MAX_DEPTH levels deep, the
-// value itself being level 1. It walks with a list in place of recursion, so that a document
-// of any depth gives an answer and no stack overflow.
-function tooDeep(value) {
-  const open = [[value, 1]];
+// deepAt returns the first list or object, in the order of the document, that value nests more
+// than MAX_DEPTH levels deep, the value itself being level 1: { node, at }, with at its JSON
+// pointer, such as /0/0/0. It returns null when value nests no deeper. It walks with a list in
+// place of recursion, so that a document of any depth gives an answer and no stack overflow.
+function deepAt(value) {
+  const nested = (node) => node !== null && typeof node === 'object';
+  const open = nested(value) ? [{ node: value, level: 1, parent: null, key: '' }] : [];
   while (open.length) {
-    const [node, level] = open.pop();
-    if (node === null || typeof node !== 'object') continue;
-    if (level > MAX_DEPTH) return true;
-    for (const child of Object.values(node)) open.push([child, level + 1]);
+    const entry = open.pop();
+    if (entry.level > MAX_DEPTH) {
+      const keys = [];
+      for (let at = entry; at.parent; at = at.parent) keys.push(at.key);
+      return { node: entry.node, at: keys.reverse().map((key) => `/${key}`).join('') };
+    }
+    const keys = Object.keys(entry.node);
+    for (let place = keys.length - 1; place >= 0; place -= 1) {
+      const child = entry.node[keys[place]];
+      if (nested(child)) {
+        open.push({ node: child, level: entry.level + 1, parent: entry, key: keys[place] });
+      }
+    }
   }
-  return false;
+  return null;
 }
 
 // canonical returns value as JSON with the members of each object in sorted order, so that two
@@ -149,7 +160,14 @@ function load(type) {
 // errors returns the findings of value, the JSON of file, against the schema: each with the fix
 // on its first line, the member as its JSON pointer, such as /steps/0/pass, and the cause on
 // the line after it. A pointer that brief cuts on the first line is whole on the last line.
+// A value that nests deeper than MAX_DEPTH gets one finding, before any step that recurses.
 function errors(loaded, value, file) {
+  const deep = deepAt(value);
+  if (deep) {
+    const what = Array.isArray(deep.node) ? 'list' : 'object';
+    return [`Cut the nesting of ${file} to ${MAX_DEPTH} levels.\nThe ${what} at ` +
+      `${brief(deep.at, POINTER)} is ${MAX_DEPTH + 1} levels deep.`];
+  }
   const { schema: root, patterns } = loaded;
   const out = [];
   const resolve = (ref) => {
@@ -302,4 +320,4 @@ function shown(value, limit = 40) {
   return text ? `"${cutText}"` : cutText;
 }
 
-module.exports = { MAX_DEPTH, load, errors, compile, shown, escaped, tooDeep };
+module.exports = { load, errors, compile, shown, escaped };

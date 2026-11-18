@@ -2206,7 +2206,8 @@ test('verification: the members and values of its schema', () => {
     '"model_families": [', `"model_families": [${'['.repeat(10000)}${']'.repeat(10000)}, `));
   for (const mode of [push, check]) {
     exactly(mode(fixture(), 'verification', ['verification.json', deep]), 'Cut the nesting of ' +
-      'verification.json to 64 levels.\nIt has objects or lists more than 64 levels deep.');
+      'verification.json to 64 levels.\nThe list at /model_famili.../0/0/0/0/0/0 is 65 levels ' +
+      'deep.');
   }
   // A criterion is its id: ac- and a number with no leading zero, in lower case.
   for (const id of ['AC-1', 'ac-01', 'AC-1, "The saved reply"']) {
