@@ -1559,9 +1559,10 @@ find:
   `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
   criterion is planned as Demo; with a `serve` row, no line `App address: <url>` in
-  `## Summary`, or a value that is no http or https URL; and, in `## Deliverables` or
-  `## Commands`, a table with other columns than those that the check reads, or a second
-  table with them;
+  `## Summary`, or a value that is no http or https URL, where an http address goes in
+  backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links
+  finds a bare http link; and, in `## Deliverables` or `## Commands`, a table with other
+  columns than those that the check reads, or a second table with them;
 - `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
   `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
   session, `## Summary`, `## Change`, `## Proofs`, `## Criterion` and `## Not run`, with
@@ -2441,8 +2442,8 @@ writes before the session, set the base and the build plan that the checks use i
   commits; no entry for the checkout; an entry that is not a map with an absolute path and
   a full commit id; or a HEAD that does not descend from the commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
-  `run`, `probe`, `scope` and `freeze` use it as `--artifacts` when `--artifacts` is not
-  given; both, with different real paths, exit 3.
+  `run`, `probe`, `scope`, `freeze` and `preflight` use it as `--artifacts` when
+  `--artifacts` is not given; both, with different real paths, exit 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with

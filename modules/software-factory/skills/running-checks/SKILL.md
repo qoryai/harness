@@ -143,7 +143,9 @@ session changes code:
    `chromium-browser`, `google-chrome` and `google-chrome-stable`.
 2. The app: the `serve` command of the build plan starts it in the top folder of the
    checkout, and its address returns a status below 500 within 120 seconds. The address is
-   the line `App address: <url>` in `## Summary` of the build plan.
+   the line `App address: <url>` in `## Summary` of the build plan, with an http address
+   in backticks, such as ``App address: `http://localhost:3000/` ``: the check of links
+   finds a bare http link.
 3. The sign-in: the setup of each demo script that types a variable passes in the browser,
    with the values of the variables in the environment. A setup may open only the origin of
    the app's address: an `open` of another origin fails the sign-in.

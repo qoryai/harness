@@ -497,7 +497,7 @@ test('preflight verb: with the app stopped, the session ends escalate, and the p
     .filter((line) => line.startsWith('run verdict')), [`run verdict escalate --points ${file}`]);
 });
 
-test('preflight verb: a serve command with no address of the app exits 3, and so do bad arguments', () => {
+test('preflight verb: no address of the app and a runner with no result exit 3, and bad arguments exit 2', () => {
   const here = checkout();
   assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
   const deps = { cwd: here.dir, artifacts: [here.root],
@@ -506,6 +506,15 @@ test('preflight verb: a serve command with no address of the app exits 3, and so
   assert.equal(done.status, 3, done.out + done.err);
   assert.equal(done.out.split('\n')[0], 'Add the line "App address: <url>" to ## Summary of the ' +
     'build plan, then push it.');
+  assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);
+  // A runner of the app that prints no result, here a node that cannot start, exits 3, with
+  // no point.
+  const fault = call(['preflight', '--artifacts', pinnedPlan(
+    ['App address: `http://127.0.0.1:9/`'], 'node app/server.cjs')],
+  { ...deps, env: { ...process.env, NODE_OPTIONS: `--require ${path.join(tmp, 'none.cjs')}` } });
+  assert.equal(fault.status, 3, fault.out + fault.err);
+  assert.equal(fault.out.split('\n')[0], 'Run preflight again: the check of the app and the ' +
+    'sign-in returned no result.');
   assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);
   for (const argv of [['preflight', '--artifacts'], ['preflight', 'now'],
     ['preflight', '--inputs']]) {

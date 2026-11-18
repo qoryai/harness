@@ -599,8 +599,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   types a variable signs in to the app. For each missing part it writes a point
   `run_again` with its fix to `points.json`, so the session ends with `escalate`. The
   sign-in opens only the origin of the app's address. The build plan has the address as a
-  line `App address: <url>` in `## Summary`, and its check finds a plan with a `serve` row
-  and no such line, or a value that is no http or https URL.
+  line `App address: <url>` in `## Summary`, an http address in backticks, and its check
+  finds a plan with a `serve` row and no such line, or a value that is no http or https
+  URL.
 
 ### Changed
 

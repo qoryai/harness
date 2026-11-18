@@ -163,8 +163,8 @@ module.exports = (lib) => {
     run.did('app address');
     const { value, url } = appAddress(part.lines);
     if (value === null) {
-      run.find(`Add the line "App address: <url>" to ## Summary of ${FILE}.\nThe plan has ` +
-        'the kind serve, and the preflight opens the app at that address.');
+      run.find(`Add the line "App address: <url>" to ## Summary of ${FILE}.\nThe preflight ` +
+        'opens the app there. Write an http address in backticks: `http://localhost:3000/`.');
     } else if (!url) {
       run.find(`Set the App address in ## Summary of ${FILE} to an http or https URL.\nThe ` +
         `value is ${short(value, 80)}.`);

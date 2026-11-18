@@ -782,7 +782,7 @@ test('build-plan: a plan with a serve row has the address of the app in its Summ
   passes(push(fixture(), 'build-plan', planFile(PLAN.replace(ADDRESS,
     'App address: `https://shop.example.com:8443/sign-in`'))), 'build-plan');
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(`${ADDRESS}\n`, ''))),
-    /^Add the line "App address: <url>" to ## Summary of build-plan.md\. The plan has the kind serve, and the preflight opens the app at that address\.$/);
+    /^Add the line "App address: <url>" to ## Summary of build-plan.md\. The preflight opens the app there\. Write an http address in backticks: `http:\/\/localhost:3000\/`\.$/);
   for (const value of ['localhost:3000', 'ftp://localhost/', '/sign-in', 'http://local host/',
     '']) {
     fails(push(fixture(), 'build-plan', planFile(PLAN.replace(ADDRESS, `App address: ${value}`))),
