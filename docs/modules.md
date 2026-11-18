@@ -1575,14 +1575,17 @@ The checks:
 The types of Build and Verify are `submission`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
 `screenshot`, `verification` and `explainer`. The check of each JSON type checks the file
-against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`,
-the same schemas that Qory Apiary reads from `process.yaml`. A schema finding shows each
-member as its JSON pointer, such as `/steps/0/pass`. A file that nests lists and objects
-more than 64 levels deep gets one finding before any other step of the check, "Cut the
-nesting of verification.json to 64 levels.", with the JSON pointer of the first list or
-object past that depth; the deepest schema needs 5 levels. The check of a schema throws
-for a keyword, or a form of a keyword, that it does not apply, such as a list of types as
-`type`.
+against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`.
+For a custom type, `process.yaml` has the same schema as the type's `json_schema`, and
+Qory Apiary reads it there. `verification` is a standard type: its schema is the
+verification format of qory's contract. A schema finding shows each member as its JSON
+pointer, such as `/steps/0/pass`. A file that nests lists and objects more than 64 levels
+deep gets one finding before any other step of the check, "Cut the nesting of
+verification.json to 64 levels.", with the JSON pointer of the first list or object past
+that depth; the deepest schema needs 5 levels. The pointer escapes each key, as JSON
+Pointer does and then as JSON text does, so a line feed in a key shows as `\n`. The check
+of a schema throws for a keyword, or a form of a keyword, that it does not apply, such as
+a list of types as `type`.
 The approved demo scenarios are the version that `approved_version` in `index.json` is set
 to, when the store has that version, else the newest version. A push store has only the
 newest version of each type that the check reads.
