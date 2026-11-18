@@ -2359,12 +2359,13 @@ test('explainer: each claim ends with its source', () => {
     /^End the claim "- The job sends o\.\.\.r, the job file\." in ## AC-4 of explainer\.md with its source\. The source is a path:line or a matrix row\. The claim is "- The job sends one reply per customer, the job file\."\.$/);
   for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
     '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.',
-    '(matrix row ac-4)']) {
+    '(matrix row ac-4)', 'matrix row ac-1234.']) {
     passes(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), 'explainer');
   }
   for (const source of ['`jobs/corrected-reply.ts`.', 'jobs/corrected-reply.ts:0',
-    'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)']) {
+    'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)',
+    'matrix row ac-04.', 'matrix row ac-10000.']) {
     fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), /^End the claim "- The job sends/);
   }
@@ -2447,6 +2448,11 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
     exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
       '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
       '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md.\nThe ' +
+      'acceptance criteria have no such criterion that is not removed.');
+    // An id has up to four digits, as every criterion id has.
+    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
+      '## AC-1234, "A criterion that the criteria do not have"\n\n- A claim, matrix row ' +
+      'ac-1.\n\n## Risk on merge'))), 'Remove the section ## AC-1234 from explainer.md.\nThe ' +
       'acceptance criteria have no such criterion that is not removed.');
   }
   // The text in quotes of a heading is the first sentence of the criterion, with no regard to

@@ -4,6 +4,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { CRITERION_ID } = require('../lib/criterion.cjs');
 
 module.exports = (lib) => {
   const {
@@ -158,7 +159,7 @@ module.exports = (lib) => {
   // folder, else of the newest version. read returns null when the run can read none.
   const items = {
     type: 'acceptance-criteria',
-    form: /^ac-[1-9][0-9]{0,3}$/,
+    form: CRITERION_ID,
     example: 'ac-3',
     read(context) {
       let text = null;

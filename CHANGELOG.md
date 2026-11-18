@@ -677,8 +677,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   characters on one line, and a question with an option that has a `proposal` needs an
   output and its `item` as `about`.
 - A criterion id is `ac-` and a number from 1 to 9999 with no leading zero, the one form of
-  qory's contract, in the schema of `acceptance-lock` and in `checks.cjs run locked`, in
-  place of a number from 1 to 99.
+  qory's contract, in the schema of `acceptance-lock`, in `checks.cjs run locked`, and in
+  the section headings and matrix rows of the explainer check, in place of a number from 1
+  to 99. `lib/criterion.cjs` of `running-a-software-workflow` has the pattern, and a test
+  compares the copy in `pack-mockups.cjs` with it.
 - The schema check of `running-a-software-workflow` applies `uniqueItems`, which the
   verification format uses, and shows a pattern's control characters as escapes.
 - `.github/workflows/check.yml` builds qory at `0e02282`, qory's commit after

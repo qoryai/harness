@@ -1739,3 +1739,12 @@ test('the skill and the script state the same mark', () => {
   const skill = fs.readFileSync(path.join(path.dirname(script), 'SKILL.md'), 'utf8');
   assert.ok(skill.includes(pack.DROPPED_MARK));
 });
+
+test('the pack script takes a criterion id in the one form of the software workflow', () => {
+  // The pack script is in another skill folder, so it has a copy of the pattern.
+  const { CRITERION_ID } = require(path.join(__dirname, '../modules/software-factory/skills/' +
+    'running-a-software-workflow/lib/criterion.cjs'));
+  const copy = /^const CRITERION = \/(.+)\/;$/m.exec(fs.readFileSync(script, 'utf8'));
+  assert.ok(copy, 'pack-mockups.cjs has no CRITERION');
+  assert.equal(copy[1], CRITERION_ID.source);
+});
