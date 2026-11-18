@@ -1,30 +1,72 @@
 // The part of the preflight that waits, which lib/preflight.cjs starts with node and waits for.
-// It reads { serve, browser, setups, startMs, actionMs, signedInMs } as JSON on stdin:
-// - serve is null, or { command, url, cwd, log }: it runs `sh -c '<command>'` in cwd, in a
-//   new process group, with stdout and stderr in the file log, and sends a GET to url every
-//   250 ms until a response with a status below 500 comes back, the command exits, or startMs
-//   passes;
+// It reads { serve, browser, setups, startMs, actionMs, signedInMs, limitMs, browserMs,
+// proc } as JSON on stdin:
+// - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
+//   another process already serves that address, and the app counts as not started. Else it
+//   runs `sh -c '<command>'` in cwd, in a new process group, with the mark of
+//   lib/supervise.cjs, with stdout and stderr in the file log, and sends a GET to url every
+//   250 ms until a response with a status below 500 comes back, the command exits with
+//   other than 0, or startMs passes. A command that starts the app in the background and
+//   exits 0 still counts once the address returns a response.
 // - browser is null, or the path of the browser. When the app started, it replays each setup
 //   of setups, { actions, names }, with signIn of lib/replay.cjs, in a new browser context,
-//   with the values of the variables from its environment.
-// Then it stops the browser, and the process group of the command: SIGTERM, then SIGKILL 5
-// seconds later. It prints { app, signIns } as JSON on stdout, the one line that it prints:
-// app is null with no serve, else { started, why }, and signIns has { ok, why } per setup.
+//   with only the variables of names from its environment. browserMs, which only a test
+//   sets, is the time for the browser to start, 15 s by default.
+// Then it stops the browser, the process group of the command and each process with its
+// mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
+// lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
+// SIGHUP, and on an error that nothing catches. After limitMs from its start it stops the
+// sign-ins and sets unfinished. It prints { app, signIns, unfinished } as JSON on stdout,
+// the one line that it prints: app is { started, ran, why }, signIns has { ok, why, outside,
+// browser } per setup, and unfinished is null or the reason in one clause.
 'use strict';
 
 const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const https = require('node:https');
 
 const { Browser } = require('./browser.cjs');
 const { signIn } = require('./replay.cjs');
+const { MARK, marker } = require('./supervise.cjs');
 
 const POLL_MS = 250;
 const REQUEST_MS = 2000;
 const GRACE_MS = 5000;
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// What runs, which stopNow stops: the process group of the serve command, the processes with
+// its mark, and the browser.
+const running = { child: null, marks: null, browser: null };
+
+// stopNow kills what runs at once, for a process that exits right after.
+function stopNow() {
+  if (running.browser) running.browser.halt();
+  if (running.child && running.child.pid) {
+    try {
+      process.kill(-running.child.pid, 'SIGKILL');
+    } catch {
+      // The group has no process left.
+    }
+  }
+  if (running.marks) running.marks.signal(running.marks.marked(), 'SIGKILL');
+}
+
+for (const name of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(name, () => {
+    stopNow();
+    process.exit(1);
+  });
+}
+for (const name of ['uncaughtException', 'unhandledRejection']) {
+  process.on(name, (error) => {
+    stopNow();
+    process.stderr.write(`${(error && error.stack) || error}\n`);
+    process.exit(3);
+  });
+}
 
 // statusOf resolves to the status of a GET of url, or null when no response comes.
 function statusOf(url) {
@@ -45,28 +87,38 @@ function statusOf(url) {
   });
 }
 
-// start runs the serve command and resolves to { child, started, why }.
-async function start(serve, startMs) {
+// start runs the serve command and resolves to { started, ran, why }.
+async function start(serve, startMs, proc) {
+  if (await statusOf(serve.url) !== null) {
+    return { started: false, ran: false, why: `another process already returns a response at ` +
+      `${serve.url}, so the run did not start the serve command` };
+  }
+  const value = crypto.randomBytes(16).toString('hex');
+  running.marks = proc ? marker(proc, value) : null;
   const out = fs.openSync(serve.log, 'w');
-  const child = childProcess.spawn('/bin/sh', ['-c', serve.command], {
-    cwd: serve.cwd, detached: true, stdio: ['ignore', out, out], env: process.env,
-  });
-  fs.closeSync(out);
   let exit = null;
-  child.on('exit', (code, signal) => { exit = { code, signal }; });
-  child.on('error', (error) => { exit = { error: error.message }; });
+  try {
+    running.child = childProcess.spawn('/bin/sh', ['-c', serve.command], {
+      cwd: serve.cwd, detached: true, stdio: ['ignore', out, out],
+      env: { ...process.env, [MARK]: value },
+    });
+    running.child.on('exit', (code, signal) => { exit = { code, signal }; });
+    running.child.on('error', (error) => { exit = { error: error.message }; });
+  } finally {
+    fs.closeSync(out);
+  }
   const until = Date.now() + startMs;
   for (;;) {
     const status = await statusOf(serve.url);
-    if (status !== null && status < 500) return { child, started: true, why: null };
-    if (exit) {
+    if (status !== null && status < 500) return { started: true, ran: true, why: null };
+    if (exit && !(exit.code === 0 && !exit.signal)) {
       const how = exit.error ? `could not run: ${exit.error}`
         : exit.signal ? `ended on ${exit.signal}` : `exited with ${exit.code}`;
-      return { child, started: false,
+      return { started: false, ran: true,
         why: `the command ${how} before the address of the app returned a response` };
     }
     if (Date.now() > until) {
-      return { child, started: false, why: status === null
+      return { started: false, ran: true, why: status === null
         ? `the address returned no response within ${startMs / 1000} s`
         : `the address returned status ${status} for ${startMs / 1000} s` };
     }
@@ -74,10 +126,12 @@ async function start(serve, startMs) {
   }
 }
 
-// stop stops the process group of child: SIGTERM, then SIGKILL after the grace.
-async function stop(child) {
+// stop stops the process group of the serve command and the processes with its mark:
+// SIGTERM, then SIGKILL after the grace.
+async function stop() {
+  const { child, marks } = running;
   if (!child || !child.pid) return;
-  const signal = (name) => {
+  const group = (name) => {
     try {
       process.kill(-child.pid, name);
       return true;
@@ -85,28 +139,30 @@ async function stop(child) {
       return false;
     }
   };
-  if (!signal('SIGTERM')) return;
+  const left = () => (marks ? marks.marked() : []);
+  group('SIGTERM');
+  if (marks) marks.signal(left(), 'SIGTERM');
   const until = Date.now() + GRACE_MS;
-  while (Date.now() < until) {
-    await sleep(100);
-    if (!signal(0)) return;
-  }
-  signal('SIGKILL');
+  while (Date.now() < until && (group(0) || left().length)) await sleep(100);
+  group('SIGKILL');
+  if (marks) marks.signal(left(), 'SIGKILL');
 }
 
-// The browser while it runs, which a signal stops.
-let running = null;
-
+// signIns replays the setups of spec, and resolves to their results.
 async function signIns(spec) {
   const browser = new Browser(spec.browser);
-  running = browser;
+  running.browser = browser;
+  const origin = new URL(spec.serve.url).origin;
   const results = [];
   try {
-    await browser.start();
+    await browser.start(spec.browserMs);
     for (const setup of spec.setups) {
-      const page = await browser.page();
+      const env = Object.fromEntries(setup.names
+        .filter((name) => process.env[name] !== undefined)
+        .map((name) => [name, process.env[name]]));
+      const page = await browser.page({ origin });
       try {
-        results.push(await signIn(page, setup.actions, { base: spec.serve.url, env: process.env,
+        results.push(await signIn(page, setup.actions, { base: spec.serve.url, env,
           actionMs: spec.actionMs, signedInMs: spec.signedInMs }));
       } finally {
         await page.close();
@@ -122,37 +178,35 @@ async function signIns(spec) {
 }
 
 async function main() {
+  const started = Date.now();
   const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
-  let child = null;
-  for (const name of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
-    process.on(name, () => {
-      if (running && running.proc) running.proc.kill('SIGKILL');
-      if (child && child.pid) {
-        try {
-          process.kill(-child.pid, 'SIGKILL');
-        } catch {
-          // The group has no process left.
-        }
-      }
-      process.exit(1);
-    });
-  }
-  const result = { app: null, signIns: [] };
+  const result = { app: null, signIns: [], unfinished: null };
   try {
-    if (spec.serve) {
-      const app = await start(spec.serve, spec.startMs);
-      child = app.child;
-      result.app = { started: app.started, why: app.why };
-      if (app.started && spec.browser && spec.setups.length) result.signIns = await signIns(spec);
+    const proc = spec.proc === undefined ? (process.platform === 'linux' ? '/proc' : null)
+      : spec.proc;
+    result.app = await start(spec.serve, spec.startMs, proc);
+    if (result.app.started && spec.browser && spec.setups.length) {
+      let timer;
+      const late = new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), Math.max(started + spec.limitMs - Date.now(), 0));
+      });
+      const done = await Promise.race([signIns(spec), late]);
+      clearTimeout(timer);
+      if (done) result.signIns = done;
+      else {
+        result.unfinished = `the sign-ins ran past the limit of ${spec.limitMs / 1000} s`;
+        await running.browser.stop();
+      }
     }
   } finally {
-    await stop(child);
+    await stop();
   }
   fs.writeSync(1, `${JSON.stringify(result)}\n`);
   process.exit(0);
 }
 
 main().catch((error) => {
+  stopNow();
   process.stderr.write(`${error.stack}\n`);
   process.exit(3);
 });

@@ -1,11 +1,14 @@
-// preflight: before a session changes code, the checks of lib/preflight.cjs on the dev
+// preflight: before the first demo of the app, the checks of lib/preflight.cjs on the dev
 // container: a browser, the app that the serve command of the build plan starts at the
 // address of its line "App address:", and the sign-in of the demo scripts. It reads the build
-// plan and the demo scripts from the folder of --artifacts, or of qory.start_artifacts in
-// inputs.json, else from the artifact folder of the session, as run does. It writes
-// points.json and .reports/preflight/serve.log to the artifact folder of the session. It
-// exits 0 when each part is there, 1 with a point run_again in points.json for each missing
-// part, and 3 when an input is missing or the runner of the app returns no result.
+// plan from the folder of --artifacts, or of qory.start_artifacts in inputs.json, else from
+// the artifact folder of the session, as run does. It reads the demo scripts from the
+// artifact folder of the session, the store of the run, since the folder of the build plans
+// holds only build plans. It writes points.json and .reports/preflight/serve.log to the
+// artifact folder of the session. It exits 0 when each part is there, 1 with a point
+// run_again in points.json for each missing part, and 3 when an input is missing or the
+// runner of the app returns no result: then a line that starts with "Cause: " states the
+// cause, in the words of the line that ends the run in running-checks/SKILL.md.
 'use strict';
 
 const git = require('../lib/git.cjs');
@@ -39,12 +42,17 @@ module.exports = (lib) => {
       if (!plan.address) {
         throw new Missing('Add the line "App address: <url>" to ## Summary of the build plan, ' +
           'then push it.', [`Version ${plan.version} has a serve command, and no http or ` +
-          'https address of the app.']);
+          'https address of the app.', 'Cause: the build plan has no App address.']);
       }
       serve = { command: row.command, url: plan.address,
         cwd: git.top(Missing, io.cwd, io.env) };
     }
-    const scripts = serve ? checks.demoScripts(artifactFolder(pinned), io) : [];
+    const scripts = serve ? checks.demoScripts(artifactFolder(io), io) : [];
+    if (serve && !scripts.length) {
+      throw new Missing('Run `qory artifact pull demo-script`, then run preflight again.',
+        ['The artifact folder has no demo script, and the build plan has a serve command.',
+          'Cause: no demo script exists for the app.']);
+    }
     const done = checks.preflight(io, artifactFolder(io), { serve, scripts });
     io.print(done.findings, done.last);
     return done.status;

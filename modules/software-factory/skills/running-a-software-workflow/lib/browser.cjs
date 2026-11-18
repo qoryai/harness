@@ -26,8 +26,32 @@ const HEIGHT = 800;
 const STOP_MS = 2000;
 const POLL_MS = 100;
 const LOAD_MS = 15000;
+// The most time for the browser to start, and for the browser to return the result of one
+// call of the protocol.
+const START_MS = 15000;
+const SEND_MS = 10000;
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// limited resolves as promise does, or rejects with an Error of why after ms.
+function limited(promise, ms, why) {
+  let timer;
+  const late = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(why)), ms);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+
+// originOf returns the origin of url, such as https://login.example.com, or its scheme, such
+// as data:, for an address with no origin. It returns null for no address.
+function originOf(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === 'null' ? parsed.protocol : parsed.origin;
+  } catch {
+    return null;
+  }
+}
 
 // executable reports whether file is a regular file that the user may run.
 function executable(file) {
@@ -64,8 +88,8 @@ class Browser {
   }
 
   // start starts the browser with a new profile in a new temporary folder, and resolves once
-  // the browser returns its version on the pipe.
-  start() {
+  // the browser returns its version on the pipe, or rejects after ms.
+  start(ms = START_MS) {
     this.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-browser-'));
     const env = {
       PATH: process.env.PATH || '/usr/bin:/bin',
@@ -85,20 +109,37 @@ class Browser {
     this.proc.stdio[4].on('data', (data) => {
       buffer = Buffer.concat([buffer, data]);
       let end = buffer.indexOf(0);
-      while (end >= 0) {
-        this.receive(JSON.parse(buffer.subarray(0, end).toString()));
+      while (end >= 0 && !this.broken) {
+        let message;
+        try {
+          message = JSON.parse(buffer.subarray(0, end).toString());
+        } catch {
+          this.fail('the browser wrote a message that is no JSON');
+          return;
+        }
+        this.receive(message);
         buffer = buffer.subarray(end + 1);
         end = buffer.indexOf(0);
       }
     });
     this.proc.stdio[3].on('error', () => {});
     this.proc.stdio[4].on('error', () => {});
-    return Promise.race([
-      this.send('Browser.getVersion'),
+    return limited(Promise.race([
+      this.send('Browser.getVersion', {}, undefined, ms + 1000),
       this.exited.then((how) => {
         throw new Error(`the browser exited before it started: ${JSON.stringify(how)}`);
       }),
-    ]);
+    ]), ms, `the browser did not start within ${ms / 1000} s`);
+  }
+
+  // fail rejects each call that waits for its result with why, and each later call too.
+  fail(why) {
+    this.broken = why;
+    for (const waiting of this.pending.values()) {
+      clearTimeout(waiting.timer);
+      waiting.reject(new Error(`${waiting.method}: ${why}`));
+    }
+    this.pending.clear();
   }
 
   receive(message) {
@@ -109,15 +150,23 @@ class Browser {
       return;
     }
     this.pending.delete(message.id);
+    clearTimeout(waiting.timer);
     if (message.error) waiting.reject(new Error(`${waiting.method}: ${message.error.message}`));
     else waiting.resolve(message.result);
   }
 
-  send(method, params = {}, sessionId) {
+  // send calls method of the protocol, and resolves to its result, or rejects when the
+  // browser returns no result within ms.
+  send(method, params = {}, sessionId, ms = SEND_MS) {
     if (this.stopped) return Promise.reject(new Error(`${method}: the browser stopped`));
+    if (this.broken) return Promise.reject(new Error(`${method}: ${this.broken}`));
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject, method });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`${method}: the browser returned no result within ${ms / 1000} s`));
+      }, ms);
+      this.pending.set(id, { resolve, reject, method, timer });
       const message = { id, method, params };
       if (sessionId) message.sessionId = sessionId;
       this.proc.stdio[3].write(`${JSON.stringify(message)}\0`);
@@ -125,13 +174,18 @@ class Browser {
   }
 
   // page returns a new Page in a new browser context, which shares no cookie or storage with
-  // another page.
-  async page() {
+  // another page. With origin, the page loads no document of another origin in any of its
+  // frames, as Page states.
+  async page({ origin } = {}) {
     const { browserContextId } = await this.send('Target.createBrowserContext');
     const { targetId } = await this.send('Target.createTarget',
       { url: 'about:blank', browserContextId });
     const { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
-    const page = new Page(this, { browserContextId, targetId, sessionId });
+    const page = new Page(this, { browserContextId, targetId, sessionId, origin });
+    if (origin) {
+      await page.send('Fetch.enable',
+        { patterns: [{ urlPattern: '*', resourceType: 'Document', requestStage: 'Request' }] });
+    }
     await page.send('Page.enable');
     await page.send('Runtime.enable');
     await page.send('Emulation.setDeviceMetricsOverride', {
@@ -144,6 +198,7 @@ class Browser {
   async stop() {
     this.stopped = true;
     for (const waiting of this.pending.values()) {
+      clearTimeout(waiting.timer);
       waiting.reject(new Error(`${waiting.method}: the browser stopped`));
     }
     this.pending.clear();
@@ -154,12 +209,29 @@ class Browser {
       await Promise.race([this.exited, late]);
       clearTimeout(timer);
     }
-    if (this.dir) {
+    this.removeDir();
+  }
+
+  // halt kills the browser and removes its temporary folder at once, for a process that
+  // exits right after.
+  halt() {
+    this.stopped = true;
+    if (this.proc) {
       try {
-        fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        this.proc.kill('SIGKILL');
       } catch {
-        // A child of the browser can still write here. The folder contains no result.
+        // The browser has ended.
       }
+    }
+    this.removeDir();
+  }
+
+  removeDir() {
+    if (!this.dir) return;
+    try {
+      fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // A child of the browser can still write here. The folder contains no result.
     }
   }
 }
@@ -210,8 +282,8 @@ function keyOf(given) {
 // The script that finds the element of a target in a page: text=<words> is the innermost
 // visible element whose text contains the words, in any case and with runs of white space as
 // one space; any other target is a CSS selector, and the first visible element that it
-// matches. It scrolls the element into view and returns the centre of its box, null for no
-// element, or { error } for a selector that the page cannot read.
+// matches. It scrolls the element into view, keeps it for FOCUSED, and returns the centre of
+// its box, null for no element, or { error } for a selector that the page cannot read.
 const LOCATE = `(target) => {
   const visible = (el) => {
     const box = el.getBoundingClientRect();
@@ -233,25 +305,57 @@ const LOCATE = `(target) => {
     }
   }
   if (!el) return null;
+  window[Symbol.for('qory.located')] = el;
   el.scrollIntoView({ block: 'center', inline: 'center' });
   const box = el.getBoundingClientRect();
   return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
 }`;
 
-// One tab of the app, in a new browser context that no other Page shares.
+// The script that returns the origin of the page, whether the focus is in a frame, and
+// whether it is in the element that LOCATE found last, in this document.
+const FOCUSED = `(() => {
+  const el = window[Symbol.for('qory.located')];
+  const active = document.activeElement;
+  const frame = Boolean(active && active.tagName === 'IFRAME');
+  return { origin: location.origin, frame,
+    focused: Boolean(el && active && !frame && (active === el || el.contains(active))) };
+})()`;
+
+// One tab of the app, in a new browser context that no other Page shares. It dismisses each
+// dialog of the page, such as an alert, which would stop the page until a person closes it.
+// With origin, the page fails the load of each document of another origin, in the tab and
+// in each frame, such as one that a redirect, a link or a script opens, and outside is the
+// origin of the first such load; type and press then act only on a page of origin.
 class Page {
-  constructor(browser, { browserContextId, targetId, sessionId }) {
+  constructor(browser, { browserContextId, targetId, sessionId, origin = null }) {
     this.browser = browser;
     this.browserContextId = browserContextId;
     this.targetId = targetId;
     this.sessionId = sessionId;
+    this.origin = origin;
+    this.outside = null;
     this.loads = 0;
     this.handler = (message) => {
-      if (message.sessionId === this.sessionId && message.method === 'Page.loadEventFired') {
-        this.loads += 1;
+      if (message.sessionId !== this.sessionId) return;
+      if (message.method === 'Page.loadEventFired') this.loads += 1;
+      if (message.method === 'Page.javascriptDialogOpening') {
+        this.send('Page.handleJavaScriptDialog', { accept: false }).catch(() => {});
       }
+      if (message.method === 'Fetch.requestPaused') this.paused(message.params);
     };
     browser.handlers.add(this.handler);
+  }
+
+  // paused lets a load of a document of origin go on, and fails any other.
+  paused({ requestId, request }) {
+    const other = originOf(request.url);
+    if (!this.origin || other === this.origin) {
+      this.send('Fetch.continueRequest', { requestId }).catch(() => {});
+      return;
+    }
+    if (!this.outside) this.outside = other || 'an address with no origin';
+    this.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' })
+      .catch(() => {});
   }
 
   send(method, params) {
@@ -283,13 +387,14 @@ class Page {
   }
 
   // poll calls check until it returns a value other than null and undefined, and returns
-  // that value, or null after ms. A call that rejects, as during a load, counts as none.
+  // that value, or null after ms. A call that rejects, as during a load, or that runs past
+  // ms, counts as none.
   async poll(check, ms) {
     const until = Date.now() + ms;
     for (;;) {
       let value = null;
       try {
-        value = await check();
+        value = await limited(check(), Math.max(until - Date.now(), POLL_MS), 'late');
       } catch {
         // The page is loading: try again.
       }
@@ -328,15 +433,29 @@ class Page {
       { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   }
 
-  // type clicks the element of target, then enters text as one input.
+  // here throws when the page is not on origin, when the focus is in a frame, or with
+  // focused set, when the focus is not in the element that locate found last.
+  async here(focused) {
+    const now = await this.evaluate(FOCUSED);
+    if (this.origin && now.origin !== this.origin) {
+      throw new Error(`the page is on ${now.origin}, outside the app`);
+    }
+    if (now.frame) throw new Error('the focus is in a frame');
+    if (focused && !now.focused) throw new Error('the focus is not in the element of the target');
+  }
+
+  // type clicks the element of target, then enters text as one input, only when the focus is
+  // in that element and the page is on origin.
   async type(target, text, ms) {
     await this.click(target, ms);
+    await this.here(true);
     await this.send('Input.insertText', { text });
   }
 
   async press(given) {
     const key = keyOf(given);
     if (!key) throw new Error('the key is none that press takes');
+    await this.here(false);
     const event = { key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode,
       nativeVirtualKeyCode: key.keyCode, modifiers: key.modifiers };
     await this.send('Input.dispatchKeyEvent',
@@ -359,4 +478,4 @@ class Page {
   }
 }
 
-module.exports = { BROWSERS, Browser, Page, findBrowser, keyOf };
+module.exports = { BROWSERS, Browser, Page, findBrowser, keyOf, limited, originOf };

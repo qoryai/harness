@@ -46,9 +46,14 @@ const p03Text = (names) => `The run could not sign in to the app with the values
   'in the workspace\'s variables.';
 
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
-// when the password is APP_SECRET, and shows the form again when it is not.
+// when the password is APP_SECRET, and shows the form again when it is not. /away redirects
+// to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
+// a frame of it, and /alert shows the form with an alert at its load and at each key. The
+// other origin adds a line to the file OTHER_LOG for each request.
 const APP = `
+const fs = require('fs');
 const http = require('http');
+const other = 'http://127.0.0.1:' + process.env.OTHER_PORT + '/sign-in';
 const page = (body) => '<!doctype html><html><body>' + body + '</body></html>';
 const form = (wrong) => page('<form method="post" action="/session">' +
   (wrong ? '<p>Wrong password</p>' : '') + '<input id="email" name="email">' +
@@ -69,9 +74,26 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (req.url === '/away') {
+    res.writeHead(302, { Location: other });
+    res.end();
+    return;
+  }
   res.writeHead(200, { 'content-type': 'text/html' });
-  res.end(req.url === '/orders' ? page('<h1>Order 1042</h1>') : form(false));
+  if (req.url === '/link') res.end(page('<a id="go" href="' + other + '">Go</a>'));
+  else if (req.url === '/framed') res.end(page('<iframe src="' + other + '"></iframe>'));
+  else if (req.url === '/alert') {
+    res.end(form(false).replace('</body>', '<script>alert("Welcome");' +
+      'addEventListener("keydown", () => alert("Key"));</script></body>'));
+  } else res.end(req.url === '/orders' ? page('<h1>Order 1042</h1>') : form(false));
 }).listen(Number(process.env.APP_PORT), '127.0.0.1');
+if (process.env.OTHER_PORT) {
+  http.createServer((req, res) => {
+    fs.appendFileSync(process.env.OTHER_LOG, req.method + ' ' + req.url + '\\n');
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(form(false));
+  }).listen(Number(process.env.OTHER_PORT), '127.0.0.1');
+}
 `;
 
 const SIGN_IN = [
@@ -330,12 +352,15 @@ test('preflight: the demo scripts are the newest versions that index.json counts
   const read = () => preflight.demoScripts(root, io)
     .map((one) => [one.scenario, one.setup.length]);
   assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
-  // A leftover folder above the newest version of index.json is not read, and neither is
-  // a folder of a name that index.json does not list.
+  // A leftover folder above the newest version of index.json is not read. A name that
+  // index.json does not list has the highest version folder, as newest of the context reads
+  // it.
   write('scenario-10', 7, script('scenario-10', SIGN_IN));
-  write('scenario-4', 1, script('scenario-4', SIGN_IN));
-  assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
+  write('scenario-4', 1, script('scenario-4', []));
+  write('scenario-4', 2, script('scenario-4', SIGN_IN));
+  assert.deepEqual(read(), [['scenario-2', 4], ['scenario-4', 4], ['scenario-10', 0]]);
   // A version of a cancelled run counts for nothing, and a withdrawn name is no scenario.
+  fs.rmSync(path.join(root, 'demo-script', 'scenario-4'), { recursive: true });
   index([entry('scenario-10', [[1], [7, { cancelled: true }]]),
     entry('scenario-2', [[1], [2], [3, { withdrawn: true }]])]);
   assert.deepEqual(read(), [['scenario-10', 0]]);
@@ -348,11 +373,20 @@ test('preflight: the demo scripts are the newest versions that index.json counts
   assert.throws(read,
     /^Error: Push a demo script of scenario-3 that passes its check, then pull it\.$/);
   assert.deepEqual(preflight.demoScripts(checkout().root, io), []);
+  // With no index.json, each name has its highest version folder.
+  const bare = checkout().root;
+  for (const [number, setup] of [[1, []], [3, SIGN_IN]]) {
+    const dir = path.join(bare, 'demo-script', 'scenario-1', `v${number}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'scenario-1.json'),
+      JSON.stringify(script('scenario-1', setup)));
+  }
+  assert.deepEqual(preflight.demoScripts(bare, io).map((one) => one.setup.length), [4]);
 });
 
 test('preflight: a sign-in opens only the address of the app, and types nothing after another', async () => {
   const calls = [];
-  const page = {
+  const page = { outside: null,
     goto: async (url) => { calls.push(`goto ${url}`); },
     type: async (target) => { calls.push(`type ${target}`); },
     press: async (key) => { calls.push(`press ${key}`); },
@@ -368,30 +402,56 @@ test('preflight: a sign-in opens only the address of the app, and types nothing 
     assert.equal(done.ok, false, url);
     assert.match(done.why, new RegExp('^action 1 \\(open .*\\) failed: the address is ' +
       'outside the app, whose origin is http://127\\.0\\.0\\.1:4100$'));
+    assert.equal(done.outside, url.startsWith('data:') ? 'data:'
+      : new URL(url, options.base).origin, url);
     assert.deepEqual(calls, [], url);
   }
+  // Once the page has failed a load of another origin, the next action fails, and no later
+  // action types.
+  calls.length = 0;
+  const left = { ...page, click: async () => { left.outside = 'https://sign-in.example.com'; } };
+  const stopped = await replay.signIn(left, [{ do: 'open', url: '/sign-in' },
+    { do: 'click', target: '#go' }, ...SIGN_IN.slice(1)], options);
+  assert.deepEqual(stopped, { ok: false, why: 'action 3 (type into #email) failed: the page ' +
+    'opened https://sign-in.example.com, outside the app',
+  outside: 'https://sign-in.example.com' });
+  assert.deepEqual(calls, ['goto http://127.0.0.1:4100/sign-in']);
   // An open of the app, by a path or by its whole address, passes.
   calls.length = 0;
   const passed = await replay.signIn(page, [...SIGN_IN,
     { do: 'open', url: 'http://127.0.0.1:4100/orders' }], options);
-  assert.deepEqual(passed, { ok: true, why: null });
+  assert.deepEqual(passed, { ok: true, why: null, outside: null });
   assert.deepEqual(calls, ['goto http://127.0.0.1:4100/sign-in', 'type #email',
     'type #password', 'press Enter', 'goto http://127.0.0.1:4100/orders']);
 });
 
 // signIn runs the preflight on the app with the setup of the demo scripts, with the value of
-// DEMO_PASSWORD, or none when value is undefined, and the variables of more.
+// DEMO_PASSWORD, or none when value is undefined, and the variables of more. The other origin
+// of the app listens on the port other, and its log of requests is the file otherLog.
 async function signIn(setup, value, more = {}) {
   const here = checkout();
   const port = await freePort();
-  const env = { APP_PORT: String(port), APP_SECRET: 'parcel-blue-41', ...more };
+  const other = await freePort();
+  const otherLog = path.join(here.dir, 'other.log');
+  fs.writeFileSync(otherLog, '');
+  const env = { APP_PORT: String(port), APP_SECRET: 'parcel-blue-41', OTHER_PORT: String(other),
+    OTHER_LOG: otherLog, ...more };
   if (value !== undefined) env.DEMO_PASSWORD = value;
   else env.DEMO_PASSWORD = '';
   const done = run(here, { serve: { command: 'node app/server.cjs',
     url: `http://127.0.0.1:${port}/`, cwd: here.dir },
   scripts: [script('scenario-1', setup), script('scenario-2', setup)] },
   { browsers: [BROWSER], env, startMs: 10000, actionMs: 3000, signedInMs: 3000 });
-  return { here, done };
+  return { here, done, port, other, otherLog };
+}
+
+// isFree resolves to whether nothing listens on port of 127.0.0.1.
+function isFree(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(false));
+    server.listen(port, '127.0.0.1', () => server.close(() => resolve(true)));
+  });
 }
 
 test('preflight: a sign-in with the right value passes', { skip: NO_BROWSER }, async () => {
@@ -435,15 +495,283 @@ test('preflight: a sign-in with no value, or a target that is not there, fails w
   assert.equal(points(missing.here.root)[0].text, p03Text('DEMO_PIN and DEMO_PASSWORD'));
 });
 
-test('preflight: a sign-in that opens another site fails, with the point of the sign-in', { skip: NO_BROWSER }, async () => {
-  const { here, done } = await signIn([{ do: 'open', url: 'https://sign-in.example.com/' },
+// p05 returns the point of a sign-in that loads a page of origin, outside the app at address.
+const p05 = (address, origin) => ({
+  text: `The sign-in of the app at ${address} opens ${origin}, and the run may open only the ` +
+    'app\'s pages.',
+  action: 'run_again',
+  fix: `Make the app's sign-in work in the dev container without leaving ${address}, then run ` +
+    'another round.',
+});
+
+test('preflight: a sign-in that opens another site writes the point of the page outside the app', { skip: NO_BROWSER }, async () => {
+  const { here, done, port } = await signIn([{ do: 'open', url: 'https://sign-in.example.com/' },
     ...SIGN_IN.slice(1)], 'parcel-blue-41');
   assert.equal(done.status, 1);
-  assert.match(done.findings[0].split('\n')[1], new RegExp('^The sign-in of scenario-1 and ' +
-    'scenario-2 failed: action 1 \\(open https://sign-in\\.example\\.com/\\) failed: the ' +
-    'address is outside the app, whose origin is http://127\\.0\\.0\\.1:[0-9]+\\.$'));
-  assert.deepEqual(points(here.root), [{ text: p03Text('DEMO_PASSWORD'), action: 'run_again',
-    fix: P03_FIX }]);
+  const [first, why, fix] = done.findings[0].split('\n');
+  assert.equal(first, 'End the session with points.json: the sign-in opened a page outside the ' +
+    'app.');
+  assert.equal(why, 'The sign-in of scenario-1 and scenario-2 failed: action 1 (open ' +
+    'https://sign-in.example.com/) failed: the address is outside the app, whose origin is ' +
+    `http://127.0.0.1:${port}.`);
+  const address = `http://127.0.0.1:${port}/`;
+  assert.equal(fix, `The fix of its point: ${p05(address, 'https://sign-in.example.com').fix}`);
+  assert.deepEqual(points(here.root), [p05(address, 'https://sign-in.example.com')]);
+  const checked = call(['check', 'points', path.join(here.root, 'points.json')], { cwd: here.dir });
+  assert.equal(checked.status, 0, checked.out);
+});
+
+test('preflight: a redirect, a link or a frame to another origin loads nothing there, and types nothing', { skip: NO_BROWSER }, async () => {
+  for (const [setup, action] of [
+    [[{ do: 'open', url: '/away' }, ...SIGN_IN.slice(1)], 'action 1 (open /away)'],
+    [[{ do: 'open', url: '/link' }, { do: 'click', target: '#go' }, ...SIGN_IN.slice(1)],
+      'action 3 (type into #email)'],
+    [[{ do: 'open', url: '/framed' }, ...SIGN_IN.slice(1)], 'action 2 (type into #email)'],
+  ]) {
+    const { here, done, port, other, otherLog } = await signIn(setup, 'parcel-blue-41');
+    const words = setup[0].url;
+    assert.equal(done.status, 1, words);
+    assert.equal(done.findings.length, 1, done.findings.join('\n'));
+    const origin = `http://127.0.0.1:${other}`;
+    assert.equal(done.findings[0].split('\n')[1], 'The sign-in of scenario-1 and scenario-2 ' +
+      `failed: ${action} failed: the page opened ${origin}, outside the app.`, words);
+    assert.deepEqual(points(here.root), [p05(`http://127.0.0.1:${port}/`, origin)], words);
+    // The browser sent no request to the other origin, so no value of a variable went there.
+    assert.equal(fs.readFileSync(otherLog, 'utf8'), '', words);
+    assert.equal(await isFree(port), true, words);
+  }
+});
+
+test('preflight: an alert of the app does not stop the sign-in', { skip: NO_BROWSER }, async () => {
+  const started = Date.now();
+  const { done } = await signIn([{ do: 'open', url: '/alert' }, ...SIGN_IN.slice(1)],
+    'parcel-blue-41');
+  assert.deepEqual(done.findings, []);
+  assert.ok(Date.now() - started < 30000);
+});
+
+test('preflight: the replay types only into the element of the target', { skip: NO_BROWSER }, async () => {
+  const { done } = await signIn([{ do: 'open', url: '/orders' },
+    { do: 'type', target: 'h1', variable: 'DEMO_PASSWORD' }], 'parcel-blue-41');
+  assert.match(done.findings[0].split('\n')[1], new RegExp(': action 2 \\(type into h1\\) ' +
+    'failed: the focus is not in the element of the target\\.$'));
+});
+
+const RUNNER = path.join(SKILL, 'lib/preflight-run.cjs');
+
+// runner starts lib/preflight-run.cjs with spec, and resolves to { status, signal, out }; after
+// ms, when given, it sends the runner SIGTERM.
+function runner(spec, { ms, env = {} } = {}) {
+  return new Promise((resolve) => {
+    const child = childProcess.spawn(process.execPath, [RUNNER],
+      { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...env } });
+    let out = '';
+    child.stdout.on('data', (data) => { out += data; });
+    child.stderr.on('data', () => {});
+    child.stdin.end(JSON.stringify(spec));
+    if (ms) setTimeout(() => child.kill('SIGTERM'), ms);
+    child.on('exit', (status, signal) => resolve({ status, signal, out }));
+  });
+}
+
+// listening starts a server of another process on port, which returns ok to each request, and
+// resolves to that process once it listens.
+function listening(port) {
+  return new Promise((resolve) => {
+    const child = childProcess.spawn(process.execPath, ['-e', 'require("http").createServer(' +
+      `(q, r) => r.end("ok")).listen(${port}, "127.0.0.1", () => console.log("ready"))`],
+    { stdio: ['ignore', 'pipe', 'ignore'] });
+    child.stdout.once('data', () => resolve(child));
+  });
+}
+
+test('preflight: another process at the address of the app counts as an app that did not start', async () => {
+  const here = checkout();
+  const port = await freePort();
+  const other = await listening(port);
+  try {
+    const url = `http://127.0.0.1:${port}/`;
+    const done = run(here, { serve: { command: 'echo started > started.txt', url,
+      cwd: here.dir } }, { browsers: [process.execPath] });
+    assert.equal(done.status, 1);
+    assert.equal(done.findings[0].split('\n')[1], `another process already returns a response ` +
+      `at ${url}, so the run did not start the serve command.`);
+    assert.equal(points(here.root)[0].text, P02_TEXT);
+    assert.equal(fs.existsSync(path.join(here.dir, 'started.txt')), false);
+  } finally {
+    other.kill('SIGKILL');
+  }
+});
+
+test('preflight: a command that starts the app in the background and exits 0 passes, and the app stops after', async () => {
+  const here = checkout();
+  const port = await freePort();
+  const done = run(here, { serve: { command: 'node app/server.cjs > /dev/null 2>&1 &',
+    url: `http://127.0.0.1:${port}/`, cwd: here.dir } },
+  { browsers: [process.execPath], env: { APP_PORT: String(port) } });
+  assert.deepEqual(done.findings, []);
+  assert.equal(await isFree(port), true);
+});
+
+// A process that leaves the group of the serve command: it starts ESCAPED in a new session,
+// writes its pid to FAKE_PID, and writes an entry of it to the folder FAKE_PROC, as
+// /proc/<pid>/environ shows it on Linux. Then it starts the app.
+const ESCAPED = `
+const fs = require('fs');
+const path = require('path');
+const child = require('child_process').spawn(process.execPath,
+  ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+child.unref();
+fs.writeFileSync(process.env.FAKE_PID, String(child.pid));
+fs.mkdirSync(path.join(process.env.FAKE_PROC, String(child.pid)), { recursive: true });
+fs.writeFileSync(path.join(process.env.FAKE_PROC, String(child.pid), 'environ'),
+  'PATH=/bin\\0QORY_CHECK_MARK=' + process.env.QORY_CHECK_MARK + '\\0');
+require('./server.cjs');
+`;
+
+test('preflight: a process of the serve command that leaves its group stops with the app', async () => {
+  const here = checkout();
+  fs.writeFileSync(path.join(here.dir, 'app', 'escape.cjs'), ESCAPED);
+  const port = await freePort();
+  const fake = path.join(here.dir, 'proc');
+  fs.mkdirSync(fake);
+  const pidFile = path.join(here.dir, 'pid');
+  let pid = null;
+  const alive = (one) => {
+    try {
+      process.kill(one, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    const done = run(here, { serve: { command: 'node app/escape.cjs',
+      url: `http://127.0.0.1:${port}/`, cwd: here.dir } },
+    { browsers: [process.execPath], env: { APP_PORT: String(port), FAKE_PROC: fake,
+      FAKE_PID: pidFile }, proc: process.platform === 'linux' ? undefined : fake });
+    assert.deepEqual(done.findings, []);
+    pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    const until = Date.now() + 2000;
+    while (alive(pid) && Date.now() < until) { /* wait for the process to end */ }
+    assert.equal(alive(pid), false, 'a process that left the group outlived the app');
+  } finally {
+    if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
+  }
+});
+
+// app returns the spec of the runner for the app of a checkout at port, which waits at the
+// address of the port wait, with the browser and setups.
+function appSpec(here, port, wait, more = {}) {
+  return { serve: { command: `APP_PORT=${port} node app/server.cjs`,
+    url: `http://127.0.0.1:${wait}/`, cwd: here.dir, log: path.join(here.dir, 'serve.log') },
+  browser: null, setups: [], startMs: 60000, actionMs: 1000, signedInMs: 1000,
+  limitMs: 60000, ...more };
+}
+
+test('preflight: SIGTERM while the runner waits for the app stops the app', async () => {
+  const here = checkout();
+  const port = await freePort();
+  // The app listens on a port other than the address, so the runner keeps waiting.
+  const ran = await runner(appSpec(here, port, await freePort()), { ms: 1500 });
+  assert.equal(ran.status, 1);
+  assert.equal(ran.out, '');
+  assert.equal(await isFree(port), true);
+});
+
+test('preflight: a runner that fails while it waits for the app stops the app', async () => {
+  const here = checkout();
+  const port = await freePort();
+  const wait = await freePort();
+  // A module that throws in the runner 1 s after its start, and in no other process.
+  const plant = path.join(here.dir, 'plant.cjs');
+  fs.writeFileSync(plant, 'if (process.argv[1].endsWith("preflight-run.cjs")) ' +
+    'setTimeout(() => { throw new Error("planted"); }, 1000);\n');
+  const ran = await runner(appSpec(here, port, wait),
+    { env: { NODE_OPTIONS: `--require ${plant}` } });
+  assert.equal(ran.status, 3);
+  assert.equal(await isFree(port), true);
+  // The verb exits 3 with the cause of a runner that did not finish.
+  assert.throws(() => run(here, { serve: { command: 'node app/server.cjs',
+    url: `http://127.0.0.1:${wait}/`, cwd: here.dir } },
+  { browsers: [process.execPath], env: { APP_PORT: String(port),
+    NODE_OPTIONS: `--require ${plant}` } }), (error) => {
+    assert.equal(error.message, 'Run preflight again: the check of the app and the sign-in ' +
+      'returned no result.');
+    assert.equal(error.more[0], 'The runner exited with 3.');
+    assert.equal(error.more.at(-1), 'Cause: the browser check did not finish: the runner exited ' +
+      'with 3.');
+    return true;
+  });
+  assert.equal(await isFree(port), true);
+});
+
+test('preflight: sign-ins past the limit of the runner stop, with the app', { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  const port = await freePort();
+  const ran = await runner(appSpec(here, port, port, { browser: BROWSER, limitMs: 4000,
+    setups: [{ actions: [{ do: 'open', url: '/sign-in' },
+      { do: 'wait', text: 'Order 1042', timeout_ms: 30000 }], names: [] }] }));
+  assert.equal(ran.status, 0);
+  assert.equal(JSON.parse(ran.out).unfinished, 'the sign-ins ran past the limit of 4 s');
+  assert.equal(await isFree(port), true);
+});
+
+// fakeBrowser writes a browser to the checkout that runs shell, and returns its path.
+function fakeBrowser(here, shell) {
+  const file = path.join(here.dir, `browser-${++folders}`);
+  fs.writeFileSync(file, `#!/bin/sh\n${shell}\n`, { mode: 0o755 });
+  return file;
+}
+
+test('preflight: a browser that fails at its start writes the point of the browser', async () => {
+  const cases = [
+    // A message on the pipe that is no JSON.
+    [`printf 'garbage\\000' >&4; exec sleep 97`, 'the browser failed: Browser.getVersion: the ' +
+      'browser wrote a message that is no JSON'],
+    // No message on the pipe.
+    ['exec sleep 98', 'the browser failed: the browser did not start within 3 s'],
+    // A program that is no browser.
+    ['exit 9', 'the browser failed: the browser exited before it started: {"code":9,' +
+      '"signal":null}'],
+  ];
+  for (const [shell, why] of cases) {
+    const here = checkout();
+    const port = await freePort();
+    const done = run(here, { serve: { command: 'node app/server.cjs',
+      url: `http://127.0.0.1:${port}/`, cwd: here.dir }, scripts: [script('scenario-1', SIGN_IN)] },
+    { browsers: [fakeBrowser(here, shell)], browserMs: 3000,
+      env: { APP_PORT: String(port), DEMO_PASSWORD: 'x' } });
+    assert.equal(done.status, 1, shell);
+    const [first, line] = done.findings[0].split('\n');
+    assert.equal(first, 'End the session with points.json: the browser of the dev container ' +
+      'failed.');
+    assert.equal(line, `The sign-in of scenario-1 failed: ${why}.`);
+    assert.deepEqual(points(here.root), [P01]);
+    assert.equal(await isFree(port), true, shell);
+  }
+  const left = childProcess.spawnSync('pgrep', ['-f', 'sleep 9[78]$']).stdout.toString().trim();
+  assert.equal(left, '');
+});
+
+test('preflight: a demo script that types a key of qory or of an agent exits 3 before the app starts', async () => {
+  const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
+  assert.deepEqual(['QORY_RUN_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
+    'GITHUB_TOKEN', 'DEMO_PASSWORD', 'APP_TOKEN'].map(runKey),
+  [true, true, true, true, false, false]);
+  const here = checkout();
+  const setup = [...SIGN_IN.slice(0, 2), { do: 'type', target: '#password',
+    variable: 'ANTHROPIC_API_KEY' }];
+  assert.throws(() => run(here, { serve: { command: 'node app/server.cjs',
+    url: 'http://127.0.0.1:9/', cwd: here.dir }, scripts: [script('scenario-1', setup)] },
+  { browsers: [process.execPath] }), (error) => {
+    assert.equal(error.message, 'Remove the key of qory or of the agent from the demo scripts, ' +
+      'then run preflight again.');
+    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of qory or of an ' +
+      'agent.', 'Cause: a demo script types ANTHROPIC_API_KEY, which the run keeps from scripts.']);
+    return true;
+  });
+  assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
 });
 
 // pinnedPlan writes a folder of pulled artifacts with index.json and version 1 of a build plan
@@ -464,12 +792,22 @@ function pinnedPlan(summary, command) {
   return dir;
 }
 
+// demoScript writes version 1 of the demo script of scenario-1, with setup, to root.
+function demoScript(root, setup = SIGN_IN) {
+  const dir = path.join(root, 'demo-script', 'scenario-1', 'v1');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'scenario-1.json'), JSON.stringify(script('scenario-1', setup)));
+}
+
 test('preflight verb: with the app stopped, the session ends escalate, and the point has its fix', async () => {
   const here = checkout();
   assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
   const port = await freePort();
   const command = 'node app/missing.cjs';
   const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], command);
+  // The demo scripts come from the artifact folder of the session, not from the folder of
+  // the build plans.
+  demoScript(here.root);
   const deps = { cwd: here.dir, artifacts: [here.root],
     preflight: { browsers: [process.execPath], startMs: 5000 } };
   const done = call(['preflight', '--artifacts', pinned], deps);
@@ -496,16 +834,37 @@ test('preflight verb: with the app stopped, the session ends escalate, and the p
     .filter((line) => line.startsWith('run verdict')), [`run verdict escalate --points ${file}`]);
 });
 
-test('preflight verb: no address of the app and a runner with no result exit 3, and bad arguments exit 2', () => {
+test('preflight verb: no address of the app, no demo script and a runner with no result exit 3 with their causes, and bad arguments exit 2', () => {
   const here = checkout();
   assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
   const deps = { cwd: here.dir, artifacts: [here.root],
     preflight: { browsers: [process.execPath], startMs: 1000 } };
+  // causeOf returns the cause of the output of an exit 3.
+  const causeOf = (out) => out.split('\n').find((line) => /^ *Cause: /.test(line)).trim();
   const done = call(['preflight', '--artifacts', pinnedPlan([], 'npm run dev')], deps);
   assert.equal(done.status, 3, done.out + done.err);
   assert.equal(done.out.split('\n')[0], 'Add the line "App address: <url>" to ## Summary of the ' +
     'build plan, then push it.');
+  assert.equal(causeOf(done.out), 'Cause: the build plan has no App address.');
   assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);
+  // A serve command with no demo script in the artifact folder of the session.
+  const address = ['App address: `http://127.0.0.1:9/`'];
+  const none = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
+    deps);
+  assert.equal(none.status, 3, none.out + none.err);
+  assert.equal(none.out.split('\n')[0], 'Run `qory artifact pull demo-script`, then run ' +
+    'preflight again.');
+  assert.equal(causeOf(none.out), 'Cause: no demo script exists for the app.');
+  // A demo script that types a key of qory or of an agent.
+  demoScript(here.root, [...SIGN_IN.slice(0, 2), { do: 'type', target: '#password',
+    variable: 'QORY_RUN_KEY' }]);
+  const key = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
+    deps);
+  assert.equal(key.status, 3, key.out + key.err);
+  assert.equal(causeOf(key.out), 'Cause: a demo script types QORY_RUN_KEY, which the run keeps ' +
+    'from scripts.');
+  assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
+  demoScript(here.root);
   // A runner of the app that prints no result, here a node that cannot start, exits 3, with
   // no point.
   const fault = call(['preflight', '--artifacts', pinnedPlan(
@@ -514,6 +873,8 @@ test('preflight verb: no address of the app and a runner with no result exit 3, 
   assert.equal(fault.status, 3, fault.out + fault.err);
   assert.equal(fault.out.split('\n')[0], 'Run preflight again: the check of the app and the ' +
     'sign-in returned no result.');
+  assert.equal(causeOf(fault.out), 'Cause: the browser check did not finish: the runner exited ' +
+    'with 1.');
   assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);
   for (const argv of [['preflight', '--artifacts'], ['preflight', 'now'],
     ['preflight', '--inputs']]) {

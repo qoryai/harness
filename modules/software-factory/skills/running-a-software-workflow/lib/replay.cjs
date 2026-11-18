@@ -4,6 +4,8 @@
 // replay.
 'use strict';
 
+const { originOf } = require('./browser.cjs');
+
 // The time that click and type wait for their target, and wait for its text when the action
 // sets no timeout_ms.
 const ACTION_MS = 5000;
@@ -25,18 +27,23 @@ function describe(action, place) {
 
 // replay runs actions in order in page. base is the address that a relative url of open is
 // read against, and env has the value of each variable of a type action. With origin set, an
-// open of an address of another origin fails before the page opens it. It returns
+// open of an address of another origin fails before the page opens it, and an action fails
+// once the page has failed a load of another origin, as page.outside shows. It returns
 // { done, failure }: done counts the actions that passed, and failure is null, or
-// { place, action, why } for the first action that failed. A why contains no typed value.
+// { place, action, why, words, outside } for the first action that failed, where outside is
+// the other origin, or null. A why contains no typed value.
 async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, origin } = {}) {
   for (const [place, action] of actions.entries()) {
-    const fail = (why) => ({ done: place, failure: { place, action, why,
-      words: `${describe(action, place)} failed: ${why}` } });
+    const fail = (why, outside = null) => ({ done: place, failure: { place, action, why,
+      words: `${describe(action, place)} failed: ${why}`, outside } });
+    const left = () => fail(`the page opened ${page.outside}, outside the app`, page.outside);
+    if (origin && page.outside) return left();
     try {
       if (action.do === 'open') {
         const url = new URL(action.url, base);
         if (origin && url.origin !== origin) {
-          return fail(`the address is outside the app, whose origin is ${origin}`);
+          return fail(`the address is outside the app, whose origin is ${origin}`,
+            originOf(url.href));
         }
         await page.goto(url.href);
       } else if (action.do === 'click') {
@@ -55,6 +62,7 @@ async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, ori
         return fail('the action is none of open, click, type, press and wait');
       }
     } catch (error) {
+      if (origin && page.outside) return left();
       return fail(String((error && error.message) || error).split('\n')[0]);
     }
   }
@@ -67,30 +75,33 @@ function variablesOf(actions) {
     .map((one) => one.variable))];
 }
 
-// signIn replays the actions of a setup and returns { ok, why }. An open of an address
-// outside the origin of base, the address of the app, fails the sign-in, and the replay
-// stops there, so no later action types a value of a variable into that page. The sign-in
-// passes when each action passes and, unless the last action is a wait, which already shows
-// the page after the sign-in, each field that a variable was typed into is gone from the
-// page within signedInMs: a sign-in that fails shows its form again.
+// signIn replays the actions of a setup in page, a Page with the origin of base, the address
+// of the app, and returns { ok, why, outside }. A load of a document of another origin, by
+// an open, a redirect, a link or a script, fails the sign-in, outside is that origin, and the
+// replay stops there, so no later action types a value of a variable into that page. The
+// sign-in passes when each action passes and, unless the last action is a wait, which
+// already shows the page after the sign-in, each field that a variable was typed into is
+// gone from the page within signedInMs: a sign-in that fails shows its form again.
 async function signIn(page, actions, { base, env, actionMs = ACTION_MS,
   signedInMs = SIGNED_IN_MS } = {}) {
-  const done = await replay(page, actions, { base, env, actionMs,
-    origin: new URL(base).origin });
-  if (done.failure) return { ok: false, why: done.failure.words };
+  const origin = new URL(base).origin;
+  const done = await replay(page, actions, { base, env, actionMs, origin });
+  if (done.failure) return { ok: false, why: done.failure.words, outside: done.failure.outside };
   const last = actions[actions.length - 1];
-  if (!last || last.do === 'wait') return { ok: true, why: null };
-  const fields = [...new Set(actions.filter((one) => one.do === 'type' &&
-    one.variable !== undefined).map((one) => one.target))];
-  const gone = await page.poll(async () => {
-    for (const target of fields) {
+  const gone = !last || last.do === 'wait' || await page.poll(async () => {
+    for (const target of new Set(actions.filter((one) => one.do === 'type' &&
+      one.variable !== undefined).map((one) => one.target))) {
       if (await page.visible(target)) return null;
     }
     return true;
   }, signedInMs);
-  if (gone) return { ok: true, why: null };
+  if (page.outside) {
+    return { ok: false, why: `the page opened ${page.outside}, outside the app, after the ` +
+      'last action', outside: page.outside };
+  }
+  if (gone) return { ok: true, why: null, outside: null };
   return { ok: false, why: `the page still showed a field that a variable was typed into ` +
-    `${signedInMs / 1000} s after the last action` };
+    `${signedInMs / 1000} s after the last action`, outside: null };
 }
 
 // signInSetups returns the setups of scripts, the demo scripts, that type a variable: each
