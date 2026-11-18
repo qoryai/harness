@@ -580,12 +580,12 @@ test('each adapter prints the deny of its runtime', () => {
   denied(run('codex', codex('Bash', { command: 'rm /tmp/qory-artifacts/.reports/end.json' })),
     'Write to .reports/ only through checks.cjs.');
   // On Claude Code, decide runs reports-guard too, for each tool.
-  for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
+  for (const command of ['echo {} > .qory/artifacts/.reports/results.json',
     'rm -rf .qory/artifacts/.reports']) {
     denied(run('claude', claude('Bash', { command }, 'implementer')),
       'Write to .reports/ only through checks.cjs.');
   }
-  denied(run('claude', claude('Write', { file_path: `${RUN_FOLDER}/.reports/findings.json`,
+  denied(run('claude', claude('Write', { file_path: `${RUN_FOLDER}/.reports/results.json`,
     content: '{}' }, 'implementer')), 'Write no file under .reports/');
   denied(run('claude', claude('Edit', { file_path: `${RUN_FOLDER}/.reports/starts.json.lock` },
     'implementer')), 'Write no file under .reports/');
@@ -593,7 +593,7 @@ test('each adapter prints the deny of its runtime', () => {
   const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.cjs');
   for (const runtime of ['claude', 'codex']) {
     const input = (runtime === 'claude' ? claude : codex)('Bash',
-      { command: `node ${checks} findings ${RUN_FOLDER}/.reports/findings.json` }, 'implementer');
+      { command: `node ${checks} end ${RUN_FOLDER}/.reports/results.json` }, 'implementer');
     assert.equal(run(runtime, input), null, runtime);
   }
 });
@@ -1389,7 +1389,7 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
     'eval or glob.';
   const starts = (reason, start) => firstLine(reason, start);
   for (const make of [claude, codex]) {
-    for (const command of ['echo {} > .qory/artifacts/.reports/findings.json',
+    for (const command of ['echo {} > .qory/artifacts/.reports/results.json',
       'rm -rf .qory/artifacts/.reports']) {
       starts(guard(make('Bash', { command }, 'implementer')), shell);
     }
@@ -1398,7 +1398,7 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
       "rm -rf .qory/artifacts/.rep''orts"]) {
       starts(guard(make('Bash', { command }, 'implementer')), hidden);
     }
-    starts(guard(make('Write', { file_path: '.qory/artifacts/.reports/findings.json',
+    starts(guard(make('Write', { file_path: '.qory/artifacts/.reports/results.json',
       content: '{}' }, 'implementer')), 'Write no file under .reports/');
     // The body of a here-document that bash runs is read; one that cat writes is text.
     starts(guard(make('Bash', { command: "bash <<'EOF'\nrm -rf .qory/artifacts/.reports\nEOF" },
@@ -1406,7 +1406,7 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
     // A call of read-only commands only reads .reports/, as the running-checks skill says.
     for (const command of ['ls .reports', 'cat .qory/artifacts/.reports/build-ledger.json',
       'tail .qory/artifacts/.reports/runs/x.log', 'grep -rn red .qory/artifacts/.reports/runs',
-      'cd .qory/artifacts && head -n 20 .reports/findings.json', 'ls .qory/artifacts/.r*']) {
+      'cd .qory/artifacts && head -n 20 .reports/results.json', 'ls .qory/artifacts/.r*']) {
       assert.equal(guard(make('Bash', { command }, 'implementer')), null, command);
     }
     for (const command of ['cat .qory/artifacts/.reports/f.json > copy.json',
@@ -1424,7 +1424,7 @@ test('a call that reaches .reports/ is denied on Claude Code and on Codex', () =
     'implementer')), 'Write no file under .reports/');
   // A patch that the shell runs: its files are checked, though the guard reads its body as
   // text. So is a file that cat or tee writes from a body.
-  const report = '.qory/artifacts/.reports/findings.json';
+  const report = '.qory/artifacts/.reports/results.json';
   for (const lines of [[`*** Add File: ${report}`, '+{}'],
     [`*** Update File: ${report}`, '@@', '-a', '+b'],
     ['*** Update File: src/a.ts', `*** Move to: ${report}`, '@@', '-a', '+b']]) {
@@ -2016,6 +2016,9 @@ function reviewSetup(report) {
 
 const write = (file) => claude('Write', { file_path: file, content: '{}' });
 
+const ONLY = 'Write only the file at qory.review.report';
+const NONE = 'Stop the review and write no file';
+
 test('a reviewer writes exactly the path in qory.review.report, and the guard denies each other', () => {
   const { env, file, reports } = reviewSetup();
   assert.equal(guard(write(file), env), null);
@@ -2025,7 +2028,7 @@ test('a reviewer writes exactly the path in qory.review.report, and the guard de
   // folder each are denied.
   for (const other of [path.join(reports, 'other.json'), path.join(reports, 'report.json.bak'),
     path.join(reports, 'sub', 'report.json'), reports, path.join(WORK, 'src', 'reply.ts')]) {
-    firstLine(guard(write(other), env), 'Start an agent to change');
+    firstLine(guard(write(other), env), ONLY);
   }
   // A path with . or .. parts that leads to the report is the report: the guard reads it as
   // the system does. A .. after a folder that does not exist yet is denied, because a later
@@ -2036,9 +2039,40 @@ test('a reviewer writes exactly the path in qory.review.report, and the guard de
   // Another tool, also on the report path, is denied: the exception is one Write.
   for (const tool of ['Edit', 'MultiEdit']) {
     firstLine(guard(claude(tool, { file_path: file, old_string: 'a', new_string: 'b' }), env),
-      'Start an agent to change');
+      ONLY);
   }
-  firstLine(guard(codex('apply_patch', patch(file)), env), 'Start an agent to change');
+  firstLine(guard(codex('apply_patch', patch(file)), env), ONLY);
+  // A Write with no path is denied, and the guard does not crash on it.
+  firstLine(guard(claude('Write', { content: '{}' }), env), ONLY);
+});
+
+test('a reviewer session writes no file of the artifact folder, a subagent of a reviewer type none', () => {
+  const { env, file } = reviewSetup();
+  const folder = path.join(WORK, '.qory', 'artifacts');
+  const points = path.join(folder, 'points.json');
+  const draft = path.join(folder, 'drafts', 'reply.md');
+  const run = path.join(folder, 'index.json');
+  // Without qory.review the main session writes in the artifact folder, as before.
+  assert.equal(guard(write(points), RUN), null);
+  assert.equal(guard(write(draft), RUN), null);
+  for (const target of [points, draft, run, path.join(folder, 'new.md')]) {
+    firstLine(guard(write(target), env), ONLY);
+    firstLine(guard(claude('Edit', { file_path: target, old_string: 'a', new_string: 'b' }), env),
+      ONLY);
+  }
+  assert.equal(guard(write(file), env), null);
+  // An agent whose type ends in -reviewer writes no file, in any session, and the report path
+  // only in a session of a reviewer.
+  const sub = (target, type) => claude('Write', { file_path: target, content: '{}' }, type);
+  for (const type of ['spec-reviewer', 'change-reviewer']) {
+    firstLine(guard(sub(points, type), RUN), 'Report in your text and write no file');
+    firstLine(guard(sub(points, type), env), 'Report in your text and write no file');
+    firstLine(guard(sub(file, type), RUN), 'Report in your text and write no file');
+  }
+  assert.equal(guard(sub(file, 'change-reviewer'), env), null);
+  // Another agent writes as before.
+  assert.equal(guard(sub(points, 'implementer'), env), null);
+  assert.equal(guard(sub(points, 'reviewer-notes'), RUN), null);
 });
 
 test('a link, a folder or a bad path at qory.review.report allows no write', () => {
@@ -2046,11 +2080,11 @@ test('a link, a folder or a bad path at qory.review.report allows no write', () 
   const target = path.join(linked.reports, 'target.json');
   fs.writeFileSync(target, '{}');
   fs.symlinkSync(target, linked.file);
-  firstLine(guard(write(linked.file), linked.env), 'Start an agent to change');
-  firstLine(guard(write(target), linked.env), 'Start an agent to change');
+  firstLine(guard(write(linked.file), linked.env), ONLY);
+  firstLine(guard(write(target), linked.env), ONLY);
   const folder = reviewSetup();
   fs.mkdirSync(folder.file);
-  firstLine(guard(write(folder.file), folder.env), 'Start an agent to change');
+  firstLine(guard(write(folder.file), folder.env), ONLY);
   // A relative path, a path with . or .. parts, a double slash and a trailing slash are no
   // report path, whatever the call writes.
   const { reports } = reviewSetup();
@@ -2060,9 +2094,109 @@ test('a link, a folder or a bad path at qory.review.report allows no write', () 
     const bad = reviewSetup(report);
     const asked = typeof report === 'string' && path.isAbsolute(report) ? report
       : path.join(bad.reports, 'report.json');
-    firstLine(guard(write(asked), bad.env), 'Start an agent to change');
-    firstLine(guard(write(path.join(WORK, 'report.json')), bad.env), 'Start an agent to change');
+    firstLine(guard(write(asked), bad.env), NONE);
+    firstLine(guard(write(path.join(WORK, 'report.json')), bad.env), NONE);
+    firstLine(guard(write(path.join(WORK, '.qory', 'artifacts', 'points.json')), bad.env), NONE);
   }
+});
+
+test('a report path longer than PATH_MAX, in a relative form, or in an inputs.json over 1 MB allows no write', () => {
+  // The report path may have PATH_MAX (4096) characters, and no more.
+  const long = reviewSetup();
+  const sized = (count) => {
+    let full = long.reports;
+    while (full.length < count) {
+      const room = count - full.length - 1;
+      full += `/${'a'.repeat(room > 200 ? 100 : room)}`;
+    }
+    return full;
+  };
+  const inputs = (report) => JSON.stringify({ qory: { review: { report } } });
+  const atLimit = sized(4096);
+  assert.equal(atLimit.length, 4096);
+  fs.writeFileSync(path.join(long.home, 'inputs.json'), inputs(atLimit));
+  assert.equal(guard(write(atLimit), long.env), null);
+  const tooLong = sized(4097);
+  assert.equal(tooLong.length, 4097);
+  fs.writeFileSync(path.join(long.home, 'inputs.json'), inputs(tooLong));
+  firstLine(guard(write(tooLong), long.env), NONE);
+  // A relative report path is refused, though the working folder holds it.
+  const relative = reviewSetup('report.json');
+  firstLine(guard(write(path.join(WORK, 'report.json')), relative.env), NONE);
+  // An inputs.json over 1 MB is no inputs.json of qory: it counts as no reviewer session.
+  const big = reviewSetup();
+  fs.writeFileSync(path.join(big.home, 'inputs.json'), JSON.stringify({
+    qory: { review: { report: big.file } }, pad: 'a'.repeat(1024 * 1024) }));
+  firstLine(guard(write(big.file), big.env), 'Start an agent to change');
+  const edge = reviewSetup();
+  const body = JSON.stringify({ qory: { review: { report: edge.file } }, pad: '' });
+  fs.writeFileSync(path.join(edge.home, 'inputs.json'), JSON.stringify({
+    qory: { review: { report: edge.file } }, pad: 'a'.repeat(1024 * 1024 - body.length) }));
+  assert.equal(fs.statSync(path.join(edge.home, 'inputs.json')).size, 1024 * 1024);
+  assert.equal(guard(write(edge.file), edge.env), null);
+});
+
+test('a report path that a later link or a hard link could turn into another file allows no write', () => {
+  // A path that the guard cannot read through: a link in it leads to a .. after a folder that
+  // does not exist yet, as in `gone/..`, which a later command could make a link. The Write
+  // names the folder of the link, which reads as the same file when the .. is taken as text.
+  const { reports, home, env } = reviewSetup();
+  fs.symlinkSync('gone/..', path.join(reports, 'turn'));
+  const unsure = path.join(reports, 'turn', 'report.json');
+  fs.writeFileSync(path.join(home, 'inputs.json'),
+    JSON.stringify({ qory: { review: { report: unsure } } }));
+  firstLine(guard(write(path.join(reports, 'report.json')), env), ONLY);
+  // A report path whose folder is a link reads through to the real folder, and the Write must
+  // name that real path.
+  const real = reviewSetup();
+  const aside = next('review-aside');
+  fs.mkdirSync(aside);
+  const viaLink = path.join(aside, 'reports');
+  fs.symlinkSync(real.reports, viaLink);
+  fs.writeFileSync(path.join(real.home, 'inputs.json'),
+    JSON.stringify({ qory: { review: { report: path.join(viaLink, 'report.json') } } }));
+  assert.equal(guard(write(path.join(viaLink, 'report.json')), real.env), null);
+  assert.equal(guard(write(real.file), real.env), null);
+  // A file with another name for the same bytes is no report: the hard link of a protected file.
+  const hard = reviewSetup();
+  const protectedFile = path.join(WORK, 'src', 'reply.ts');
+  fs.mkdirSync(path.dirname(protectedFile), { recursive: true });
+  fs.writeFileSync(protectedFile, 'x');
+  const other = next('review-other');
+  fs.mkdirSync(other);
+  const copy = path.join(other, 'report.json');
+  fs.linkSync(protectedFile, copy);
+  fs.writeFileSync(path.join(hard.home, 'inputs.json'),
+    JSON.stringify({ qory: { review: { report: copy } } }));
+  firstLine(guard(write(copy), hard.env), ONLY);
+  fs.unlinkSync(protectedFile);
+  assert.equal(guard(write(copy), hard.env), null, 'one link left: the file is a report path');
+});
+
+test('a report path below .git or .claude of the working folder allows no write', () => {
+  // The hooks of a repository and the settings of Claude Code run commands.
+  for (const sub of [path.join('.git', 'hooks', 'pre-commit'), path.join('.git', 'config'),
+    path.join('.claude', 'settings.json')]) {
+    const bad = reviewSetup(path.join(WORK, sub));
+    fs.mkdirSync(path.dirname(path.join(WORK, sub)), { recursive: true });
+    firstLine(guard(write(path.join(WORK, sub)), bad.env), ONLY);
+  }
+  // A report path that a link under the working folder leads into .git is read through.
+  const bad = reviewSetup();
+  const aside = next('review-git');
+  fs.mkdirSync(aside);
+  const via = path.join(aside, 'hooks');
+  fs.mkdirSync(path.join(WORK, '.git', 'hooks'), { recursive: true });
+  fs.symlinkSync(path.join(WORK, '.git', 'hooks'), via);
+  const throughLink = path.join(via, 'post-merge');
+  fs.writeFileSync(path.join(bad.home, 'inputs.json'),
+    JSON.stringify({ qory: { review: { report: throughLink } } }));
+  firstLine(guard(write(throughLink), bad.env), ONLY);
+  // A folder of the harness home or .qory is not refused: qory may put the report there.
+  const qory = path.join(WORK, '.qory', 'review');
+  fs.mkdirSync(qory, { recursive: true });
+  const fine = reviewSetup(path.join(qory, 'report.json'));
+  assert.equal(guard(write(path.join(qory, 'report.json')), fine.env), null);
 });
 
 test('inputs.json that is no regular file, or has no qory.review, allows no write', () => {

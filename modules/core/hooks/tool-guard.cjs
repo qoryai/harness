@@ -13,9 +13,10 @@
 //   alone, by the rules of reports-guard.cjs, which Claude Code's settings and Codex lack;
 // - a write from the main session, a call whose input has no agent_id, outside the
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
-//   started. One Write is the exception: a reviewer of a change, which qory starts as the main
-//   agent of its session, writes its report to the one path in qory.review.report of
-//   $QORY_HARNESS_HOME/inputs.json, and to no other path.
+//   started. A reviewer of a change, which qory starts as the main agent of its session, is
+//   the other way round: when $QORY_HARNESS_HOME/inputs.json has the member qory.review, the
+//   main session writes one path, qory.review.report, with a Write, and no other file, the
+//   artifact folder included. An agent whose type ends in -reviewer writes no file.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -1949,11 +1950,16 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const unsure = walked.find((one) => one.unsure);
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
-  if (agent) return null;
+  if (agent) {
+    // An agent that a session starts, of a type that ends in -reviewer, such as a reviewer of
+    // a draft, reads and reports in its text; it writes no file.
+    return /-reviewer$/.test(String(input.agent_type)) ? reviewDeny({ call, input, paths, env,
+      root, nocase, agent: true }) : null;
+  }
+  if (reviewReport(env)) return reviewDeny({ call, input, paths, env, root, nocase });
   const artifacts = artifactFolder(root, env, runFolder);
   const outside = paths.find((full) => !artifacts || !inside(full, artifacts));
   if (!outside) return null;
-  if (reportWrite(call, input, paths, env, nocase)) return null;
   if (!artifacts) {
     return `${LINKED}${folder(root, env, runFolder)} is a link; this call writes ${outside}.`;
   }
@@ -2399,50 +2405,68 @@ function reportsGlob(command, cwd, dirs, fold) {
   return null;
 }
 
-// The most bytes of inputs.json that reportPath reads.
+// The most bytes of inputs.json that reviewReport reads.
 const INPUTS_MAX = 1024 * 1024;
 
-// reportPath returns qory.review.report of the inputs.json that qory wrote at
-// $QORY_HARNESS_HOME, or null. inputs.json is the copy that qory makes before the session
-// starts, not a file of the artifact folder. Only a normalised absolute path counts: no
-// relative path, no . or .. part, no empty part from a double slash, no trailing slash and no
-// NUL. A link or another file that is no regular file at inputs.json counts as no path.
-function reportPath(env) {
+// reviewReport returns { report } for a session of a reviewer, or null for any other session. A
+// session is a reviewer's when the inputs.json that qory wrote at $QORY_HARNESS_HOME, a regular
+// file of at most INPUTS_MAX bytes, has the member qory.review as an object; a link, a file that
+// is no JSON, a larger file or no such member makes it any other session. qory writes
+// qory.review only in a reviewer session, not in the session that builds the change.
+// report is qory.review.report when it is a normalised absolute path: no relative path, no
+// . or .. part, no empty part from a double slash, no trailing slash, no NUL and at most
+// PATH_MAX characters; otherwise null, and the session of the reviewer writes no file.
+function reviewReport(env) {
   const file = inputsFile(env);
   if (!file) return null;
-  let report;
+  let review;
   try {
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.size > INPUTS_MAX) return null;
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    report = data.qory.review.report;
+    review = JSON.parse(fs.readFileSync(file, 'utf8')).qory.review;
   } catch {
     return null;
   }
-  if (typeof report !== 'string' || report.length > PATH_MAX || report.includes('\0') ||
-    !path.isAbsolute(report) || path.normalize(report) !== report || report.endsWith(path.sep)) {
-    return null;
-  }
-  return report;
+  if (review === null || typeof review !== 'object' || Array.isArray(review)) return null;
+  const report = review.report;
+  const usable = typeof report === 'string' && report.length <= PATH_MAX &&
+    !report.includes('\0') && path.isAbsolute(report) && path.normalize(report) === report &&
+    !report.endsWith(path.sep);
+  return { report: usable ? report : null };
 }
 
-// reportWrite reports whether the call writes only the report of a reviewer: a Write whose
-// one path is, once the folders above it are read through their links, the path of
-// reportPath. A link at the report path, or a folder or another file there, is no report
-// path, so a write through it is never allowed. On a disk that ignores case, the compare
-// ignores it too: the folder of the report decides, as caseless reads it, and so does the
-// working folder.
-function reportWrite(call, input, paths, env, nocase) {
-  if (input.tool_name !== 'Write' || call.kind !== 'write' || paths.length !== 1) return false;
-  const report = reportPath(env);
-  if (!report) return false;
-  const stat = disk.lstat(report);
-  if (stat && !stat.isFile()) return false;
-  const named = walkPath(report);
-  if (named.unsure) return false;
-  const folded = nocase || caseless(path.dirname(named.real));
-  const fold = (full) => (folded ? full.toLowerCase() : full);
-  return fold(paths[0]) === fold(named.real);
+const REVIEW_ONLY = 'Write only the file at qory.review.report, with Write: a reviewer writes no ' +
+  'other file.\nThe path is in inputs.json of the harness home; a link, a file with more than ' +
+  'one link and a path below .git or .claude of the working folder are refused. ';
+const REVIEW_NONE = 'Stop the review and write no file: qory.review.report cannot be used.\n' +
+  'It must be an absolute path with no . or .. part, no double or trailing slash. ';
+const REVIEW_AGENT = 'Report in your text and write no file: an agent whose type ends in ' +
+  '-reviewer writes no file.\n';
+
+// reviewDeny returns the deny of a write from a reviewer, or null for the one write that a
+// reviewer may make: a Write, with one path, to qory.review.report of reviewReport. The path
+// is read through the links of the folders above it; a link, a folder or a file with more than
+// one link at the path, a path below .git or .claude of the working folder, and a path that the
+// guard cannot read through are no report path. On a disk that ignores case, the compare
+// ignores it too: the folder of the report decides, as caseless reads it, and so does the working
+// folder. The deny reasons that come first, the harness home, .qory/build/ and a locked file,
+// were returned before this.
+function reviewDeny({ call, input, paths, env, root, nocase, agent = false }) {
+  const review = reviewReport(env);
+  const report = review ? review.report : null;
+  if (report && input.tool_name === 'Write' && call.kind === 'write' && paths.length === 1) {
+    const stat = disk.lstat(report);
+    const named = walkPath(report);
+    if ((!stat || (stat.isFile() && stat.nlink === 1)) && !named.unsure) {
+      const folded = nocase || caseless(path.dirname(named.real));
+      const fold = (full) => (folded ? full.toLowerCase() : full);
+      const kept = ['.git', '.claude'].some((name) =>
+        under(fold(named.real), fold(path.join(root, name))));
+      if (!kept && fold(paths[0]) === fold(named.real)) return null;
+    }
+  }
+  const head = agent ? REVIEW_AGENT : report ? REVIEW_ONLY : REVIEW_NONE;
+  return `${head}The call writes ${paths.join(', ')}.`;
 }
 
 // artifactFolder returns the artifact folder of the run, as end-gate.cjs finds it from root and

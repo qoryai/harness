@@ -1,7 +1,8 @@
 // The part of the guard of .reports/*.json that the adapters for Gemini CLI, Cursor and
 // Copilot CLI share. Only checks.cjs writes the JSON files under .reports/ of the artifact
-// folder: the report checks, the start counts and the count of failed end checks. On Claude Code and Codex, tool-guard.cjs runs decide for each call;
-// the other runtimes run reports-guard-<runtime>.cjs before each tool call.
+// folder: the report checks, the start counts and the count of failed end checks. On Claude
+// Code and Codex, tool-guard.cjs runs decide for each call; the other runtimes run
+// reports-guard-<runtime>.cjs before each tool call.
 //
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in
@@ -52,10 +53,9 @@ const CONTROL = /[;&|<>`\n\r]|\$\(/;
 // The first line of each deny starts with what to do and has at most 100 characters.
 const WRITE_REASON = 'Write no file under .reports/ that ends in .json or has .json.lock in ' +
   'its name.\nOnly checks.cjs writes these files, which contain the report checks, the ' +
-  'counts of the run, the findings of a change and the locks of the counts and the findings.';
+  'counts of the run and the locks of the counts.';
 const SHELL_REASON = 'Write to .reports/ only through checks.cjs.\nOnly ' +
-  'checks.cjs writes the .json files there, which contain the report checks, the counts and ' +
-  'the findings of a change.';
+  'checks.cjs writes the .json files there, which contain the report checks and the counts.';
 // The first line of a deny for a command that reaches .reports in a way its text does not
 // show; the second line contains the part of the command that does.
 const HIDDEN_REASON = 'Leave .reports/ to checks.cjs, and name other files with no `$`, ' +
