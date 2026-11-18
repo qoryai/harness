@@ -121,7 +121,8 @@ with the `tools` key.
 ## Tools
 
 - List what this role needs, and nothing else. A reviewer reports and never edits, so its
-  `tools` key is `Read, Grep, Glob, Skill`.
+  `tools` key is `Read, Grep, Glob, Skill`. A reviewer of a change that qory starts as the
+  main agent of a separate session also lists Write, for the one file that is its report.
 - When an agent cannot do its work, fix its prompt first. Widen `tools` only when a better
   prompt cannot do the work.
 - List no delegation tool: an agent starts no other agent, and never starts one in the
@@ -132,7 +133,9 @@ with the `tools` key.
   body, outside a code fence, that states the exception and its reason:
   `Tool exception: Bash, because <reason>`.
 - List no Agent, NotebookEdit or MultiEdit. A `*-reviewer` agent, `code-explorer` or
-  `shape-planner` lists only Read, Grep, Glob and Skill.
+  `shape-planner` lists only Read, Grep, Glob and Skill. A `*-reviewer` agent also lists
+  Write when its body has the line `Tool exception: Write, because it writes the one report
+  file of a review round.`, exactly, and no other tool.
 - On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
   exception for Bash also drops those two tools or states how the agent searches.
 

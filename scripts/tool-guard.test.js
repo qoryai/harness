@@ -1997,3 +1997,120 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
 });
+
+// ---- The report of a reviewer ---------------------------------------------------------------
+
+// reviewSetup makes a harness home whose inputs.json has qory.review.report, and a folder for
+// the report outside WORK. It returns the env of the session, the report path and the folder.
+// report overrides the member of inputs.json; a string value is written as it is.
+function reviewSetup(report) {
+  const home = next('review-home');
+  const reports = next('review-reports');
+  fs.mkdirSync(home);
+  fs.mkdirSync(reports);
+  const file = path.join(reports, 'report.json');
+  const inputs = { qory: { review: { report: report === undefined ? file : report } } };
+  fs.writeFileSync(path.join(home, 'inputs.json'), JSON.stringify(inputs));
+  return { env: { ...RUN, QORY_HARNESS_HOME: home }, file, reports, home };
+}
+
+const write = (file) => claude('Write', { file_path: file, content: '{}' });
+
+test('a reviewer writes exactly the path in qory.review.report, and the guard denies each other', () => {
+  const { env, file, reports } = reviewSetup();
+  assert.equal(guard(write(file), env), null);
+  // The same Write without inputs.json that has the member is denied, as for any main session.
+  firstLine(guard(write(file), RUN), 'Start an agent to change');
+  // A sibling, a file of a folder below it, the folder itself, and a file of the working
+  // folder each are denied.
+  for (const other of [path.join(reports, 'other.json'), path.join(reports, 'report.json.bak'),
+    path.join(reports, 'sub', 'report.json'), reports, path.join(WORK, 'src', 'reply.ts')]) {
+    firstLine(guard(write(other), env), 'Start an agent to change');
+  }
+  // A path with . or .. parts that leads to the report is the report: the guard reads it as
+  // the system does. A .. after a folder that does not exist yet is denied, because a later
+  // command could make that folder a link.
+  assert.equal(guard(write(path.join(reports, '.', 'report.json')), env), null);
+  assert.equal(guard(write(`${reports}/../${path.basename(reports)}/report.json`), env), null);
+  assert.equal(typeof guard(write(`${reports}/x/../report.json`), env), 'string');
+  // Another tool, also on the report path, is denied: the exception is one Write.
+  for (const tool of ['Edit', 'MultiEdit']) {
+    firstLine(guard(claude(tool, { file_path: file, old_string: 'a', new_string: 'b' }), env),
+      'Start an agent to change');
+  }
+  firstLine(guard(codex('apply_patch', patch(file)), env), 'Start an agent to change');
+});
+
+test('a link, a folder or a bad path at qory.review.report allows no write', () => {
+  const linked = reviewSetup();
+  const target = path.join(linked.reports, 'target.json');
+  fs.writeFileSync(target, '{}');
+  fs.symlinkSync(target, linked.file);
+  firstLine(guard(write(linked.file), linked.env), 'Start an agent to change');
+  firstLine(guard(write(target), linked.env), 'Start an agent to change');
+  const folder = reviewSetup();
+  fs.mkdirSync(folder.file);
+  firstLine(guard(write(folder.file), folder.env), 'Start an agent to change');
+  // A relative path, a path with . or .. parts, a double slash and a trailing slash are no
+  // report path, whatever the call writes.
+  const { reports } = reviewSetup();
+  for (const report of ['report.json', './report.json', `${reports}/../report.json`,
+    `${reports}//report.json`, `${reports}/./report.json`, `${reports}/report.json/`, '',
+    `${reports}/report\0.json`, 7, null, ['a']]) {
+    const bad = reviewSetup(report);
+    const asked = typeof report === 'string' && path.isAbsolute(report) ? report
+      : path.join(bad.reports, 'report.json');
+    firstLine(guard(write(asked), bad.env), 'Start an agent to change');
+    firstLine(guard(write(path.join(WORK, 'report.json')), bad.env), 'Start an agent to change');
+  }
+});
+
+test('inputs.json that is no regular file, or has no qory.review, allows no write', () => {
+  const one = reviewSetup();
+  const real = path.join(one.home, 'real.json');
+  fs.renameSync(path.join(one.home, 'inputs.json'), real);
+  fs.symlinkSync(real, path.join(one.home, 'inputs.json'));
+  firstLine(guard(write(one.file), one.env), 'Start an agent to change');
+  const two = reviewSetup();
+  fs.writeFileSync(path.join(two.home, 'inputs.json'), JSON.stringify({ qory: { start: 1 } }));
+  firstLine(guard(write(two.file), two.env), 'Start an agent to change');
+  fs.writeFileSync(path.join(two.home, 'inputs.json'), 'not json');
+  firstLine(guard(write(two.file), two.env), 'Start an agent to change');
+  // A relative harness home is ignored, as end-gate.cjs ignores it.
+  const three = reviewSetup();
+  const relative = path.relative(process.cwd(), three.home);
+  firstLine(guard(write(three.file), { ...three.env, QORY_HARNESS_HOME: relative }),
+    'Start an agent to change');
+});
+
+test('the report path never overrides the guard of .qory/build/, the lock or the harness home', () => {
+  for (const sub of [path.join('.qory', 'build', 'steps.json'), CHECK_PATH]) {
+    const bad = reviewSetup(path.join(WORK, sub));
+    const reason = guard(write(path.join(WORK, sub)), bad.env);
+    assert.equal(typeof reason, 'string', sub);
+    assert.ok(!reason.startsWith('Start an agent to change'), reason);
+  }
+  const home = path.join(WORK, '.qory', 'home');
+  fs.mkdirSync(home, { recursive: true });
+  const inside = path.join(home, 'report.json');
+  fs.writeFileSync(path.join(home, 'inputs.json'),
+    JSON.stringify({ qory: { review: { report: inside } } }));
+  const reason = guard(write(inside), { ...RUN, QORY_HARNESS_HOME: home });
+  assert.ok(reason.startsWith('Leave the composed harness as it is'), reason);
+});
+
+test('the report path matches in the case of the disk', () => {
+  const { env, file, reports } = reviewSetup();
+  // A disk that ignores case reads REPORTS and reports as one folder.
+  const swapped = reports.replace(/[A-Za-z]/g, (one) => (one === one.toLowerCase()
+    ? one.toUpperCase() : one.toLowerCase()));
+  const ignoresCase = swapped !== reports && fs.existsSync(swapped);
+  const upper = path.join(reports, 'REPORT.JSON');
+  if (ignoresCase) {
+    assert.equal(guard(write(upper), env), null);
+    assert.equal(guard(write(path.join(swapped, 'report.json')), env), null);
+  } else {
+    firstLine(guard(write(upper), env), 'Start an agent to change');
+  }
+  assert.equal(guard(write(file), env), null);
+});

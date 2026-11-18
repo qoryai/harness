@@ -1,12 +1,11 @@
 // The part of the guard of .reports/*.json that the adapters for Gemini CLI, Cursor and
 // Copilot CLI share. Only checks.cjs writes the JSON files under .reports/ of the artifact
-// folder: the report checks, the start counts, the count of failed end checks and the
-// findings of a change. On Claude Code and Codex, tool-guard.cjs runs decide for each call;
+// folder: the report checks, the start counts and the count of failed end checks. On Claude Code and Codex, tool-guard.cjs runs decide for each call;
 // the other runtimes run reports-guard-<runtime>.cjs before each tool call.
 //
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in
-//   .json, or whose name has .json.lock: the locks of checks.cjs findings, starts and report
+//   .json, or whose name has .json.lock: the locks of checks.cjs starts and report
 //   and their .break files; in any argument of the tool except the text that it writes;
 // - a shell command that reaches .reports, unless it runs the harness's checks.cjs and
 //   nothing else: the first word, after node, is a path to checks.cjs, or to a copy with the

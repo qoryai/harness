@@ -18,7 +18,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans agents/build-planner agents/plan-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -236,11 +236,16 @@ rule_sections() {
 	[ -z "$OUT" ]
 }
 
+# The line that lets a reviewer list Write: qory starts a reviewer of a change as the main agent
+# of its session, with no shell, and the reviewer writes its one report file.
+REVIEWER_EXCEPTION='Tool exception: Write, because it writes the one report file of a review round.'
+
 # rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every
 # tool. The key lists Bash, Edit, Write, WebFetch or WebSearch only with a line outside the
 # code fences of the body for that tool: `Tool exception: <tool>, because <reason>`. No
 # agent lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
-# code-explorer or shape-planner lists only Read, Grep, Glob and Skill.
+# code-explorer or shape-planner lists only Read, Grep, Glob and Skill; a reviewer also lists
+# Write when its body has the line REVIEWER_EXCEPTION, exactly, and no other tool.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
@@ -264,10 +269,18 @@ rule_tools() {
 		done
 		case $(basename "$file" .md) in
 		*-reviewer | code-explorer | shape-planner)
+			allowed='Read|Grep|Glob|Skill'
+			case $(basename "$file" .md) in
+			*-reviewer)
+				if printf '%s\n' "$agent_text" | grep -Fxq "$REVIEWER_EXCEPTION"; then
+					allowed='Read|Grep|Glob|Skill|Write'
+				fi
+				;;
+			esac
 			extra=$(printf '%s\n' "$tools" | tr -cs '[:alnum:]_' '\n' | grep -v '^$' |
-				grep -Evx 'Read|Grep|Glob|Skill' | tr '\n' ' ')
+				grep -Evx "$allowed" | tr '\n' ' ')
 			[ -z "$extra" ] ||
-				add "Remove $extra from the tools key of $file: it lists only Read, Grep, Glob and Skill."
+				add "Remove $extra from the tools key of $file: it lists only Read, Grep, Glob and Skill, and a reviewer also Write with the line '$REVIEWER_EXCEPTION' in its body."
 			;;
 		esac
 	done
@@ -1549,9 +1562,31 @@ for bad_name in sample-reviewer code-explorer shape-planner; do
 	good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
 	printf '\nTool exception: Write, because the role needs it.\n' >>"$FIX/$bad_file"
 	expect_broken "rule 2 fails on Write in $bad_name, also with an exception" "Remove Write" rule_tools "$FIX"
+	good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
+	printf '\n%s\n' "$REVIEWER_EXCEPTION" >>"$FIX/$bad_file"
+	case $bad_name in
+	*-reviewer)
+		expect_passes "rule 2 passes on Write in $bad_name with the line of the report file" rule_tools "$FIX"
+		;;
+	*)
+		expect_broken "rule 2 fails on Write in $bad_name, also with the line of the report file" "Remove Write" rule_tools "$FIX"
+		;;
+	esac
 	good_agent | sed 's/^tools: .*/tools: Read, Task/' >"$FIX/$bad_file"
 	expect_broken "rule 2 fails on any other tool in $bad_name" "Remove Task" rule_tools "$FIX"
 done
+fixture
+good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write, Bash/' >"$FIX/modules/core/agents/sample-reviewer.md"
+printf '\n%s\nTool exception: Bash, because the role needs it.\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/sample-reviewer.md"
+expect_broken "rule 2 fails on Bash in a reviewer with the line of the report file and an exception for Bash" "Remove Bash" rule_tools "$FIX"
+fixture
+good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/sample-reviewer.md"
+printf '\nTool exception: Write, because it writes the one report file of a review round, and more.\n' >>"$FIX/modules/core/agents/sample-reviewer.md"
+expect_broken "rule 2 fails on Write in a reviewer when the line of the report file differs by a word" "Remove Write" rule_tools "$FIX"
+fixture
+good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/sample-reviewer.md"
+printf '\n```text\n%s\n```\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/sample-reviewer.md"
+expect_broken "rule 2 fails on Write in a reviewer when the line of the report file is in a code fence" "Remove Write" rule_tools "$FIX"
 fixture
 good_agent | sed 's/^tools: .*/tools: Read, Bash, Edit/' >"$AGENT"
 printf '\nTool exception: Bash, because the role needs it.\n' >>"$AGENT"
