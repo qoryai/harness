@@ -3,6 +3,8 @@
 // the schema cannot state, and each row of the newest version kept.
 'use strict';
 
+const { sizeLimit } = require('../lib/template.cjs');
+
 module.exports = (lib) => {
   const { isObject, jsonFile, parseJson, short } = lib;
 
@@ -178,8 +180,8 @@ module.exports = (lib) => {
     main: FILE,
     words: 'build ledger',
     reviewer: null,
-    // The type's size_limit in process.yaml: 1 MiB, the default of Qory Apiary.
-    maxBytes: 1024 * 1024,
+    // The type's size_limit in process.yaml, so that a draft and a push agree.
+    get maxBytes() { return sizeLimit('build-ledger'); },
     // Its check reads the version that Context.history reads, which end --offline needs.
     history: true,
     check: buildLedger,

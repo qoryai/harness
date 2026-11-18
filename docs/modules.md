@@ -2849,8 +2849,8 @@ template that a software-factory workspace starts with. The file sets these keys
   and `verification` with `base_view: structured`, each with `size_limit: 1048576`, the
   default of Qory Apiary. Each structured type has the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`; that of `verification`
-  is the contract's. The draft check of `verification` and `build-ledger` refuses a file
-  above that size limit, as the push does. `build-ledger` and
+  is the contract's. The draft check of `verification` and `build-ledger` reads that size
+  limit from `process.yaml` and refuses a file above it, as the push does. `build-ledger` and
   `acceptance-lock` also have `withdrawable: false`, so a run cannot withdraw a name of
   either type and pushes a new version instead: Qory Apiary returns 422 for that push in a
   run, and outside a run `qory artifact push --withdraw` exits 4. Every other type keeps

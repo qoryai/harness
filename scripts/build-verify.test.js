@@ -474,9 +474,8 @@ test('process.yaml lists the eight types of Build and Verify last, with their li
   }
 });
 
-// A run cannot withdraw a name of acceptance-lock or build-ledger. The flag is a plain YAML
-// bool: qory exits with an error for any other form, such as a quoted "false".
-// The draft check of a type with its own size limit refuses what the push refuses.
+// The draft check of a type with a `size_limit` in process.yaml refuses what the push refuses,
+// by the limit that lib/template.cjs reads there.
 test('the draft size limit of verification and build-ledger is their size_limit', () => {
   const { loadRegistry } = require(path.join(MODULES,
     'core/skills/running-a-workflow/lib/registry.cjs'));
@@ -487,6 +486,11 @@ test('the draft size limit of verification and build-ledger is their size_limit'
     const def = types.find((one) => one.type === name);
     assert.equal(def.maxBytes, limits[name], name);
   }
+  // A type listed by name alone has no size_limit to read: the reader throws.
+  const { sizeLimit } = require(path.join(MODULES,
+    'software-factory/skills/running-a-software-workflow/lib/template.cjs'));
+  assert.throws(() => sizeLimit('acceptance-criteria'),
+    /^Error: Set size_limit of acceptance-criteria under artifact_types in /);
   // A draft of 300 KB, above the default of 256 KB, gets no finding on its size; one byte
   // above 1 MiB gets the finding.
   const padded = (size) => {
@@ -499,6 +503,8 @@ test('the draft size limit of verification and build-ledger is their size_limit'
   fails(sized(1024 * 1024 + 1), size);
 });
 
+// A run cannot withdraw a name of acceptance-lock or build-ledger. The flag is a plain YAML
+// bool: qory exits with an error for any other form, such as a quoted "false".
 test('process.yaml sets withdrawable: false for acceptance-lock and build-ledger alone', () => {
   const flags = Object.fromEntries(templateEntries()
     .filter((entry) => 'withdrawable' in entry)

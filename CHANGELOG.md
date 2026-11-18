@@ -664,8 +664,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `state` (`met` or `not_met`) and `evidence` for each criterion that was checked,
   `not_verified` with the `reason` for each criterion that was not, and `model_families`.
   `process.yaml` declares `verification` as a structured type with that JSON Schema and
-  the size limit of 1 MiB that it had, which the draft check applies too. Beyond
-  the schema, the check requires `target_version` to be a full commit id, each criterion
+  the size limit of 1 MiB that it had. The draft check of `verification` and
+  `build-ledger` reads that limit from `process.yaml` and applies it too. Beyond the
+  schema, the check requires `target_version` to be a full commit id, each criterion
   that is not removed in `matrix` or in `not_verified` exactly once, and the words of a
   criterion quoted in an evidence or a reason. The sections `## Summary`, `## Lowered` and
   `## Accepted findings` and the state `Needs a person` are gone, because the format has no
