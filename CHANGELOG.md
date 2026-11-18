@@ -671,6 +671,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   criterion quoted in an evidence or a reason. The sections `## Summary`, `## Lowered` and
   `## Accepted findings` and the state `Needs a person` are gone, because the format has no
   place for them. The explainer reads the verified commit from `target_version`.
+- The schema check of each JSON type refuses a file that nests lists and objects more
+  than 64 levels deep, before any other step of the check, with the JSON pointer of the
+  first list or object past that depth: "Cut the nesting of verification.json to 64
+  levels." The deepest schema needs 5 levels, and a file of any depth gets this finding
+  with no stack overflow.
 - Every question of `questions.json` has `about`, as qory's questions format requires:
   `{"work_item": true}`, or an output as `type` and `name`, with `item` for one entry of it,
   such as a criterion id. `questions-writer` sets it by `writing-questions`. The questions
