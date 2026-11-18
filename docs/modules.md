@@ -1538,9 +1538,10 @@ The checks:
   `type` of lower-case letters and digits in groups joined by single hyphens, at most 64
   bytes, and a `name` of 1 to 64 characters on one line. When a module adds a reader of the
   ids of the type to `items`, the `item` has the form of that reader, and is an id that the
-  output has when the reader can read the output. For a type with no such reader, the `item` is 1 to 32
-  characters on one line. A question with an option that has a `proposal` has an output
-  and its `item` as `about`, as qory's questions format requires.
+  output has when the reader can read the output. For a type with no such reader, the
+  `item` is 1 to 32 characters on one line. An option with a `proposal` is refused in a
+  question whose `about` is not an output with an `item`, as qory's questions format
+  requires, and, in a new question, a `proposal` that is not text of 1 to 2000 characters.
   `running-a-software-workflow` adds the reader of `acceptance-criteria`: an `item` is a
   criterion id that the criteria of the name of `about` have. For `main`, a check reads the
   draft at the top of the artifact folder when it is a file and no link, as for a file given

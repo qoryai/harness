@@ -176,8 +176,9 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
   1 to 64 characters on one line;
 - has an `item` that is not 1 to 32 characters on one line, or, for an output whose ids a
   module reads, an id that the output does not have;
-- has an option whose `proposal` is not text of 1 to 2000 characters, or a question with a
-  `proposal` whose `about` has no `item`.
+- has an option with a `proposal` in a question whose `about` is not an output with an
+  `item`;
+- adds a question with an option whose `proposal` is not text of 1 to 2000 characters.
 
 The check compares numbers by value, so `3.0` is the same run number as `3`.
 

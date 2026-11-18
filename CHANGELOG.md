@@ -683,9 +683,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   output that the run cannot read. A module adds a reader of the ids of a type as `items`;
   `running-a-software-workflow` adds one for the acceptance criteria, so the check refuses
   an `item` that the criteria do not have. An `item` of any other type is 1 to 32
-  characters on one line, and a question with an option that has a `proposal` needs an
-  output and its `item` as `about`. An output has only `type`, `name` and `item`, with the
-  forms of the format, and a `proposal` is text of 1 to 2000 characters.
+  characters on one line. An output has only `type`, `name` and `item`, with the forms of
+  the format. The check also refuses an option with a `proposal` in a question whose
+  `about` is not an output with an `item`, and, in a new question, a `proposal` that is
+  not text of 1 to 2000 characters.
 - A criterion id is `ac-` and a number from 1 to 9999 with no leading zero, the one form of
   qory's contract, in the schema of `acceptance-lock`, in `checks.cjs run locked`, and in
   the section headings and matrix rows of the explainer check, in place of a number from 1
