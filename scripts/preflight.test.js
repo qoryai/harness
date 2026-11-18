@@ -1008,15 +1008,20 @@ test('preflight: a process that exits with its browser running kills the browser
   const here = checkout();
   const browser = fakeBrowser(here, 'exec sleep 96');
   const main = path.join(here.dir, 'exits.cjs');
+  // The process exits once the browser has written its pid.
   fs.writeFileSync(main, `const { Browser } = require(${JSON.stringify(path.join(SKILL,
-    'lib/browser.cjs'))});\nnew Browser(${JSON.stringify(browser.file)}).start().catch(() => {});\n` +
-    `setTimeout(() => process.exit(0), 1000);\n`);
+    'lib/browser.cjs'))});\n` +
+    `new Browser(${JSON.stringify(browser.file)}).start().catch(() => {});\n` +
+    `const fs = require('fs');\nsetInterval(() => { if (fs.existsSync(${JSON.stringify(
+      browser.pid)}) && fs.readFileSync(${JSON.stringify(browser.pid)}, 'utf8').endsWith('\\n')) ` +
+    'process.exit(0); }, 50);\n');
   const folder = path.join(here.dir, 'tmp');
   fs.mkdirSync(folder);
   const ran = childProcess.spawnSync(process.execPath, [main],
     { timeout: 10000, env: { ...process.env, TMPDIR: folder } });
   assert.equal(ran.status, 0);
   const pid = Number(fs.readFileSync(browser.pid, 'utf8'));
+  assert.ok(pid > 1, `no pid of the browser: ${pid}`);
   await until(() => !alive(pid), 2000, 'the browser outlived its process').finally(() => {
     if (alive(pid)) process.kill(pid, 'SIGKILL');
   });
