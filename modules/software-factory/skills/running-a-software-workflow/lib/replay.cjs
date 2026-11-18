@@ -38,7 +38,12 @@ async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, ori
   for (const [place, action] of actions.entries()) {
     const fail = (why, outside = null) => ({ done: place, failure: { place, action, why,
       words: `${describe(action, place)} failed: ${why}`, outside } });
-    const left = () => fail(`the page opened ${page.outside}, outside the app`, page.outside);
+    // A new window gets the origin of its first request once it closes, so left waits for
+    // the new windows of the page first.
+    const left = async () => {
+      if (page.settled) await page.settled();
+      return fail(`the page opened ${page.outside}, outside the app`, page.outside);
+    };
     if (origin && page.outside) return left();
     try {
       if (action.do === 'open') {

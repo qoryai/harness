@@ -20,9 +20,11 @@ const BROWSERS = ['/usr/bin/chromium', 'chromium', 'chromium-browser', 'google-c
   'google-chrome-stable'];
 
 // --no-sandbox, because the browser of the run's image does not start without it, as
-// render-mockups.cjs states.
+// render-mockups.cjs states. --use-mock-keychain and --password-store=basic, because Chrome
+// on macOS otherwise opens the keychain and can show a dialog to the person at the screen.
 const FLAGS = ['--headless=new', '--no-sandbox', '--remote-debugging-pipe', '--no-first-run',
-  '--no-default-browser-check', '--window-size=1280,800'];
+  '--no-default-browser-check', '--use-mock-keychain', '--password-store=basic',
+  '--window-size=1280,800'];
 
 const WIDTH = 1280;
 const HEIGHT = 800;
@@ -139,6 +141,17 @@ class Browser {
     const args = [...FLAGS, ...(this.origin ? proxyFlags(this.origin) : []),
       `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
     this.proc = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env });
+    // A process that exits with the browser still running, as by process.exit, kills it.
+    const kill = () => {
+      try {
+        this.proc.kill('SIGKILL');
+      } catch {
+        // The browser has ended.
+      }
+    };
+    process.once('exit', kill);
+    this.proc.once('exit', () => process.removeListener('exit', kill));
+    this.proc.once('error', () => process.removeListener('exit', kill));
     this.proc.stdout.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
     this.proc.stderr.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
     this.exited = new Promise((resolve) => {
@@ -589,4 +602,4 @@ class Page {
   }
 }
 
-module.exports = { BROWSERS, Browser, Page, findBrowser, keyOf, limited, originOf };
+module.exports = { BROWSERS, Browser, FLAGS, Page, findBrowser, keyOf, limited, originOf };

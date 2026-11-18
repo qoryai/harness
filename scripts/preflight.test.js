@@ -924,6 +924,23 @@ test('preflight: a browser that fails at its start writes the point of the brows
   }
 });
 
+test('preflight: the browser starts with the flags that keep it from the macOS keychain', async () => {
+  const { Browser } = require(path.join(SKILL, 'lib/browser.cjs'));
+  const here = checkout();
+  const args = path.join(here.dir, 'args');
+  // A browser that writes its arguments, one per line, and exits.
+  const browser = fakeBrowser(here, `printf '%s\\n' "$@" > '${args}'; exit 9`);
+  for (const origin of [undefined, 'http://127.0.0.1:9']) {
+    const one = new Browser(browser.file, { origin });
+    await assert.rejects(one.start(3000), /the browser exited before it started/);
+    await one.stop();
+    const given = fs.readFileSync(args, 'utf8').split('\n');
+    assert.ok(given.includes('--use-mock-keychain'), given.join(' '));
+    assert.ok(given.includes('--password-store=basic'), given.join(' '));
+    assert.ok(given.includes('--headless=new'), given.join(' '));
+  }
+});
+
 test('preflight: a demo script that types a key of qory or of an agent exits 3 before the app starts', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   assert.deepEqual(['QORY_RUN_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
