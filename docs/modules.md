@@ -2484,10 +2484,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   browser with the values of the variables in the environment. When another process
   already returns a response at the address, the app counts as not started and the command
   does not run; a command that starts the app in the background and exits 0 counts once the
-  address responds. The command runs without each variable of qory or of an agent, or token
-  of a code forge, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`; of these,
-  it gets only `QORY_CHECK_MARK`, the mark of the supervisor. A sign-in passes when each
-  action passes and each field that a variable was typed into is gone within 10 seconds of
+  address responds. The command gets the environment of `preflight` without each variable
+  of qory or of an agent, or token of a code forge, such as `QORY_RUN_KEY`,
+  `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`, and without each variable that a `type` action of
+  a demo script setup types, such as `DEMO_PASSWORD`; of the names of qory, it gets only
+  `QORY_CHECK_MARK`, the mark of the supervisor. A secret of the run reaches `preflight`
+  only as a placeholder of the gateway, so a variable that passes is a variable of the
+  workspace or a placeholder. On Linux, the command can still read the environment of the
+  runner of the check in `/proc/$PPID/environ`. A sign-in passes when each action passes
+  and each field that a variable was typed into is gone within 10 seconds of
   the last action, or when its last action is a `wait` that passes. Each browser call has
   a time limit, and the browser dismisses each dialog of the app, such as an alert.
 
@@ -2528,7 +2533,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   at that path. After the check, also on a failure or a signal, the process group of the
   command stops, and on Linux each process with the mark of the supervisor of `run`. The
   runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
-  in the group kills the group when the runner ends, also on SIGKILL. The browser starts as
+  in the group kills the process group of the browser and then the group when the runner
+  ends, also on SIGKILL. The browser starts as
   the leader of a new process group, and each stop of the browser kills that group, so a
   child of the browser that stays in the group stops with it. A process that leaves
   the group by `setsid` and removes the mark from its environment keeps running, as

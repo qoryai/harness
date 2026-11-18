@@ -162,14 +162,19 @@ module.exports = (lib) => {
     return given;
   }
 
-  // address finds, in a plan with a serve command, no line "App address: <url>" in ## Summary, or
-  // one whose value is no http or https URL: the preflight opens the app at that address.
+  // address finds, in a plan with a serve command, no line "App address: <url>" in ## Summary,
+  // one whose value is no http or https URL, or one whose host breaks the host rule of
+  // lib/plan.cjs: the preflight opens the app at that address.
   function address(run, part) {
     run.did('app address');
-    const { value, url } = appAddress(part.lines);
+    const { value, url, badHost } = appAddress(part.lines);
     if (value === null) {
       run.find(`Add the line "App address: <url>" to ## Summary of ${FILE}.\nThe preflight ` +
         'opens the app there. Write an http address in backticks: `http://localhost:3000/`.');
+    } else if (badHost) {
+      run.find(`Set the App address host in ## Summary of ${FILE} to letters, digits, . and -.` +
+        '\nThe host starts and ends with a letter or digit and has no .., or is an IPv6 ' +
+        `address in brackets. The value is ${short(value, 80)}.`);
     } else if (!url) {
       run.find(`Set the App address in ## Summary of ${FILE} to an http or https URL.\nThe ` +
         `value is ${short(value, 80)}.`);

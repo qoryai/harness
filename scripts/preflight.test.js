@@ -701,13 +701,15 @@ test('preflight: a command that starts the app in the background and exits 0 pas
   assert.equal(await isFree(port), true);
 });
 
-test('preflight: the serve command gets no key of the run in its environment', async () => {
+test('preflight: the serve command gets no key of the run and no typed value in its environment', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   const here = checkout();
   const port = await freePort();
   const names = path.join(here.dir, 'names.json');
-  // The serve command writes the names of its environment, then starts the app.
-  const spec = appSpec(here, port, port);
+  // The serve command writes the names of its environment, then starts the app. A setup of a
+  // demo script types DEMO_PASSWORD; with no browser, the runner replays no setup.
+  const spec = appSpec(here, port, port,
+    { setups: [{ actions: SIGN_IN, names: ['DEMO_PASSWORD'] }] });
   spec.serve.command = `node -e 'require("fs").writeFileSync(${JSON.stringify(names)}, ` +
     `JSON.stringify(Object.keys(process.env)))'; ${spec.serve.command}`;
   const keys = { GITHUB_TOKEN: 'ghp_fake-value-0001', GH_TOKEN: 'fake-value-0002',
@@ -718,8 +720,10 @@ test('preflight: the serve command gets no key of the run in its environment', a
   assert.equal(ran.status, 0);
   assert.equal(JSON.parse(ran.out).app.started, true, ran.out);
   const given = JSON.parse(fs.readFileSync(names, 'utf8'));
-  for (const name of ['DEMO_PASSWORD', 'APP_NOTE', 'PATH', 'QORY_CHECK_MARK']) {
-    assert.ok(given.includes(name), name);
+  // A variable of the workspace that no setup types reaches the app.
+  for (const name of ['APP_NOTE', 'PATH', 'QORY_CHECK_MARK']) assert.ok(given.includes(name), name);
+  for (const name of ['DEMO_PASSWORD', ...Object.keys(keys)]) {
+    assert.equal(given.includes(name), false, name);
   }
   // The mark of lib/supervise.cjs is the one name of qory, which the runner sets.
   assert.deepEqual(given.filter(runKey), ['QORY_CHECK_MARK']);
@@ -894,6 +898,36 @@ test('preflight: SIGKILL of the runner stops the process group of the serve comm
     await until(() => isFree(port), 3000, 'the app outlived the runner');
   } finally {
     child.kill('SIGKILL');
+  }
+});
+
+test('preflight: SIGKILL of the runner stops the process group of the browser', async () => {
+  const here = checkout();
+  const port = await freePort();
+  // A browser that answers nothing on the pipe, so the runner waits for its start, and that
+  // starts a grandchild, which ignores SIGHUP and SIGTERM.
+  const grandchild = path.join(here.dir, 'grandchild.pid');
+  const browser = fakeBrowser(here, `sh -c "trap '' HUP TERM; exec sleep 92" &\n` +
+    `echo $! > '${grandchild}'\nexec sleep 91`);
+  const spec = appSpec(here, port, port, { browser: browser.file, browserMs: 30000,
+    setups: [{ actions: SIGN_IN, names: ['DEMO_PASSWORD'] }] });
+  const child = childProcess.spawn(process.execPath, [RUNNER], { stdio: ['pipe', 'ignore',
+    'ignore'] });
+  child.stdin.end(JSON.stringify(spec));
+  const pids = [];
+  const read = (file) => (fs.existsSync(file) && fs.readFileSync(file, 'utf8').endsWith('\n')
+    ? Number(fs.readFileSync(file, 'utf8')) : 0);
+  try {
+    await until(() => read(browser.pid) > 1 && read(grandchild) > 1, 10000,
+      'the browser did not start');
+    pids.push(read(browser.pid), read(grandchild));
+    child.kill('SIGKILL');
+    await until(() => !alive(pids[0]), 3000, 'the browser outlived the runner');
+    await until(() => !alive(pids[1]), 3000, 'the child of the browser outlived the runner');
+    await until(() => isFree(port), 3000, 'the app outlived the runner');
+  } finally {
+    child.kill('SIGKILL');
+    for (const pid of pids) if (pid > 1 && alive(pid)) process.kill(pid, 'SIGKILL');
   }
 });
 
@@ -1240,6 +1274,8 @@ test('preflight verb: each input that is missing or broken, and a runner with no
   const host = call(['preflight', '--artifacts',
     pinnedPlan(['App address: `http://127.0.0.1;example.com:8080/`'], 'npm run dev')], deps);
   assert.equal(host.status, 3, host.out + host.err);
+  assert.equal(host.out.split('\n')[0], 'Set the App address host to letters, digits, . and -, ' +
+    'then push the build plan.');
   assert.equal(causeOf(host.out), 'Cause: the build plan has no App address.');
   // A serve command with no demo script in the artifact folder of the session.
   const address = ['App address: `http://127.0.0.1:9/`'];
@@ -1506,9 +1542,9 @@ function stripped(prefixes, more = []) {
   return fakeBrowser(checkout(), `${drop}exec '${BROWSER}' ${more.join(' ')} "$@"`).file;
 }
 
-// The flags of the guards that keep a request of the page from leaving the app.
-const GUARDS = ['--proxy-server=', '--proxy-bypass-list=', '--webrtc-ip-handling-policy=',
-  '--host-resolver-rules='];
+// The flag of the guard that sends each request of the page outside the app to the dead
+// proxy, which also stops a TURN connection over TCP and a QUIC packet.
+const PROXY = ['--proxy-server='];
 
 // heard starts a listener of kind udp or tcp on 127.0.0.1 and resolves to { text, count }:
 // the text of reachOut for the browser that bin(port) returns and the code that code(port)
@@ -1561,8 +1597,8 @@ test('preflight: a WebRTC connection of a page sends no UDP packet to a STUN ser
 test('preflight: a WebRTC connection of a page opens no TCP connection to a TURN server', { skip: NO_BROWSER }, async () => {
   const turn = (port) => gather(`{ urls: 'turn:127.0.0.1:${port}?transport=tcp', ` +
     "username: 'demo', credential: 'demo-pass' }", ", iceTransportPolicy: 'relay'");
-  // The control: without the guards, the browser connects to the TURN server.
-  const control = await heard('tcp', () => stripped(GUARDS), turn);
+  // The control: without --proxy-server, the browser connects to the TURN server.
+  const control = await heard('tcp', () => stripped(PROXY), turn);
   assert.equal(control.text, 'done');
   assert.ok(control.count > 0, 'the control opened no connection to the TURN server');
   const guarded = await heard('tcp', () => BROWSER, turn);
@@ -1583,9 +1619,9 @@ test('preflight: WebTransport and HTTP/3 of a page send no QUIC packet', { skip:
   const fetched = (port) => `async () => fetch('https://127.0.0.1:${port}/', ` +
     "{ mode: 'no-cors' }).then(() => 'done', () => 'done')";
   const quic = (port) => `--origin-to-force-quic-on=127.0.0.1:${port}`;
-  // The controls: without the guards, the browser sends QUIC packets to the server.
-  const controls = [await heard('udp', () => stripped(GUARDS), session),
-    await heard('udp', (port) => stripped(GUARDS, [quic(port)]), fetched)];
+  // The controls: without --proxy-server, the browser sends QUIC packets to the server.
+  const controls = [await heard('udp', () => stripped(PROXY), session),
+    await heard('udp', (port) => stripped(PROXY, [quic(port)]), fetched)];
   for (const control of controls) {
     assert.equal(control.text, 'done');
     assert.ok(control.count > 0, 'the control sent no QUIC packet');

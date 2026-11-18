@@ -151,8 +151,11 @@ first demo:
    brackets. When another process already returns a response at the address, the app
    counts as not started, and the command does not run. A command
    that starts the app in the background and exits 0 works. The command gets no variable
-   of qory or of an agent, and no token of a code forge, such as `QORY_RUN_KEY` or
-   `GITHUB_TOKEN`, except the mark `QORY_CHECK_MARK`.
+   of qory or of an agent, no token of a code forge, such as `QORY_RUN_KEY` or
+   `GITHUB_TOKEN`, and no variable that a demo script setup types, such as
+   `DEMO_PASSWORD`; of the names of qory, it gets only the mark `QORY_CHECK_MARK`. On
+   Linux, the command can still read the environment of the runner of the check in
+   `/proc/$PPID/environ`.
 3. The sign-in: the setup of each demo script that types a variable passes in the browser,
    with the values of the variables in the environment. The browser loads no page of
    another origin than the app's address, in the tab or in a frame, whether an `open`, a
@@ -160,12 +163,12 @@ first demo:
    before its next action. The browser sends each other request to a host and port other
    than the app's, such as a `fetch`, an image, a WebSocket or a request of a service
    worker, to a proxy at port 9 of 127.0.0.1, where nothing listens, so the request
-   fails. WebRTC sends no UDP packet and opens no TCP connection to a TURN server,
-   WebTransport and HTTP/3 send no QUIC packet, and the lookup of each host name fails,
-   except of 127.0.0.1 and the app's host. A new window of the page closes before its
-   first request, and the sign-in fails. A `type` or `press` acts only on a page of the
-   app's origin, and a `type` only when the focus is in the element of its target. The
-   replay gets only the variables that its setup types.
+   fails. In tests on Chrome 157 and Chromium 153, WebRTC sends no UDP packet and opens
+   no TCP connection to a TURN server, and WebTransport and HTTP/3 send no QUIC packet.
+   The lookup of each host name fails, except of 127.0.0.1 and the app's host. A new
+   window of the page closes before its first request, and the sign-in fails. A `type` or
+   `press` acts only on a page of the app's origin, and a `type` only when the focus is in
+   the element of its target. The replay gets only the variables that its setup types.
 
 `preflight` reads the demo scripts from the artifact folder of the session: of each name,
 the newest version that `index.json` counts. With no `serve` command in the build plan, it
@@ -174,8 +177,8 @@ checks the browser alone. The output of the serve command is in
 of the command stops, also when the check fails, stops on a signal, or `preflight` ends.
 On Linux, each process with the mark `QORY_CHECK_MARK` stops too, as in `run`. A process
 that leaves the group by `setsid` and removes the mark from its environment keeps
-running. After a SIGKILL of the runner of the check, every process that left the group
-keeps running.
+running. After a SIGKILL of the runner of the check, the process groups of the command
+and of the browser stop, and every process that left them keeps running.
 
 For each missing part, `preflight` writes a point `run_again` with its fix to `points.json`
 of the artifact folder, and exits 1. Then change no code: run `check points` on

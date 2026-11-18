@@ -74,8 +74,8 @@ function originOf(url) {
 // 127.0.0.1 through a proxy. WebRTC then sends no UDP packet, since it may use only the
 // proxy, and the lookup of each host name fails, except of 127.0.0.1 and the host of origin.
 // In the tests, a TURN server over TCP and a WebTransport or HTTP/3 server on 127.0.0.1 get no
-// connection and no packet. Chrome 157 and Chromium 153 ignore
-// --force-webrtc-ip-handling-policy, so the browser gets only --webrtc-ip-handling-policy.
+// connection and no packet. With only `--force-webrtc-ip-handling-policy`, Chrome 157 and
+// Chromium 153 sent STUN packets in the tests.
 function proxyFlags(origin) {
   const url = new URL(origin);
   const port = url.port || { 'http:': '80', 'https:': '443' }[url.protocol];
@@ -300,9 +300,10 @@ class Browser {
 
   // halt kills the process group of the browser, waits up to ms for the browser to exit, so
   // that it no longer writes to its profile, and removes its temporary folder, for a process
-  // that exits right after. The kill stops each child of the browser that stayed in its group,
-  // such as a crash handler on macOS. halt also closes the pipes of the browser, which a child
-  // that left the group can keep open, so that the process can exit.
+  // that exits right after. The kill stops each child of the browser that stayed in its group:
+  // the tests show it for a child that ignores SIGHUP and SIGTERM and keeps stdout, stderr and
+  // the pipes open, after which the process exits within 5 s. halt also closes the pipes of
+  // the browser; no test covers a child that left the group.
   async halt(ms = HALT_MS) {
     this.stopped = true;
     for (const waiting of this.pending.values()) {

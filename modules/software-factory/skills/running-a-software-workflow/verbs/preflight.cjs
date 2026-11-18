@@ -39,6 +39,12 @@ module.exports = (lib) => {
     const row = plan.commands.serve;
     let serve = null;
     if (row && row.command) {
+      if (plan.badHost) {
+        throw new Missing('Set the App address host to letters, digits, . and -, then push the ' +
+          'build plan.', [`The App address of version ${plan.version} has a host that is not ` +
+          'letters, digits, . and -, starting and ending with a letter or digit, with no .., ' +
+          'or an IPv6 address in brackets.', 'Cause: the build plan has no App address.']);
+      }
       if (!plan.address) {
         throw new Missing('Add the line "App address: <url>" to ## Summary of the build plan, ' +
           'then push it.', [`Version ${plan.version} has a serve command, and no http or ` +

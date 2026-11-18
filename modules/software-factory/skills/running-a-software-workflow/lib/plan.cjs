@@ -60,24 +60,28 @@ module.exports = (lib) => {
   // another host is none.
   const HOST = /^(?:(?!.*\.\.)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:.]+\])$/;
 
-  // appAddress returns { value, url } of the first line "App address:" of summary, the lines
-  // of ## Summary: value is the text after the colon, and url the http or https URL that it
-  // is, with a host that HOST matches, or null when it is none. Both are null with no such
-  // line outside a code block.
+  // appAddress returns { value, url, badHost } of the first line "App address:" of summary,
+  // the lines of ## Summary: value is the text after the colon, and url the http or https
+  // URL that it is, with a host that HOST matches, or null when it is none. badHost is true
+  // for an http or https URL whose host HOST does not match. value and url are null with no
+  // such line outside a code block.
   function appAddress(summary) {
     const line = summary.find((one) => !one.fenced && ADDRESS.test(one.text.trim()));
-    if (!line) return { value: null, url: null };
+    if (!line) return { value: null, url: null, badHost: false };
     const value = ADDRESS.exec(line.text.trim())[1].trim();
     const plain = value.replace(/^`([^`]*)`$/, '$1');
     let url = null;
+    let badHost = false;
     try {
       const parsed = new URL(plain);
-      if (['http:', 'https:'].includes(parsed.protocol) && !/\s/.test(plain) &&
-        HOST.test(parsed.hostname)) url = parsed.href;
+      if (['http:', 'https:'].includes(parsed.protocol) && !/\s/.test(plain)) {
+        if (HOST.test(parsed.hostname)) url = parsed.href;
+        else badHost = true;
+      }
     } catch {
       // No URL: url stays null.
     }
-    return { value, url };
+    return { value, url, badHost };
   }
 
   // sectionRows returns the rows of the first table of the ## section title of text, each an
@@ -136,8 +140,9 @@ module.exports = (lib) => {
     return { number, text: text.replace(/\r\n?/g, '\n') };
   }
 
-  // readPlan returns { version, address, deliverables, commands } of the newest pulled build
-  // plan: address is the URL of the line "App address:" of ## Summary, or null for none;
+  // readPlan returns { version, address, badHost, deliverables, commands } of the newest
+  // pulled build plan: address is the URL of the line "App address:" of ## Summary, or null
+  // for none, and badHost is true when that line has a URL whose host breaks HOST;
   // each deliverable { id, change, criteria, files, problem }, where criteria has the ids of
   // the Criteria cell, and each command by its kind,
   // { command, resultFile, source }, with null for none. With none set, and a folder that
@@ -151,7 +156,7 @@ module.exports = (lib) => {
       return { root, version: null, address: null, deliverables: [], commands: {}, none: true };
     }
     const summary = sections(lines(newest.text), 2).find((one) => one.title === 'Summary');
-    const { url: address } = appAddress(summary ? summary.lines : []);
+    const { url: address, badHost } = appAddress(summary ? summary.lines : []);
     const deliverables = sectionRows(newest.text, 'Deliverables',
       ['Id', 'Change', 'Criteria', 'Files', 'Check']).map((row) => {
       const files = filesCell(row.Files);
@@ -166,7 +171,7 @@ module.exports = (lib) => {
         command: none(row.Command), resultFile: none(row['Result file']), source: row.Source.trim(),
       };
     }
-    return { root, version: newest.number, address, deliverables, commands };
+    return { root, version: newest.number, address, badHost, deliverables, commands };
   }
 
   // STEP matches the id of a step of the build ledger that changes files.

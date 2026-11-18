@@ -638,29 +638,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   redirect, a link or a script, and the sign-in then writes a point and types nothing more.
   It sends each other request to a host and port other than the app's, such as a `fetch`, an
   image, a WebSocket or a request of a service worker, to a proxy at port 9 of 127.0.0.1,
-  where nothing listens. WebRTC sends no UDP packet and opens no TCP connection to a TURN
-  server, WebTransport and HTTP/3 send no QUIC packet, and the lookup of each host name
-  fails, except of 127.0.0.1 and the app's host. The browser closes each new window before
-  its first request, which also writes the point: the point of the origin of that request,
-  or "The app at <App address> opens a new window during sign-in, and the run closed it: a
-  run uses one window." An origin in the point that contains a typed value is written as
-  "another origin". A `type` acts only on the app's origin, with the focus in the element
-  of its target. The replay gets only the variables that its setup types, and a setup that
-  types a variable of qory or of an agent, or a token of a code forge such as
-  `GITLAB_TOKEN`, exits 3. The serve command gets no such variable either. After the check,
-  also on a failure, a signal or the end of `preflight`, the process groups of the serve
-  command and of the browser stop, and on Linux each process with the mark of `run`; a
-  process that leaves the group and removes the mark keeps running, and after a SIGKILL of
-  the runner of the check, so does every process that left the group. `preflight` ends
-  within 585 seconds, below the 600 seconds after which the Bash tool of Claude Code stops a
-  command. Each browser call has a time limit, and the browser dismisses dialogs. An exit
-  3 for a missing build plan, a missing address, a demo script that is missing, cannot be
-  read, breaks its format rules or types such a key, or a check that did not finish prints
-  a line `Cause:` for the line that ends the run. The build plan has the address as a line
-  `App address: <url>` in `## Summary`, an http address in backticks, and its check finds
-  a plan with a `serve` command and no such line, or a value that is no http or https URL
-  whose host has only letters, digits, `.` and `-`, starts and ends with a letter or digit
-  and has no `..`, or is an IPv6 address in brackets.
+  where nothing listens. In tests on Chrome 157 and Chromium 153, WebRTC sends no UDP
+  packet and opens no TCP connection to a TURN server, and WebTransport and HTTP/3 send no
+  QUIC packet. The lookup of each host name fails, except of 127.0.0.1 and the app's host.
+  The browser closes each new window before its first request, which also writes the
+  point: the point of the origin of that request, or "The app at <App address> opens a new
+  window during sign-in, and the run closed it: a run uses one window." An origin in the
+  point that contains a typed value is written as "another origin". A `type` acts only on
+  the app's origin, with the focus in the element of its target. The replay gets only the
+  variables that its setup types, and a setup that types a variable of qory or of an
+  agent, or a token of a code forge such as `GITLAB_TOKEN`, exits 3. The serve command
+  gets no such variable either, and no variable that a demo script setup types. After the
+  check, also on a failure, a signal, the end of `preflight` or a SIGKILL of its runner,
+  the process groups of the serve command and of the browser stop, and on Linux each
+  process with the mark of `run`; a process that leaves the groups and removes the mark
+  keeps running. `preflight` ends within 585 seconds, below the 600 seconds
+  after which the Bash tool of Claude Code stops a command. Each browser call has a time
+  limit, and the browser dismisses dialogs. An exit 3 for a missing build plan, a missing
+  address, a demo script that is missing, cannot be read, breaks its format rules or types
+  such a key, or a check that did not finish prints a line `Cause:` for the line that ends
+  the run. The build plan has the address as a line `App address: <url>` in `## Summary`,
+  an http address in backticks, and its check finds a plan with a `serve` command and no
+  such line, or a value that is no http or https URL whose host has only letters, digits,
+  `.` and `-`, starts and ends with a letter or digit and has no `..`, or is an IPv6
+  address in brackets.
 - A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
   bytes, set once in `lib/reports.cjs` for every agent. A longer report is a finding of
   `checks.cjs report`, `findings` and `end --offline`, and the finding states the limit in

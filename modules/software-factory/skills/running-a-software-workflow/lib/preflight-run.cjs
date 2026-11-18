@@ -4,8 +4,8 @@
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
 //   runs `sh -c '<command>'` in cwd, in a new process group, with the mark of
-//   lib/supervise.cjs and with no key of the run in its environment, as serveEnv removes
-//   them, with stdout and stderr in the file log, and sends a GET to url every
+//   lib/supervise.cjs and with the environment that serveEnv returns, with stdout and
+//   stderr in the file log, and sends a GET to url every
 //   250 ms until a response with a status below 500 comes back, the command exits with
 //   other than 0, or startMs passes. A command that starts the app in the background and
 //   exits 0 still counts once the address returns a response.
@@ -17,9 +17,9 @@
 // mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
 // lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
 // SIGHUP, on an error that nothing catches, and within PARENT_MS of the end of its parent. A
-// watcher in the process group of the command kills that group when the runner ends, also
-// on SIGKILL; a process that left the group then keeps running. After limitMs from its start, 570 s without
-// limitMs, it stops the sign-ins and sets unfinished. It prints { app, signIns, unfinished }
+// watcher in the process group of the command kills the process group of the browser and
+// that group when the runner ends, also on SIGKILL; a process that left the groups then keeps
+// running. After limitMs from its start, 570 s without limitMs, it stops the sign-ins and sets unfinished. It prints { app, signIns, unfinished }
 // as JSON on stdout, the one line that it prints: app is { started, ran, why }, signIns has
 // { ok, why, outside, browser } per setup, and unfinished is null or the reason in one
 // clause.
@@ -114,9 +114,21 @@ function statusOf(url) {
 }
 
 // The line of the shell before the serve command: a watcher in the process group of the
-// command, which reads fd 3, a pipe that only the runner writes to. When the runner ends, also
-// by SIGKILL, the read ends, and the watcher kills the group. The command runs without fd 3.
-const WATCHER = '(read _ <&3; kill -KILL 0) </dev/null >/dev/null 2>&1 & exec 3<&-';
+// command, which reads fd 3, a pipe that only the runner writes to. The runner writes the
+// process group of the browser to it as a line, and 0 once the browser stopped. When the
+// runner ends, also by SIGKILL, the reads end, and the watcher kills the group of the last
+// line, when it is a pid other than 0 and 1, and then the group of the serve command. The
+// command runs without fd 3.
+const WATCHER = '(b=0; while read -r one <&3; do b=$one; done; case $b in \'\'|0|1|*[!0-9]*) ;; ' +
+  '*) kill -KILL -"$b" ;; esac; kill -KILL 0) </dev/null >/dev/null 2>&1 & exec 3<&-';
+
+// watchBrowser writes pid to the watcher of the serve command: the process group of the
+// browser that it kills when the runner ends, or 0 for none.
+function watchBrowser(pid) {
+  const pipe = running.child && running.child.stdio[3];
+  if (!pipe || pipe.destroyed || !Number.isInteger(pid) || pid < 0 || pid === 1) return;
+  pipe.write(`${pid}\n`);
+}
 
 // openLog removes what is at file, then creates a new regular file there and returns its
 // descriptor. An open of an existing file could follow a symbolic link, or wait for a reader
@@ -131,15 +143,20 @@ function openLog(file) {
 }
 
 // serveEnv returns the environment of the runner without each variable whose name runKey of
-// lib/secrets.cjs matches, such as GITHUB_TOKEN or QORY_RUN_KEY, and with MARK set to value:
-// the app gets no key of the run.
-function serveEnv(value) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !runKey(name)));
+// lib/secrets.cjs matches, such as GITHUB_TOKEN or QORY_RUN_KEY, and without each variable of
+// typed, the names that a type action of a demo script setup types, and with MARK set to
+// value. A secret of the run reaches the runner only as a placeholder of the gateway, so a
+// variable that passes is a variable of the workspace or a placeholder, not a key.
+function serveEnv(value, typed) {
+  const skip = new Set(typed);
+  const env = Object.fromEntries(Object.entries(process.env)
+    .filter(([name]) => !runKey(name) && !skip.has(name)));
   return { ...env, [MARK]: value };
 }
 
-// start runs the serve command and resolves to { started, ran, why }.
-async function start(serve, startMs, proc) {
+// start runs the serve command and resolves to { started, ran, why }. typed are the names
+// that the setups type, which serveEnv removes.
+async function start(serve, startMs, proc, typed) {
   if (await statusOf(serve.url) !== null) {
     return { started: false, ran: false, why: `another process already returns a response at ` +
       `${serve.url}, so the run did not start the serve command` };
@@ -151,7 +168,7 @@ async function start(serve, startMs, proc) {
   try {
     running.child = childProcess.spawn('/bin/sh', ['-c', `${WATCHER}\n${serve.command}`], {
       cwd: serve.cwd, detached: true, stdio: ['ignore', out, out, 'pipe'],
-      env: serveEnv(value),
+      env: serveEnv(value, typed),
     });
     running.child.stdio[3].on('error', () => {});
     running.child.on('exit', (code, signal) => { exit = { code, signal }; });
@@ -207,7 +224,11 @@ async function signIns(spec) {
   running.browser = browser;
   const results = [];
   try {
-    await browser.start(spec.browserMs);
+    // launch sets the pid of the browser before start resolves, so the watcher has it
+    // while the browser starts.
+    const started = browser.start(spec.browserMs);
+    watchBrowser(browser.pid);
+    await started;
     for (const setup of spec.setups) {
       const env = Object.fromEntries(setup.names
         .filter((name) => process.env[name] !== undefined)
@@ -225,6 +246,7 @@ async function signIns(spec) {
     while (results.length < spec.setups.length) results.push({ ok: false, why, browser: true });
   } finally {
     await browser.stop();
+    watchBrowser(0);
   }
   return results;
 }
@@ -237,7 +259,8 @@ async function main() {
   try {
     const proc = spec.proc === undefined ? (process.platform === 'linux' ? '/proc' : null)
       : spec.proc;
-    result.app = await start(spec.serve, spec.startMs, proc);
+    result.app = await start(spec.serve, spec.startMs, proc,
+      (spec.setups || []).flatMap((setup) => setup.names));
     if (result.app.started && spec.browser && spec.setups.length) {
       let timer;
       const late = new Promise((resolve) => {
@@ -249,6 +272,7 @@ async function main() {
       else {
         result.unfinished = `the sign-ins ran past the limit of ${limitMs / 1000} s`;
         await running.browser.stop();
+        watchBrowser(0);
       }
     }
   } finally {
