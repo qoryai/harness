@@ -4119,7 +4119,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.cjs lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume and hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.cjs lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume, notes and hello\./);
 });
 
 test('workflow-checks.cjs push runs the push of checks.cjs from the harness home', () => {

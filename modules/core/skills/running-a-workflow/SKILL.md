@@ -20,8 +20,8 @@ You run only `<qory>` commands, the commands that another skill of your workflow
 versions script, the checks script and, for files, the read forms of `run-artifacts`. You
 start agents, decide on each finding, push what the agents wrote, and end the run. An agent
 does every other task. You write no file except the copies that the versions script makes,
-the reports under `.reports`, as "Check each report" lists, and `points.json`, as "Points"
-lists.
+the reports under `.reports`, as "Check each report" lists, `points.json`, as "Points"
+lists, and the paths file of "Notes in a start".
 
 You read only the agents' reports, the `at` and `newest_version` you need from `index.json`,
 a `SKILL.md` that your runtime cannot load, and the output of your commands. From
@@ -32,7 +32,7 @@ Never write what a report you did not get would have said.
 ## Starting agents
 
 Start every agent in the foreground when your runtime offers that, and wait for its report.
-Never decide on a failure or end the run while an agent runs.
+Never decide on a failure or end the run while an agent runs. Run `notes` before each start.
 
 Pass each agent the input file's absolute path from the prompt, which ends in
 `/in/inputs.json`, and never guess another. When the pull prints a line that starts with
@@ -547,3 +547,22 @@ nothing: an agent of the run can change the folders that they read. The verify t
 is a later run's `lock --verify --version <N>`, on a new working folder, before any agent of
 that run starts. A run without a wall can push or change a lock with no push check, so the
 lock binds only walled runs.
+
+## Notes in a start
+
+Before each start of an agent, run `<skill folder>/checks.cjs notes <agent>`. When its work
+has files, such as the files that a writer's deliverable lists or the files of the change
+that a reviewer reviews, write those paths to `<folder>/.notes/<agent>-files.txt`, one per
+line, from the top of the working folder, and add `--files <that file>`. The script prints
+each role note that applies, at most 3, and its last line shows the path of the notes file,
+or that the start has no role note. Pass the notes file's absolute path to the agent in the
+start prompt, and tell the agent to read it first. A role note is not one of "the notes" of
+the work item.
+
+Each agent lists the name of every role note in its notes file under "Role notes read:" in
+its report, one `- <name>` line each, directly under the heading. The report check counts
+each start of that agent in this run since its last passed report, so a start with no
+`--files` takes no role note away from an earlier start. It fails a report that lacks the
+name of a role note of those starts, or when a notes file of those starts changed. That list
+counts toward the limit of the report. A blocked report needs no list. When you start an
+agent again to fix its report, pass the same notes file and run no new `notes`.

@@ -12,6 +12,7 @@ const { Context } = require('./context.cjs');
 const {
   REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList, leftLine,
 } = require('./end.cjs');
+const { startNotes } = require('./notes.cjs');
 const { agentNames, pluginFolders } = require('./plugin.cjs');
 const { expected, reportCheck } = require('./reports.cjs');
 
@@ -83,8 +84,9 @@ function verdictArg(io, args) {
 // offlineReports runs the report check on the newest report <agent>-<n>.md under
 // root/.reports of each agent of folders, and finds each type of needed with no report of
 // its reviewer, as registry lists the types, their reviewers and the stops. It follows no
-// link. Each result is { line, point }, as endDrafts lists.
-function offlineReports(root, folders, needed, registry) {
+// link. Each result is { line, point }, as endDrafts lists. run is --run, the key of the run in
+// the record of the starts of .reports/note-starts.json.
+function offlineReports(root, folders, needed, registry, run) {
   const dir = path.join(root, '.reports');
   let names = [];
   try {
@@ -114,9 +116,11 @@ function offlineReports(root, folders, needed, registry) {
         lines = [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ` +
           `${stat.size} bytes.`];
       } else {
-        lines = reportCheck(readFile(file, `.reports/${name}`), agent,
+        const text = readFile(file, `.reports/${name}`);
+        lines = reportCheck(text, agent,
           expected(folders[0], agent, folders, registry.records), agents, registry.stops,
-          registry);
+          registry, startNotes(root, run, agent, { file: name, sha256: sha256(text) },
+            true));
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
@@ -232,7 +236,7 @@ function offline(io, args) {
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,
-    ...offlineReports(root, pluginFolders(io.plugin), needed, registry)];
+    ...offlineReports(root, pluginFolders(io.plugin), needed, registry, args['--run'])];
   const findings = found.map((one) => one.line);
   const what = `Checked the drafts and reports after the session: ` +
     `${plural(findings.length, 'finding')}`;
