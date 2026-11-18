@@ -121,8 +121,7 @@ Never add or change an `answer`, and never change a `decision` that exists. Chan
 only to reopen a question, and never set an existing question to `decided`.
 Never remove a question, and never change the `id`, `question`, `options`, `recommended`
 included, `asked` or `follows` of a question that exists. Keep the `about` of a question
-that exists. When it has none, because a version stored it before questions had `about`,
-add one as for Add.
+that exists: a push checks a changed `about` again, as it checks a new one.
 
 Members read each `question`, each `context`, and each option's `title` and `explanation`.
 
@@ -135,9 +134,6 @@ Members read each `question`, each `context`, and each option's `title` and `exp
 - Each option has `title`, plain text of 1 to 200 characters with no tab or line feed, and
   `explanation`, a short explanation of the option, plain text of 1 to 2000 characters and
   at most 2 sentences.
-- An option may have `proposal`: the new text of the entry that `about.item` is set to,
-  plain text of 1 to 2000 characters that a member can edit before sending it. Add it only
-  when `about` is set to an output and its `item`.
 - Mark the option you recommend with `recommended: true` whenever what you read favours
   one, which is nearly always. When the item of your list contains a recommended
   option, mark that option, because the draft that the questions rest on follows it. Mark
