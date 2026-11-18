@@ -100,11 +100,13 @@ const typedValues = (setups, env) => [...new Set(setups.flatMap((setup) => [
   .filter((one) => typeof one === 'string' && one);
 
 // hidden returns results with HIDDEN in place of each outside origin that contains one of
-// values, in any case, and in place of that origin in the reason.
+// values, in any case, and in place of that origin in the reason. NEW_WINDOW is no origin, so
+// it stays, also when a value such as "window" is part of it.
 function hidden(results, values) {
   const lower = values.map((one) => one.toLowerCase());
   return results.map((one) => {
-    if (!one.outside || !lower.some((value) => one.outside.toLowerCase().includes(value))) {
+    if (!one.outside || one.outside === NEW_WINDOW ||
+      !lower.some((value) => one.outside.toLowerCase().includes(value))) {
       return one;
     }
     const why = typeof one.why === 'string' ? one.why.split(one.outside).join(HIDDEN) : one.why;

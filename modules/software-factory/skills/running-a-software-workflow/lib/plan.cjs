@@ -53,9 +53,15 @@ module.exports = (lib) => {
   // opens: "App address: <url>", with the URL in backticks or not.
   const ADDRESS = /^App address:(.*)$/;
 
+  // The host of an App address: letters, digits, . and -, or an IPv6 address in brackets.
+  // The browser of the preflight gets the host in --proxy-bypass-list, where a ; or a , would
+  // add an entry and a * would match other hosts, so a URL with another host is none.
+  const HOST = /^(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])$/;
+
   // appAddress returns { value, url } of the first line "App address:" of summary, the lines
   // of ## Summary: value is the text after the colon, and url the http or https URL that it
-  // is, or null when it is none. Both are null with no such line outside a code block.
+  // is, with a host that HOST matches, or null when it is none. Both are null with no such
+  // line outside a code block.
   function appAddress(summary) {
     const line = summary.find((one) => !one.fenced && ADDRESS.test(one.text.trim()));
     if (!line) return { value: null, url: null };
@@ -64,7 +70,8 @@ module.exports = (lib) => {
     let url = null;
     try {
       const parsed = new URL(plain);
-      if (['http:', 'https:'].includes(parsed.protocol) && !/\s/.test(plain)) url = parsed.href;
+      if (['http:', 'https:'].includes(parsed.protocol) && !/\s/.test(plain) &&
+        HOST.test(parsed.hostname)) url = parsed.href;
     } catch {
       // No URL: url stays null.
     }

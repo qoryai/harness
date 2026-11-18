@@ -582,20 +582,24 @@ test('preflight: a sign-in that opens a new window of another origin writes the 
 });
 
 test('preflight: a new window of the app closes too, and its point has the text of a closed window', { skip: NO_BROWSER }, async () => {
-  const { here, done, port } = await signIn([{ do: 'open', url: '/popup-same' },
-    ...SIGN_IN.slice(1)], 'parcel-blue-41');
-  assert.equal(done.status, 1);
-  assert.match(done.findings[0].split('\n')[1], /the page opened a new window, outside the app/);
-  const address = `http://127.0.0.1:${port}/`;
-  assert.deepEqual(points(here.root), [{
-    text: `The app at ${address} opens a new window during sign-in, and the run closed it: a ` +
-      'run uses one window.',
-    action: 'run_again',
-    fix: outsidePoint(address, 'a new window').fix,
-  }]);
-  const checked = call(['check', 'points', path.join(here.root, 'points.json')],
-    { cwd: here.dir });
-  assert.equal(checked.status, 0, checked.out);
+  // A typed value that is part of the words "a new window" leaves those words as they are.
+  for (const value of ['parcel-blue-41', 'window']) {
+    const { here, done, port } = await signIn([{ do: 'open', url: '/popup-same' },
+      ...SIGN_IN.slice(1)], value);
+    assert.equal(done.status, 1, value);
+    assert.match(done.findings[0].split('\n')[1],
+      /the page opened a new window, outside the app/, value);
+    const address = `http://127.0.0.1:${port}/`;
+    assert.deepEqual(points(here.root), [{
+      text: `The app at ${address} opens a new window during sign-in, and the run closed it: ` +
+        'a run uses one window.',
+      action: 'run_again',
+      fix: outsidePoint(address, 'a new window').fix,
+    }], value);
+    const checked = call(['check', 'points', path.join(here.root, 'points.json')],
+      { cwd: here.dir });
+    assert.equal(checked.status, 0, checked.out);
+  }
 });
 
 test('preflight: an outside origin that contains a typed value is another origin in the point and the finding', { skip: NO_BROWSER }, async () => {
@@ -694,6 +698,31 @@ test('preflight: a command that starts the app in the background and exits 0 pas
     url: `http://127.0.0.1:${port}/`, cwd: here.dir } },
   { browsers: [process.execPath], env: { APP_PORT: String(port) } });
   assert.deepEqual(done.findings, []);
+  assert.equal(await isFree(port), true);
+});
+
+test('preflight: the serve command gets no key of the run in its environment', async () => {
+  const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
+  const here = checkout();
+  const port = await freePort();
+  const names = path.join(here.dir, 'names.json');
+  // The serve command writes the names of its environment, then starts the app.
+  const spec = appSpec(here, port, port);
+  spec.serve.command = `node -e 'require("fs").writeFileSync(${JSON.stringify(names)}, ` +
+    `JSON.stringify(Object.keys(process.env)))'; ${spec.serve.command}`;
+  const keys = { GITHUB_TOKEN: 'ghp_fake-value-0001', GH_TOKEN: 'fake-value-0002',
+    QORY_RUN_KEY: 'fake-value-0003', ANTHROPIC_API_KEY: 'fake-value-0004',
+    GITLAB_TOKEN: 'fake-value-0005' };
+  const ran = await runner(spec, { env: { ...keys, DEMO_PASSWORD: 'parcel-blue-41',
+    APP_NOTE: 'plain' } });
+  assert.equal(ran.status, 0);
+  assert.equal(JSON.parse(ran.out).app.started, true, ran.out);
+  const given = JSON.parse(fs.readFileSync(names, 'utf8'));
+  for (const name of ['DEMO_PASSWORD', 'APP_NOTE', 'PATH', 'QORY_CHECK_MARK']) {
+    assert.ok(given.includes(name), name);
+  }
+  // The mark of lib/supervise.cjs is the one name of qory, which the runner sets.
+  assert.deepEqual(given.filter(runKey), ['QORY_CHECK_MARK']);
   assert.equal(await isFree(port), true);
 });
 
@@ -1010,35 +1039,43 @@ test('preflight: a page with an origin needs a browser with that origin', async 
   }
 });
 
-test('preflight: a process that exits with its browser running kills the browser', async () => {
+test('preflight: a process that exits with its browser running kills the browser and its child', async () => {
   const here = checkout();
-  const browser = fakeBrowser(here, 'exec sleep 96');
+  const grandchild = path.join(here.dir, 'grandchild.pid');
+  // A browser that starts a grandchild, which ignores SIGHUP and SIGTERM.
+  const browser = fakeBrowser(here, `sh -c "trap '' HUP TERM; exec sleep 94" &\n` +
+    `echo $! > '${grandchild}'\nexec sleep 96`);
   const main = path.join(here.dir, 'exits.cjs');
-  // The process exits once the browser has written its pid.
+  // The process exits once the grandchild has written its pid.
+  const quoted = JSON.stringify(grandchild);
   fs.writeFileSync(main, `const { Browser } = require(${JSON.stringify(path.join(SKILL,
     'lib/browser.cjs'))});\n` +
     `new Browser(${JSON.stringify(browser.file)}).start().catch(() => {});\n` +
-    `const fs = require('fs');\nsetInterval(() => { if (fs.existsSync(${JSON.stringify(
-      browser.pid)}) && fs.readFileSync(${JSON.stringify(browser.pid)}, 'utf8').endsWith('\\n')) ` +
-    'process.exit(0); }, 50);\n');
+    `const fs = require('fs');\nsetInterval(() => { if (fs.existsSync(${quoted}) && ` +
+    `fs.readFileSync(${quoted}, 'utf8').endsWith('\\n')) process.exit(0); }, 50);\n`);
   const folder = path.join(here.dir, 'tmp');
   fs.mkdirSync(folder);
-  const ran = childProcess.spawnSync(process.execPath, [main],
-    { timeout: 10000, env: { ...process.env, TMPDIR: folder } });
-  assert.equal(ran.status, 0);
-  const pid = Number(fs.readFileSync(browser.pid, 'utf8'));
-  assert.ok(pid > 1, `no pid of the browser: ${pid}`);
-  await until(() => !alive(pid), 2000, 'the browser outlived its process').finally(() => {
-    if (alive(pid)) process.kill(pid, 'SIGKILL');
-  });
-  assert.deepEqual(fs.readdirSync(folder), []);
+  const pids = [];
+  try {
+    const ran = childProcess.spawnSync(process.execPath, [main],
+      { timeout: 10000, env: { ...process.env, TMPDIR: folder } });
+    pids.push(Number(fs.readFileSync(browser.pid, 'utf8')),
+      Number(fs.readFileSync(grandchild, 'utf8')));
+    assert.equal(ran.status, 0);
+    assert.ok(pids.every((pid) => pid > 1), `no pids: ${pids}`);
+    await until(() => !alive(pids[0]), 2000, 'the browser outlived its process');
+    await until(() => !alive(pids[1]), 2000, 'the child of the browser outlived the process');
+    assert.deepEqual(fs.readdirSync(folder), []);
+  } finally {
+    for (const pid of pids) if (pid > 1 && alive(pid)) process.kill(pid, 'SIGKILL');
+  }
 });
 
-test('preflight: a process exits after halt while a child of the browser keeps stderr open', async () => {
+test('preflight: halt stops a child of the browser that keeps stderr open, and the process exits promptly', async () => {
   const here = checkout();
   const grandchild = path.join(here.dir, 'grandchild.pid');
   // A browser that starts a grandchild, which keeps stdout, stderr and the pipes open and
-  // runs on after the browser is killed.
+  // ignores SIGHUP and SIGTERM.
   const browser = fakeBrowser(here, `sh -c "trap '' HUP TERM; exec sleep 95" &\n` +
     `echo $! > '${grandchild}'\nexec sleep 96`);
   const main = path.join(here.dir, 'halts.cjs');
@@ -1057,12 +1094,15 @@ test('preflight: a process exits after halt while a child of the browser keeps s
     const started = Date.now();
     const ran = childProcess.spawnSync(process.execPath, [main],
       { timeout: 10000, env: { ...process.env, TMPDIR: here.dir } });
+    const took = Date.now() - started;
     pid = Number(fs.readFileSync(grandchild, 'utf8'));
     assert.ok(pid > 1, `no pid of the grandchild: ${pid}`);
-    assert.equal(ran.status, 0, `the process ran for ${Date.now() - started} ms`);
+    assert.equal(ran.status, 0, `the process ran for ${took} ms`);
     assert.equal(String(ran.stdout), 'halted\n');
-    // The grandchild still runs, so its stderr was open when the process exited.
-    assert.equal(alive(pid), true);
+    // halt waits at most 1 s for the browser, and the start of node and of the browser takes
+    // well under the rest.
+    assert.ok(took < 5000, `the process ran for ${took} ms`);
+    await until(() => !alive(pid), 2000, 'the child of the browser outlived halt');
   } finally {
     if (pid > 1 && alive(pid)) process.kill(pid, 'SIGKILL');
     const parent = fs.existsSync(browser.pid) ? Number(fs.readFileSync(browser.pid, 'utf8')) : 0;
@@ -1168,6 +1208,11 @@ test('preflight verb: each input that is missing or broken, and a runner with no
     'build plan, then push it.');
   assert.equal(causeOf(done.out), 'Cause: the build plan has no App address.');
   assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);
+  // A host with a ; would add an entry to --proxy-bypass-list of the browser.
+  const host = call(['preflight', '--artifacts',
+    pinnedPlan(['App address: `http://127.0.0.1;example.com:8080/`'], 'npm run dev')], deps);
+  assert.equal(host.status, 3, host.out + host.err);
+  assert.equal(causeOf(host.out), 'Cause: the build plan has no App address.');
   // A serve command with no demo script in the artifact folder of the session.
   const address = ['App address: `http://127.0.0.1:9/`'];
   const none = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
@@ -1423,28 +1468,103 @@ async function reachOut(bin, code) {
   }
 }
 
-test('preflight: a WebRTC connection of a page sends no UDP packet to a STUN server', { skip: NO_BROWSER }, async () => {
-  const got = [];
-  const stun = dgram.createSocket('udp4');
-  stun.on('message', (message, from) => got.push(`${from.address}:${from.port}`));
-  await new Promise((resolve) => { stun.bind(0, '127.0.0.1', resolve); });
-  try {
-    // Chrome 157 on macOS without --webrtc-ip-handling-policy sends 4 STUN requests to the
-    // server within these 3 s.
-    const text = await reachOut(BROWSER, `async () => {
-      const connection = new RTCPeerConnection({ iceServers: [
-        { urls: 'stun:127.0.0.1:${stun.address().port}' }] });
-      connection.createDataChannel('demo');
-      await connection.setLocalDescription(await connection.createOffer());
-      await new Promise((resolve) => { setTimeout(resolve, 3000); });
-      connection.close();
-      return 'done';
-    }`);
-    assert.equal(text, 'done');
-    assert.deepEqual(got, []);
-  } finally {
-    stun.close();
+// stripped returns a browser that runs BROWSER without each flag that starts with one of
+// prefixes, and with the flags of more, so that a control shows what the guard of a flag
+// stops.
+function stripped(prefixes, more = []) {
+  const drop = prefixes.length ? `for one do shift; case "$one" in ` +
+    `${prefixes.map((one) => `${one}*`).join('|')}) ;; *) set -- "$@" "$one" ;; esac; done\n`
+    : '';
+  return fakeBrowser(checkout(), `${drop}exec '${BROWSER}' ${more.join(' ')} "$@"`).file;
+}
+
+// The flags of the guards that keep a request of the page from leaving the app.
+const GUARDS = ['--proxy-server=', '--proxy-bypass-list=', '--webrtc-ip-handling-policy=',
+  '--host-resolver-rules='];
+
+// heard starts a listener of kind udp or tcp on 127.0.0.1 and resolves to { text, count }:
+// the text of reachOut for the browser that bin(port) returns and the code that code(port)
+// returns, and the number of UDP packets or TCP connections that the listener got.
+async function heard(kind, bin, code) {
+  let count = 0;
+  let listener;
+  if (kind === 'udp') {
+    listener = dgram.createSocket('udp4');
+    listener.on('message', () => { count += 1; });
+    await new Promise((resolve) => { listener.bind(0, '127.0.0.1', resolve); });
+  } else {
+    listener = net.createServer((socket) => {
+      count += 1;
+      socket.destroy();
+    });
+    await new Promise((resolve) => { listener.listen(0, '127.0.0.1', resolve); });
   }
+  const { port } = listener.address();
+  try {
+    const text = await reachOut(bin(port), code(port));
+    return { text, count };
+  } finally {
+    listener.close();
+  }
+}
+
+// gather returns the code of a page that gathers the candidates of a WebRTC connection with
+// iceServer for 3 s.
+const gather = (iceServer, more = '') => `async () => {
+  const connection = new RTCPeerConnection({ iceServers: [${iceServer}]${more} });
+  connection.createDataChannel('demo');
+  await connection.setLocalDescription(await connection.createOffer());
+  await new Promise((resolve) => { setTimeout(resolve, 3000); });
+  connection.close();
+  return 'done';
+}`;
+
+test('preflight: a WebRTC connection of a page sends no UDP packet to a STUN server', { skip: NO_BROWSER }, async () => {
+  const stun = (port) => gather(`{ urls: 'stun:127.0.0.1:${port}' }`);
+  // The control: without --webrtc-ip-handling-policy, Chrome 157 on macOS and Chromium 153 on
+  // Linux send 4 STUN requests to the server within the 3 s.
+  const control = await heard('udp', () => stripped(['--webrtc-ip-handling-policy=']), stun);
+  assert.equal(control.text, 'done');
+  assert.ok(control.count > 0, 'the control sent no STUN request');
+  const guarded = await heard('udp', () => BROWSER, stun);
+  assert.deepEqual(guarded, { text: 'done', count: 0 });
+});
+
+test('preflight: a WebRTC connection of a page opens no TCP connection to a TURN server', { skip: NO_BROWSER }, async () => {
+  const turn = (port) => gather(`{ urls: 'turn:127.0.0.1:${port}?transport=tcp', ` +
+    "username: 'demo', credential: 'demo-pass' }", ", iceTransportPolicy: 'relay'");
+  // The control: without the guards, the browser connects to the TURN server.
+  const control = await heard('tcp', () => stripped(GUARDS), turn);
+  assert.equal(control.text, 'done');
+  assert.ok(control.count > 0, 'the control opened no connection to the TURN server');
+  const guarded = await heard('tcp', () => BROWSER, turn);
+  assert.deepEqual(guarded, { text: 'done', count: 0 });
+});
+
+test('preflight: WebTransport and HTTP/3 of a page send no QUIC packet', { skip: NO_BROWSER }, async () => {
+  // A WebTransport session, which runs over HTTP/3, sends QUIC packets to the server.
+  const session = (port) => `async () => {
+    const session = new WebTransport('https://127.0.0.1:${port}/');
+    await Promise.race([session.ready.catch(() => {}),
+      new Promise((resolve) => { setTimeout(resolve, 3000); })]);
+    try { session.close(); } catch {}
+    return 'done';
+  }`;
+  // A fetch uses HTTP/3 only after a response of the origin offers it, which the proxy stops;
+  // --origin-to-force-quic-on makes the browser use HTTP/3 at once, as after such a response.
+  const fetched = (port) => `async () => fetch('https://127.0.0.1:${port}/', ` +
+    "{ mode: 'no-cors' }).then(() => 'done', () => 'done')";
+  const quic = (port) => `--origin-to-force-quic-on=127.0.0.1:${port}`;
+  // The controls: without the guards, the browser sends QUIC packets to the server.
+  const controls = [await heard('udp', () => stripped(GUARDS), session),
+    await heard('udp', (port) => stripped(GUARDS, [quic(port)]), fetched)];
+  for (const control of controls) {
+    assert.equal(control.text, 'done');
+    assert.ok(control.count > 0, 'the control sent no QUIC packet');
+  }
+  assert.deepEqual(await heard('udp', () => BROWSER, session), { text: 'done', count: 0 });
+  assert.deepEqual(await heard('udp', (port) => stripped([], [quic(port)]), fetched),
+    { text: 'done', count: 0 });
 });
 
 test('preflight: a page cannot look up another host name', { skip: NO_BROWSER }, async () => {
@@ -1453,18 +1573,21 @@ test('preflight: a page cannot look up another host name', { skip: NO_BROWSER },
     got.push(`${req.headers.host.split(':')[0]} ${req.url}`);
     res.end('other');
   }, '127.0.0.1');
-  // A browser with no proxy flags, so that only the lookup of the name stops the request,
-  // and the request to the address of 127.0.0.1 reaches the other server.
-  const here = checkout();
-  const browser = fakeBrowser(here, 'for one do shift; case "$one" in ' +
-    '--proxy-server=*|--proxy-bypass-list=*) ;; *) set -- "$@" "$one" ;; esac; done\n' +
-    `exec '${BROWSER}' "$@"`);
   const reach = (host) => `fetch('http://${host}:${other.port}/' + '${host}', ` +
     "{ mode: 'no-cors' }).then(() => 'reached', () => 'failed')";
+  const code = `async () => [await ${reach('localhost')}, await ${reach('127.0.0.1')}, ` +
+    "'done'].join(' ')";
+  const proxy = ['--proxy-server=', '--proxy-bypass-list='];
   try {
-    const text = await reachOut(browser.file, `async () => [await ${reach('localhost')}, ` +
-      `await ${reach('127.0.0.1')}, 'done'].join(' ')`);
-    assert.equal(text, 'failed reached done');
+    // The control: with no proxy flags and no --host-resolver-rules, both requests reach the
+    // other server.
+    assert.equal(await reachOut(stripped([...proxy, '--host-resolver-rules=']), code),
+      'reached reached done');
+    assert.deepEqual(got, ['localhost /localhost', '127.0.0.1 /127.0.0.1']);
+    got.length = 0;
+    // With no proxy flags, only the lookup of the name stops the request, and the request to
+    // the address of 127.0.0.1 reaches the other server.
+    assert.equal(await reachOut(stripped(proxy), code), 'failed reached done');
     assert.deepEqual(got, ['127.0.0.1 /127.0.0.1']);
   } finally {
     other.server.close();

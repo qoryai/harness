@@ -4,7 +4,8 @@
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
 //   runs `sh -c '<command>'` in cwd, in a new process group, with the mark of
-//   lib/supervise.cjs, with stdout and stderr in the file log, and sends a GET to url every
+//   lib/supervise.cjs and with no key of the run in its environment, as serveEnv removes
+//   them, with stdout and stderr in the file log, and sends a GET to url every
 //   250 ms until a response with a status below 500 comes back, the command exits with
 //   other than 0, or startMs passes. A command that starts the app in the background and
 //   exits 0 still counts once the address returns a response.
@@ -32,6 +33,7 @@ const https = require('node:https');
 
 const { Browser } = require('./browser.cjs');
 const { signIn } = require('./replay.cjs');
+const { runKey } = require('./secrets.cjs');
 const { MARK, marker } = require('./supervise.cjs');
 
 const POLL_MS = 250;
@@ -128,6 +130,14 @@ function openLog(file) {
   return fs.openSync(file, 'wx', 0o644);
 }
 
+// serveEnv returns the environment of the runner without each variable whose name runKey of
+// lib/secrets.cjs matches, such as GITHUB_TOKEN or QORY_RUN_KEY, and with MARK set to value:
+// the app gets no key of the run.
+function serveEnv(value) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !runKey(name)));
+  return { ...env, [MARK]: value };
+}
+
 // start runs the serve command and resolves to { started, ran, why }.
 async function start(serve, startMs, proc) {
   if (await statusOf(serve.url) !== null) {
@@ -141,7 +151,7 @@ async function start(serve, startMs, proc) {
   try {
     running.child = childProcess.spawn('/bin/sh', ['-c', `${WATCHER}\n${serve.command}`], {
       cwd: serve.cwd, detached: true, stdio: ['ignore', out, out, 'pipe'],
-      env: { ...process.env, [MARK]: value },
+      env: serveEnv(value),
     });
     running.child.stdio[3].on('error', () => {});
     running.child.on('exit', (code, signal) => { exit = { code, signal }; });

@@ -73,6 +73,9 @@ function originOf(url) {
 // and port of origin. <-loopback> removes the rule that sends no request to localhost and
 // 127.0.0.1 through a proxy. WebRTC then sends no UDP packet, since it may use only the
 // proxy, and the lookup of each host name fails, except of 127.0.0.1 and the host of origin.
+// A TCP connection of WebRTC to a TURN server and a WebTransport session go to the proxy, so
+// they fail too. Chrome 157 and Chromium 153 ignore --force-webrtc-ip-handling-policy, so the
+// browser gets only --webrtc-ip-handling-policy.
 function proxyFlags(origin) {
   const url = new URL(origin);
   const port = url.port || { 'http:': '80', 'https:': '443' }[url.protocol];
@@ -144,15 +147,15 @@ class Browser {
     };
     const args = [...FLAGS, ...(this.origin ? proxyFlags(this.origin) : []),
       `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
-    this.proc = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env });
-    // A process that exits with the browser still running, as by process.exit, kills it and
-    // removes its temporary folder.
+    // detached makes the browser the leader of a new process group, so that killGroup stops
+    // each child of the browser with it.
+    this.proc = spawn(this.bin, args,
+      { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env, detached: true });
+    this.pid = this.proc.pid;
+    // A process that exits with the browser still running, as by process.exit, kills its
+    // process group and removes its temporary folder.
     const kill = () => {
-      try {
-        this.proc.kill('SIGKILL');
-      } catch {
-        // The browser has ended.
-      }
+      this.killGroup();
       try {
         fs.rmSync(this.dir, { recursive: true, force: true });
       } catch {
@@ -193,6 +196,17 @@ class Browser {
         throw new Error(`the browser exited before it started: ${JSON.stringify(how)}`);
       }),
     ]), ms, `the browser did not start within ${ms / 1000} s`);
+  }
+
+  // killGroup sends SIGKILL to the process group of the browser, whose id is the pid that
+  // spawn returned: spawn with detached made that group for the browser alone.
+  killGroup() {
+    if (!Number.isInteger(this.pid) || this.pid <= 1) return;
+    try {
+      process.kill(-this.pid, 'SIGKILL');
+    } catch {
+      // The group has no process left.
+    }
   }
 
   // fail rejects each call that waits for its result with why, and each later call too.
@@ -279,16 +293,17 @@ class Browser {
     return page;
   }
 
-  // stop kills the browser, waits up to STOP_MS for it to exit, and removes its temporary
-  // folder.
+  // stop kills the process group of the browser, waits up to STOP_MS for the browser to exit,
+  // and removes its temporary folder.
   stop() {
     return this.halt(STOP_MS);
   }
 
-  // halt kills the browser, waits up to ms for it to exit, so that it no longer writes to its
-  // profile, and removes its temporary folder, for a process that exits right after. A child
-  // of the browser, such as a crash handler on macOS, can keep the pipes of the browser open
-  // after the kill, so halt closes them, and the process can exit with that child running.
+  // halt kills the process group of the browser, waits up to ms for the browser to exit, so
+  // that it no longer writes to its profile, and removes its temporary folder, for a process
+  // that exits right after. The kill stops each child of the browser that stayed in its group,
+  // such as a crash handler on macOS. halt also closes the pipes of the browser, which a child
+  // that left the group can keep open, so that the process can exit.
   async halt(ms = HALT_MS) {
     this.stopped = true;
     for (const waiting of this.pending.values()) {
@@ -297,11 +312,7 @@ class Browser {
     }
     this.pending.clear();
     if (this.proc) {
-      try {
-        this.proc.kill('SIGKILL');
-      } catch {
-        // The browser has ended.
-      }
+      this.killGroup();
       let timer;
       await Promise.race([this.exited,
         new Promise((resolve) => { timer = setTimeout(resolve, ms); })]);
