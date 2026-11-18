@@ -142,7 +142,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   call held the ledger lock for 10 s."
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.cjs check points` checks by the rules of the text of a point. The verdict schema
-  of qory 1deb56e has the member.
+  of qory 0e02282 has the member.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two
@@ -334,11 +334,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   time that the agent wrote, runs no program, and writes only `points.json` to `--out`. It
   exits 0 with no finding, 1 with findings and `points.json`, 2 for a wrong argument, 3 for
   an input it cannot read, and 4 on a crash. In-session `end` is unchanged, and qory at
-  `1deb56e` runs no `end --offline`.
+  `0e02282` runs no `end --offline`.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.cjs`. Exit 2 with the findings on stderr keeps a `codex exec` turn
-  going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `1deb56e` writes no
+  going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `0e02282` writes no
   `trusted_hash` and does not pass `--dangerously-bypass-hook-trust`, so Codex does not
   run the hook in a run. The file sets no model, provider, sandbox or approval mode.
   `scripts/check.sh` checks that a compose for Codex writes both settings. A check that
@@ -369,7 +369,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or the
   `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, or has
-  `fix` on a point. The pin is `1deb56e`, qory's commit after qoryai/qory#125.
+  `fix` on a point. The pin is `0e02282`, qory's commit after qoryai/qory#127.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -621,12 +621,46 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The acceptance criteria are `acceptance-criteria.json`, in the acceptance criteria format
+  of qory's contract, in place of the table of `acceptance-criteria.md`: a `summary`, and
+  `criteria`, each with `id`, `text` and `check`, and with `removed` and its `reason` when
+  the criterion no longer applies. A removed criterion keeps its text and its check; the
+  check `None` and the text "Removed, because" are gone. `process.yaml` declares
+  `acceptance-criteria` as a structured type with the contract's JSON Schema, which
+  `schemas/acceptance-criteria.schema.json` of `running-a-software-workflow` also has.
+  `spec-writer` writes the file by `writing-specs`. The check of the type, the build plan,
+  the lock, the point of the ledger, the demo scenarios and the decision record read it.
+  The check keeps its rules: each criterion that is not removed is one sentence of at most
+  25 words with the check `Demo: <title>` or `Tests`, each id is there once and stays in
+  every later version, and the count of the criteria that are not removed is on the last
+  line. A file that breaks a rule is refused with its fix line, such as
+  "Set the check of ac-2 in acceptance-criteria.json to "Demo: <title>" or "Tests".".
+- The verification is `verification.json`, in the verification format of qory's contract,
+  in place of `verification.md`: `target_version`, `matrix` with a row of `criterion`,
+  `state` (`met` or `not_met`) and `evidence` for each criterion that was checked,
+  `not_verified` with the `reason` for each criterion that was not, and `model_families`.
+  `process.yaml` declares `verification` as a structured type with that JSON Schema. Beyond
+  the schema, the check requires `target_version` to be a full commit id, each criterion
+  that is not removed in `matrix` or in `not_verified` exactly once, and the words of a
+  criterion quoted in an evidence or a reason. The sections `## Summary`, `## Lowered` and
+  `## Accepted findings` and the state `Needs a person` are gone, because the format has no
+  place for them. The explainer reads the verified commit from `target_version`.
+- Every question of `questions.json` has `about`, as qory's questions format requires:
+  `{"work_item": true}`, or an output as `type` and `name`, with `item` for one entry of it,
+  such as a criterion id. `questions-writer` sets it by `writing-questions`. The questions
+  check refuses a question with no `about`, and a new or changed `about` that names an
+  output that the run cannot read, or an `item` that the acceptance criteria do not have.
+- A criterion id is `ac-` and a number from 1 to 9999 with no leading zero, the one form of
+  qory's contract, in the schema of `acceptance-lock` and in `checks.cjs run locked`, in
+  place of a number from 1 to 99.
+- The schema check of `running-a-software-workflow` applies `uniqueItems`, which the
+  verification format uses, and shows a pattern's control characters as escapes.
 - The middle model tier is `balanced` in place of `fast`, the name that qory gives it.
-  qory at `1deb56e` fails the compose on `${qory:fast}`. `code-explorer` sets
+  qory at `0e02282` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the
   tier `light`, `balanced` or `thinking`, and rule 3 of `scripts/check.sh` fails on
-  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `1deb56e`, qory's commit
-  after qoryai/qory#125, in place of `91f02f0`.
+  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `0e02282`, qory's commit
+  after qoryai/qory#127, in place of `91f02f0`.
 - Each script of `core` and `software-factory` ends in `.cjs` in place of `.js`: the
   hooks, `checks.cjs` with `lib/`, `verbs/` and `types/`, `versions.cjs`, `push-check.cjs`,
   `workflow-checks.cjs` with its files, and the scripts of `designing-mockups`. Node loads a
@@ -837,7 +871,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   does not except, on two patterns of different tiers that match a common name, on a name
   listed under two tiers, and on a name that a row of its tier also excepts.
   `writing-agents` and `harness-reviewer` follow the same rule.
-- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `1deb56e`,
+- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `0e02282`,
   Forager at `123b34ab` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
   files of `simple-communication`.

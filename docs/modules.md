@@ -102,11 +102,11 @@ composed with `SKILL.md`. The `simple-communication` skill has its longer materi
 by relative paths. The rules that a run follows from `simple-communication` are in its
 `SKILL.md`. In a test on Claude Code 2.1.323 under `dontAsk`, with the `software` stack
 composed and the settings that qory writes for a read run (`readRules` in
-`cmd/settings_inline.go` at qory `1deb56e`), a read run cannot open the two `references/`
+`cmd/settings_inline.go` at qory `0e02282`), a read run cannot open the two `references/`
 files. The settings of `software-factory` set
 `permissions.blockReadsOutsideWorkingDirectories` to `true`. The skill's folder in the
 harness home is a link to the folder of the `core` module (`PlaceEntries` in
-`internal/render/address.go` at qory `1deb56e`), which is not a working folder of a read
+`internal/render/address.go` at qory `0e02282`), which is not a working folder of a read
 run: `readRules` adds only the artifact folder to `permissions.additionalDirectories`.
 Every other skill that a read run loads has all its text in `SKILL.md`, so the run opens no
 text beside it; the scripts beside `SKILL.md` of `designing-mockups` and
@@ -176,7 +176,7 @@ id. Its body is the role, and loads each skill with a reference (section "Refere
 other entries"), never with a `skills:` key.
 
 A tier is `light`, `balanced` or `thinking`, written as `model: ${qory:<tier>}`. The compose
-fails on any other name (`Tiers` in `internal/stack/stack.go` at qory `1deb56e`).
+fails on any other name (`Tiers` in `internal/stack/stack.go` at qory `0e02282`).
 The compose replaces the value with the model id that the tier maps to, from `--tier` of
 `qory harness compose` or `harness.tiers` in the qory configuration files. For a tier with
 no map, the compose leaves `model` out, so the agent runs on the main model. The person
@@ -222,7 +222,7 @@ An agent that the table does not list sets no `model` key.
   an enforced limit. On Claude Code's native build, a `tools` key that lists Bash removes
   Grep and Glob, so an exception for Bash also drops those two tools or states how the agent
   searches. Copilot keeps the key, untested.
-- On Codex, the `tools` key only turns the shell off: at qory `1deb56e`, the compose writes
+- On Codex, the `tools` key only turns the shell off: at qory `0e02282`, the compose writes
   `name`, `description` and `developer_instructions` into an agent's file, and
   `shell_tool = false` under `[features]` when the key lists neither `Bash` nor `PowerShell`
   (`keepsShell` in `internal/render/codex/codex.go`). Whether Codex then runs no command for
@@ -609,7 +609,7 @@ a stack ships skills, and qory places them beside the stack's skills, in
 `<home>/modules/<name>/skills/` and in each runtime's skills folder. Without the list, its
 `workflow-checks.cjs` would change or skip the checks of every type, in each verb, in the
 end check's hook and in each push check. The list is the source of truth, for these reasons,
-from qory at `1deb56e`:
+from qory at `0e02282`:
 
 - The report, `<home>-report.json`, marks the base stack's modules with `base`, but lies
   beside the home, and no check can rely on reading it. A push check's container gets only
@@ -681,7 +681,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   A point `answer` has the id of an open question in `questions.json` at the top of the
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
-  verdict; only this check reads the questions and the words of the text. At qory 1deb56e
+  verdict; only this check reads the questions and the words of the text. At qory 0e02282
   that schema has `fix` only on a point `run_again`, as one line of 1 to 500 characters.
 - `checks.cjs push <type> <file>...`: the form that qory runs on a push, through
   `scripts/push-check.cjs push <type> <file>...` of `core` for `questions` and
@@ -1044,7 +1044,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   of the store that contradicts itself or a verdict file with another verdict; 4 when the
   script crashes, with the fix and the error on stderr. When Node cannot load `checks.cjs`,
   it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json` as
-  4. qory at `1deb56e` runs no `end --offline`.
+  4. qory at `0e02282` runs no `end --offline`.
 
 The hook runs `checks.cjs end` through an adapter in `modules/core/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.cjs` picks the folder:
@@ -1084,7 +1084,7 @@ Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook tha
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
 `QORY_HARNESS_HOME` reaches the hook. A hook in `$CODEX_HOME` runs only when its hash is
-trusted. qory at `1deb56e` writes no `trusted_hash` into `config.toml`, and neither qory
+trusted. qory at `0e02282` writes no `trusted_hash` into `config.toml`, and neither qory
 nor the Forager commit it pins, `123b34ab`, starts Codex with
 `--dangerously-bypass-hook-trust`, so in a run on Codex the hook does not run.
 The other three follow their documentation. Cursor's
@@ -1492,7 +1492,9 @@ empty. A type with two names and no `main`, a version folder without its file, a
 The checks:
 
 - sections, parts and the form of each criterion, scenario and decision, as the writing
-  skills state them;
+  skills state them; `acceptance-criteria.json` against the JSON Schema of the type, the
+  acceptance criteria format of qory's contract, and each criterion that is not removed
+  with the check `Demo: <title>` or `Tests`;
 - the limits of a proposal that the section "Limits" of `writing-proposals` lists: a summary
   of 1 or 2 sentences and at most 40 words, a first paragraph of the background of at most
   40 words and at most 100 words after it, a recommendation of 1 sentence and at most 30
@@ -1523,6 +1525,13 @@ The checks:
   question of the newest version does not become `decided`, and keeps its `decision`, or
   its lack of one. A question with a `decision` keeps its `question` and `options` in every
   state, and a question that stays answered or decided keeps its `context`;
+- the `about` of each question: a question with no `about` is a finding. An `about` that is
+  new, or differs from the newest questions, is `{"work_item": true}` or an output, `type`
+  and `name`, that the run can read: a name that `index.json` lists with a version that
+  counts, a name with a version folder in the store, or, in a check, a type whose draft is
+  at the top of the artifact folder. Its `item`, for the type `acceptance-criteria`, is a
+  criterion id that the criteria have, when the check can read the criteria: the draft at
+  the top in a check, else the newest version;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
@@ -1697,17 +1706,12 @@ find:
 - `screenshot`: pictures other than `scenario-<N>-step-<S>.png` of one scenario, one per
   step of the newest demo script of the scenario, and any picture of a scenario whose
   script has the evidence `film`;
-- `verification`: sections other than `## Summary`, `## Matrix`, `## Lowered`,
-  `## Not verified`, `## Accepted findings` and `## Model families`; no line `Commit: ` with
-  a full commit id in the summary; a matrix row of a criterion that the criteria do not
-  have, a criterion with no row or two, a state other than `Met`, `Not met` and
-  `Needs a person`, or, in `## Matrix`, a table with other columns than those that the check
-  reads, or a second table with them; a Criterion cell other than the id, in any case, and
-  its first sentence in quotes, such as `AC-1, "Export saves a CSV file"`; a text in quotes
-  beside the id of a criterion that the criteria have, other than the criterion's words, in
-  a Criterion cell or anywhere in `## Lowered` and `## Not verified`; a row with
-  `Needs a person` whose Evidence is empty or missing, or is not one sentence of the form
-  "Check <what>, because the run could not <why>.";
+- `verification`: a `target_version` that is not a full commit id, 40 or 64 lower-case
+  hexadecimal digits, though the format of the contract accepts any version of a target; a
+  criterion that is not removed and is in neither `matrix` nor `not_verified`, or in them
+  twice, such as in both; a criterion there that the criteria do not have, or have
+  removed; and a text in quotes beside the id of a criterion that the criteria have, other
+  than the criterion's words, in an `evidence` or a `reason`;
 - `explainer`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
   number, with the id in any case and the criterion's words in quotes, then
   `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
@@ -1716,12 +1720,13 @@ find:
   criterion section, text other than claims and blank lines, where a claim is a list item
   with its indented lines; a claim that does not end with a `path:line`, `path:line-line` or
   `matrix row AC-<N>`, with the id in any case; and no line `Commit: ` with a full commit
-  id, or one other than the verified commit: in a check, that of `verification.md` at the
-  top of the artifact folder, else of the newest verification version; in a push, that of
-  the newest verification version, which the push check reads. With no verification, the
-  finding is "Push the verification before the explainer.", with the line "The artifacts
-  have no verification version." after it. A verification with no line `Commit: ` and a
-  full commit id in its summary is a finding of the explainer too, in a check and in a push.
+  id, or one other than the verified commit, the `target_version`: in a check, that of
+  `verification.json` at the top of the artifact folder, else of the newest verification
+  version; in a push, that of the newest verification version, which the push check reads.
+  With no verification, the finding is "Push the verification before the explainer.", with
+  the line "The artifacts have no verification version." after it. A verification whose
+  `target_version` is no full commit id is a finding of the explainer too, in a check and
+  in a push.
 
 A Build session records each step it runs in the build ledger, so that a session that stops
 resumes where it stopped, and a step that is done replays and does not run again. The verbs
@@ -1748,7 +1753,7 @@ and `points.json` at the 101st row. The mark contains the id of the session, the
 which the session started, and the rows that crashed in a session of the same run. The id
 is the pair of `QORY_RUN_ID`, the run id that every session of a run shares, and
 `QORY_SESSION`, the number of the session in the run, 1 for the first. An unset or empty
-`QORY_SESSION` counts as 1, because qory 1deb56e sets none. Only `checks.cjs` writes the
+`QORY_SESSION` counts as 1, because qory 0e02282 sets none. Only `checks.cjs` writes the
 mark: the guard of `.reports/*.json` denies an agent any write to it.
 Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1 to 999999,
 `step` and `resume` exit 3. The line of a failed command shows the name of the program,
@@ -1774,7 +1779,7 @@ at once, such as from the session and from an agent with a shell, lose no row or
 call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.
 
 - `checks.cjs resume`: once, at the start of each Build session. It runs
-  `qory artifact pull build-ledger`, which at qory 1deb56e exits 0 and writes no folder of
+  `qory artifact pull build-ledger`, which at qory 0e02282 exits 0 and writes no folder of
   the type when the work item has no version, so the ledger then starts empty. It writes the
   newest version as the draft and its copy, marks each `running` row `failed`, because its
   session stopped while the step ran, and writes a new mark of the session over the earlier
@@ -1973,12 +1978,12 @@ reads only the questions folder, because qory writes the whole `index.json` for 
 `approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
 it.
 
-`spec-writer` writes `spec.md` and `acceptance-criteria.md` by `writing-specs`, and reads
+`spec-writer` writes `spec.md` and `acceptance-criteria.json` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
 `spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
 `checking-specs`, so that a rule and its criteria cannot drift apart. The session pushes
-the spec, then the criteria, the standard type `acceptance-criteria`, so that a later stage
-takes the criteria by type. It checks the two files apart and pushes each only when it
+the spec, then the criteria, the structured type `acceptance-criteria`, so that a later
+stage takes the criteria by type. It checks the two files apart and pushes each only when it
 changed.
 
 The spec is a Markdown document with `## Summary`, `## Background`, `## Changes` and
@@ -1986,15 +1991,16 @@ The spec is a Markdown document with `## Summary`, `## Background`, `## Changes`
 Each part opens with a table with the columns "Rule", "Today" and "After", and a part that
 changes a screen names its mockup screen and draws no wireframe. The spec has no rule ids.
 
-`acceptance-criteria.md` has a summary and one table with the columns "Id", "Criterion" and
-"Planned check". A criterion's id, such as `ac-1`, stays fixed across versions, and a
-removed id is never reused. `spec-reviewer` checks that no criterion is renumbered: the text
-of an `ac-N` never moves to another id. A rule whose "After" waits for an answer has no
-criterion until the answer comes, because a criterion needs values. The planned check is
-`Demo: <title>` when a person can see the criterion in the UI, else `Tests`: Shape plans the
-check, and Build records how each criterion was met. A work item has at most 7 criteria.
-Above 7, the writer drops and merges none, and asks whether to split the work item into
-sub-items, because a split changes the scope.
+`acceptance-criteria.json` is in the acceptance criteria format of qory's contract: a
+`summary`, and `criteria`, each with `id`, `text` and `check`, and with `removed` and its
+`reason` when it no longer applies. A criterion's id, such as `ac-1`, stays fixed across
+versions, and a removed id is never reused. `spec-reviewer` checks that no criterion is
+renumbered: the text of an `ac-N` never moves to another id. A rule whose "After" waits for
+an answer has no criterion until the answer comes, because a criterion needs values. The
+check is `Demo: <title>` when a person can see the criterion in the UI, else `Tests`: Shape
+plans the check, and Build records how each criterion was met. A work item has at most 7
+criteria. Above 7, the writer drops and merges none, and asks whether to split the work item
+into sub-items, because a split changes the scope.
 
 Each writer of Shape writes in the direction of the option that a question recommends or
 that the run decided, and asks a question in a later round only as `reading-the-work` lists,
@@ -2238,7 +2244,7 @@ again after a small workflow's stop, and when the session lost the list.
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
 page, and the planned checks against the demo scenarios both ways. Each planned check
-"Demo: <title>" in `acceptance-criteria.md` has a scenario with that title in
+"Demo: <title>" in `acceptance-criteria.json` has a scenario with that title in
 `demo-scenarios.md` whose `Shows:` line lists the criterion, and each `ac-N` in a `Shows:`
 line has the planned check "Demo" with that scenario's title. Where a criterion and a
 mockup page differ, the criterion applies, and the mockup states that in a visible line.
@@ -2773,15 +2779,19 @@ template that a software-factory workspace starts with. The file sets these keys
   result. Each stage has a `description`: one paragraph of plain text, at most 500
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
-  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
+  use. `acceptance-criteria` comes first, a custom type with `base_view: structured`,
+  `size_limit: 65536`, `max_files: 1` and the `json_schema` of the acceptance criteria
+  format of qory's contract. `mockup`, `screenshot`, `demo-video`, `explainer` and
   `decision-record` are standard types, each with its name alone. `spec` and
   `demo-scenarios` are custom types with `base_view: document`, `size_limit: 1048576` and
   `max_files: 1`: one Markdown file of at most 1 MiB. The types of Build and Verify follow,
-  each with `size_limit: 1048576` and `max_files: 1`, the defaults of Qory Apiary:
-  `build-plan`, `build-report` and `verification` with `base_view: document`, and
-  `submission`, `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
-  `base_view: structured` and the `json_schema` of
-  `skills/running-a-software-workflow/schemas/<type>.schema.json`. `build-ledger` and
+  each with `max_files: 1`: `build-plan` and `build-report` with `base_view: document`,
+  and `submission`, `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence`
+  with `base_view: structured`, each with `size_limit: 1048576`, the default of Qory
+  Apiary, and `verification` with `base_view: structured` and `size_limit: 65536`. Each
+  structured type has the `json_schema` of
+  `skills/running-a-software-workflow/schemas/<type>.schema.json`; those of
+  `acceptance-criteria` and `verification` are the contract's. `build-ledger` and
   `acceptance-lock` also have `withdrawable: false`, so a run cannot withdraw a name of
   either type and pushes a new version instead: Qory Apiary returns 422 for that push in a
   run, and outside a run `qory artifact push --withdraw` exits 4. Every other type keeps
@@ -2790,9 +2800,8 @@ template that a software-factory workspace starts with. The file sets these keys
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
-  hide, and every other standard type is hidden. The list in this template has all six
-  standard types that can be hidden, so a workspace made from it shows every standard
-  type.
+  hide, and every other standard type is hidden. The list in this template has five
+  standard types that can be hidden.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
@@ -2933,7 +2942,7 @@ the rule passes on that file.
    a skill with the key was denied. No skill here has the key, and an agent with no allow
    rule is untested. The settings of `software-factory` set
    `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`, and the compose report has that
-   variable with the value `1` under `launch_env.claude`. At qory `1deb56e`, `dontAsk` and
+   variable with the value `1` under `launch_env.claude`. At qory `0e02282`, `dontAsk` and
    these rules reach only Claude Code. A Codex home has no allow list, and qory places every
    composed skill under `skills/` in the home (`internal/render/codex/codex.go` and
    `internal/render/address.go`). For Codex, the script checks the entries instead:
