@@ -2401,17 +2401,18 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
   `qory.start_artifacts`, as `run` does, and the demo scripts from the artifact folder of
   the session, the store of the run, since the folder of the build plans holds only build
-  plans: of each name, the newest version that `index.json` counts, so a version folder that
-  `index.json` does not list is not read, or with no entry in `index.json`, the highest
-  version folder. The output of the serve command goes to `.reports/preflight/serve.log`.
-  Every process of the command stops after the check, also on a failure or a signal: its
-  process group, and on Linux each process with the mark of the supervisor of `run`. The
-  sign-ins stop after at most 10 minutes. It exits 0 when each part is there, 1 with the
+  plans: of each name that `index.json` lists, the newest version that it counts, so a
+  version folder or a name that `index.json` does not list is not read. The output of the
+  serve command goes to `.reports/preflight/serve.log`. Every process of the command stops
+  after the check, also on a failure or a signal: its process group, and on Linux each
+  process with the mark of the supervisor of `run`. The sign-ins stop after at most 10
+  minutes. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
   a `serve` command with no address of the app, no demo script, a demo script that types a
-  key of qory or of an agent, or a check of the app that returns no result. With exit 3, a
-  line that starts with `Cause:` contains the cause for the line that ends the run, as
-  `running-checks` lists it. The session then checks the points with `check points` and
+  key of qory or of an agent, or a check of the app that fails or runs past its limit. With
+  exit 3, a line that starts with `Cause:` contains the cause for the line that ends the
+  run, as `running-checks` lists it; after a check that did not finish, the session ends the
+  run. The session then checks the points with `check points` and
   ends: the end check sends them with the verdict `escalate`.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`

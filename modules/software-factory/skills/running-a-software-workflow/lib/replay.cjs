@@ -26,13 +26,15 @@ function describe(action, place) {
 }
 
 // replay runs actions in order in page. base is the address that a relative url of open is
-// read against, and env has the value of each variable of a type action. With origin set, an
+// read against, and env has the value of each variable of a type action. With origin set,
+// the page gets that origin with page.guard of lib/browser.cjs before the first action, an
 // open of an address of another origin fails before the page opens it, and an action fails
 // once the page has failed a load of another origin, as page.outside shows. It returns
 // { done, failure }: done counts the actions that passed, and failure is null, or
 // { place, action, why, words, outside } for the first action that failed, where outside is
 // the other origin, or null. A why contains no typed value.
 async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, origin } = {}) {
+  if (origin && page.guard) await page.guard(origin);
   for (const [place, action] of actions.entries()) {
     const fail = (why, outside = null) => ({ done: place, failure: { place, action, why,
       words: `${describe(action, place)} failed: ${why}`, outside } });

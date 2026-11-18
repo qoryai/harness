@@ -181,11 +181,8 @@ class Browser {
     const { targetId } = await this.send('Target.createTarget',
       { url: 'about:blank', browserContextId });
     const { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
-    const page = new Page(this, { browserContextId, targetId, sessionId, origin });
-    if (origin) {
-      await page.send('Fetch.enable',
-        { patterns: [{ urlPattern: '*', resourceType: 'Document', requestStage: 'Request' }] });
-    }
+    const page = new Page(this, { browserContextId, targetId, sessionId });
+    if (origin) await page.guard(origin);
     await page.send('Page.enable');
     await page.send('Runtime.enable');
     await page.send('Emulation.setDeviceMetricsOverride', {
@@ -323,16 +320,17 @@ const FOCUSED = `(() => {
 
 // One tab of the app, in a new browser context that no other Page shares. It dismisses each
 // dialog of the page, such as an alert, which would stop the page until a person closes it.
-// With origin, the page fails the load of each document of another origin, in the tab and
-// in each frame, such as one that a redirect, a link or a script opens, and outside is the
-// origin of the first such load; type and press then act only on a page of origin.
+// With an origin, which page({ origin }) or guard sets, the page fails the load of each
+// document of another origin, in the tab and in each frame, such as one that a redirect, a
+// link or a script opens, and outside is the origin of the first such load; type and press
+// then act only on a page of origin.
 class Page {
-  constructor(browser, { browserContextId, targetId, sessionId, origin = null }) {
+  constructor(browser, { browserContextId, targetId, sessionId }) {
     this.browser = browser;
     this.browserContextId = browserContextId;
     this.targetId = targetId;
     this.sessionId = sessionId;
-    this.origin = origin;
+    this.origin = null;
     this.outside = null;
     this.loads = 0;
     this.handler = (message) => {
@@ -344,6 +342,16 @@ class Page {
       if (message.method === 'Fetch.requestPaused') this.paused(message.params);
     };
     browser.handlers.add(this.handler);
+  }
+
+  // guard sets the origin of the page: from then on, the page fails the load of each document
+  // of another origin. A second call with another origin throws.
+  async guard(origin) {
+    if (this.origin === origin) return;
+    if (this.origin) throw new Error(`the page already has the origin ${this.origin}`);
+    this.origin = origin;
+    await this.send('Fetch.enable',
+      { patterns: [{ urlPattern: '*', resourceType: 'Document', requestStage: 'Request' }] });
   }
 
   // paused lets a load of a document of origin go on, and fails any other.

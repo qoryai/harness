@@ -153,9 +153,9 @@ first demo:
    with the values of the variables in the environment. The browser loads no page of
    another origin than the app's address, in the tab or in a frame, whether an `open`, a
    redirect, a link or a script starts the load: the load fails, and the sign-in fails
-   before its next action. A `type` or `press` acts only on a page of the app's origin, and a
-   `type` only when the focus is in the element of its target. The replay gets only the
-   variables that its setup types.
+   before its next action. A `type` or `press` acts only on a page of the app's origin,
+   and a `type` only when the focus is in the element of its target. The replay gets only
+   the variables that its setup types.
 
 `preflight` reads the demo scripts from the artifact folder of the session: of each name,
 the newest version that `index.json` counts. With no `serve` command in the build plan, it
@@ -169,16 +169,16 @@ of the artifact folder, and exits 1. Then change no code: run `check points` on
 `escalate`, and a member reads in the fix line of each point what to change before the
 next round. A sign-in that loads a page of another origin writes such a point too.
 
-Exit 3 means that an input is missing or the check did not finish. Fix the input as the
-first line of the output states, then run `preflight` again. If you cannot fix it, end the
-run with "The run stopped at the app check, because <cause>.", where the line of the
-output that starts with `Cause:` contains the cause:
+Exit 3 means that an input is missing or the check did not finish. The line of the output
+that starts with `Cause:` contains the cause, in the words of the line that ends the run,
+"The run stopped at the app check, because <cause>.":
 
-- "the build plan has no App address";
-- "no demo script exists for the app";
-- "a demo script types <NAME>, which the run keeps from scripts";
-- "the browser check did not finish: <reason>", when the check of the app returned no
-  result.
+- "the build plan has no App address", "no demo script exists for the app", or "a demo
+  script types <NAME>, which the run keeps from scripts": fix the input as the first line
+  of the output states, then run `preflight` again. If you cannot fix it, end the run with
+  the line.
+- "the browser check did not finish: <reason>": the check of the app failed or ran past
+  its limit. End the run with the line.
 
 ## Red and green
 

@@ -352,15 +352,12 @@ test('preflight: the demo scripts are the newest versions that index.json counts
   const read = () => preflight.demoScripts(root, io)
     .map((one) => [one.scenario, one.setup.length]);
   assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
-  // A leftover folder above the newest version of index.json is not read. A name that
-  // index.json does not list has the highest version folder, as newest of the context reads
-  // it.
+  // A leftover folder above the newest version of index.json is not read, and neither is
+  // a folder of a name that index.json does not list.
   write('scenario-10', 7, script('scenario-10', SIGN_IN));
-  write('scenario-4', 1, script('scenario-4', []));
-  write('scenario-4', 2, script('scenario-4', SIGN_IN));
-  assert.deepEqual(read(), [['scenario-2', 4], ['scenario-4', 4], ['scenario-10', 0]]);
+  write('scenario-4', 1, script('scenario-4', SIGN_IN));
+  assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
   // A version of a cancelled run counts for nothing, and a withdrawn name is no scenario.
-  fs.rmSync(path.join(root, 'demo-script', 'scenario-4'), { recursive: true });
   index([entry('scenario-10', [[1], [7, { cancelled: true }]]),
     entry('scenario-2', [[1], [2], [3, { withdrawn: true }]])]);
   assert.deepEqual(read(), [['scenario-10', 0]]);
@@ -373,15 +370,6 @@ test('preflight: the demo scripts are the newest versions that index.json counts
   assert.throws(read,
     /^Error: Push a demo script of scenario-3 that passes its check, then pull it\.$/);
   assert.deepEqual(preflight.demoScripts(checkout().root, io), []);
-  // With no index.json, each name has its highest version folder.
-  const bare = checkout().root;
-  for (const [number, setup] of [[1, []], [3, SIGN_IN]]) {
-    const dir = path.join(bare, 'demo-script', 'scenario-1', `v${number}`);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'scenario-1.json'),
-      JSON.stringify(script('scenario-1', setup)));
-  }
-  assert.deepEqual(preflight.demoScripts(bare, io).map((one) => one.setup.length), [4]);
 });
 
 test('preflight: a sign-in opens only the address of the app, and types nothing after another', async () => {
@@ -445,6 +433,21 @@ async function signIn(setup, value, more = {}) {
   return { here, done, port, other, otherLog };
 }
 
+// alive reports whether the process pid still runs: on Linux, a process that ended and that
+// nothing reaps, state Z in /proc/<pid>/stat, does not.
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+  try {
+    return !/^\d+ \(.*\) Z /.test(fs.readFileSync(`/proc/${pid}/stat`, 'utf8'));
+  } catch {
+    return true;
+  }
+};
+
 // isFree resolves to whether nothing listens on port of 127.0.0.1.
 function isFree(port) {
   return new Promise((resolve) => {
@@ -495,8 +498,9 @@ test('preflight: a sign-in with no value, or a target that is not there, fails w
   assert.equal(points(missing.here.root)[0].text, p03Text('DEMO_PIN and DEMO_PASSWORD'));
 });
 
-// p05 returns the point of a sign-in that loads a page of origin, outside the app at address.
-const p05 = (address, origin) => ({
+// outsidePoint returns the point of a sign-in that loads a page of origin, outside the app at
+// address.
+const outsidePoint = (address, origin) => ({
   text: `The sign-in of the app at ${address} opens ${origin}, and the run may open only the ` +
     'app\'s pages.',
   action: 'run_again',
@@ -515,8 +519,9 @@ test('preflight: a sign-in that opens another site writes the point of the page 
     'https://sign-in.example.com/) failed: the address is outside the app, whose origin is ' +
     `http://127.0.0.1:${port}.`);
   const address = `http://127.0.0.1:${port}/`;
-  assert.equal(fix, `The fix of its point: ${p05(address, 'https://sign-in.example.com').fix}`);
-  assert.deepEqual(points(here.root), [p05(address, 'https://sign-in.example.com')]);
+  assert.equal(fix,
+    `The fix of its point: ${outsidePoint(address, 'https://sign-in.example.com').fix}`);
+  assert.deepEqual(points(here.root), [outsidePoint(address, 'https://sign-in.example.com')]);
   const checked = call(['check', 'points', path.join(here.root, 'points.json')], { cwd: here.dir });
   assert.equal(checked.status, 0, checked.out);
 });
@@ -535,7 +540,7 @@ test('preflight: a redirect, a link or a frame to another origin loads nothing t
     const origin = `http://127.0.0.1:${other}`;
     assert.equal(done.findings[0].split('\n')[1], 'The sign-in of scenario-1 and scenario-2 ' +
       `failed: ${action} failed: the page opened ${origin}, outside the app.`, words);
-    assert.deepEqual(points(here.root), [p05(`http://127.0.0.1:${port}/`, origin)], words);
+    assert.deepEqual(points(here.root), [outsidePoint(`http://127.0.0.1:${port}/`, origin)], words);
     // The browser sent no request to the other origin, so no value of a variable went there.
     assert.equal(fs.readFileSync(otherLog, 'utf8'), '', words);
     assert.equal(await isFree(port), true, words);
@@ -637,14 +642,6 @@ test('preflight: a process of the serve command that leaves its group stops with
   fs.mkdirSync(fake);
   const pidFile = path.join(here.dir, 'pid');
   let pid = null;
-  const alive = (one) => {
-    try {
-      process.kill(one, 0);
-      return true;
-    } catch {
-      return false;
-    }
-  };
   try {
     const done = run(here, { serve: { command: 'node app/escape.cjs',
       url: `http://127.0.0.1:${port}/`, cwd: here.dir } },
@@ -696,11 +693,10 @@ test('preflight: a runner that fails while it waits for the app stops the app', 
     url: `http://127.0.0.1:${wait}/`, cwd: here.dir } },
   { browsers: [process.execPath], env: { APP_PORT: String(port),
     NODE_OPTIONS: `--require ${plant}` } }), (error) => {
-    assert.equal(error.message, 'Run preflight again: the check of the app and the sign-in ' +
-      'returned no result.');
-    assert.equal(error.more[0], 'The runner exited with 3.');
-    assert.equal(error.more.at(-1), 'Cause: the browser check did not finish: the runner exited ' +
-      'with 3.');
+    assert.equal(error.message, 'End the run: the check of the app and the sign-in did not ' +
+      'finish.');
+    assert.deepEqual(error.more, ['The runner wrote "Error: planted".', 'Cause: the browser ' +
+      'check did not finish: the runner exited with 3.']);
     return true;
   });
   assert.equal(await isFree(port), true);
@@ -715,13 +711,40 @@ test('preflight: sign-ins past the limit of the runner stop, with the app', { sk
   assert.equal(ran.status, 0);
   assert.equal(JSON.parse(ran.out).unfinished, 'the sign-ins ran past the limit of 4 s');
   assert.equal(await isFree(port), true);
+  // The preflight exits 3 with the cause, and the session ends the run.
+  assert.throws(() => run(here, { serve: { command: 'node app/server.cjs',
+    url: `http://127.0.0.1:${port}/`, cwd: here.dir }, scripts: [script('scenario-1',
+    [...SIGN_IN, { do: 'wait', text: 'Never shown', timeout_ms: 30000 }])] },
+  { browsers: [BROWSER], maxMs: 8000, env: { APP_PORT: String(port), DEMO_PASSWORD: 'x' } }),
+  (error) => {
+    assert.equal(error.message, 'End the run: the check of the app and the sign-in did not ' +
+      'finish.');
+    assert.deepEqual(error.more, ['Cause: the browser check did not finish: the sign-ins ran ' +
+      'past the limit of 8 s.']);
+    return true;
+  });
+  assert.equal(await isFree(port), true);
 });
 
-// fakeBrowser writes a browser to the checkout that runs shell, and returns its path.
+test('preflight: the replay gets only the variables that its setup lists', { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  const port = await freePort();
+  const ran = await runner(appSpec(here, port, port, { browser: BROWSER,
+    setups: [{ actions: [{ do: 'open', url: '/sign-in' },
+      { do: 'type', target: '#password', variable: 'DEMO_PASSWORD' }], names: [] }] }),
+  { env: { DEMO_PASSWORD: 'parcel-blue-41' } });
+  assert.equal(JSON.parse(ran.out).signIns[0].why, 'action 2 (type into #password) failed: the ' +
+    'variable DEMO_PASSWORD has no value');
+  assert.equal(await isFree(port), true);
+});
+
+// fakeBrowser writes a browser to the checkout that writes its pid to the file pid, then runs
+// shell, and returns { file, pid }.
 function fakeBrowser(here, shell) {
   const file = path.join(here.dir, `browser-${++folders}`);
-  fs.writeFileSync(file, `#!/bin/sh\n${shell}\n`, { mode: 0o755 });
-  return file;
+  const pid = `${file}.pid`;
+  fs.writeFileSync(file, `#!/bin/sh\necho $$ > '${pid}'\n${shell}\n`, { mode: 0o755 });
+  return { file, pid };
 }
 
 test('preflight: a browser that fails at its start writes the point of the browser', async () => {
@@ -730,17 +753,18 @@ test('preflight: a browser that fails at its start writes the point of the brows
     [`printf 'garbage\\000' >&4; exec sleep 97`, 'the browser failed: Browser.getVersion: the ' +
       'browser wrote a message that is no JSON'],
     // No message on the pipe.
-    ['exec sleep 98', 'the browser failed: the browser did not start within 3 s'],
+    ['exec sleep 98', 'the browser failed: the browser did not start within 3 s', 3000],
     // A program that is no browser.
     ['exit 9', 'the browser failed: the browser exited before it started: {"code":9,' +
       '"signal":null}'],
   ];
-  for (const [shell, why] of cases) {
+  for (const [shell, why, browserMs] of cases) {
     const here = checkout();
     const port = await freePort();
+    const browser = fakeBrowser(here, shell);
     const done = run(here, { serve: { command: 'node app/server.cjs',
       url: `http://127.0.0.1:${port}/`, cwd: here.dir }, scripts: [script('scenario-1', SIGN_IN)] },
-    { browsers: [fakeBrowser(here, shell)], browserMs: 3000,
+    { browsers: [browser.file], browserMs,
       env: { APP_PORT: String(port), DEMO_PASSWORD: 'x' } });
     assert.equal(done.status, 1, shell);
     const [first, line] = done.findings[0].split('\n');
@@ -749,9 +773,9 @@ test('preflight: a browser that fails at its start writes the point of the brows
     assert.equal(line, `The sign-in of scenario-1 failed: ${why}.`);
     assert.deepEqual(points(here.root), [P01]);
     assert.equal(await isFree(port), true, shell);
+    // The browser no longer runs.
+    assert.equal(alive(Number(fs.readFileSync(browser.pid, 'utf8'))), false, shell);
   }
-  const left = childProcess.spawnSync('pgrep', ['-f', 'sleep 9[78]$']).stdout.toString().trim();
-  assert.equal(left, '');
 });
 
 test('preflight: a demo script that types a key of qory or of an agent exits 3 before the app starts', async () => {
@@ -792,11 +816,14 @@ function pinnedPlan(summary, command) {
   return dir;
 }
 
-// demoScript writes version 1 of the demo script of scenario-1, with setup, to root.
+// demoScript writes version 1 of the demo script of scenario-1, with setup, to root, and an
+// index.json that lists it.
 function demoScript(root, setup = SIGN_IN) {
   const dir = path.join(root, 'demo-script', 'scenario-1', 'v1');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'scenario-1.json'), JSON.stringify(script('scenario-1', setup)));
+  fs.writeFileSync(path.join(root, 'index.json'),
+    JSON.stringify({ artifacts: [entry('scenario-1', [[1]])] }));
 }
 
 test('preflight verb: with the app stopped, the session ends escalate, and the point has its fix', async () => {
@@ -871,8 +898,8 @@ test('preflight verb: no address of the app, no demo script and a runner with no
     ['App address: `http://127.0.0.1:9/`'], 'node app/server.cjs')],
   { ...deps, env: { ...process.env, NODE_OPTIONS: `--require ${path.join(tmp, 'none.cjs')}` } });
   assert.equal(fault.status, 3, fault.out + fault.err);
-  assert.equal(fault.out.split('\n')[0], 'Run preflight again: the check of the app and the ' +
-    'sign-in returned no result.');
+  assert.equal(fault.out.split('\n')[0], 'End the run: the check of the app and the sign-in did ' +
+    'not finish.');
   assert.equal(causeOf(fault.out), 'Cause: the browser check did not finish: the runner exited ' +
     'with 1.');
   assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);

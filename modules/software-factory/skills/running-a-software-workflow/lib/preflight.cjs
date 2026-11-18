@@ -124,46 +124,29 @@ module.exports = (lib) => {
   }
 
   // demoScripts returns the demo script of each scenario of the artifact folder root, in the
-  // order of the scenarios: of each name scenario-<N> of demo-script that is not withdrawn,
-  // the newest version, as newest of lib/context.cjs reads it. When index.json lists the
-  // name, that is the newest version that counts there, and a version folder that index.json
-  // does not list, such as one that an earlier pull left, is not read. With no index.json, or
-  // one that does not list the name, it is the highest version folder. A store that lacks the
-  // folder of the version that counts, and a script that breaks its schema, throw Missing.
+  // order of the scenarios: of each name scenario-<N> of demo-script in index.json that is not
+  // withdrawn, the newest version that counts, as newest of lib/context.cjs reads a name that
+  // index.json lists. A version folder that index.json does not list, such as one that an
+  // earlier pull left, is not read, and neither is a name that index.json does not list. A
+  // store that lacks the folder of that version, and a script that breaks its schema, throw
+  // Missing.
   function demoScripts(root, io) {
     const context = new Context(root, 'check', io.home);
-    const listed = context.index ? context.index.artifacts
+    if (!context.index) return [];
+    const names = [...new Set(context.index.artifacts
       .filter((one) => isObject(one) && one.type === 'demo-script')
-      .map((one) => one.name || 'main') : [];
-    let folders = [];
-    try {
-      folders = fs.readdirSync(path.join(root, 'demo-script'), { withFileTypes: true })
-        .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-    } catch {
-      // No demo script is in the store.
-    }
-    const names = [...new Set([...listed, ...folders])]
+      .map((one) => one.name || 'main'))]
       .filter((name) => /^scenario-[1-9][0-9]?$/.test(name) &&
         !context.withdrawn('demo-script', name));
     names.sort((a, b) => Number(a.split('-')[1]) - Number(b.split('-')[1]));
     const scripts = [];
     for (const name of names) {
-      const dir = path.join(root, 'demo-script', name);
-      let number = null;
-      if (listed.includes(name)) {
-        number = context.counted('demo-script', name);
-        if (number !== null && !fs.existsSync(path.join(dir, `v${number}`))) {
-          throw lacks('demo-script', number);
-        }
-      } else {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
-          if (match) number = Math.max(number ?? 0, Number(match[1]));
-        }
-      }
+      const number = context.counted('demo-script', name);
       if (number === null) continue;
+      const dir = path.join(root, 'demo-script', name, `v${number}`);
+      if (!fs.existsSync(dir)) throw lacks('demo-script', number);
       const words = `demo-script ${name} version ${number}`;
-      const file = path.join(dir, `v${number}`, `${name}.json`);
+      const file = path.join(dir, `${name}.json`);
       if (!fs.existsSync(file)) {
         throw new Missing(`Pull the artifacts again.\ndemo-script/${name}/v${number} has no ` +
           `${name}.json.`);
@@ -179,12 +162,13 @@ module.exports = (lib) => {
     return scripts;
   }
 
-  // unfinished throws the Missing of a runner that returned no whole result, for the reason
-  // why, one clause, with the line error of the runner when there is one.
+  // unfinished throws the Missing of a check of the app that did not finish, for the reason
+  // why, one clause, with the line error of the runner when there is one. The session ends
+  // the run then, with the line of the cause.
   function unfinished(why, error) {
-    throw new Missing('Run preflight again: the check of the app and the sign-in returned no ' +
-      'result.', [`The runner ${why}.`, ...(error ? [`The runner wrote ${short(error, 200)}.`]
-      : []), cause(`the browser check did not finish: the runner ${why}`)]);
+    throw new Missing('End the run: the check of the app and the sign-in did not finish.',
+      [...(error ? [`The runner wrote ${short(error, 200)}.`] : []),
+        cause(`the browser check did not finish: ${why}`)]);
   }
 
   // waited runs lib/preflight-run.cjs on spec and returns its result.
@@ -202,14 +186,15 @@ module.exports = (lib) => {
       // The runner printed no result: the reason follows.
     }
     if (result && isObject(result.app) && Array.isArray(result.signIns)) {
-      if (result.unfinished) unfinished(`stopped: ${result.unfinished}`);
+      if (result.unfinished) unfinished(result.unfinished);
       return result;
     }
     const error = String(ran.stderr || '').split('\n').find((one) => /^\w*Error\b/.test(one));
     unfinished(ran.error && ran.error.code === 'ETIMEDOUT'
-      ? `ran past its limit of ${limitMs / 1000} s`
-      : ran.error ? `could not start: ${ran.error.code || ran.error.message}`
-        : ran.signal ? `ended on ${ran.signal}` : `exited with ${ran.status}`, error);
+      ? `the runner ran past its limit of ${limitMs / 1000} s`
+      : ran.error ? `the runner could not start: ${ran.error.code || ran.error.message}`
+        : ran.signal ? `the runner ended on ${ran.signal}` : `the runner exited with ${ran.status}`,
+    error);
     return null;
   }
 
@@ -271,8 +256,8 @@ module.exports = (lib) => {
   // artifact folder of the session, which gets points.json and the log of the serve command.
   // serve is null, or { command, url, cwd } of the build plan. scripts are the demo scripts.
   // io.preflight may set browsers, the paths and names to look for, the times startMs,
-  // actionMs, signedInMs and browserMs, and proc, the folder of the process table for the
-  // runner.
+  // actionMs, signedInMs, browserMs and maxMs, the most for the runner, and proc, the folder
+  // of the process table for the runner.
   function preflight(io, root, { serve, scripts }) {
     const options = io.preflight || {};
     const checks = rulesOf(io);
@@ -292,7 +277,7 @@ module.exports = (lib) => {
       const signedInMs = options.signedInMs || SIGNED_IN_MS;
       // The time of the start, of each sign-in by its actions, and of the rest of the runner.
       const limitMs = Math.min(startMs + MORE_MS + setups.reduce((sum, setup) =>
-        sum + signInMs(setup.actions, actionMs, signedInMs), 0), MAX_MS);
+        sum + signInMs(setup.actions, actionMs, signedInMs), 0), options.maxMs || MAX_MS);
       const result = waited(io, {
         serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
         browser, setups: setups.map(({ actions, names }) => ({ actions, names })),
