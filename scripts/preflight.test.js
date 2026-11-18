@@ -39,10 +39,9 @@ const P01 = {
   action: 'run_again',
   fix: 'Add a browser to .devcontainer/devcontainer.json, then run another round.',
 };
-const P02_TEXT = 'The app did not start in the dev container, so the run stopped before it ' +
-  'changed anything.';
-const P03_FIX = 'Ask a workspace owner or admin to correct the app\'s sign-in variables in ' +
-  'Workspace settings > Secrets and variables, then run another round.';
+const P02_TEXT = 'The app did not start in the dev container, so the run could not check the app.';
+const P03_FIX = 'Ask an owner or admin of your organisation to correct the app\'s sign-in ' +
+  'variables in Workspace settings > Secrets and variables, then run another round.';
 const p03Text = (names) => `The run could not sign in to the app with the values of ${names} ` +
   'in the workspace\'s variables.';
 
@@ -331,8 +330,8 @@ test('preflight: the demo scripts are the newest versions that index.json counts
   const read = () => preflight.demoScripts(root, io)
     .map((one) => [one.scenario, one.setup.length]);
   assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
-  // A leftover folder above the newest version of index.json decides nothing, and neither
-  // does a folder of a name that index.json does not list.
+  // A leftover folder above the newest version of index.json is not read, and neither is
+  // a folder of a name that index.json does not list.
   write('scenario-10', 7, script('scenario-10', SIGN_IN));
   write('scenario-4', 1, script('scenario-4', SIGN_IN));
   assert.deepEqual(read(), [['scenario-2', 4], ['scenario-10', 0]]);
@@ -480,7 +479,7 @@ test('preflight verb: with the app stopped, the session ends escalate, and the p
     'container.');
   assert.equal(lines.at(-1), 'Checked the browser and the app: 1 of 2 parts is missing, and ' +
     'points.json has a point run_again for each.');
-  // The point names the missing part, and its fix line has the step to take.
+  // The point contains the missing part, and its fix line has the step to take.
   const file = path.join(here.root, 'points.json');
   const [point] = points(here.root);
   assert.equal(point.text, P02_TEXT);

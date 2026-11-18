@@ -123,11 +123,13 @@ module.exports = (lib) => {
     }
   }
 
+  // commands checks ## Commands, and returns the kinds whose Command is not none.
   function commands(run, part, live) {
     const found = sectionTable(run, FILE, part, COMMAND_COLUMNS);
     if (!found) return;
     run.did('commands');
     const seen = new Set();
+    const given = new Set();
     for (const [kind = '', command = '', , source = ''] of found.rows) {
       const name = plainCell(kind);
       if (!KINDS.includes(name)) {
@@ -139,7 +141,10 @@ module.exports = (lib) => {
       seen.add(name);
       if (plainCell(command) === 'none') {
         if (!source.trim()) run.find(`Write in Source why ${name} has no command in ${FILE}.`);
-      } else if (!/^(?:repository|module): \S/.test(source) &&
+        continue;
+      }
+      given.add(name);
+      if (!/^(?:repository|module): \S/.test(source) &&
         !/^found: `?[^\s`]+:[1-9][0-9]*`?$/.test(source)) {
         run.find(`Write the Source of ${name} in ${FILE} in one of its three forms.\nThe forms ` +
           'are "repository: <file>", "module: <name>" and "found: <file>:<line>". The Source ' +
@@ -154,10 +159,10 @@ module.exports = (lib) => {
       !seen.has('serve')) {
       run.find(`Add the kind serve to ## Commands of ${FILE}.\nA criterion is planned as Demo.`);
     }
-    return seen;
+    return given;
   }
 
-  // address finds, in a plan with a serve row, no line "App address: <url>" in ## Summary, or
+  // address finds, in a plan with a serve command, no line "App address: <url>" in ## Summary, or
   // one whose value is no http or https URL: the preflight opens the app at that address.
   function address(run, part) {
     run.did('app address');

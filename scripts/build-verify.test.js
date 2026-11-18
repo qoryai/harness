@@ -795,6 +795,10 @@ test('build-plan: a plan with a serve row has the address of the app in its Summ
   const noServe = push(fixture(), 'build-plan', planFile(PLAN.replace(`${ADDRESS}\n`, '')
     .replace(/\| serve .*\n/, '')));
   assert.ok(!noServe.lines.some((line) => /App address/.test(line)), noServe.out);
+  // A serve row with the command none starts no app, so it needs no address either.
+  const noCommand = push(fixture(), 'build-plan', planFile(PLAN.replace(`${ADDRESS}\n`, '')
+    .replace(/\| serve .*\n/, '| serve | none | none | The job has no screen. |\n')));
+  assert.ok(!noCommand.lines.some((line) => /App address/.test(line)), noCommand.out);
 });
 
 test('build-plan: a row for each of targeted, lint, types, build and full', () => {

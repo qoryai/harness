@@ -44,15 +44,14 @@ const TEXTS = {
     fix: 'Add a browser to .devcontainer/devcontainer.json, then run another round.',
   }),
   app: (command) => ({
-    text: 'The app did not start in the dev container, so the run stopped before it changed ' +
-      'anything.',
+    text: 'The app did not start in the dev container, so the run could not check the app.',
     fix: `Make ${command} start the app in the dev container, then run another round.`,
   }),
   signIn: (names) => ({
     text: `The run could not sign in to the app with the values of ${names} in the ` +
       'workspace\'s variables.',
-    fix: 'Ask a workspace owner or admin to correct the app\'s sign-in variables in Workspace ' +
-      'settings > Secrets and variables, then run another round.',
+    fix: 'Ask an owner or admin of your organisation to correct the app\'s sign-in variables ' +
+      'in Workspace settings > Secrets and variables, then run another round.',
   }),
 };
 // The first line of the finding of each part: the step for the session, within 100
@@ -106,8 +105,8 @@ module.exports = (lib) => {
 
   // demoScripts returns the demo script of each scenario of the artifact folder root, in the
   // order of the scenarios: of each name scenario-<N> of demo-script in index.json that is not
-  // withdrawn, the newest version that counts, as lib/plan.cjs reads the build plan. A version folder that index.json does not list, such as one that an earlier pull
-  // left, decides nothing. A store that lacks the folder of that version, and a script that
+  // withdrawn, the newest version that counts, as lib/plan.cjs reads the build plan. A version
+  // folder that index.json does not list, such as one that an earlier pull left, is not read. A store that lacks the folder of that version, and a script that
   // breaks its schema, throw Missing.
   function demoScripts(root, io) {
     const context = new Context(root, 'check', io.home);
