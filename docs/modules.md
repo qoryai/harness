@@ -138,12 +138,15 @@ with no note. qory checks both keys at the compose and writes each note, with it
 paths, module and layer, to `role-notes.json` in the harness home. The layer is 0 for the
 nearest layer and 1 more for each step outward.
 
-Before it starts an agent whose work has files, the session runs
-`checks.cjs notes <agent> --files <file>`. The script picks the notes whose roles include a role of the agent and
+Before each start of an agent, the session runs `checks.cjs notes <agent>`, with
+`--files <file>` when the work has files; a start with no `--files` gets no note. The script
+picks the notes whose roles include a role of the agent and
 whose paths match a file of the work. It takes at most 3, the nearest layer first and, in
 one layer, in the order of `role-notes.json`, and lists the others as left out. It writes
-the text of the picked notes to a file that the session passes to the agent, and records the
-start in `.reports/role-notes.json`. The agent lists the name of each note under
+the text of the picked notes to `.notes/<agent>-<k>.md` of the artifact folder, a file that the
+session passes to the agent, and records the start in `.reports/role-notes.json`. The notes
+file is outside `.reports`, because the guard of `.reports` denies a shell command that reads
+it on some runtimes. The agent lists the name of each note under
 `Notes read:` in its report, and `checks.cjs report` fails a report that lacks one.
 
 ## Agents

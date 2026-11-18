@@ -105,8 +105,10 @@ test('notes: a file that a note matches gets the notes of its role, and the star
   assert.deepEqual(result.lines.slice(0, 2), [
     'Note: typescript-naming (module typescript), layer 0.',
     `Checked the notes of ${DEVELOPER}: 1 note, 0 left out.`]);
-  const file = path.join(run.artifacts, '.reports', 'notes', `${DEVELOPER}-1.md`);
+  const file = path.join(run.artifacts, '.notes', `${DEVELOPER}-1.md`);
   assert.equal(result.lines.at(-1), `Pass the notes file to ${DEVELOPER}: ${file}`);
+  // A shell command that reaches .reports is denied on some runtimes, so the file is not there.
+  assert.doesNotMatch(file, /\.reports/);
   const text = notesFile(result);
   assert.match(text, /^## Note: typescript-naming\n\n# typescript-naming\n\nName types in PascalCase\.\n/m);
   assert.doesNotMatch(text, /notes_for|python-naming|^---$/m);
@@ -116,7 +118,7 @@ test('notes: a file that a note matches gets the notes of its role, and the star
   // A second start counts as the second one, and the prefix of the runtime is left out.
   const second = notes(run, `harness:${DEVELOPER}`);
   assert.equal(second.status, 0, second.out);
-  assert.ok(fs.existsSync(path.join(run.artifacts, '.reports', 'notes', `${DEVELOPER}-2.md`)));
+  assert.ok(fs.existsSync(path.join(run.artifacts, '.notes', `${DEVELOPER}-2.md`)));
   assert.equal(record(run).agents[DEVELOPER].length, 2);
 });
 
@@ -126,7 +128,7 @@ test('notes: a file that no note matches, and a role that no note lists, get no 
   assert.equal(result.status, 0, result.out);
   assert.equal(result.lines.at(-1), `Checked the notes of ${DEVELOPER}: no note matches the ` +
     'files of its work. Start it with no notes file.');
-  assert.equal(fs.existsSync(path.join(none.artifacts, '.reports', 'notes')), false);
+  assert.equal(fs.existsSync(path.join(none.artifacts, '.notes')), false);
   assert.deepEqual(record(none).agents[DEVELOPER], [{ notes: [], left_out: [] }]);
   // The reviewer has one note for a Python file. The writer has a role that no note lists, and
   // an agent with no row in roles.json has no role.
@@ -153,7 +155,7 @@ test('notes: no role-notes.json, or an empty list of notes, gives a start with n
   const emptied = notes(empty);
   assert.equal(emptied.status, 0, emptied.out);
   assert.match(emptied.lines.at(-1), /no note matches the files of its work/);
-  assert.equal(fs.existsSync(path.join(empty.artifacts, '.reports', 'notes')), false);
+  assert.equal(fs.existsSync(path.join(empty.artifacts, '.notes')), false);
   assert.deepEqual(record(empty).agents[DEVELOPER], [{ notes: [], left_out: [] }]);
 });
 
@@ -212,7 +214,6 @@ test('notes: a malformed role-notes.json or a refused note exits 3 with the fix 
 
 test('notes: a wrong argument exits 2, and a start outside a session of qory exits 3', () => {
   const run = setup();
-  assert.equal(call(run.deps, ['notes', DEVELOPER]).status, 2);
   assert.equal(call(run.deps, ['notes', 'Bad_Name', '--files', 'files.txt']).status, 2);
   assert.equal(call(run.deps, ['notes', DEVELOPER, '--files']).status, 2);
   const outside = call({ ...run.deps, env: {} }, ['notes', DEVELOPER, '--files', 'files.txt']);
@@ -341,4 +342,19 @@ test('notes: a skill folder that is a link, as in a composed home, still gives i
   const result = notes(run);
   assert.equal(result.status, 0, result.out);
   assert.match(notesFile(result), /Name types in PascalCase\./);
+});
+
+test('notes: a start with no --files gets no note, and its report needs no list', () => {
+  const run = setup({ files: ['src/app.py'] });
+  assert.equal(notes(run).status, 0);
+  const bare = call({ ...run.deps, env: {} }, ['notes', DEVELOPER]);
+  assert.equal(bare.status, 0, bare.out);
+  assert.equal(bare.lines.at(-1), `Checked the notes of ${DEVELOPER}: no note matches the ` +
+    'files of its work. Start it with no notes file.');
+  assert.equal(record(run).agents[DEVELOPER].length, 2);
+  assert.deepEqual(record(run).agents[DEVELOPER][1], { notes: [], left_out: [] });
+  // Only the newest start counts, so a report with no list passes.
+  assert.equal(report(run, null, `${DEVELOPER}-2.md`).status, 0);
+  assert.equal(fs.existsSync(path.join(run.artifacts, '.notes', `${DEVELOPER}-2.md`)), false);
+  assert.equal(call(run.deps, ['notes', DEVELOPER, '--files']).status, 2);
 });

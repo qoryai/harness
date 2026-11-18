@@ -16,6 +16,12 @@ const { changed } = require('./panel.cjs');
 // sets it.
 const MOST_NOTES = 3;
 
+// The folder of the artifact folder that has the notes files and the files of paths that the
+// session writes. It is outside .reports, because reports-guard.cjs denies a shell command
+// that reaches .reports on Gemini CLI, Cursor and Copilot CLI, and an agent that reads files
+// through the shell must read its notes file. It has no draft name, so end checks no file in it.
+const NOTES_FOLDER = '.notes';
+
 // The words that start the line of a failure to read a file that qory writes.
 const COMPOSE = 'Compose the harness with qory again';
 
@@ -127,14 +133,15 @@ function notesFile(agent, attached, left, bodies) {
 
 // notes writes the notes file for the start of agent and records the start, then prints a
 // line for each note and the result. A start with no note has no notes file, and is recorded
-// with no name, so that its report is never compared with the notes of an earlier start.
+// with no name, so that its report is never compared with the notes of an earlier start. A
+// start with no file, whose work has no files, gets no note.
 function notes(io, agent, file) {
   const home = io.env.QORY_HARNESS_HOME;
-  if (!home) {
+  if (!home && file !== undefined) {
     throw new Missing('Run notes in a session that qory launched: QORY_HARNESS_HOME is not set.');
   }
-  const paths = changed(path.resolve(io.cwd, file));
-  const index = readIndex(home);
+  const paths = file === undefined ? [] : changed(path.resolve(io.cwd, file));
+  const index = file === undefined ? [] : readIndex(home);
   const roles = index.length > 0 ? rolesOf(home, agent) : [];
   const { attached, left } = choose(index, roles, paths);
   const bodies = attached.map((note) => noteBody(home, note.name));
@@ -151,7 +158,7 @@ function notes(io, agent, file) {
     const starts = record.agents[agent] || [];
     let target = null;
     if (attached.length > 0) {
-      target = path.join(root, '.reports', 'notes', `${agent}-${starts.length + 1}.md`);
+      target = path.join(root, NOTES_FOLDER, `${agent}-${starts.length + 1}.md`);
       writeText(target, notesFile(agent, attached, left, bodies));
     }
     starts.push({ notes: attached.map((note) => note.name),
@@ -192,14 +199,15 @@ module.exports = {
   MOST_NOTES,
   verbs: {
     notes: {
-      usage: ['notes <agent> --files <file>'],
+      usage: ['notes <agent> [--files <file>]'],
       args(io, what, rest) {
         if (!STARTED.test(what || '')) {
           return 'Give an agent as <agent> or <prefix>:<agent>.\nThe argument is ' +
             `${given(what)}.`;
         }
+        if (rest.length === 0) return null;
         if (rest.length !== 2 || rest[0] !== '--files' || rest[1].startsWith('--')) {
-          return 'Give notes the agent and --files <file>.\nThe arguments are ' +
+          return 'Give notes the agent, and --files <file> or nothing.\nThe arguments are ' +
             `${quote(rest.join(' '))}.`;
         }
         return null;
