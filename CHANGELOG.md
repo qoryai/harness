@@ -287,7 +287,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of the report, which the guard may refuse below `.git` or `.claude` only.
 - Rule 2 of `scripts/check.sh` lets `change-reviewer` and a `*-change-reviewer` agent list
   `Write` beside Read, Grep, Glob and Skill, when the body has the line `Tool exception:
-  Write, because it writes the one report file of a review round.` on a line of its own. No
+  Write, because it writes the one report file of a review round.` as a whole line. No
   other tool passes, and no other reviewer lists `Write`.
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
