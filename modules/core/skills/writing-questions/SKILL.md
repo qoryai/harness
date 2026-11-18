@@ -179,7 +179,7 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
   lower-case letters and digits in groups joined by single hyphens, or a `name` that is not
   1 to 64 characters on one line;
 - has an `item` that is not 1 to 32 characters on one line, or, for an output whose ids a
-  module reads, such as the criterion ids of the acceptance criteria, an id it does not have;
+  module reads, an id that the output does not have;
 - has an option whose `proposal` is not text of 1 to 2000 characters, or a question with a
   `proposal` whose `about` has no `item`.
 
