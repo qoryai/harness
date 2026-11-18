@@ -89,9 +89,20 @@ const realPath = (file) => {
   }
 };
 
+// withoutRedirect returns command without its white space at both ends and without a ` 2>&1`
+// at its end, with the white space before it. A regular expression for that takes time in the
+// square of a run of white space.
+function withoutRedirect(command) {
+  const text = command.trim();
+  if (!text.endsWith('2>&1')) return text;
+  let end = text.length - '2>&1'.length;
+  while (end > 0 && /\s/.test(text[end - 1])) end--;
+  return end < text.length - '2>&1'.length ? text.slice(0, end) : text;
+}
+
 // runsChecks reports whether command runs the checks.cjs next to script and nothing else.
 function runsChecks(command, env, script) {
-  const rest = command.trim().replace(/\s+2>&1$/, '');
+  const rest = withoutRedirect(command);
   if (CONTROL.test(rest)) return false;
   const words = rest.split(/\s+/);
   if (words[0] === 'node') words.shift();
@@ -293,5 +304,5 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
   return null;
 }
 
-module.exports = { readInput, decide, runsChecks, REPORTS, HIDDEN_REASON, WRITE_REASON,
-  SHELL_REASON };
+module.exports = { readInput, decide, runsChecks, withoutRedirect, REPORTS, HIDDEN_REASON,
+  WRITE_REASON, SHELL_REASON };

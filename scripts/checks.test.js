@@ -5717,6 +5717,58 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
     'report a .reports/a-1.md'), null);
 });
 
+test('reports-guard strips a trailing 2>&1 as the expression that it replaced did', () => {
+  const { withoutRedirect } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.cjs'));
+  // The expression that runsChecks used before, which takes time in the square of a run of
+  // white space in a command, and stays here only to compare.
+  const old = (command) => command.trim().replace(/\s+2>&1$/, '');
+  // Each white space character that JavaScript's \s and trim read, and the ones near them.
+  const spaces = ['\t', '\n', '\v', '\f', '\r', ' ', '\u00a0', '\u1680', '\u2000', '\u200a',
+    '\u2028', '\u2029', '\u202f', '\u205f', '\u3000', '\ufeff', '\u0085', '\u200b', '\u180e'];
+  const parts = ['', 'ls', 'a', '2>&1', ' 2>&1', '2>&', '>&1', '2>&1x', 'x2>&1', '2>&12>&1',
+    '1', '&', "'2>&1'", '\\'];
+  let seed = 12345;
+  const random = (limit) => {
+    seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff;
+    return (seed >>> 8) % limit;
+  };
+  const inputs = ['', ' ', '2>&1', ' 2>&1', '  2>&1  ', 'ls 2>&1', 'ls\t2>&1\n', 'ls2>&1',
+    'ls 2>&1 2>&1', 'ls 2>&1x', '2>&1 ls', 'node a.cjs report a .reports/a.md  2>&1'];
+  for (let at = 0; at < 5000; at += 1) {
+    let text = '';
+    for (let count = random(6); count > 0; count -= 1) {
+      text += random(2) === 0 ? parts[random(parts.length)]
+        : spaces[random(spaces.length)].repeat(1 + random(3));
+    }
+    inputs.push(text);
+  }
+  for (const input of inputs) assert.equal(withoutRedirect(input), old(input), JSON.stringify(input));
+  assert.equal(withoutRedirect('ls  \t 2>&1 \n'), 'ls');
+  assert.equal(withoutRedirect('ls 2>&1x'), 'ls 2>&1x');
+});
+
+test('reports-guard returns in under 1 second on a command with 250,000 spaces', () => {
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.cjs'));
+  const home = harnessHome();
+  const script = path.join(home, 'hooks', 'reports-guard-gemini.cjs');
+  const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
+  const checks = `${home}/modules/core/skills/running-a-workflow/checks.cjs`;
+  const spaces = ' '.repeat(250000);
+  for (const [command, reason] of [[`ls${spaces}x`, null], [`ls${spaces}2>&1x`, null],
+    [`ls${spaces} 2>&1`, null], [`ls${spaces}`, null], [`${spaces}ls${spaces}x${spaces}`, null],
+    [`${checks} report a${spaces}.reports/a-1.md 2>&1`, null],
+    [`rm${spaces}.reports/end.json`, 'shell']]) {
+    const start = process.hrtime.bigint();
+    const denied = decide({ kind: 'shell', args: { command }, env, script });
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    assert.ok(ms < 1000, `${command.slice(0, 12)}: ${ms} ms`);
+    assert.equal(denied === null ? null : 'shell', reason, command.slice(0, 12));
+  }
+  // The checks.cjs of the run with a trailing 2>&1 still passes, as before.
+  assert.equal(decide({ kind: 'shell', args: { command: `node ${checks} end /w/.reports  2>&1` },
+    env, script }), null);
+});
+
 test('each reports-guard adapter writes the deny of its runtime', () => {
   const { spawnSync } = require('node:child_process');
   const home = harnessHome();

@@ -47,11 +47,13 @@ const AGENT_TOOLS = new Set(['Agent', 'Task']);
 // characters of Unicode's White_Space. JavaScript's \s lacks U+0085 and adds U+FEFF.
 const PATCH_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f' +
   '\\u205f\\u3000';
-// A line of a Codex patch that names a file it adds, changes, deletes or moves to. Codex
+// The set of PATCH_SPACE, to match one character.
+const PATCH_SPACE_CHAR = new RegExp(`[${PATCH_SPACE}]`);
+// The starts of a line of a Codex patch that adds, changes, deletes or moves to a file. Codex
 // trims white space from both ends of a line before it reads a header, and the path is the
-// rest of the line after the header and its one space.
-const PATCH_FILE = new RegExp(`^[${PATCH_SPACE}]*\\*\\*\\* (?:Add File|Update File|Delete File|` +
-  `Move to): ([^]*?)[${PATCH_SPACE}]*$`);
+// rest of the line after the header, its colon and one space.
+const PATCH_HEADERS = ['*** Add File: ', '*** Update File: ', '*** Delete File: ',
+  '*** Move to: '];
 // The folder of the step counts, below the working folder.
 const BUILD = path.join('.qory', 'build');
 // The first line of a Codex patch, which apply_patch also takes through the shell.
@@ -297,8 +299,22 @@ const inPlace = (tool, words) => IN_PLACE.test(tool) && plainWords(words).some((
 // patchPaths returns the paths that a Codex patch adds, changes, deletes or moves to, from
 // each line that Codex can read as a header. Codex splits the patch at line feeds.
 function patchPaths(patch) {
-  return String(patch).split('\n').map((line) => PATCH_FILE.exec(line))
-    .filter((match) => match && match[1] !== '').map((match) => match[1]);
+  return String(patch).split('\n').map(patchPath).filter((one) => one !== '');
+}
+
+// patchPath returns the path in a line of a Codex patch that adds, changes, deletes or moves
+// to a file, or '' for any other line or an empty path. It scans the line once: a regular
+// expression that trims the white space at the end of a line takes time in the square of a run
+// of white space.
+function patchPath(line) {
+  let start = 0;
+  while (start < line.length && PATCH_SPACE_CHAR.test(line[start])) start++;
+  const header = PATCH_HEADERS.find((one) => line.startsWith(one, start));
+  if (header === undefined) return '';
+  let end = line.length;
+  while (end > start && PATCH_SPACE_CHAR.test(line[end - 1])) end--;
+  const from = start + header.length;
+  return from < end ? line.slice(from, end) : '';
 }
 
 // kindOf returns { kind, paths } of a call: kind is 'write', 'shell', 'agent' or null.

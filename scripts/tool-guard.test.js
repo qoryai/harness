@@ -469,6 +469,101 @@ test('patchPaths reads each file of a Codex patch', () => {
   }
 });
 
+// The regular expression that patchPaths used before it scanned each line once. It stays here
+// only to compare: on a header line that has a run of white space and then a character that
+// is no white space, it takes time in the square of the run.
+const OLD_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f' +
+  '\\u3000';
+const OLD_PATCH_FILE = new RegExp(`^[${OLD_SPACE}]*\\*\\*\\* (?:Add File|Update File|` +
+  `Delete File|Move to): ([^]*?)[${OLD_SPACE}]*$`);
+const oldPatchPaths = (text) => text.split('\n').map((line) => OLD_PATCH_FILE.exec(line))
+  .filter((match) => match && match[1] !== '').map((match) => match[1]);
+
+test('patchPaths reads the same paths as the regular expression that it replaced', () => {
+  // A fixed seed, so that a failure runs again with the same lines.
+  let seed = 0x2f6e2b1;
+  const random = (limit) => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return (((mixed ^ (mixed >>> 14)) >>> 0) % limit);
+  };
+  const pick = (list) => list[random(list.length)];
+  // Each character of the white space that Codex trims, and the characters near it that are
+  // none: Rust's trim reads U+FEFF and U+200B as text, and U+180E, which left White_Space in
+  // Unicode 6.3.
+  const spaces = ['\t', '\n', '\v', '\f', '\r', ' ', '\u0085', '\u00a0', '\u1680', '\u2000',
+    '\u2005', '\u200a', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000'];
+  const near = ['\ufeff', '\u200b', '\u180e', '\u0084', '\u00a1', '\u2010', '\u3001', '\u0000'];
+  const words = ['Add File', 'Update File', 'Delete File', 'Move to', 'add file', 'ADD FILE',
+    'Add  File', 'AddFile', 'Move To', 'Rename', 'Add File:', ''];
+  const pieces = ['', 'a.ts', 'd/e.ts', 'x y', 'a\u3000b', ': c', '*** x', '\\', '.', '\u00e9', '*'];
+  const run = () => Array.from({ length: random(4) }, () => (random(8) === 0 ? pick(near)
+    : pick(spaces))).join('');
+  const lines = [];
+  for (let at = 0; at < 6000; at += 1) {
+    const stars = random(10) === 0 ? '*'.repeat(random(6)) : '***';
+    const gap = random(12) === 0 ? run() : ' ';
+    const colon = random(12) === 0 ? pick([':', '::', ' :', ';', '']) : ':';
+    const after = random(10) === 0 ? run() : ' ';
+    lines.push(run() + stars + gap + pick(words) + colon + after + pick(pieces) +
+      (random(3) === 0 ? run() : '') + (random(5) === 0 ? pick(pieces) + run() : ''));
+  }
+  // The lines that the tests above use, and the edges: nothing after the header, only white
+  // space after it, one space or none after the colon, and white space inside a path.
+  lines.push('*** Add File: a.ts', '*** Add File:', '*** Add File: ', '*** Add File:  ',
+    '*** Add File:   a b  ', '*** Add File:\ta', '*** Add File:a', '  *** Move to: b ',
+    '\u0085*** Update File: d.ts\u0085', '\ufeff*** Add File: a', '*** Add File: a\ufeff',
+    '*** Begin Patch', '*** End Patch', '', ' ', '***', '*** ', '*** Add File: *** Add File: a');
+  assert.ok(lines.length > 6000);
+  let named = 0;
+  for (const line of lines) {
+    const old = oldPatchPaths(line);
+    named += old.length;
+    assert.deepEqual(patchPaths(line), old, JSON.stringify(line));
+  }
+  // A text of many lines is the paths of its lines in order.
+  assert.deepEqual(patchPaths(lines.join('\n')), oldPatchPaths(lines.join('\n')));
+  // The generator reaches paths with and without white space around them.
+  assert.ok(named > 500, `${named} lines have a path`);
+});
+
+test('a patch line with 250,000 spaces is read in under 1 second by each reader', () => {
+  const spaces = ' '.repeat(250000);
+  const timed = (name, run) => {
+    const start = process.hrtime.bigint();
+    const result = run();
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    assert.ok(ms < 1000, `${name}: ${ms} ms`);
+    return result;
+  };
+  // The spaces lie inside the path, as in `/a<spaces>x`, or at one end or both ends of the line.
+  for (const [line, paths] of [[`*** Add File: /a${spaces}x`, [`/a${spaces}x`]],
+    [`${spaces}*** Add File: /a${spaces}x${spaces}`, [`/a${spaces}x`]],
+    [`*** Update File: /a${spaces}`, ['/a']], [`*** Move to: ${spaces}x`, [`${spaces}x`]],
+    [`*** Delete File: ${spaces}`, []], [`${spaces}x`, []], [`*** Add File:${spaces}`, []]]) {
+    assert.deepEqual(timed('patchPaths', () => patchPaths(`*** Begin Patch\n${line}\n`)), paths);
+  }
+  assert.deepEqual(patchPaths(`*** Add File: /a${spaces}x\n*** Add File: b${spaces}\n`),
+    [`/a${spaces}x`, `b`]);
+  assert.deepEqual(patchPaths(`${spaces}*** Add File: ${spaces}\n*** Move to: c`), ['c']);
+  // The shell call of the report: a here-document with a patch that has such a line, on
+  // Codex and on Claude Code, from the main session and from an agent.
+  const command = `cat > /dev/null <<'X'\n*** Begin Patch\n*** Add File: /a${spaces}x\nX`;
+  const short = `cat > /dev/null <<'X'\n*** Begin Patch\n*** Add File: /a x\nX`;
+  for (const agent of [undefined, 'implementer']) {
+    for (const make of [codex, claude]) {
+      const reason = timed('decide', () => guard(make('Bash', { command }, agent)));
+      // The deny text has the path, so only its first line is the same as for the short path.
+      const first = (text) => (text === null ? null : text.split('\n')[0]);
+      assert.equal(first(reason), first(guard(make('Bash', { command: short }, agent))));
+    }
+  }
+  timed('countsAsWrite', () => countsAsWrite('Bash', { command }, PLACE));
+  const text = `*** Begin Patch\n*** Add File: /a${spaces}x\n`;
+  timed('apply_patch', () => guard(codex('apply_patch', { command: text })));
+});
+
 // harnessHome makes a folder with the layout of a composed harness, hooks/ and
 // modules/<name>/, and returns it.
 function harnessHome() {
