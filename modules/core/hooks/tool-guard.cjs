@@ -16,10 +16,11 @@
 //   started. A reviewer of a change, which qory starts as the main agent of its session, is
 //   the other way round: when $QORY_HARNESS_HOME/inputs.json has the member qory.review, the
 //   main session writes one path, qory.review.report, with a Write or an apply_patch that adds
-//   it, and no other file, the artifact folder included. It starts no agent. An agent of that
-//   session, whatever its type, and an agent whose type ends in -reviewer in any session,
-//   write no file, the report path included; an agent of a reviewer session also runs read-only
-//   shell commands only.
+//   it, and no other file, the artifact folder included. It denies by default, for the main
+//   session and each agent: REVIEW_TOOLS, the report write and the commands of reviewShell
+//   are all it allows, and it starts no agent. An agent of that session, whatever its type,
+//   and an agent whose type ends in -reviewer in any session, write no file, the report
+//   path included.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -1923,6 +1924,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     // one as before, and an agent in the background is denied.
     return call.reason || (reviewReport(env) ? REVIEW_NO_AGENT : null);
   }
+  // A reviewer session allows the tools of REVIEW_TOOLS and no other that is no write or shell:
+  // a tool that the guard does not know is denied there, and allowed in any other session.
+  if (call.kind === null && reviewReport(env) && !REVIEW_TOOLS.has(input.tool_name)) {
+    return reviewToolDeny(input.tool_name);
+  }
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
   // reports-guard.cjs denies a write of .reports/*.json and a shell command that reaches
   // .reports/ other than checks.cjs alone, with the same reasons on each runtime. It reads a
@@ -1940,10 +1946,9 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
       args: { paths: call.paths } }) : null);
   if (reports) return reports;
   // The guard reads the files that a shell command writes only from the paths in its text, so
-  // an agent of a reviewer session runs read-only commands only.
-  if (call.kind === 'shell' && !reads && typeof input.agent_id === 'string' &&
-    input.agent_id !== '' && reviewReport(env)) {
-    return `${REVIEW_AGENT}The call runs a command that may write.`;
+  // the main session and each agent of a reviewer session run the commands of reviewShell only.
+  if (call.kind === 'shell' && reviewReport(env) && !reviewShell(call.command)) {
+    return REVIEW_SHELL;
   }
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
@@ -2472,8 +2477,8 @@ function reviewReport(env) {
   return { report: usable ? report : null };
 }
 
-const REVIEW_ONLY = 'Write only the file at qory.review.report, with Write: a reviewer writes no ' +
-  'other file.\nThe path is in inputs.json of the harness home; a link, a file with more than ' +
+const REVIEW_ONLY = 'Write only qory.review.report, with Write or apply_patch: a reviewer writes ' +
+  'no other file.\nThe path is in inputs.json of the harness home; a link, a file with more than ' +
   'one link and a path below .git or .claude of the working folder are denied. ';
 const REVIEW_NONE = 'Stop the review and write no file: qory.review.report cannot be used.\n' +
   'It must be an absolute path with no . or .. part, no double or trailing slash. ';
@@ -2482,6 +2487,122 @@ const REVIEW_AGENT = 'Report in your text and write no file: a reviewer agent wr
   '-reviewer. ';
 const REVIEW_NO_AGENT = 'Start no agent: a reviewer reads the change and writes its report ' +
   'itself.\nThe session has qory.review in inputs.json of the harness home.';
+const REVIEW_SHELL = 'Run only read commands: cat, head, tail, ls, wc, grep, rg, find, git diff, ' +
+  'git show, git log.\nA reviewer session writes only its report file, so a command that may ' +
+  'write is denied: a redirect, $( ), a backtick, a variable, a write option, and any command ' +
+  'outside cat, head, tail, ls, wc, grep, rg, find (no -exec, -delete or -fprint), git diff, ' +
+  'show, log, status, blame, ls-files, rev-parse and grep, pwd, sort (no -o), uniq with one ' +
+  'file, cut and diff. Chain them with |, && or ;.';
+// The tools of a reviewer session that are no write, shell or agent: the read tools, and two
+// tools that only plan.
+const REVIEW_TOOLS = new Set(['Read', 'Grep', 'Glob', 'Skill', 'TodoWrite', 'update_plan']);
+const reviewToolDeny = (name) => 'A reviewer session allows only Read, Grep, Glob, Skill, a ' +
+  'read shell and the report Write.\n' +
+  `The call is of the tool ${String(name).slice(0, 60)}, which the guard denies there.`;
+// The commands that reviewShell allows, and the subcommands of git among them.
+const REVIEW_COMMANDS = new Set(['cat', 'head', 'tail', 'ls', 'wc', 'grep', 'rg', 'find', 'git',
+  'pwd', 'sort', 'uniq', 'cut', 'diff']);
+const REVIEW_GIT = new Set(['diff', 'show', 'log', 'status', 'blame', 'ls-files', 'rev-parse',
+  'grep']);
+// The options that make a command of REVIEW_COMMANDS write a file, run a program or follow a
+// file without end, by command: a pattern for the short options, and the long ones, which
+// tail, sort and git also read as any start of the name, as --out for --output.
+const REVIEW_REFUSED = {
+  find: { short: /^-(?:exec|execdir|ok|okdir|delete|fprint0?|fprintf|fls)$/, long: [] },
+  tail: { short: /^-[^-]*[fF]/, long: ['follow', 'retry'] },
+  sort: { short: /^-[^-]*[oT]/, long: ['output', 'compress-program', 'temporary-directory'] },
+  rg: { short: /^-[^-]*z/, long: ['pre', 'pre-glob', 'hostname-bin', 'search-zip'] },
+  git: { short: /^$/, long: ['output', 'ext-diff', 'textconv', 'open-files-in-pager',
+    'show-signature'] },
+};
+const refusedOption = (name, word) => {
+  const { short, long } = REVIEW_REFUSED[name];
+  if (!word.startsWith('--')) return short.test(word);
+  const given = word.slice(2).split('=')[0];
+  return given !== '' && long.some((one) => one.startsWith(given));
+};
+
+// reviewWords splits command into simple commands, each a list of words, as the shell does for
+// a command of plain words, or returns null for a command that has anything else: a $ or
+// backtick outside single quotes, a brace, a redirect, a group, a background &, a ! or #, a
+// backslash, a control character or an open quote. A glob character is a plain word. The
+// commands are separated by |, ||, &&, ; and line feeds.
+function reviewWords(command) {
+  const text = String(command);
+  if (text.length > 20000) return null;
+  const commands = [];
+  let words = [];
+  let word = '';
+  let started = false;
+  let quote = null;
+  const endWord = () => {
+    if (started) words.push(word);
+    word = '';
+    started = false;
+  };
+  const endCommand = () => {
+    endWord();
+    if (words.length) commands.push(words);
+    words = [];
+  };
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at];
+    const code = char.charCodeAt(0);
+    if ((code < 32 && char !== '\t' && char !== '\n') || code === 127) return null;
+    if (quote === "'") {
+      if (char === "'") quote = null;
+      else word += char;
+    } else if (quote === '"') {
+      if (char === '"') quote = null;
+      else if ('$`\\'.includes(char)) return null;
+      else word += char;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+      started = true;
+    } else if (char === ' ' || char === '\t') {
+      endWord();
+    } else if (char === '\n' || char === ';') {
+      endCommand();
+    } else if (char === '|') {
+      if (text[at + 1] === '|') at += 1;
+      else if (text[at + 1] === '&') return null;
+      endCommand();
+    } else if (char === '&') {
+      if (text[at + 1] !== '&') return null;
+      at += 1;
+      endCommand();
+    } else if ('`$<>(){}\\!#'.includes(char)) {
+      return null;
+    } else {
+      word += char;
+      started = true;
+    }
+  }
+  if (quote !== null) return null;
+  endCommand();
+  return commands;
+}
+
+// reviewShell reports whether command only reads: each simple command of it, by reviewWords, is
+// one of REVIEW_COMMANDS, with none of the options of REVIEW_REFUSED, git with a subcommand of
+// REVIEW_GIT and no option before it, and uniq with at most one file, which it would write to
+// when it is the second. A command of no word, as an empty one, reads nothing.
+function reviewShell(command) {
+  const commands = reviewWords(command);
+  if (commands === null) return false;
+  return commands.every(([name, ...args]) => {
+    if (!REVIEW_COMMANDS.has(name)) return false;
+    const options = args.slice(0, args.includes('--') ? args.indexOf('--') : args.length);
+    if (name === 'find') return !args.some((one) => refusedOption(name, one));
+    if (name === 'git') {
+      if (!REVIEW_GIT.has(args[0])) return false;
+      return !options.slice(1).some((one) => refusedOption(name, one) ||
+        (args[0] === 'grep' && /^-O/.test(one)));
+    }
+    if (REVIEW_REFUSED[name] && options.some((one) => refusedOption(name, one))) return false;
+    return name !== 'uniq' || args.filter((one) => !one.startsWith('-')).length <= 1;
+  });
+}
 
 // reviewDeny returns the deny of a write from a reviewer, or null for the one write that the
 // main session of a reviewer may make: a Write, with one path, or an apply_patch of the form

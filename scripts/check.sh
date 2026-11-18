@@ -67,6 +67,9 @@ BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?
 # writing rules for every kind of text, including commit messages and pull requests.
 CORE_WORDS='software|repositor(y|ies)|repos?|git|github|commit(s|ted|ting)?|diff(s|ing)?|branch(es|ing)?|pull[ _-]requests?|test(s|ed|ing)?|criteri(on|a)|specs?|specifications?|codebases?|source code|deploy(s|ed|ing|ments?)?'
 PR_WORDS='PRs?'
+# The words that the tool guard may contain: it names the read commands of a version control tool,
+# git and diff, which it allows in the shell of a reviewer session.
+GUARD_WORDS=$(printf '%s' "$CORE_WORDS" | sed 's/|git|/|/; s/|diff(s|ing)?|/|/')
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in
@@ -1100,7 +1103,8 @@ EOF
 
 # rule_core_words DIR: rule 11, no file of DIR/modules/core, outside the skill
 # simple-communication, contains a word of CORE_WORDS, in any case, or of PR_WORDS, by case,
-# as a whole word, and no file of simple-communication contains software-factory. `.test(`
+# as a whole word, and no file of simple-communication contains software-factory. The one file
+# core/hooks/tool-guard.cjs may also contain git and diff, the read commands that it allows. `.test(`
 # does not count, and neither does the folder name `.git` when no letter, digit or `_` comes
 # before the dot, so `app.git` counts. Each finding is a line, as <file>:<line>:<text>, with
 # the path under modules/.
@@ -1112,7 +1116,9 @@ rule_core_words() {
 			sed -E 's/[.]test[(]/.(/g; s/(^|[^[:alnum:]_])[.]git([^[:alnum:]_]|$)/\1.\2/g' "$file" \
 				>"$TMP/core-words"
 			{
-				grep -n -i -E "(^|[^[:alnum:]_])($CORE_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
+				words=$CORE_WORDS
+				[ "$file" = ./core/hooks/tool-guard.cjs ] && words=$GUARD_WORDS
+				grep -n -i -E "(^|[^[:alnum:]_])($words)([^[:alnum:]_]|\$)" "$TMP/core-words"
 				grep -n -E "(^|[^[:alnum:]_])($PR_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
 			} | sort -t: -k1,1n -u | sed "s|^|${file#./}:|"
 		done
@@ -2394,6 +2400,18 @@ fixture
 printf '%s\n' 'Read .github and .GitHub/hooks.' >>"$SKILL"
 expect_broken "rule 11 fails on the folder name .github in a core skill" \
 	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/hooks" || exit 1
+printf '%s\n' "const READ = ['git', 'diff'];" >"$FIX/modules/core/hooks/tool-guard.cjs"
+expect_passes "rule 11 passes on git and diff in the tool guard" rule_core_words "$FIX"
+printf '%s\n' "const READ = 'repository';" >"$FIX/modules/core/hooks/tool-guard.cjs"
+expect_broken "rule 11 fails on another software word in the tool guard" \
+	'core/hooks/tool-guard.cjs:1:' rule_core_words "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/hooks" || exit 1
+printf '%s\n' "const READ = ['git', 'diff'];" >"$FIX/modules/core/hooks/end-gate.cjs"
+expect_broken "rule 11 fails on git in a core hook other than the tool guard" \
+	'core/hooks/end-gate.cjs:1:' rule_core_words "$FIX"
 fixture
 printf '%s\n' 'Open a PR for each change.' >>"$SKILL"
 expect_broken "rule 11 fails on PR in upper case in a core skill" \

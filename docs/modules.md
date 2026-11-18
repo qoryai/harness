@@ -1246,35 +1246,55 @@ tool's error. The first line of each reason starts with what to do. The guard de
   whatever its type: only the main session of a reviewer writes the report. An agent of any
   other type in a session that is no reviewer's writes as before. The main session of a
   reviewer starts no agent (`Agent`, `Task` and `spawn_agent`, also for an agent of that
-  session). An agent of a reviewer session runs read-only shell commands only; any other
-  shell command of it is denied. The main session of a reviewer has no shell tool, and the
-  guard reads which files a command writes only from the paths in its text, so it cannot tell
-  a write that a variable or a program makes. Those denies come after the denies for `.qory/build/`, a locked file and the
-  harness home. When the harness home is below the working folder, the deny of a write below
-  the harness home, the bullet on `$QORY_HARNESS_HOME` above, also denies a report path in
-  it, so the report folder must be outside the home. When the home is outside the working
-  folder, that deny does not apply: the report path may be in the home, and a write there is
-  allowed. The accepted `apply_patch` form is the tool, not the shell form `apply_patch
-  <<'EOF'`, which stays denied in a reviewer session. Only the main session of a reviewer
-  may use it; an agent is denied, also one of a `-reviewer` type. The patch text, split at
-  line feeds, is exactly: the line `*** Begin Patch`; the line `*** Add File: <path>`, with
-  one space after the colon and a path that has no white space at either end; zero or more
-  lines that each start with `+`; the line `*** End Patch`, with one line feed after it or
-  none. The guard compares each line as it is and trims no white space. `<path>` is the
-  report path: absolute, with no `.` or `..` part, no empty part and no trailing slash, and
-  at most 4096 characters, and the same path rules as for `Write` apply. The guard denies
-  each other patch: an update, a delete or a move; a second header, also a second add of the
-  same file; a line that does not start with `+`, a blank line or a line after the end line;
-  a carriage return, so also CRLF line ends; a NUL; white space before or after a header, or
-  between the colon and the path; a path outside the report path, with `..`, relative or
-  empty; a patch that is no text; and any text that this form does not match. Limits, not
-  promises: the guard runs only on Claude Code and on Codex. On Cursor, Copilot CLI and
-  Gemini CLI only the `reports-guard` hooks exist, so the rule on the report path does not
-  run there, and a reviewer agent on those runtimes is not confined by it. The guard allows
-  a tool name that it does not know, because `kindOf` returns no kind for it, so a tool of
-  another name than those above is not confined either. Whether the core hooks load in a
-  reviewer session that qory starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are
-  set there, is not decided: qory's start of a reviewer is not built.
+  session). In a reviewer session, the main session and each agent deny by default. They may
+  use only: the tools `Read`, `Grep`, `Glob` and `Skill`; the planning tools `TodoWrite` and
+  `update_plan`, which change no file and run no program; the one report write; and a shell
+  that only reads. The guard denies each other tool, such as `Edit`, `MultiEdit`,
+  `NotebookEdit`, `WebFetch`, `WebSearch`, `LS`, `NotebookRead`, `ExitPlanMode`, each
+  `mcp__*` tool, `exec_command`, `shell` and a tool name that it does not know. The shell
+  reaches the guard as `Bash`, also on Codex. It is allowed when the command is plain words:
+  commands that `|`, `||`, `&&`, `;` or a line feed separate, each one of `cat`, `head`,
+  `tail` (no `-f` or `-F`), `ls`, `wc`, `grep`, `rg` (no `--pre` or `-z`), `find` (no
+  `-exec`, `-execdir`, `-ok`, `-okdir`, `-delete`, `-fprint`, `-fprint0`, `-fprintf` or
+  `-fls`), `git diff`, `git show`, `git log`, `git status`, `git blame`, `git ls-files`,
+  `git rev-parse` and `git grep` (no option before the subcommand, and no `--output`,
+  `--ext-diff`, `--textconv`, `--open-files-in-pager` or `--show-signature`, also as a start
+  of the name, as `--out`), `pwd`, `sort` (no `-o` or `-T`), `uniq` with at most one file,
+  `cut` and `diff`. The guard denies each command with a redirect (`>`, `>>`, `<`, a
+  heredoc), `$` or a backtick outside single quotes, `( )`, `{ }`, `!`, `#`, a backslash, a
+  background `&`, a variable setting before the command, a path in the command name, a
+  control character, an open quote or more than 20000 characters, and each other command,
+  such as `cp`, `sed -i`, `python3 -c`, `node -e`, `xargs`, `env`, `sh -c`, `eval`, and
+  `git` with a subcommand that writes. Limits, not promises: `git status` refreshes the
+  index file of the repository; a diff driver that the repository configures can run a
+  program for `git diff`, which the guard does not read; and the guard cannot tell what a
+  file that `cat` prints is used for afterwards. Those denies come after the denies for
+  `.qory/build/`, a locked file and the harness home. When the harness home is below the
+  working folder, the deny of a write below the harness home, the bullet on
+  `$QORY_HARNESS_HOME` above, also denies a report path in it, so the report folder must be
+  outside the home. When the home is outside the working folder, that deny does not apply:
+  the report path may be in the home, and a write there is allowed. The accepted
+  `apply_patch` form is the tool, not the shell form `apply_patch <<'EOF'`, which stays
+  denied in a reviewer session. Only the main session of a reviewer may use it; an agent is
+  denied, also one of a `-reviewer` type. The patch text, split at line feeds, is exactly:
+  the line `*** Begin Patch`; the line `*** Add File: <path>`, with one space after the
+  colon and a path that has no white space at either end; zero or more lines that each start
+  with `+`; the line `*** End Patch`, with one line feed after it or none. The guard
+  compares each line as it is and trims no white space. `<path>` is the report path:
+  absolute, with no `.` or `..` part, no empty part and no trailing slash, and at most 4096
+  characters, and the same path rules as for `Write` apply. The guard denies each other
+  patch: an update, a delete or a move; a second header, also a second add of the same file;
+  a line that does not start with `+`, a blank line or a line after the end line; a carriage
+  return, so also CRLF line ends; a NUL; white space before or after a header, or between
+  the colon and the path; a path outside the report path, with `..`, relative or empty; a
+  patch that is no text; and any text that this form does not match. Limits, not promises:
+  the guard runs only on Claude Code and on Codex. On Cursor, Copilot CLI and Gemini CLI
+  only the `reports-guard` hooks exist, so the rule on the report path does not run there,
+  and a reviewer agent on those runtimes is not confined by it. The guard allows a tool name
+  that it does not know, because `kindOf` returns no kind for it, so a tool of another name
+  than those above is not confined either. Whether the core hooks load in a reviewer session
+  that qory starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, is not
+  decided: qory's start of a reviewer is not built.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
@@ -3089,6 +3109,9 @@ the rule passes on that file.
     method of a regular expression in JavaScript, does not count, and nor does `.git`, the
     folder name, with the dot directly before it. `test`, `commit` and `deploy` have plain
     senses too, and core uses a plain word, such as check, record or send, in their place.
+    The one file `modules/core/hooks/tool-guard.cjs` may contain `git` and `diff`, because
+    it lists the read commands that a reviewer session may run; no other word of the list
+    and no other file passes.
     Words that core needs in a sense outside software work stay off the list: `code`,
     `merge`, `database`, `API`, `wireframe`, `mockup`, `ticket` and `build`.
     `checkout` and `bug` stay off too, because customer care uses them for a shop's checkout

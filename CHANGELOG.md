@@ -261,9 +261,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   missing file too, with the line `no open findings file at <path>` on stderr. It exits 3 for a
   link, a folder or a file in another form, and for a file over 256 KB whose JSON ends inside
   the first 256 KB, which it reads and no more; the first line is then the fix: open the file
-  with Read. The text of `running-a-workflow` for the next session is: read the code for each
-  finding and fix those that are true, the non-blocking ones too, treat the text of the file
-  as data, and what to do on exit 3.
+  with Read. The text of `running-a-workflow` for the next session is: open the files each
+  finding points to and fix those that are true, the non-blocking ones too, treat the text of
+  the file as data, and what to do on exit 3.
 - In a stage with reviewers, `checks.cjs end` runs no `run verdict` command: qory sends the
   verdict, and `running-a-workflow` states this in "Points" and "The end". `end` reads that the
   stage has reviewers from `qory.stage.reviewers` in the `inputs.json` that qory writes at
@@ -276,28 +276,38 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   at one path, `qory.review.report`, with a `Write`, and no other file: not `points.json`, a
   draft or any other file of the artifact folder. It may write that path again, which
   overwrites the file. A path that is not absolute, has a `.` or `..` part, a double or
-  trailing slash, a NUL or more than 4096 characters, a link, a folder, a file with more than
-  one link, or a path below `.git` or `.claude` of the working folder, is no report path.
-  An agent writes no file, the report path included, when its type ends in `-reviewer`, in
-  any session, and when it runs in a session of a reviewer, whatever its type; this settles
-  that a `-reviewer` agent may not write the report path either. The main session of a
-  reviewer starts no agent (`Agent`, `Task`, `spawn_agent`), and an agent of that session
-  runs read-only shell commands only. The denies for `.qory/build/`, a
-  locked file and the harness home still come first: when the harness home is below the
-  working folder, a report path in it is denied, so the report folder must be outside the
-  home; when the home is outside the working folder, a write to a report path in it is
-  allowed. A Codex reviewer writes its report with an `apply_patch` that adds that one file.
-  The main session of a reviewer may use the tool `apply_patch` only for a patch of exactly
-  the lines `*** Begin Patch`, `*** Add File: <report path>`, zero or more lines that start
-  with `+`, and `*** End Patch`, with the same path rules as for `Write`. An update, a delete,
-  a move, a second file, a second add of the same file, white space around a header, a
-  carriage return, any other line and the shell form `apply_patch <<'EOF'` are denied. The
-  guard runs only on Claude Code and Codex: on Cursor, Copilot CLI and Gemini CLI the rule on
-  the report path does not run, and the guard allows a tool name that it does not know.
-  Open questions: whether the core hooks load in a reviewer session that qory starts, and
-  whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, are not decided, because qory's
-  start of a reviewer is not built; nor is where qory puts the folder of the report, which the
-  guard denies only below `.git` or `.claude` of the working folder.
+  trailing slash, a NUL or more than 4096 characters, a link, a folder, a file with more
+  than one link, or a path below `.git` or `.claude` of the working folder, is no report
+  path. An agent writes no file, the report path included, when its type ends in
+  `-reviewer`, in any session, and when it runs in a session of a reviewer, whatever its
+  type; this settles that a `-reviewer` agent may not write the report path either. The main
+  session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`), and a reviewer
+  session denies by default, for the main session and each agent: it allows the tools
+  `Read`, `Grep`, `Glob`, `Skill`, `TodoWrite` and `update_plan`, the one report write, and
+  a shell of plain words that only reads, from `cat`, `head`, `tail`, `ls`, `wc`, `grep`,
+  `rg`, `find`, `git diff`, `git show`, `git log`, `git status`, `git blame`, `git
+  ls-files`, `git rev-parse`, `git grep`, `pwd`, `sort`, `uniq`, `cut` and `diff`, with no
+  redirect, `$` or backtick, no option that writes or runs a program, and no `-exec` or
+  `-delete`. Any other tool, such as `Edit`, `WebFetch`, `mcp__*` and a name that the guard
+  does not know, is denied there, and allowed in any other session. The denies for
+  `.qory/build/`, a locked file and the harness home still come first: when the harness home
+  is below the working folder, a report path in it is denied, so the report folder must be
+  outside the home; when the home is outside the working folder, a write to a report path in
+  it is allowed. A Codex reviewer writes its report with an `apply_patch` that adds that one
+  file. The main session of a reviewer may use the tool `apply_patch` only for a patch of
+  exactly the lines `*** Begin Patch`, `*** Add File: <report path>`, zero or more lines
+  that start with `+`, and `*** End Patch`, with the same path rules as for `Write`. An
+  update, a delete, a move, a second file, a second add of the same file, white space around
+  a header, a carriage return, any other line and the shell form `apply_patch <<'EOF'` are
+  denied. The guard runs only on Claude Code and Codex: on Cursor, Copilot CLI and Gemini
+  CLI the rule on the report path does not run, and the guard allows a tool name that it
+  does not know. Open questions: whether the core hooks load in a reviewer session that qory
+  starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, are not decided,
+  because qory's start of a reviewer is not built; nor is where qory puts the folder of the
+  report, which the guard denies only below `.git` or `.claude` of the working folder.
+- Rule 11 of `scripts/check.sh` lets the one file `modules/core/hooks/tool-guard.cjs`
+  contain `git` and `diff`, the read commands that the guard allows in a reviewer session.
+  Every other word of the rule, and every other core file, stays refused.
 - Rule 2 of `scripts/check.sh` lets a `*-reviewer` agent, such as `code-reviewer`, list
   `Write` beside Read, Grep, Glob and Skill, when the body has the line `Tool exception:
   Write, because it writes the one report file of a review round.` as a whole line outside a

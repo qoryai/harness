@@ -2016,7 +2016,7 @@ function reviewSetup(report) {
 
 const write = (file) => claude('Write', { file_path: file, content: '{}' });
 
-const ONLY = 'Write only the file at qory.review.report';
+const ONLY = 'Write only qory.review.report, with Write or apply_patch';
 const NONE = 'Stop the review and write no file';
 
 test('a reviewer writes exactly the path in qory.review.report, and the guard denies each other', () => {
@@ -2097,18 +2097,6 @@ test('in a reviewer session each agent, of any type, writes no file and starts n
       firstLine(guard(make(type), env), NOT);
     }
   }
-  // A shell command that may write, by an agent: denied in a reviewer session and allowed as
-  // before in any other. A read-only command runs in both. The main session of a reviewer has
-  // no shell, and the guard does not restrict its shell writes.
-  for (const command of [`echo x > ${victim}`, `rm ${victim}`, `tee ${victim}`,
-    `sed -i s/a/b/ ${victim}`, `node -e "require('fs').writeFileSync('${victim}','x')"`,
-    'npm run build', `apply_patch <<'EOF'\n${add(victim)}EOF\n`]) {
-    assert.equal(guard(claude('Bash', { command }, 'worker'), RUN), null, command);
-    firstLine(guard(claude('Bash', { command }, 'worker'), env), NOT);
-  }
-  for (const command of [`ls ${WORK}`, `cat ${file}`, `grep -n a ${victim}`]) {
-    assert.equal(guard(claude('Bash', { command }, 'worker'), env), null, command);
-  }
   // No agent starts in a reviewer session: Claude Code's Agent and Task, and Codex's spawn_agent.
   const START = 'Start no agent';
   for (const [tool, args] of [['Agent', { prompt: 'x', subagent_type: 'worker' }],
@@ -2120,6 +2108,106 @@ test('in a reviewer session each agent, of any type, writes no file and starts n
   }
   // An agent in the background is still denied first, in any session.
   firstLine(guard(claude('Agent', { prompt: 'x', run_in_background: true }), env), 'Start the agent');
+});
+
+const READ_SHELL = 'Run only read commands: cat, head, tail, ls, wc, grep, rg, find, git diff, ';
+
+test("a reviewer session's shell, of the main session and of each agent, may only read", () => {
+  const { env, file } = reviewSetup();
+  const victim = path.join(WORK, 'src', 'victim.ts');
+  const denied = [
+    `echo x > ${victim}`, 'echo x >f', `tee ${victim}`, `echo x | tee ${victim}`,
+    `sed -i s/a/b/ ${victim}`, `cp ${file} ${victim}`, `mv ${victim} ${victim}.old`,
+    `rm ${victim}`, 'touch f', 'mkdir d', `python3 -c "open('${victim}','w')"`,
+    `node -e "require('fs').writeFileSync('${victim}','x')"`, 'git commit -am x',
+    'git checkout -- .', 'git reset --hard', 'git clean -fd', 'git apply p.diff',
+    'git stash', 'git restore .', 'git switch main', 'git merge x', 'git rebase x',
+    'git cherry-pick x', 'git am p', 'git add .', 'git rm f', 'git mv a b', 'git tag t',
+    'git branch b', 'git push', 'git fetch', 'git pull', 'git config a b', 'git init',
+    'git diff --output=out.diff', 'git diff --output out.diff', 'git log --output=o',
+    'git show --output=o', 'git -c core.pager=sh diff', 'git -C . diff', 'git --no-pager diff',
+    'git diff --ext-diff', 'git diff --textconv', 'git log --show-signature',
+    'git grep -O foo', 'git grep --open-files-in-pager=sh x',
+    'echo $(touch f)', 'echo `touch f`', 'cat <(touch f)', 'cat <<EOF\nx\nEOF',
+    `cat > ${victim} <<EOF\nx\nEOF`, 'cat f >> g', 'cat < f', 'ls; touch f', 'ls && touch f',
+    'ls || touch f', 'ls | touch f', 'ls &', 'ls & touch f', 'cat f | xargs rm',
+    'find . -exec rm {} ;', 'find . -delete', 'find . -fprint out', 'find . -fprintf o x',
+    'find . -ok rm x ;', "awk 'BEGIN{system(\"touch f\")}'", 'env touch f', 'command touch f',
+    'exec touch f', 'sh -c "touch f"', 'bash -c "touch f"', 'eval touch f', 'xargs rm',
+    'sort -o out f', 'sort --output=out f', 'sort -T /tmp f', 'uniq in out', 'tail -f f',
+    'tail -F f', 'rg --pre sh x', 'rg -z x', 'rg --search-zip x', 'A=1 cat f', 'cat ${HOME}',
+    'cat "$HOME"', 'cat $HOME', 'cat $1', 'cat f$X', 'cat f\\\n', '/bin/cat f', './cat f', 'cat f #x', '(cat f)', '{ cat f; }',
+    '! cat f', 'cat "unclosed', "cat 'unclosed", 'cat f\u0000g', 'cd /tmp', 'npm run build',
+    'echo hi', 'git', 'git --version', 'git help', 'git diff --out=o', 'git diff --o=o',
+    'git diff --ext', 'git diff --text', 'git log --show-sig', 'tail --fol f', 'tail --ret f',
+    'sort --out=o f', 'sort --comp=sh f', 'sort --temp=/tmp f', 'rg --pre-g x', 'rg --pr=sh x',
+  ];
+  const allowed = ['git diff HEAD~1', 'git diff --stat', 'git diff HEAD~1 -- src/a.ts',
+    'git show HEAD', 'git log --oneline -n 5', 'git log -p -n 1', 'git status',
+    'git blame -L 1,5 src/a.ts', 'git ls-files', 'git rev-parse HEAD', 'git grep -n x',
+    'cat file', 'cat -n file', 'head -n 5 file', 'tail -n 20 file', 'ls', 'ls -la src',
+    'wc -l file', 'grep -n x file', 'grep -rn "a b" src', "grep -n 'a>b' file", 'rg x src',
+    'rg -n --files-with-matches x', 'find . -name "*.ts"', 'find src -type f -newer a',
+    'pwd', 'sort file', 'sort -u -k2 file', 'uniq file', 'uniq -c', 'cut -d, -f1 file',
+    'diff a b', 'git diff HEAD~1 | head -n 50', 'git diff --stat | wc -l',
+    'git log --oneline | grep fix', 'cat a; cat b', 'cat a && cat b', 'cat a || cat b',
+    'cat a\ncat b', 'ls *.md', 'grep -n x -- file', "cat 'a b'", 'cat "a b"',
+    `cat ${file}`, `grep -n a ${victim}`, `ls ${WORK}`];
+  const who = [undefined, 'worker', 'code-reviewer'];
+  for (const command of denied) {
+    for (const agent of who) {
+      const reason = guard(claude('Bash', { command }, agent), env);
+      firstLine(reason, READ_SHELL);
+    }
+  }
+  for (const command of allowed) {
+    for (const agent of who.slice(0, 2)) {
+      assert.equal(guard(claude('Bash', { command }, agent), env), null,
+        `${agent || 'main'}: ${command}`);
+    }
+  }
+  // The same on Codex, where the shell tool arrives as Bash.
+  firstLine(guard(codex('Bash', { command: `echo x > ${victim}` }), env), READ_SHELL);
+  assert.equal(guard(codex('Bash', { command: 'git diff HEAD~1' }), env), null);
+  // The first line has at most 100 characters and names the commands.
+  assert.ok(guard(claude('Bash', { command: 'touch f' }), env).split('\n')[0].length <= 100);
+  // Outside a reviewer session a shell command is allowed as before.
+  for (const command of ['touch f', `echo x > ${victim}`, 'npm run build']) {
+    assert.equal(guard(claude('Bash', { command }), RUN), null, command);
+  }
+});
+
+test('a reviewer session allows only the read tools, the report write and a read shell', () => {
+  const { env, file } = reviewSetup();
+  const ONLY = 'A reviewer session allows only Read, Grep, Glob, Skill, a read shell and the report Write.';
+  const refused = [
+    ['mcp__fs__write_file', { path: '/x', content: 'y' }], ['mcp__github__create_issue', {}],
+    ['mcp__anything', {}], ['exec_command', { cmd: 'touch f' }], ['shell', { command: ['touch', 'f'] }],
+    ['local_shell', {}], ['WebFetch', { url: 'https://example.org' }],
+    ['WebSearch', { query: 'x' }], ['ExitPlanMode', {}], ['LS', { path: '.' }],
+    ['NotebookRead', {}], ['view_image', {}], ['SomeNewTool', {}], ['', {}],
+  ];
+  const allowed = [['Read', { file_path: file }], ['Grep', { pattern: 'x' }],
+    ['Glob', { pattern: '*.ts' }], ['Skill', { skill: 'reviewing-changes' }],
+    ['TodoWrite', { todos: [] }], ['update_plan', { plan: [] }]];
+  for (const [tool, args] of refused) {
+    for (const agent of [undefined, 'worker']) {
+      firstLine(guard(claude(tool, args, agent), env), ONLY);
+      assert.equal(guard(claude(tool, args, agent), RUN), null, `${tool} outside a review`);
+    }
+  }
+  for (const [tool, args] of allowed) {
+    for (const agent of [undefined, 'worker']) {
+      assert.equal(guard(claude(tool, args, agent), env), null, `${agent || 'main'}: ${tool}`);
+    }
+  }
+  // A tool name of 500 characters is cut in the reason, and the first line stays short.
+  const long = guard(claude(`mcp__${'x'.repeat(500)}`, {}), env);
+  assert.ok(long.length < 400 && long.split('\n')[0].length <= 100, long);
+  // The write forms still go as before: the report with Write, any other file denied.
+  assert.equal(guard(claude('Write', { file_path: file, content: '{}' }), env), null);
+  assert.equal(typeof guard(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' }), env), 'string');
+  assert.equal(typeof guard(claude('NotebookEdit', { notebook_path: file }), env), 'string');
 });
 
 test('a patch of the report path through a link is decided as a Write of it is', () => {

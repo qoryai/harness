@@ -91,7 +91,9 @@ test('the schema fails a result word, an unknown member and each bad finding', (
 test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
   assert.match(REVIEWING, /Write one file, the report, to the path in `qory\.review\.report` of `inputs\.json`/);
   assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
-  assert.match(REVIEWING, /Run no command and start no agent: you have no shell/);
+  assert.match(REVIEWING, /If your session has a shell, run only commands that read: `cat`/);
+  assert.match(REVIEWING, /Start no agent and use no network\./);
+  assert.match(REVIEWING, /with\s+Write or, on Codex, with `apply_patch`/);
   // The report has no result word, no list of unverified claims and no closing of a finding.
   for (const gone of ['changes-needed', 'Unverified', 'Earlier findings', 'Closed:',
     'no break', 'planted fault']) {
@@ -158,15 +160,15 @@ function put(data) {
 }
 
 const FINDING = {
-  id: 'f3', severity: 'blocking', quote: 'refund = price * quantity',
-  problem: 'The refund ignores the shipping fee.', fix: 'Add the shipping fee.',
-  proof: 'failing input: refund an order that ships; refund() returns 20.00.',
-  point: 'The refund of an order that ships is 4.90 too low.', file: 'src/orders/export.ts', line: 12,
+  id: 'f3', severity: 'blocking', quote: '<the code that is wrong>',
+  problem: '<what is wrong>', fix: '<the change that makes it right>',
+  proof: '<the input or rule that shows the problem>',
+  point: '<what is wrong in the first finding>', file: 'src/main.ts', line: 12,
 };
 const OTHER = {
-  id: 'f4', severity: 'non-blocking', quote: 'const x = total(o)', problem: 'A one-letter name.',
-  fix: 'Name the value.', proof: 'broken rule: the naming rule; line 20 breaks it.',
-  point: 'A variable in the refund code has a one-letter name.',
+  id: 'f4', severity: 'non-blocking', quote: '<the code that is wrong>',
+  problem: '<what is wrong>', fix: '<the change that makes it right>',
+  proof: '<the rule that is broken>', point: '<what is wrong in the second finding>',
 };
 const ROUND = {
   round: 2,
@@ -178,16 +180,16 @@ test('findings open: a file with 2 findings prints 2 Fix first lines and exits 1
   const result = call(['findings', 'open', put(ROUND)]);
   assert.equal(result.status, 1, result.out);
   assert.deepEqual(result.lines, [
-    'Fix first: f3 (blocking, src/orders/export.ts:12): The refund of an order that ships is 4.90 too low.',
-    'Fix first: f4 (non-blocking): A variable in the refund code has a one-letter name.',
+    'Fix first: f3 (blocking, src/main.ts:12): <what is wrong in the first finding>',
+    'Fix first: f4 (non-blocking): <what is wrong in the second finding>',
     expectedLast(2, 1, 1),
   ]);
 });
 
 const expectedLast = (count, blocking, non, name = /open-\d+\.json/) => {
   const text = `Checked open-${files}.json: round 2 has ${count} open findings, ${blocking} ` +
-    `blocking and ${non} non-blocking. Read the code for each finding; fix those that ` +
-    'are true, the non-blocking ones too.';
+    `blocking and ${non} non-blocking. Open the files each finding points to; fix those ` +
+    'that are true, the non-blocking ones too.';
   assert.match(text, name);
   return text;
 };
@@ -216,13 +218,13 @@ test('findings open: a missing file or a round with no finding exits 0', () => {
 });
 
 test('findings open: the point loses control characters and stops at 500 characters', () => {
-  const point = `${'Fix the refund. '.repeat(40)}‮\u0007end`;
+  const point = `${'Fix the value. '.repeat(40)}‮\u0007end`;
   const file = put({ round: 1, reviewers: [{ reviewer: 'code-reviewer',
     findings: [{ ...FINDING, point, file: 'a\nb.js' }] }] });
   const result = call(['findings', 'open', file]);
   assert.equal(result.status, 1);
   assert.equal(result.lines.length, 2, result.out);
-  assert.ok(/^Fix first: f3 \(blocking, a b\.js:12\): Fix the refund\./.test(result.lines[0]));
+  assert.ok(/^Fix first: f3 \(blocking, a b\.js:12\): Fix the value\./.test(result.lines[0]));
   assert.ok([...result.lines[0].slice(result.lines[0].indexOf('): ') + 3)].length <= 500);
   assert.ok(!/[\u0000-\u0008‮]/.test(result.out));
 });
@@ -280,7 +282,7 @@ test('findings open: 201 findings print 200, blocking first, and one line that c
   const result = call(['findings', 'open', file]);
   assert.equal(result.status, 1, result.out);
   assert.equal(result.lines.length, 202, result.out);
-  assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/orders\/export\.ts:12\): Fix the point 201\./);
+  assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/main\.ts:12\): Fix the point 201\./);
   assert.match(result.lines[1], /^Fix first: f1 \(non-blocking/);
   assert.match(result.lines[199], /^Fix first: f199 /);
   assert.equal(result.lines[200], `Fix first: 1 more findings in ${quote(file)}`);
@@ -330,6 +332,55 @@ test('findings open: a path over 80 characters and one over 200 are printed in q
   }
 });
 
+// The longest run of characters that has no white space and no quote, in text. A path that is
+// printed in quote form is cut at 80 characters, so no run of 81 is a path that was not cut.
+const longestRun = (text) => Math.max(0, ...(text.match(/[^\s"]+/g) || []).map((one) => one.length));
+
+test('findings open: no message prints a path of 81 to 400 characters uncut, in any kind of message', () => {
+  const kinds = {
+    'missing file': (real) => path.join(path.dirname(real), 'absent.json'),
+    'folder': (real) => path.dirname(real),
+    'link': (real) => {
+      const link = path.join(path.dirname(real), 'link.json');
+      fs.symlinkSync(real, link);
+      return link;
+    },
+    'path through a file': (real) => path.join(real, 'under.json'),
+    'file that is too big': (real) => {
+      const big = path.join(path.dirname(real), 'big.json');
+      fs.writeFileSync(big, JSON.stringify(many(40, () => ({ problem: 'x'.repeat(8000) }))));
+      return big;
+    },
+    'more findings': (real) => {
+      const file = path.join(path.dirname(real), 'many.json');
+      fs.writeFileSync(file, JSON.stringify(many(201)));
+      return file;
+    },
+    'file of a finding': (real, size) => {
+      const file = path.join(path.dirname(real), 'long-file.json');
+      fs.writeFileSync(file, JSON.stringify(many(1, () => ({ file: `/${'f'.repeat(size)}` }))));
+      return file;
+    },
+  };
+  for (const size of [81, 120, 201, 400]) {
+    const real = deepPut(size);
+    for (const [kind, make] of Object.entries(kinds)) {
+      const target = make(real, size);
+      const result = call(['findings', 'open', target]);
+      const text = `${result.out}${result.err}`;
+      assert.ok(longestRun(text) <= 80, `${kind}, ${size} characters: ${text}`);
+      assert.ok(text.length > 0, kind);
+    }
+  }
+  // A file name of 200 characters is cut too.
+  const named = path.join(tmp, `${'n'.repeat(200)}.json`);
+  fs.writeFileSync(named, JSON.stringify(ROUND));
+  const result = call(['findings', 'open', named]);
+  assert.ok(longestRun(`${result.out}${result.err}`) <= 80, result.out);
+  // The check fails on a path that is not cut: it sees the full path of 120 characters.
+  assert.ok(longestRun(`no file at ${deepPut(120)}`) > 80);
+});
+
 test('findings open: 40 findings of 5 KB each, in a file over 200 KB, print all 40', () => {
   const file = put(many(40, () => ({ problem: 'x'.repeat(5000) })));
   assert.ok(fs.statSync(file).size > 200 * 1024);
@@ -361,11 +412,11 @@ test('findings open: a regular file over 256 KB is read up to 256 KB', () => {
 test('findings open: hidden characters are removed from the printed text', () => {
   const hidden = '\u{E0049}\u200C\u200D\uFE0F\u034F\u3164\u115F\u1160\u180B\u180C\u180D';
   const file = put({ round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: [{ ...FINDING,
-    point: `Fix${hidden} the refund.`, file: `src/orders/${hidden}export.ts` }] }] });
+    point: `Fix${hidden} the value.`, file: `src/${hidden}main.ts` }] }] });
   const result = call(['findings', 'open', file]);
   assert.equal(result.status, 1);
   assert.equal(result.lines[0],
-    'Fix first: f3 (blocking, src/orders/export.ts:12): Fix the refund.');
+    'Fix first: f3 (blocking, src/main.ts:12): Fix the value.');
   assert.ok(!/[\u{E0000}-\u{E007F}\u200C\u200D\uFE00-\uFE0F\u034F\u3164\u115F\u1160\u180B-\u180D]/u.test(result.out));
 });
 

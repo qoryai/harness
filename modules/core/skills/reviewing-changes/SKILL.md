@@ -15,10 +15,15 @@ ${qory:skills/simple-communication} before you write a finding.
 ## What you may do
 
 - Read the change, the words of the people who asked for the work, and any file of the work.
-- Write one file, the report, to the path in `qory.review.report` of `inputs.json`. A write
-  to any other path is denied.
-- Run no command and start no agent: you have no shell and no network. Your report is the
-  only output of your review.
+- Write one file, the report, to the path in `qory.review.report` of `inputs.json`, with
+  Write or, on Codex, with `apply_patch` that adds that one file. A write to any other path
+  is denied.
+- If your session has a shell, run only commands that read: `cat`, `head`, `tail`, `ls`,
+  `wc`, `grep`, `rg`, `find` (no `-exec` or `-delete`), and the commands of the version
+  control tool that show a change and its history, with no redirect, `$( )` or backtick.
+  The guard denies each other command and each tool but Read, Grep, Glob, Skill and the
+  report write.
+- Start no agent and use no network. Your report is the only output of your review.
 
 You start with no memory of other reviews. The run passes you values in the member
 `qory.review` of `inputs.json`, and the prompt contains the path of that file. The skill that
@@ -72,7 +77,7 @@ A proof starts with one of these forms, a colon and a space, then the steps:
 - `failing check`: a check whose result shows the problem. Name the check, and what its
   result shows, as the run passes it to you.
 - `failing input`: an input that gives a wrong result. Name the input, the step that takes
-  it, the result it returns, and the result that the people asked for. You have no shell, so
+  it, the result it returns, and the result that the people asked for. You run no code, so
   trace the input through the lines that you read, and quote them.
 - `broken rule`: only for `non-blocking`. Name the rule, where it is written, and the lines
   that break it.
@@ -81,7 +86,7 @@ The skill you review against may list these forms in the words of its kind of wo
 
 ## The report
 
-Write the report with Write, as one file at the path in `qory.review.report`. The run reads
+Write the report with Write or `apply_patch`, as one file at the path in `qory.review.report`. The run reads
 the file after your session ends. The file is JSON, in this shape:
 
 ```json
@@ -90,21 +95,21 @@ the file after your session ends. The file is JSON, in this shape:
   "findings": [
     {
       "severity": "blocking",
-      "quote": "refund = price * quantity",
-      "problem": "The refund ignores the shipping fee, so a customer gets 4.90 less than they paid.",
-      "fix": "Add the shipping fee to the refund of an order that ships.",
-      "proof": "failing input: refund an order of 2 items at 10.00 with shipping 4.90; refund() returns 20.00, and the people asked for 24.90.",
-      "point": "The refund of an order that ships is 4.90 too low.",
-      "file": "src/orders/export.ts",
+      "quote": "<the code or text that is wrong>",
+      "problem": "<what is wrong, and what it costs the people who asked for the work>",
+      "fix": "<the change that makes it right>",
+      "proof": "failing input: <the input, the step that takes it and the result it returns>",
+      "point": "<what is wrong, in one sentence>",
+      "file": "<path/to/file>",
       "line": 12
     },
     {
       "severity": "non-blocking",
-      "quote": "const x = total(o)",
-      "problem": "The name x does not show what the value is.",
-      "fix": "Name the value refundTotal.",
-      "proof": "broken rule: the naming rule in docs/guide.md asks for names that show what a value is; line 20 of src/orders/export.ts breaks it.",
-      "point": "A variable in the refund code has a one-letter name."
+      "quote": "<the code or text that is wrong>",
+      "problem": "<what is wrong>",
+      "fix": "<the change that makes it right>",
+      "proof": "broken rule: <the rule, where it is written and the lines that break it>",
+      "point": "<what is wrong, in one sentence>"
     }
   ]
 }

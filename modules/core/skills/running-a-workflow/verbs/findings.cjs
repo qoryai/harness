@@ -83,7 +83,8 @@ function open(io, file) {
   }
   return { lines, last: `Checked ${name}: round ${round} has ${plural(findings.length, 'open ' +
     'finding')}, ${blocking} blocking and ${findings.length - blocking} non-blocking. ` +
-    'Read the code for each finding; fix those that are true, the non-blocking ones too.' };
+    'Open the files each finding points to; fix those that are true, the non-blocking ones ' +
+    'too.' };
 }
 
 module.exports = {
