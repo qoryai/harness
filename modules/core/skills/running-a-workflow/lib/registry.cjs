@@ -12,6 +12,7 @@ const markdown = require('./markdown.cjs');
 const plugin = require('./plugin.cjs');
 const { REPORT_FILE } = require('./end.cjs');
 const { results } = require('./reports.cjs');
+const points = require('../types/points.cjs');
 const questions = require('../types/questions.cjs');
 const reviewComments = require('../types/review-comments.cjs');
 
@@ -38,11 +39,13 @@ const FILE = 'workflow-checks.cjs';
 
 // What a workflow-checks.cjs gets: everything that the lib files base, context, markdown and
 // plugin export, the reports' file name and check results, the rule of lib/drafts.cjs for a
-// file given to check or push, and the reader of the lock of verbs/lock.cjs.
+// file given to check or push, the reader of the lock of verbs/lock.cjs, and the check of a
+// point of points.json, for a verb that writes points.
 const LIBRARY = Object.freeze({
   ...base, ...context, ...markdown, ...plugin, REPORT_FILE, results,
   draftFile: require('./drafts.cjs').draftFile,
   lockReader: require('../verbs/lock.cjs').lockReader,
+  pointCheck: points.pointCheck, pointRules: points.pointRules, MAX_POINTS: points.MAX_POINTS,
 });
 
 // The types that this skill checks: they need the words of no kind of work.
