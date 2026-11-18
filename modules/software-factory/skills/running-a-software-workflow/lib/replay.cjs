@@ -80,7 +80,8 @@ function variablesOf(actions) {
 // signIn replays the actions of a setup in page, a Page with the origin of base, the address
 // of the app, and returns { ok, why, outside }. A load of a document of another origin, by
 // an open, a redirect, a link or a script, fails the sign-in, outside is that origin, and the
-// replay stops there, so no later action types a value of a variable into that page. The
+// replay stops there, so no later action types a value of a variable into that page. A new
+// window fails the sign-in too, once the Page of a Browser with an origin has closed it. The
 // sign-in passes when each action passes and, unless the last action is a wait, which
 // already shows the page after the sign-in, each field that a variable was typed into is
 // gone from the page within signedInMs: a sign-in that fails shows its form again.
@@ -97,6 +98,7 @@ async function signIn(page, actions, { base, env, actionMs = ACTION_MS,
     }
     return true;
   }, signedInMs);
+  if (page.settled) await page.settled();
   if (page.outside) {
     return { ok: false, why: `the page opened ${page.outside}, outside the app, after the ` +
       'last action', outside: page.outside };

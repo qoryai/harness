@@ -192,9 +192,9 @@ async function stop() {
 
 // signIns replays the setups of spec, and resolves to their results.
 async function signIns(spec) {
-  const browser = new Browser(spec.browser);
-  running.browser = browser;
   const origin = new URL(spec.serve.url).origin;
+  const browser = new Browser(spec.browser, { origin });
+  running.browser = browser;
   const results = [];
   try {
     await browser.start(spec.browserMs);

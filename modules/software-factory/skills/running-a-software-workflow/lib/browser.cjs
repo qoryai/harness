@@ -3,7 +3,10 @@
 // sign-in of the demo scripts with it, and a script that films a demo can use it too.
 //
 // Unlike the browser of render-mockups.cjs, a page here runs its scripts and reaches the
-// network, because an app needs both to sign in.
+// network, because an app needs both to sign in. A Browser with an origin reaches only that
+// origin's host and port: it sends every other request, of any kind, to a proxy at a port
+// where nothing listens, so the request fails. A page of a Page with an origin opens no new
+// window: the browser closes each one before its first request.
 'use strict';
 
 const { spawn } = require('node:child_process');
@@ -34,6 +37,13 @@ const LOAD_MS = 15000;
 // call of the protocol.
 const START_MS = 15000;
 const SEND_MS = 10000;
+// The proxy of a Browser with an origin: port 9, the discard port, where nothing listens in
+// a dev container, so each request through it fails.
+const DEAD_PROXY = 'http://127.0.0.1:9';
+// The most time to wait for the first request of a new window, which gives its origin.
+const POPUP_MS = 2000;
+// The outside of a page whose new window has no request yet, or one to the app's origin.
+const NEW_WINDOW = 'a new window';
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
@@ -55,6 +65,16 @@ function originOf(url) {
   } catch {
     return null;
   }
+}
+
+// proxyFlags returns the flags that send each request to DEAD_PROXY, except one to the host
+// and port of origin. <-loopback> removes the rule that sends no request to localhost and
+// 127.0.0.1 through a proxy.
+function proxyFlags(origin) {
+  const url = new URL(origin);
+  const port = url.port || { 'http:': '80', 'https:': '443' }[url.protocol];
+  return [`--proxy-server=${DEAD_PROXY}`,
+    `--proxy-bypass-list=<-loopback>;${url.hostname}:${port}`];
 }
 
 // executable reports whether file is a regular file that the user may run.
@@ -82,18 +102,33 @@ function findBrowser(env = process.env, candidates = BROWSERS) {
   return null;
 }
 
+// A headless browser. With origin, it reaches no other host and port than origin's, as
+// proxyFlags sets, and pauses each new target before it runs, so that a Page with an origin
+// closes each new window of its page before the window sends a request.
 class Browser {
-  constructor(bin) {
+  constructor(bin, { origin } = {}) {
     this.bin = bin;
+    this.origin = origin || null;
     this.nextId = 0;
     this.pending = new Map();
     this.handlers = new Set();
+    // The Page of each browser context, by its id.
+    this.pages = new Map();
     this.output = '';
   }
 
   // start starts the browser with a new profile in a new temporary folder, and resolves once
   // the browser returns its version on the pipe, or rejects after ms.
-  start(ms = START_MS) {
+  async start(ms = START_MS) {
+    const version = await this.launch(ms);
+    if (this.origin) {
+      await this.send('Target.setAutoAttach',
+        { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+    }
+    return version;
+  }
+
+  launch(ms) {
     this.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qory-browser-'));
     const env = {
       PATH: process.env.PATH || '/usr/bin:/bin',
@@ -101,7 +136,8 @@ class Browser {
       XDG_CONFIG_HOME: path.join(this.dir, 'config'),
       XDG_CACHE_HOME: path.join(this.dir, 'cache'),
     };
-    const args = [...FLAGS, `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
+    const args = [...FLAGS, ...(this.origin ? proxyFlags(this.origin) : []),
+      `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
     this.proc = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env });
     this.proc.stdout.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
     this.proc.stderr.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
@@ -148,6 +184,10 @@ class Browser {
 
   receive(message) {
     if (this.stopped) return;
+    if (message.method === 'Target.attachedToTarget' && !message.sessionId) {
+      this.attached(message.params);
+      return;
+    }
     const waiting = message.id && this.pending.get(message.id);
     if (!waiting) {
       for (const handler of this.handlers) handler(message);
@@ -157,6 +197,22 @@ class Browser {
     clearTimeout(waiting.timer);
     if (message.error) waiting.reject(new Error(`${waiting.method}: ${message.error.message}`));
     else waiting.resolve(message.result);
+  }
+
+  // attached handles a target that the browser paused at its start: a new window of a Page
+  // with an origin goes to that Page, which closes it. Each other paused target, such as the
+  // tab of a new Page or a service worker, runs on, and the browser detaches from it. A
+  // target that is not paused, such as the tab that page attaches to, stays as it is.
+  attached({ sessionId, targetInfo, waitingForDebugger }) {
+    const page = this.pages.get(targetInfo.browserContextId);
+    if (waitingForDebugger && targetInfo.type === 'page' && page && page.origin &&
+      targetInfo.targetId !== page.targetId) {
+      page.popup(sessionId, targetInfo);
+      return;
+    }
+    if (!waitingForDebugger) return;
+    this.send('Runtime.runIfWaitingForDebugger', {}, sessionId).catch(() => {})
+      .finally(() => this.send('Target.detachFromTarget', { sessionId }).catch(() => {}));
   }
 
   // send calls method of the protocol, and resolves to its result, or rejects when the
@@ -186,6 +242,7 @@ class Browser {
       { url: 'about:blank', browserContextId });
     const { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
     const page = new Page(this, { browserContextId, targetId, sessionId });
+    this.pages.set(browserContextId, page);
     if (origin) await page.guard(origin);
     await page.send('Page.enable');
     await page.send('Runtime.enable');
@@ -327,7 +384,10 @@ const FOCUSED = `(() => {
 // With an origin, which page({ origin }) or guard sets, the page fails the load of each
 // document of another origin, in the tab and in each frame, such as one that a redirect, a
 // link or a script opens, and outside is the origin of the first such load; type and press
-// then act only on a page of origin.
+// then act only on a page of origin. It also closes each new window of the page, such as one
+// that window.open or a form or link with target=_blank opens, before its first request, and
+// outside is then the origin of that request, or NEW_WINDOW for one to origin or for none
+// within POPUP_MS. Only a Page of a Browser with an origin sees its new windows.
 class Page {
   constructor(browser, { browserContextId, targetId, sessionId }) {
     this.browser = browser;
@@ -337,6 +397,8 @@ class Page {
     this.origin = null;
     this.outside = null;
     this.loads = 0;
+    // The new windows that wait for their first request, each a promise.
+    this.popups = new Set();
     this.handler = (message) => {
       if (message.sessionId !== this.sessionId) return;
       if (message.method === 'Page.loadEventFired') this.loads += 1;
@@ -356,6 +418,42 @@ class Page {
     this.origin = origin;
     await this.send('Fetch.enable',
       { patterns: [{ urlPattern: '*', resourceType: 'Document', requestStage: 'Request' }] });
+  }
+
+  // popup closes the new window of the target of sessionId, which the browser paused at its
+  // start, and sets outside: the window may send no request, so it fails its first one and
+  // takes the origin of that request.
+  popup(sessionId, targetInfo) {
+    if (!this.outside) this.outside = NEW_WINDOW;
+    const browser = this.browser;
+    let handler;
+    let timer;
+    const done = new Promise((resolve) => {
+      handler = (message) => {
+        if (message.sessionId !== sessionId || message.method !== 'Fetch.requestPaused') return;
+        const { requestId, request } = message.params;
+        browser.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' },
+          sessionId).catch(() => {});
+        const other = originOf(request.url);
+        if (this.outside === NEW_WINDOW && other && other !== this.origin) this.outside = other;
+        resolve();
+      };
+      browser.handlers.add(handler);
+      timer = setTimeout(resolve, POPUP_MS);
+    }).then(() => {
+      clearTimeout(timer);
+      browser.handlers.delete(handler);
+      return browser.send('Target.closeTarget', { targetId: targetInfo.targetId });
+    }).catch(() => {}).finally(() => this.popups.delete(done));
+    this.popups.add(done);
+    browser.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] },
+      sessionId).then(() => browser.send('Runtime.runIfWaitingForDebugger', {}, sessionId))
+      .catch(() => {});
+  }
+
+  // settled resolves once each new window of the page is closed.
+  async settled() {
+    await Promise.all([...this.popups]);
   }
 
   // paused lets a load of a document of origin go on, and fails any other.
@@ -485,6 +583,7 @@ class Page {
 
   async close() {
     this.browser.handlers.delete(this.handler);
+    this.browser.pages.delete(this.browserContextId);
     await this.browser.send('Target.disposeBrowserContext',
       { browserContextId: this.browserContextId }).catch(() => {});
   }
