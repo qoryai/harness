@@ -1271,6 +1271,20 @@ test('build-ledger: a withdrawal and a new push drop no row of the version befor
     'check again.');
 });
 
+test('build-ledger: a stored version of 10,000 levels exits 3 before the rows are compared', () => {
+  const deep = `${'['.repeat(10000)}${']'.repeat(10000)}`;
+  const stored = JSON.stringify(LEDGER).replace('"steps":[{', `"steps":[{"x":${deep},`);
+  for (const mode of [push, check]) {
+    const folder = fixture();
+    version(folder, 'build-ledger', 'main', 1, 'build-ledger.json', stored);
+    const result = mode(folder, 'build-ledger', ledgerFile(LEDGER));
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), ['Report to a member: build-ledger version 1 ' +
+      'nests deeper than 64 levels.', '  The list at /steps/0/x/0/.../0/0/0/0/0/0 is 65 ' +
+      'levels deep.']);
+  }
+});
+
 test('build-ledger: each row of the newest version stays, but a running row may end', () => {
   const stored = clone(LEDGER);
   const root = () => {
