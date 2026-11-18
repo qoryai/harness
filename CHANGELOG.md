@@ -593,15 +593,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
   path. `checks.cjs end` prints a finding for each reviewer that such a start counts and
   that has no report.
-- The verb `preflight` of the checks script, which a Build session runs before it changes
-  code. It checks that the dev container has a browser, that the `serve` command of the
+- The verb `preflight` of the checks script, which a Build session runs right before a
+  scenario script runs for the first time, and a Verify session first, before any film. It
+  checks that the dev container has a browser that starts, that the `serve` command of the
   build plan starts the app at its address, and that the setup of each demo script that
   types a variable signs in to the app. For each missing part it writes a point
-  `run_again` with its fix to `points.json`, so the session ends with `escalate`. The
-  sign-in opens only the origin of the app's address. The build plan has the address as a
-  line `App address: <url>` in `## Summary`, an http address in backticks, and its check
-  finds a plan with a `serve` row and no such line, or a value that is no http or https
-  URL.
+  `run_again` with its fix to `points.json`, so the session ends with `escalate`. Another
+  process at the address counts as an app that did not start. The browser fails the load of
+  each document of another origin than the app's, in the tab and in each frame, after an
+  `open`, a redirect, a link or a script, and the sign-in then writes a point and types
+  nothing more; a `type` acts only on the app's origin, with the focus in the element of
+  its target. The replay gets only the variables that its setup types, and a setup that
+  types a variable of qory or of an agent exits 3. Every process of the serve command stops
+  after the check, also on a failure or a signal, each browser call has a time limit, and
+  the browser dismisses dialogs. Each exit 3 prints a line `Cause:` for the line that ends
+  the run. The build plan has the address as a line `App address: <url>` in `## Summary`,
+  an http address in backticks, and its check finds a plan with a `serve` command and no
+  such line, or a value that is no http or https URL.
 
 ### Changed
 

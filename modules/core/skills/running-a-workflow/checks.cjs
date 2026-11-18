@@ -95,7 +95,9 @@
 // starts.json.lock, results.json.lock and findings.json.lock with their .break files, the
 // draft that lock <file> fills, the files of the ledger and `.reports/preflight/serve.log`,
 // the output of the command that the verb preflight of the registry starts, are the only
-// files this script writes; the pull and the push of qory write to the artifact folder.
+// files this script writes, besides the browser profile of preflight in a new folder under
+// $TMPDIR, which it removes afterwards; the pull and the push of qory write to the artifact
+// folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument

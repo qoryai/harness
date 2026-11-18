@@ -2369,28 +2369,50 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
   proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
   3 for a missing input, such as a pulled artifact folder with no proposal.
-- `preflight [--inputs <path>] [--artifacts <folder>]`: before a session changes code,
+- `preflight [--inputs <path>] [--artifacts <folder>]`: before the first demo of the app,
   checks the parts of the dev container that a demo of the app needs, and for each missing
   part writes a point `run_again` with its `fix` to `points.json` of the artifact folder of
-  the session. The parts are a browser, the first that exists of `/usr/bin/chromium`,
-  `chromium`, `chromium-browser`, `google-chrome` and `google-chrome-stable`; the app, which
-  the `serve` command of the build plan starts in the top folder of the checkout, and whose
-  address, the line `App address: <url>` in `## Summary`, returns a status below 500 within
-  120 seconds; and the sign-in, the setup of each demo script that types a variable, which
-  passes in the browser with the values of the variables in the environment. A sign-in
-  passes when each action passes and each field that a variable was typed into is gone
-  within 10 seconds of the last action, or when its last action is a `wait` that passes. The
-  sign-in opens only the origin of the app's address: an `open` of another origin fails the
-  sign-in, and no later action of that setup runs. With no `serve` command, it checks no app
-  and no sign-in; with no browser or no app, it checks no sign-in. It reads the build plan
-  from the folder of `--artifacts` or `qory.start_artifacts`, as `run` does, and from that
-  folder each demo script: the newest version of its name that `index.json` counts, so a
-  version folder that `index.json` does not list decides nothing. The output of the serve
-  command goes to `.reports/preflight/serve.log`, and the command stops after the check. It
-  exits 0 when each part is there, 1 with the points, 2 for wrong arguments, and 3 for a
-  missing input, such as a `serve` command with no address of the app, or a check of the app
-  that returns no result. The session then checks the points with `check points` and ends:
-  the end check sends them with the verdict `escalate`.
+  the session. A Build session runs it right before a scenario script runs for the first
+  time, and a Verify session first, before any film. The parts are a browser, the first
+  that exists of `/usr/bin/chromium`, `chromium`, `chromium-browser`, `google-chrome` and
+  `google-chrome-stable`, which starts within 15 seconds; the app, which the `serve` command
+  of the build plan starts in the top folder of the checkout, and whose address, the line
+  `App address: <url>` in `## Summary`, returns a status below 500 within 120 seconds; and
+  the sign-in, the setup of each demo script that types a variable, which passes in the
+  browser with the values of the variables in the environment. When another process
+  already returns a response at the address, the app counts as not started and the command
+  does not run; a command that starts the app in the background and exits 0 counts once the
+  address responds. A sign-in passes when each action passes and each field that a variable
+  was typed into is gone within 10 seconds of the last action, or when its last action is a
+  `wait` that passes. Each browser call has a time limit, and the browser dismisses each
+  dialog of the app, such as an alert.
+
+  The sign-in loads only pages of the origin of the app's address. The browser fails the
+  load of each document of another origin, in the tab and in each frame, whether an `open`,
+  a redirect, a link or a script starts it, and no later action of that setup runs; the
+  point then has the text "The sign-in of the app at <App address> opens <origin>, and the
+  run may open only the app's pages." A `type` and a `press` act only on a page of the
+  app's origin whose focus is in no frame, and a `type` only when the focus is in the
+  element of its target. The replay gets only the variables that its setup types, and a
+  setup that types a variable of qory or of an agent, such as `QORY_RUN_KEY` or
+  `ANTHROPIC_API_KEY`, exits 3 before the app starts.
+
+  With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
+  app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
+  `qory.start_artifacts`, as `run` does, and the demo scripts from the artifact folder of
+  the session, the store of the run, since the folder of the build plans holds only build
+  plans: of each name, the newest version that `index.json` counts, so a version folder that
+  `index.json` does not list is not read, or with no entry in `index.json`, the highest
+  version folder. The output of the serve command goes to `.reports/preflight/serve.log`.
+  Every process of the command stops after the check, also on a failure or a signal: its
+  process group, and on Linux each process with the mark of the supervisor of `run`. The
+  sign-ins stop after at most 10 minutes. It exits 0 when each part is there, 1 with the
+  points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
+  a `serve` command with no address of the app, no demo script, a demo script that types a
+  key of qory or of an agent, or a check of the app that returns no result. With exit 3, a
+  line that starts with `Cause:` contains the cause for the line that ends the run, as
+  `running-checks` lists it. The session then checks the points with `check points` and
+  ends: the end check sends them with the verdict `escalate`.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,

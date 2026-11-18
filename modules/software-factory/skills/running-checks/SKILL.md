@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault, prove the commits of a fast-track change or check the dev container before a change, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe, prove and preflight of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault, prove the commits of a fast-track change or check the dev container before the first demo of the app, in the main session of a Build or Verify workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe, prove and preflight of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -88,8 +88,9 @@ the section "Diff and probe".
 
 ## When each check runs
 
-1. In a workflow that starts the app, the session runs `preflight` first, before any
-   change. See the section "Preflight".
+1. In a Build workflow, the session runs `preflight` right before a scenario script runs
+   for the first time. In Verify, the session runs `preflight` first, before any film. See
+   the section "Preflight".
 2. The agent that changes code runs `run targeted` with the paths of the test files of its
    change, after each change, until they are green.
 3. After each agent of a step, the session runs `scope <step>`, then `run lint`,
@@ -137,29 +138,47 @@ submitted commit.
 ## Preflight
 
 `preflight` checks that the dev container has what a demo of the app needs, before the
-session changes code:
+first demo:
 
 1. A browser: the first that exists of `/usr/bin/chromium`, `chromium`,
-   `chromium-browser`, `google-chrome` and `google-chrome-stable`.
+   `chromium-browser`, `google-chrome` and `google-chrome-stable`, and that starts.
 2. The app: the `serve` command of the build plan starts it in the top folder of the
    checkout, and its address returns a status below 500 within 120 seconds. The address is
    the line `App address: <url>` in `## Summary` of the build plan, with an http address
    in backticks, such as ``App address: `http://localhost:3000/` ``: the check of links
-   finds a bare http link.
+   finds a bare http link. When another process already returns a response at the
+   address, the app counts as not started, and the command does not run. A command that
+   starts the app in the background and exits 0 works.
 3. The sign-in: the setup of each demo script that types a variable passes in the browser,
-   with the values of the variables in the environment. A setup may open only the origin of
-   the app's address: an `open` of another origin fails the sign-in.
+   with the values of the variables in the environment. The browser loads no page of
+   another origin than the app's address, in the tab or in a frame, whether an `open`, a
+   redirect, a link or a script starts the load: the load fails, and the sign-in fails
+   before its next action. A `type` or `press` acts only on a page of the app's origin, and a
+   `type` only when the focus is in the element of its target. The replay gets only the
+   variables that its setup types.
 
-With no `serve` command in the build plan, it checks the browser alone. The output of the
-serve command is in `.reports/preflight/serve.log` of the artifact folder, and the command
-stops after the check.
+`preflight` reads the demo scripts from the artifact folder of the session: of each name,
+the newest version that `index.json` counts. With no `serve` command in the build plan, it
+checks the browser alone. The output of the serve command is in
+`.reports/preflight/serve.log` of the artifact folder. After the check, every process of
+the command stops, also when the check fails or stops on a signal.
 
 For each missing part, `preflight` writes a point `run_again` with its fix to `points.json`
 of the artifact folder, and exits 1. Then change no code: run `check points` on
 `points.json`, and end the session. The end check sends the points with the verdict
 `escalate`, and a member reads in the fix line of each point what to change before the
-next round. Exit 3 means that an input is missing, such as a `serve` command with no
-`App address:` line: fix the input as the first line says, then run `preflight` again.
+next round. A sign-in that loads a page of another origin writes such a point too.
+
+Exit 3 means that an input is missing or the check did not finish. Fix the input as the
+first line of the output states, then run `preflight` again. If you cannot fix it, end the
+run with "The run stopped at the app check, because <cause>.", where the line of the
+output that starts with `Cause:` contains the cause:
+
+- "the build plan has no App address";
+- "no demo script exists for the app";
+- "a demo script types <NAME>, which the run keeps from scripts";
+- "the browser check did not finish: <reason>", when the check of the app returned no
+  result.
 
 ## Red and green
 
@@ -233,15 +252,16 @@ Probe a test file that runs faster, or, for a limit under 60, raise
 ### The Bash timeout on Claude Code
 
 On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
-set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`
-and `probe` the timeout 3600000 ms. The script stops every command of a call 60 seconds
-before those 60 minutes, counted from the start of the script, so the call still writes its
-record and its red line. The commands of one call share that time: the reruns of
-`run targeted`, the two runs of `probe` and the checks of `run locked`. A locked check that
-the call has no time left for does not run, and is red: run fewer checks per call. Run the
-verb as the only command of the Bash call: the script counts the 60 minutes from the start
-of the script, so a command before it in the same call, such as `npm ci`, uses up the
-reserve.
+set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`,
+`probe` and `preflight` the timeout 3600000 ms; `preflight` stops its sign-ins after at most
+10 minutes, and ends within 11 minutes. In `run` and `probe`, the script stops every command
+of a call 60 seconds before those 60 minutes, counted from the start of the script, so the
+call still writes its record and its red line. The commands of one call share that time:
+the reruns of `run targeted`, the two runs of `probe` and the checks of `run locked`. A
+locked check that the call has no time left for does not run, and is red: run fewer checks
+per call. Run the verb as the only command of the Bash call: the script counts the 60
+minutes from the start of the script, so a command before it in the same call, such as
+`npm ci`, uses up the reserve.
 
 ## Scope
 
