@@ -32,9 +32,11 @@ const PRESS_MS = 1000;
 const PAGE_MS = 15000;
 // The time of the runner besides the start and the sign-ins: the first GET of the address,
 // the start of the browser and the stop of the app. The runner stops its sign-ins at the
-// limit, which is at most MAX_MS, and the preflight stops the runner STOP_MS after it.
+// limit, which is at most MAX_MS, and the preflight stops the runner STOP_MS after it. The
+// Bash tool of Claude Code stops a command at 600 s, whatever its timeout, so the two stay
+// below that: the preflight ends within 585 s.
 const MORE_MS = 30000;
-const MAX_MS = 600000;
+const MAX_MS = 570000;
 const STOP_MS = 15000;
 
 // signInMs returns the most time that the replay of actions may take, by the limit of each

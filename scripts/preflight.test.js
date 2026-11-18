@@ -311,6 +311,13 @@ test('preflight: a serve command or a variable name that breaks the text of a po
   assert.equal(preflight.joined(['A', 'B', 'C']), 'A, B and C');
 });
 
+test('preflight: the preflight stops its runner before the Bash tool stops it at 600 s', () => {
+  // The runner stops its sign-ins at MAX_MS, and the preflight stops the runner STOP_MS later.
+  assert.ok(preflight.MAX_MS + preflight.STOP_MS < 600000);
+  assert.equal(preflight.MAX_MS, 570000);
+  assert.equal(preflight.MAX_MS + preflight.STOP_MS, 585000);
+});
+
 test('preflight: the setups that type a variable count once, with their scenarios', () => {
   const other = [{ do: 'open', url: '/' }];
   const setups = signInSetups([script('scenario-1', SIGN_IN), script('scenario-2', other),

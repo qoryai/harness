@@ -2405,8 +2405,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   version folder or a name that `index.json` does not list is not read. The output of the
   serve command goes to `.reports/preflight/serve.log`. Every process of the command stops
   after the check, also on a failure or a signal: its process group, and on Linux each
-  process with the mark of the supervisor of `run`. The sign-ins stop after at most 10
-  minutes. It exits 0 when each part is there, 1 with the
+  process with the mark of the supervisor of `run`. The sign-ins stop after at most 570
+  seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
+  Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
   a `serve` command with no address of the app, no demo script, a demo script that types a
   key of qory or of an agent, or a check of the app that fails or runs past its limit. With

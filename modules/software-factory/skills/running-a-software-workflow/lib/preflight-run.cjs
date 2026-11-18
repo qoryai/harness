@@ -15,7 +15,7 @@
 // Then it stops the browser, the process group of the command and each process with its
 // mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
 // lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
-// SIGHUP, and on an error that nothing catches. After limitMs from its start, 600 s without
+// SIGHUP, and on an error that nothing catches. After limitMs from its start, 570 s without
 // limitMs, it stops the sign-ins and sets unfinished. It prints { app, signIns, unfinished }
 // as JSON on stdout, the one line that it prints: app is { started, ran, why }, signIns has
 // { ok, why, outside, browser } per setup, and unfinished is null or the reason in one
@@ -36,7 +36,7 @@ const POLL_MS = 250;
 const REQUEST_MS = 2000;
 const GRACE_MS = 5000;
 // The limit of the sign-ins with no limitMs in the spec, as the most of lib/preflight.cjs.
-const LIMIT_MS = 600000;
+const LIMIT_MS = 570000;
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 

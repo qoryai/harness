@@ -253,8 +253,9 @@ Probe a test file that runs faster, or, for a limit under 60, raise
 
 On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
 set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`,
-`probe` and `preflight` the timeout 3600000 ms; `preflight` stops its sign-ins after at most
-10 minutes, and ends within 11 minutes. In `run` and `probe`, the script stops every command
+`probe` and `preflight` the timeout 3600000 ms. The Bash tool of Claude Code stops a command
+at 600 seconds, whatever its timeout, so `preflight` stops its sign-ins after at most 570
+seconds and ends within 585 seconds. In `run` and `probe`, the script stops every command
 of a call 60 seconds before those 60 minutes, counted from the start of the script, so the
 call still writes its record and its red line. The commands of one call share that time:
 the reruns of `run targeted`, the two runs of `probe` and the checks of `run locked`. A
