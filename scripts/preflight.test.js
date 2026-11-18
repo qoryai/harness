@@ -781,8 +781,10 @@ test('preflight: a browser that fails at its start writes the point of the brows
 test('preflight: a demo script that types a key of qory or of an agent exits 3 before the app starts', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   assert.deepEqual(['QORY_RUN_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
-    'GITHUB_TOKEN', 'DEMO_PASSWORD', 'APP_TOKEN'].map(runKey),
-  [true, true, true, true, false, false]);
+    'GITHUB_TOKEN', 'GH_TOKEN', 'GITLAB_TOKEN', 'GL_TOKEN', 'BITBUCKET_TOKEN',
+    'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN', 'DEMO_PASSWORD', 'APP_TOKEN',
+    'GITLAB_TOKEN_FILE', 'MY_GL_TOKEN'].map(runKey),
+  [true, true, true, true, true, true, true, true, true, true, false, false, false, false]);
   const here = checkout();
   const setup = [...SIGN_IN.slice(0, 2), { do: 'type', target: '#password',
     variable: 'ANTHROPIC_API_KEY' }];

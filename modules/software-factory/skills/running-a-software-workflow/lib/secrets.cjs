@@ -25,9 +25,11 @@ const SHAPES = [
 
 const SECRET_NAME = /TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL/i;
 // The name of a variable that qory or the runtime of an agent passes to a run, such as
-// QORY_RUN_KEY, ANTHROPIC_API_KEY or GITHUB_TOKEN: the run keeps its value from a script of
-// the run, such as a demo script that the preflight replays.
-const RUN_KEY = /^(?:QORY|ANTHROPIC|CLAUDE|OPENAI|CODEX|GEMINI)_|^(?:GH|GITHUB)_TOKEN$/;
+// QORY_RUN_KEY, ANTHROPIC_API_KEY or GITHUB_TOKEN, or a token of a code forge, such as
+// GITLAB_TOKEN: the run keeps its value from a script of the run, such as a demo script that
+// the preflight replays.
+const RUN_KEY = new RegExp('^(?:QORY|ANTHROPIC|CLAUDE|OPENAI|CODEX|GEMINI)_|' +
+  '^(?:GH|GITHUB|GH_ENTERPRISE|GITHUB_ENTERPRISE|GITLAB|GL|BITBUCKET)_TOKEN$');
 const MIN_VALUE = 12;
 // The most bytes of a key file that the scan reads.
 const MAX_KEY_FILE = 64 * 1024;
