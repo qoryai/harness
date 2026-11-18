@@ -21,8 +21,10 @@ const WORDS = {
   number: 'a number', boolean: 'true or false', null: 'null',
 };
 
-// entryCount returns count with the word entry, in the plural for any count but 1.
+// entryCount and characterCount return count with the word entry or character, in the plural
+// for any count but 1.
 const entryCount = (count) => `${count} ${count === 1 ? 'entry' : 'entries'}`;
+const characterCount = (count) => `${count} ${count === 1 ? 'character' : 'characters'}`;
 
 // kind returns the JSON Schema type of a parsed JSON value.
 function kind(value) {
@@ -164,10 +166,10 @@ function errors(loaded, value, file) {
     if (actual === 'string') {
       const count = codePoints(node);
       if (schema.minLength !== undefined && count < schema.minLength) {
-        add('Write', `as text of at least ${schema.minLength} characters`, `It has ${count}`);
+        add('Write', `as text of at least ${characterCount(schema.minLength)}`, `It has ${count}`);
       }
       if (schema.maxLength !== undefined && count > schema.maxLength) {
-        add('Cut', `to at most ${schema.maxLength} characters`, `It has ${count}`);
+        add('Cut', `to at most ${characterCount(schema.maxLength)}`, `It has ${count}`);
       }
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
         add('Write', 'so that it matches its pattern',

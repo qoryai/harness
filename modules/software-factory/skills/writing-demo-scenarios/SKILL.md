@@ -77,7 +77,7 @@ Evidence: pictures
 ## What the scenarios cover
 
 Cover the criteria as the check list of `checking-demo-scenarios` lists. A criterion with
-the planned check `Tests` has no scenario, also when the spec states its rule. No scenario
+the check `Tests` has no scenario, also when the spec states its rule. No scenario
 contradicts a `Stays:` point of the spec.
 
 You never change a criterion. A word that needs a criterion changed or added stops you, as

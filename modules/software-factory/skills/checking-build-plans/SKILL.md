@@ -23,9 +23,9 @@ document" of `reviewing-drafts`, with its parts, pictures and word limit. The re
 1. Before you read the plan, list what the person's words ask: the ticket, the notes, a
    person's word that a fact or finding quotes, and the newest approved acceptance
    criteria. A quote that differs from its source is a finding.
-2. Each criterion that is not removed is in a row whose Check fits its planned check: a
-   test file path for `Tests`, a scenario id for `Demo`. A row that lists criteria of two
-   planned checks is a finding, because its Check has one value.
+2. Each criterion that is not removed is in a row whose Check fits the criterion's
+   `check`: a test file path for `Tests`, a scenario id for `Demo`. A row that lists
+   criteria of two checks is a finding, because its Check has one value.
 3. Each deliverable is one change that one agent makes and one reviewer reads at once. A
    deliverable that joins unrelated changes, or one that splits one behaviour so that no
    part works alone, is a finding. A deliverable that needs a later one is a finding.

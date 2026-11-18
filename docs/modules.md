@@ -2145,8 +2145,8 @@ step: a starting state, a table of steps with what the viewer sees and the mocku
 `Evidence: pictures`. The writer picks `pictures` when each step shows a state that stays
 on the screen, and `film` when a step shows a change over time. An id such as `scenario-1`
 stays fixed across versions. A version has at most 12 scenarios, and they cover only the
-criteria whose planned check is `Demo: <title>`. Each such criterion is on the `Shows:` line
-of the scenario with that title, and each `ac-N` on a `Shows:` line is planned as a demo
+criteria whose check is `Demo: <title>`. Each such criterion is on the `Shows:` line of
+the scenario with that title, and each `ac-N` on a `Shows:` line is planned as a demo
 with that title. `scenario-reviewer` checks that a step shows each `ac-N` on a `Shows:`
 line. When no scenario is left, because a rework removes each one or no criterion is planned
 as a demo, the writer empties `demo-scenarios.md` to 0 bytes and reports a version note: a
@@ -2262,8 +2262,8 @@ again after a small workflow's stop, and when the session lost the list.
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.
 - **A changed criterion** reruns each screen that lists its `ac-N`, each scenario whose
-  `Shows:` line lists it, and each decision whose "Rests on:" line lists it. A changed
-  planned check reruns the demo scenarios.
+  `Shows:` line lists it, and each decision whose "Rests on:" line lists it. A changed check
+  of a criterion reruns the demo scenarios.
 - **A small workflow's stop.** A stop that needs a change to a criterion, a new criterion or
   a change to the spec runs `write-specs`, then the stopped workflow, and one that needs a
   type runs the workflow that writes it. A later follow of the stopped workflow settles a
@@ -2301,10 +2301,10 @@ again after a small workflow's stop, and when the session lost the list.
 
 `shape-reviewer` reads the pushed outputs together by `reviewing-drafts` and
 `checking-shape`, read-only: screen against mockup, choice against record, criterion against
-page, and the planned checks against the demo scenarios both ways. Each planned check
+page, and the checks of the criteria against the demo scenarios both ways. Each check
 "Demo: <title>" in `acceptance-criteria.json` has a scenario with that title in
 `demo-scenarios.md` whose `Shows:` line lists the criterion, and each `ac-N` in a `Shows:`
-line has the planned check "Demo" with that scenario's title. Where a criterion and a
+line has the check "Demo" with that scenario's title. Where a criterion and a
 mockup page differ, the criterion applies, and the mockup states that in a visible line.
 Each finding names the one workflow that changes the output, and the session sends it to
 that workflow's writer.

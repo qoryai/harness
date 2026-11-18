@@ -685,7 +685,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   compares the copy in `pack-mockups.cjs` with it.
 - The schema check of `running-a-software-workflow` applies `uniqueItems`, which the
   verification format uses, shows a pattern's control characters as escapes, and writes
-  "at least 1 entry" in place of "at least 1 entries".
+  "at least 1 entry" and "at least 1 character" in place of "at least 1 entries" and "at
+  least 1 characters".
 - `.github/workflows/check.yml` builds qory at `0e02282`, the merge of
   qoryai/qory#127, which has the acceptance criteria and verification formats and `about`
   on each question, in place of `1deb56e`.

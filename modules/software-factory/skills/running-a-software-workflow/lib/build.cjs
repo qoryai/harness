@@ -369,8 +369,8 @@ module.exports = (lib) => {
   // spaces as one space, and with no space at either end.
   const flat = (text) => text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
 
-  // criterionWords returns the words of criterion that a Criteria cell, a Criterion cell and
-  // an explainer heading have in quotes: its first sentence, as the check of the criteria
+  // criterionWords returns the words of criterion that a Criteria cell and an explainer
+  // heading have in quotes: its first sentence, as the check of the criteria
   // counts its sentences, so after e.g. it goes on, with no full stop at the end.
   function criterionWords(criterion) {
     return flat(sentenceParts(criterion.text)[0] || '');

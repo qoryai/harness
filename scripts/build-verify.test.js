@@ -2177,7 +2177,7 @@ test('verification: the members and values of its schema', () => {
   schemaLine((doc) => { doc.model_families = []; }, 'Give /model_families of ' +
     'verification.json at least 1 entry.\nIt has 0.');
   schemaLine((doc) => { doc.not_verified[0].reason = ''; }, 'Write /not_verified/0/reason of ' +
-    'verification.json as text of at least 1 characters.\nIt has 0.');
+    'verification.json as text of at least 1 character.\nIt has 0.');
   // A criterion is its id: ac- and a number with no leading zero, in lower case.
   for (const id of ['AC-1', 'ac-01', 'AC-1, "The saved reply"']) {
     fails(push(fixture(), 'verification', verificationFile(verified((doc) => {
