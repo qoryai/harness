@@ -28,6 +28,9 @@ const { watch } = require('./first-line.js');
 const JSON_TYPES = ['submission', 'build-ledger', 'acceptance-lock', 'demo-script',
   'demo-evidence', 'verification'];
 const DOCUMENT_TYPES = ['build-plan', 'build-report'];
+// The JSON types that process.yaml defines with a json_schema: every JSON type but verification,
+// a standard type of Qory Apiary.
+const CUSTOM_JSON_TYPES = JSON_TYPES.filter((type) => type !== 'verification');
 const C1 = '5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e';
 const C2 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -453,13 +456,12 @@ function templateEntries() {
   return entries.slice(entries.findIndex((entry) => entry.name === 'demo-scenarios') + 1);
 }
 
-test('process.yaml lists the eight types of Build and Verify last, with their limits', () => {
+test('process.yaml lists the seven custom types of Build and Verify last, with their limits', () => {
   const entries = templateEntries();
   assert.deepEqual(entries.map((entry) => entry.name), ['submission', 'build-plan',
-    'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence',
-    'verification']);
+    'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence']);
   for (const entry of entries) {
-    const structured = JSON_TYPES.includes(entry.name);
+    const structured = CUSTOM_JSON_TYPES.includes(entry.name);
     assert.equal(entry.base_view, structured ? 'structured' : 'document', entry.name);
     assert.equal(entry.size_limit, 1048576, entry.name);
     assert.equal(entry.max_files, 1, entry.name);
@@ -469,38 +471,43 @@ test('process.yaml lists the eight types of Build and Verify last, with their li
   assert.ok(fs.statSync(PROCESS).size <= 65536);
   // The standard types stay listed by name alone.
   const yaml = fs.readFileSync(PROCESS, 'utf8');
-  for (const name of ['screenshot', 'demo-video', 'explainer']) {
+  for (const name of ['acceptance-criteria', 'verification', 'screenshot', 'demo-video',
+    'explainer']) {
     assert.match(yaml, new RegExp(`\\n  - name: ${name}\\n  - name: `));
   }
 });
 
-// The draft check of a type with a `size_limit` in process.yaml refuses what the push refuses,
-// by the limit that lib/template.cjs reads there.
-test('the draft size limit of verification and build-ledger is their size_limit', () => {
+// The draft check of build-ledger refuses what the push refuses, by the size_limit that
+// lib/template.cjs reads from process.yaml. verification, a standard type, has the default
+// draft limit, as acceptance-criteria has.
+test('the draft size limit of build-ledger is its size_limit, and verification has the default', () => {
   const { loadRegistry } = require(path.join(MODULES,
     'core/skills/running-a-workflow/lib/registry.cjs'));
   const { types } = loadRegistry(path.join(MODULES, 'core'));
   const limits = Object.fromEntries(artifactEntries().map((entry) => [entry.name,
     entry.size_limit]));
-  for (const name of ['verification', 'build-ledger']) {
-    const def = types.find((one) => one.type === name);
-    assert.equal(def.maxBytes, limits[name], name);
-  }
+  assert.equal(limits['build-ledger'], 1048576);
+  assert.equal(types.find((one) => one.type === 'build-ledger').maxBytes, 1048576);
+  assert.equal(types.find((one) => one.type === 'verification').maxBytes, undefined);
   // A type listed by name alone has no size_limit to read: the reader throws.
   const { sizeLimit } = require(path.join(MODULES,
     'software-factory/skills/running-a-software-workflow/lib/template.cjs'));
-  assert.throws(() => sizeLimit('acceptance-criteria'),
-    /^Error: Set size_limit of acceptance-criteria under artifact_types in /);
-  // A draft of 300 KB, above the default of 256 KB, gets no finding on its size; one byte
+  assert.throws(() => sizeLimit('verification'),
+    /^Error: Set size_limit of verification under artifact_types in /);
+  // A ledger of 300 KB, above the default of 256 KB, gets no finding on its size; one byte
   // above 1 MiB gets the finding.
-  const padded = (size) => {
-    const text = JSON.stringify(VERIFICATION, null, 2);
-    return `${text.slice(0, -1)}${' '.repeat(size - Buffer.byteLength(text))}}`;
-  };
-  const size = /^Cut verification\.json to at most 1024 KB\./;
-  const sized = (bytes) => check(fixture(), 'verification', ['verification.json', padded(bytes)]);
-  assert.ok(!sized(300 * 1024).lines.some((line) => size.test(line)));
-  fails(sized(1024 * 1024 + 1), size);
+  const line = JSON.stringify(LEDGER);
+  const padded = (size) =>
+    `${line.slice(0, -1)}${' '.repeat(size - 1 - Buffer.byteLength(line))}}\n`;
+  const ledgerSize = /^Cut build-ledger\.json to at most 1024 KB\./;
+  const ledger = (bytes) => check(fixture(), 'build-ledger', ['build-ledger.json', padded(bytes)]);
+  assert.ok(!ledger(300 * 1024).lines.some((one) => ledgerSize.test(one)));
+  fails(ledger(1024 * 1024 + 1), ledgerSize);
+  // A verification draft one byte above 256 KB gets the finding.
+  const text = JSON.stringify(VERIFICATION, null, 2);
+  const over = `${text.slice(0, -1)}${' '.repeat(256 * 1024 + 1 - Buffer.byteLength(text))}}`;
+  fails(check(fixture(), 'verification', ['verification.json', over]),
+    /^Cut verification\.json to at most 256 KB\./);
 });
 
 // A run cannot withdraw a name of acceptance-lock or build-ledger. The flag is a plain YAML
@@ -515,13 +522,15 @@ test('process.yaml sets withdrawable: false for acceptance-lock and build-ledger
 });
 
 test('each JSON Schema of schemas/ is the json_schema of its type in process.yaml', () => {
-  // acceptance-criteria is a standard type of Qory Apiary, listed by name alone, so
-  // process.yaml has no JSON Schema of it to compare: the draft check reads
-  // schemas/acceptance-criteria.schema.json, the format of qory's contract.
-  const [criteria] = artifactEntries();
+  // acceptance-criteria and verification are standard types of Qory Apiary, listed by name
+  // alone, so process.yaml has no JSON Schema of either to compare: their draft checks read
+  // schemas/acceptance-criteria.schema.json and schemas/verification.schema.json, the
+  // formats of qory's contract.
+  const [criteria, verification] = artifactEntries();
   assert.deepEqual(criteria, { name: 'acceptance-criteria' });
+  assert.deepEqual(verification, { name: 'verification' });
   const entries = artifactEntries().filter((entry) => entry.json_schema);
-  assert.deepEqual(entries.map((entry) => entry.name).sort(), [...JSON_TYPES].sort());
+  assert.deepEqual(entries.map((entry) => entry.name).sort(), [...CUSTOM_JSON_TYPES].sort());
   for (const entry of entries) {
     const file = path.join(SKILL, 'schemas', `${entry.name}.schema.json`);
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), entry.json_schema, entry.name);

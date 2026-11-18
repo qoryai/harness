@@ -263,10 +263,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   "Earlier findings:" and the list "Closed:".
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
-  `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
-  type. `workflow-checks.cjs` checks these types, `demo-video`, `screenshot` and `explainer`
-  before each review and in each type's push check. A type of the checks script may set its
-  file size limit and mark files that the check does not read as text.
+  `demo-script` and `demo-evidence`, with a JSON Schema for each structured type, and
+  `verification`, a standard type of Qory Apiary listed by name alone. `workflow-checks.cjs`
+  checks these types, `demo-video`, `screenshot` and `explainer` before each review and in
+  each type's push check. A type of the checks script may set its file size limit and mark
+  files that the check does not read as text.
 - `checks.cjs lock <file>` and `checks.cjs lock --verify [--version <N>]`, the lock on the
   acceptance checks. `lock` writes the SHA-256 of each check and support file that the draft
   `acceptance-lock.json` lists into it, checks it, and pushes it. The push check of
@@ -663,10 +664,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   in place of `verification.md`: `target_version`, `matrix` with a row of `criterion`,
   `state` (`met` or `not_met`) and `evidence` for each criterion that was checked,
   `not_verified` with the `reason` for each criterion that was not, and `model_families`.
-  `process.yaml` declares `verification` as a structured type with that JSON Schema and
-  the size limit of 1 MiB that it had. The draft check of `verification` and
-  `build-ledger` reads that limit from `process.yaml` and applies it too. Beyond the
-  schema, the check requires `target_version` to be a full commit id, each criterion
+  `process.yaml` lists `verification` by name alone, a standard type of Qory Apiary, and
+  the draft check reads the contract's JSON Schema from
+  `schemas/verification.schema.json` of `running-a-software-workflow` and refuses a draft
+  above 256 KB, its default. The draft check of `build-ledger` reads the `size_limit` of
+  1 MiB from `process.yaml`, so that it refuses what the push refuses. Beyond the schema,
+  the check requires `target_version` to be a full commit id, each criterion
   that is not removed in `matrix` or in `not_verified` exactly once, and the words of a
   criterion quoted in an evidence or a reason. The sections `## Summary`, `## Lowered` and
   `## Accepted findings` and the state `Needs a person` are gone, because the format has no

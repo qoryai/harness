@@ -2843,19 +2843,21 @@ template that a software-factory workspace starts with. The file sets these keys
   result. Each stage has a `description`: one paragraph of plain text, at most 500
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
-  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
-  `decision-record` are standard types, each with its name alone. The check of an
-  `acceptance-criteria.json` draft reads the JSON Schema of the acceptance criteria format
-  of qory's contract from `skills/running-a-software-workflow/schemas/`. `spec` and
-  `demo-scenarios` are custom types with `base_view: document`, `size_limit: 1048576` and
-  `max_files: 1`: one Markdown file of at most 1 MiB. The types of Build and Verify follow,
-  each with `max_files: 1`: `build-plan` and `build-report` with `base_view: document`,
-  and `submission`, `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`
-  and `verification` with `base_view: structured`, each with `size_limit: 1048576`, the
-  default of Qory Apiary. Each structured type has the `json_schema` of
-  `skills/running-a-software-workflow/schemas/<type>.schema.json`; that of `verification`
-  is the contract's. The draft check of `verification` and `build-ledger` reads that size
-  limit from `process.yaml` and refuses a file above it, as the push does. `build-ledger` and
+  use. `acceptance-criteria`, `verification`, `mockup`, `screenshot`, `demo-video`,
+  `explainer` and `decision-record` are standard types, each with its name alone. The
+  checks of an `acceptance-criteria.json` and a `verification.json` draft read the JSON
+  Schemas of the acceptance criteria and verification formats of qory's contract from
+  `skills/running-a-software-workflow/schemas/`, and refuse a draft above 256 KB, the
+  default of the draft check. `spec` and `demo-scenarios` are custom types with
+  `base_view: document`, `size_limit: 1048576` and `max_files: 1`: one Markdown file of at
+  most 1 MiB. The custom types of Build and Verify follow, each with `max_files: 1`:
+  `build-plan` and `build-report` with `base_view: document`, and `submission`,
+  `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
+  `base_view: structured`, each with `size_limit: 1048576`, the default of Qory Apiary.
+  Each structured type has the `json_schema` of
+  `skills/running-a-software-workflow/schemas/<type>.schema.json`. The draft check of
+  `build-ledger` reads that size limit from `process.yaml` and refuses a file above it, as
+  the push does. `build-ledger` and
   `acceptance-lock` also have `withdrawable: false`, so a run cannot withdraw a name of
   either type and pushes a new version instead: Qory Apiary returns 422 for that push in a
   run, and outside a run `qory artifact push --withdraw` exits 4. Every other type keeps

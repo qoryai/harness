@@ -3,7 +3,8 @@
 // running-a-workflow loads from every skill folder with this file, as its lib/registry.cjs
 // lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios;
 // the types of Build and Verify, which BUILD_AND_VERIFY lists, with the JSON Schemas of
-// schemas/, which process.yaml also contains for Qory Apiary; the Blocked: lines on the
+// schemas/, which process.yaml also contains for Qory Apiary, but for the standard types
+// acceptance-criteria and verification, which it lists by name alone; the Blocked: lines on the
 // spec and its criteria; and the rules of the build ledger, in lib/ledger.cjs, which the verbs
 // step and resume of the checks script apply.
 //

@@ -5,8 +5,6 @@
 // not_verified, once.
 'use strict';
 
-const { sizeLimit } = require('../lib/template.cjs');
-
 module.exports = (lib) => {
   const { COMMIT, characters, jsonFile, liveCriteria, paths, short, wrongQuotes } = lib;
 
@@ -82,8 +80,6 @@ module.exports = (lib) => {
     main: FILE,
     words: 'verification',
     reviewer: null,
-    // The type's size_limit in process.yaml, so that a draft and a push agree.
-    get maxBytes() { return sizeLimit('verification'); },
     check: verification,
   };
 };
