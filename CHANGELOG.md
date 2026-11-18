@@ -369,8 +369,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or the
   `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, or has
-  `fix` on a point. The pin is `1deb56e`, the head of qory's `544-build-verify` branch
-  after qoryai/qory#125.
+  `fix` on a point. The pin is `1deb56e`, qory's commit after qoryai/qory#125.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -626,8 +625,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   qory at `1deb56e` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the
   tier `light`, `balanced` or `thinking`, and rule 3 of `scripts/check.sh` fails on
-  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `1deb56e`, the head of
-  qory's `544-build-verify` branch, in place of `91f02f0`.
+  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `1deb56e`, qory's commit
+  after qoryai/qory#125, in place of `91f02f0`.
 - Each script of `core` and `software-factory` ends in `.cjs` in place of `.js`: the
   hooks, `checks.cjs` with `lib/`, `verbs/` and `types/`, `versions.cjs`, `push-check.cjs`,
   `workflow-checks.cjs` with its files, and the scripts of `designing-mockups`. Node loads a
@@ -839,7 +838,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   listed under two tiers, and on a name that a row of its tier also excepts.
   `writing-agents` and `harness-reviewer` follow the same rule.
 - `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `1deb56e`,
-  Forager at `b6bf9042` and apiary-core at `962c97fa` do, in place of text about work that
+  Forager at `123b34ab` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
   files of `simple-communication`.
 - Each finding of a reviewer has a `Point:` line: one sentence that a member reads when the

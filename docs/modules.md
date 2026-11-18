@@ -1085,7 +1085,7 @@ keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
 `QORY_HARNESS_HOME` reaches the hook. A hook in `$CODEX_HOME` runs only when its hash is
 trusted. qory at `1deb56e` writes no `trusted_hash` into `config.toml`, and neither qory
-nor the Forager commit it pins, `b6bf9042`, starts Codex with
+nor the Forager commit it pins, `123b34ab`, starts Codex with
 `--dangerously-bypass-hook-trust`, so in a run on Codex the hook does not run.
 The other three follow their documentation. Cursor's
 [hooks page](https://cursor.com/docs/hooks) does not say whether these hooks run in
