@@ -655,6 +655,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   place of a number from 1 to 99.
 - The schema check of `running-a-software-workflow` applies `uniqueItems`, which the
   verification format uses, and shows a pattern's control characters as escapes.
+- `.github/workflows/check.yml` builds qory at `0e02282`, qory's commit after
+  qoryai/qory#127, which has the acceptance criteria and verification formats and `about`
+  on each question, in place of `1deb56e`.
 - The middle model tier is `balanced` in place of `fast`, the name that qory gives it.
   qory at `0e02282` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the

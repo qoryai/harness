@@ -1529,7 +1529,8 @@ The checks:
   new, or differs from the newest questions, is `{"work_item": true}` or an output, `type`
   and `name`, that the run can read: a name that `index.json` lists with a version that
   counts, a name with a version folder in the store, or, in a check, a type whose draft is
-  at the top of the artifact folder. Its `item`, for the type `acceptance-criteria`, is a
+  at the top of the artifact folder, or a type that no module checks, such as `mockup`,
+  whose draft the check cannot find. Its `item`, for the type `acceptance-criteria`, is a
   criterion id that the criteria have, when the check can read the criteria: the draft at
   the top in a check, else the newest version;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
@@ -1575,12 +1576,13 @@ a version counts neither, because `index.json` has no time of a decision to comp
 the newest lock. One function, `criteriaTarget` of
 `running-a-software-workflow/lib/build.cjs`, computes the target for the four types. A check
 and a push read the versions in `index.json`, not the folders of the store, so that they
-agree. The three Markdown types read the target before any other check of the type, so that
-a finding of the read is the only finding of that check. A finding on the files that a
-check or a push gets, such as "Remove notes.txt from the files." with the line "A build-plan
-version has no file notes.txt." after it, comes before the finding of the read.
-With no approved version there is no target, also when a person stored a version: the three
-Markdown types get "Write the build plan after a person approves the acceptance criteria.",
+agree. The build plan, the verification and the explainer read the target before any other
+check of the type, so that a finding of the read is the only finding of that check. A
+finding on the files that a check or a push gets, such as "Remove notes.txt from the
+files." with the line "A build-plan version has no file notes.txt." after it, comes before
+the finding of the read.
+With no approved version there is no target, also when a person stored a version: those
+three types get "Write the build plan after a person approves the acceptance criteria.",
 with the verification or the explainer in place of the build plan, and the lock gets its
 line below. When `index.json` lists a version above the target, the push gets that version
 in place of the target, and a check and a push of each of the four types get one finding,
@@ -1591,10 +1593,10 @@ and "Then lock that version" for the lock. When the writer of that version is no
 `run`, the reason is "no member uploaded the newer criteria version 2". Two criteria
 versions of one number in `index.json` exit 3 with "Run `qory artifact pull`, then check
 the build plan again.", with the verification, the explainer or the lock in place of the
-build plan, and so does the check of a Markdown type with no `index.json`. A push store
-with no file of the target gets "Store the acceptance criteria before you push the build
-plan." with the line "The push check found no version of them." after it. A check whose
-artifact folder has no file of the target gets the finding to pull that version. The
+build plan, and so does the check of one of those three types with no `index.json`. A push
+store with no file of the target gets "Store the acceptance criteria before you push the
+build plan." with the line "The push check found no version of them." after it. A check
+whose artifact folder has no file of the target gets the finding to pull that version. The
 words of a criterion are its first sentence in that version; as the check of the criteria
 counts sentences, a sentence goes on after `e.g.` and `i.e.`. A text in quotes beside the
 id may end with one `.`, `!` or `?` after the words. A quote ends after the criterion's
@@ -2800,8 +2802,7 @@ template that a software-factory workspace starts with. The file sets these keys
   no list of standard types, so a name alone passes for any name of the right form. A
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
-  hide, and every other standard type is hidden. The list in this template has five
-  standard types that can be hidden.
+  hide, and every other standard type is hidden.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
