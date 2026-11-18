@@ -1541,9 +1541,10 @@ The checks:
   output has when the reader can read the output. For a type with no such reader, the `item` is 1 to 32
   characters on one line. A question with an option that has a `proposal` has an output
   and its `item` as `about`, as qory's questions format requires.
-  `running-a-software-workflow` adds the reader of
-  `acceptance-criteria`: an `item` is a criterion id that the criteria have, from the draft
-  at the top in a check, else from the newest version;
+  `running-a-software-workflow` adds the reader of `acceptance-criteria`: an `item` is a
+  criterion id that the criteria of the name of `about` have. For `main`, a check reads the
+  draft at the top of the artifact folder when it is a file and no link, as for a file given
+  to `check`; otherwise the check reads the newest version of that name;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:

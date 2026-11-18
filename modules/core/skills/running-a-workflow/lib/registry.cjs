@@ -29,15 +29,19 @@ const reviewComments = require('../types/review-comments.cjs');
 //   such as "Track review:", that check covers, so the report check looks for no such line;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }, and
 //   optionally crash, the fix that a crash of the verb prints before it exits 4;
+// - items: the readers of the ids of a type, each { type, form, example, read(context, name) },
+//   which the questions check reads for the item of an about; read returns the ids of name,
+//   or null when it cannot read them;
 // - ledger: the rules of the ledger of steps, which verbs/ledger.cjs lists. One skill at most
 //   adds them.
 const FILE = 'workflow-checks.cjs';
 
 // What a workflow-checks.cjs gets: everything that the lib files base, context, markdown and
-// plugin export, the reports' file name and check results, and the reader of the lock of
-// verbs/lock.cjs.
+// plugin export, the reports' file name and check results, the rule of lib/drafts.cjs for a
+// file given to check or push, and the reader of the lock of verbs/lock.cjs.
 const LIBRARY = Object.freeze({
   ...base, ...context, ...markdown, ...plugin, REPORT_FILE, results,
+  draftFile: require('./drafts.cjs').draftFile,
   lockReader: require('../verbs/lock.cjs').lockReader,
 });
 

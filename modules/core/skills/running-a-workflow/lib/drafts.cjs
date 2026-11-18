@@ -13,6 +13,27 @@ function allowed(def, name) {
   return def.allowed ? def.allowed(name) : name === def.main;
 }
 
+// draftFile returns the real path of file, a file given to check or push: never a link, which
+// could point a push at any file of the machine, a file that exists, in a check under root,
+// the artifact folder, and no folder. It throws Missing with the fix for any other file.
+function draftFile(mode, root, file) {
+  let real;
+  try {
+    if (fs.lstatSync(file).isSymbolicLink()) {
+      throw new Missing(`Name the file itself, not a link to it.\n${file} is a link.`);
+    }
+    real = fs.realpathSync(file);
+  } catch (error) {
+    if (error instanceof Missing) throw error;
+    throw new Missing(`Name a file that exists.\n${file} does not exist.`);
+  }
+  if (mode === 'check' && !inside(real, root)) {
+    throw new Missing(`Name a file under the artifact folder.\n${file} is not under ${root}.`);
+  }
+  if (!fs.statSync(real).isFile()) throw new Missing(`Name a file.\n${file} is not a file.`);
+  return real;
+}
+
 // checkFiles checks the files given as a version of def, a type of the registry. plugin, when
 // given, is the plugin folder, whose agent names the check of points refuses in a text. store
 // is the folder of index.json and the versions, and view is that of Context. def.maxBytes, when
@@ -31,21 +52,7 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
   const files = new Map();
   const large = new Set();
   for (const file of given) {
-    let real;
-    try {
-      // A link could point a push at any file of the machine, so a link is refused.
-      if (fs.lstatSync(file).isSymbolicLink()) {
-        throw new Missing(`Name the file itself, not a link to it.\n${file} is a link.`);
-      }
-      real = fs.realpathSync(file);
-    } catch (error) {
-      if (error instanceof Missing) throw error;
-      throw new Missing(`Name a file that exists.\n${file} does not exist.`);
-    }
-    if (mode === 'check' && !inside(real, root)) {
-      throw new Missing(`Name a file under the artifact folder.\n${file} is not under ${root}.`);
-    }
-    if (!fs.statSync(real).isFile()) throw new Missing(`Name a file.\n${file} is not a file.`);
+    const real = draftFile(mode, root, file);
     const name = path.basename(real);
     if (files.has(name)) {
       run.find(`Name each file once.\nTwo files are named ${name}.`);
@@ -86,4 +93,4 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
   return { findings: run.findings, last, told: run.told };
 }
 
-module.exports = { allowed, checkFiles };
+module.exports = { allowed, checkFiles, draftFile };

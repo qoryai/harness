@@ -4068,6 +4068,42 @@ test('questions: an option with a proposal needs an output and its item as about
     'proposal.\n  About is an output with no item.');
 });
 
+test('questions: an item of the criteria is one of the name that about is set to', () => {
+  const root = fixture();
+  const questions = path.join(root, 'questions.json');
+  const original = fs.readFileSync(questions, 'utf8');
+  const ask = (about) => {
+    const data = JSON.parse(original);
+    data.questions.push(q7({ about }));
+    write(root, 'questions.json', data);
+    return check(root, 'questions', questions);
+  };
+  const stored = fs.readFileSync(path.join(root, CRITERIA), 'utf8');
+  const withSix = criteriaText({ ...JSON.parse(stored), criteria: [...JSON.parse(stored).criteria,
+    row('ac-6', 'The reply states the hours.')] });
+  // A link at the top of the artifact folder is no draft: the check reads the stored version,
+  // which has no ac-6, as a check of the criteria refuses the link.
+  const elsewhere = path.join(tmp, `criteria-${Date.now()}.json`);
+  fs.writeFileSync(elsewhere, withSix);
+  fs.rmSync(path.join(root, CRITERIA));
+  fs.symlinkSync(elsewhere, path.join(root, CRITERIA));
+  const main = { type: 'acceptance-criteria', name: 'main' };
+  exactly(ask({ ...main, item: 'ac-6' }), 'Set about.item of q7 to an entry that ' +
+    'acceptance-criteria main has.\n  It has no ac-6.');
+  // A draft that is a file is read: it has ac-6.
+  fs.rmSync(path.join(root, CRITERIA));
+  fs.writeFileSync(path.join(root, CRITERIA), withSix);
+  passes(ask({ ...main, item: 'ac-6' }));
+  // Another name reads its newest version, not the draft of main.
+  const second = path.join(root, 'acceptance-criteria', 'second', 'v1');
+  fs.mkdirSync(second, { recursive: true });
+  fs.writeFileSync(path.join(second, CRITERIA), criteriaText({ summary: 'One criterion.',
+    criteria: [row('ac-1', 'The reply lists the hours.')] }));
+  passes(ask({ type: 'acceptance-criteria', name: 'second', item: 'ac-1' }));
+  exactly(ask({ type: 'acceptance-criteria', name: 'second', item: 'ac-6' }), 'Set about.item ' +
+    'of q7 to an entry that acceptance-criteria second has.\n  It has no ac-6.');
+});
+
 test('questions: a kept question whose about is unchanged is not checked again', () => {
   // Version 2 has q2 about a mockup that the run cannot read, as an earlier run left it.
   const mockup = (byId) => { byId('q2').about = { type: 'mockup', name: 'main' }; };

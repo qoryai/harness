@@ -114,7 +114,7 @@ function aboutCheck(run, which, question, earlier, readable) {
       `${reader.example}.\nIt is ${valueText(about.item)}.`);
     return;
   }
-  const ids = reader.read(run.context);
+  const ids = reader.read(run.context, about.name);
   if (ids && !ids.has(about.item)) {
     run.find(`Set about.item of ${who} to an entry that ${short(shown, 40)} has.\nIt has ` +
       `no ${about.item}.`);

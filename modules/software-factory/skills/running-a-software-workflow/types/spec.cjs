@@ -2,7 +2,6 @@
 // criteria are acceptance-criteria.json, in the acceptance criteria format of qory's contract.
 'use strict';
 
-const fs = require('node:fs');
 const path = require('node:path');
 const { CRITERION_ID } = require('../lib/criterion.cjs');
 
@@ -164,25 +163,33 @@ module.exports = (lib) => {
 
   // items is the reader of the ids of the criteria, which the questions check of core reads
   // for an about of the type acceptance-criteria: an item is a criterion id, and one of the
-  // criteria that the run can read, in a check of the draft at the top of the artifact
-  // folder, else of the newest version. read returns null when the run can read none.
+  // criteria of the name that about is set to. For main, a check reads the draft at the top of
+  // the artifact folder when lib.draftFile, the rule of a file given to check, takes it, as
+  // the questions check counts that draft as main; else the newest version of the name, as
+  // lib.newestNamed reads it. read returns null when the run can read no criteria of name.
   const items = {
     type: 'acceptance-criteria',
     form: CRITERION_ID,
     example: 'ac-3',
-    read(context) {
-      let text = null;
+    read(context, name) {
       const top = path.join(context.root, FILE);
-      try {
-        if (context.mode === 'check' && fs.existsSync(top)) {
-          text = readFile(top, FILE);
-        } else {
-          const newest = context.newest('acceptance-criteria', FILE);
-          text = newest && newest.text;
+      let text = null;
+      if (context.mode === 'check' && name === 'main' && lib.lexists(top)) {
+        try {
+          text = readFile(lib.draftFile('check', context.root, top), FILE);
+        } catch (error) {
+          // A link or another file that the check does not take is no draft.
+          if (!(error instanceof Missing)) throw error;
         }
-      } catch (error) {
-        // The check of the criteria reports a file that the run cannot read.
-        if (!(error instanceof Missing)) throw error;
+      }
+      if (text === null) {
+        try {
+          const stored = lib.newestNamed(context, 'acceptance-criteria', name, FILE);
+          text = stored && stored.text;
+        } catch (error) {
+          // The check of the criteria reports a store that lacks a version.
+          if (!(error instanceof Missing)) throw error;
+        }
       }
       if (typeof text !== 'string') return null;
       const all = criteria(text);
