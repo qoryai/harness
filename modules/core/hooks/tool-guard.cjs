@@ -297,6 +297,29 @@ const IN_PLACE = /^(?:sed|perl)$/;
 const inPlace = (tool, words) => IN_PLACE.test(tool) && plainWords(words).some((word) =>
   /^-[A-Za-z]*i/.test(word) || (tool === 'sed' && /^--in-place(?:=|$)/.test(word)));
 
+// The one header of a patch that reviewDeny accepts: a path with no white space at either end,
+// as Codex trims it, after one space.
+const PATCH_ADD = new RegExp(`^\\*\\*\\* Add File: ([^${PATCH_SPACE}](?:[^]*[^${PATCH_SPACE}])?)$`);
+
+// reportPatch returns the path that patch adds, when patch is exactly the form below, else null.
+// The form is a patch of the tool apply_patch, split at line feeds, with no carriage return
+// and no NUL: the line `*** Begin Patch`, the line `*** Add File: <path>`, lines that each
+// start with +, and the line `*** End Patch`, with at most one line feed after it. Each line is
+// compared as it is, with no white space trimmed. <path> is absolute, has no . or .. part, no
+// empty part and no trailing slash, and has at most PATH_MAX characters. A second header, an
+// update, a delete, a move and any other line make it null.
+function reportPatch(patch) {
+  if (typeof patch !== 'string' || patch.includes('\r') || patch.includes('\0')) return null;
+  const lines = patch.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  if (lines.length < 3 || lines[0] !== PATCH || lines.at(-1) !== '*** End Patch') return null;
+  const add = PATCH_ADD.exec(lines[1]);
+  if (!add || !lines.slice(2, -1).every((line) => line.startsWith('+'))) return null;
+  const file = add[1];
+  return file.length <= PATH_MAX && path.isAbsolute(file) && path.normalize(file) === file &&
+    !file.endsWith(path.sep) ? file : null;
+}
+
 // patchPaths returns the paths that a Codex patch adds, changes, deletes or moves to, from
 // each line that Codex can read as a header. Codex splits the patch at line feeds.
 function patchPaths(patch) {
@@ -2437,7 +2460,7 @@ function reviewReport(env) {
 
 const REVIEW_ONLY = 'Write only the file at qory.review.report, with Write: a reviewer writes no ' +
   'other file.\nThe path is in inputs.json of the harness home; a link, a file with more than ' +
-  'one link and a path below .git or .claude of the working folder are refused. ';
+  'one link and a path below .git or .claude of the working folder are denied. ';
 const REVIEW_NONE = 'Stop the review and write no file: qory.review.report cannot be used.\n' +
   'It must be an absolute path with no . or .. part, no double or trailing slash. ';
 const REVIEW_AGENT = 'Report in your text and write no file: an agent whose type ends in ' +
@@ -2454,7 +2477,10 @@ const REVIEW_AGENT = 'Report in your text and write no file: an agent whose type
 function reviewDeny({ call, input, paths, env, root, nocase, agent = false }) {
   const review = reviewReport(env);
   const report = review ? review.report : null;
-  if (report && input.tool_name === 'Write' && call.kind === 'write' && paths.length === 1) {
+  const patched = input.tool_name === 'apply_patch' && !agent &&
+    reportPatch((input.tool_input || {}).command) !== null;
+  if (report && (input.tool_name === 'Write' || patched) && call.kind === 'write' &&
+    paths.length === 1) {
     const stat = disk.lstat(report);
     const named = walkPath(report);
     if ((!stat || (stat.isFile() && stat.nlink === 1)) && !named.unsure) {
