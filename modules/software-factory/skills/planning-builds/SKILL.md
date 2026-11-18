@@ -52,7 +52,7 @@ deliverable.
 - **Files:** every path that the change may write, below the top of the checkout, separated
   by commas. End a folder with `/`. The scope check before the push refuses a commit with a
   path that no Files cell lists. A path that does not exist yet is a file that the change
-  creates, and the Change says so.
+  creates, and the Change contains the words "new file" for it, with no path.
 - **Check:** one value, so a deliverable lists criteria of one planned check only:
   - for criteria planned as `Tests`, the path of their test file, such as
     `tests/corrected-reply.test.ts`;
@@ -100,7 +100,7 @@ criterion is planned as `Demo`.
 When the Commands table has a `serve` row with a command, the Summary has one line outside
 a code block that starts with `App address: ` and ends with the address of the app
 after `serve` runs, as an `http` or `https` address in backticks. Take the
-address from the explorer's report or from a file that it names. The Commands table keeps
+address from the explorer's report or from a file that it lists. The Commands table keeps
 its four columns: the address is only in the Summary.
 
 ## An example

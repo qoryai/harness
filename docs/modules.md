@@ -2166,8 +2166,9 @@ workflow with `tier: thinking` and `access: write`.
   its four columns. When it has a `serve` row, the Summary has the line
   `App address: <url>`.
 - **The Files rule.** Each Check path of a test file is also in the Files of the same row,
-  with the folder of the helpers and fixtures that its tests use. `qory scope --plan` before
-  the push refuses a changed path that no Files cell lists, so `write-acceptance-checks`
+  with the folder of the helpers and fixtures that its tests use. The push step of qory runs
+  `checks.cjs scope --plan` before the first push, and it refuses a changed path that no
+  Files cell lists, so `write-acceptance-checks`
   can commit its locked checks and support files only when the plan lists them. The planner
   and `plan-reviewer` apply the rule, and a missing path is a finding marked `writer`.
   `types/build-plan.cjs` does not check it.
@@ -2180,9 +2181,15 @@ workflow with `tier: thinking` and `access: write`.
   deliverables and the others for the criteria that only the later deliverables list, each
   criterion as its first sentence in quotes. The options are to build the first 7 changes
   here and take in the other criteria as a new work item (recommended), or to build all of
-  them here. A list that does not fit ends with "and <m> more". The run pushes the question
+  them here. When every criterion of the later deliverables is in the first 7 too, option 1
+  takes in the other changes instead, each by its Change cell. While the title of option 1
+  has more than 200 characters or the context has more than 120 words, the session removes
+  the last item of the list with the most items, and the list ends with "and <m> more",
+  where `<m>` counts the items removed. The run pushes the question
   and ends with `qory run verdict escalate --points <folder>/points.json`, where the one
-  point has the action `answer`.
+  point has the action `answer`. Nothing records the member's answer in the build report yet,
+  although the second option says so, and the planner of the next round does not read it.
+  The ledger step is `failed`, with no escalation reason.
 - **Blocks.** A criterion that cannot be built as written ends the planner's report with
   `Blocked: needs a change to criterion <ac-N>: <the change>`, as in the other small
   workflows.

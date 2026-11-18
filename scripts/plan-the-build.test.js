@@ -114,6 +114,9 @@ test('planning-builds states the form of the Criteria cell, the Files rule and t
   assert.match(text, /line `App address: <url>`/);
   assert.match(text, /The Commands table keeps\s+its four columns/);
   assert.match(text, /at most 7 deliverables/);
+  // The reviewer's skill makes the App address line a finding, in step 7 of its review.
+  assert.match(skill('checking-build-plans'),
+    /\n7\. A `serve` row with a command needs the line `App address: <url>` in the Summary/);
   // The reviewer's skill states the same Files rule and the same limit.
   assert.match(skill('checking-build-plans'), /The Files rule: each Check path of a test file is also in the Files/);
 });
@@ -405,30 +408,93 @@ test('a session on a test work item stores build-plan and ends passed', () => {
     ['code-explorer', 'build-planner', 'plan-reviewer']);
 });
 
-// questionOf fills the item that the skill gives the questions writer, as the skill's rules
-// say, and reads it as the questions writer does: the question, the context and the two
-// options. count is the number of deliverables of the plan, and the changes are the first ones
-// of CHANGES. This helper fills the template itself: the test shows that the template, filled
-// by its rules, passes the questions check, not that the questions writer fills it so.
-function questionOf(count, rows = CHANGES.slice(0, count)) {
-  const text = section(skill('workflow-plan-the-build'), 'More than 7 deliverables');
-  const item = fenced(text.slice(text.indexOf('```')));
-  const quote = (id) => `"${CRITERIA.find(([one]) => one === id)[1].replace(/\.$/, '')}"`;
+// allFenced returns the text of each code block of text, without the indent of its lines.
+function allFenced(text) {
+  return [...text.matchAll(/^( *)```[a-z]*\n([\s\S]*?)\n *```/gm)].map((match) =>
+    match[2].split('\n').map((line) => line.slice(match[1].length)).join('\n'));
+}
+
+const words = (text) => text.split(/\s+/).filter(Boolean).length;
+const MORE = skill('workflow-plan-the-build');
+
+// questionOf fills the item that the skill gives the questions writer, by the rules that the
+// skill states, and reads it as the questions writer does: the question, the context and the
+// two options. It takes each number, text and limit from the skill, so a change to the skill
+// changes the result. count is the number of deliverables, rows the changes with their
+// criterion ids, and texts the criterion text of each id. The helper fills the template
+// itself: the tests show that the template, filled by its rules, passes the questions check,
+// not that the questions writer fills it so.
+function questionOf(count, rows = CHANGES.slice(0, count), texts = Object.fromEntries(CRITERIA)) {
+  const text = section(MORE, 'More than 7 deliverables');
+  const [main, variant] = allFenced(text);
+  assert.ok(variant, 'the skill has no text for option 1 when no criterion belongs only to the later changes');
+  const k = Number(/`<k>` is (\d+), and `<j>` is `<n>` minus 7/.exec(text)?.[1]);
+  assert.ok(k, 'the skill gives no <k>');
+  const limits = /the title of option 1 has more than\s+(\d+) characters or the context has more than\s+(\d+) words/.exec(text);
+  assert.ok(limits, 'the skill gives no limits');
+  const [maxTitle, maxContext] = [Number(limits[1]), Number(limits[2])];
+  const singular = /With `<j>` 1, write "(the other 1 is for)"/.exec(text)?.[1];
+  const found = /With `<j>` 1, write "([^"]+)" and\s+"([^"]+)"/.exec(text);
+  assert.ok(singular && found, 'the skill has no text for one later change');
+  const single = found.map((part) => part.replace(/\s+/g, ' '));
+  const quote = (value, short) => {
+    const cut = value.split(' ');
+    return `"${short && cut.length > 5 ? `${cut.slice(0, 5).join(' ')}...` : value}"`;
+  };
   const ids = (list) => [...new Set(list.flatMap(([, own]) => own))];
-  const first = ids(rows.slice(0, 7));
-  const later = ids(rows.slice(7));
+  const first = ids(rows.slice(0, k));
+  const later = ids(rows.slice(k));
   const only = later.filter((id) => !first.includes(id));
-  const other = only.length ? only : later;
-  const filled = item.trim().replace(/\n/g, ' ').replace(/ {2,}/g, ' ')
-    .replace(/<n>/g, String(count)).replace(/<k>/g, '7').replace(/<j>/g, String(count - 7))
-    .replace('the other 1 are', 'the other 1 is')
-    .replace(/<criteria>/g, first.map(quote).join(', '))
-    .replace(/<other criteria>/g, other.map(quote).join(', '));
-  const match = /^Add: (.*?) Context: (.*?) Option 1 \(recommended\): (.*?) Explanation: (.*?) Option 2: (.*?) Explanation: (.*?) Source: (.*)$/.exec(filled);
-  assert.ok(match, `the item of the skill has another form: ${filled}`);
-  return { question: match[1], context: match[2], options: [
-    { title: match[3], explanation: match[4], recommended: true },
-    { title: match[5], explanation: match[6] }] };
+  const shared = only.length === 0;
+  const base = {
+    criteria: first.map((id) => texts[id].replace(/\.$/, '')),
+    other: (shared ? later : only).map((id) => texts[id].replace(/\.$/, '')),
+    names: rows.slice(k).map(([change]) => change),
+  };
+  const order = ['criteria', 'other', 'names'];
+  const cuts = { criteria: 0, other: 0, names: 0 };
+  let short = false;
+  const render = () => {
+    const list = (name) => {
+      const items = base[name].slice(0, base[name].length - cuts[name]).map((item) => quote(item, short));
+      if (cuts[name]) items.push(`and ${cuts[name]} more`);
+      return items.join(', ');
+    };
+    const j = count - k;
+    let item = (shared ? main.replace(/Option 1 \(recommended\):[\s\S]*?(?=\nOption 2:)/, variant) : main)
+      .trim().replace(/\n/g, ' ').replace(/ {2,}/g, ' ');
+    item = item.replace(/<n>/g, String(count)).replace(/<k>/g, String(k)).replace(/<j>/g, String(j));
+    if (j === 1) {
+      item = item.replace('the other 1 are for', singular)
+        .replace('the other 1 changes (<short names>)', single[1])
+        .replace('The new work item has the changes <short names>.', single[2]);
+      item = item.replace('<short name>', list('names')).replace('<short name>', list('names'));
+    }
+    item = item.replace(/<short names>/g, list('names')).replace(/<other criteria>/g, list('other'))
+      .replace(/<criteria>/g, list('criteria'));
+    const match = /^Add: (.*?) Context: (.*?) Option 1 \(recommended\): (.*?) Explanation: (.*?) Option 2: (.*?) Explanation: (.*?) Source: (.*)$/.exec(item);
+    assert.ok(match, `the item of the skill has another form: ${item}`);
+    return { question: match[1], context: match[2], options: [
+      { title: match[3], explanation: match[4], recommended: true },
+      { title: match[5], explanation: match[6] }] };
+  };
+  const itemText = shared ? main.replace(/Option 1 \(recommended\):[\s\S]*?(?=\nOption 2:)/, variant) : main;
+  let result = render();
+  while (result.options[0].title.length > maxTitle || words(result.context) > maxContext) {
+    const used = { criteria: '<criteria>', other: '<other criteria>', names: '<short names>' };
+    const left = order.filter((name) => itemText.includes(used[name]) && base[name].length - cuts[name] > 1);
+    if (left.length) {
+      const most = left.reduce((best, name) => (base[name].length - cuts[name] >
+        base[best].length - cuts[best] ? name : best));
+      cuts[most] += 1;
+    } else if (!short) {
+      short = true;
+    } else {
+      break;
+    }
+    result = render();
+  }
+  return { ...result, lists: base, cuts, shared };
 }
 
 const questionsOf = (question, at = 1) => JSON.stringify({ questions: [{
@@ -452,7 +518,9 @@ test('a plan of 8 deliverables ends escalate: no plan is pushed, a question and 
   assert.ok(checked.lines[0].startsWith('Cut build-plan.md to'));
   assert.ok(skill('workflow-plan-the-build').includes('"Cut build-plan.md to"'));
   // The session ends the step as failed, asks one question and pushes no plan.
-  const failed = call('step', 'end', 'plan', 'failed', '--report', planner);
+  const step = /Run `step end (\S+) (\S+)`/.exec(section(MORE, 'More than 7 deliverables'));
+  assert.ok(step, 'the section "More than 7 deliverables" has no step end');
+  const failed = call('step', 'end', step[1], step[2], '--report', planner);
   assert.equal(failed.status, 0, failed.out);
   const question = questionOf(8);
   fs.writeFileSync(path.join(w.artifacts, 'questions.json'), questionsOf(question));
@@ -466,6 +534,10 @@ test('a plan of 8 deliverables ends escalate: no plan is pushed, a question and 
     action: 'answer', question: 'q1' }]));
   const point = call('check', 'points', points);
   assert.equal(point.status, 0, point.out);
+  // The section ends as "Points" lists, and "Points" lists the verdict that this call runs.
+  assert.match(section(MORE, 'More than 7 deliverables'), /Then end as "Points" lists\./);
+  assert.match(read(CORE, 'skills/running-a-workflow/SKILL.md'),
+    /`<qory> run verdict escalate --points <folder>\/points\.json`/);
   assert.equal(qory(w, call, 'run', 'verdict', 'escalate', '--points', points).status, 0);
   const log = logOf(w);
   assert.equal(log.at(-1), `run verdict escalate --points ${points}`);
@@ -508,15 +580,53 @@ test('the question gives the approved texts, lists each criterion, and states wh
     'records your answer and its date.');
 });
 
-test('the question of a plan whose 8th change shares its criteria still names the criteria to take in', () => {
-  // AC-1 and AC-4 are in d-7 and d-8: no criterion is only in the later change, so the
-  // criteria of d-8 are the ones to take in.
-  const rows = [...CHANGES.slice(0, 6), ['Show a message on a timeout', ['ac-4']],
-    ['Cache the order query', ['ac-1', 'ac-4']]];
-  const question = questionOf(8, rows);
-  assert.match(question.options[0].title,
-    /; take in "Export saves a CSV file", "An export that times out shows a message" as a new work item\.$/);
-  assert.match(question.context, /and the other 1 is for "Export saves a CSV file", "An export that times out shows a message"\./);
+// A plan whose later changes list only criteria of the first 7 changes: no criterion belongs only
+// to the later changes. The rows have the first 6 changes of CHANGES, and then one change for
+// AC-4, so that d-1 to d-7 list all four criteria.
+const SHARED = [...CHANGES.slice(0, 6), ['Show a message on a timeout', ['ac-4']]];
+const SHARED_CONTEXT = 'The build plan has %n separate changes, and one build has at most 7. ' +
+  '7 changes are for "Export saves a CSV file", "The file has one row per order", ' +
+  '"The button is off for an empty list", "An export that times out shows a message", ' +
+  'and the other %j %v for "Export saves a CSV file", "The file has one row per order". Build waits until you pick.';
+
+test('one later change that shares its criteria: option 1 builds the first 7 and takes in the other change', () => {
+  const question = questionOf(8, [...SHARED, ['Name the file by the date', ['ac-1', 'ac-2']]]);
+  assert.ok(question.shared);
+  assert.equal(question.context, SHARED_CONTEXT.replace('%n', '8').replace('%j', '1').replace('%v', 'is'));
+  assert.equal(question.options[0].title,
+    'Build the first 7 changes here; take in the other 1 change ("Name the file by the date") as a new work item.');
+  assert.equal(question.options[0].explanation,
+    'Both work items check the same criteria. The new work item has the change "Name the file by the date".');
+  assert.equal(question.options[1].title, 'Build all 8 changes in this work item.');
+});
+
+test('two later changes that share their criteria: option 1 takes in the other 2 changes', () => {
+  const question = questionOf(9, [...SHARED, ['Name the file by the date', ['ac-1']],
+    ['Add the column headers', ['ac-2']]]);
+  assert.ok(question.shared);
+  assert.equal(question.context, SHARED_CONTEXT.replace('%n', '9').replace('%j', '2').replace('%v', 'are'));
+  assert.equal(question.options[0].title, 'Build the first 7 changes here; take in the other 2 changes ' +
+    '("Name the file by the date", "Add the column headers") as a new work item.');
+  assert.equal(question.options[0].explanation, 'Both work items check the same criteria. The new work ' +
+    'item has the changes "Name the file by the date", "Add the column headers".');
+  assert.equal(question.options[1].title, 'Build all 9 changes in this work item.');
+});
+
+test('the question of a plan with later criteria of its own keeps the criteria form of option 1', () => {
+  assert.equal(questionOf(8).shared, false);
+  assert.match(questionOf(8).options[0].title, /^Build the changes for .* here; take in .* as a new work item\.$/);
+});
+
+test('each question of a plan over 7 passes the questions check', () => {
+  const w = work();
+  const call = session(w);
+  const file = path.join(w.artifacts, 'questions.json');
+  for (const question of [questionOf(8), questionOf(8, [...SHARED, ['Name the file by the date', ['ac-1']]]),
+    questionOf(9, [...SHARED, ['Name the file by the date', ['ac-1']], ['Add the column headers', ['ac-2']]])]) {
+    fs.writeFileSync(file, questionsOf(question));
+    const result = call('check', 'questions', file);
+    assert.equal(result.status, 0, result.out);
+  }
 });
 
 test('check questions passes the question, and fails it when its context is empty', () => {
@@ -538,14 +648,48 @@ test('check questions passes the question, and fails it when its context is empt
   assert.equal(call('check', 'questions', file).status, 1);
 });
 
-test('the question of 8 changes fits the limits, and the skill ends a longer list with "and <m> more"', () => {
-  const words = (text) => text.split(/\s+/).filter(Boolean).length;
+// LONG has criterion texts and changes that are too long for the limits of the question.
+const LONG = Object.fromEntries(Array.from({ length: 8 }, (unused, at) =>
+  [`ac-${at + 1}`, `Criterion number ${at + 1} says that a member can export the order list in a format that is long`]));
+const LONG_CHANGE = (at) => `Change number ${at} makes the export of the order list in a long format`;
+
+test('a list that does not fit is cut to the limits, and ends with ", and <m> more", with <m> the items cut', () => {
+  const ids = Object.keys(LONG);
+  const rows = (shared) => Array.from({ length: 9 }, (unused, at) => [LONG_CHANGE(at + 1),
+    at < 7 ? [ids[at]] : (shared ? [ids[0]] : [ids[7]])]);
+  for (const shared of [false, true]) {
+    const question = questionOf(9, rows(shared), LONG);
+    assert.equal(question.shared, shared);
+    assert.ok(question.options[0].title.length <= 200, question.options[0].title);
+    assert.ok(words(question.context) <= 120, question.context);
+    let cut = 0;
+    for (const name of ['criteria', 'other', 'names']) {
+      const total = question.lists[name].length;
+      const left = total - question.cuts[name];
+      assert.ok(left >= 1, `${name} keeps one item`);
+      if (question.cuts[name]) {
+        cut += 1;
+        assert.ok((question.context + question.options[0].title).includes(`, and ${question.cuts[name]} more`), name);
+      }
+    }
+    assert.ok(cut >= 1, 'a list was cut');
+    const w = work();
+    const call = session(w);
+    const file = path.join(w.artifacts, 'questions.json');
+    fs.writeFileSync(file, questionsOf(question));
+    assert.equal(call('check', 'questions', file).status, 0, call('check', 'questions', file).out);
+  }
+});
+
+test('the question of 8 changes fits the limits, and the skill states the rule for a longer list', () => {
   const question = questionOf(8);
   assert.ok(words(question.context) <= 120, 'the context has more than 120 words');
   assert.ok(question.options[0].title.length <= 200, 'the title of option 1 has more than 200 characters');
-  const text = section(skill('workflow-plan-the-build'), 'More than 7 deliverables');
-  assert.match(text, /A list that does not fit ends with "and <m> more"/);
-  assert.match(text, /pass 200 characters or the\s+context would pass 120 words/);
+  assert.deepEqual(question.cuts, { criteria: 0, other: 0, names: 0 });
+  const text = section(MORE, 'More than 7 deliverables');
+  assert.match(text, /remove the last item of the list\s+with the most items/);
+  assert.match(text, /with ", and <m> more", where `<m>` counts the items removed from that list/);
+  assert.match(text, /A list keeps\s+at least one item/);
 });
 
 // ---- The Files rule ------------------------------------------------------------------------

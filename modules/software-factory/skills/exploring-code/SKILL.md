@@ -82,9 +82,9 @@ missing result as what the search found, never as a fact about that system.
 
 ## For a build plan
 
-When the question you got is for a build plan, you get the acceptance criteria to plan for.
-After the search above, settle these for each criterion, and report each as a fact under
-"Facts:" with its path and line:
+When the question you got is for a build plan, read the newest approved acceptance criteria
+yourself, as `reading-the-work` lists. After the search above, settle these for each
+criterion, and report each as a fact under "Facts:" with its path and line:
 
 - The files that the change touches: where the behaviour lives today and which files depend
   on it. For a behaviour that is new, the folder where code of its kind lives, with one file

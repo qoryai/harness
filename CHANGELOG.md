@@ -16,11 +16,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   each criterion, the files to change, the tests of the area and the commands that run the
   checks and the app, in the same report form as before. Each Criteria cell of the plan is
   `AC-<N>, "<the criterion's first sentence>"`. Each Check path of a test file is also in
-  the Files of its row, so `qory scope --plan` lets the locked checks and their support
-  files in. A plan with a `serve` row has the line `App address: <url>` in its Summary. A
-  plan of more than 7 deliverables is not pushed: the run asks one question about the
+  the Files of its row, so the push step of qory, which runs `checks.cjs scope --plan`
+  before the first push, lets the locked checks and their support files in. A plan with a
+  `serve` row has the line `App address: <url>` in its Summary. A plan of more than 7 deliverables is not pushed: the run asks one question about the
   criteria of the first 7 changes and of the others, with an option to build the first 7
-  and take in the rest as a new work item, and ends with `qory run verdict escalate`.
+  and take in the rest as a new work item, and ends with `qory run verdict escalate`. When
+  every criterion of the later changes is also in the first 7, option 1 builds the first 7
+  changes and takes in the other changes as a new work item, which it lists by their Change
+  cells. A list in the question that passes 200 characters in the title of option 1 or 120
+  words in the context loses items from its end and ends with "and <m> more". Nothing
+  records the member's answer in the build report yet, although the second option says so,
+  and the planner of the next round does not read the answer: a later change reads it.
+  The ledger records the step as `failed`, with no escalation reason: nothing records the
+  reason `plan-limit` yet.
 - Role notes in the start of an agent. Before each start of an agent, the session runs
   `checks.cjs notes <agent> [--files <file>]`. The verb reads `role-notes.json` of the
   harness home, which qory writes, and picks the role notes whose roles include a role of

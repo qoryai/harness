@@ -69,7 +69,7 @@ refused tool call stays refused. Read through no link.
 - If a folder of the spec, the demo scenarios or an earlier plan is missing, there is no
   version yet: go on. If a file in such a folder cannot be read, report `blocked` with its
   path.
-- If you cannot read a file that the plan names, go on, and list it under "What you read".
+- If you cannot read a file that the plan lists, go on, and list it under "What you read".
 - If a finding needs a person's decision, report it as a finding. Do not settle it.
 
 ## Expected output

@@ -31,7 +31,7 @@ document" of `reviewing-drafts`, with its parts, pictures and word limit. The re
    part works alone, is a finding. A deliverable that needs a later one is a finding.
 4. Compare the Files with the code explorer's report. A change that the report shows in a
    file that no Files cell lists is a finding. So is a path that the change does not need.
-   A path that does not exist and that the Change does not call new is a finding.
+   A path that does not exist and that the Change does not mark as a "new file" is a finding.
 5. The Files rule: each Check path of a test file is also in the Files of the same row,
    and so is the folder of the helpers and fixtures that tests there use, when the report
    shows some. A missing path is a finding marked `writer`, `no direction` and `no break`.
@@ -60,8 +60,8 @@ Check and a `Demo` criterion with a scenario id; the kinds and sources of the Co
 table; and the characters of the text. Judge the rest of the check list.
 
 - The Summary says what changes, in 1 to 3 sentences, and agrees with the deliverables.
-- Each Change is one sentence in plain words, with no id and no file name that a member
-  would not know.
+- Each Change is one sentence in plain words, with no id and no path. It may say "new file"
+  for a file that the change creates.
 - Each Criteria cell quotes the criterion's first sentence, and no cell has an id alone.
 - Each Check path of a test file is in the Files of its row, and the folder of the helpers
   of its tests is too, as the Files rule lists.

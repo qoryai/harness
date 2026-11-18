@@ -88,15 +88,34 @@ finding to no writer, cut nothing yourself, start no reviewer, and push no build
 
    Use these texts as written.
 
-   - `<k>` is 7 and `<j>` is `<n>` minus 7. With `<j>` 1, write "the other 1 is for".
+   - `<k>` is 7, and `<j>` is `<n>` minus 7. With `<j>` 1, write "the other 1 is for".
    - `<criteria>`: each criterion of the first 7 deliverables, once, as its first sentence
      without the full stop, in quotes, joined by ", ".
    - `<other criteria>`: the same for each criterion that only the later deliverables list.
-     When every criterion of the later deliverables is in the first 7 too, use the criteria
-     of the later deliverables.
-   - A list that does not fit ends with "and <m> more", where `<m>` counts the criteria left
-     out. A list does not fit when the title of option 1 would pass 200 characters or the
-     context would pass 120 words.
+   - `<short names>`: the Change cell of each later deliverable, in the order of the plan,
+     without its full stop, in quotes, joined by ", ".
+
+   When every criterion of the later deliverables is in the first 7 too, no criterion
+   belongs only to the later changes. Then `<other criteria>` in the context is each
+   criterion of the later deliverables, and option 1 is this text in place of the one
+   above:
+
+   ```
+   Option 1 (recommended): Build the first 7 changes here; take in the other <j> changes
+   (<short names>) as a new work item. Explanation: Both work items check the same
+   criteria. The new work item has the changes <short names>.
+   ```
+
+   With `<j>` 1, write "the other 1 change (<short name>)" and "The new work item has the
+   change <short name>."
+
+   Cut the lists to fit. A list is `<criteria>`, `<other criteria>` or `<short names>`, when
+   the item that you write has it, and it is the same in each place that it appears. While the title of option 1 has more than
+   200 characters or the context has more than 120 words, remove the last item of the list
+   with the most items (the first of them in the order above on a tie), and end that list
+   with ", and <m> more", where `<m>` counts the items removed from that list. A list keeps
+   at least one item. When each list has one item and a limit is still passed, cut each
+   quote to its first 5 words and "...".
 
 4. Push the questions, and write `points.json` with one point, as "Points" lists. The text
    of the point is "The build plan has <n> separate changes, and one build has at most 7.",
