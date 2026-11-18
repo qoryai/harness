@@ -146,9 +146,11 @@ first demo:
    checkout, and its address returns a status below 500 within 120 seconds. The address is
    the line `App address: <url>` in `## Summary` of the build plan, with an http address
    in backticks, such as ``App address: `http://localhost:3000/` ``: the check of links
-   finds a bare http link. When another process already returns a response at the
-   address, the app counts as not started, and the command does not run. A command that
-   starts the app in the background and exits 0 works.
+   finds a bare http link. The host of the address has only letters, digits, `.` and `-`,
+   or is an IPv6 address in brackets. When another process already returns a response at
+   the address, the app counts as not started, and the command does not run. A command
+   that starts the app in the background and exits 0 works. The command gets no variable
+   of qory, of an agent or of a code forge, such as `QORY_RUN_KEY` or `GITHUB_TOKEN`.
 3. The sign-in: the setup of each demo script that types a variable passes in the browser,
    with the values of the variables in the environment. The browser loads no page of
    another origin than the app's address, in the tab or in a frame, whether an `open`, a
@@ -156,11 +158,12 @@ first demo:
    before its next action. The browser sends each other request to a host and port other
    than the app's, such as a `fetch`, an image, a WebSocket or a request of a service
    worker, to a proxy at port 9 of 127.0.0.1, where nothing listens, so the request
-   fails. WebRTC sends no UDP packet, and the lookup of each host name fails, except of
-   127.0.0.1 and the app's host. A new window of the page closes before its first request,
-   and the sign-in fails. A `type` or `press` acts only on a page of the app's origin, and
-   a `type` only when the focus is in the element of its target. The replay gets only the
-   variables that its setup types.
+   fails. WebRTC sends no UDP packet and opens no TCP connection to a TURN server,
+   WebTransport and HTTP/3 send no QUIC packet, and the lookup of each host name fails,
+   except of 127.0.0.1 and the app's host. A new window of the page closes before its
+   first request, and the sign-in fails. A `type` or `press` acts only on a page of the
+   app's origin, and a `type` only when the focus is in the element of its target. The
+   replay gets only the variables that its setup types.
 
 `preflight` reads the demo scripts from the artifact folder of the session: of each name,
 the newest version that `index.json` counts. With no `serve` command in the build plan, it

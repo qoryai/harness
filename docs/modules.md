@@ -1614,7 +1614,8 @@ find:
   `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
   criterion is planned as Demo; with a `serve` row, no line `App address: <url>` in
-  `## Summary`, or a value that is no http or https URL, where an http address goes in
+  `## Summary`, or a value that is no http or https URL whose host has only letters,
+  digits, `.` and `-` or is an IPv6 address in brackets, where an http address goes in
   backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links
   finds a bare http link; and, in `## Deliverables` or `## Commands`, a table with other
   columns than those that the check reads, or a second table with them;
@@ -2437,10 +2438,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   browser with the values of the variables in the environment. When another process
   already returns a response at the address, the app counts as not started and the command
   does not run; a command that starts the app in the background and exits 0 counts once the
-  address responds. A sign-in passes when each action passes and each field that a variable
-  was typed into is gone within 10 seconds of the last action, or when its last action is a
-  `wait` that passes. Each browser call has a time limit, and the browser dismisses each
-  dialog of the app, such as an alert.
+  address responds. The command runs without each variable of the environment whose name is
+  that of a variable of qory, of an agent or of a code forge, such as `QORY_RUN_KEY`,
+  `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`. A sign-in passes when each action passes and each
+  field that a variable was typed into is gone within 10 seconds of the last action, or
+  when its last action is a `wait` that passes. Each browser call has a time limit, and
+  the browser dismisses each dialog of the app, such as an alert.
 
   The sign-in loads only pages of the origin of the app's address. The browser fails the
   load of each document of another origin, in the tab and in each frame, whether an `open`,
@@ -2451,19 +2454,22 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   in `--proxy-bypass-list`, after `<-loopback>`: every other request, such as a `fetch`, a
   beacon, an image, a WebSocket or a request of a service worker, fails. With
   `--webrtc-ip-handling-policy=disable_non_proxied_udp`, WebRTC sends only through the
-  proxy, so it sends no UDP packet. `--host-resolver-rules` fails the lookup of each host
-  name except 127.0.0.1 and the app's host. The browser pauses each new window of the
-  page, such as one of `window.open` or of a form or link with `target="_blank"`, fails its
-  first request and closes it; the point then has the origin of that request. For a window
-  with no request, or with one to the app's origin, the point has the text "The app at
-  <App address> opens a new window during sign-in, and the run closed it: a run uses one
-  window." An origin that contains a typed value, in any case, is "another origin" in the
-  point and the finding. A `type` and a `press` act only on a page of the app's origin
-  whose focus is in no frame, and a `type` only when the focus is in the element of its
-  target. The replay gets only the variables that its setup types, and a setup that types
-  a variable of qory or of an agent, such as `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a
-  token of a code forge, such as `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the
-  app starts.
+  proxy, so it sends no UDP packet. A WebRTC connection over TCP to a TURN server and a
+  WebTransport session or other HTTP/3 request go to the proxy too, and fail. The check of
+  the build plan takes only an App address whose host has letters, digits, `.` and `-`, or
+  is an IPv6 address in brackets, so the host adds no other entry to the bypass list.
+  `--host-resolver-rules` fails the lookup of each host name except 127.0.0.1 and the app's
+  host. The browser pauses each new window of the page, such as one of `window.open` or of
+  a form or link with `target="_blank"`, fails its first request and closes it; the point
+  then has the origin of that request. For a window with no request, or with one to the
+  app's origin, the point has the text "The app at <App address> opens a new window during
+  sign-in, and the run closed it: a run uses one window." An origin that contains a typed
+  value, in any case, is "another origin" in the point and the finding. A `type` and a
+  `press` act only on a page of the app's origin whose focus is in no frame, and a `type`
+  only when the focus is in the element of its target. The replay gets only the variables
+  that its setup types, and a setup that types a variable of qory or of an agent, such as
+  `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a token of a code forge, such as
+  `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the app starts.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
@@ -2475,7 +2481,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   at that path. After the check, also on a failure or a signal, the process group of the
   command stops, and on Linux each process with the mark of the supervisor of `run`. The
   runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
-  in the group kills the group when the runner ends, also on SIGKILL. A process that leaves
+  in the group kills the group when the runner ends, also on SIGKILL. The browser starts as
+  the leader of a new process group, and each stop of the browser kills that group, so a
+  child of the browser that stays in the group stops with it. A process that leaves
   the group by `setsid` and removes the mark from its environment keeps running, as
   `lib/supervise.cjs` states, and after a SIGKILL of the runner, so does every process that
   left the group. The sign-ins stop after at most 570
