@@ -25,9 +25,11 @@ jobs:
       # modules/software-factory/qory-module.yaml and the `withdrawable` key in
       # modules/software-factory/process.yaml, and has no `--points` on
       # `qory run verdict escalate`, which the workflow skills run, and has no `fix` on a
-      # point of a verdict. This commit, the merge of qoryai/qory#119 into qory's
-      # 544-build-verify branch, not main, has all five. Move to a release when one has them.
-      QORY_COMMIT: 91f02f008735e5d48074cd1469d9db15d9669517
+      # point of a verdict. This commit, the head of qory's 544-build-verify branch after
+      # qoryai/qory#125, not main, has all five, and names the middle model tier
+      # `balanced`, the tier of modules/software-factory/agents/code-explorer.md. Move to a
+      # release when one has them.
+      QORY_COMMIT: 1deb56e6b0cff2b9f0ec1d425ed45579392d7765
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

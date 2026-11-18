@@ -102,11 +102,11 @@ composed with `SKILL.md`. The `simple-communication` skill has its longer materi
 by relative paths. The rules that a run follows from `simple-communication` are in its
 `SKILL.md`. In a test on Claude Code 2.1.323 under `dontAsk`, with the `software` stack
 composed and the settings that qory writes for a read run (`readRules` in
-`cmd/settings_inline.go` at qory `91f02f0`), a read run cannot open the two `references/`
+`cmd/settings_inline.go` at qory `1deb56e`), a read run cannot open the two `references/`
 files. The settings of `software-factory` set
 `permissions.blockReadsOutsideWorkingDirectories` to `true`. The skill's folder in the
 harness home is a link to the folder of the `core` module (`PlaceEntries` in
-`internal/render/address.go` at qory `91f02f0`), which is not a working folder of a read
+`internal/render/address.go` at qory `1deb56e`), which is not a working folder of a read
 run: `readRules` adds only the artifact folder to `permissions.additionalDirectories`.
 Every other skill that a read run loads has all its text in `SKILL.md`, so the run opens no
 text beside it; the scripts beside `SKILL.md` of `designing-mockups` and
@@ -175,8 +175,8 @@ An agent is a file `agents/<name>.md`. Its front matter sets `name`, `descriptio
 id. Its body is the role, and loads each skill with a reference (section "References to
 other entries"), never with a `skills:` key.
 
-A tier is `light`, `fast` or `thinking`, written as `model: ${qory:<tier>}`. The compose
-fails on any other name (`Tiers` in `internal/stack/stack.go` at qory `91f02f0`).
+A tier is `light`, `balanced` or `thinking`, written as `model: ${qory:<tier>}`. The compose
+fails on any other name (`Tiers` in `internal/stack/stack.go` at qory `1deb56e`).
 The compose replaces the value with the model id that the tier maps to, from `--tier` of
 `qory harness compose` or `harness.tiers` in the qory configuration files. For a tier with
 no map, the compose leaves `model` out, so the agent runs on the main model. The person
@@ -186,7 +186,7 @@ a model id. An agent sets the tier that this table lists for its name:
 | Tier | Agents |
 |---|---|
 | `thinking` | `build-planner`, `software-developer`, `software-debugger`, `acceptance-check-writer`, `feedback-triager`, and every `*-reviewer` except `demo-reviewer` |
-| `fast` | `code-explorer`, `browser-demo-author`, `submission-writer`, `explainer-writer` and `demo-reviewer` |
+| `balanced` | `code-explorer`, `browser-demo-author`, `submission-writer`, `explainer-writer` and `demo-reviewer` |
 
 An agent that the table does not list sets no `model` key.
 
@@ -222,7 +222,7 @@ An agent that the table does not list sets no `model` key.
   an enforced limit. On Claude Code's native build, a `tools` key that lists Bash removes
   Grep and Glob, so an exception for Bash also drops those two tools or states how the agent
   searches. Copilot keeps the key, untested.
-- On Codex, the `tools` key only turns the shell off: at qory `91f02f0`, the compose writes
+- On Codex, the `tools` key only turns the shell off: at qory `1deb56e`, the compose writes
   `name`, `description` and `developer_instructions` into an agent's file, and
   `shell_tool = false` under `[features]` when the key lists neither `Bash` nor `PowerShell`
   (`keepsShell` in `internal/render/codex/codex.go`). Whether Codex then runs no command for
@@ -609,7 +609,7 @@ a stack ships skills, and qory places them beside the stack's skills, in
 `<home>/modules/<name>/skills/` and in each runtime's skills folder. Without the list, its
 `workflow-checks.cjs` would change or skip the checks of every type, in each verb, in the
 end check's hook and in each push check. The list is the source of truth, for these reasons,
-from qory at `91f02f0`:
+from qory at `1deb56e`:
 
 - The report, `<home>-report.json`, marks the base stack's modules with `base`, but lies
   beside the home, and no check can rely on reading it. A push check's container gets only
@@ -681,7 +681,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   A point `answer` has the id of an open question in `questions.json` at the top of the
   artifact folder, else in the newest version, and a point `run_again` has none. qory checks
   the same form against `contracts/harness/v1/verdict.schema.json` before it sends the
-  verdict; only this check reads the questions and the words of the text. At qory 91f02f0
+  verdict; only this check reads the questions and the words of the text. At qory 1deb56e
   that schema has `fix` only on a point `run_again`, as one line of 1 to 500 characters.
 - `checks.cjs push <type> <file>...`: the form that qory runs on a push, through
   `scripts/push-check.cjs push <type> <file>...` of `core` for `questions` and
@@ -1044,7 +1044,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   of the store that contradicts itself or a verdict file with another verdict; 4 when the
   script crashes, with the fix and the error on stderr. When Node cannot load `checks.cjs`,
   it exits 1 with no `points.json`, so a caller counts exit 1 with no valid `points.json` as
-  4. qory at `91f02f0` runs no `end --offline`.
+  4. qory at `1deb56e` runs no `end --offline`.
 
 The hook runs `checks.cjs end` through an adapter in `modules/core/hooks/`,
 which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.cjs` picks the folder:
@@ -1084,7 +1084,7 @@ Only Claude Code and Codex are tested: on Claude Code 2.1.319, a `Stop` hook tha
 keeps a headless `claude -p` session going. On Codex 0.167.2, a `Stop` hook in
 `$CODEX_HOME/config.toml` that exits 2 keeps a `codex exec` turn going, and
 `QORY_HARNESS_HOME` reaches the hook. A hook in `$CODEX_HOME` runs only when its hash is
-trusted. qory at `91f02f0` writes no `trusted_hash` into `config.toml`, and neither qory
+trusted. qory at `1deb56e` writes no `trusted_hash` into `config.toml`, and neither qory
 nor the Forager commit it pins, `b6bf9042`, starts Codex with
 `--dangerously-bypass-hook-trust`, so in a run on Codex the hook does not run.
 The other three follow their documentation. Cursor's
@@ -1748,7 +1748,7 @@ and `points.json` at the 101st row. The mark contains the id of the session, the
 which the session started, and the rows that crashed in a session of the same run. The id
 is the pair of `QORY_RUN_ID`, the run id that every session of a run shares, and
 `QORY_SESSION`, the number of the session in the run, 1 for the first. An unset or empty
-`QORY_SESSION` counts as 1, because qory 91f02f0 sets none. Only `checks.cjs` writes the
+`QORY_SESSION` counts as 1, because qory 1deb56e sets none. Only `checks.cjs` writes the
 mark: the guard of `.reports/*.json` denies an agent any write to it.
 Without `QORY_RUN_ID`, or with a `QORY_SESSION` that is not a whole number from 1 to 999999,
 `step` and `resume` exit 3. The line of a failed command shows the name of the program,
@@ -1774,7 +1774,7 @@ at once, such as from the session and from an agent with a shell, lose no row or
 call that exits 0. The guard of `.reports/*.json` denies an agent a write to either lock.
 
 - `checks.cjs resume`: once, at the start of each Build session. It runs
-  `qory artifact pull build-ledger`, which at qory 91f02f0 exits 0 and writes no folder of
+  `qory artifact pull build-ledger`, which at qory 1deb56e exits 0 and writes no folder of
   the type when the work item has no version, so the ledger then starts empty. It writes the
   newest version as the draft and its copy, marks each `running` row `failed`, because its
   session stopped while the step ran, and writes a new mark of the session over the earlier
@@ -2894,19 +2894,19 @@ the rule passes on that file.
    under `mockup-draft/` and `mockup-render/`. The settings of `core` allow Bash only for
    `versions.cjs` and `checks.cjs`, the versions and checks scripts of `running-a-workflow`.
 3. An agent's `model` key, when the front matter has one, is a tier: `${qory:light}`,
-   `${qory:fast}` or `${qory:thinking}`, in quotes or not. A model id, another name and any
-   other value fail. The tier is the one that the tier table of the section "Agents" lists
-   for the agent's file name, without `.md`: another tier fails, a listed agent with no
-   `model` key fails, and an agent that the table does not list has no `model` key. The
+   `${qory:balanced}` or `${qory:thinking}`, in quotes or not. A model id, another name and
+   any other value fail. The tier is the one that the tier table of the section "Agents"
+   lists for the agent's file name, without `.md`: another tier fails, a listed agent with
+   no `model` key fails, and an agent that the table does not list has no `model` key. The
    rule reads the table, the one with the header `| Tier | Agents |`, from
    `docs/modules.md`. A name in a row comes before a pattern such as `*-reviewer`, and a
    pattern gives no tier to a name that a row of that tier lists after "except". Each row
-   has the tier `light`, `fast` or `thinking` in code font, and only names and patterns in
-   code font, joined by ",", "and", "every" and "except". A name is listed under one tier,
-   and no row of that tier excepts it. A row with a pattern lists after "except" each name
-   of a row of another tier that the pattern matches, and two patterns in rows of different
-   tiers match no common name. The first line of the message is the fix: the line to write,
-   or the removal of the key.
+   has the tier `light`, `balanced` or `thinking` in code font, and only names and patterns
+   in code font, joined by ",", "and", "every" and "except". A name is listed under one
+   tier, and no row of that tier excepts it. A row with a pattern lists after "except" each
+   name of a row of another tier that the pattern matches, and two patterns in rows of
+   different tiers match no common name. The first line of the message is the fix: the line
+   to write, or the removal of the key.
 4. A list item outside a code fence that starts with a reference to a skill, such as
    `- ${qory:skills/<name>}`, states its moment. The marker of the item is `-`, `*`, `+` or
    a number, and the reference may be in a code span or bold. After the reference, and after
@@ -2933,7 +2933,7 @@ the rule passes on that file.
    a skill with the key was denied. No skill here has the key, and an agent with no allow
    rule is untested. The settings of `software-factory` set
    `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `"1"`, and the compose report has that
-   variable with the value `1` under `launch_env.claude`. At qory `91f02f0`, `dontAsk` and
+   variable with the value `1` under `launch_env.claude`. At qory `1deb56e`, `dontAsk` and
    these rules reach only Claude Code. A Codex home has no allow list, and qory places every
    composed skill under `skills/` in the home (`internal/render/codex/codex.go` and
    `internal/render/address.go`). For Codex, the script checks the entries instead:
