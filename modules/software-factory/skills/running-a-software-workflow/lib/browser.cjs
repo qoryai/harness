@@ -42,7 +42,7 @@ const SEND_MS = 10000;
 // The proxy of a Browser with an origin: port 9, the discard port, where nothing listens in
 // a dev container, so each request through it fails.
 const DEAD_PROXY = 'http://127.0.0.1:9';
-// The most time to wait for the first request of a new window, which gives its origin.
+// The most time to wait for the first request of a new window, whose origin is the outside.
 const POPUP_MS = 2000;
 // The outside of a page whose new window has no request yet, or one to the app's origin.
 const NEW_WINDOW = 'a new window';
@@ -248,8 +248,12 @@ class Browser {
 
   // page returns a new Page in a new browser context, which shares no cookie or storage with
   // another page. With origin, the page loads no document of another origin in any of its
-  // frames, as Page states.
+  // frames, as Page states. An origin other than that of the Browser throws.
   async page({ origin } = {}) {
+    if (origin && this.origin !== origin) {
+      throw new Error(`the browser blocks no request outside ${origin}: start it with ` +
+        'new Browser(bin, { origin })');
+    }
     const { browserContextId } = await this.send('Target.createBrowserContext');
     const { targetId } = await this.send('Target.createTarget',
       { url: 'about:blank', browserContextId });
@@ -286,7 +290,10 @@ class Browser {
       } catch {
         // The browser has ended.
       }
-      await Promise.race([this.exited, sleep(ms)]);
+      let timer;
+      await Promise.race([this.exited,
+        new Promise((resolve) => { timer = setTimeout(resolve, ms); })]);
+      clearTimeout(timer);
     }
     await this.removeDir();
   }
@@ -424,10 +431,15 @@ class Page {
   }
 
   // guard sets the origin of the page: from then on, the page fails the load of each document
-  // of another origin. A second call with another origin throws.
+  // of another origin. A second call with another origin throws, and so does a call with
+  // another origin than that of the Browser, which sends no other request to the proxy.
   async guard(origin) {
     if (this.origin === origin) return;
     if (this.origin) throw new Error(`the page already has the origin ${this.origin}`);
+    if (this.browser.origin !== origin) {
+      throw new Error(`the browser blocks no request outside ${origin}: start it with ` +
+        'new Browser(bin, { origin })');
+    }
     this.origin = origin;
     await this.send('Fetch.enable',
       { patterns: [{ urlPattern: '*', resourceType: 'Document', requestStage: 'Request' }] });

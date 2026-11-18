@@ -49,7 +49,8 @@ const p03Text = (names) => `The run could not sign in to the app with the values
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not. /away redirects
 // to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
-// a frame of it, /popup posts the form to it in a new window, /leak sends the password as a
+// a frame of it, /popup posts the form to it in a new window, /popup-same opens /orders in a
+// new window at the submit, /leak sends the password as a
 // host name of that port at the submit, and /alert shows the form with an alert at its load
 // and at each key. The other origin adds a line to the file OTHER_LOG for each request.
 const APP = `
@@ -84,7 +85,10 @@ http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html' });
   if (req.url === '/link') res.end(page('<a id="go" href="' + other + '">Go</a>'));
   else if (req.url === '/framed') res.end(page('<iframe src="' + other + '"></iframe>'));
-  else if (req.url === '/popup') {
+  else if (req.url === '/popup-same') {
+    res.end(form(false).replace('<form ', '<form onsubmit="event.preventDefault();' +
+      'window.open(\\'/orders\\')" '));
+  } else if (req.url === '/popup') {
     res.end(form(false).replace('action="/session"', 'action="' + other + '" target="_blank"'));
   } else if (req.url === '/leak') {
     res.end(form(false).replace('</body>', '<script>document.forms[0].addEventListener(' +
@@ -576,6 +580,18 @@ test('preflight: a sign-in that opens a new window of another origin writes the 
   assert.equal(await isFree(port), true);
 });
 
+test('preflight: a new window of the app closes too, and its point has "a new window"', { skip: NO_BROWSER }, async () => {
+  const { here, done, port } = await signIn([{ do: 'open', url: '/popup-same' },
+    ...SIGN_IN.slice(1)], 'parcel-blue-41');
+  assert.equal(done.status, 1);
+  assert.match(done.findings[0].split('\n')[1], /the page opened a new window, outside the app/);
+  assert.deepEqual(points(here.root), [outsidePoint(`http://127.0.0.1:${port}/`,
+    'a new window')]);
+  const checked = call(['check', 'points', path.join(here.root, 'points.json')],
+    { cwd: here.dir });
+  assert.equal(checked.status, 0, checked.out);
+});
+
 test('preflight: an outside origin that contains a typed value is another origin in the point and the finding', { skip: NO_BROWSER }, async () => {
   const value = 'Parcel-Blue-41';
   const { here, done, port, otherLog } = await signIn([{ do: 'open', url: '/leak' },
@@ -675,7 +691,7 @@ test('preflight: a command that starts the app in the background and exits 0 pas
   assert.equal(await isFree(port), true);
 });
 
-test('preflight: a FIFO or a symbolic link at the log of the serve command gives way to a new file', async () => {
+test('preflight: a FIFO or a symbolic link at the log of the serve command is replaced by a new file', async () => {
   for (const kind of ['fifo', 'link']) {
     const here = checkout();
     const port = await freePort();
@@ -793,6 +809,41 @@ test('preflight: a runner whose parent ends stops the app and exits', async () =
   }
 });
 
+test('preflight: a runner whose parent ends stops its browser and removes its folder', { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  const port = await freePort();
+  const folder = path.join(here.dir, 'tmp');
+  fs.mkdirSync(folder);
+  const spec = appSpec(here, port, port, { browser: BROWSER,
+    setups: [{ actions: [{ do: 'open', url: '/sign-in' },
+      { do: 'wait', text: 'Never shown', timeout_ms: 60000 }], names: [] }] });
+  spec.serve.command = `echo $PPID > runner.pid; ${spec.serve.command}`;
+  const parentFile = path.join(here.dir, 'parent.cjs');
+  fs.writeFileSync(parentFile, `require('child_process').spawnSync(process.execPath, ` +
+    `[${JSON.stringify(RUNNER)}], { input: ${JSON.stringify(JSON.stringify(spec))}, ` +
+    'stdio: ["pipe", "ignore", "ignore"] });\n');
+  const parent = childProcess.spawn(process.execPath, [parentFile],
+    { stdio: 'ignore', env: { ...process.env, TMPDIR: folder } });
+  // The pids of the processes whose arguments contain folder, as the profile of the browser.
+  const browsers = () => childProcess.execFileSync('ps', ['-eo', 'pid=,args=']).toString()
+    .split('\n').filter((line) => line.includes(folder) && !line.includes(' ps '))
+    .map((line) => Number(line.trim().split(' ')[0]));
+  let pid = null;
+  try {
+    await until(() => browsers().length > 0, 20000, 'the browser did not start');
+    pid = Number(fs.readFileSync(path.join(here.dir, 'runner.pid'), 'utf8'));
+    parent.kill('SIGTERM');
+    await until(async () => !alive(pid) && await isFree(port) && !browsers().length, 5000,
+      'the runner, the app or the browser outlived the parent');
+    assert.deepEqual(fs.readdirSync(folder).filter((name) => name.startsWith('qory-browser-')),
+      []);
+  } finally {
+    parent.kill('SIGKILL');
+    if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
+    for (const one of browsers()) process.kill(one, 'SIGKILL');
+  }
+});
+
 test('preflight: SIGKILL of the runner stops the process group of the serve command', async () => {
   const here = checkout();
   const port = await freePort();
@@ -810,7 +861,7 @@ test('preflight: SIGKILL of the runner stops the process group of the serve comm
 
 test('preflight: halt waits for the browser to exit, then removes its folder', { skip: NO_BROWSER }, async () => {
   const { Browser } = require(path.join(SKILL, 'lib/browser.cjs'));
-  const browser = new Browser(BROWSER);
+  const browser = new Browser(BROWSER, { origin: 'http://127.0.0.1:9' });
   await browser.start();
   await browser.page({ origin: 'http://127.0.0.1:9' });
   const { dir } = browser;
@@ -939,6 +990,30 @@ test('preflight: the browser starts with the flags that keep it from the macOS k
     assert.ok(given.includes('--password-store=basic'), given.join(' '));
     assert.ok(given.includes('--headless=new'), given.join(' '));
   }
+});
+
+test('preflight: a page with an origin needs a browser with that origin', async () => {
+  const { Browser } = require(path.join(SKILL, 'lib/browser.cjs'));
+  for (const browser of [new Browser('/usr/bin/false'),
+    new Browser('/usr/bin/false', { origin: 'http://127.0.0.1:8' })]) {
+    await assert.rejects(browser.page({ origin: 'http://127.0.0.1:9' }),
+      /^Error: the browser blocks no request outside http:\/\/127\.0\.0\.1:9: start it with /);
+  }
+});
+
+test('preflight: a process that exits with its browser running kills the browser', async () => {
+  const here = checkout();
+  const browser = fakeBrowser(here, 'exec sleep 96');
+  const main = path.join(here.dir, 'exits.cjs');
+  fs.writeFileSync(main, `const { Browser } = require(${JSON.stringify(path.join(SKILL,
+    'lib/browser.cjs'))});\nnew Browser(${JSON.stringify(browser.file)}).start().catch(() => {});\n` +
+    `setTimeout(() => process.exit(0), 1000);\n`);
+  const ran = childProcess.spawnSync(process.execPath, [main], { timeout: 10000 });
+  assert.equal(ran.status, 0);
+  const pid = Number(fs.readFileSync(browser.pid, 'utf8'));
+  await until(() => !alive(pid), 2000, 'the browser outlived its process').finally(() => {
+    if (alive(pid)) process.kill(pid, 'SIGKILL');
+  });
 });
 
 test('preflight: a demo script that types a key of qory or of an agent exits 3 before the app starts', async () => {
@@ -1258,7 +1333,7 @@ const LAN = Object.values(os.networkInterfaces()).flat()
   .find((one) => one && one.family === 'IPv4' && !one.internal);
 const NO_LAN = NO_BROWSER || (!LAN && 'this machine has no address other than loopback');
 
-test('preflight: the guard holds for an app whose host is not loopback', { skip: NO_LAN }, async () => {
+test('preflight: the guard works for an app whose host is not loopback', { skip: NO_LAN }, async () => {
   // A service worker needs a secure origin, and http on such a host is none.
   await guard(LAN.address, Object.keys(GUARD_CASES).filter((name) => name !== 'worker'));
 });

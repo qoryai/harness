@@ -155,7 +155,8 @@ first demo:
    redirect, a link or a script starts the load: the load fails, and the sign-in fails
    before its next action. The browser sends each other request to a host and port other
    than the app's, such as a `fetch`, an image, a WebSocket or a request of a service
-   worker, to a proxy where nothing listens, so the request fails. A new window of the
+   worker, to a proxy at port 9 of 127.0.0.1, where nothing listens, so the request
+   fails. A new window of the
    page closes before its first request, and the sign-in fails. A `type` or `press` acts
    only on a page of the app's origin, and a `type` only when the focus is in the element
    of its target. The replay gets only the variables that its setup types.
@@ -167,7 +168,8 @@ checks the browser alone. The output of the serve command is in
 of the command stops, also when the check fails, stops on a signal, or `preflight` ends.
 On Linux, each process with the mark `QORY_CHECK_MARK` stops too, as in `run`. A process
 that leaves the group by `setsid` and removes the mark from its environment keeps
-running.
+running. After a SIGKILL of the runner of the check, every process that left the group
+keeps running.
 
 For each missing part, `preflight` writes a point `run_again` with its fix to `points.json`
 of the artifact folder, and exits 1. Then change no code: run `check points` on

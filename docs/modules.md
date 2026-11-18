@@ -2417,7 +2417,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
   in the group kills the group when the runner ends, also on SIGKILL. A process that leaves
   the group by `setsid` and removes the mark from its environment keeps running, as
-  `lib/supervise.cjs` states. The sign-ins stop after at most 570
+  `lib/supervise.cjs` states, and after a SIGKILL of the runner, so does every process that
+  left the group. The sign-ins stop after at most 570
   seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
   Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
