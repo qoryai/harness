@@ -4,7 +4,7 @@
 
 # The end check: Codex runs this hook when the session tries to end. Exit status 2 with
 # text on stderr keeps the session going, and Codex passes the text to the model. A hook
-# in $CODEX_HOME runs only when its hash is trusted. qory at 91f02f0 writes no
+# in $CODEX_HOME runs only when its hash is trusted. qory at 1deb56e writes no
 # trusted_hash into config.toml (internal/render/codex/codex.go) and starts Codex as
 # `env CODEX_HOME=<home> codex`, without --dangerously-bypass-hook-trust
 # (contracts/harness/v1/README.md, the table of launches), so Codex does not run this hook

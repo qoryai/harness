@@ -167,7 +167,7 @@
         "tier": {
           "enum": [
             "light",
-            "fast",
+            "balanced",
             "thinking"
           ]
         },

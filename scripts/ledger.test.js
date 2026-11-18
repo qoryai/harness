@@ -203,7 +203,7 @@ function deliver(call, w, id) {
   commit(w, `${slug(id)}.txt`, `The change of ${id}.\n`);
   const file = report(call, `software-developer-${slug(id)}`, `Built ${id}.\n\ndone\n`);
   const ended = call('step', 'end', id, 'done', '--report', file,
-    '--attempt', 'software-developer,developer,fast,unknown');
+    '--attempt', 'software-developer,developer,balanced,unknown');
   assert.equal(ended.status, 0, ended.out);
   return ended;
 }
@@ -282,7 +282,7 @@ test('ledger: a session that stops after two of three deliverables resumes at th
   assert.equal(ledger.steps[2].base, head);
   assert.equal(ledger.steps[0].report, 'Built deliverable:d-1.\n\ndone\n');
   assert.deepEqual(ledger.steps[0].attempts,
-    [{ agent: 'software-developer', role: 'developer', tier: 'fast', model: 'unknown' }]);
+    [{ agent: 'software-developer', role: 'developer', tier: 'balanced', model: 'unknown' }]);
   // The draft at the top of the artifact folder has the bytes of the newest version.
   assert.equal(fs.readFileSync(path.join(next.artifacts, 'build-ledger.json'), 'utf8'),
     JSON.stringify(ledger));
@@ -812,7 +812,7 @@ test('ledger: --report takes only a file under .reports, and no link', () => {
 test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () => {
   const w = work();
   const call = resumed(w);
-  const attempt = ['--attempt', 'a,b,fast,m'];
+  const attempt = ['--attempt', 'a,b,balanced,m'];
   const pushed = ['--pushed', 'spec/main/1'];
   const cases = [
     [['step'], /^Give step begin or step end\.\n  nothing is neither\./],
@@ -822,6 +822,7 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],
     [['step', 'end', 'plan'], /^Give step end the state done or failed\.\n  nothing is neither\./],
     [['step', 'end', 'plan', 'done', '--attempt', 'a,b,slow,m'], /^Give --attempt as/],
+    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,fast,m'], /^Give --attempt as/],
     [['step', 'end', 'plan', 'done', ...attempt, ...attempt, ...attempt, ...attempt], /^Give --attempt at most 3 times/],
     [['step', 'end', 'plan', 'done', '--pushed', 'spec/main/0'], /^Give --pushed as/],
     [['step', 'end', 'plan', 'done', ...pushed, ...pushed, ...pushed, ...pushed, ...pushed], /^Give --pushed at most 4 times/],

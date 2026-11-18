@@ -324,7 +324,7 @@ rule_designer() {
 
 # Reads front matter, and prints the value of each model key, with no comment and no quotes
 # around it: a tier as its name after "+", and any other value after "=". A tier is
-# ${qory:light}, ${qory:fast} or ${qory:thinking}, the three tiers of qory (Tiers in
+# ${qory:light}, ${qory:balanced} or ${qory:thinking}, the three tiers of qory (Tiers in
 # internal/module/references.go). \047 is a single quote.
 MODEL_AWK='
 /^["\047]?model["\047]?[ \t]*:/ {
@@ -336,7 +336,7 @@ MODEL_AWK='
 	q = substr(value, 1, 1)
 	if (length(value) >= 2 && (q == "\"" || q == "\047") && substr(value, length(value)) == q)
 		value = substr(value, 2, length(value) - 2)
-	if (value ~ /^[$][{]qory:(light|fast|thinking)[}]$/)
+	if (value ~ /^[$][{]qory:(light|balanced|thinking)[}]$/)
 		print "+" substr(value, 8, length(value) - 8)
 	else
 		print "=" value
@@ -349,7 +349,7 @@ MODEL_AWK='
 # is left out:
 # - "<tier> <name>" for each name or pattern in a code span, and "<tier> !<name>" for each
 #   name in the list after "except": the row lists every *-reviewer except demo-reviewer;
-# - "%tier <cell>" for a tier cell that is not `light`, `fast` or `thinking`;
+# - "%tier <cell>" for a tier cell that is not `light`, `balanced` or `thinking`;
 # - "%text <tier> <text>" for the text left in the names cell after the code spans and the
 #   words ",", "and", "every" and "except" are removed.
 TIER_TABLE_AWK='
@@ -375,7 +375,7 @@ function trim(text) {
 {
 	split(row, cells, "|")
 	cell = trim(cells[1])
-	if (cell !~ /^`(light|fast|thinking)`$/) { print "%tier " cell; next }
+	if (cell !~ /^`(light|balanced|thinking)`$/) { print "%tier " cell; next }
 	tier = substr(cell, 2, length(cell) - 2)
 	line = cells[2]
 	rest = line
@@ -427,7 +427,7 @@ function overlap(p, q) {
 
 # Reads the rows of tier_rows, and prints the tier of the agent n: the tier of the row that
 # lists its name, else the tier of a row whose pattern matches it and that does not except
-# it, else nothing. So demo-reviewer, which the `thinking` row excepts, is fast.
+# it, else nothing. So demo-reviewer, which the `thinking` row excepts, is balanced.
 AGENT_TIER_AWK=$GLOB_AWK'
 /^%/ { next }
 substr($2, 1, 1) == "!" { except[$1 SUBSEP substr($2, 2)] = 1; next }
@@ -461,7 +461,7 @@ short() {
 # on the order of the rows:
 # - "excepted <tier> <name>" for a name that a row lists and a row of the same tier excepts;
 # - "twice - <name> - <tiers>" for a name that rows of two or more tiers list, with the
-#   tiers as "thinking, fast and light";
+#   tiers as "thinking, balanced and light";
 # - "pattern <tier> <pattern> <tier> <pattern>" for two patterns of rows of different tiers
 #   that match a common name;
 # - "name <tier> <pattern> <tier> <name>" for a pattern that matches a name of a row of
@@ -502,11 +502,11 @@ END {
 '
 
 # rule_tier_table DIR: rule 3, rule_model can read each row of the tier table of
-# DIR/docs/modules.md, section "Agents": a tier `light`, `fast` or `thinking` in code font,
-# and names and patterns in code font. A name is listed under one tier, and not excepted by
-# a row of that tier. A pattern such as *-reviewer lists after "except" each name of a row
-# of another tier that it matches, and two patterns of rows of different tiers match no
-# common name, so the order of the rows changes no tier.
+# DIR/docs/modules.md, section "Agents": a tier `light`, `balanced` or `thinking` in code
+# font, and names and patterns in code font. A name is listed under one tier, and not
+# excepted by a row of that tier. A pattern such as *-reviewer lists after "except" each
+# name of a row of another tier that it matches, and two patterns of rows of different
+# tiers match no common name, so the order of the rows changes no tier.
 rule_tier_table() {
 	OUT=
 	rows=$(tier_rows "$1")
@@ -519,7 +519,7 @@ rule_tier_table() {
 		case $kind in
 		%tier)
 			cell="$tier${cell_text:+ $cell_text}"
-			add "In docs/modules.md, replace the tier $(short "$cell") with \`light\`, \`fast\` or \`thinking\`."
+			add "In docs/modules.md, replace the tier $(short "$cell") with \`light\`, \`balanced\` or \`thinking\`."
 			add "  A row of the tier table of docs/modules.md, section \"Agents\", has the tier cell $cell, and rule 3 reads only those three tiers in code font." ;;
 		%text)
 			add "In docs/modules.md, put $(short "$cell_text") of the \`$tier\` row in code font, or remove it."
@@ -749,7 +749,7 @@ skill_names() {
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
-# qory passes these rules only to Claude Code. At qory 91f02f0, a Codex home has no allow
+# qory passes these rules only to Claude Code. At qory 1deb56e, a Codex home has no allow
 # list and gets every composed skill (internal/render/codex/codex.go and
 # internal/render/address.go). For Codex, the check is that
 # harness compose --dry-run --runtime codex for the software stack lists every skill and
@@ -1652,45 +1652,45 @@ expect_passes "rule 2 passes with no designer and no Bash allow rule" rule_desig
 
 # Rule 3: the tier of the tier table passes, and a model id, another tier or anything else on
 # the model line fails. sample-agent is not in the table, sample-reviewer has the tier
-# thinking, and code-explorer has the tier fast.
+# thinking, and code-explorer has the tier balanced.
 MODEL_FIX="Remove the model key from modules/core/agents/sample-agent.md."
-for pair in sample-reviewer:thinking code-explorer:fast demo-reviewer:fast \
-	build-planner:thinking browser-demo-author:fast; do
+for pair in sample-reviewer:thinking code-explorer:balanced demo-reviewer:balanced \
+	build-planner:thinking browser-demo-author:balanced; do
 	fixture
 	agent_with "tools: Read\nmodel: \${qory:${pair#*:}}"
 	agent_named "${pair%:*}"
 	expect_passes "rule 3 passes on ${pair%:*} with the tier ${pair#*:}" rule_model "$FIX"
 done
 fixture
-agent_with 'tools: Read\nmodel: ${qory:fast}'
+agent_with 'tools: Read\nmodel: ${qory:balanced}'
 agent_named sample-reviewer
-expect_broken_first "rule 3 fails on a reviewer with the tier fast" \
+expect_broken_first "rule 3 fails on a reviewer with the tier balanced" \
 	"Write model: \${qory:thinking} in modules/core/agents/sample-reviewer.md." rule_model "$FIX"
 expect_broken "rule 3 names the tier it refuses and the table" \
-	'The model key is set to ${qory:fast}, and docs/modules.md, section "Agents", lists sample-reviewer under the tier thinking.' \
+	'The model key is set to ${qory:balanced}, and docs/modules.md, section "Agents", lists sample-reviewer under the tier thinking.' \
 	rule_model "$FIX"
 fixture
 agent_with 'tools: Read\nmodel: ${qory:light}'
 agent_named demo-reviewer
 expect_broken_first "rule 3 fails on demo-reviewer with the tier light" \
-	"Write model: \${qory:fast} in modules/core/agents/demo-reviewer.md." rule_model "$FIX"
+	"Write model: \${qory:balanced} in modules/core/agents/demo-reviewer.md." rule_model "$FIX"
 fixture
 agent_with 'tools: Read\nmodel: ${qory:thinking}'
 agent_named code-explorer
 expect_broken_first "rule 3 fails on code-explorer with the tier thinking" \
-	'Write model: ${qory:fast} in' rule_model "$FIX"
+	'Write model: ${qory:balanced} in' rule_model "$FIX"
 fixture
-agent_with 'tools: Read\nmodel: ${qory:thinking}\nmodel: ${qory:fast}'
+agent_with 'tools: Read\nmodel: ${qory:thinking}\nmodel: ${qory:balanced}'
 agent_named sample-reviewer
 expect_broken "rule 3 fails on a second model key with another tier" \
-	'set to ${qory:fast}, and' rule_model "$FIX"
+	'set to ${qory:balanced}, and' rule_model "$FIX"
 fixture
 agent_named sample-reviewer
 expect_broken_first "rule 3 fails on a reviewer with no model key" \
 	"Add model: \${qory:thinking} to modules/core/agents/sample-reviewer.md." rule_model "$FIX"
 expect_broken "rule 3 states that the reviewer runs on the main model" \
 	'The front matter has no model key, so sample-reviewer runs on the main model' rule_model "$FIX"
-for tier in light fast thinking; do
+for tier in light balanced thinking; do
 	fixture
 	agent_with "tools: Read\nmodel: \${qory:$tier}"
 	expect_broken_first "rule 3 fails on the tier $tier in an agent that the table does not list" \
@@ -1704,16 +1704,16 @@ agent_with 'tools: Read\n"model": "${qory:thinking}"'
 agent_named sample-reviewer
 expect_passes "rule 3 passes on a quoted model key and a quoted tier" rule_model "$FIX"
 fixture
-agent_with "tools: Read\nmodel: '\${qory:fast}'  # the tier of code-explorer"
+agent_with "tools: Read\nmodel: '\${qory:balanced}'  # the tier of code-explorer"
 agent_named code-explorer
 expect_passes "rule 3 passes on a tier in single quotes with a comment" rule_model "$FIX"
 fixture
-agent_with 'tools: Read\nmodel: ${qory:fast}'
+agent_with 'tools: Read\nmodel: ${qory:balanced}'
 agent_named code-explorer
 awk '{ printf "%s\r\n", $0 }' "$AGENT" >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
 expect_passes "rule 3 passes on a tier in CRLF front matter" rule_model "$FIX"
 fixture
-agent_with 'tools: Read\nmodel: ${qory:fast}'
+agent_with 'tools: Read\nmodel: ${qory:balanced}'
 agent_named sample-reviewer
 expect_same_with_bom "rule 3 gives the same result on a wrong tier after a byte order mark" \
 	"$AGENT" rule_model
@@ -1732,9 +1732,9 @@ fixture
 agent_with 'tools: Read\nmodel: sample'
 awk '{ printf "%s\r\n", $0 }' "$AGENT" >"$AGENT.new" && mv "$AGENT.new" "$AGENT"
 expect_broken_first "rule 3 fails on a model id in CRLF front matter" "$MODEL_FIX" rule_model "$FIX"
-for bad_value in '${qory:heavy}' '${qory:skills/sample}' '${qory:Fast}' '${qory:fast}-1' \
-	'sample ${qory:fast}' '"${qory:fast}' '${qory:fast}#high' '${qory: fast}' \
-	'"${qory:fast} # x"'; do
+for bad_value in '${qory:heavy}' '${qory:fast}' '${qory:skills/sample}' '${qory:Balanced}' \
+	'${qory:balanced}-1' 'sample ${qory:balanced}' '"${qory:balanced}' '${qory:balanced}#high' \
+	'${qory: balanced}' '"${qory:balanced} # x"'; do
 	fixture
 	agent_with "tools: Read\nmodel: $bad_value"
 	expect_broken_first "rule 3 fails on the model value $bad_value" "$MODEL_FIX" rule_model "$FIX"
@@ -1755,7 +1755,7 @@ expect_broken "rule 3 names the model id and the tier of a listed agent" \
 # Rule 3: agent_tier reads the tier of each agent from the rows of the tier table, a name
 # before a pattern, and a pattern only for a name that its row does not except.
 ROWS=$(tier_rows "$ROOT")
-for pair in demo-reviewer:fast sample-reviewer:thinking code-explorer:fast spec-writer:; do
+for pair in demo-reviewer:balanced sample-reviewer:thinking code-explorer:balanced spec-writer:; do
 	want=${pair#*:}
 	got=$(agent_tier "${pair%:*}" "$ROWS")
 	OUT="agent_tier ${pair%:*} prints '$got'."
@@ -1772,15 +1772,15 @@ tier_docs() {
 fixture
 expect_passes "rule 3 passes on the tier table of this repository" rule_tier_table "$FIX"
 fixture
-tier_docs '/^| `fast` |/a\
+tier_docs '/^| `balanced` |/a\
 | `light` | `sample-light` |
 '
 expect_passes "rule 3 passes on a light row in the tier table" rule_tier_table "$FIX"
 agent_with 'tools: Read\nmodel: ${qory:light}'
 agent_named sample-light
 expect_passes "rule 3 passes on an agent of the light row with the tier light" rule_model "$FIX"
-agent_with 'tools: Read\nmodel: ${qory:fast}'
-expect_broken_first "rule 3 fails on an agent of the light row with the tier fast" \
+agent_with 'tools: Read\nmodel: ${qory:balanced}'
+expect_broken_first "rule 3 fails on an agent of the light row with the tier balanced" \
 	'Write model: ${qory:light} in modules/core/agents/sample-light.md.' rule_model "$FIX"
 fixture
 tier_docs 's/ except `demo-reviewer`/ except `demo-reviewer` and `sample-reviewer`/'
@@ -1796,38 +1796,38 @@ tier_docs 's/ except `demo-reviewer`//'
 expect_broken_first "rule 3 fails when the docs drop the exception for demo-reviewer" \
 	'In docs/modules.md, add except `demo-reviewer` to the `*-reviewer` row.' rule_tier_table "$FIX"
 expect_broken "rule 3 names the row of demo-reviewer and the pattern that matches it" \
-	'lists demo-reviewer under the tier fast, and the pattern *-reviewer of the tier thinking matches demo-reviewer.' \
+	'lists demo-reviewer under the tier balanced, and the pattern *-reviewer of the tier thinking matches demo-reviewer.' \
 	rule_tier_table "$FIX"
 fixture
-tier_docs '/^| `fast` |/s/ |$/, `demo-*` |/'
+tier_docs '/^| `balanced` |/s/ |$/, `demo-*` |/'
 expect_broken_first "rule 3 fails on two patterns of different tiers that match a common name" \
 	'In docs/modules.md, change `*-reviewer` or `demo-*`: no name may match both.' rule_tier_table "$FIX"
 expect_broken "rule 3 states that the order of the rows would decide the tier" \
-	'the pattern *-reviewer of the tier thinking and the pattern demo-* of the tier fast match a common name' \
+	'the pattern *-reviewer of the tier thinking and the pattern demo-* of the tier balanced match a common name' \
 	rule_tier_table "$FIX"
 fixture
 tier_docs 's/`build-planner`, /`build-planner`, `code-explorer`, /'
 expect_broken_first "rule 3 fails on a name that rows of two tiers list" \
 	'In docs/modules.md, list `code-explorer` in one row of the tier table.' rule_tier_table "$FIX"
 expect_broken "rule 3 names both tiers of a name listed twice" \
-	'lists code-explorer under the tiers thinking and fast' rule_tier_table "$FIX"
+	'lists code-explorer under the tiers thinking and balanced' rule_tier_table "$FIX"
 fixture
-tier_docs 's/`build-planner`, /`build-planner`, `code-explorer`, /; /^| `fast` |/a\
+tier_docs 's/`build-planner`, /`build-planner`, `code-explorer`, /; /^| `balanced` |/a\
 | `light` | `code-explorer` |
 '
 expect_broken "rule 3 names all three tiers of a name listed three times" \
-	'lists code-explorer under the tiers thinking, fast and light, and rule 3' rule_tier_table "$FIX"
+	'lists code-explorer under the tiers thinking, balanced and light, and rule 3' rule_tier_table "$FIX"
 fixture
 tier_docs 's/`build-planner`, /`build-planner`, `demo-reviewer`, /; s/ and `demo-reviewer` |$/ |/'
 expect_broken_first "rule 3 fails on a name that a row of its tier also excepts" \
 	'In docs/modules.md, list or except `demo-reviewer` in the `thinking` rows, not both.' \
 	rule_tier_table "$FIX"
 fixture
-tier_docs '/^| `fast` |/s/ |$/, `*-explorer` |/'
+tier_docs '/^| `balanced` |/s/ |$/, `*-explorer` |/'
 expect_passes "rule 3 passes on two patterns of different tiers with no common name" \
 	rule_tier_table "$FIX"
 fixture
-tier_docs '/^| `fast` |/a\
+tier_docs '/^| `balanced` |/a\
 | `light` | `sample-very-long-agent-name-reviewer` |
 '
 expect_broken_first "rule 3 shortens a long name in the first line" \
@@ -1835,22 +1835,22 @@ expect_broken_first "rule 3 shortens a long name in the first line" \
 	rule_tier_table "$FIX"
 for bad_tier in '| light | `sample-light` |' '| `thinkng` | `sample-light` |' '| `Light` | `sample-light` |'; do
 	fixture
-	tier_docs "/^| \`fast\` |/a\\
+	tier_docs "/^| \`balanced\` |/a\\
 $bad_tier
 "
 	cell=$(printf '%s\n' "$bad_tier" | cut -d '|' -f 2 | sed 's/^ *//; s/ *$//')
 	expect_broken_first "rule 3 fails on the tier cell $cell" \
-		"In docs/modules.md, replace the tier $cell with \`light\`, \`fast\` or \`thinking\`." \
+		"In docs/modules.md, replace the tier $cell with \`light\`, \`balanced\` or \`thinking\`." \
 		rule_tier_table "$FIX"
 done
 fixture
-tier_docs '/^| `fast` |/a\
+tier_docs '/^| `balanced` |/a\
 | `light` | sample-light |
 '
 expect_broken_first "rule 3 fails on a name outside code font" \
 	'In docs/modules.md, put sample-light of the `light` row in code font, or remove it.' rule_tier_table "$FIX"
 fixture
-tier_docs '/^| `fast` |/a\
+tier_docs '/^| `balanced` |/a\
 | `light` | `sample-light`, a long text outside code font |
 '
 expect_broken_first "rule 3 shortens a long text outside code font in the first line" \
@@ -1859,7 +1859,7 @@ expect_broken_first "rule 3 shortens a long text outside code font in the first 
 expect_broken "rule 3 states the whole text outside code font" \
 	'has the text a long text outside code font outside code font' rule_tier_table "$FIX"
 fixture
-tier_docs '/^| `fast` |/a\
+tier_docs '/^| `balanced` |/a\
 `light` | `sample-light` |
 '
 expect_passes "rule 3 passes on a row with no pipe at its start" rule_tier_table "$FIX"
@@ -1868,16 +1868,16 @@ OUT="agent_tier sample-light prints '$(agent_tier sample-light "$(tier_rows "$FI
 	fail "agent_tier reads a row with no pipe at its start"
 pass "agent_tier reads a row with no pipe at its start"
 fixture
-tier_docs '/^| `fast` |/a\
+tier_docs '/^| `balanced` |/a\
 `Light` | `sample-light` |
 '
 expect_broken_first "rule 3 fails on a bad tier in a row with no pipe at its start" \
-	'In docs/modules.md, replace the tier `Light` with `light`, `fast` or `thinking`.' \
+	'In docs/modules.md, replace the tier `Light` with `light`, `balanced` or `thinking`.' \
 	rule_tier_table "$FIX"
 fixture
 awk '{ printf "%s\r\n", $0 }' "$ROOT/docs/modules.md" >"$FIX/docs/modules.md" || exit 1
 expect_passes "rule 3 passes on a tier table with CRLF lines" rule_tier_table "$FIX"
-agent_with 'tools: Read\nmodel: ${qory:fast}'
+agent_with 'tools: Read\nmodel: ${qory:balanced}'
 agent_named code-explorer
 expect_passes "rule 3 reads the tier of an agent from a tier table with CRLF lines" \
 	rule_model "$FIX"
@@ -1886,18 +1886,18 @@ rm "$FIX/docs/modules.md"
 expect_broken_first "rule 3 fails on a checkout with no tier table" \
 	'Add the tier table to docs/modules.md, section "Agents".' rule_tier_table "$FIX"
 fixture
-agent_with 'tools: Read\nmodel: ${qory:fast}\nmodel: sample'
+agent_with 'tools: Read\nmodel: ${qory:balanced}\nmodel: sample'
 expect_broken "rule 3 fails on a second model key with a model id" "set to sample." rule_model "$FIX"
 fixture
 agent_with 'tools: Read\nmodel:\n  sample'
 expect_broken "rule 3 fails on a model id on the next indented line" "has no value on its line" \
 	rule_model "$FIX"
 fixture
-agent_with 'tools: Read\nmodel:\t${qory:fast}'
+agent_with 'tools: Read\nmodel:\t${qory:balanced}'
 agent_named code-explorer
 expect_passes "rule 3 passes on a tier after a tab" rule_model "$FIX"
 fixture
-agent_with 'tools: Read\nmodel : ${qory:fast}'
+agent_with 'tools: Read\nmodel : ${qory:balanced}'
 agent_named code-explorer
 expect_passes "rule 3 passes on a tier with a space before the colon" rule_model "$FIX"
 fixture

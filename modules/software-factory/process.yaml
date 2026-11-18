@@ -453,7 +453,7 @@ artifact_types:
               "tier": {
                 "enum": [
                   "light",
-                  "fast",
+                  "balanced",
                   "thinking"
                 ]
               },
