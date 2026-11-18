@@ -3955,6 +3955,20 @@ test('questions: an about names an output that the run can read, and a criterion
   write(root, 'questions.json', data);
   fails(check(root, 'questions', path.join(root, 'questions.json')),
     /^Set about\.item of q7 to a criterion of the acceptance criteria\. They have no ac-6\.$/);
+  // A check passes a mockup that only a draft in mockup-draft/ has, with a screen as its item:
+  // no module checks the type mockup, so the check cannot find its draft, and the push of the
+  // questions, which reads index.json, refuses the mockup when index.json does not list it.
+  fs.mkdirSync(path.join(root, 'mockup-draft'));
+  write(root, 'mockup-draft/screens.json', { screens: [] });
+  data.questions.at(-1).about = { type: 'mockup', name: 'main', item: 'screen-2' };
+  write(root, 'questions.json', data);
+  passes(check(root, 'questions', path.join(root, 'questions.json')));
+  // A check still refuses a type that a module checks, such as the spec, with no draft.
+  fs.rmSync(path.join(root, 'spec.md'));
+  data.questions.at(-1).about = { type: 'spec', name: 'other' };
+  write(root, 'questions.json', data);
+  fails(check(root, 'questions', path.join(root, 'questions.json')),
+    /^Set about of q7 to an output that the run can read, or to the work item\. The run can /);
 });
 
 test('questions: a kept question whose about is unchanged is not checked again', () => {

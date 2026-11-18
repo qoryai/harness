@@ -106,9 +106,12 @@ ${ABOUT_FORMS}`);
     return;
   }
   if (workItem || (earlier && sameJson(about, earlier.about))) return;
-  const { outputs: names, criteria } = readable();
+  const { outputs: names, criteria, known } = readable();
   const shown = `${about.type} ${about.name}`;
-  if (!names.has(`${about.type}/${about.name}`)) {
+  // In a check, the draft of a type that no module checks, such as a mockup, can lie anywhere
+  // in the artifact folder, so only a push, through index.json, refuses such an output.
+  const unseen = run.context.mode === 'check' && !known.has(about.type);
+  if (!names.has(`${about.type}/${about.name}`) && !unseen) {
     run.find(`Set about of ${who} to an output that the run can read, or to the work item.
 ` +
       `The run can read no ${short(shown, 80)}.`);
@@ -149,7 +152,8 @@ function questionsCheck(run, files) {
       const { types } = require('./points.cjs').registryOf(run.context.plugin);
       const def = types.find((one) => one.type === 'acceptance-criteria');
       read = { outputs: outputs(run.context, types),
-        criteria: criterionIds(run.context, def && def.main) };
+        criteria: criterionIds(run.context, def && def.main),
+        known: new Set(types.filter((one) => one.main).map((one) => one.type)) };
     }
     return read;
   };

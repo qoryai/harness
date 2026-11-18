@@ -79,7 +79,7 @@ question, in its order, with all its members as they are, except for these four 
     characters, with no Markdown.
   - `about`: what the question is about. Write `{"work_item": true}` for the work item
     itself, before any output. Write `{"type": "<type>", "name": "<name>"}` for an output
-    that the newest artifacts or a draft at the top of the artifact folder contain, such as
+    that the newest artifacts or a draft in the artifact folder contain, such as
     `{"type": "proposal", "name": "main"}`. Add `"item"` for one entry of that output, such
     as `"item": "ac-3"` for a criterion of the acceptance criteria.
   - `context`: what the person needs to answer that question, and nothing more, as
@@ -169,7 +169,7 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
 - has two options marked `recommended: true` in one question;
 - has a key twice in one object, such as two `state` keys in one question;
 - has a question with no `about`, or adds or changes an `about` so that it names an output
-  that the run cannot read, or an `item` that the acceptance criteria do not have.
+  that `index.json` does not list, or lists as withdrawn.
 
 The check compares numbers by value, so `3.0` is the same run number as `3`.
 
