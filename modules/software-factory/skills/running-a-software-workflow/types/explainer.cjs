@@ -120,8 +120,8 @@ module.exports = (lib) => {
           'verification version.');
       } else if (!verified.commit || !COMMIT.test(verified.commit)) {
         // With no full verified commit, the check has no commit to compare: a finding.
-        run.find('Start a line of ## Summary of verification.md with "Commit: " and the ' +
-          `verified commit's full id.\nThen push verification.md and ${FILE} again.`);
+        run.find('Set target_version of verification.json to the verified commit\'s full id.\n' +
+          `Then push verification.json and ${FILE} again.`);
       } else if (commit !== verified.commit) {
         run.find(`Set the commit of ${FILE} to ${verified.commit}.\nThat id is the verified ` +
           `commit, and ${FILE} has ${commit}.`);
