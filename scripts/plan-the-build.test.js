@@ -441,7 +441,7 @@ function questionOf(count, rows = CHANGES.slice(0, count), texts = Object.fromEn
     const cut = value.split(' ');
     return `"${short && cut.length > 5 ? `${cut.slice(0, 5).join(' ')}...` : value}"`;
   };
-  const ids = (list) => [...new Set(list.flatMap(([, own]) => own))];
+  const ids = (list) => [...new Set(list.flatMap(([, onlyLater]) => onlyLater))];
   const first = ids(rows.slice(0, k));
   const later = ids(rows.slice(k));
   const only = later.filter((id) => !first.includes(id));
@@ -612,7 +612,7 @@ test('two later changes that share their criteria: option 1 takes in the other 2
   assert.equal(question.options[1].title, 'Build all 9 changes in this work item.');
 });
 
-test('the question of a plan with later criteria of its own keeps the criteria form of option 1', () => {
+test('the question of a plan whose later changes have criteria that no earlier change has keeps the criteria form of option 1', () => {
   assert.equal(questionOf(8).shared, false);
   assert.match(questionOf(8).options[0].title, /^Build the changes for .* here; take in .* as a new work item\.$/);
 });
