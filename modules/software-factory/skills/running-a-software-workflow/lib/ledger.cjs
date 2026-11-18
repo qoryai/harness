@@ -219,7 +219,7 @@ module.exports = (lib) => {
     const target = lib.criteriaTarget(context, 'the build plan');
     if (target === null) return null;
     const file = path.join(context.store, 'acceptance-criteria', 'main', `v${target}`,
-      'acceptance-criteria.md');
+      'acceptance-criteria.json');
     try {
       return lib.liveIn(fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n'));
     } catch {

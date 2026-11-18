@@ -151,20 +151,28 @@ module.exports = (lib) => {
     return null;
   }
 
-  // verifiedCommit returns { commit } for verification.md: the draft at the top of the
-  // artifact folder in a check, else the newest version. commit is null when the summary has
-  // no line "Commit: <id>". It returns null when neither verification exists.
+  // verifiedCommit returns { commit } for verification.json: the draft at the top of the
+  // artifact folder in a check, else the newest version. commit is null when target_version is
+  // no full commit id, or the file is no JSON object. It returns null when neither
+  // verification exists.
   function verifiedCommit(run) {
-    const top = path.join(run.context.root, 'verification.md');
+    const top = path.join(run.context.root, 'verification.json');
     let text = null;
-    if (run.context.mode === 'check' && fs.existsSync(top)) text = readFile(top, 'verification.md');
-    else {
-      const newest = run.context.newest('verification', 'verification.md');
+    if (run.context.mode === 'check' && fs.existsSync(top)) {
+      text = readFile(top, 'verification.json');
+    } else {
+      const newest = run.context.newest('verification', 'verification.json');
       text = newest && newest.text;
     }
     if (text === null) return null;
-    const summary = sections(lines(text), 2).slice(1).find((part) => part.title === 'Summary');
-    return { commit: summary ? commitLine(summary) : null };
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    const version = isObject(data) ? data.target_version : null;
+    return { commit: typeof version === 'string' && COMMIT.test(version) ? version : null };
   }
 
   // approvedNumber returns the number of the version of the main artifact of type that
@@ -285,7 +293,7 @@ module.exports = (lib) => {
   // version number.
   const pullCriteria = (number) => `Pull version ${num(number)} of the acceptance criteria, ` +
     'then check again.\nThe artifact folder has no acceptance-criteria/main/' +
-    `v${number}/acceptance-criteria.md.`;
+    `v${number}/acceptance-criteria.json.`;
 
   // criteriaText returns the number and the text of the target of criteriaTarget, which
   // build-plan, verification and explainer read in a check and in a push, or null after one
@@ -314,7 +322,7 @@ module.exports = (lib) => {
       return null;
     }
     const file = path.join(context.store, 'acceptance-criteria', 'main', `v${target}`,
-      'acceptance-criteria.md');
+      'acceptance-criteria.json');
     if (!fs.existsSync(file)) {
       run.find(context.mode === 'push' ? noCriteria(what) : pullCriteria(target));
       return null;
@@ -390,7 +398,7 @@ module.exports = (lib) => {
 
   // wrongQuotes adds the finding of quoteFix for each id in text of a criterion of byId whose
   // quote, as quotes reads it, is not the criterion's words, once per line. where locates
-  // text, such as "## Lowered of verification.md". Wrapped lines count as one line.
+  // text, such as "/matrix/0/evidence of verification.json". Wrapped lines count as one line.
   function wrongQuotes(run, text, byId, where) {
     const found = new Set();
     const plain = flat(text);
@@ -404,7 +412,7 @@ module.exports = (lib) => {
     for (const line of found) run.find(line);
   }
 
-  // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
+  // liveIn returns the criteria of text, an acceptance-criteria.json, that are not removed, one
   // per id, as criterionMap keeps them.
   function liveIn(text) {
     const list = lib.criteria(text);

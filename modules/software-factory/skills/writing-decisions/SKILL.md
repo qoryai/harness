@@ -15,7 +15,7 @@ list a question in your report.
 Write the record in `decision-record.md` at the top of the artifact folder.
 
 - In every start, read the newest `spec/main/v<N>/spec.md` and
-  `acceptance-criteria/main/v<N>/acceptance-criteria.md` first. When the spec has no
+  `acceptance-criteria/main/v<N>/acceptance-criteria.json` first. When the spec has no
   version, write no draft, and report `Blocked: needs spec`. When the acceptance criteria
   have no version, write no draft, and report `Blocked: needs acceptance-criteria`.
 - Follow the direction of the newest `proposal/main/v<N>/` when one exists.

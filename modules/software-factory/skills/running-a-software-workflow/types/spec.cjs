@@ -1,22 +1,17 @@
-// The checks of the types spec and acceptance-criteria, as writing-specs lists their rules.
+// The checks of the types spec and acceptance-criteria, as writing-specs lists their rules. The
+// criteria are acceptance-criteria.json, in the acceptance criteria format of qory's contract.
 'use strict';
 
 module.exports = (lib) => {
   const {
-    blank, firstFilled, headings, idHistory, isRow, lines, markdownText, plural, points, quote,
-    REMOVED, same, sections, sentences, short: brief, summary, table, topSections, wordLimit,
-    words,
+    blank, characters, firstFilled, headings, idHistory, isObject, lines, markdownText, paths,
+    plural, points, quote, same, sections, sentences, short: brief, summary, table, topSections,
+    wordLimit, words,
   } = lib;
 
   const SPEC_SECTIONS = ['Summary', 'Background', 'Changes', 'Sources'];
 
   const RULE_COLUMNS = ['Rule', 'Today', 'After'];
-
-  // idOf returns the id of a criterion, or its place, as the first line of a finding shows it:
-  // up to 16 characters, else its start and its end. whole returns a later line with the id
-  // when idOf shortens it, else nothing.
-  const idOf = (id) => brief(id, 16);
-  const whole = (id) => (idOf(id) === id ? '' : `\nThe whole id is ${quote(id)}.`);
 
   function spec(run, files) {
     const md = files.get('spec.md');
@@ -52,94 +47,91 @@ module.exports = (lib) => {
     markdownText(run, 'spec.md', md);
   }
 
-  const CRITERIA_COLUMNS = ['Id', 'Criterion', 'Planned check'];
+  const FILE = 'acceptance-criteria.json';
 
-  // criteria reads the table of acceptance-criteria.md.
+  // criteria reads the criteria of text, an acceptance-criteria.json, in their order: each with
+  // its place, its id, its text, its check, and whether it is removed, with the reason. A text
+  // that is no JSON object with a list criteria has none, and an entry that is no object is
+  // skipped: the check of the file reports both.
   function criteria(text) {
-    const list = lines(text);
-    const found = table(list, list.findIndex(isRow));
-    if (!found) return [];
-    return found.rows.map(([id = '', criterion = '', check = ''], index) => ({
-      row: index + 1,
-      id: id.replace(/`/g, ''),
-      text: criterion,
-      check,
-      removed: REMOVED.test(criterion),
-    }));
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return [];
+    }
+    const list = isObject(data) && Array.isArray(data.criteria) ? data.criteria : [];
+    return list.map((entry, index) => ({ entry, index })).filter(({ entry }) => isObject(entry))
+      .map(({ entry, index }) => ({
+        row: index + 1,
+        id: typeof entry.id === 'string' ? entry.id : '',
+        text: typeof entry.text === 'string' ? entry.text : '',
+        check: typeof entry.check === 'string' ? entry.check : '',
+        removed: isObject(entry.removed),
+        reason: isObject(entry.removed) && typeof entry.removed.reason === 'string'
+          ? entry.removed.reason : '',
+      }));
+  }
+
+  // plainTexts checks each text of the criteria that members read, as plain text: its
+  // characters and its paths.
+  function plainTexts(run, data, all) {
+    const texts = [['the summary', data.summary]];
+    for (const criterion of all) {
+      texts.push([`the text of ${criterion.id}`, criterion.text],
+        [`the check of ${criterion.id}`, criterion.check]);
+      if (criterion.removed) texts.push([`the reason of ${criterion.id}`, criterion.reason]);
+    }
+    for (const [where, text] of texts) {
+      characters(run, FILE, where, text);
+      paths(run, FILE, where, text);
+    }
   }
 
   function acceptanceCriteria(run, files) {
-    const md = files.get('acceptance-criteria.md');
-    const list = lines(md);
-    // writing-specs (SKILL.md:41-42: "`acceptance-criteria.md` has `## Summary`"): ## Summary, then
-    // the table, and nothing else.
-    run.did('sections');
-    const titles = topSections(run, 'acceptance-criteria.md', list).map((part) => part.title);
-    if (!same(titles, ['Summary'])) {
-      run.find(`Give acceptance-criteria.md only the section ## Summary.\nIt has ` +
-        `${headings(titles)}.`);
-    } else {
-      const found = table(list, list.findIndex(isRow));
-      if (!found || !same(found.header, CRITERIA_COLUMNS)) {
-        run.find('Put the table of criteria after the summary of acceptance-criteria.md.\nThe ' +
-          'table has the columns Id, Criterion, Planned check.');
-      } else if (list.slice(found.end).some((line) => !blank(line))) {
-        run.find('Remove the text after the table of acceptance-criteria.md: the file ends ' +
-          'with the table.');
-      }
+    // The schema, the contract's acceptance criteria format, states the members and the ids:
+    // writing-specs (SKILL.md:41-43: "`acceptance-criteria.json` is JSON with two members").
+    const data = lib.jsonFile(run, 'acceptance-criteria', FILE, files.get(FILE));
+    if (!data) return;
+    run.did('summary');
+    const said = sentences(data.summary);
+    if (said < 1 || said > 3) {
+      run.find(`Write the summary of ${FILE} in 1 to 3 sentences: it has ${said}.`);
     }
-    summary(run, 'acceptance-criteria.md', md);
-    const all = criteria(md);
-    if (all.length) run.did('criteria');
+    const all = criteria(files.get(FILE));
+    run.did('criteria');
     for (const criterion of all) {
-      // writing-specs (SKILL.md:51-53: "`ac-` and a number, kept in every later version"): ac- and
-      // a number, one row each; a removed row has its reason and None.
-      // writing-specs (SKILL.md:44-50: "It is one sentence of at most 25 words"): one sentence of
-      // at most 25 words, planned as Demo: <title> or Tests.
-      if (!/^ac-\d+$/.test(criterion.id)) {
-        run.find(`Write the id of row ${criterion.row} in acceptance-criteria.md as ac-<N>.\n` +
-          `The id is ${quote(criterion.id)}.`);
-      }
-      // A row with no id is named by its place, so that no finding has an empty name.
-      const name = criterion.id || `row ${criterion.row}`;
-      if (criterion.removed) {
-        if (criterion.check !== 'None') {
-          run.find(`Set the planned check of the removed ${idOf(name)} to None.\nThe planned ` +
-            `check is ${quote(criterion.check)}.${whole(name)}`);
-        }
-        continue;
-      }
-      if (criterion.check === 'None') {
-        run.find(`Write ${idOf(name)} as removed, or plan it as "Demo: <title>" or "Tests".\n` +
-          'Write a removed criterion as "Removed, because <the reason>." with the planned check ' +
-          `None.${whole(name)}`);
-        continue;
-      }
+      // writing-specs (SKILL.md:53-59: "It is one sentence of at most 25 words"): one sentence of
+      // at most 25 words, checked by Demo: <title> or Tests. A removed criterion keeps its text
+      // and its check as they were.
+      if (criterion.removed) continue;
+      const { id } = criterion;
       if (criterion.check !== 'Tests' && !/^Demo: \S/.test(criterion.check)) {
-        run.find(`Set the planned check of ${idOf(name)} to "Demo: <title>" or "Tests".\nThe ` +
-          `planned check is ${quote(criterion.check)}.${whole(name)}`);
+        run.find(`Set the check of ${id} in ${FILE} to "Demo: <title>" or "Tests".\nThe ` +
+          `check is ${quote(brief(criterion.check, 80))}.`);
       }
       const count = sentences(criterion.text);
       if (count !== 1) {
-        run.find(`Write ${idOf(name)} in acceptance-criteria.md as one sentence.\nIt has ` +
-          `${plural(count, 'sentence')}.${whole(name)}`);
+        run.find(`Write the text of ${id} in ${FILE} as one sentence.\nIt has ` +
+          `${plural(count, 'sentence')}.`);
       }
       const size = words(criterion.text);
       if (size > 25) {
-        run.find(`Cut ${idOf(name)} in acceptance-criteria.md to 25 words.\nIt has ${size} words.` +
-          whole(name));
+        run.find(`Cut the text of ${id} in ${FILE} to 25 words.\nIt has ${size} words.`);
       }
     }
-    const previous = run.context.history('acceptance-criteria', 'acceptance-criteria.md');
+    // writing-specs (SKILL.md:60-63: "kept in every later version"): each id
+    // once, kept in every later version, and a removed criterion stays removed.
+    const previous = run.context.history('acceptance-criteria', FILE);
     idHistory(
       run,
-      'acceptance-criteria.md',
+      FILE,
       'criterion',
       all,
       previous && { number: previous.number, items: criteria(previous.text) },
     );
-    markdownText(run, 'acceptance-criteria.md', md);
-    // writing-specs (SKILL.md:54-57: "**At most 7 criteria** that are not removed"): more than 7
+    plainTexts(run, data, all);
+    // writing-specs (SKILL.md:64-67: "**At most 7 criteria** that are not removed"): more than 7
     // criteria needs a question that the reviewer judges, so the count goes on the last line and is
     // no finding.
     const kept = all.filter((criterion) => !criterion.removed).length;
@@ -152,7 +144,7 @@ module.exports = (lib) => {
   function criterionMap(run) {
     // While the criteria are withdrawn, the version before the withdrawal, as Context.history
     // reads it: a withdrawal takes no planned demo away from the checks that read the map.
-    const newest = run.context.history('acceptance-criteria', 'acceptance-criteria.md');
+    const newest = run.context.history('acceptance-criteria', FILE);
     const list = criteria(newest ? newest.text : '');
     return new Map(list.map((criterion) => [criterion.id, criterion]));
   }
@@ -167,7 +159,7 @@ module.exports = (lib) => {
     },
     {
       type: 'acceptance-criteria',
-      main: 'acceptance-criteria.md',
+      main: FILE,
       words: 'acceptance criteria',
       reviewer: 'spec-reviewer',
       // Its check reads the version that Context.history reads, which end --offline needs.

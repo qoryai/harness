@@ -296,7 +296,7 @@ module.exports = (lib) => {
       return;
     }
     const file = path.join(context.store, 'acceptance-criteria', 'main', `v${version}`,
-      'acceptance-criteria.md');
+      'acceptance-criteria.json');
     if (!fs.existsSync(file)) {
       run.find(context.mode === 'push' ? noCriteria(FILE) : pullCriteria(version));
       return;

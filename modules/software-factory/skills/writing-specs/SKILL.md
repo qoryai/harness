@@ -1,6 +1,6 @@
 ---
 name: writing-specs
-description: Load before you write a spec and its acceptance criteria. Contains where they start, the spec's sections, the criteria table, criterion ids, the limit of 7 criteria, questions and review comments.
+description: Load before you write a spec and its acceptance criteria. Contains where they start, the spec's sections, the criteria file, criterion ids, the limit of 7 criteria, questions and review comments.
 ---
 
 # Writing specs
@@ -11,7 +11,7 @@ Neither draft has a plan, tasks or technology.
 
 ## Where the drafts start
 
-Write `spec.md` and `acceptance-criteria.md` at the top of the artifact folder. Follow the
+Write `spec.md` and `acceptance-criteria.json` at the top of the artifact folder. Follow the
 direction of the newest `proposal/main/v<N>/`. A rule rests on a page only through its
 `sources.json`, and on a file only after you read it.
 
@@ -38,19 +38,29 @@ Edit in place the copy of the newest `spec` or `acceptance-criteria` that the ru
 
 ## The acceptance criteria
 
-`acceptance-criteria.md` has `## Summary`, one to three sentences, then the table with the
-columns "Id", "Criterion" and "Planned check", and nothing else.
+`acceptance-criteria.json` is JSON with two members: `summary`, one to three sentences of
+plain text, and `criteria`, a list of at least one criterion. Each criterion has only `id`,
+`text` and `check`, plain text, and `removed` when it no longer applies:
 
-- Each criterion is one checkable statement of done, on behaviour, a rule or data, and
-  rests on a rule of the spec. It is one sentence of at most 25 words. Each rule has a
-  criterion. A rule whose "After" waits for an answer has no criterion until the answer
-  comes.
-- **Planned check:** `Demo: <title>` when a person can see the criterion in the UI, else
+```json
+{"summary": "Two criteria cover the new hours in the saved reply.",
+ "criteria": [{"id": "ac-1", "text": "The saved reply lists the hours as 8:00 to 20:00.",
+               "check": "Demo: Read the new hours"},
+              {"id": "ac-2", "text": "The reply links to the help page.", "check": "Tests",
+               "removed": {"reason": "The reply lists the hours itself."}}]}
+```
+
+- Each criterion's `text` is one checkable statement of done, on behaviour, a rule or
+  data, and rests on a rule of the spec. It is one sentence of at most 25 words. Each rule
+  has a criterion. A rule whose "After" waits for an answer has no criterion until the
+  answer comes.
+- **Check:** `Demo: <title>` when a person can see the criterion in the UI, else
   `Tests`. The demo scenario with that title shows it, and criteria that one scenario shows
   share a title.
-- **Ids:** `ac-` and a number, kept in every later version. A new criterion takes the next
-  number after the highest. A criterion that no longer applies keeps its row as
-  `| ac-3 | Removed, because <the reason>. | None |`, and its number is never reused.
+- **Ids:** `ac-` and a number from 1 to 9999 with no leading zero, kept in every later
+  version. A new criterion takes the next number after the highest. A criterion that no
+  longer applies keeps its id, its `text` and its `check`, and gets
+  `"removed": {"reason": "<the reason>"}`. Its number is never reused.
 - **At most 7 criteria** that are not removed. Never drop or merge a criterion to stay under
   the limit. With more, write them all, and list a question that proposes to split the work
   item into sub-items, with the criteria of each: you ask a split and never decide it. Ask
