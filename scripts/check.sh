@@ -2493,6 +2493,9 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
 # The tests of the findings of a change: a proof per finding, and a closure with its proof.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
+# The tests of the notes in an agent's start: the notes verb, and the report check of the list
+# "Notes read:".
+expect "the notes tests pass" 0 "$ROOT" node --test scripts/notes.test.js
 # The tests of the build ledger: step begin, step end and resume on a checkout with a qory
 # stub, whose push runs the push check of build-ledger.
 expect "the build ledger's tests pass" 0 "$ROOT" node --test scripts/ledger.test.js

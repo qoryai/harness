@@ -12,6 +12,7 @@ const { Context } = require('./context.cjs');
 const {
   REPORT_BROKEN, REPORT_FILE, REVIEW_NONE, endDrafts, endList, leftLine,
 } = require('./end.cjs');
+const { startNotes } = require('./notes.cjs');
 const { agentNames, pluginFolders } = require('./plugin.cjs');
 const { expected, reportCheck } = require('./reports.cjs');
 
@@ -116,7 +117,7 @@ function offlineReports(root, folders, needed, registry) {
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
           expected(folders[0], agent, folders, registry.records), agents, registry.stops,
-          registry);
+          registry, startNotes(root, agent));
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
@@ -263,4 +264,4 @@ function crashed(io, error, first = OFFLINE_CRASH) {
   return 4;
 }
 
-module.exports = { offlineArgs, offline, crashed };
+module.exports = { offlineArgs, offline, offlineReports, crashed };

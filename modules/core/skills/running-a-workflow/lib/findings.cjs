@@ -5,6 +5,7 @@
 'use strict';
 
 const { CONTROL, characterCount, quote } = require('./base.cjs');
+const { READ_HEADING } = require('./notes.cjs');
 
 // The label of a field of a finding, such as "   Fix: <what must hold>" or "1. Quote: "a"".
 const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
@@ -146,7 +147,7 @@ function listItems(all, heading, shape, agent, problems) {
   for (const line of all.slice(at + 1)) {
     const text = line.text.trimEnd();
     if (!text.trim() || shape.lists.includes(text) || text.startsWith('Blocked:') ||
-      shape.words.includes(text)) break;
+      shape.words.includes(text) || text === READ_HEADING) break;
     if (line.fenced || !text.startsWith('- ')) {
       problems.push(`Write each item of "${heading}" on one line that starts with "- ".\n` +
         `The list "${heading}" of the report of ${agent} has the line ${quote(text)}.`);

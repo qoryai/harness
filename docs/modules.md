@@ -121,6 +121,31 @@ stack stops on a reference it cannot resolve. A part goes into the lowest module
 it needs. `core` is for every kind of workspace, so no file of `modules/core` uses a word of
 software work, as rule 11 of [What the script checks](#what-the-script-checks) lists.
 
+### Notes
+
+A note is a skill whose text the harness puts in the start of an agent. The front matter of
+the skill has two more keys than `name` and `description`:
+
+```yaml
+notes_for: agents/developer      # a role, or a list of roles
+paths: ["**/*.py", "pyproject.toml"]
+```
+
+`notes_for` lists the roles whose agents get the note, and `paths` lists globs, matched from
+the top of the working folder as `lib/globs.cjs` of `running-a-workflow` lists. A note comes
+from a technology module, or from a layer of a repository; with neither, an agent starts
+with no note. qory checks both keys at the compose and writes each note, with its roles,
+paths, module and layer, to `role-notes.json` in the harness home. The layer is 0 for the
+nearest layer and 1 more for each step outward.
+
+Before it starts an agent whose work has files, the session runs
+`checks.cjs notes <agent> --files <file>`. The script picks the notes whose roles include a role of the agent and
+whose paths match a file of the work. It takes at most 3, the nearest layer first and, in
+one layer, in the order of `role-notes.json`, and lists the others as left out. It writes
+the text of the picked notes to a file that the session passes to the agent, and records the
+start in `.reports/role-notes.json`. The agent lists the name of each note under
+`Notes read:` in its report, and `checks.cjs report` fails a report that lacks one.
+
 ## Agents
 
 This harness needs a runtime with agents. A runtime without them needs another harness.

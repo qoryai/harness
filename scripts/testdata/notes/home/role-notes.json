@@ -1,0 +1,10 @@
+{
+  "notes": [
+    { "name": "python-docstrings", "roles": ["agents/developer"], "paths": ["**/*.py"], "module": "python", "layer": 2 },
+    { "name": "python-naming", "roles": ["agents/developer"], "paths": ["**/*.py", "pyproject.toml"], "module": "python", "layer": 0 },
+    { "name": "python-review", "roles": ["agents/reviewers"], "paths": ["**/*.py"], "module": "python", "layer": 0 },
+    { "name": "python-tests", "roles": ["agents/developer"], "paths": ["**/*.py"], "module": "python", "layer": 0 },
+    { "name": "python-imports", "roles": ["agents/developer"], "paths": ["**/*.py"], "module": "python", "layer": 1 },
+    { "name": "typescript-naming", "roles": ["agents/developer"], "paths": ["**/*.ts"], "module": "typescript", "layer": 0 }
+  ]
+}

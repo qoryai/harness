@@ -13,6 +13,7 @@
 //   checks.cjs begin                         once, when a session has no run id
 //   checks.cjs panel --names <names> --files <file> [--group <group>] [--after <count>]
 //                                           before the members of a group start
+//   checks.cjs notes <agent> --files <file>  before an agent starts, for the files of its work
 //   checks.cjs fixes                         once per run, after `work-item show`
 //   checks.cjs findings add <round> <agent> <file>   after report, on a reviewer of a change
 //   checks.cjs findings close <agent> <file>         after report, on the agent that fixed
@@ -168,6 +169,32 @@
 // when the disk has room for no member, and its first line then is the fix: start no member,
 // and end the run as "Failures" of SKILL.md lists. panel writes no file.
 //
+// notes picks the notes that an agent gets at its start. A note is a skill that has a list of
+// roles, a list of path globs and a layer, as $QORY_HARNESS_HOME/role-notes.json lists, which
+// qory writes; with no such file, no note applies. --files is read as for panel. The roles of
+// <agent>, the name as a session starts it, are the role of each row of roles.json whose agent
+// it is. A note applies when one of its roles is one of those and one of its globs matches a
+// path of the change, as lib/globs.cjs lists. The notes are in the order of their layer, 0 the
+// nearest and 1 more for each step outward, and in the order of the file within a layer. The
+// first 3 attach, a limit that the harness fixes, and the others that apply are left out.
+// notes prints a "Note:" line for each note that attaches and a "Left out:" line for each one
+// that does not, and last the path of the notes file, `.reports/notes/<agent>-<k>.md` of the
+// artifact folder, the first folder that exists, with the text of each attached note after its
+// front matter, where <k> counts the starts of <agent> that notes recorded. The notes file
+// ends with the instruction to list the name of each attached note under "Notes read:" in
+// the report. A start for which no note applies has no notes file. notes records each start,
+// one with no note too, in .reports/role-notes.json, which has a list of starts for each
+// agent, each with the names that attached and the names that were left out, under the lock
+// .reports/role-notes.json.lock, as findings takes its lock. report, findings and end
+// --offline read the newest start of the agent of the report: a report that is not blocked
+// needs each name of that start as an item `- <name>` of "Notes read:". A start with no note,
+// and an agent with no recorded start, need none. Unlike results.json, end --offline reads
+// role-notes.json of its copy of the artifact folder, as report reads that of its folder.
+// role-notes.json, its lock with the .break file, and the files under .reports/notes/ are the
+// only files that notes writes. notes exits 3 for a role-notes.json or roles.json in another
+// form, with the fix "Compose the harness with qory again", and for a note whose SKILL.md is
+// a link or has no front matter.
+//
 // fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
 // work item's newest verdict, which may come from an earlier run or stage. When that verdict
 // is changes-requested, and index.json of the artifact folder lists its version under the
@@ -279,6 +306,7 @@ const VERBS = {
   ...require('./verbs/lock.cjs').verbs,
   ...require('./verbs/end.cjs').verbs,
   ...require('./verbs/ledger.cjs').verbs,
+  ...require('./verbs/notes.cjs').verbs,
 };
 
 // missingFindings returns the findings of a Missing: its message with the lines of more

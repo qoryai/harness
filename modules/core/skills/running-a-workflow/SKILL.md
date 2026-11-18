@@ -42,7 +42,7 @@ reviewer paths and values, never a summary or your reasoning.
 
 Pass each agent at each start the limit of its report: at most about 2,000 tokens, counted
 as 8,000 bytes. Only the list "Files:" with one path per line, each item `- <path>`, is
-left out. A longer report fails the report check, as "Check each report" lists.
+left out. A longer report fails the check, as "Check each report" lists. Run `notes` as "Notes in a start" lists.
 
 Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
 as the id of the run's stage, because the first round of a stage lasts until a person
@@ -547,3 +547,18 @@ nothing: an agent of the run can change the folders that they read. The verify t
 is a later run's `lock --verify --version <N>`, on a new working folder, before any agent of
 that run starts. A run without a wall can push or change a lock with no push check, so the
 lock binds only walled runs.
+
+## Notes in a start
+
+Before each start of an agent whose work has files, such as the files that a writer's
+deliverable lists or the files of the change that a reviewer reviews, write those paths to
+`<folder>/.reports/<agent>-files.txt`, one per line, from the top of the working folder.
+Run `<skill folder>/checks.cjs notes <agent> --files <that file>`. It prints each role note
+that applies, at most 3, and its last line shows the path of the notes file, or that the
+start has no note. Pass the notes file's absolute path to the agent in the start prompt, and
+tell the agent to read it first. A role note is not one of "the notes" of the work item.
+
+Each agent lists the name of every note in its notes file under "Notes read:" in its report,
+and the report check fails a report that lacks one. That list counts toward the limit of the
+report. A start with no files runs no `notes`. When you start an agent again to fix its
+report, pass the same notes file and run no new `notes`.

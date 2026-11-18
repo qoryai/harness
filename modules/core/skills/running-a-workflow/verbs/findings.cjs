@@ -17,6 +17,7 @@ const {
   BREAK_PROOFS, FINDING_ID, PROOFS, SEVERITIES, proofForm, readClosed, readEarlier, readFindings,
 } = require('../lib/findings.cjs');
 const { lines } = require('../lib/markdown.cjs');
+const { startNotes } = require('../lib/notes.cjs');
 const { agentNames } = require('../lib/plugin.cjs');
 const { expected, findingItems, reportCheck } = require('../lib/reports.cjs');
 
@@ -109,7 +110,8 @@ function reportOf(io, agent, file) {
   const problems = size > MAX_BYTES
     ? [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ${size} ` +
       'bytes.']
-    : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops);
+    : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops, undefined,
+      startNotes(root, agent));
   const all = lines(text);
   const last = all.map((line) => line.text.trim()).filter(Boolean).pop() || '';
   return { root, real, text, shape, problems, all, last };

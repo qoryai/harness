@@ -8,6 +8,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Notes in each agent's start. `checks.cjs notes <agent> --files <file>`, which
+  `running-a-workflow` runs before it starts an agent whose work has files, reads `role-notes.json` of the harness
+  home, which qory writes, and picks the notes whose roles include a role of the agent and
+  whose paths match a file of the work: at most 3, the nearest layer first. It writes their
+  text to `.reports/notes/<agent>-<k>.md` for the session to pass to the agent, and records
+  each start, with the names of its notes, in `.reports/role-notes.json`. The agent lists the
+  notes it read under `Notes read:` in its report, and `checks.cjs report`, `findings add` and
+  `end --offline` fail a report that lacks a note of the agent's newest start. With no
+  `role-notes.json` or no matching note, the agent starts with no note.
 - A guard of tool calls in a run, `hooks/tool-guard-claude.cjs` on Claude Code and
   `hooks/tool-guard-codex.cjs` on Codex, run by a `PreToolUse` hook of the settings of
   `core`. It denies an agent in the background on Claude Code, a write to `.qory/build/`, a

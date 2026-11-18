@@ -10,6 +10,7 @@ const {
 } = require('./base.cjs');
 const { FINDING_FIELD, changeLines } = require('./findings.cjs');
 const { fence, lines, sections } = require('./markdown.cjs');
+const { READ_HEADING, notesLines } = require('./notes.cjs');
 const { pointRules, pointText } = require('../types/points.cjs');
 
 // The "Blocked:" line that
@@ -191,7 +192,7 @@ function findingItems(all, shape) {
       continue;
     }
     if (shape.lists.includes(text) || text.startsWith('Blocked:') ||
-      shape.words.includes(text)) break;
+      shape.words.includes(text) || text === READ_HEADING) break;
     if (ITEM.test(text)) items.push([{ ...line, gap }]);
     else if (items.length) items[items.length - 1].push({ ...line, gap });
     gap = false;
@@ -323,8 +324,11 @@ function sizeLine(text, agent, shape) {
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
 // checks against agents, the agent names, and the rules that pointRules reads from registry,
 // the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines
-// checks the proofs, severities, judgements and closures.
-function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {}) {
+// checks the proofs, severities, judgements and closures. A report that is not blocked lists
+// each name of notes, the notes of the newest start of agent, under "Notes read:", as
+// notesLines checks.
+function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {},
+  notes = []) {
   const size = sizeLine(text, agent, shape);
   const findings = size ? [size] : [];
   const all = lines(text);
@@ -398,6 +402,7 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
     const items = absent.has('Findings:') ? [] : findingItems(all, shape);
     findings.push(...changeLines(all, shape, agent, items, last));
   }
+  findings.push(...notesLines(all, notes, agent));
   for (const one of shape.records || []) {
     const error = one.check(text);
     if (error) {
