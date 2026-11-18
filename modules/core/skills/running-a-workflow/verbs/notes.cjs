@@ -6,12 +6,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  CONTROL, MAX_BYTES, Missing, NAME, REFUSED, STARTED, artifactFolder, given, hex, isObject,
+  CONTROL, MAX_BYTES, Missing, REFUSED, STARTED, artifactFolder, given, hex, isObject,
   plural, quote, readFile, short, withLock, writeJson,
 } = require('../lib/base.cjs');
 const { compileGlobs, matchesAny } = require('../lib/globs.cjs');
 const {
-  NOTES_FOLDER, READ_HEADING, readRecord, recordPath, runKey,
+  NOTES_FOLDER, READ_HEADING, readRecord, recordPath, runKey, safeName,
 } = require('../lib/notes.cjs');
 const { changed } = require('./panel.cjs');
 
@@ -57,9 +57,7 @@ function readIndex(home) {
     const broken = (detail) => new Missing(`${COMPOSE}: role-notes.json is not in the form ` +
       'qory writes.', [`Note ${place + 1} of ${file} ${detail}.`]);
     if (!isObject(row)) throw broken('is not an object');
-    if (typeof row.name !== 'string' || !NAME.test(row.name)) {
-      throw broken('has no name of lower-case letters, digits and hyphens');
-    }
+    if (!safeName(row.name)) throw broken('has a name that is unsafe as one segment of a path');
     if (seen.has(row.name)) throw broken(`repeats the name ${row.name}`);
     seen.add(row.name);
     const listOf = (value) => Array.isArray(value) && value.length > 0 &&
@@ -69,8 +67,8 @@ function readIndex(home) {
     if (!Number.isInteger(row.layer) || row.layer < 0) {
       throw broken('has no layer of a whole number of 0 or more');
     }
-    if (row.module !== undefined && (typeof row.module !== 'string' || !NAME.test(row.module))) {
-      throw broken('has a module of other than lower-case letters, digits and hyphens');
+    if (row.module !== undefined && !safeName(row.module)) {
+      throw broken('has a module that is unsafe as one segment of a path');
     }
     return { name: row.name, roles: row.roles, patterns: compileGlobs(row.paths),
       module: row.module, layer: row.layer };
@@ -208,7 +206,8 @@ function notes(io, agent, file) {
     let sum = null;
     let relative = null;
     if (attached.length > 0) {
-      relative = `${NOTES_FOLDER}/${agent}-${starts.length + 1}.md`;
+      const number = starts.filter((one) => one.passed === undefined).length + 1;
+      relative = `${NOTES_FOLDER}/${agent}-${number}.md`;
       target = path.join(root, relative);
       const text = notesFile(agent, attached, left, bodies);
       sum = crypto.createHash('sha256').update(text).digest('hex');

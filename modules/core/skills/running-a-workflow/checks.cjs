@@ -185,18 +185,18 @@
 // after its front matter, in a code fence, and the instruction to list their names under
 // "Role notes read:" in the report. A role note of more than 256 KB, or with a refused or
 // control character, exits 3. A start for which no role note applies has no notes file. notes
-// records each start in .reports/role-notes.json, under the run that QORY_RUN_ID or begin
+// records each start in .reports/note-starts.json, under the run that QORY_RUN_ID or begin
 // gives, else local: the names that attached and were left out and, with a role note, the
-// notes file and its SHA-256, under the lock .reports/role-notes.json.lock, as findings takes
-// its lock. report, findings and end --offline read the newest start of the agent in the run
-// of the report. A report that is not blocked needs each name of that start as an item
-// `- <name>` under "Role notes read:", and fails when the notes file of that start is missing
-// or has another SHA-256. A start with no role note, and an agent with no recorded start,
-// need none. end --offline reads role-notes.json of its copy of the artifact folder.
-// role-notes.json, its lock with the .break file, and the files under .notes/ are the only
-// files that notes writes. notes exits 3 for a role-notes.json or roles.json in another form,
-// with the fix "Compose the harness with qory again", and for a role note whose SKILL.md is a
-// link or has no front matter.
+// notes file and its SHA-256, under the lock .reports/note-starts.json.lock. report adds a
+// mark to the list of its agent when a report passes. report, findings and end --offline
+// check a report that is not blocked against each start of its agent in the run after the
+// mark of the report before it, up to its own mark: it needs each name of those starts as an
+// item `- <name>` under "Role notes read:", and fails when a notes file of those starts is
+// missing or has another SHA-256. end --offline reads note-starts.json of its copy of the
+// artifact folder. note-starts.json, its lock with the .break file, and the files under
+// .notes/ are the only files that notes and report write for this. notes exits 3 for a
+// role-notes.json or roles.json in another form, with the fix "Compose the harness with qory
+// again", and for a role note whose SKILL.md is a link or has no front matter.
 //
 // fixes runs `work-item show` with /qory/qory or qory, as end does, and reads `verdict`, the
 // work item's newest verdict, which may come from an earlier run or stage. When that verdict

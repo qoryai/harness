@@ -325,10 +325,11 @@ function sizeLine(text, agent, shape) {
 // checks against agents, the agent names, and the rules that pointRules reads from registry,
 // the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines
 // checks the proofs, severities, judgements and closures. A report that is not blocked lists
-// each name of notes.names, the role notes of the newest start of agent, under "Role notes
-// read:", and the notes file of that start has not changed, as notesLines checks.
+// each name of notes.names, the role notes of the starts of agent that count for the report,
+// under "Role notes read:", and the notes file of those starts has not changed, as notesLines
+// checks.
 function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {},
-  notes = { names: [], file: null, changed: false }) {
+  notes = { names: [], changed: [] }) {
   const size = sizeLine(text, agent, shape);
   const findings = size ? [size] : [];
   const all = lines(text);

@@ -149,14 +149,15 @@ the starts of the agent that the script recorded in the run. The session passes 
 the agent. The file is outside `.reports`, because the guard of `.reports` denies a shell
 command that reads it on some runtimes.
 
-The script records each start in `.reports/role-notes.json`, under the run, with the names of
-its role notes and the SHA-256 of its notes file. The guard of `.reports` keeps the agents
+The script records each start in `.reports/note-starts.json`, under the run, with the names
+of its role notes and the SHA-256 of its notes file. The guard of `.reports` keeps the agents
 from writing that record, and the SHA-256 shows a change of the notes file: `.notes/` has no
-guard. The agent lists the name of each role note under `Role notes read:` in its report.
-`checks.cjs report` fails a report that lacks one, or whose notes file changed after the
-start, and so do `findings` and `end --offline`. A blocked report needs no list. A start
-without `--files` has no role note, and its record replaces the earlier start of that agent.
-The check uses the newest start of the agent, so two starts of one agent at once share it.
+guard. When a report passes, `checks.cjs report` adds a mark to the agent's list in the
+record. The agent lists the name of each role note under `Role notes read:` in its report.
+`checks.cjs report` fails a report that lacks the name of a role note of any start of that
+agent in the run since its last passed report, or whose notes file of such a start changed,
+and so do `findings` and `end --offline`. So a start without `--files`, which has no role
+note, takes no role note away from an earlier start. A blocked report needs no list.
 
 ## Agents
 

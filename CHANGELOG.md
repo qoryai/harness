@@ -14,12 +14,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the agent and whose paths match a file of the work: at most 3, the nearest layer first. It
   writes their text to `.notes/<agent>-<k>.md` of the artifact folder, where `<k>` is 1
   more than the starts of the agent that the verb recorded in the run. It records the start
-  in `.reports/role-notes.json`, with the names of the role notes and the SHA-256 of the
+  in `.reports/note-starts.json`, with the names of the role notes and the SHA-256 of the
   notes file. The agent lists the role notes it read under `Role notes read:` in its
   report. `checks.cjs report`, `findings` and `end --offline` fail a report that lacks a
-  role note of the agent's newest start, or whose notes file changed after the start. A
-  start with no `--files`, with no `role-notes.json`, or with no matching role note has no
-  role note.
+  role note of any start of the agent since its last passed report, or whose notes file of
+  such a start changed. A start with no `--files`, with no `role-notes.json`, or with no
+  matching role note has no role note.
 - A guard of tool calls in a run, `hooks/tool-guard-claude.cjs` on Claude Code and
   `hooks/tool-guard-codex.cjs` on Codex, run by a `PreToolUse` hook of the settings of
   `core`. It denies an agent in the background on Claude Code, a write to `.qory/build/`, a

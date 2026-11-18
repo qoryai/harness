@@ -560,9 +560,9 @@ start prompt, and tell the agent to read it first. A role note is not one of "th
 the work item.
 
 Each agent lists the name of every role note in its notes file under "Role notes read:" in
-its report, one `- <name>` line each, directly under the heading. The report check fails a
-report that lacks one, or when the notes file changed after the start. That list counts
-toward the limit of the report. A blocked report needs no list. A start without `--files`
-has no role note, and its record replaces the earlier start of that agent: the check uses
-the newest start of the agent, so two starts of one agent at once share it. When you start
-an agent again to fix its report, pass the same notes file and run no new `notes`.
+its report, one `- <name>` line each, directly under the heading. The report check counts
+each start of that agent in this run since its last passed report, so a start with no
+`--files` takes no role note away from an earlier start. It fails a report that lacks the
+name of a role note of those starts, or when a notes file of those starts changed. That list
+counts toward the limit of the report. A blocked report needs no list. When you start an
+agent again to fix its report, pass the same notes file and run no new `notes`.

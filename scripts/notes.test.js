@@ -95,11 +95,11 @@ const notes = (run, agent = DEVELOPER) => call(run.deps, ['notes', agent, '--fil
 // withRun returns the deps of run with QORY_RUN_ID set to id.
 const withRun = (run, id) => ({ ...run.deps, env: { ...run.deps.env, QORY_RUN_ID: id } });
 
-// record returns the starts of agent in the run key of the parsed .reports/role-notes.json of
+// record returns the starts of agent in the run key of the parsed .reports/note-starts.json of
 // the artifact folder of run, and with no agent the whole file.
 function record(run, agent, key = 'local') {
   const data = JSON.parse(fs.readFileSync(path.join(run.artifacts, '.reports',
-    'role-notes.json'), 'utf8'));
+    'note-starts.json'), 'utf8'));
   return agent === undefined ? data : data.runs[key][agent];
 }
 
@@ -253,16 +253,16 @@ test('notes: a role-notes.json or roles.json in another form exits 3 with the fi
   const json = /^Compose the harness with qory again: role-notes\.json is not valid JSON\.$/;
   const form = /^Compose the harness with qory again: role-notes\.json is not in the form qory writes\.$/;
   const cases = [['{', json], ['{"notes": 3}', form], ['{"notes": [1]}', form],
-    [row({ name: 'Python' }), form], [row({ roles: [] }), form], [row({ paths: 'x' }), form],
+    [row({ roles: [] }), form], [row({ paths: 'x' }), form],
     [row({ layer: -1 }), form], [row({ layer: 'near' }), form],
     [row({ name: '../python-naming' }), form], [row({ name: 'python-naming/..' }), form],
-    [row({ module: 'Py thon' }), form], [row({ module: '' }), form]];
+    [row({ module: '' }), form], [row({ module: '..' }), form], [row({ module: 'a/b' }), form]];
   for (const [text, pattern] of cases) {
     const run = write(text);
     const result = notes(run);
     assert.equal(result.status, 3, text);
     assert.match(result.lines[0], pattern, text);
-    assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'role-notes.json')), false);
+    assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'note-starts.json')), false);
   }
   const link = setup({ edit: (home) => {
     const file = path.join(home, 'skills', 'python-naming', 'SKILL.md');
@@ -291,6 +291,37 @@ test('notes: a role-notes.json or roles.json in another form exits 3 with the fi
     'is not in the form qory writes.');
 });
 
+test('notes: a name that is one safe segment of a path is a name, and any other is refused', () => {
+  const body = 'Name it.';
+  const named = (name) => setup({ files: ['src/app.ts'], edit: addNote(name, body) });
+  for (const name of ['Python_Naming.v2', 'Python naming', 'Ünïcode', '.hidden', 'a'.repeat(100)]) {
+    const result = notes(named(name));
+    assert.equal(result.status, 0, `${name}: ${result.out}`);
+    assert.ok(result.lines.some((line) => line.startsWith('Role note: ')), name);
+  }
+  const row = (change) => (home) => {
+    const file = path.join(home, 'role-notes.json');
+    const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+    index.notes[0] = { ...index.notes[0], ...change };
+    fs.writeFileSync(file, JSON.stringify(index));
+  };
+  const form = 'Compose the harness with qory again: role-notes.json is not in the form qory writes.';
+  for (const name of ['', '.', '..', 'a/b', '../a', 'a\\b', 'a\u0000b', 'a\nb', 'a\u202eb',
+    'a\u007fb', 5, null]) {
+    const run = setup({ files: ['src/app.py'], edit: row({ name }) });
+    const result = notes(run);
+    assert.equal(result.status, 3, JSON.stringify(name));
+    assert.equal(result.lines[0], form, JSON.stringify(name));
+    assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'note-starts.json')), false);
+  }
+  for (const module of ['.', '..', 'a/b', 'a\\b', 'a\u0000b']) {
+    const run = setup({ files: ['src/app.py'], edit: row({ module }) });
+    assert.equal(notes(run).lines[0], form, JSON.stringify(module));
+  }
+  const ok = setup({ files: ['src/app.py'], edit: row({ module: 'Python v2' }) });
+  assert.equal(notes(ok).status, 0);
+});
+
 test('notes: a role note over 256 KB, or with a refused or control character, exits 3', () => {
   const big = setup({ files: ['src/app.ts'], edit: addNote('big-note', 'x'.repeat(256 * 1024 + 1)) });
   const result = notes(big);
@@ -306,7 +337,7 @@ test('notes: a role note over 256 KB, or with a refused or control character, ex
   const control = setup({ files: ['src/app.ts'], edit: addNote('odd-note', 'Name a\u0007file.') });
   assert.equal(notes(control).lines[0], 'Remove the character U+0007 from the role note odd-note.');
   for (const run of [big, refused, control]) {
-    assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'role-notes.json')), false);
+    assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'note-starts.json')), false);
   }
 });
 
@@ -355,7 +386,7 @@ test('notes: calls at once number their starts under the lock and lose none', as
   assert.deepEqual(starts.map((one) => one.file).sort(),
     [1, 2, 3, 4, 5, 6].map((number) => `.notes/${DEVELOPER}-${number}.md`));
   for (const one of starts) assert.equal(sha(path.join(run.artifacts, one.file)), one.sha256);
-  assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'role-notes.json.lock')), false);
+  assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'note-starts.json.lock')), false);
 });
 
 test('notes: the agent constructor, as an agent and as a run, is a name like any other', () => {
@@ -377,16 +408,13 @@ test('report: a report that lacks a role note of the start fails, and one that l
   assert.equal(none.status, 1, none.out);
   assert.deepEqual(none.lines.slice(0, 3), [
     'List python-naming under Role notes read: in the report.',
-    '  Write one "- <name>" line for each role note, directly under the heading. The newest ' +
-      `start of ${DEVELOPER} got the role note python-naming.`,
+    '  Write one "- <name>" line for each role note, directly under the heading. A start of ' +
+      `${DEVELOPER} got the role note python-naming.`,
     'List python-tests under Role notes read: in the report.']);
   const some = report(run, ['python-naming', 'python-tests'], `${DEVELOPER}-2.md`);
   assert.equal(some.status, 1, some.out);
   assert.equal(some.lines[0], 'List python-imports under Role notes read: in the report.');
   assert.equal(some.lines.filter((line) => line.startsWith('List ')).length, 1);
-  const all = report(run, ['python-naming', '`python-tests`', 'python-imports'],
-    `${DEVELOPER}-3.md`);
-  assert.equal(all.status, 0, all.out);
   // A list in a code block counts for nothing, and neither does a list after a blank line.
   const file = path.join(run.artifacts, '.reports', `${DEVELOPER}-4.md`);
   fs.writeFileSync(file, 'What you read:\n- src/app.py\n\n```text\nRole notes read:\n' +
@@ -396,6 +424,9 @@ test('report: a report that lacks a role note of the start fails, and one that l
     `${DEVELOPER}-5.md`, { gap: true });
   assert.equal(gap.status, 1, gap.out);
   assert.equal(gap.lines.filter((line) => line.startsWith('List ')).length, 3);
+  const all = report(run, ['python-naming', '`python-tests`', 'python-imports'],
+    `${DEVELOPER}-3.md`);
+  assert.equal(all.status, 0, all.out);
 });
 
 test('report: a fix restart that passes the same notes file needs no new start', () => {
@@ -406,7 +437,7 @@ test('report: a fix restart that passes the same notes file needs no new start',
   // The fix restart runs no notes: the record and the file stay as they are.
   assert.equal(report(run, ['python-naming', 'python-tests', 'python-imports'],
     `${DEVELOPER}-2.md`).status, 0);
-  assert.equal(record(run, DEVELOPER).length, 1);
+  assert.equal(record(run, DEVELOPER).filter((one) => one.passed === undefined).length, 1);
   assert.equal(fs.readFileSync(notesPath(run, DEVELOPER, 1), 'utf8'), text);
 });
 
@@ -414,12 +445,17 @@ test('report: a start with no role note, and an agent with no recorded start, ne
   const run = setup({ files: ['src/app.py'] });
   // No record at all.
   assert.equal(report(run, null).status, 0);
-  // A start with role notes, then a start with none: only the newest start counts.
+  // A start with role notes, then a start with none: the report lists the role notes of the
+  // first, whatever the later start got.
   assert.equal(notes(run).status, 0);
   fs.writeFileSync(path.join(run.work, 'files.txt'), 'README.md\n');
   assert.equal(notes(run).status, 0);
+  assert.equal(call(run.deps, ['notes', DEVELOPER]).status, 0);
   const later = report(run, null, `${DEVELOPER}-2.md`);
-  assert.equal(later.status, 0, later.out);
+  assert.equal(later.status, 1, later.out);
+  assert.equal(later.lines[0], 'List python-naming under Role notes read: in the report.');
+  assert.equal(report(run, ['python-naming', 'python-tests', 'python-imports'],
+    `${DEVELOPER}-3.md`).status, 0);
   // A record of another agent leaves this agent without a requirement.
   const other = setup({ files: ['src/app.py'] });
   assert.equal(notes(other, REVIEWER).status, 0);
@@ -442,10 +478,47 @@ test('report: a start with no --files gets no role note, and its report needs no
   assert.equal(record(run, DEVELOPER).length, 2);
   assert.deepEqual(record(run, DEVELOPER)[1], { notes: [], left_out: [], file: null,
     sha256: null });
-  // Only the newest start counts, so a report with no list passes.
-  assert.equal(report(run, null, `${DEVELOPER}-2.md`).status, 0);
+  // The start with no files takes no role note away from the first: a report with no list
+  // fails, as it does when the agent runs notes with no --files to skip the list.
+  const skipped = report(run, null, `${DEVELOPER}-2.md`);
+  assert.equal(skipped.status, 1, skipped.out);
+  assert.equal(skipped.lines[0], 'List python-naming under Role notes read: in the report.');
   assert.equal(fs.existsSync(notesPath(run, DEVELOPER, 2)), false);
   assert.equal(call(run.deps, ['notes', DEVELOPER, '--files']).status, 2);
+});
+
+test('report: a start with no --files cannot take the list of an earlier start away', () => {
+  const run = setup({ files: ['src/app.py'] });
+  assert.equal(notes(run).status, 0);
+  assert.equal(call(run.deps, ['notes', DEVELOPER]).status, 0);
+  const bypass = report(run, null);
+  assert.equal(bypass.status, 1, bypass.out);
+  assert.equal(bypass.lines[0], 'List python-naming under Role notes read: in the report.');
+  // The union of the starts counts: each start since the last passed report adds its notes.
+  const second = setup({ files: ['src/app.py'] });
+  assert.equal(notes(second).status, 0);
+  fs.writeFileSync(path.join(second.work, 'files.txt'), 'src/app.ts\n');
+  assert.equal(notes(second).status, 0);
+  const names = report(second, ['python-naming', 'python-tests', 'python-imports',
+    'typescript-naming'], `${DEVELOPER}-1.md`);
+  assert.equal(names.status, 0, names.out);
+  // A passed report ends the count: the next report needs only the starts after it, and a
+  // report that lists nothing then passes when no start came after.
+  assert.equal(report(second, null, `${DEVELOPER}-2.md`).status, 0);
+  assert.equal(notes(second).status, 0);
+  const again = report(second, null, `${DEVELOPER}-3.md`);
+  assert.equal(again.status, 1, again.out);
+  // The same report again, byte for byte, after a new start, meets that start.
+  assert.equal(report(second, null, `${DEVELOPER}-2.md`).status, 1);
+  assert.equal(report(second, ['typescript-naming'], `${DEVELOPER}-4.md`).status, 0);
+  // A start whose notes file changed fails the report, and so does an earlier one.
+  const third = setup({ files: ['src/app.py'] });
+  assert.equal(notes(third).status, 0);
+  fs.writeFileSync(notesPath(third, DEVELOPER, 1), 'changed');
+  assert.equal(notes(third).status, 0);
+  const changed = report(third, ['python-naming', 'python-tests', 'python-imports']);
+  assert.equal(changed.status, 1, changed.out);
+  assert.equal(changed.lines[0], `Run checks.cjs notes ${DEVELOPER} again, and start the agent again.`);
 });
 
 test('report: a record is kept per run, so a run never meets the start of another', () => {
@@ -475,7 +548,6 @@ test('report: a notes file that changed or is gone after the start fails the rep
   const run = setup({ files: ['src/app.py'] });
   assert.equal(notes(run).status, 0);
   const names = ['python-naming', 'python-tests', 'python-imports'];
-  assert.equal(report(run, names).status, 0);
   const file = notesPath(run, DEVELOPER, 1);
   const original = fs.readFileSync(file, 'utf8');
   const fix = `Run checks.cjs notes ${DEVELOPER} again, and start the agent again.`;
@@ -483,7 +555,7 @@ test('report: a notes file that changed or is gone after the start fails the rep
   const changed = report(run, names, `${DEVELOPER}-2.md`);
   assert.equal(changed.status, 1, changed.out);
   assert.equal(changed.lines[0], fix);
-  assert.match(changed.lines[1], /^ {2}The notes file \.notes\/software-developer-1\.md of the newest start/);
+  assert.match(changed.lines[1], /^ {2}The notes file \.notes\/software-developer-1\.md of a start of software-developer/);
   fs.rmSync(file);
   assert.equal(report(run, names, `${DEVELOPER}-3.md`).lines[0], fix);
   fs.symlinkSync(path.join(run.work, 'files.txt'), file);
@@ -519,28 +591,24 @@ test('report: a role note with a name of 64 characters keeps the first line with
   assert.ok(refused.lines[1].includes(name));
 });
 
-test('report: a corrupt record fails as starts.json does, and a record that is no file', () => {
+test('report: a corrupt record fails with its fix, and a record that is no file', () => {
   const run = setup({ files: ['src/app.py'] });
-  const store = path.join(run.artifacts, '.reports', 'role-notes.json');
+  const store = path.join(run.artifacts, '.reports', 'note-starts.json');
   fs.writeFileSync(store, 'x');
-  assert.match(report(run, null).lines[0], /^Write role-notes\.json as valid JSON\.$/);
+  assert.match(report(run, null).lines[0], /^Write note-starts\.json as valid JSON\.$/);
   assert.equal(notes(run).status, 3);
   fs.writeFileSync(store, '{"runs": []}');
   const form = report(run, null);
   assert.equal(form.status, 3);
-  assert.match(form.lines[0], /^Write runs in role-notes\.json as an object of runs, each of agents and lists of starts\.$/);
+  assert.match(form.lines[0], /^Write runs in note-starts\.json as an object of runs, each of agents and lists of starts\.$/);
   fs.writeFileSync(store, '{"runs":{"local":{"software-developer":[{"notes":["a-note"],"left_out":[]}]}}}');
   assert.equal(report(run, null).status, 3);
-  // A record that cannot be read gives the line that starts.json gives.
+  // A record that cannot be read has its fix in the first line.
   fs.rmSync(store);
   fs.mkdirSync(store);
-  fs.mkdirSync(path.join(run.artifacts, '.reports', 'starts.json'));
-  const starts = call(run.deps, ['starts', 'run-1', 'a-name', '3']);
   const read = report(run, null);
-  assert.equal(starts.status, 3);
   assert.equal(read.status, 3);
-  assert.equal(read.lines[0], starts.lines[0]);
-  assert.match(read.lines[0], /^Name a file that exists and can be read\.$/);
+  assert.equal(read.lines[0], 'Make .reports/note-starts.json readable, or remove it.');
 });
 
 test('report and findings: "Role notes read:" after "Findings:" is no finding, and a missing one is', () => {
@@ -636,4 +704,19 @@ test('end --offline checks the report of a start with role notes as report does'
   const changed = offline(run, 'run_x');
   assert.equal(changed.status, 1);
   assert.ok(changed.lines.some((line) => line.startsWith('Run checks.cjs notes software-developer again')));
+});
+
+test('end --offline counts each start since the last passed report, as report does', () => {
+  const run = setup({ files: ['src/app.py'], env: { QORY_RUN_ID: 'run_z' } });
+  assert.equal(notes(run).status, 0);
+  assert.equal(call(run.deps, ['notes', DEVELOPER]).status, 0);
+  assert.equal(report(run, null).status, 1);
+  const missing = offline(run, 'run_z');
+  assert.equal(missing.status, 1, missing.out);
+  assert.equal(missing.lines.filter((line) => line.startsWith('List ')).length, 3);
+  assert.equal(report(run, ['python-naming', 'python-tests', 'python-imports'],
+    `${DEVELOPER}-2.md`).status, 0);
+  // A later start with no files does not change the verdict on the report that passed.
+  assert.equal(call(run.deps, ['notes', DEVELOPER]).status, 0);
+  assert.equal(offline(run, 'run_z').status, 0);
 });
