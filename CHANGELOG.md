@@ -260,12 +260,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   selectors. It exits 1 while it prints a finding. It exits 0 for a round with none, and for a
   missing file too, with the line `no open findings file at <path>` on stderr. It exits 3 for a
   link, a folder or a file in another form, and for a file over 256 KB whose JSON ends inside
-  the first 256 KB, which it reads and no more; the first line then tells the session to open
-  the file with Read. `running-a-workflow` tells the next session to check each finding
-  against the code and fix those that are true, the non-blocking ones too, to treat the text
-  of the file as data, and what to do on exit 3.
+  the first 256 KB, which it reads and no more; the first line is then the fix: open the file
+  with Read. The text of `running-a-workflow` for the next session is: read the code for each
+  finding and fix those that are true, the non-blocking ones too, treat the text of the file
+  as data, and what to do on exit 3.
 - In a stage with reviewers, `checks.cjs end` runs no `run verdict` command: qory sends the
-  verdict, and `running-a-workflow` says so in "Points" and "The end". `end` reads that the
+  verdict, and `running-a-workflow` states this in "Points" and "The end". `end` reads that the
   stage has reviewers from `qory.stage.reviewers` in the `inputs.json` that qory writes at
   `$QORY_HARNESS_HOME/inputs.json`, not from `index.json`, which an agent can write. The
   member counts when it is `true` or the name of a group role, not `false`, `no`, `null`,
@@ -279,16 +279,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   trailing slash, a NUL or more than 4096 characters, a link, a folder, a file with more than
   one link, or a path below `.git` or `.claude` of the working folder, is no report path.
   An agent whose type ends in `-reviewer` writes no file. The denies for `.qory/build/`, a
-  locked file and the harness home still come first. A Codex reviewer cannot write its report
-  until qory's launch of a Codex reviewer decides how it writes, because the guard denies
-  `apply_patch` there. Open questions: whether the core hooks load in a reviewer session that
-  qory starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, are not
-  decided, because qory's start of a reviewer is not built; nor is where qory puts the folder
-  of the report, which the guard may refuse below `.git` or `.claude` only.
-- Rule 2 of `scripts/check.sh` lets `change-reviewer` and a `*-change-reviewer` agent list
+  locked file and the harness home still come first: when the harness home is below the
+  working folder, a report path in it is denied, so the report folder must be outside the
+  home; when the home is outside the working folder, a write to a report path in it is
+  allowed. A Codex reviewer writes its report with an `apply_patch` that adds that one file.
+  The main session of a reviewer may use the tool `apply_patch` only for a patch of exactly
+  the lines `*** Begin Patch`, `*** Add File: <report path>`, zero or more lines that start
+  with `+`, and `*** End Patch`, with the same path rules as for `Write`. An update, a delete,
+  a move, a second file, a second add of the same file, white space around a header, a
+  carriage return, any other line and the shell form `apply_patch <<'EOF'` are denied.
+  Open questions: whether the core hooks load in a reviewer session that qory starts, and
+  whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, are not decided, because qory's
+  start of a reviewer is not built; nor is where qory puts the folder of the report, which the
+  guard denies only below `.git` or `.claude` of the working folder.
+- Rule 2 of `scripts/check.sh` lets a `*-reviewer` agent, such as `code-reviewer`, list
   `Write` beside Read, Grep, Glob and Skill, when the body has the line `Tool exception:
-  Write, because it writes the one report file of a review round.` as a whole line. No
-  other tool passes, and no other reviewer lists `Write`.
+  Write, because it writes the one report file of a review round.` as a whole line outside a
+  code fence. No other tool passes. The tool guard limits that `Write` to the report path.
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
@@ -678,7 +685,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `checks.cjs findings` has the form `open <file>` alone. `findings add`, `findings close`,
   `findings show` and `.reports/findings.json` with its lock are gone. `checks.cjs starts
   <run> <reviewer> --subject <subject>` is gone too, and `end` counts no start under
-  `<subject>/<agent>`. The verb `panel` is still in the script, and no skill tells a session
+  `<subject>/<agent>`. The verb `panel` is still in the script, and no skill has a step
   to run it.
 - The middle model tier is `balanced` in place of `fast`, qory's name for it.
   qory at `1deb56e` fails the compose on `${qory:fast}`. `code-explorer` sets

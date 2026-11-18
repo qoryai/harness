@@ -171,7 +171,7 @@ the report: one JSON file with a `reviewer` and a list of findings, each with a 
 of `blocking` or `non-blocking`, `quote`, `problem`, `fix`, `proof`, `point`, and `file`,
 `line` and `id` when they apply. The report has no result word and no list of unverified
 claims, and nobody closes a finding. The skill `judging-findings` of `software-factory`
-defines `blocking` and lists the values of `qory.review`: `core` cannot hold those words, as
+defines `blocking` and lists the values of `qory.review`: `core` cannot contain those words, as
 rule 11 of `scripts/check.sh` lists. A reviewer that cannot finish stops and writes no
 file. qory reads the report against its schema; the harness checks no report of a change
 with a verb. The test of the example report in `reviewing-changes` uses
@@ -181,10 +181,12 @@ reads `open-findings.json`, which `checks.cjs findings open` prints as lines to 
 as its bullet in the section "Small workflows" lists. qory at `1deb56e` builds none of
 this: it writes no `qory.review`, no `qory.stage` and no `open-findings.json`, and the
 report schema does not exist yet. Where qory puts the folder of the report is not decided.
-The tool guard refuses a report path below `.git` or `.claude` of the working folder, and
-does not refuse a path in the harness home or `.qory/`. A Codex reviewer cannot write its
-report until qory's launch of a Codex reviewer decides how it writes: the guard denies
-`apply_patch` there, so a Codex reviewer fails closed.
+The tool guard denies a write to a report path below `.git` or `.claude` of the working
+folder. When the harness home is below the working folder, the existing deny of a write below
+the harness home applies to the report path too, so the report folder must be outside the
+home; when the home is outside the working folder, the report path may be in it. A Codex
+reviewer writes its report with an `apply_patch` that adds that one file, as the bullet "a
+write from the main session outside the artifact folder" lists.
 
 ## Agents
 
@@ -242,12 +244,12 @@ An agent that the table does not list sets no `model` key.
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
   `scenario-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
-  and WebSearch. `change-reviewer` and a `*-change-reviewer`,
-  which qory starts as the main agent of a separate session, list Write beside the four read
-  tools and write at one path, their report: the body has the line `Tool exception: Write,
-  because it writes the one report file of a review round.` Another reviewer, such as a
-  reviewer of a draft, never lists Write. A subagent keeps the session's `dontAsk` mode and
-  allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and
+  and WebSearch. A reviewer of a change, such as `code-reviewer`, which qory starts as the
+  main agent of a separate session, lists Write beside the four read tools and writes at one
+  path, its report: the body has the line `Tool exception: Write, because it writes the one
+  report file of a review round.` The tool guard denies each other write of that session, and
+  each write of an agent of a session whose type ends in `-reviewer`. A subagent keeps the
+  session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and
   `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and `grep` still
   run in the main session, so "only `qory` commands and the read forms" is a rule in the
   skill's text, not an enforced limit. On Claude Code's native build, a `tools` key that
@@ -816,7 +818,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `--after` is 0 or left out, the output also has a `Skip:` line for each member with no
   path of the change. It exits with 1 when the disk has room for no member, and its first
   line is the fix: start no member, and end the run as "Failures" of `running-a-workflow`
-  lists. It writes no file. No skill of the harness tells a session to run it.
+  lists. It writes no file. No skill of the harness has a step that runs it.
 - `checks.cjs fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when
@@ -852,7 +854,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   reviewer name that is not lower-case letters, digits and hyphens, an `id` that is not
   `f<number>`, another severity, a member that is not text, or a `line` below 1. A regular
   file over 256 KB is read up to 256 KB, never whole: when its JSON ends inside that part,
-  the verb exits with 3 and the first line tells the session to open the file with Read. It
+  the verb exits with 3 and the first line is the fix: open the file with Read. It
   reads the file and writes nothing. The report that a reviewer writes is a JSON file that qory's
   report schema checks, so no verb of this script reads it, and `report`, `starts`, `end`
   and `findings` have no check for the reviewers of a change. qory at `1deb56e` writes no
@@ -974,7 +976,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   writes `points.json`, runs `run verdict escalate --points <folder>/points.json`, and
   exits 0. In a stage with reviewers, `end` runs no `run verdict` command, at the third
   check and for a `points.json` that ended the run, and keeps every status and file: qory
-  sends the verdict, and its push check refuses a verdict command from inside the
+  sends the verdict, and its push check fails a verdict command from inside the
   container. The stage has reviewers when `qory.stage.reviewers`, in the `inputs.json` that
   `--inputs` names, is `true` or the name of a group role: lower-case letters, digits and
   hyphens, and not `false`, `no`, `null`, `off`, `none` or `0`. The file must be a regular
@@ -987,7 +989,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   one sentence: what failed, why, and another round as the step, with each agent in plain
   words and no step for the session, such as "The draft of the spec breaks 2 format rules,
   which the output of the run on the Run page lists, and another round starts the writer of
-  the spec again to fix them." A point on reports names each agent of its kind, the first 5
+  the spec again to fix them." A point on reports lists each agent of its kind, the first 5
   by name and the others counted, such as "The decision reviewer and the questions reviewer
   returned no reports, so the run has none of their work, and another round starts them
   again." When `points.json` exists, `end` keeps each of its points that passes the check of
@@ -1224,24 +1226,44 @@ tool's error. The first line of each reason starts with what to do. The guard de
   be read, the guard denies each write below the working folder, with the reason of the
   reader.
 - a write from the main session outside the artifact folder. On Claude Code and on Codex,
-  the input of a call from an agent has `agent_id` and `agent_type`, and the input of a
-  call from the main session has neither. The main session writes `points.json` and the
-  other files of the artifact folder, except in a session of a reviewer of a change: when the
-  `inputs.json` that qory writes at `$QORY_HARNESS_HOME`, a regular file of at most 1 MB, has
-  the member `qory.review`, the main session writes at one path, `qory.review.report`, with a
-  `Write`, and no other file, the artifact folder included. It may write that path again,
-  which overwrites the file. A `qory.review.report` that is no report path, so that the session
+  the input of a call from an agent has `agent_id` and `agent_type`, and the input of a call
+  from the main session has neither. The main session writes `points.json` and the other
+  files of the artifact folder, except in a session of a reviewer of a change: when the
+  `inputs.json` that qory writes at `$QORY_HARNESS_HOME`, a regular file of at most 1 MB,
+  has the member `qory.review`, the main session writes at one path, `qory.review.report`,
+  with a `Write` or an `apply_patch` that adds that one file (the accepted forms follow),
+  and no other file, the artifact folder included. It may write that path again, which
+  overwrites the file. A `qory.review.report` that is no report path, so that the session
   writes no file, is one that is not absolute, has a `.` or `..` part, a double or trailing
-  slash or a NUL, or has more than 4096 characters. The path also counts only when it is read
-  through the links of the folders above it with no `..` after a folder that does not exist,
-  when no link, folder or file with more than one link is at the path, and when it lies
-  neither below `.git` nor below `.claude` of the working folder. The compare ignores case on
-  a disk that ignores case. An agent whose type ends in `-reviewer` writes no file, except
-  that path in a session of a reviewer. Those denies come after the denies for `.qory/build/`,
-  a locked file and the harness home. The guard denies a write only: a shell command of the
+  slash or a NUL, or has more than 4096 characters. The path also counts only when it is
+  read through the links of the folders above it with no `..` after a folder that does not
+  exist, when no link, folder or file with more than one link is at the path, and when it
+  lies neither below `.git` nor below `.claude` of the working folder. The compare ignores
+  case on a disk that ignores case. An agent whose type ends in `-reviewer` writes no file,
+  except that path in a session of a reviewer. Those denies come after the denies for
+  `.qory/build/`, a locked file and the harness home. When the harness home is below the
+  working folder, the deny of a write below the harness home, the bullet on
+  `$QORY_HARNESS_HOME` above, also denies a report path in it, so the report folder must be
+  outside the home. When the home is outside the working folder, that deny does not apply:
+  the report path may be in the home, and a write there is allowed. The accepted
+  `apply_patch` form is the tool, not the shell form `apply_patch <<'EOF'`, which stays
+  denied in a reviewer session. Only the main session of a reviewer may use it; an agent of
+  a session is denied. The patch text, split at line feeds, is exactly: the line `*** Begin
+  Patch`; the line `*** Add File: <path>`, with one space after the colon and a path that
+  has no white space at either end; zero or more lines that each start with `+`; the line
+  `*** End Patch`, with one line feed after it or none. The guard compares each line as it
+  is and trims no white space. `<path>` is the report path: absolute, with no `.` or `..`
+  part, no empty part and no trailing slash, and at most 4096 characters, and the same path
+  rules as for `Write` apply. The guard denies each other patch: an update, a delete or a
+  move; a second header, also a second add of the same file; a line that does not start with
+  `+`, a blank line or a line after the end line; a carriage return, so also CRLF line ends;
+  a NUL; white space before or after a header, or between the colon and the path; a path
+  outside the report path, with `..`, relative or empty; a patch that is no text; and any
+  text that this form does not match. The guard denies a write only: a shell command of the
   reviewer is read as for any main session, and a reviewer has no shell. Whether the core
   hooks load in a reviewer session that qory starts, and whether `QORY_RUN_ID` and
-  `QORY_HARNESS_HOME` are set there, is not decided: qory's start of a reviewer is not built.
+  `QORY_HARNESS_HOME` are set there, is not decided: qory's start of a reviewer is not
+  built.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
@@ -2954,9 +2976,9 @@ the rule passes on that file.
    line in the agent's body outside a code fence: `Tool exception: Bash, because <reason>`.
    No agent lists `Agent`, `NotebookEdit` or `MultiEdit`, with or without an exception. A
    `*-reviewer` agent, `code-explorer` or `shape-planner` lists only Read, Grep, Glob and
-   Skill. `change-reviewer` and a `*-change-reviewer` agent also list Write when the body has
-   the line `Tool exception: Write, because it writes the one report file of a review
-   round.`, exactly, outside a code fence, and no other tool. No other reviewer lists Write.
+   Skill. A `*-reviewer` agent also lists Write when the body has the line `Tool exception:
+   Write, because it writes the one report file of a review round.`, exactly, outside a
+   code fence, and no other tool.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `pack-mockups.cjs` and `render-mockups.cjs`, and
