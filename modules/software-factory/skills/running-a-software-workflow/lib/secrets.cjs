@@ -150,8 +150,8 @@ function scanPatch(patch, values) {
 // shows the key.
 const shown = (name, values) => (scanLine(name, values) ? 'a path with a key in its name' : name);
 
-// runKey reports whether name is the name of a variable of qory or of an agent, as RUN_KEY
-// matches it.
+// runKey reports whether name is the name of a variable of qory, of an agent or of a code
+// forge, as RUN_KEY matches it.
 const runKey = (name) => RUN_KEY.test(String(name));
 
 module.exports = { SHAPES, runKey, secretValues, scanLine, scanPatch, shown };

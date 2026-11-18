@@ -6,6 +6,7 @@
 
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
+const dgram = require('node:dgram');
 const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
@@ -580,13 +581,18 @@ test('preflight: a sign-in that opens a new window of another origin writes the 
   assert.equal(await isFree(port), true);
 });
 
-test('preflight: a new window of the app closes too, and its point has "a new window"', { skip: NO_BROWSER }, async () => {
+test('preflight: a new window of the app closes too, and its point has the text of a closed window', { skip: NO_BROWSER }, async () => {
   const { here, done, port } = await signIn([{ do: 'open', url: '/popup-same' },
     ...SIGN_IN.slice(1)], 'parcel-blue-41');
   assert.equal(done.status, 1);
   assert.match(done.findings[0].split('\n')[1], /the page opened a new window, outside the app/);
-  assert.deepEqual(points(here.root), [outsidePoint(`http://127.0.0.1:${port}/`,
-    'a new window')]);
+  const address = `http://127.0.0.1:${port}/`;
+  assert.deepEqual(points(here.root), [{
+    text: `The app at ${address} opens a new window during sign-in, and the run closed it: a ` +
+      'run uses one window.',
+    action: 'run_again',
+    fix: outsidePoint(address, 'a new window').fix,
+  }]);
   const checked = call(['check', 'points', path.join(here.root, 'points.json')],
     { cwd: here.dir });
   assert.equal(checked.status, 0, checked.out);
@@ -1028,7 +1034,7 @@ test('preflight: a process that exits with its browser running kills the browser
   assert.deepEqual(fs.readdirSync(folder), []);
 });
 
-test('preflight: a demo script that types a key of qory or of an agent exits 3 before the app starts', async () => {
+test('preflight: a demo script that types a key of qory, of an agent or of a code forge exits 3 before the app starts', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   assert.deepEqual(['QORY_RUN_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
     'GITHUB_TOKEN', 'GH_TOKEN', 'GITLAB_TOKEN', 'GL_TOKEN', 'BITBUCKET_TOKEN',
@@ -1041,10 +1047,10 @@ test('preflight: a demo script that types a key of qory or of an agent exits 3 b
   assert.throws(() => run(here, { serve: { command: 'node app/server.cjs',
     url: 'http://127.0.0.1:9/', cwd: here.dir }, scripts: [script('scenario-1', setup)] },
   { browsers: [process.execPath] }), (error) => {
-    assert.equal(error.message, 'Remove the key of qory or of the agent from the demo scripts, ' +
-      'then run preflight again.');
-    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of qory or of an ' +
-      'agent.', 'Cause: a demo script types ANTHROPIC_API_KEY, which the run keeps from scripts.']);
+    assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
+    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of qory, of an ' +
+      'agent or of a code forge.',
+    'Cause: a demo script types ANTHROPIC_API_KEY, which the run keeps from scripts.']);
     return true;
   });
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
@@ -1134,12 +1140,14 @@ test('preflight verb: each input that is missing or broken, and a runner with no
   assert.equal(none.out.split('\n')[0], 'Run `qory artifact pull demo-script`, then run ' +
     'preflight again.');
   assert.equal(causeOf(none.out), 'Cause: no demo script exists for the app.');
-  // A demo script that types a key of qory or of an agent.
+  // A demo script that types a key of qory, of an agent or of a code forge.
   demoScript(here.root, [...SIGN_IN.slice(0, 2), { do: 'type', target: '#password',
     variable: 'QORY_RUN_KEY' }]);
   const key = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
     deps);
   assert.equal(key.status, 3, key.out + key.err);
+  assert.equal(key.out.split('\n')[0], 'Remove the key from the demo scripts, then run ' +
+    'preflight again.');
   assert.equal(causeOf(key.out), 'Cause: a demo script types QORY_RUN_KEY, which the run keeps ' +
     'from scripts.');
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
@@ -1348,4 +1356,81 @@ const NO_LAN = NO_BROWSER || (!LAN && 'this machine has no address other than lo
 test('preflight: the guard works for an app whose host is not loopback', { skip: NO_LAN }, async () => {
   // A service worker needs a secure origin, and http on such a host is none.
   await guard(LAN.address, Object.keys(GUARD_CASES).filter((name) => name !== 'worker'));
+});
+
+// reachOut starts an app on 127.0.0.1 whose page /out runs code, then shows the text that
+// code resolves to, and replays a sign-in that waits for that text in a Browser of bin with
+// the origin of the app. It resolves to the text, or to the reason of a failed sign-in.
+async function reachOut(bin, code) {
+  const { Browser } = require(path.join(SKILL, 'lib/browser.cjs'));
+  const app = await listen((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end('<!doctype html><html><body><p id="s">wait</p><script>' +
+      `(${code})().then((text) => { document.getElementById("s").textContent = text; })` +
+      '</script></body></html>');
+  }, '127.0.0.1');
+  const base = `http://127.0.0.1:${app.port}/`;
+  const origin = new URL(base).origin;
+  const browser = new Browser(bin, { origin });
+  try {
+    await browser.start();
+    const page = await browser.page({ origin });
+    const done = await replay.signIn(page, [{ do: 'open', url: '/out' },
+      { do: 'wait', text: 'done', timeout_ms: 10000 }], { base, env: {} });
+    const text = done.ok ? (await page.send('Runtime.evaluate', { expression:
+      'document.getElementById("s").textContent', returnByValue: true })).result.value : done.why;
+    await page.close();
+    return text;
+  } finally {
+    await browser.stop();
+    app.server.close();
+  }
+}
+
+test('preflight: a WebRTC connection of a page sends no UDP packet to a STUN server', { skip: NO_BROWSER }, async () => {
+  const got = [];
+  const stun = dgram.createSocket('udp4');
+  stun.on('message', (message, from) => got.push(`${from.address}:${from.port}`));
+  await new Promise((resolve) => { stun.bind(0, '127.0.0.1', resolve); });
+  try {
+    // Chrome 157 on macOS without --webrtc-ip-handling-policy sends 4 STUN requests to the
+    // server within these 3 s.
+    const text = await reachOut(BROWSER, `async () => {
+      const connection = new RTCPeerConnection({ iceServers: [
+        { urls: 'stun:127.0.0.1:${stun.address().port}' }] });
+      connection.createDataChannel('demo');
+      await connection.setLocalDescription(await connection.createOffer());
+      await new Promise((resolve) => { setTimeout(resolve, 3000); });
+      connection.close();
+      return 'done';
+    }`);
+    assert.equal(text, 'done');
+    assert.deepEqual(got, []);
+  } finally {
+    stun.close();
+  }
+});
+
+test('preflight: a page cannot look up another host name', { skip: NO_BROWSER }, async () => {
+  const got = [];
+  const other = await listen((req, res) => {
+    got.push(`${req.headers.host.split(':')[0]} ${req.url}`);
+    res.end('other');
+  }, '127.0.0.1');
+  // A browser with no proxy flags, so that only the lookup of the name stops the request,
+  // and the request to the address of 127.0.0.1 reaches the other server.
+  const here = checkout();
+  const browser = fakeBrowser(here, 'for one do shift; case "$one" in ' +
+    '--proxy-server=*|--proxy-bypass-list=*) ;; *) set -- "$@" "$one" ;; esac; done\n' +
+    `exec '${BROWSER}' "$@"`);
+  const reach = (host) => `fetch('http://${host}:${other.port}/' + '${host}', ` +
+    "{ mode: 'no-cors' }).then(() => 'reached', () => 'failed')";
+  try {
+    const text = await reachOut(browser.file, `async () => [await ${reach('localhost')}, ` +
+      `await ${reach('127.0.0.1')}, 'done'].join(' ')`);
+    assert.equal(text, 'failed reached done');
+    assert.deepEqual(got, ['127.0.0.1 /127.0.0.1']);
+  } finally {
+    other.server.close();
+  }
 });

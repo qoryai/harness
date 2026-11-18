@@ -2394,11 +2394,17 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   run may open only the app's pages." The browser starts with `--proxy-server` set to
   `http://127.0.0.1:9`, a port where nothing listens, and with only the app's host and port
   in `--proxy-bypass-list`, after `<-loopback>`: every other request, such as a `fetch`, a
-  beacon, an image, a WebSocket or a request of a service worker, fails. The browser pauses
-  each new window of the page, such as one of `window.open` or of a form or link with
-  `target="_blank"`, fails its first request and closes it; the point then has the origin
-  of that request, or "a new window" for none or one of the app's origin. An origin that
-  contains a typed value, in any case, is "another origin" in the point and the finding. A
+  beacon, an image, a WebSocket or a request of a service worker, fails. With
+  `--webrtc-ip-handling-policy=disable_non_proxied_udp`, WebRTC sends only through the
+  proxy, so it sends no UDP packet. Chrome 157 ignores the older name of that flag,
+  `--force-webrtc-ip-handling-policy`, and the browser gets both. `--host-resolver-rules`
+  fails the lookup of each host name except 127.0.0.1 and the app's host. The browser pauses each new window of the page,
+  such as one of `window.open` or of a form or link with `target="_blank"`, fails its first
+  request and closes it; the point then has the origin of that request. For a window with
+  no request, or with one to the app's origin, the point has the text "The app at <App
+  address> opens a new window during sign-in, and the run closed it: a run uses one
+  window." An origin that contains a typed value, in any case, is "another origin" in the
+  point and the finding. A
   `type` and a `press` act only on a page of the app's origin whose focus is in no frame,
   and a `type` only when the focus is in the element of its target. The replay gets only
   the variables that its setup types, and a setup that types a variable of qory or of an

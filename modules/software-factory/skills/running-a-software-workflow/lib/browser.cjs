@@ -71,12 +71,19 @@ function originOf(url) {
 
 // proxyFlags returns the flags that send each request to DEAD_PROXY, except one to the host
 // and port of origin. <-loopback> removes the rule that sends no request to localhost and
-// 127.0.0.1 through a proxy.
+// 127.0.0.1 through a proxy. WebRTC then sends no UDP packet, since it may use only the
+// proxy, and the lookup of each host name fails, except of 127.0.0.1 and the host of origin.
+// Chrome 157 ignores --force-webrtc-ip-handling-policy and reads --webrtc-ip-handling-policy;
+// the browser gets both, since no test ran on the Chromium of the run's image.
 function proxyFlags(origin) {
   const url = new URL(origin);
   const port = url.port || { 'http:': '80', 'https:': '443' }[url.protocol];
+  const hosts = [...new Set(['127.0.0.1', url.hostname.replace(/^\[(.*)\]$/, '$1')])];
   return [`--proxy-server=${DEAD_PROXY}`,
-    `--proxy-bypass-list=<-loopback>;${url.hostname}:${port}`];
+    `--proxy-bypass-list=<-loopback>;${url.hostname}:${port}`,
+    '--webrtc-ip-handling-policy=disable_non_proxied_udp',
+    '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+    `--host-resolver-rules=MAP * ~NOTFOUND, ${hosts.map((one) => `EXCLUDE ${one}`).join(', ')}`];
 }
 
 // executable reports whether file is a regular file that the user may run.
@@ -620,4 +627,5 @@ class Page {
   }
 }
 
-module.exports = { BROWSERS, Browser, FLAGS, Page, findBrowser, keyOf, limited, originOf };
+module.exports = { BROWSERS, Browser, FLAGS, NEW_WINDOW, Page, findBrowser, keyOf, limited,
+  originOf };

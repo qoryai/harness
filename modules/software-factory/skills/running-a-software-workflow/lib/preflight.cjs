@@ -17,7 +17,7 @@ const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { findBrowser } = require('./browser.cjs');
+const { NEW_WINDOW, findBrowser } = require('./browser.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups } = require('./replay.cjs');
 const schema = require('./schema.cjs');
 const { runKey } = require('./secrets.cjs');
@@ -64,8 +64,11 @@ const TEXTS = {
     fix: 'Ask an owner or admin of your organisation to correct the app\'s sign-in variables ' +
       'in Workspace settings > Secrets and variables, then run another round.',
   }),
+  // origin is NEW_WINDOW for a new window that sent no request to another origin.
   outside: ({ address, origin }) => ({
-    text: `The sign-in of the app at ${address} opens ${origin}, and the run may open only the ` +
+    text: origin === NEW_WINDOW ? `The app at ${address} opens a new window during sign-in, ` +
+      'and the run closed it: a run uses one window.'
+      : `The sign-in of the app at ${address} opens ${origin}, and the run may open only the ` +
       'app\'s pages.',
     fix: `Make the app's sign-in work in the dev container without leaving ${address}, then ` +
       'run another round.',
@@ -259,14 +262,15 @@ module.exports = (lib) => {
     writeJson(file, [...kept, ...points].slice(-MAX_POINTS));
   }
 
-  // keyOfQory throws the Missing of a setup of setups that types a variable of qory or of an
-  // agent, as runKey of lib/secrets.cjs finds it: the runner passes it no such variable.
+  // keyOfQory throws the Missing of a setup of setups that types a variable of qory, of an
+  // agent or of a code forge, as runKey of lib/secrets.cjs finds it: the runner passes it no
+  // such variable.
   function keyOfQory(setups) {
     const name = setups.flatMap((setup) => setup.names).find(runKey);
     if (!name) return;
-    throw new Missing('Remove the key of qory or of the agent from the demo scripts, then run ' +
-      'preflight again.', [`A setup types ${name}, a variable of qory or of an agent.`,
-      cause(`a demo script types ${name}, which the run keeps from scripts`)]);
+    throw new Missing('Remove the key from the demo scripts, then run preflight again.',
+      [`A setup types ${name}, a variable of qory, of an agent or of a code forge.`,
+        cause(`a demo script types ${name}, which the run keeps from scripts`)]);
   }
 
   // signInFound returns what the results of the sign-ins of setups found: the browser failed,

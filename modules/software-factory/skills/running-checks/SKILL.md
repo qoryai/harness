@@ -156,10 +156,11 @@ first demo:
    before its next action. The browser sends each other request to a host and port other
    than the app's, such as a `fetch`, an image, a WebSocket or a request of a service
    worker, to a proxy at port 9 of 127.0.0.1, where nothing listens, so the request
-   fails. A new window of the
-   page closes before its first request, and the sign-in fails. A `type` or `press` acts
-   only on a page of the app's origin, and a `type` only when the focus is in the element
-   of its target. The replay gets only the variables that its setup types.
+   fails. WebRTC sends no UDP packet, and the lookup of each host name fails, except of
+   127.0.0.1 and the app's host. A new window of the page closes before its first request,
+   and the sign-in fails. A `type` or `press` acts only on a page of the app's origin, and
+   a `type` only when the focus is in the element of its target. The replay gets only the
+   variables that its setup types.
 
 `preflight` reads the demo scripts from the artifact folder of the session: of each name,
 the newest version that `index.json` counts. With no `serve` command in the build plan, it
@@ -176,9 +177,10 @@ of the artifact folder, and exits 1. Then change no code: run `check points` on
 `points.json`, and end the session. The end check sends the points with the verdict
 `escalate`, and a member reads in the fix line of each point what to change before the
 next round. A sign-in that loads a page of another origin, or opens a new window, writes
-such a point too. Its text contains that origin, "a new window" for a new window that sent
-no request to another origin, or "another origin" when the origin contains a value that
-the sign-in typed.
+such a point too. Its text contains that origin, or "another origin" when the origin
+contains a value that the sign-in typed. For a new window that sent no request to another
+origin, the text is "The app at <App address> opens a new window during sign-in, and the
+run closed it: a run uses one window."
 
 Exit 3 means that an input is missing or the check did not finish. The line of the output
 that starts with `Cause:` contains the cause, in the words of the line that ends the run,

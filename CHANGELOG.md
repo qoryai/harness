@@ -604,8 +604,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   redirect, a link or a script, and the sign-in then writes a point and types nothing more.
   It sends each other request to a host and port other than the app's, such as a `fetch`, an
   image, a WebSocket or a request of a service worker, to a proxy at port 9 of 127.0.0.1,
-  where nothing listens, and it closes each new window before its first request, which also
-  writes the point. An origin in the point that contains a typed value is written as
+  where nothing listens. WebRTC sends no UDP packet, and the lookup of each host name fails,
+  except of 127.0.0.1 and the app's host. The browser closes each new window before its
+  first request, which also writes the point: the point of the origin of that request, or
+  "The app at <App address> opens a new window during sign-in, and the run closed it: a run
+  uses one window." An origin in the point that contains a typed value is written as
   "another origin". A `type` acts only on the app's origin, with the focus in the element of
   its target. The replay gets only the variables that its setup types, and a setup that
   types a variable of qory or of an agent, or a token of a code forge such as
