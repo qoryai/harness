@@ -23,14 +23,15 @@ jobs:
       # qory's commit to build. v0.13.0, the newest release, refuses the `workflows`
       # key in stacks/software/qory-stack.yaml, the `push_checks` key in
       # modules/software-factory/qory-module.yaml and the `withdrawable` key in
-      # modules/software-factory/process.yaml, and has no `--points` on
-      # `qory run verdict escalate`, which the workflow skills run, and has no `fix` on a
-      # point of a verdict. This commit, the head of qory's 544-build-verify branch after
-      # qoryai/qory#127, not main, has all five, and names the middle model tier
-      # `balanced`, the tier of modules/software-factory/agents/code-explorer.md. It also
-      # has the contract's acceptance criteria and verification formats and `about` on each
-      # question, which modules/software-factory/process.yaml and the questions check
-      # follow. Move to a release when one has them.
+      # modules/software-factory/process.yaml, has no `--points` on
+      # `qory run verdict escalate`, which the workflow skills run, has no `--track` on
+      # `qory run verdict`, which the Explore session runs, and has no `fix` on a point of a
+      # verdict. This commit, the head of qory's 544-build-verify branch after
+      # qoryai/qory#127, not main, has all six, and its middle model tier is `balanced`, the
+      # tier of modules/software-factory/agents/code-explorer.md. It also has the contract's
+      # acceptance criteria and verification formats and `about` on each question, which
+      # modules/software-factory/process.yaml and the questions check follow. Move to a
+      # release when one has them.
       QORY_COMMIT: 0e022820ca3f3725b9a6a31b39d20424f2b33076
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

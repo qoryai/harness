@@ -8,6 +8,27 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The `plan-the-build` workflow in the `software` stack, with `tier: thinking` and
+  `access: write`: the skills `workflow-plan-the-build`, `planning-builds` and
+  `checking-build-plans`, and the agents `build-planner` and `plan-reviewer`. The session
+  starts `code-explorer`, `build-planner` and `plan-reviewer` in that order and pushes
+  `build-plan` after the review. `code-explorer` and `exploring-code` also report, for
+  each criterion, the files to change, the tests of the area and the commands that run the
+  checks and the app, in the same report form as before. Each Criteria cell of the plan is
+  `AC-<N>, "<the criterion's first sentence>"`. Each Check path of a test file is also in
+  the Files of its row, so the push step of qory, which runs `checks.cjs scope --plan`
+  before the first push, lets the locked checks and their support files in. A plan with a
+  `serve` row has the line `App address: <url>` in its Summary. A plan of more than 7 deliverables is not pushed: the run asks one question about the
+  criteria of the first 7 changes and of the others, with an option to build the first 7
+  and take in the rest as a new work item, and ends with `qory run verdict escalate`. When
+  every criterion of the later changes is also in the first 7, option 1 builds the first 7
+  changes and takes in the other changes as a new work item, which it lists by their Change
+  cells. A list in the question that passes 200 characters in the title of option 1 or 120
+  words in the context loses items from its end and ends with "and <m> more". Nothing
+  records the member's answer in the build report yet, although the second option says so,
+  and the planner of the next round does not read the answer: a later change reads it.
+  The ledger records the step as `failed`, with no escalation reason: nothing records the
+  reason `plan-limit` yet.
 - Role notes in the start of an agent. Before each start of an agent, the session runs
   `checks.cjs notes <agent> [--files <file>]`. The verb reads `role-notes.json` of the
   harness home, which qory writes, and picks the role notes whose roles include a role of
@@ -368,8 +389,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and a skill are laid out.
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or the
-  `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, or has
-  `fix` on a point. The pin is `0e02282`, qory's commit after qoryai/qory#127.
+  `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, has
+  `qory run verdict --track`, or has `fix` on a point. The pin is `0e02282`, qory's commit
+  after qoryai/qory#127.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -660,7 +682,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `.github/workflows/check.yml` builds qory at `0e02282`, qory's commit after
   qoryai/qory#127, which has the acceptance criteria and verification formats and `about`
   on each question, in place of `1deb56e`.
-- The middle model tier is `balanced` in place of `fast`, the name that qory gives it.
+- The middle model tier is `balanced` in place of `fast`, qory's name for it.
   qory at `0e02282` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the
   tier `light`, `balanced` or `thinking`, and rule 3 of `scripts/check.sh` fails on

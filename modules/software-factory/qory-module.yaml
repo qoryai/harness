@@ -22,7 +22,9 @@ description: >-
   skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer and
   scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's Shape
   stage through those four workflows; the skills planning-shape and checking-shape; the agents
-  shape-planner and shape-reviewer; and live web search off on Codex.
+  shape-planner and shape-reviewer; the workflow-plan-the-build skill, which orchestrates
+  one ticket's build plan; the skills planning-builds and checking-build-plans; the agents
+  build-planner and plan-reviewer; and live web search off on Codex.
 provides:
   agents:
     explorer: code-explorer

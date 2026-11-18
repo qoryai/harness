@@ -49,15 +49,16 @@ This line adds to the lines of "Failures" for a "Blocked:" line before the first
 
 "Check before each review" runs `check` with these types and files, each at the top of the
 artifact folder: `spec` with `spec.md`, `acceptance-criteria` with
-`acceptance-criteria.json`, `decision-record` with `decision-record.md`, and
-`demo-scenarios` with `demo-scenarios.md`. A mockup has no checks, and its reviewer gets no "Checks:".
+`acceptance-criteria.json`, `decision-record` with `decision-record.md`, `demo-scenarios`
+with `demo-scenarios.md`, and `build-plan` with `build-plan.md`. A mockup has no checks, and
+its reviewer gets no "Checks:".
 
 ## Types in plain words
 
 In the text of a point and in the last line of "The end", name each type in these words:
 "spec" for `spec`, "acceptance criteria" for `acceptance-criteria`, "technical decision
-record" for `decision-record`, "mockups" for `mockup`, and "demo scenarios" for
-`demo-scenarios`.
+record" for `decision-record`, "mockups" for `mockup`, "demo scenarios" for
+`demo-scenarios`, and "build plan" for `build-plan`.
 
 ## The build ledger
 

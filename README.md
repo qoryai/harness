@@ -110,8 +110,9 @@ The `software` stack composes the `core` module and the `software-factory` modul
 checkout in a workspace set up as a software factory extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read`. The `software-factory` module ships the process
-template, six workflows' skills, fourteen other skills, thirteen agents and the settings
+with `access: read`, and the workflow `plan-the-build`, with `tier: thinking` and
+`access: write`. The `software-factory` module ships the process
+template, seven workflows' skills, seventeen other skills, fifteen agents and the settings
 for a run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -283,6 +284,20 @@ for a run of those workflows:
   read-only, and reports what runs next and the reason for what does not.
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
+- `workflow-plan-the-build`: orchestrate the build plan of one ticket. The session starts
+  `code-explorer`, `build-planner` and `plan-reviewer` in that order, and pushes
+  `build-plan` after a review with no finding left. A plan of more than 7 deliverables ends
+  with `qory run verdict escalate` and one question to a member about the criteria
+  of the first 7 changes and of the others.
+- `planning-builds`: load it before you draft a build plan. The skill contains the three
+  sections, the form of each cell, the Files rule for check files, the address of the app
+  and an example plan.
+- `checking-build-plans`: load it before you write or review a build plan. The skill
+  contains the steps of a review and the check list.
+- `build-planner`: an agent that drafts `build-plan.md` by `planning-builds` and reports
+  the deliverables over the limit of 7.
+- `plan-reviewer`: an agent that reviews a build plan by `reviewing-drafts` against
+  `checking-build-plans`, read-only, and reports findings as text.
 - `settings/claude/settings.json`: the run may load the skills of this module, start its
   agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the

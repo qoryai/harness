@@ -1,6 +1,6 @@
 ---
 name: code-explorer
-description: Reads a target's files for one question of a ticket, read-only, and reports what it searched, facts with path and line, and what the files cannot show. Use first in a run, before a writer drafts.
+description: Reads a target's files for one question of a ticket or of a build plan, read-only, and reports what it searched, facts with path and line, and what the files cannot show. Use first in a run, before a writer or a planner drafts.
 tools: Read, Grep, Glob, Skill
 model: ${qory:balanced}
 ---
@@ -54,7 +54,9 @@ A refused tool call stays refused: do not retry it. Never read through a link.
 You get the paths of the input file and the artifact folder, and the question to settle.
 Take the ticket's words from the input file. After the search, follow the path from a
 person's action to the outcome, the failure path, and the other users of what you found, as
-far as the question needs.
+far as the question needs. When the question is for a build plan, the section "For a build
+plan" of `exploring-code` lists the files, tests and commands to find. Keep each fact to
+one line, so that the report stays within the report limit of the session.
 
 ## Stop conditions
 
