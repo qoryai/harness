@@ -833,10 +833,13 @@ test('preflight: a runner whose parent ends stops its browser and removes its fo
     await until(() => browsers().length > 0, 20000, 'the browser did not start');
     pid = Number(fs.readFileSync(path.join(here.dir, 'runner.pid'), 'utf8'));
     parent.kill('SIGTERM');
-    await until(async () => !alive(pid) && await isFree(port) && !browsers().length, 5000,
-      'the runner, the app or the browser outlived the parent');
-    assert.deepEqual(fs.readdirSync(folder).filter((name) => name.startsWith('qory-browser-')),
-      []);
+    // The runner removes the folder of the browser after the browser exits, then exits.
+    const profiles = () => fs.readdirSync(folder)
+      .filter((name) => name.startsWith('qory-browser-'));
+    await until(async () => !alive(pid) && await isFree(port) && !browsers().length &&
+      !profiles().length, 5000, 'the runner, the app, the browser or its folder outlived ' +
+      'the parent');
+    assert.deepEqual(profiles(), []);
   } finally {
     parent.kill('SIGKILL');
     if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
@@ -1008,12 +1011,16 @@ test('preflight: a process that exits with its browser running kills the browser
   fs.writeFileSync(main, `const { Browser } = require(${JSON.stringify(path.join(SKILL,
     'lib/browser.cjs'))});\nnew Browser(${JSON.stringify(browser.file)}).start().catch(() => {});\n` +
     `setTimeout(() => process.exit(0), 1000);\n`);
-  const ran = childProcess.spawnSync(process.execPath, [main], { timeout: 10000 });
+  const folder = path.join(here.dir, 'tmp');
+  fs.mkdirSync(folder);
+  const ran = childProcess.spawnSync(process.execPath, [main],
+    { timeout: 10000, env: { ...process.env, TMPDIR: folder } });
   assert.equal(ran.status, 0);
   const pid = Number(fs.readFileSync(browser.pid, 'utf8'));
   await until(() => !alive(pid), 2000, 'the browser outlived its process').finally(() => {
     if (alive(pid)) process.kill(pid, 'SIGKILL');
   });
+  assert.deepEqual(fs.readdirSync(folder), []);
 });
 
 test('preflight: a demo script that types a key of qory or of an agent exits 3 before the app starts', async () => {

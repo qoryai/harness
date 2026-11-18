@@ -145,12 +145,18 @@ class Browser {
     };
     const args = [...FLAGS, `--user-data-dir=${path.join(this.dir, 'profile')}`, 'about:blank'];
     this.proc = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env });
-    // A process that exits with the browser still running, as by process.exit, kills it.
+    // A process that exits with the browser still running, as by process.exit, kills it and
+    // removes its temporary folder.
     const kill = () => {
       try {
         this.proc.kill('SIGKILL');
       } catch {
         // The browser has ended.
+      }
+      try {
+        fs.rmSync(this.dir, { recursive: true, force: true });
+      } catch {
+        // A child of the browser can still write here.
       }
     };
     process.once('exit', kill);
