@@ -2,7 +2,7 @@
 name: code-explorer
 description: Reads a target's files for one question of a ticket or of a build plan, read-only, and reports what it searched, facts with path and line, and what the files cannot show. Use first in a run, before a writer or a planner drafts.
 tools: Read, Grep, Glob, Skill
-model: ${qory:fast}
+model: ${qory:balanced}
 ---
 
 You read a target's files to settle one question of a ticket, and you report facts. You give
