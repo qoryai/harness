@@ -5,8 +5,9 @@
 // 2. the app: the serve command of the build plan starts it, and a GET of the address of
 //    the line "App address:" in the Summary of the plan returns a response;
 // 3. the sign-in: each setup of the demo scripts that types a variable passes once in the
-//    browser, with the values of the variables in the environment, and loads no page of
-//    another origin than the app's.
+//    browser, with the values of the variables in the environment, loads no page of
+//    another origin than the app's, sends no request to another host and port than the
+//    app's, and opens no new window.
 // With no serve command, it checks no app and no sign-in. The sign-in needs the browser and
 // the app, so with either missing it checks no sign-in. lib/preflight-run.cjs runs parts 2
 // and 3, which wait for the app and the browser.

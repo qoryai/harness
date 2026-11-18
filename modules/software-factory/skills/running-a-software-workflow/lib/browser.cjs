@@ -387,7 +387,7 @@ const FOCUSED = `(() => {
 // then act only on a page of origin. It also closes each new window of the page, such as one
 // that window.open or a form or link with target=_blank opens, before its first request, and
 // outside is then the origin of that request, or NEW_WINDOW for one to origin or for none
-// within POPUP_MS. Only a Page of a Browser with an origin sees its new windows.
+// within POPUP_MS. Only a Page of a Browser with an origin gets its new windows.
 class Page {
   constructor(browser, { browserContextId, targetId, sessionId }) {
     this.browser = browser;

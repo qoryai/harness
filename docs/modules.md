@@ -2391,11 +2391,19 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   load of each document of another origin, in the tab and in each frame, whether an `open`,
   a redirect, a link or a script starts it, and no later action of that setup runs; the
   point then has the text "The sign-in of the app at <App address> opens <origin>, and the
-  run may open only the app's pages." A `type` and a `press` act only on a page of the
-  app's origin whose focus is in no frame, and a `type` only when the focus is in the
-  element of its target. The replay gets only the variables that its setup types, and a
-  setup that types a variable of qory or of an agent, such as `QORY_RUN_KEY` or
-  `ANTHROPIC_API_KEY`, exits 3 before the app starts.
+  run may open only the app's pages." The browser starts with `--proxy-server` set to
+  `http://127.0.0.1:9`, a port where nothing listens, and with only the app's host and port
+  in `--proxy-bypass-list`, after `<-loopback>`: every other request, such as a `fetch`, a
+  beacon, an image, a WebSocket or a request of a service worker, fails. The browser pauses
+  each new window of the page, such as one of `window.open` or of a form or link with
+  `target="_blank"`, fails its first request and closes it; the point then has the origin
+  of that request, or "a new window" for none or one of the app's origin. An origin that
+  contains a typed value, in any case, is "another origin" in the point and the finding. A
+  `type` and a `press` act only on a page of the app's origin whose focus is in no frame,
+  and a `type` only when the focus is in the element of its target. The replay gets only
+  the variables that its setup types, and a setup that types a variable of qory or of an
+  agent, such as `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a token of a code forge, such
+  as `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the app starts.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
@@ -2403,9 +2411,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   the session, the store of the run, since the folder of the build plans holds only build
   plans: of each name that `index.json` lists, the newest version that it counts, so a
   version folder or a name that `index.json` does not list is not read. The output of the
-  serve command goes to `.reports/preflight/serve.log`. Every process of the command stops
-  after the check, also on a failure or a signal: its process group, and on Linux each
-  process with the mark of the supervisor of `run`. The sign-ins stop after at most 570
+  serve command goes to `.reports/preflight/serve.log`, a new file in place of whatever was
+  at that path. After the check, also on a failure or a signal, the process group of the
+  command stops, and on Linux each process with the mark of the supervisor of `run`. The
+  runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
+  in the group kills the group when the runner ends, also on SIGKILL. A process that leaves
+  the group by `setsid` and removes the mark from its environment keeps running, as
+  `lib/supervise.cjs` states. The sign-ins stop after at most 570
   seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
   Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
