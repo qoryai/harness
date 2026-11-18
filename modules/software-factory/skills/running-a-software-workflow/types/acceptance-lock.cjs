@@ -10,8 +10,9 @@ const { isDeepStrictEqual } = require('node:util');
 
 module.exports = (lib) => {
   const {
-    Missing, approvedNumber, askAbove, byPerson, criteriaTarget, isObject, jsonFile, liveIn,
-    countedOf, newestCriteria, noCriteria, num, parseJson, pullCriteria, readFile, versionsOf,
+    Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, isObject, jsonFile,
+    liveIn, countedOf, newestCriteria, noCriteria, num, parseJson, pullCriteria, readFile,
+    versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -295,9 +296,8 @@ module.exports = (lib) => {
       }
       return;
     }
-    const file = path.join(context.store, 'acceptance-criteria', 'main', `v${version}`,
-      'acceptance-criteria.json');
-    if (!fs.existsSync(file)) {
+    const file = criteriaFile(context, version);
+    if (file === null) {
       run.find(context.mode === 'push' ? noCriteria(FILE) : pullCriteria(version));
       return;
     }

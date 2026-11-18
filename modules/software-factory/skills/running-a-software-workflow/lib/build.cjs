@@ -253,6 +253,21 @@ module.exports = (lib) => {
     return Math.max(approvedVersion, ...persons);
   }
 
+  // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
+  // the store, or null when the store has no folder of that version. A folder with no such
+  // file, such as one with only the acceptance-criteria.md of the earlier format, throws
+  // Missing with the line of Context.newest: pull the artifacts again.
+  function criteriaFile(context, number) {
+    const dir = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`);
+    const file = path.join(dir, 'acceptance-criteria.json');
+    if (fs.existsSync(file)) return file;
+    if (fs.existsSync(dir)) {
+      throw new Missing('Pull the artifacts again.\n' +
+        `acceptance-criteria/main/v${number} has no acceptance-criteria.json.`);
+    }
+    return null;
+  }
+
   // newestCriteria returns the number of the newest criteria version in index.json that no
   // cancelled run wrote, the one version that qory mounts for a push once its push folder
   // holds the newest version that counts, or null when index.json lists none.
@@ -321,9 +336,8 @@ module.exports = (lib) => {
       run.find(askAbove(context, `push ${what} again`, target, newest));
       return null;
     }
-    const file = path.join(context.store, 'acceptance-criteria', 'main', `v${target}`,
-      'acceptance-criteria.json');
-    if (!fs.existsSync(file)) {
+    const file = criteriaFile(context, target);
+    if (file === null) {
       run.find(context.mode === 'push' ? noCriteria(what) : pullCriteria(target));
       return null;
     }
@@ -430,7 +444,8 @@ module.exports = (lib) => {
   return {
     COMMIT, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, countedOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria,
+    versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
+    noCriteria,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
   };
 };
