@@ -3955,10 +3955,12 @@ test('questions: each question has an about of one of its two forms', () => {
   assert.ok(about);
   exactly(add(none), 'Add about to q7: {"work_item": true}, or the type and name of an ' +
     'output.\n  q7 has no about.');
-  for (const form of [{ work_item: false }, { work_item: true, type: 'spec', name: 'main' },
-    { type: 'spec' }, 'the work item']) {
+  for (const [form, shown] of [[{ work_item: false }, '{"work_item":false}'],
+    [{ type: 'spec' }, '{"type":"spec"}'], ['the work item', '"the work item"'], [3, '3'],
+    [null, 'null']]) {
     exactly(add(q7({ about: form })), 'Write about of q7 in one of its two forms.\n  It is ' +
-      '{"work_item": true}, or {"type": ..., "name": ...} with an optional "item".');
+      `${shown}.\n  The forms are {"work_item": true}, and {"type": ..., "name": ...} with an ` +
+      'optional "item".');
   }
 });
 
@@ -3966,6 +3968,9 @@ test('questions: an output about has only type, name and item, in the forms of t
   const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
   exactly(add({ type: 'spec', name: 'main', note: 'x' }), 'Remove "note" from about of q7: an ' +
     'output has only type, name and item.\n  About of q7 has "note".');
+  exactly(add({ type: 'spec', name: 'main', [`a${'b'.repeat(40)}`]: 1 }), 'Remove ' +
+    `"abbbbbb...bbbbbb" from about of q7: an output has only type, name and item.\n  About ` +
+    'of q7 has "abbbbbb...bbbbbb".');
   for (const type of ['Not A Type!', 'spec-', 'a--b', 'a'.repeat(65)]) {
     exactly(add({ type, name: 'main' }), 'Write about.type of q7 as a type, such as proposal ' +
       `or mockup.\n  It is "${type}", ` +

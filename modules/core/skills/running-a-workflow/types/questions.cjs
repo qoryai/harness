@@ -18,7 +18,7 @@ const qNumber = (id) => Number((/^q(\d+)$/.exec(id) || ['', 'NaN'])[1]);
 const TYPE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // The words of the two forms of about, for the line after a fix.
-const ABOUT_FORMS = 'It is {"work_item": true}, or {"type": ..., "name": ...} with an ' +
+const ABOUT_FORMS = 'The forms are {"work_item": true}, and {"type": ..., "name": ...} with an ' +
   'optional "item".';
 
 // outputs returns each output of the work item that the run can read, as "<type>/<name>": each
@@ -76,7 +76,9 @@ function aboutCheck(run, which, question, earlier, readable) {
   const output = isObject(about) && !('work_item' in about) &&
     typeof about.type === 'string' && typeof about.name === 'string';
   if (!workItem && !output) {
-    run.find(`Write about of ${who} in one of its two forms.\n${ABOUT_FORMS}`);
+    // JSON text escapes each control character; the refused characters are removed.
+    const value = short(JSON.stringify(about).replace(REFUSED_ALL, ''), 60);
+    run.find(`Write about of ${who} in one of its two forms.\nIt is ${value}.\n${ABOUT_FORMS}`);
     return;
   }
   if (output && !outputForm(run, which, about)) return;
@@ -324,8 +326,8 @@ function outputForm(run, which, about) {
   const who = short(which, 24);
   const other = Object.keys(about).find((key) => !['type', 'name', 'item'].includes(key));
   if (other !== undefined) {
-    run.find(`Remove ${quote(short(other, 32))} from about of ${who}: an output has only type, ` +
-      `name and item.\nAbout of ${which} has ${quote(other)}.`);
+    run.find(`Remove ${quote(short(other, 16))} from about of ${who}: an output has only type, ` +
+      `name and item.\nAbout of ${which} has ${quote(short(other, 16))}.`);
     return false;
   }
   if (!TYPE_NAME.test(about.type) || Buffer.byteLength(about.type) > 64) {
