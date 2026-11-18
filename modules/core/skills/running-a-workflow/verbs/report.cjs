@@ -7,7 +7,7 @@ const path = require('node:path');
 const {
   MAX_BYTES, Missing, NAME, folderOf, given, inside, plural, readFile,
 } = require('../lib/base.cjs');
-const { startNotes } = require('../lib/notes.cjs');
+const { runKey, startNotes } = require('../lib/notes.cjs');
 const { agentNames } = require('../lib/plugin.cjs');
 const { REPORT_FIXES, expected, record, reportCheck } = require('../lib/reports.cjs');
 
@@ -32,7 +32,7 @@ function report(io, agent, file) {
     ? [`Cut the report to at most ${MAX_BYTES / 1024} KB.\nThe report of ${agent} has ${size} ` +
       'bytes.']
     : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops,
-      io.registry(), startNotes(root, agent));
+      io.registry(), startNotes(root, runKey(io, root), agent));
   let checked = 'size, last word, lists and Blocked: line';
   if (size > MAX_BYTES) {
     checked = 'its size';

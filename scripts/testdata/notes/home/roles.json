@@ -1,7 +1,9 @@
 {
   "roles": [
     { "role": "agents/developer", "agent": "software-developer", "from": "base" },
+    { "role": "agents/developer", "agent": "files-writer", "from": "base" },
     { "role": "agents/writer", "agent": "spec-writer", "from": "base" },
+    { "role": "agents/fixer", "agent": "change-fixer", "from": "base" },
     { "role": "agents/reviewers", "agent": "change-reviewer", "from": "provides factory", "group": true }
   ]
 }

@@ -84,8 +84,9 @@ function verdictArg(io, args) {
 // offlineReports runs the report check on the newest report <agent>-<n>.md under
 // root/.reports of each agent of folders, and finds each type of needed with no report of
 // its reviewer, as registry lists the types, their reviewers and the stops. It follows no
-// link. Each result is { line, point }, as endDrafts lists.
-function offlineReports(root, folders, needed, registry) {
+// link. Each result is { line, point }, as endDrafts lists. run is --run, the key of the run in
+// the record of the role notes of .reports/role-notes.json.
+function offlineReports(root, folders, needed, registry, run) {
   const dir = path.join(root, '.reports');
   let names = [];
   try {
@@ -117,7 +118,7 @@ function offlineReports(root, folders, needed, registry) {
       } else {
         lines = reportCheck(readFile(file, `.reports/${name}`), agent,
           expected(folders[0], agent, folders, registry.records), agents, registry.stops,
-          registry, startNotes(root, agent));
+          registry, startNotes(root, run, agent));
       }
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
@@ -233,7 +234,7 @@ function offline(io, args) {
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);
   const found = [...drafts,
-    ...offlineReports(root, pluginFolders(io.plugin), needed, registry)];
+    ...offlineReports(root, pluginFolders(io.plugin), needed, registry, args['--run'])];
   const findings = found.map((one) => one.line);
   const what = `Checked the drafts and reports after the session: ` +
     `${plural(findings.length, 'finding')}`;
@@ -264,4 +265,4 @@ function crashed(io, error, first = OFFLINE_CRASH) {
   return 4;
 }
 
-module.exports = { offlineArgs, offline, offlineReports, crashed };
+module.exports = { offlineArgs, offline, crashed };

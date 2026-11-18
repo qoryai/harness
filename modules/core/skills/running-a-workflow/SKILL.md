@@ -32,7 +32,7 @@ Never write what a report you did not get would have said.
 ## Starting agents
 
 Start every agent in the foreground when your runtime offers that, and wait for its report.
-Never decide on a failure or end the run while an agent runs.
+Never decide on a failure or end the run while an agent runs. Run `notes` before each start.
 
 Pass each agent the input file's absolute path from the prompt, which ends in
 `/in/inputs.json`, and never guess another. When the pull prints a line that starts with
@@ -42,7 +42,7 @@ reviewer paths and values, never a summary or your reasoning.
 
 Pass each agent at each start the limit of its report: at most about 2,000 tokens, counted
 as 8,000 bytes. Only the list "Files:" with one path per line, each item `- <path>`, is
-left out. A longer report fails the check, as "Check each report" lists. Run `notes` as "Notes in a start" lists.
+left out. A longer report fails the report check, as "Check each report" lists.
 
 Give the writer, the questions writer and the questions reviewer `stage.id` at each start,
 as the id of the run's stage, because the first round of a stage lasts until a person
@@ -555,12 +555,14 @@ has files, such as the files that a writer's deliverable lists or the files of t
 that a reviewer reviews, write those paths to `<folder>/.notes/<agent>-files.txt`, one per
 line, from the top of the working folder, and add `--files <that file>`. The script prints
 each role note that applies, at most 3, and its last line shows the path of the notes file,
-or that the start has no note. Pass the notes file's absolute path to the agent in the start
-prompt, and tell the agent to read it first. A role note is not one of "the notes" of the
-work item.
+or that the start has no role note. Pass the notes file's absolute path to the agent in the
+start prompt, and tell the agent to read it first. A role note is not one of "the notes" of
+the work item.
 
-Each agent lists the name of every note in its notes file under "Notes read:" in its report,
-and the report check fails a report that lacks one. That list counts toward the limit of the
-report. A start with no `--files` has no note, and the script records it, so that the report
-of that start is never checked against the notes of an earlier one. When you start an agent
-again to fix its report, pass the same notes file and run no new `notes`.
+Each agent lists the name of every role note in its notes file under "Role notes read:" in
+its report, one `- <name>` line each, directly under the heading. The report check fails a
+report that lacks one, or when the notes file changed after the start. That list counts
+toward the limit of the report. A blocked report needs no list. A start without `--files`
+has no role note, and its record replaces the earlier start of that agent: the check uses
+the newest start of the agent, so two starts of one agent at once share it. When you start
+an agent again to fix its report, pass the same notes file and run no new `notes`.
