@@ -67,7 +67,7 @@ test('the skill starts the code explorer, the build planner and the plan reviewe
 
 test('each new agent has its guardrails, stop conditions and expected output, and a tier', () => {
   for (const [name, tier] of [['build-planner', 'thinking'], ['plan-reviewer', 'thinking'],
-    ['code-explorer', 'fast']]) {
+    ['code-explorer', 'balanced']]) {
     const text = agent(name);
     for (const title of ['Guardrails', 'Stop conditions', 'Expected output']) {
       assert.match(text, new RegExp(`\\n## ${title}\\n`), `${name} has no ## ${title}`);
@@ -393,7 +393,7 @@ test('a session on a test work item stores build-plan and ends passed', () => {
   assert.equal(pushed.status, 0, pushed.err);
   assert.equal(pushed.out, 'Pushed build-plan version 1.\n');
   const ended = call('step', 'end', 'plan', 'done', '--report', planner,
-    '--attempt', 'code-explorer,code-explorer,fast,model-a',
+    '--attempt', 'code-explorer,code-explorer,balanced,model-a',
     '--attempt', 'build-planner,build-planner,thinking,model-b',
     '--attempt', 'plan-reviewer,plan-reviewer,thinking,model-b',
     '--pushed', 'build-plan/main/1');

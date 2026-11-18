@@ -2158,7 +2158,7 @@ for each approved criterion, the files that the change touches, the tests of tha
 the commands that run the tests, the linter, the type check, the build and the app. Then it
 starts `build-planner`, which drafts `build-plan.md` by `planning-builds`, and
 `plan-reviewer`, which reviews it read-only by `reviewing-drafts` and `checking-build-plans`.
-Both agents run on the tier `thinking`, and `code-explorer` on `fast`. The stack lists the
+Both agents run on the tier `thinking`, and `code-explorer` on `balanced`. The stack lists the
 workflow with `tier: thinking` and `access: write`.
 
 - **The form of the plan.** Each Criteria cell is `AC-<N>, "<the criterion's first
