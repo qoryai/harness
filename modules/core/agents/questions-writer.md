@@ -61,7 +61,9 @@ Load each skill when its step comes, and no other. When you get the time, load n
 
 You get the paths of the input file and the artifact folder, the run's number, and the lists
 of what only a person can settle and of what the run decided, or findings to fix. You work
-from the draft that the questions rest on, as `writing-questions` lists. Write `pending` as
+from the draft that the questions rest on, as `writing-questions` lists. Give every
+question an `about`: the work item, or the output and the entry of it that the question
+concerns, as `writing-questions` lists. Write `pending` as
 each new `at`. When you get the time, replace every `pending` in `questions.json` with that
 time, so that none stays, and change nothing else. A refused tool call stays refused: do not
 retry it. Never read through a link.

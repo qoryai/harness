@@ -13,9 +13,10 @@ start names that folder.
 ## What the document contains
 
 `questions.json` is JSON with one member, `questions`. Each question has only `id`,
-`question`, `context`, `options`, `state`, `asked`, `follows`, `answer`, `decision` and
-`history`, each option only `title`, `explanation` and `recommended`, and each `decision`
-only `option`, `reason`, `run` and `at`. Members read each `question`, each `context`, each
+`question`, `context`, `about`, `options`, `state`, `asked`, `follows`, `answer`, `decision`
+and `history`, each `about` only `work_item`, or `type`, `name` and `item`, each option only
+`title`, `explanation` and `recommended`, and each `decision` only `option`, `reason`, `run`
+and `at`. Members read each `question`, each `context`, each
 option's `title` and `explanation`, and each `reason`. Nothing else in it is a text that
 members read. `question` is plain text with no tab, `context` is Markdown of 1 to 20000
 characters, `title` is plain text of 1 to 200 characters, and `explanation` is plain text of
@@ -59,9 +60,13 @@ characters with no Markdown, that each `title` has 1 to 200 characters, each `ex
 of the newest questions. It checks that a new open question has a `context`, that a new
 question has an `options` list, and that no id of an item, such as `q4`, or `step-2` when a
 module gives that prefix, stands with no words in quotes beside it in a new question's
-texts. It checks the characters of each text and the
-links of each `context`. Judge the rest of the check list.
+texts. It checks that each question has an `about`, and that a new or changed `about`
+names the work item or an output that the run can read, with an `item` that the
+acceptance criteria have when the output is the acceptance criteria. It checks the
+characters of each text and the links of each `context`. Judge the rest of the check list.
 
+- Each `about` names what the question is about: the output and its entry when the question
+  concerns one, else the work item.
 - Each new open or reopened question is one only a person can answer: nothing in the input
   file, the newest artifacts or the target's files settles it, and by the rule "Decide or
   ask" of `writing-questions`, a person must answer it.
