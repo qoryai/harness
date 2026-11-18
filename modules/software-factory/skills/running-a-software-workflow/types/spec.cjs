@@ -163,17 +163,18 @@ module.exports = (lib) => {
     read(context) {
       let text = null;
       const top = path.join(context.root, FILE);
-      if (context.mode === 'check' && fs.existsSync(top)) {
-        text = readFile(top, FILE);
-      } else {
-        try {
+      try {
+        if (context.mode === 'check' && fs.existsSync(top)) {
+          text = readFile(top, FILE);
+        } else {
           const newest = context.newest('acceptance-criteria', FILE);
           text = newest && newest.text;
-        } catch (error) {
-          if (!(error instanceof Missing)) throw error;
         }
+      } catch (error) {
+        // The check of the criteria reports a file that the run cannot read.
+        if (!(error instanceof Missing)) throw error;
       }
-      if (text === null) return null;
+      if (typeof text !== 'string') return null;
       const all = criteria(text);
       return all.length ? new Set(all.map((criterion) => criterion.id)) : null;
     },

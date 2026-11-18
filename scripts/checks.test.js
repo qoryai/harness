@@ -3955,6 +3955,11 @@ test('questions: an about names an output that the run can read, and a criterion
   write(root, 'questions.json', data);
   fails(check(root, 'questions', path.join(root, 'questions.json')),
     /^Set about\.item of q7 to an entry that acceptance-criteria main has\. It has no ac-6\.$/);
+  // A draft of the criteria that is not JSON, or has no criteria, has no ids to compare.
+  for (const broken of ['{"criteria": ', '[]', '{"summary": "x"}']) {
+    fs.writeFileSync(path.join(root, 'acceptance-criteria.json'), broken);
+    passes(check(root, 'questions', path.join(root, 'questions.json')));
+  }
   // A check passes a mockup that only a draft in mockup-draft/ has, with a screen as its item:
   // no module checks the type mockup, so the check cannot find its draft, and the push of the
   // questions, which reads index.json, refuses the mockup when index.json does not list it.
