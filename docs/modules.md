@@ -156,8 +156,31 @@ guard. When a report passes, `checks.cjs report` adds a mark to the agent's list
 record. The agent lists the name of each role note under `Role notes read:` in its report.
 `checks.cjs report` fails a report that lacks the name of a role note of any start of that
 agent in the run since its last passed report, or whose notes file of such a start changed,
-and so do `findings` and `end --offline`. So a start without `--files`, which has no role
+and so does `end --offline`. So a start without `--files`, which has no role
 note, takes no role note away from an earlier start. A blocked report needs no list.
+
+### The review of a change
+
+In a stage with reviewers, the writing session of the stage starts no reviewer. It records
+its change and ends, and qory runs the round of review afterwards: each reviewer is a
+separate session, with the tools Read, Grep, Glob, Skill and Write, no shell and no network.
+The values of the round are in the member `qory.review` of the `inputs.json` that qory
+writes: `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`,
+the path where the reviewer writes its report. The skill `reviewing-changes` of `core` lists
+the report: one JSON file with a `reviewer` and a list of findings, each with a `severity`
+of `blocking` or `non-blocking`, `quote`, `problem`, `fix`, `proof`, `point`, and `file`,
+`line` and `id` when they apply. The report has no result word and no list of unverified
+claims, and nobody closes a finding. The skill `judging-findings` of `software-factory`
+defines `blocking` and lists the values of `qory.review`: `core` cannot hold those words, as
+rule 11 of `scripts/check.sh` lists. A reviewer that cannot finish stops and writes no
+file. qory reads the report against its schema; the harness checks no report of a change
+with a verb. The test of the example report in `reviewing-changes` uses
+`scripts/testdata/review-report.schema.json`, the draft of that schema, until qory's own
+schema replaces it. After a round with a `blocking` finding, the next session of the stage
+reads `open-findings.json`, which `checks.cjs findings open` prints as lines to fix first,
+as its bullet in the section "Small workflows" lists. qory at `1deb56e` builds none of
+this: it writes no `qory.review`, no `qory.stage` and no `open-findings.json`, and the
+report schema does not exist yet.
 
 ## Agents
 
@@ -215,7 +238,10 @@ An agent that the table does not list sets no `model` key.
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
   `scenario-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
-  and WebSearch. A subagent keeps the session's `dontAsk` mode and allow rules:
+  and WebSearch. A reviewer of a change, which qory starts as the main agent of its own
+  session, lists Write beside the four read tools and writes one file, its report: its body
+  has the line `Tool exception: Write, because it writes the one report file of a review
+  round.` A subagent keeps the session's `dontAsk` mode and allow rules:
   `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and `dontAsk` denies
   them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in the main
   session, so "only `qory` commands and the read forms" is a rule in the skill's text, not
@@ -242,11 +268,11 @@ An agent that the table does not list sets no `model` key.
   keep their exclusion.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
   `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/*.json.lock*` there,
-  the locks of `checks.cjs findings` and `checks.cjs starts` and their `.break` files, so
-  that no agent makes a lock that makes `findings` or `starts` wait and exit 3. An Edit rule
+  the locks of `checks.cjs starts` and `checks.cjs report` and their `.break` files, so
+  that no agent makes a lock that makes `starts` or `report` wait and exit 3. An Edit rule
   covers the Write tool and shell redirects too, so an agent cannot change the counts of
-  `starts`, the results of `report`, the count of `end` or the findings of a change in
-  `findings.json`. `checks.cjs` writes them itself, which no Edit rule covers. The reports,
+  `starts`, the results of `report` or the count of `end`. `checks.cjs` writes them itself,
+  which no Edit rule covers. The reports,
   `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
@@ -722,8 +748,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `- spec.md`, do not count. A path item is `- ` and a path of 1 to 255 characters with no
   space. The first other line, a longer path item too, ends the list, and it and every line
   after it count. A longer report is a finding, a `blocked` report too, and the first line
-  of the finding states the limit in both units. `findings` and `end --offline` check
-  reports with the same rule. A report above 256 KB gets only the finding on its size. The
+  of the finding states the limit in both units. `end --offline` checks reports with the
+  same rule. A report above 256 KB gets only the finding on its size. The
   session passes the limit to each agent at each start.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
@@ -733,8 +759,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   module. A missing agent file exits 3. The script adds each result, with the report's
   SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
   newest entry, as the same agent, so a check run again counts no fix. It reads and writes
-  the file under the lock `.reports/results.json.lock`, which it takes as `findings` takes
-  its lock, so that reports checked at once lose no entry. When the lock still exists after
+  the file under the lock `.reports/results.json.lock`, which it takes as `starts` takes its
+  lock, so that reports checked at once lose no entry. When the lock still exists after
   10 s, it exits 3, and the first line is the fix: report to a member. With a finding,
   its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
   again to fix only its report. That start does not count toward the agent's start limit.
@@ -747,10 +773,19 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `.reports/starts.json`, so no count carries over to the next run and a lost session in a
   run loses no start. It exits with 1 when the next start would pass the limit, and with 3
   when a count in the file is not a whole number of 0 or more. It reads and writes the file
-  under the lock `.reports/starts.json.lock`, which it takes as `findings` takes its lock,
-  so that starts at once in several processes count each start once. When the lock still
-  exists after 10 s, it exits 3, and the first line is the fix: report to a member. The
-  second line contains the path of the lock.
+  under the lock `.reports/starts.json.lock`, so that starts at once in several processes
+  count each start once. It makes the lock with the flag `wx` and writes its process id into
+  it before it reads the file, tries again every 20 ms for up to 10 s, and removes the lock
+  at the end. A stale lock is removed, and the call tries again: a lock whose process no
+  longer runs, as after a kill, or an empty lock older than 5 s, of a call that was killed
+  before it wrote its id. Only the call that made the file `starts.json.lock.break` with the
+  flag `wx` removes such a lock, after it reads the lock again and finds it still stale in
+  the same way: the same process id, or still empty with a file time older than 5 s. So no
+  call removes the new lock of another call, unless two calls both remove the break file of
+  a killed call. A break file older than 5 s counts as left by a killed call and is removed.
+  When a lock of a live process, a newer empty lock or a lock with other text still exists
+  after 10 s, it exits 3, and the first line is the fix: report to a member. The second line
+  contains the path of the lock.
 - `checks.cjs begin`: a session with no `run.id` runs it once, before its first `starts`.
   That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
   new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
@@ -759,12 +794,6 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
-- `checks.cjs starts <run> <reviewer> --subject <subject>`: the session runs it before each
-  start of a reviewer on a subject in a workflow's skill, such as `change`. It
-  allows 3 starts of one reviewer on one subject in a run, and counts them under
-  `<subject>/<agent>` in `.reports/starts.json`. `<reviewer>` may have the prefix of the
-  runtime, such as `harness:code-reviewer`; the count leaves it out, so `end` prints a
-  finding when `code-reviewer` has no report. It exits with 1 at the fourth start.
 - `checks.cjs panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
   session runs it before it starts the members of a group role, `reviewers` when `--group`
   is left out. It reads the group's rows from `$QORY_HARNESS_HOME/roles.json`, which qory
@@ -782,7 +811,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `--after` is 0 or left out, the output also has a `Skip:` line for each member with no
   path of the change. It exits with 1 when the disk has room for no member, and its first
   line is the fix: start no member, and end the run as "Failures" of `running-a-workflow`
-  lists. It writes no file.
+  lists. It writes no file. No skill of the harness tells a session to run it.
 - `checks.cjs fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when
@@ -799,62 +828,24 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   string or a `points` value other than a list or null gives exit 3. An absent `verdict`
   counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
-- `checks.cjs findings add <round> <agent> <file>`,
-  `checks.cjs findings close <agent> <file>` and `checks.cjs findings show`: the record of
-  the findings of the review of a change, in `.reports/findings.json` of the artifact
-  folder, where only `checks.cjs` writes. A reviewer of a change reports by
-  `reviewing-changes`: each finding has Quote, Problem, Fix and Point, as in
-  `reviewing-drafts`, and in place of Marks a `Proof:` line and a `Severity:` line,
-  `break` or `no break`. A proof is one line of at most 1,000 characters: its form, a
-  colon, whitespace, and steps with at least one letter or digit. The forms are
-  `failing check`, `planted fault` (a fault planted in a copy of the work, which the
-  checks miss), `failing input`, and, only for `no break`, `broken rule`. For an agent
-  whose report shape has a `Proof:` line, `report` refuses a finding with no proof, with a
-  proof of no form, with no severity or with a `Marks:` line, a break whose proof is a
-  broken rule, and the last word `changes-needed` with no finding and no earlier finding
-  that is open again. `add` runs on such a report of round `<round>`, 1 to 99, the newest
-  round of `findings.json` or the next. It gives each finding the next id, `f1`, `f2` and
-  on, and records its round, reviewer, proof, severity, `Point:` line, text and the state
-  `open`. It records nothing and exits 1 when `report` would find something, for a
-  judgement of a finding that is not closed, for a finding judged twice in the report, for
-  a round out of that range, for a second report of the agent in the round, and for a
-  report whose sha256 an entry of `reports` has under another file name or of another
-  agent, unless the report adds no finding and judges no closure: a clean copy changes
-  nothing, so `add` records it. The same report again, with the same file name, agent,
-  bytes and round, records nothing and exits 0, so that a call repeated after a crash
-  passes; for another round, `add` refuses it. `close` runs on the report of the agent
-  that fixed findings: each item `- <id>: <closing proof>` of its list "Closed:" closes an
-  open finding. The closing proof starts with the form that pairs with the proof's form:
-  `passing check`, `caught fault`, `passing input` or `kept rule`. A closed finding has
-  `closure` with that proof, its round and its agent, and `closure.held` set to null. With
-  an item that breaks a rule, `close` closes nothing and exits 1, and the same report
-  bytes recorded once close nothing. In a later round, each reviewer gets the path of
-  `findings.json`, with the earlier findings and their closures. Under "Earlier findings:"
-  it writes `- <id>: holds: <closing proof>` or `- <id>: open: <proof>` for each closed
-  finding that it made and that no review judged; `add` refuses its report when one is
-  missing. The closing proof of `holds` starts with the form that pairs with the finding's
-  proof. `holds` sets `closure.held` to the round, the reviewer and that closing proof.
-  For a break, only a `holds` of the reviewer that made the finding sets it; the `holds`
-  of another reviewer goes into `history` alone, and the last line of `add` counts it
-  apart from the closures that hold. `open` sets the state back to `open` with the new
-  proof, which for a break is no broken rule. `- <id>: open: break: <proof>` raises a
-  `no break` finding to `break`, and no item lowers a severity. Each event adds an entry
-  to the finding's `history`. `add` and `close` make `.reports/findings.json.lock` with
-  the flag `wx` and write their process id into it before they read the record, try again
-  every 20 ms for up to 10 s, and remove the lock at the end. A stale lock is removed, and
-  the call tries again: a lock whose process no longer runs, as after a kill, or an empty
-  lock older than 5 s, of a call that was killed before it wrote its id. Only the call that
-  made the file `findings.json.lock.break` with the flag `wx` removes such a lock, after it
-  reads the lock again and finds it still stale in the same way: the same process id, or
-  still empty with a file time older than 5 s. So no call removes the new lock of another
-  call, unless two calls both remove the break file of a killed call. A break file older
-  than 5 s counts as left by a killed call and is removed. When a lock of a live process, a
-  newer empty lock or a lock with other text still exists after 10 s, they exit 3, and the
-  first line is the fix: report to a member, with the path of the lock on line 2. `show`
-  prints "Start <agent> again to judge the closure of f1." for each reviewer with a closure
-  that no review judged. It exits 1 while a finding with the severity `break` is open, or
-  closed with `closure.held` set to null, else 0: only a break finding starts another
-  round. A `findings.json` in another form exits 3.
+- `checks.cjs findings open <file>`: the session of a stage with reviewers runs it at its
+  start, on `open-findings.json` in its inputs folder. qory writes that file, read-only,
+  from the findings of the latest round of review, `blocking` and `non-blocking`:
+  `{"round": <n>, "reviewers": [{"reviewer": "<name>", "findings": [...]}]}`. A finding has
+  `id`, `severity` (`blocking` or `non-blocking`) and `point`, and `quote`, `problem`, `fix`,
+  `proof`, `file` and `line` as the reviewer wrote them. The verb prints
+  `Fix first: <id> (<severity>[, <file>[:<line>]]): <point>` for each finding, in the order
+  of the file, with the point cut at 500 characters and without control or refused
+  characters, then one line on what it checked, and exits with 1 while it prints a finding.
+  It exits with 0 when the file does not exist or has no finding. It exits with 3 when the
+  file is a link, a folder or larger than 256 KB, or has another form: a missing or
+  non-integer `round`, a missing `reviewers` or `findings` list, a reviewer name that is not
+  lower-case letters, digits and hyphens, an `id` that is not `f<number>`, another
+  severity, a member that is not text, a `line` below 1, or more than 200 findings. It reads
+  the file and writes nothing. The report that a reviewer writes is a JSON file that qory's
+  report schema checks, so no verb of this script reads it, and `report`, `starts`, `end`
+  and `findings` have no check for the reviewers of a change. qory at `1deb56e` writes no
+  `open-findings.json`.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -970,7 +961,16 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   and a passing check sets the count to 0. An `end.json` that cannot be read, or whose
   count is not a whole number of 0 or more, counts as the last check. At the third, it
   writes `points.json`, runs `run verdict escalate --points <folder>/points.json`, and
-  exits 0. It writes one point `run_again` for each kind of problem. Each point is one
+  exits 0. In a stage with reviewers, `end` runs no `run verdict` command, at the third
+  check and for a `points.json` that ended the run, and keeps every status and file: qory
+  sends the verdict, and its push check refuses a verdict command from inside the
+  container. The stage has reviewers when `qory.stage.reviewers`, in the `inputs.json` that
+  `--inputs` names, is true or the name of the group role. The hook passes the copy that qory
+  writes at `$QORY_HARNESS_HOME/inputs.json`, not the `index.json` of the artifact folder,
+  which an agent can write. With no `--inputs`, a file that cannot be read or another value,
+  the stage has none and `end` runs the command as before. Whether an agent can write qory's
+  copy of `inputs.json` is not decided, and qory at `1deb56e` writes no `qory.stage`. It
+  writes one point `run_again` for each kind of problem. Each point is one
   sentence: what failed, why, and another round as the step, with each agent in plain
   words and no step for the session,
   such as "The draft of the spec breaks 2 format rules, which the output of the run on the
@@ -1098,8 +1098,7 @@ headless `opencode run` going, and Amp and Goose render no hooks, so these runti
 with no check.
 
 Only `checks.cjs` writes the `.json` files under `.reports/`, the locks
-`.reports/findings.json.lock`, `.reports/starts.json.lock` and `.reports/results.json.lock`,
-and their `.break` files. On Claude Code, the settings deny `Edit` of
+`.reports/starts.json.lock` and `.reports/results.json.lock`, and their `.break` files. On Claude Code, the settings deny `Edit` of
 `//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
 `./.qory/artifacts/...`, and of `.reports/*.json.lock*` under the same three folders. A
 rule that starts with `/` is relative to its settings source: for the project's
@@ -1218,7 +1217,17 @@ tool's error. The first line of each reason starts with what to do. The guard de
 - a write from the main session outside the artifact folder. On Claude Code and on Codex,
   the input of a call from an agent has `agent_id` and `agent_type`, and the input of a
   call from the main session has neither. The main session writes `points.json` and the
-  other files of the artifact folder.
+  other files of the artifact folder. One Write is the exception: the main session of a
+  reviewer of a change writes the one file at `qory.review.report` of
+  `$QORY_HARNESS_HOME/inputs.json`, the copy that qory writes before the session. The path
+  counts only when it is absolute, with no `.` or `..` part, no double or trailing slash and
+  no NUL, and when `inputs.json` is a regular file of at most 1 MB. The call counts only when
+  it is a `Write` of that one path, read through the links of the folders above it, and the
+  compare ignores case on a disk that ignores case. A link, a folder or another file at the
+  path allows no write. The exception comes last: a write below `.qory/build/`, of a locked
+  file or below the harness home stays denied. Whether the core hooks load in a reviewer
+  session that qory starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there,
+  is not decided: qory's start of a reviewer is not built.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
@@ -2931,7 +2940,9 @@ the rule passes on that file.
    line in the agent's body outside a code fence: `Tool exception: Bash, because <reason>`.
    No agent lists `Agent`, `NotebookEdit` or `MultiEdit`, with or without an exception. A
    `*-reviewer` agent, `code-explorer` or `shape-planner` lists only Read, Grep, Glob and
-   Skill.
+   Skill. A `*-reviewer` agent also lists Write when its body has the line `Tool exception:
+   Write, because it writes the one report file of a review round.`, exactly, outside a
+   code fence, and no other tool.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `pack-mockups.cjs` and `render-mockups.cjs`, and

@@ -37,7 +37,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   more than the starts of the agent that the verb recorded in the run. It records the start
   in `.reports/note-starts.json`, with the names of the role notes and the SHA-256 of the
   notes file. The agent lists the role notes it read under `Role notes read:` in its
-  report. `checks.cjs report`, `findings` and `end --offline` fail a report that lacks a
+  report. `checks.cjs report` and `end --offline` fail a report that lacks a
   role note of any start of the agent since its last passed report, or whose notes file of
   such a start changed. A start with no `--files`, with no `role-notes.json`, or with no
   matching role note has no role note.
@@ -238,29 +238,38 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `--inputs`, so it reads `.qory/harness-report.json`. A run without a wall can push a
   proposal with no push check, so the checks of the fast track bind only walled runs.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
-  reads the whole change once per round at a frozen state and changes no file. Each
-  finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
-  severity, `break` or `no break`, in place of the marks. A proof starts with its form:
-  `failing check`, `planted fault` or `failing input`, and only for `no break` also
-  `broken rule`. Only a break finding starts another round. The agent that fixes a finding
-  closes it under "Closed:" with a closing proof of the paired form, and a reviewer in a
-  later round judges each closure of its findings under "Earlier findings:", as `holds`
-  with a closing proof, or `open` with a new proof, which may raise the severity to
-  `break`.
-- `checks.cjs findings add <round> <agent> <file>`, `findings close <agent> <file>` and
-  `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
-  folder, under a lock file, so that calls at once lose no finding; a call removes a lock
-  whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
-  `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1`
-  and on, and refuses a report with a finding without a proof or without a severity, a break
-  proved by a broken rule, a missing judgement of a closure, or the bytes of a recorded
-  report under another name or of another agent, unless the report is clean. The same report
-  again for the same round records nothing and exits 0. For a break, only the reviewer that
-  made it judges that its closure holds. `close` closes each finding with its closing proof,
-  and refuses one of another form. `show` names each reviewer that judges a closure in the
-  next round, and exits 1 while a break finding is open, or closed with no judgement of its
-  reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the list
-  "Earlier findings:" and the list "Closed:".
+  reads the whole change once per round at a frozen state, has no shell and no network, and
+  writes one JSON file, its report, to the path in `qory.review.report` of `inputs.json`.
+  The report has a `reviewer` and a list of findings. Each finding has a `severity` of
+  `blocking` or `non-blocking`, a `quote`, a `problem`, a `fix`, a `proof` of at most 1,000
+  characters that starts with `failing check`, `failing input` or, only for `non-blocking`,
+  `broken rule`, a `point` on one line of at most 500 characters, and `file`, `line` and
+  `id` when they apply. The report has no result word and no list of unverified claims, and
+  nobody closes a finding: a finding that still holds stays in the next report with its id.
+  A reviewer that cannot finish stops and writes no file.
+- `judging-findings`, a skill of `software-factory` that a reviewer of a change to software
+  loads with `reviewing-changes`. It defines a blocking finding as "a bug, a security hole,
+  data loss, a broken acceptance criterion or a failing test; every other finding is
+  non-blocking", and lists the values that the run passes the reviewer in `qory.review`:
+  `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`.
+- `checks.cjs findings open <file>` prints `Fix first: <id> (<severity>, <file>:<line>):
+  <point>` for each finding of `open-findings.json`, the findings of the latest round of
+  review that qory writes to the inputs folder of the next session. It exits 1 while it
+  prints a finding, 0 for a missing file or a round with none, and 3 for a file in another
+  form. `running-a-workflow` tells the next session to fix each finding, the non-blocking
+  ones too.
+- In a stage with reviewers, `checks.cjs end` runs no `run verdict` command: qory sends the
+  verdict. `end` reads that the stage has reviewers from `qory.stage.reviewers` in the
+  `inputs.json` that qory writes at `$QORY_HARNESS_HOME/inputs.json`, not from `index.json`,
+  which an agent can write. Whether an agent can write qory's copy is not decided.
+- The tool guard lets the main session of a reviewer write exactly one file: the path in
+  `qory.review.report` of `$QORY_HARNESS_HOME/inputs.json`, with a `Write`, and no other
+  path, tool or link. Whether the core hooks load in a reviewer session that qory starts,
+  and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, is not decided: qory's
+  start of a reviewer is not built.
+- Rule 2 of `scripts/check.sh` lets a `*-reviewer` agent list `Write` beside Read, Grep, Glob
+  and Skill, when its body has the line `Tool exception: Write, because it writes the one
+  report file of a review round.` No other tool passes.
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
@@ -616,20 +625,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   twice the size of the copy of the working folder for a reviewer, without `.git` and
   `.qory`, for each; the rest wait, and `--after` lists the next batch. It exits 1 when the
   disk has room for no member, and writes no file.
-- `checks.cjs starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer
-  on one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
-  fourth exits 1. Both forms of `starts` read and write the counts under the lock
-  `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
-  once. A call makes the lock with the flag `wx` and writes its process id. It removes a
-  lock whose process no longer runs, or an empty lock older than 5 s, only while it has the
-  file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once,
-  unless two calls both remove an old break file. The deny rules of `.reports` protect each
-  file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
-  path. `checks.cjs end` prints a finding for each reviewer that such a start counts and
-  that has no report.
+- `checks.cjs starts` reads and writes the counts under the lock `.reports/starts.json.lock`,
+  so that starts at once count each start once. A call makes the lock with the flag `wx` and
+  writes its process id. It removes a lock whose process no longer runs, or an empty lock
+  older than 5 s, only while it has the file `.reports/starts.json.lock.break`, so that no
+  two calls remove a lock at once, unless two calls both remove an old break file. The deny
+  rules of `.reports` protect each file there whose name has `.json.lock`.
 - A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
   bytes, set once in `lib/reports.cjs` for every agent. A longer report is a finding of
-  `checks.cjs report`, `findings` and `end --offline`, and the finding states the limit in
+  `checks.cjs report` and `end --offline`, and the finding states the limit in
   both units, so that the agent can count its text. The list "Files:" of a writer, the
   files it wrote, does not count. The 256 KB limit stays. The session passes the limit to
   each agent at each start. The last line of `report`, on what it checked, lists "size"
@@ -643,6 +647,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The reviewer of a change no longer reports as text. `reviewing-changes` has no `break` or
+  `no break` severity, no `planted fault` proof, no closing of a finding, no judgement of
+  earlier closures, no lists "Unverified:" and "Blocked:", and no last word `clean`,
+  `changes-needed` or `blocked`. A session that writes a change starts no reviewer of it:
+  qory runs the round of review, and the session reads the findings of the last round with
+  `checks.cjs findings open`. `running-a-workflow` drops the section on the findings of a
+  change, the allow-rule forms of `findings add`, `findings close`, `findings show` and
+  `starts --subject`, and the section on `panel`. `checks.cjs report` no longer checks a
+  `Proof:` or `Severity:` line.
+- `checks.cjs findings` has the form `open <file>` alone. `findings add`, `findings close`,
+  `findings show` and `.reports/findings.json` with its lock are gone. `checks.cjs starts
+  <run> <reviewer> --subject <subject>` is gone too, and `end` counts no start under
+  `<subject>/<agent>`. The verb `panel` is still in the script, and no skill tells a session
+  to run it.
 - The middle model tier is `balanced` in place of `fast`, qory's name for it.
   qory at `1deb56e` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the

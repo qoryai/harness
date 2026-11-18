@@ -294,6 +294,9 @@ for a run of those workflows:
   and an example plan.
 - `checking-build-plans`: load it before you write or review a build plan. The skill
   contains the steps of a review and the check list.
+- `judging-findings`: load it before you review a change to software, with
+  `reviewing-changes`. The skill contains the definition of a blocking finding and the values
+  that the run passes a reviewer.
 - `build-planner`: an agent that drafts `build-plan.md` by `planning-builds` and reports
   the deliverables over the limit of 7.
 - `plan-reviewer`: an agent that reviews a build plan by `reviewing-drafts` against
