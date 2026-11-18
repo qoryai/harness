@@ -62,8 +62,9 @@ of an item, such as `q4`, or `step-2` when a module gives that prefix, stands wi
 in quotes beside it in a new question's texts. It checks that each question has an `about`,
 and that a new or changed `about` is set to the work item or to an output that the run can
 read. An `item` is an id that the output has when a module reads the ids of its type, else 1
-to 32 characters on one line. A question with an option that has a `proposal` needs an
-output and its `item`. It checks the characters of each text and the links of each
+to 32 characters on one line. It refuses an option with a `proposal` in a question whose
+`about` is not an output with an `item`, and, in a new question, a `proposal` that is not
+text of 1 to 2000 characters. It checks the characters of each text and the links of each
 `context`. Judge the rest of the check list.
 
 - Each `about` is set to what the question is about: the output and its entry when the

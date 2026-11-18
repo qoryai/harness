@@ -82,8 +82,9 @@ question, in its order, with all its members as they are, except for these four 
     that the newest artifacts or a draft in the artifact folder contain, such as
     `{"type": "proposal", "name": "main"}`. Add `"item"` for one entry of that output, by
     its id of 1 to 32 characters on one line, such as `"item": "screen-2"` for a screen of
-    a mockup. A question with an option that has a `proposal` needs an output and its
-    `item`.
+    a mockup. The check refuses an option with a `proposal` in a question whose `about`
+    is not an output with an `item`, and, in a new question, a `proposal` that is not text
+    of 1 to 2000 characters.
   - `context`: what the person needs to answer that question, and nothing more, as
     Markdown of 1 to 20000 characters and at most 120 words. Its first sentence is the fact
     that the answer depends on, such as "The export service returns at most 10,000 rows per
