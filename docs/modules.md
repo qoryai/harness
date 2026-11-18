@@ -2409,11 +2409,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
   Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
-  a `serve` command with no address of the app, no demo script, a demo script that types a
-  key of qory or of an agent, or a check of the app that fails or runs past its limit. With
-  exit 3, a line that starts with `Cause:` contains the cause for the line that ends the
-  run, as `running-checks` lists it; after a check that did not finish, the session ends the
-  run. The session then checks the points with `check points` and
+  no build plan, a `serve` command with no address of the app, no demo script, a demo
+  script that cannot be read or breaks its format rules, a demo script that types a key of
+  qory or of an agent, or a check of the app that fails or runs past its limit. With each of
+  these exits 3, a line that starts with `Cause:` contains the cause for the line that ends
+  the run, as `running-checks` lists it; after a check that did not finish, the session
+  ends the run. The session then checks the points with `check points` and
   ends: the end check sends them with the verdict `escalate`.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`

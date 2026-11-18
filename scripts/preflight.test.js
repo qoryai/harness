@@ -896,7 +896,7 @@ test('preflight verb: with the app stopped, the session ends escalate, and the p
     .filter((line) => line.startsWith('run verdict')), [`run verdict escalate --points ${file}`]);
 });
 
-test('preflight verb: no address of the app, no demo script and a runner with no result exit 3 with their causes, and bad arguments exit 2', () => {
+test('preflight verb: each input that is missing or broken, and a runner with no result, exit 3 with their causes, and bad arguments exit 2', () => {
   const here = checkout();
   assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
   const deps = { cwd: here.dir, artifacts: [here.root],
@@ -938,6 +938,46 @@ test('preflight verb: no address of the app, no demo script and a runner with no
   assert.equal(causeOf(fault.out), 'Cause: the browser check did not finish: the runner exited ' +
     'with 1.');
   assert.equal(fs.existsSync(path.join(here.root, 'points.json')), false);
+  // A folder of pulled artifacts whose index.json lists no build plan.
+  const empty = path.join(tmp, `pinned-${++folders}`);
+  fs.mkdirSync(empty);
+  fs.writeFileSync(path.join(empty, 'index.json'), JSON.stringify({ artifacts: [] }));
+  const noPlan = call(['preflight', '--artifacts', empty], deps);
+  assert.equal(noPlan.status, 3, noPlan.out + noPlan.err);
+  assert.equal(noPlan.out.split('\n')[0], 'Push the build plan, then pull the artifacts: ' +
+    'index.json lists no version of build-plan.');
+  assert.equal(causeOf(noPlan.out), 'Cause: the build plan is missing.');
+  // A demo script that is no JSON, and one that breaks its schema.
+  const scriptFile = path.join(here.root, 'demo-script', 'scenario-1', 'v1', 'scenario-1.json');
+  for (const [text, first] of [
+    ['{ "scenario":', 'Write demo-script scenario-1 version 1 as valid JSON.'],
+    [JSON.stringify({ scenario: 'scenario-1' }), 'Push a demo script of scenario-1 that ' +
+      'passes its check, then pull it.']]) {
+    fs.writeFileSync(scriptFile, text);
+    const broken = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
+      deps);
+    assert.equal(broken.status, 3, broken.out + broken.err);
+    assert.equal(broken.out.split('\n')[0], first);
+    assert.equal(causeOf(broken.out), 'Cause: a demo script breaks its format rules.');
+  }
+  // index.json counts version 2, and the store has no folder of it; then a folder of version 1
+  // with no file of the script.
+  demoScript(here.root);
+  fs.writeFileSync(path.join(here.root, 'index.json'),
+    JSON.stringify({ artifacts: [entry('scenario-1', [[1], [2]])] }));
+  const lacking = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
+    deps);
+  assert.equal(lacking.status, 3, lacking.out + lacking.err);
+  assert.equal(lacking.out.split('\n')[0], 'Run `qory artifact pull demo-script --version 2`, ' +
+    'then check again.');
+  assert.equal(causeOf(lacking.out), 'Cause: the run could not read version 2 of a demo script.');
+  demoScript(here.root);
+  fs.rmSync(scriptFile);
+  const noFile = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
+    deps);
+  assert.equal(noFile.status, 3, noFile.out + noFile.err);
+  assert.equal(noFile.out.split('\n')[0], 'Pull the artifacts again.');
+  assert.equal(causeOf(noFile.out), 'Cause: the run could not read version 1 of a demo script.');
   for (const argv of [['preflight', '--artifacts'], ['preflight', 'now'],
     ['preflight', '--inputs']]) {
     assert.equal(call(argv, deps).status, 2, argv.join(' '));

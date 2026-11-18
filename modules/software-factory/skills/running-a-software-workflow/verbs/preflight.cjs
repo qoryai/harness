@@ -35,7 +35,7 @@ module.exports = (lib) => {
   function run(io, given) {
     const start = starts.readStart(io.cwd, given.inputs, io.env);
     const pinned = starts.planIo(io, given.artifacts, start);
-    const plan = lib.readPlan(pinned);
+    const plan = checks.withCause('the build plan is missing', () => lib.readPlan(pinned));
     const row = plan.commands.serve;
     let serve = null;
     if (row && row.command) {

@@ -173,10 +173,11 @@ Exit 3 means that an input is missing or the check did not finish. The line of t
 that starts with `Cause:` contains the cause, in the words of the line that ends the run,
 "The run stopped at the app check, because <cause>.":
 
-- "the build plan has no App address", "no demo script exists for the app", or "a demo
-  script types <NAME>, which the run keeps from scripts": fix the input as the first line
-  of the output states, then run `preflight` again. If you cannot fix it, end the run with
-  the line.
+- "the build plan is missing", "the build plan has no App address", "no demo script exists
+  for the app", "the run could not read version <N> of a demo script", "a demo script
+  breaks its format rules", or "a demo script types <NAME>, which the run keeps from
+  scripts": fix the input as the first line of the output states, then run `preflight`
+  again. If you cannot fix it, end the run with the line.
 - "the browser check did not finish: <reason>": the check of the app failed or ran past
   its limit. End the run with the line.
 

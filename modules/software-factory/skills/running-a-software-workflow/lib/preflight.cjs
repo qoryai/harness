@@ -96,6 +96,17 @@ module.exports = (lib) => {
   const { Context, Missing, Run, agentNames, isObject, lacks, parseJson, plural, pointCheck,
     pointRules, readFile, short, writeJson, MAX_POINTS } = lib;
 
+  // withCause returns what read returns. A Missing that read throws gets the line of the
+  // cause words after its other lines.
+  function withCause(words, read) {
+    try {
+      return read();
+    } catch (error) {
+      if (error instanceof Missing) error.more = [...(error.more || []), cause(words)];
+      throw error;
+    }
+  }
+
   // rulesOf returns the agents and the rules that the check of a point reads.
   function rulesOf(io) {
     let registry = {};
@@ -130,8 +141,8 @@ module.exports = (lib) => {
   // withdrawn, the newest version that counts, as newest of lib/context.cjs reads a name that
   // index.json lists. A version folder that index.json does not list, such as one that an
   // earlier pull left, is not read, and neither is a name that index.json does not list. A
-  // store that lacks the folder of that version, and a script that breaks its schema, throw
-  // Missing.
+  // store that lacks the folder or the file of that version, and a script that is no JSON or
+  // breaks its schema, throw Missing with the line of the cause.
   function demoScripts(root, io) {
     const context = new Context(root, 'check', io.home);
     if (!context.index) return [];
@@ -146,20 +157,25 @@ module.exports = (lib) => {
       const number = context.counted('demo-script', name);
       if (number === null) continue;
       const dir = path.join(root, 'demo-script', name, `v${number}`);
-      if (!fs.existsSync(dir)) throw lacks('demo-script', number);
       const words = `demo-script ${name} version ${number}`;
       const file = path.join(dir, `${name}.json`);
-      if (!fs.existsSync(file)) {
-        throw new Missing(`Pull the artifacts again.\ndemo-script/${name}/v${number} has no ` +
-          `${name}.json.`);
-      }
-      const data = parseJson(readFile(file, words), words, null);
-      const found = schema.errors(schema.load('demo-script'), data, `${name}.json`);
-      if (found.length) {
-        throw new Missing(`Push a demo script of ${name} that passes its check, then pull it.`,
-          [`${words} breaks its schema: ${found[0].split('\n')[0]}`]);
-      }
-      scripts.push(data);
+      const text = withCause(`the run could not read version ${number} of a demo script`, () => {
+        if (!fs.existsSync(dir)) throw lacks('demo-script', number);
+        if (!fs.existsSync(file)) {
+          throw new Missing(`Pull the artifacts again.\ndemo-script/${name}/v${number} has ` +
+            `no ${name}.json.`);
+        }
+        return readFile(file, words);
+      });
+      scripts.push(withCause('a demo script breaks its format rules', () => {
+        const data = parseJson(text, words, null);
+        const found = schema.errors(schema.load('demo-script'), data, `${name}.json`);
+        if (found.length) {
+          throw new Missing(`Push a demo script of ${name} that passes its check, then pull it.`,
+            [`${words} breaks its schema: ${found[0].split('\n')[0]}`]);
+        }
+        return data;
+      }));
     }
     return scripts;
   }
@@ -313,5 +329,5 @@ module.exports = (lib) => {
       'points.json has a point run_again for each.' };
   }
 
-  return { preflight, demoScripts, pointOf, joined, signInMs, MAX_MS, STOP_MS };
+  return { preflight, demoScripts, pointOf, joined, signInMs, withCause, MAX_MS, STOP_MS };
 };

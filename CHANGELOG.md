@@ -606,8 +606,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   its target. The replay gets only the variables that its setup types, and a setup that
   types a variable of qory or of an agent exits 3. Every process of the serve command stops
   after the check, also on a failure or a signal, each browser call has a time limit, and
-  the browser dismisses dialogs. Each exit 3 prints a line `Cause:` for the line that ends
-  the run. The build plan has the address as a line `App address: <url>` in `## Summary`,
+  the browser dismisses dialogs. An exit 3 for a missing build plan, a missing address, a
+  demo script that is missing, cannot be read, breaks its format rules or types such a key,
+  or a check that did not finish prints a line `Cause:` for the line that ends the run. The
+  build plan has the address as a line `App address: <url>` in `## Summary`,
   an http address in backticks, and its check finds a plan with a `serve` command and no
   such line, or a value that is no http or https URL.
 
