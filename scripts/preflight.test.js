@@ -35,6 +35,9 @@ const BROWSER = findBrowser(process.env) ||
   findBrowser(process.env, ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']);
 const NO_BROWSER = BROWSER ? false
   : 'no browser such as /usr/bin/chromium is installed, so no sign-in can run';
+// The most time for a real browser to start in these tests. A run keeps the 15 s of
+// lib/browser.cjs, but a start on a CI runner with 2 cores can take longer.
+const BROWSER_MS = 60000;
 
 const P01 = {
   text: 'The dev container has no browser, so the run could not open the app.',
@@ -451,7 +454,8 @@ async function signIn(setup, value, more = {}) {
   const done = run(here, { serve: { command: 'node app/server.cjs',
     url: `http://127.0.0.1:${port}/`, cwd: here.dir },
   scripts: [script('scenario-1', setup), script('scenario-2', setup)] },
-  { browsers: [BROWSER], env, startMs: 10000, actionMs: 3000, signedInMs: 3000 });
+  { browsers: [BROWSER], env, startMs: 10000, actionMs: 3000, signedInMs: 3000,
+    browserMs: BROWSER_MS });
   return { here, done, port, other, otherLog };
 }
 
@@ -873,7 +877,7 @@ test('preflight: a runner whose parent ends stops its browser and removes its fo
   const port = await freePort();
   const folder = path.join(here.dir, 'tmp');
   fs.mkdirSync(folder);
-  const spec = appSpec(here, port, port, { browser: BROWSER,
+  const spec = appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS,
     setups: [{ actions: [{ do: 'open', url: '/sign-in' },
       { do: 'wait', text: 'Never shown', timeout_ms: 60000 }], names: [] }] });
   spec.serve.command = `echo $PPID > runner.pid; ${spec.serve.command}`;
@@ -954,7 +958,7 @@ test('preflight: SIGKILL of the runner stops the process group of the browser', 
 test('preflight: halt waits for the browser to exit, then removes its folder', { skip: NO_BROWSER }, async () => {
   const { Browser } = require(path.join(SKILL, 'lib/browser.cjs'));
   const browser = new Browser(BROWSER, { origin: 'http://127.0.0.1:9' });
-  await browser.start();
+  await browser.start(BROWSER_MS);
   await browser.page({ origin: 'http://127.0.0.1:9' });
   const { dir } = browser;
   assert.equal(fs.existsSync(dir), true);
@@ -995,7 +999,7 @@ test('preflight: sign-ins past the limit of the runner stop, with the app', { sk
   const here = checkout();
   const port = await freePort();
   const ran = await runner(appSpec(here, port, port, { browser: BROWSER, limitMs: 4000,
-    setups: [{ actions: [{ do: 'open', url: '/sign-in' },
+    browserMs: BROWSER_MS, setups: [{ actions: [{ do: 'open', url: '/sign-in' },
       { do: 'wait', text: 'Order 1042', timeout_ms: 30000 }], names: [] }] }));
   assert.equal(ran.status, 0);
   assert.equal(JSON.parse(ran.out).unfinished, 'the sign-ins ran past the limit of 4 s');
@@ -1004,7 +1008,8 @@ test('preflight: sign-ins past the limit of the runner stop, with the app', { sk
   assert.throws(() => run(here, { serve: { command: 'node app/server.cjs',
     url: `http://127.0.0.1:${port}/`, cwd: here.dir }, scripts: [script('scenario-1',
     [...SIGN_IN, { do: 'wait', text: 'Never shown', timeout_ms: 30000 }])] },
-  { browsers: [BROWSER], maxMs: 8000, env: { APP_PORT: String(port), DEMO_PASSWORD: 'x' } }),
+  { browsers: [BROWSER], maxMs: 8000, browserMs: BROWSER_MS,
+    env: { APP_PORT: String(port), DEMO_PASSWORD: 'x' } }),
   (error) => {
     assert.equal(error.message, 'End the run: the check of the app and the sign-in did not ' +
       'finish.');
@@ -1018,7 +1023,7 @@ test('preflight: sign-ins past the limit of the runner stop, with the app', { sk
 test('preflight: the replay gets only the variables that its setup lists', { skip: NO_BROWSER }, async () => {
   const here = checkout();
   const port = await freePort();
-  const ran = await runner(appSpec(here, port, port, { browser: BROWSER,
+  const ran = await runner(appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS,
     setups: [{ actions: [{ do: 'open', url: '/sign-in' },
       { do: 'type', target: '#password', variable: 'DEMO_PASSWORD' }], names: [] }] }),
   { env: { DEMO_PASSWORD: 'parcel-blue-41' } });
@@ -1475,7 +1480,7 @@ async function guard(appHost, cases) {
   const origin = new URL(base).origin;
   const browser = new Browser(BROWSER, { origin });
   try {
-    await browser.start();
+    await browser.start(BROWSER_MS);
     for (const name of cases) {
       got.length = 0;
       const page = await browser.page({ origin });
@@ -1542,7 +1547,7 @@ async function reachOut(bin, code) {
   const origin = new URL(base).origin;
   const browser = new Browser(bin, { origin });
   try {
-    await browser.start();
+    await browser.start(BROWSER_MS);
     const page = await browser.page({ origin });
     const done = await replay.signIn(page, [{ do: 'open', url: '/out' },
       { do: 'wait', text: 'done', timeout_ms: 10000 }], { base, env: {} });
