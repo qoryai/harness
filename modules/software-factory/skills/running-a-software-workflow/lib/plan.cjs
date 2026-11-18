@@ -142,7 +142,8 @@ module.exports = (lib) => {
 
   // readPlan returns { version, address, badHost, deliverables, commands } of the newest
   // pulled build plan: address is the URL of the line "App address:" of ## Summary, or null
-  // for none, and badHost is true when that line has a URL whose host breaks HOST;
+  // for none, and badHost is the value of that line when it has a URL whose host breaks
+  // HOST, or null;
   // each deliverable { id, change, criteria, files, problem }, where criteria has the ids of
   // the Criteria cell, and each command by its kind,
   // { command, resultFile, source }, with null for none. With none set, and a folder that
@@ -153,10 +154,13 @@ module.exports = (lib) => {
     const root = artifactFolder(io);
     const newest = pulled(root, io, none && io.pinned);
     if (!newest) {
-      return { root, version: null, address: null, deliverables: [], commands: {}, none: true };
+      return { root, version: null, address: null, badHost: null, deliverables: [], commands: {},
+        none: true };
     }
     const summary = sections(lines(newest.text), 2).find((one) => one.title === 'Summary');
-    const { url: address, badHost } = appAddress(summary ? summary.lines : []);
+    const found = appAddress(summary ? summary.lines : []);
+    const { url: address } = found;
+    const badHost = found.badHost ? found.value : null;
     const deliverables = sectionRows(newest.text, 'Deliverables',
       ['Id', 'Change', 'Criteria', 'Files', 'Check']).map((row) => {
       const files = filesCell(row.Files);

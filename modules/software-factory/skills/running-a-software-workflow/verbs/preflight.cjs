@@ -39,11 +39,13 @@ module.exports = (lib) => {
     const row = plan.commands.serve;
     let serve = null;
     if (row && row.command) {
-      if (plan.badHost) {
+      if (plan.badHost !== null && plan.badHost !== undefined) {
         throw new Missing('Set the App address host to letters, digits, . and -, then push the ' +
-          'build plan.', [`The App address of version ${plan.version} has a host that is not ` +
-          'letters, digits, . and -, starting and ending with a letter or digit, with no .., ' +
-          'or an IPv6 address in brackets.', 'Cause: the build plan has no App address.']);
+          'build plan.', [`The App address of version ${plan.version} is ` +
+          `${lib.short(plan.badHost, 80)}, whose host is not letters, digits, . and -, starting ` +
+          'and ending with a letter or digit, with no .., or an IPv6 address in brackets.',
+        'Cause: the App address of the build plan has a host other than letters, digits, . and ' +
+          '-.']);
       }
       if (!plan.address) {
         throw new Missing('Add the line "App address: <url>" to ## Summary of the build plan, ' +

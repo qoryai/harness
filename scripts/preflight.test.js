@@ -730,6 +730,26 @@ test('preflight: the serve command gets no key of the run and no typed value in 
   assert.equal(await isFree(port), true);
 });
 
+test('preflight: the serve command gets no variable that a step of a demo script types', async () => {
+  const here = checkout();
+  const port = await freePort();
+  const names = path.join(here.dir, 'names.json');
+  // The setup types no variable, so no sign-in runs; a step types DEMO_CODE.
+  const typed = { ...script('scenario-1', [{ do: 'open', url: '/sign-in' }]),
+    steps: [{ step: 1, title: 'Enter the code.', expected: 'The order shows.',
+      actions: [{ do: 'type', target: '#code', variable: 'DEMO_CODE' }] }] };
+  const done = run(here, { serve: { command: `node -e 'require("fs").writeFileSync(` +
+    `${JSON.stringify(names)}, JSON.stringify(Object.keys(process.env)))'; node app/server.cjs`,
+  url: `http://127.0.0.1:${port}/`, cwd: here.dir }, scripts: [typed] },
+  { browsers: [process.execPath], env: { APP_PORT: String(port), DEMO_CODE: 'fake-code-4711',
+    APP_NOTE: 'plain' } });
+  assert.deepEqual(done.findings, []);
+  const given = JSON.parse(fs.readFileSync(names, 'utf8'));
+  assert.equal(given.includes('DEMO_CODE'), false);
+  assert.ok(given.includes('APP_NOTE'));
+  assert.equal(await isFree(port), true);
+});
+
 test('preflight: a FIFO or a symbolic link at the log of the serve command is replaced by a new file', async () => {
   for (const kind of ['fifo', 'link']) {
     const here = checkout();
@@ -1276,7 +1296,11 @@ test('preflight verb: each input that is missing or broken, and a runner with no
   assert.equal(host.status, 3, host.out + host.err);
   assert.equal(host.out.split('\n')[0], 'Set the App address host to letters, digits, . and -, ' +
     'then push the build plan.');
-  assert.equal(causeOf(host.out), 'Cause: the build plan has no App address.');
+  assert.ok(host.out.includes('The App address of version 1 is ' +
+    '"`http://127.0.0.1;example.com:8080/`", whose host is not letters, digits, . and -'),
+  host.out);
+  assert.equal(causeOf(host.out), 'Cause: the App address of the build plan has a host other ' +
+    'than letters, digits, . and -.');
   // A serve command with no demo script in the artifact folder of the session.
   const address = ['App address: `http://127.0.0.1:9/`'];
   const none = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],

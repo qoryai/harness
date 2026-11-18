@@ -152,10 +152,11 @@ first demo:
    counts as not started, and the command does not run. A command
    that starts the app in the background and exits 0 works. The command gets no variable
    of qory or of an agent, no token of a code forge, such as `QORY_RUN_KEY` or
-   `GITHUB_TOKEN`, and no variable that a demo script setup types, such as
-   `DEMO_PASSWORD`; of the names of qory, it gets only the mark `QORY_CHECK_MARK`. On
-   Linux, the command can still read the environment of the runner of the check in
-   `/proc/$PPID/environ`.
+   `GITHUB_TOKEN`, and no variable that a demo script types, in a setup or a step, such as
+   `DEMO_PASSWORD`; of the names of qory, it gets only the mark `QORY_CHECK_MARK`. In a
+   walled run, a secret of the run reaches `preflight` only as a placeholder of the
+   gateway. In a walled run on Linux, the command can still read the environment of the
+   runner of the check in `/proc/$PPID/environ`.
 3. The sign-in: the setup of each demo script that types a variable passes in the browser,
    with the values of the variables in the environment. The browser loads no page of
    another origin than the app's address, in the tab or in a frame, whether an `open`, a
@@ -194,7 +195,8 @@ Exit 3 means that an input is missing or the check did not finish. The line of t
 that starts with `Cause:` contains the cause, in the words of the line that ends the run,
 "The run stopped at the app check, because <cause>.":
 
-- "the build plan is missing", "the build plan has no App address", "no demo script exists
+- "the build plan is missing", "the build plan has no App address", "the App address of
+  the build plan has a host other than letters, digits, . and -", "no demo script exists
   for the app", "the run could not read version <N> of a demo script", "a demo script
   breaks its format rules", or "a demo script types <NAME>, which the run keeps from
   scripts": fix the input as the first line of the output states, then run `preflight`

@@ -18,7 +18,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { NEW_WINDOW, findBrowser } = require('./browser.cjs');
-const { ACTION_MS, SIGNED_IN_MS, signInSetups } = require('./replay.cjs');
+const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
 const schema = require('./schema.cjs');
 const { runKey } = require('./secrets.cjs');
 
@@ -98,6 +98,12 @@ const typedValues = (setups, env) => [...new Set(setups.flatMap((setup) => [
   ...setup.names.map((name) => env[name]),
   ...setup.actions.filter((one) => one.do === 'type').map((one) => one.text)]))]
   .filter((one) => typeof one === 'string' && one);
+
+// typedNames returns the names of the variables that a type action of scripts, the demo
+// scripts, types, in a setup or in a step, each once.
+const typedNames = (scripts) => [...new Set(scripts.flatMap((script) => [
+  ...variablesOf(script.setup || []),
+  ...(script.steps || []).flatMap((step) => variablesOf(step.actions || []))]))];
 
 // hidden returns results with HIDDEN in place of each outside origin that contains one of
 // values, in any case, and in place of that origin in the reason. NEW_WINDOW is no origin, so
@@ -330,6 +336,7 @@ module.exports = (lib) => {
       const result = waited(io, {
         serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
         browser, setups: setups.map(({ actions, names }) => ({ actions, names })),
+        typed: typedNames(scripts),
         startMs, actionMs, signedInMs, limitMs, browserMs: options.browserMs,
         proc: options.proc,
       });

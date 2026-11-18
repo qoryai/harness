@@ -2487,14 +2487,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   address responds. The command gets the environment of `preflight` without each variable
   of qory or of an agent, or token of a code forge, such as `QORY_RUN_KEY`,
   `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`, and without each variable that a `type` action of
-  a demo script setup types, such as `DEMO_PASSWORD`; of the names of qory, it gets only
-  `QORY_CHECK_MARK`, the mark of the supervisor. A secret of the run reaches `preflight`
-  only as a placeholder of the gateway, so a variable that passes is a variable of the
-  workspace or a placeholder. On Linux, the command can still read the environment of the
-  runner of the check in `/proc/$PPID/environ`. A sign-in passes when each action passes
-  and each field that a variable was typed into is gone within 10 seconds of
-  the last action, or when its last action is a `wait` that passes. Each browser call has
-  a time limit, and the browser dismisses each dialog of the app, such as an alert.
+  a demo script types, in a setup or a step, such as `DEMO_PASSWORD`; of the names of
+  qory, it gets only `QORY_CHECK_MARK`, the mark of the supervisor. In a walled run, a
+  secret of the run reaches `preflight` only as a placeholder of the gateway, so a
+  variable that passes is a variable of the workspace or a placeholder. In a walled run on
+  Linux, the command can still read the environment of the runner of the check in
+  `/proc/$PPID/environ`. A sign-in passes when each action passes and each field that a
+  variable was typed into is gone within 10 seconds of the last action, or when its last
+  action is a `wait` that passes. Each browser call has a time limit, and the browser
+  dismisses each dialog of the app, such as an alert.
 
   The sign-in loads only pages of the origin of the app's address. The browser fails the
   load of each document of another origin, in the tab and in each frame, whether an `open`,
@@ -2505,23 +2506,23 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   in `--proxy-bypass-list`, after `<-loopback>`: every other request, such as a `fetch`, a
   beacon, an image, a WebSocket or a request of a service worker, fails. With
   `--webrtc-ip-handling-policy=disable_non_proxied_udp`, WebRTC sends only through the
-  proxy, so it sends no UDP packet. In tests on Chrome 157 and Chromium 153, a local TURN
-  server over TCP and a local HTTP/3 server get no connection and no packet. The check of
-  the build plan takes only an App address whose host has letters, digits, `.` and `-`,
-  starts and ends with a letter or digit and has no `..`, or is an IPv6 address in
-  brackets, so the host adds no other entry to the bypass list.
-  `--host-resolver-rules` fails the lookup of each host name except 127.0.0.1 and the app's
-  host. The browser pauses each new window of the page, such as one of `window.open` or of
-  a form or link with `target="_blank"`, fails its first request and closes it; the point
-  then has the origin of that request. For a window with no request, or with one to the
-  app's origin, the point has the text "The app at <App address> opens a new window during
-  sign-in, and the run closed it: a run uses one window." An origin that contains a typed
-  value, in any case, is "another origin" in the point and the finding. A `type` and a
-  `press` act only on a page of the app's origin whose focus is in no frame, and a `type`
-  only when the focus is in the element of its target. The replay gets only the variables
-  that its setup types, and a setup that types a variable of qory or of an agent, such as
-  `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a token of a code forge, such as
-  `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the app starts.
+  proxy, so in tests on Chrome 157 and Chromium 153 it sends no UDP packet. In tests on
+  Chrome 157 and Chromium 153, a local TURN server over TCP and a local HTTP/3 server get
+  no connection and no packet. The check of the build plan takes only an App address whose
+  host has letters, digits, `.` and `-`, starts and ends with a letter or digit and has no
+  `..`, or is an IPv6 address in brackets, so the host adds no other entry to the bypass
+  list. `--host-resolver-rules` fails the lookup of each host name except 127.0.0.1 and
+  the app's host. The browser pauses each new window of the page, such as one of
+  `window.open` or of a form or link with `target="_blank"`, fails its first request and
+  closes it; the point then has the origin of that request. For a window with no request,
+  or with one to the app's origin, the point has the text "The app at <App address> opens
+  a new window during sign-in, and the run closed it: a run uses one window." An origin
+  that contains a typed value, in any case, is "another origin" in the point and the
+  finding. A `type` and a `press` act only on a page of the app's origin whose focus is in
+  no frame, and a `type` only when the focus is in the element of its target. The replay
+  gets only the variables that its setup types, and a setup that types a variable of qory
+  or of an agent, such as `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a token of a code
+  forge, such as `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the app starts.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
@@ -2543,13 +2544,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
   Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
-  no build plan, a `serve` command with no address of the app, no demo script, a demo
-  script that cannot be read or breaks its format rules, a demo script that types a key of
-  qory or of an agent, or a check of the app that fails or runs past its limit. With each of
-  these exits 3, a line that starts with `Cause:` contains the cause for the line that ends
-  the run, as `running-checks` lists it; after a check that did not finish, the session
-  ends the run. The session then checks the points with `check points` and
-  ends: the end check sends them with the verdict `escalate`.
+  no build plan, a `serve` command with no address of the app or one whose host breaks the
+  host rule, no demo script, a demo script that cannot be read or breaks its format rules,
+  a demo script that types a key of qory or of an agent, or a check of the app that fails
+  or runs past its limit. With each of these exits 3, a line that starts with `Cause:`
+  contains the cause for the line that ends the run, as `running-checks` lists it; after a
+  check that did not finish, the session ends the run. The session then checks the points
+  with `check points` and ends: the end check sends them with the verdict `escalate`.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,

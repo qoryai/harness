@@ -1,6 +1,6 @@
 // The part of the preflight that waits, which lib/preflight.cjs starts with node and waits for.
-// It reads { serve, browser, setups, startMs, actionMs, signedInMs, limitMs, browserMs,
-// proc } as JSON on stdin:
+// It reads { serve, browser, setups, typed, startMs, actionMs, signedInMs, limitMs,
+// browserMs, proc } as JSON on stdin:
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
 //   runs `sh -c '<command>'` in cwd, in a new process group, with the mark of
@@ -9,6 +9,8 @@
 //   250 ms until a response with a status below 500 comes back, the command exits with
 //   other than 0, or startMs passes. A command that starts the app in the background and
 //   exits 0 still counts once the address returns a response.
+// - typed are the names of the variables that the demo scripts type, in a setup or a step,
+//   which the serve command does not get.
 // - browser is null, or the path of the browser. When the app started, it replays each setup
 //   of setups, { actions, names }, with signIn of lib/replay.cjs, in a new browser context,
 //   with only the variables of names from its environment. browserMs, which only a test
@@ -144,9 +146,9 @@ function openLog(file) {
 
 // serveEnv returns the environment of the runner without each variable whose name runKey of
 // lib/secrets.cjs matches, such as GITHUB_TOKEN or QORY_RUN_KEY, and without each variable of
-// typed, the names that a type action of a demo script setup types, and with MARK set to
-// value. A secret of the run reaches the runner only as a placeholder of the gateway, so a
-// variable that passes is a variable of the workspace or a placeholder, not a key.
+// typed, the names that a type action of a demo script types, and with MARK set to value. In
+// a walled run, a secret of the run reaches the runner only as a placeholder of the gateway,
+// so a variable that passes is a variable of the workspace or a placeholder, not a key.
 function serveEnv(value, typed) {
   const skip = new Set(typed);
   const env = Object.fromEntries(Object.entries(process.env)
@@ -155,7 +157,7 @@ function serveEnv(value, typed) {
 }
 
 // start runs the serve command and resolves to { started, ran, why }. typed are the names
-// that the setups type, which serveEnv removes.
+// that the demo scripts type, which serveEnv removes.
 async function start(serve, startMs, proc, typed) {
   if (await statusOf(serve.url) !== null) {
     return { started: false, ran: false, why: `another process already returns a response at ` +
@@ -260,7 +262,7 @@ async function main() {
     const proc = spec.proc === undefined ? (process.platform === 'linux' ? '/proc' : null)
       : spec.proc;
     result.app = await start(spec.serve, spec.startMs, proc,
-      (spec.setups || []).flatMap((setup) => setup.names));
+      [...(spec.typed || []), ...(spec.setups || []).flatMap((setup) => setup.names)]);
     if (result.app.started && spec.browser && spec.setups.length) {
       let timer;
       const late = new Promise((resolve) => {

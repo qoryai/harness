@@ -648,20 +648,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the app's origin, with the focus in the element of its target. The replay gets only the
   variables that its setup types, and a setup that types a variable of qory or of an
   agent, or a token of a code forge such as `GITLAB_TOKEN`, exits 3. The serve command
-  gets no such variable either, and no variable that a demo script setup types. After the
-  check, also on a failure, a signal, the end of `preflight` or a SIGKILL of its runner,
-  the process groups of the serve command and of the browser stop, and on Linux each
-  process with the mark of `run`; a process that leaves the groups and removes the mark
-  keeps running. `preflight` ends within 585 seconds, below the 600 seconds
-  after which the Bash tool of Claude Code stops a command. Each browser call has a time
-  limit, and the browser dismisses dialogs. An exit 3 for a missing build plan, a missing
-  address, a demo script that is missing, cannot be read, breaks its format rules or types
-  such a key, or a check that did not finish prints a line `Cause:` for the line that ends
-  the run. The build plan has the address as a line `App address: <url>` in `## Summary`,
-  an http address in backticks, and its check finds a plan with a `serve` command and no
-  such line, or a value that is no http or https URL whose host has only letters, digits,
-  `.` and `-`, starts and ends with a letter or digit and has no `..`, or is an IPv6
-  address in brackets.
+  gets no such variable either, and no variable that a demo script types, in a setup or a
+  step. After the check, also on a failure, a signal or the end of `preflight`, the
+  process groups of the serve command and of the browser stop, and on Linux each process
+  with the mark of `run`; a process that leaves the groups and removes the mark keeps
+  running. After a SIGKILL of the runner of the check, the process groups of the command
+  and of the browser stop, and every process that left them keeps running. `preflight`
+  ends within 585 seconds, below the 600 seconds after which the Bash tool of Claude Code
+  stops a command. Each browser call has a time limit, and the browser dismisses dialogs.
+  An exit 3 for a missing build plan, a bad App address host, a missing address, a demo
+  script that is missing, cannot be read, breaks its format rules or types such a key, or
+  a check that did not finish prints a line `Cause:` for the line that ends the run. The
+  build plan has the address as a line `App address: <url>` in `## Summary`, an http
+  address in backticks, and its check finds a plan with a `serve` command and no such
+  line, or a value that is no http or https URL whose host has only letters, digits, `.`
+  and `-`, starts and ends with a letter or digit and has no `..`, or is an IPv6 address
+  in brackets.
 - A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
   bytes, set once in `lib/reports.cjs` for every agent. A longer report is a finding of
   `checks.cjs report`, `findings` and `end --offline`, and the finding states the limit in

@@ -71,11 +71,11 @@ function originOf(url) {
 
 // proxyFlags returns the flags that send each request to DEAD_PROXY, except one to the host
 // and port of origin. <-loopback> removes the rule that sends no request to localhost and
-// 127.0.0.1 through a proxy. WebRTC then sends no UDP packet, since it may use only the
-// proxy, and the lookup of each host name fails, except of 127.0.0.1 and the host of origin.
-// In the tests, a TURN server over TCP and a WebTransport or HTTP/3 server on 127.0.0.1 get no
-// connection and no packet. With only `--force-webrtc-ip-handling-policy`, Chrome 157 and
-// Chromium 153 sent STUN packets in the tests.
+// 127.0.0.1 through a proxy. In tests on Chrome 157 and Chromium 153, WebRTC then sends no
+// UDP packet, since it may use only the proxy. The lookup of each host name fails, except of
+// 127.0.0.1 and the host of origin. In the tests, a TURN server over TCP and a WebTransport
+// or HTTP/3 server on 127.0.0.1 get no connection and no packet. With only
+// `--force-webrtc-ip-handling-policy`, Chrome 157 and Chromium 153 sent STUN packets.
 function proxyFlags(origin) {
   const url = new URL(origin);
   const port = url.port || { 'http:': '80', 'https:': '443' }[url.protocol];
