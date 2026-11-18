@@ -146,7 +146,7 @@
 // that contradicts itself or a verdict file with another verdict; 4 when the script
 // crashes, with the fix and the error on stderr. When Node cannot load the script, it exits
 // 1 with no points.json, so a caller counts exit 1 with no valid points.json as 4. qory at
-// 1deb56e runs no end --offline.
+// 0e02282 runs no end --offline.
 //
 // panel lists the members of the group role agents/<group>, reviewers when --group is left
 // out, that start for the files of a change. It reads the rows of the group from

@@ -49,7 +49,7 @@ const CORE_TYPES = [questions, reviewComments];
 // reads it beside this skill's files, from the real path of this file, so no plugin folder,
 // module or variable changes which list it reads. In a walled run with push checks, qory
 // mounts the home, and this list with it, read-only (cmd/run.go and cmd/harness.go,
-// pushChecksWritable, at qory 1deb56e).
+// pushChecksWritable, at qory 0e02282).
 const TRUSTED = path.join(__dirname, '..', 'trusted-checks.json');
 
 // LOADABLE matches the names of the files that require can load from a skill folder. treeHash
