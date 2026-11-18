@@ -280,31 +280,44 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   than one link, or a path below `.git` or `.claude` of the working folder, is no report
   path. An agent writes no file, the report path included, when its type ends in
   `-reviewer`, in any session, and when it runs in a session of a reviewer, whatever its
-  type; this settles that a `-reviewer` agent may not write the report path either. The main
-  session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`), and a reviewer
-  session denies by default, for the main session and each agent: it allows the tools
-  `Read`, `Grep`, `Glob`, `Skill`, `TodoWrite` and `update_plan`, the one report write, and
-  a shell of plain words that only reads, from `cat`, `head`, `tail`, `ls`, `wc`, `grep`,
-  `rg`, `find`, `git diff`, `git show`, `git log`, `git status`, `git blame`, `git
-  ls-files`, `git rev-parse`, `git grep`, `pwd`, `sort`, `uniq`, `cut` and `diff`, with no
-  redirect, `$` or backtick, no option that writes or runs a program, and no `-exec` or
-  `-delete`. Any other tool, such as `Edit`, `WebFetch`, `mcp__*` and a name that the guard
-  does not know, is denied there, and allowed in any other session. The denies for
-  `.qory/build/`, a locked file and the harness home still come first: when the harness home
-  is below the working folder, a report path in it is denied, so the report folder must be
-  outside the home; when the home is outside the working folder, a write to a report path in
-  it is allowed. A Codex reviewer writes its report with an `apply_patch` that adds that one
-  file. The main session of a reviewer may use the tool `apply_patch` only for a patch of
-  exactly the lines `*** Begin Patch`, `*** Add File: <report path>`, zero or more lines
-  that start with `+`, and `*** End Patch`, with the same path rules as for `Write`. An
-  update, a delete, a move, a second file, a second add of the same file, white space around
-  a header, a carriage return, any other line and the shell form `apply_patch <<'EOF'` are
-  denied. The guard runs only on Claude Code and Codex: on Cursor, Copilot CLI and Gemini
-  CLI the rule on the report path does not run, and the guard allows a tool name that it
-  does not know. Open questions: whether the core hooks load in a reviewer session that qory
+  type. The main session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`).
+  A reviewer session denies by default, for the main session and each agent. It allows
+  `Read`, `Grep`, `Glob`, `Skill`, `TodoWrite`, `update_plan`, the one report write, and a
+  shell of plain words that only reads. On Codex it also allows exactly
+  `mcp__qory_review__read_file`, `mcp__qory_review__list_directory` and
+  `mcp__qory_review__search_in_files`, names that the qory owner agreed; qory will serve
+  them under Q-35. Any other tool, such as `Edit`, `WebFetch`, each other `mcp__*` name, each
+  `mcp__*` name on Claude Code, and a name that the guard does not know, is denied there,
+  and allowed in any other session. The denies for `.qory/build/`, a locked file and the
+  harness home still come first: when the harness home is below the working folder, a report
+  path in it is denied, so the report folder must be outside the home; when the home is
+  outside the working folder, a write to a report path in it is allowed. A Codex reviewer
+  writes its report with an `apply_patch` that adds that one file. The main session of a
+  reviewer may use the tool `apply_patch` only for a patch of exactly the lines `*** Begin
+  Patch`, `*** Add File: <report path>`, zero or more lines that start with `+`, and `***
+  End Patch`, with the same path rules as for `Write`. An update, a delete, a move, a second
+  file, a second add of the same file, white space around a header, a carriage return, any
+  other line and the shell form `apply_patch <<'EOF'` are denied. The guard runs only on
+  Claude Code and Codex: on Cursor, Copilot CLI and Gemini CLI the rule on the report path
+  does not run, and the guard allows a tool name that it does not know in a session that is
+  no reviewer's. Open questions: whether the core hooks load in a reviewer session that qory
   starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, are not decided,
   because qory's start of a reviewer is not built; nor is where qory puts the folder of the
   report, which the guard denies only below `.git` or `.claude` of the working folder.
+- The shell of a reviewer session allows only the options that `docs/modules.md` lists for
+  each command: any other word that starts with `-` is denied, also after `--`, in a cluster
+  and as the value of an option. `uniq` is denied; use `sort -u`. A `*`, `?` or `[` outside
+  quotes, and a `~` or `=` that starts a word, are denied. `git` is allowed only when the
+  working folder or a folder above it has a `.git` folder or file; elsewhere the deny line
+  does not name it.
+- For a reviewer session started without the qory review round (Q-35), `docs/modules.md`
+  states three limits: the git configuration of the reviewed folder can start a program for
+  an allowed git command; a missing or unreadable `inputs.json` turns the confinement off;
+  and the `Skill` tool stays allowed. The tool name of an MCP call on Codex was read from the
+  source of Codex rust-v0.169.0 and not run. In a run with a wall qory mounts the hooks file
+  as `/etc/codex/hooks.json`, which Codex registers without trust; Q-35's tests check that
+  the hooks of a reviewer come from there, and whether MCP calls reach `PreToolUse`.
+- `findings open` prints each path whole, with no cut, on a line of its own.
 - Rule 11 of `scripts/check.sh` lets the one file `modules/core/hooks/tool-guard.cjs`
   contain `git` and `diff`, the read commands that the guard allows in a reviewer session.
   Every other word of the rule, and every other core file, stays refused.

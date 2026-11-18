@@ -1248,38 +1248,77 @@ tool's error. The first line of each reason starts with what to do. The guard de
   reviewer starts no agent (`Agent`, `Task` and `spawn_agent`, also for an agent of that
   session). In a reviewer session, the main session and each agent deny by default. They may
   use only: the tools `Read`, `Grep`, `Glob` and `Skill`; the planning tools `TodoWrite` and
-  `update_plan`, which change no file and run no program; the one report write; and a shell
+  `update_plan`, which change no file and run no program; the one report write; on Codex,
+  the three tools `mcp__qory_review__read_file`, `mcp__qory_review__list_directory` and
+  `mcp__qory_review__search_in_files`, by these exact names, for the main session and each
+  agent (the names are agreed with Michael, who owns qory; qory will serve them under Q-35,
+  and the prefix is one constant, `REVIEW_MCP_PREFIX`, in `tool-guard.cjs`); and a shell
   that only reads. The guard denies each other tool, such as `Edit`, `MultiEdit`,
-  `NotebookEdit`, `WebFetch`, `WebSearch`, `LS`, `NotebookRead`, `ExitPlanMode`, each
-  `mcp__*` tool, `exec_command`, `shell` and a tool name that it does not know. The shell
-  reaches the guard as `Bash`, also on Codex. It is allowed when the command is plain words:
-  commands that `|`, `||`, `&&`, `;` or a line feed separate, each one of `cat`, `head`,
-  `tail` (no `-f` or `-F`), `ls`, `wc`, `grep`, `rg` (no `--pre` or `-z`), `find` (no
-  `-exec`, `-execdir`, `-ok`, `-okdir`, `-delete`, `-fprint`, `-fprint0`, `-fprintf` or
-  `-fls`), `git diff`, `git show`, `git log`, `git status`, `git blame`, `git ls-files`,
-  `git rev-parse` and `git grep` (no option before the subcommand, and no `--output`,
-  `--ext-diff`, `--textconv`, `--open-files-in-pager` or `--show-signature`, also as a start
-  of the name, as `--out`), `pwd`, `sort` (no `-o` or `-T`), `uniq` with at most one file,
-  `cut` and `diff`. The guard denies each command with a redirect (`>`, `>>`, `<`, a
-  heredoc), `$` or a backtick outside single quotes, `( )`, `{ }`, `!`, `#`, a backslash, a
-  background `&`, a variable setting before the command, a path in the command name, a
+  `NotebookEdit`, `WebFetch`, `WebSearch`, `LS`, `NotebookRead`, `ExitPlanMode`, each other
+  `mcp__*` name, every `mcp__*` name on Claude Code, `exec_command`, `shell` and a tool name
+  that it does not know. In any session that is no reviewer's, the guard allows an unknown
+  tool name and each `mcp__*` name, as before. The shell reaches the guard as `Bash`, also
+  on Codex. It is allowed when the command is plain words: commands that `|`, `||`, `&&`,
+  `;` or a line feed separate, each one from the list below, with only the options that the
+  list gives for it. A word that starts with `-` and is not in the list is denied at any
+  place: in a cluster such as `-nO`, after `--`, and as the value of an option. The options,
+  by command (a letter is a short option; a name with `=` takes a value after `=` or as the
+  next word): `cat` `-n -b -s -A -E -T -v`; `head` `-q -v`, `-<number>`, `-n <number>` and
+  `-c <number>`; `tail` the same, and any word that starts with `+` is denied, as are `-f`,
+  `-F`, `--follow`, `--pid` and `--retry`; `ls` `-l -a -A -1 -R -h -d -t -r -S -F -p`; `wc`
+  `-l -w -c -m`; `grep` `-n -i -v -w -x -F -E -r -R -l -L -c -o -H -h -s`, `-e`, `-A`, `-B`
+  and `-C` with a value, and `--include=` and `--exclude=` with a value; `rg` `-i -n -N -S
+  -s -F -w -x -c -l -L -o -v -H -I -q`, `-e -g -t -T -m -A -B -C` with a value, the long
+  options `--files`, `--hidden`, `--no-ignore`, `--files-with-matches`, `--count`,
+  `--line-number`, `--no-line-number`, `--ignore-case`, `--smart-case`, `--case-sensitive`,
+  `--fixed-strings`, `--word-regexp`, `--invert-match`, `--only-matching`, `--no-heading`
+  and `--heading`, and with a value `--glob`, `--type`, `--type-not`, `--max-count`,
+  `--max-depth`, `--context`, `--after-context`, `--before-context` and `--regexp`, so
+  `--pre`, `--pre-glob`, `--hostname-bin`, `-z`, `--search-zip` and `--config` are denied;
+  `find` only the primaries `-name -iname -path -ipath -type -maxdepth -mindepth -newer
+  -regex` with a value, `-size -mtime -mmin` with a number, and `-print -print0 -prune
+  -empty -not -o -a`, so `-exec`, `-execdir`, `-ok`, `-okdir`, `-delete`, `-fprint`,
+  `-fprint0`, `-fprintf`, `-fls`, `-rm`, `-exit`, `-quit`, `-limit` and `-files0-from` are
+  denied; `pwd` `-L -P`; `sort` `-u -r -n -f -k <value> -t <value>`, so `-o`, `--output`,
+  `-T`, `-S`, `-c`, `--compress-program`, `--random-source` and `--files0-from` are denied,
+  and so is any shortened form of a long option; `cut` `-s -f -d -c -b`; `diff` `-u -r -q -w
+  -b`, so `-l`, `--paginate`, `-D`, `-y`, `--to-file`, `--from-file` and `-` are denied.
+  `uniq` is not allowed: use `sort -u`. `git` is allowed only when the working folder, or a
+  folder above it, has a `.git` folder or file (the guard looks for the name and runs no
+  `git`); in a folder with no `.git`, `git` is denied like any unknown command and the deny
+  text does not name it. The subcommand follows `git` with no option before it: `git diff`
+  `-w -b -p`, `-U <number>`, `--stat`, `--name-only`, `--name-status`, `--shortstat`,
+  `--numstat`, `--no-color`, `--cached`, `--staged`, `--exit-code`, `--quiet`,
+  `--diff-filter=<value>`; `git show` `-w -s -p`, `-U <number>`, the options of `git diff`
+  that show a change, `--oneline`, `--no-patch`, `--format=<value>` and `--pretty=<value>`;
+  `git log` `-p`, `-<number>`, `-n <number>`, `-U <number>`, the same long options,
+  `--graph`, `--all`, `--no-merges`, `--merges`, `--follow`, `--patch`, `--reverse`,
+  `--max-count=`, `--since=`, `--until=`, `--author=`, `--grep=`, `--diff-filter=`,
+  `--format=`, `--pretty=` and `--skip=`; `git status` `-s -b --short --porcelain`; `git
+  blame` `-w -e` and `-L <range>`; `git ls-files` `-c -m -o -d --cached --others --modified
+  --deleted --exclude-standard`; `git rev-parse` `--show-toplevel --abbrev-ref
+  --is-inside-work-tree`; `git grep` `-n -i -v -w -F -E -c -l -L -o -H -h -q -I`, and `-e -A
+  -B -C` with a value. A `--format` or `--pretty` value with `%G` starts gpg and is denied.
+  Each other option is denied, `--output`, `--ext-diff`, `--textconv`, `--no-index`, `-O`,
+  `--open-files-in-pager`, `--show-signature`, `--help` and `-h` among them, and so is an
+  option given as a start of a long name, as `--out`. The guard also denies each command
+  with a redirect (`>`, `>>`, `<`, a heredoc), `$` or a backtick outside single quotes, `(
+  )`, `{ }`, `!`, `#`, a backslash, a background `&`, a `*`, `?` or `[` outside quotes (a
+  quoted one, as in `grep -n 'a*' f`, is allowed), a `~` or `=` at the start of a word
+  outside quotes, a variable setting before the command, a path in the command name, a
   control character, an open quote or more than 20000 characters, and each other command,
-  such as `cp`, `sed -i`, `python3 -c`, `node -e`, `xargs`, `env`, `sh -c`, `eval`, and
-  `git` with a subcommand that writes. Limits, not promises: `git status` refreshes the
-  index file of the repository; a diff driver that the repository configures can run a
-  program for `git diff`, which the guard does not read; and the guard cannot tell what a
-  file that `cat` prints is used for afterwards. Those denies come after the denies for
-  `.qory/build/`, a locked file and the harness home. When the harness home is below the
-  working folder, the deny of a write below the harness home, the bullet on
-  `$QORY_HARNESS_HOME` above, also denies a report path in it, so the report folder must be
-  outside the home. When the home is outside the working folder, that deny does not apply:
-  the report path may be in the home, and a write there is allowed. The accepted
-  `apply_patch` form is the tool, not the shell form `apply_patch <<'EOF'`, which stays
-  denied in a reviewer session. Only the main session of a reviewer may use it; an agent is
-  denied, also one of a `-reviewer` type. The patch text, split at line feeds, is exactly:
-  the line `*** Begin Patch`; the line `*** Add File: <path>`, with one space after the
-  colon and a path that has no white space at either end; zero or more lines that each start
-  with `+`; the line `*** End Patch`, with one line feed after it or none. The guard
+  such as `cp`, `sed -i`, `python3 -c`, `node -e`, `xargs`, `env`, `sh -c` and `eval`. Those
+  denies come after the denies for `.qory/build/`, a locked file and the harness home. When
+  the harness home is below the working folder, the deny of a write below the harness home,
+  the bullet on `$QORY_HARNESS_HOME` above, also denies a report path in it, so the report
+  folder must be outside the home. When the home is outside the working folder, that deny
+  does not apply: the report path may be in the home, and a write there is allowed. The
+  accepted `apply_patch` form is the tool, not the shell form `apply_patch <<'EOF'`, which
+  stays denied in a reviewer session. Only the main session of a reviewer may use it; an
+  agent is denied, also one of a `-reviewer` type. The patch text, split at line feeds, is
+  exactly: the line `*** Begin Patch`; the line `*** Add File: <path>`, with one space after
+  the colon and a path that has no white space at either end; zero or more lines that each
+  start with `+`; the line `*** End Patch`, with one line feed after it or none. The guard
   compares each line as it is and trims no white space. `<path>` is the report path:
   absolute, with no `.` or `..` part, no empty part and no trailing slash, and at most 4096
   characters, and the same path rules as for `Write` apply. The guard denies each other
@@ -1290,11 +1329,47 @@ tool's error. The first line of each reason starts with what to do. The guard de
   patch that is no text; and any text that this form does not match. Limits, not promises:
   the guard runs only on Claude Code and on Codex. On Cursor, Copilot CLI and Gemini CLI
   only the `reports-guard` hooks exist, so the rule on the report path does not run there,
-  and a reviewer agent on those runtimes is not confined by it. The guard allows a tool name
-  that it does not know, because `kindOf` returns no kind for it, so a tool of another name
-  than those above is not confined either. Whether the core hooks load in a reviewer session
-  that qory starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, is not
-  decided: qory's start of a reviewer is not built.
+  and a reviewer agent on those runtimes is not confined by it. The guard allows an unknown
+  tool name in any session that is no reviewer's, and denies it in a reviewer session. For a
+  reviewer session started without the qory review round (card Q-35): (1) the git
+  configuration of the reviewed folder can start a program for a git command that is
+  allowed: `core.fsmonitor` runs on `git status`, `git diff`, `git blame`, `git ls-files`
+  and `git grep`; `diff.<driver>.textconv`, `diff.<driver>.command` and `diff.external` run
+  for `git diff`, `git log -p`, `git show` and `git blame`; a hook such as
+  `post-index-change` runs on `git status`; `core.pager` runs for `git log` on a terminal.
+  The guard does not read that configuration. When Q-35 is built, it gives each reviewer a
+  fresh copy of the pushed change, whose git folder has an empty configuration and no
+  attribute file, so no setting of the reviewed folder reaches a reviewer. `git status`
+  writes the index file. (2) When `inputs.json` cannot be read (it is missing, unreadable,
+  over 1 MB, a link or not valid JSON, `qory.review` is null, a list, a string or `true`, or
+  `QORY_HARNESS_HOME` is unset or relative), the guard treats the session as an ordinary
+  session, and the confinement is off. A `qory.review` of `{}` or with a bad `report` is a
+  reviewer session that writes no file. Today the guard does this, and qory must write the
+  file before the session starts; a fix needs a marker from qory. When Q-35 is built, qory
+  starts a reviewer with its shell and network tools removed at the runtime level, and the
+  guard is the second layer: it cannot hand back a tool that the runtime never gave. (3) The
+  `Skill` tool stays allowed, and the guard cannot see what a skill in the reviewed folder
+  asks for: its front matter, such as allowed tools and hooks, or a command that it runs.
+  The skills of this harness carry none. The glob rule covers a word that the shell expands,
+  not a pattern that a program expands itself: `grep -e` and `find -name` take a pattern, so
+  a quoted `*` stays a pattern. `diff -l` starts `pr`, `--help` starts `man` and `sort` and
+  `diff -` write temp files under `/tmp`: the guard denies each of these.
+  The `tool_name` of an MCP call on Codex is the string `mcp__`, the server id with each
+  character outside `A-Za-z0-9_` replaced by `_`, `__` and the tool name; the qory owner
+  read this from the source of Codex rust-v0.169.0 and did not run it, and the three names
+  above follow it. Two points are open: (1) a second server whose id gives the same
+  namespace, or a name over 128 characters, adds a `_` and 12 hex characters to the tool
+  names, and the guard then denies them; (2) whether an MCP call made through the code mode
+  of Codex reaches the `PreToolUse` hook is not checked. In `codex exec` a hook that is not
+  trusted or managed is not registered. Qory's rulings: in a run with a wall, the hooks file
+  is mounted as the read-only file `/etc/codex/hooks.json`, owned by root, which is a
+  managed source that Codex registers without trust; in a run without a wall, qory writes
+  the trusted hash; qory refuses `--dangerously-bypass-hook-trust`; a reviewer of Q-35 runs
+  in the wall, so the guard reaches it through that file. The tests of Q-35 check that the
+  hooks of a reviewer come from `/etc/codex` and whether MCP calls reach `PreToolUse`;
+  neither is done yet. Whether the core hooks load in a reviewer session that qory starts,
+  and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, is not decided: qory's
+  start of a reviewer is not built.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,

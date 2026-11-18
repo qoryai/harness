@@ -1916,7 +1916,7 @@ function decide(args) {
 
 // decideCall returns the answer of decide, and spends from spend.
 function decideCall({ input, env = process.env, script = process.argv[1], locked, root: start,
-  spend, runFolder }) {
+  spend, runFolder, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   if (call.kind === 'agent') {
@@ -1926,8 +1926,10 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   }
   // A reviewer session allows the tools of REVIEW_TOOLS and no other that is no write or shell:
   // a tool that the guard does not know is denied there, and allowed in any other session.
-  if (call.kind === null && reviewReport(env) && !REVIEW_TOOLS.has(input.tool_name)) {
-    return reviewToolDeny(input.tool_name);
+  // On Codex it allows the three tools of REVIEW_MCP too, for the main session and each agent.
+  if (call.kind === null && reviewReport(env) && !REVIEW_TOOLS.has(input.tool_name) &&
+    !(runtime === 'codex' && REVIEW_MCP.has(input.tool_name))) {
+    return reviewToolDeny(input.tool_name, runtime);
   }
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
   // reports-guard.cjs denies a write of .reports/*.json and a shell command that reaches
@@ -1947,8 +1949,10 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (reports) return reports;
   // The guard reads the files that a shell command writes only from the paths in its text, so
   // the main session and each agent of a reviewer session run the commands of reviewShell only.
-  if (call.kind === 'shell' && reviewReport(env) && !reviewShell(call.command)) {
-    return REVIEW_SHELL;
+  if (call.kind === 'shell' && reviewReport(env)) {
+    const git = reviewHasGit(typeof input.cwd === 'string' && input.cwd ? input.cwd
+      : process.cwd());
+    if (!reviewShell(call.command, git)) return reviewShellDeny(git);
   }
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
@@ -2487,46 +2491,76 @@ const REVIEW_AGENT = 'Report in your text and write no file: a reviewer agent wr
   '-reviewer. ';
 const REVIEW_NO_AGENT = 'Start no agent: a reviewer reads the change and writes its report ' +
   'itself.\nThe session has qory.review in inputs.json of the harness home.';
-const REVIEW_SHELL = 'Run only read commands: cat, head, tail, ls, wc, grep, rg, find, git diff, ' +
-  'git show, git log.\nA reviewer session writes only its report file, so a command that may ' +
-  'write is denied: a redirect, $( ), a backtick, a variable, a write option, and any command ' +
-  'outside cat, head, tail, ls, wc, grep, rg, find (no -exec, -delete or -fprint), git diff, ' +
-  'show, log, status, blame, ls-files, rev-parse and grep, pwd, sort (no -o), uniq with one ' +
-  'file, cut and diff. Chain them with |, && or ;.';
 // The tools of a reviewer session that are no write, shell or agent: the read tools, and two
 // tools that only plan.
 const REVIEW_TOOLS = new Set(['Read', 'Grep', 'Glob', 'Skill', 'TodoWrite', 'update_plan']);
-const reviewToolDeny = (name) => 'A reviewer session allows only Read, Grep, Glob, Skill, a ' +
-  'read shell and the report Write.\n' +
-  `The call is of the tool ${String(name).slice(0, 60)}, which the guard denies there.`;
-// The commands that reviewShell allows, and the subcommands of git among them.
-const REVIEW_COMMANDS = new Set(['cat', 'head', 'tail', 'ls', 'wc', 'grep', 'rg', 'find', 'git',
-  'pwd', 'sort', 'uniq', 'cut', 'diff']);
-const REVIEW_GIT = new Set(['diff', 'show', 'log', 'status', 'blame', 'ls-files', 'rev-parse',
-  'grep']);
-// The options that make a command of REVIEW_COMMANDS write a file, run a program or follow a
-// file without end, by command: a pattern for the short options, and the long ones, which
-// tail, sort and git also read as any start of the name, as --out for --output.
-const REVIEW_REFUSED = {
-  find: { short: /^-(?:exec|execdir|ok|okdir|delete|fprint0?|fprintf|fls)$/, long: [] },
-  tail: { short: /^-[^-]*[fF]/, long: ['follow', 'retry'] },
-  sort: { short: /^-[^-]*[oT]/, long: ['output', 'compress-program', 'temporary-directory'] },
-  rg: { short: /^-[^-]*z/, long: ['pre', 'pre-glob', 'hostname-bin', 'search-zip'] },
-  git: { short: /^$/, long: ['output', 'ext-diff', 'textconv', 'open-files-in-pager',
-    'show-signature'] },
+// The three read-only tools that qory serves to a reviewer on Codex, by the name that Codex
+// puts in tool_name: the prefix, and then the name of each tool. The guard allows exactly
+// these names, on the Codex route and in a reviewer session. The exact string that Codex sends
+// is not verified yet: change the prefix here when it differs.
+const REVIEW_MCP_PREFIX = 'mcp__qory_review__';
+const REVIEW_MCP_TOOLS = ['read_file', 'list_directory', 'search_in_files'];
+const REVIEW_MCP = new Set(REVIEW_MCP_TOOLS.map((one) => `${REVIEW_MCP_PREFIX}${one}`));
+const reviewToolDeny = (name, runtime) => 'A reviewer session allows only Read, Grep, Glob, ' +
+  'Skill, a read shell and the report Write.\n' +
+  `The call is of the tool ${String(name).slice(0, 60)}, which the guard denies there.` +
+  (runtime === 'codex' ? ` On Codex it also allows ${[...REVIEW_MCP].join(', ')}.` : '');
+// The commands of a reviewer's shell, and the options that each allows: flags are the short
+// options with no value, valued the short options with a value, long the long options with no
+// value and longValued those with a value, which follows after = or as the next word. A word
+// that starts with - and is none of these is refused, at any place, also after -- and as the
+// value of an option. noPlus refuses a word that starts with + (tail +1f follows a file).
+const REVIEW_OPTIONS = {
+  cat: { flags: 'nbsAETv' },
+  head: { flags: '0123456789qv', valued: 'nc' },
+  tail: { flags: '0123456789qv', valued: 'nc', noPlus: true },
+  ls: { flags: 'laA1RhdtrSFp' },
+  wc: { flags: 'lwcm' },
+  grep: { flags: 'nivwxFErRlLcoHhs', valued: 'eABC', longValued: ['include', 'exclude'] },
+  rg: { flags: 'inNSsFwxclLovHIq', valued: 'egtTmABC',
+    long: ['files', 'hidden', 'no-ignore', 'files-with-matches', 'count', 'line-number',
+      'no-line-number', 'ignore-case', 'smart-case', 'case-sensitive', 'fixed-strings',
+      'word-regexp', 'invert-match', 'only-matching', 'no-heading', 'heading'],
+    longValued: ['glob', 'type', 'type-not', 'max-count', 'max-depth', 'context',
+      'after-context', 'before-context', 'regexp'] },
+  pwd: { flags: 'LP' },
+  sort: { flags: 'urnf', valued: 'kt' },
+  cut: { flags: 's', valued: 'fdcb' },
+  diff: { flags: 'urqwb' },
 };
-const refusedOption = (name, word) => {
-  const { short, long } = REVIEW_REFUSED[name];
-  if (!word.startsWith('--')) return short.test(word);
-  const given = word.slice(2).split('=')[0];
-  return given !== '' && long.some((one) => one.startsWith(given));
+// The same for git, by subcommand. It applies only in a folder with git. A --format or
+// --pretty value with %G starts gpg, so it is refused.
+const GIT_STAT = ['stat', 'name-only', 'name-status', 'shortstat', 'numstat', 'no-color'];
+const REVIEW_GIT = {
+  diff: { flags: 'wbp', valued: 'U',
+    long: [...GIT_STAT, 'cached', 'staged', 'exit-code', 'quiet'], longValued: ['diff-filter'] },
+  show: { flags: 'wsp', valued: 'U', long: [...GIT_STAT, 'oneline', 'no-patch'],
+    longValued: ['format', 'pretty'] },
+  log: { flags: 'p0123456789', valued: 'nU',
+    long: [...GIT_STAT, 'oneline', 'graph', 'all', 'no-merges', 'merges', 'follow', 'patch',
+      'reverse'],
+    longValued: ['max-count', 'since', 'until', 'author', 'grep', 'diff-filter', 'format',
+      'pretty', 'skip'] },
+  status: { flags: 'sb', long: ['short', 'porcelain'] },
+  blame: { flags: 'we', valued: 'L' },
+  'ls-files': { flags: 'cmod',
+    long: ['cached', 'others', 'modified', 'deleted', 'exclude-standard'] },
+  'rev-parse': { long: ['show-toplevel', 'abbrev-ref', 'is-inside-work-tree'] },
+  grep: { flags: 'nivwFEclLoHhqI', valued: 'eABC' },
 };
+// The primaries of find that a reviewer's shell allows, and those that take a value; a number
+// is the value of -size, -mtime and -mmin, which may start with - or +.
+const FIND_PLAIN = new Set(['print', 'print0', 'prune', 'empty', 'not', 'o', 'a']);
+const FIND_TEXT = new Set(['name', 'iname', 'path', 'ipath', 'type', 'maxdepth', 'mindepth',
+  'newer', 'regex']);
+const FIND_NUMBER = new Set(['size', 'mtime', 'mmin']);
 
 // reviewWords splits command into simple commands, each a list of words, as the shell does for
 // a command of plain words, or returns null for a command that has anything else: a $ or
 // backtick outside single quotes, a brace, a redirect, a group, a background &, a ! or #, a
-// backslash, a control character or an open quote. A glob character is a plain word. The
-// commands are separated by |, ||, &&, ; and line feeds.
+// backslash, a control character, an open quote, and outside quotes a *, ? or [ and a ~ or =
+// at the start of a word, which the shell expands to files or to a path. The commands are
+// separated by |, ||, &&, ; and line feeds.
 function reviewWords(command) {
   const text = String(command);
   if (text.length > 20000) return null;
@@ -2571,7 +2605,7 @@ function reviewWords(command) {
       if (text[at + 1] !== '&') return null;
       at += 1;
       endCommand();
-    } else if ('`$<>(){}\\!#'.includes(char)) {
+    } else if ('`$<>(){}\\!#*?['.includes(char) || (!started && (char === '~' || char === '='))) {
       return null;
     } else {
       word += char;
@@ -2583,26 +2617,107 @@ function reviewWords(command) {
   return commands;
 }
 
+// reviewArgs reports whether args, the words after a command, have only the options of allowed,
+// as REVIEW_OPTIONS describes them. Each option word is checked, and each word after --.
+function reviewArgs(args, allowed) {
+  const { flags = '', valued = '', long = [], longValued = [], noPlus = false } = allowed;
+  if (noPlus && args.some((one) => one.startsWith('+'))) return false;
+  // The value of an option: the rest of the word, or the next word, which starts with no -.
+  const take = (rest, at) => {
+    if (rest !== '') return { value: rest, at };
+    const value = args[at + 1];
+    return value === undefined || value.startsWith('-') ? null : { value, at: at + 1 };
+  };
+  let ended = false;
+  for (let at = 0; at < args.length; at += 1) {
+    const word = args[at];
+    if (!word.startsWith('-')) continue;
+    if (ended || word === '-') return false;
+    if (word === '--') {
+      ended = true;
+    } else if (word.startsWith('--')) {
+      const equals = word.indexOf('=');
+      const name = word.slice(2, equals < 0 ? word.length : equals);
+      if (equals < 0 && long.includes(name)) continue;
+      if (!longValued.includes(name)) return false;
+      const got = take(equals < 0 ? '' : word.slice(equals + 1), at);
+      if (got === null || ((name === 'format' || name === 'pretty') && got.value.includes('%G'))) {
+        return false;
+      }
+      at = got.at;
+    } else {
+      for (let one = 1; one < word.length; one += 1) {
+        if (flags.includes(word[one])) continue;
+        if (!valued.includes(word[one])) return false;
+        const got = take(word.slice(one + 1), at);
+        if (got === null) return false;
+        at = got.at;
+        break;
+      }
+    }
+  }
+  return true;
+}
+
+// reviewFind reports whether args, the words after find, have only the primaries of FIND_PLAIN,
+// FIND_TEXT and FIND_NUMBER: any other word that starts with - is refused, and so is the value
+// of a primary that starts with - when it is no number.
+function reviewFind(args) {
+  for (let at = 0; at < args.length; at += 1) {
+    const word = args[at];
+    if (!word.startsWith('-')) continue;
+    const primary = word.slice(1);
+    if (FIND_PLAIN.has(primary)) continue;
+    const next = args[at + 1];
+    if (next === undefined) return false;
+    if (FIND_NUMBER.has(primary) && /^[-+]?[0-9]+[ckMGbw]?$/.test(next)) at += 1;
+    else if (FIND_TEXT.has(primary) && !next.startsWith('-')) at += 1;
+    else return false;
+  }
+  return true;
+}
+
+// reviewHasGit reports whether folder, or a folder above it, has a .git folder or file. It
+// runs no git.
+function reviewHasGit(folder) {
+  let at = path.resolve(folder);
+  for (let depth = 0; depth < 256; depth += 1) {
+    const stat = disk.lstat(path.join(at, '.git'));
+    if (stat && (stat.isDirectory() || stat.isFile())) return true;
+    const up = path.dirname(at);
+    if (up === at) return false;
+    at = up;
+  }
+  return false;
+}
+
 // reviewShell reports whether command only reads: each simple command of it, by reviewWords, is
-// one of REVIEW_COMMANDS, with none of the options of REVIEW_REFUSED, git with a subcommand of
-// REVIEW_GIT and no option before it, and uniq with at most one file, which it would write to
-// when it is the second. A command of no word, as an empty one, reads nothing.
-function reviewShell(command) {
+// one of REVIEW_OPTIONS with only the options that it lists, or find with only the primaries
+// above, or git with a subcommand of REVIEW_GIT, which counts only when git is true. Any other
+// command is refused, uniq included: sort -u gives the same lines. An empty command reads
+// nothing.
+function reviewShell(command, git) {
   const commands = reviewWords(command);
   if (commands === null) return false;
   return commands.every(([name, ...args]) => {
-    if (!REVIEW_COMMANDS.has(name)) return false;
-    const options = args.slice(0, args.includes('--') ? args.indexOf('--') : args.length);
-    if (name === 'find') return !args.some((one) => refusedOption(name, one));
     if (name === 'git') {
-      if (!REVIEW_GIT.has(args[0])) return false;
-      return !options.slice(1).some((one) => refusedOption(name, one) ||
-        (args[0] === 'grep' && /^-O/.test(one)));
+      return git && Object.hasOwn(REVIEW_GIT, args[0]) && reviewArgs(args.slice(1),
+        REVIEW_GIT[args[0]]);
     }
-    if (REVIEW_REFUSED[name] && options.some((one) => refusedOption(name, one))) return false;
-    return name !== 'uniq' || args.filter((one) => !one.startsWith('-')).length <= 1;
+    if (name === 'find') return reviewFind(args);
+    return Object.hasOwn(REVIEW_OPTIONS, name) && reviewArgs(args, REVIEW_OPTIONS[name]);
   });
 }
+
+// reviewShellDeny returns the deny of a shell command that reviewShell refuses. It names git
+// only when the working folder has git.
+const reviewShellDeny = (git) => 'Run only read commands: cat, head, tail, ls, wc, grep, rg, find, ' +
+  `${git ? 'git diff, git log, git show.' : 'sort, cut, diff.'}\n` +
+  'A reviewer session writes only its report file. Each other command is denied, and so is an ' +
+  'option that the command does not list, a *, ? or [ outside quotes, a redirect, $( ), a ' +
+  'backtick and a variable. The commands are cat, head, tail, ls, wc, grep, rg, find, sort, ' +
+  `cut, diff and pwd${git ? ', and git diff, show, log, status, blame, ls-files, rev-parse ' +
+  'and grep' : ''}. For unique lines use sort -u.`;
 
 // reviewDeny returns the deny of a write from a reviewer, or null for the one write that the
 // main session of a reviewer may make: a Write, with one path, or an apply_patch of the form

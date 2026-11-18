@@ -71,7 +71,7 @@ function readOpen(data, name) {
       }
       found.push({ reviewer: one.reviewer, id: finding.id, severity: finding.severity,
         point: cut(plain(finding.point), POINT_TEXT),
-        file: finding.file === undefined ? null : short(plain(finding.file), 60),
+        file: finding.file === undefined ? null : plain(finding.file),
         line: finding.line === undefined ? null : finding.line });
     });
   });

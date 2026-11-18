@@ -15,7 +15,7 @@ const SKILLS = path.join(MODULES, 'core', 'skills');
 const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.cjs');
 const { main } = require(CHECKS);
 const { watch } = require('./first-line.js');
-const { quote } = require(path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.cjs'));
+const { fullQuote } = require(path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.cjs'));
 const schema = require(path.join(MODULES,
   'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
 
@@ -207,8 +207,8 @@ test('findings open: a missing file or a round with no finding exits 0', () => {
   assert.equal(missing.status, 0);
   const absent = path.join(tmp, 'absent.json');
   assert.equal(missing.out,
-    `Checked nothing: ${quote(absent)} does not exist, so no finding is open.\n`);
-  assert.equal(missing.err, `no open findings file at ${quote(absent)}\n`);
+    `Checked nothing: ${fullQuote(absent)} does not exist, so no finding is open.\n`);
+  assert.equal(missing.err, `no open findings file at ${fullQuote(absent)}\n`);
   const empty = call(['findings', 'open', put({ round: 3, reviewers: [] })]);
   assert.equal(empty.status, 0);
   assert.match(empty.out, /^Checked open-\d+\.json: round 3 has no open finding\.\n$/);
@@ -285,7 +285,7 @@ test('findings open: 201 findings print 200, blocking first, and one line that c
   assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/main\.ts:12\): Fix the point 201\./);
   assert.match(result.lines[1], /^Fix first: f1 \(non-blocking/);
   assert.match(result.lines[199], /^Fix first: f199 /);
-  assert.equal(result.lines[200], `Fix first: 1 more findings in ${quote(file)}`);
+  assert.equal(result.lines[200], `Fix first: 1 more findings in ${fullQuote(file)}`);
   assert.match(result.lines[201], /^Checked open-\d+\.json: round 1 has 201 open findings, 1 blocking and 200 non-blocking\./);
   assert.equal(result.lines.filter((line) => line.includes('Fix the point 200.')).length, 0);
 });
@@ -305,80 +305,73 @@ function deepPut(size) {
   return file;
 }
 
-test('findings open: a path over 80 characters and one over 200 are printed in quote form, on any temp folder', () => {
+test('findings open: a path of 81, 120, 201 and 400 characters is printed whole in each message', () => {
   for (const size of [81, 120, 201, 400]) {
     const real = deepPut(size);
     const absent = path.join(path.dirname(real), 'absent.json');
     const result = call(['findings', 'open', absent]);
     assert.equal(result.status, 0);
-    assert.equal(result.err, `no open findings file at ${quote(absent)}\n`);
+    assert.equal(result.err, `no open findings file at ${fullQuote(absent)}\n`);
     assert.equal(result.out,
-      `Checked nothing: ${quote(absent)} does not exist, so no finding is open.\n`);
-    // The quoted path has at most 80 characters and the two quotes, cut with ... as quote cuts.
-    assert.ok([...quote(absent)].length <= 82);
-    assert.equal(quote(absent).endsWith('..."'), absent.length > 80);
-    for (const line of result.err.split('\n')) assert.ok(line.length <= 200, line);
+      `Checked nothing: ${fullQuote(absent)} does not exist, so no finding is open.\n`);
     // A link and a folder at a long path.
     const folder = call(['findings', 'open', path.dirname(real)]);
     assert.equal(folder.status, 3);
-    assert.ok(folder.err.split('\n').every((line) => line.length <= 200), folder.err);
-    assert.match(folder.err + folder.out, new RegExp(`${quote(path.dirname(real))
-      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is not a regular file\\.`));
-    // More than 200 findings at a long path: the count line has the quoted path.
+    assert.ok((folder.err + folder.out).includes(`${fullQuote(path.dirname(real))} is not a regular file.`),
+      folder.err + folder.out);
+    // More than 200 findings at a long path: the count line has the whole path.
     const many201 = path.join(path.dirname(real), 'many.json');
     fs.writeFileSync(many201, JSON.stringify(many(201)));
     const counted = call(['findings', 'open', many201]);
-    assert.equal(counted.lines[200], `Fix first: 1 more findings in ${quote(many201)}`);
+    assert.equal(counted.lines[200], `Fix first: 1 more findings in ${fullQuote(many201)}`);
   }
 });
 
-// The longest run of characters that has no white space and no quote, in text. A path that is
-// printed in quote form is cut at 80 characters, so no run of 81 is a path that was not cut.
-const longestRun = (text) => Math.max(0, ...(text.match(/[^\s"]+/g) || []).map((one) => one.length));
-
-test('findings open: no message prints a path of 81 to 400 characters uncut, in any kind of message', () => {
+test('findings open: each message prints the whole escaped path, of 81 to 400 characters', () => {
+  // A line with a path is not cut at 200 characters: lib/base.cjs cuts only the other lines.
   const kinds = {
-    'missing file': (real) => path.join(path.dirname(real), 'absent.json'),
-    'folder': (real) => path.dirname(real),
-    'link': (real) => {
+    'missing file': [(real) => path.join(path.dirname(real), 'absent.json'), 0],
+    'folder': [(real) => path.dirname(real), 3],
+    'link': [(real) => {
       const link = path.join(path.dirname(real), 'link.json');
       fs.symlinkSync(real, link);
       return link;
-    },
-    'path through a file': (real) => path.join(real, 'under.json'),
-    'file that is too big': (real) => {
+    }, 3],
+    'path through a file': [(real) => path.join(real, 'under.json'), 3],
+    'file that is too big': [(real) => {
       const big = path.join(path.dirname(real), 'big.json');
       fs.writeFileSync(big, JSON.stringify(many(40, () => ({ problem: 'x'.repeat(8000) }))));
       return big;
-    },
-    'more findings': (real) => {
+    }, 3],
+    'more findings': [(real) => {
       const file = path.join(path.dirname(real), 'many.json');
       fs.writeFileSync(file, JSON.stringify(many(201)));
       return file;
-    },
-    'file of a finding': (real, size) => {
-      const file = path.join(path.dirname(real), 'long-file.json');
-      fs.writeFileSync(file, JSON.stringify(many(1, () => ({ file: `/${'f'.repeat(size)}` }))));
-      return file;
-    },
+    }, 1],
   };
   for (const size of [81, 120, 201, 400]) {
     const real = deepPut(size);
-    for (const [kind, make] of Object.entries(kinds)) {
-      const target = make(real, size);
+    for (const [kind, [make, status]] of Object.entries(kinds)) {
+      const target = make(real);
       const result = call(['findings', 'open', target]);
       const text = `${result.out}${result.err}`;
-      assert.ok(longestRun(text) <= 80, `${kind}, ${size} characters: ${text}`);
-      assert.ok(text.length > 0, kind);
+      assert.equal(result.status, status, `${kind}: ${text}`);
+      assert.ok(text.includes(fullQuote(target)), `${kind}, ${size} characters: ${text}`);
+      assert.ok(!text.includes('...'), `${kind}: ${text}`);
     }
+    // The file of a finding, in the line of the finding.
+    const file = `/${'f'.repeat(size)}`;
+    const named = put(many(1, () => ({ file })));
+    const result = call(['findings', 'open', named]);
+    assert.ok(result.out.includes(`blocking, ${file}:12)`), result.out);
   }
-  // A file name of 200 characters is cut too.
+  // A file name of 200 characters is cut to 40 in the fix on the first line, and whole in the
+  // line after it.
   const named = path.join(tmp, `${'n'.repeat(200)}.json`);
-  fs.writeFileSync(named, JSON.stringify(ROUND));
+  fs.writeFileSync(named, '[1');
   const result = call(['findings', 'open', named]);
-  assert.ok(longestRun(`${result.out}${result.err}`) <= 80, result.out);
-  // The check fails on a path that is not cut: it sees the full path of 120 characters.
-  assert.ok(longestRun(`no file at ${deepPut(120)}`) > 80);
+  assert.equal(result.status, 3);
+  assert.ok(result.out.split('\n')[0].length <= 100, result.out);
 });
 
 test('findings open: 40 findings of 5 KB each, in a file over 200 KB, print all 40', () => {

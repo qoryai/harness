@@ -2110,70 +2110,149 @@ test('in a reviewer session each agent, of any type, writes no file and starts n
   firstLine(guard(claude('Agent', { prompt: 'x', run_in_background: true }), env), 'Start the agent');
 });
 
-const READ_SHELL = 'Run only read commands: cat, head, tail, ls, wc, grep, rg, find, git diff, ';
+const READ_SHELL = 'Run only read commands: cat, head, tail, ls, wc, grep, rg, find, ';
+
+// The folders that a shell test runs in: one with no git, one with a .git folder and one with
+// a .git file, as in a worktree.
+function shellFolders() {
+  const plain = next('shell-plain');
+  const repo = next('shell-repo');
+  const tree = next('shell-tree');
+  for (const dir of [plain, repo, tree]) fs.mkdirSync(dir);
+  fs.mkdirSync(path.join(repo, '.git'));
+  fs.writeFileSync(path.join(tree, '.git'), 'gitdir: /elsewhere\n');
+  return { plain, repo, tree };
+}
+
+// The commands that read, in any folder, and in a folder with git only.
+const SHELL_ALLOWED = ['cat f', 'cat -n file', 'head -5 f', 'head -n 5 f', 'tail -n 20 f',
+  'tail -n20 f', 'tail -20 f', 'ls', 'ls -la src', 'wc -l file', 'grep -n x f',
+  'grep -rn "a b" src', "grep -n 'a>b' file", "grep -n 'a*' f", 'grep -n x -- file',
+  'grep -e x -A 2 f', 'grep -n --include=x f', 'rg x src', 'rg -n --files-with-matches x',
+  'rg -e x -g y', 'pwd', 'sort f', 'sort -u f', 'sort -k2 -t, f', 'sort -u -k 2 f',
+  'cut -d, -f1 file', 'diff a b', 'diff -u a b', "find . -name '*.js' -type f",
+  'find src -type f -newer a', 'find . -mtime -1 -print', 'find . -size +1 -name x -o -name y',
+  'cat a; cat b', 'cat a && cat b', 'cat a || cat b', 'cat a\ncat b', "cat 'a b'", 'cat "a b"',
+  'sort f | head -n 5'];
+const SHELL_GIT_ALLOWED = ['git diff HEAD~1', 'git diff --stat', 'git diff -U3 HEAD~1',
+  'git diff -U 3', 'git diff --name-only', 'git diff --cached --name-status',
+  'git diff HEAD~1 -- src/a.ts', 'git log --oneline -5', 'git log --oneline -n 5',
+  'git log -p -n 1', 'git log --stat -3', 'git log --since=2.days --author=x --oneline',
+  "git log --format='%h %s'", 'git show HEAD', 'git show HEAD:path', 'git show --stat HEAD',
+  'git status', 'git status -s', 'git blame -L 1,5 f', 'git blame -w f', 'git ls-files',
+  'git rev-parse HEAD', 'git rev-parse --show-toplevel', 'git grep -n x',
+  'git diff HEAD~1 | head -n 50', 'git log --oneline | grep fix'];
+// The commands that may write, run a program, follow a file or expand to files, in any folder.
+const SHELL_DENIED = [
+  `echo x > victim`, 'echo x >f', 'tee victim', 'echo x | tee victim', 'sed -i s/a/b/ victim',
+  'cp a b', 'mv a b', 'rm victim', 'touch f', 'mkdir d', `python3 -c "open('v','w')"`,
+  `node -e "require('fs').writeFileSync('v','x')"`, 'npm run build', 'echo hi', 'cd /tmp',
+  'echo $(touch f)', 'echo `touch f`', 'cat <(touch f)', 'cat <<EOF\nx\nEOF',
+  'cat f >> g', 'cat < f', 'ls; touch f', 'ls && touch f', 'ls || touch f', 'ls | touch f',
+  'ls &', 'ls & touch f', 'cat f | xargs rm', 'find . -exec rm {} ;', 'find . -delete',
+  'find . -fprint out', 'find . -fprintf o x', 'find . -ok rm x ;', 'find . -fls o',
+  "awk 'BEGIN{system(\"touch f\")}'", 'env touch f', 'command touch f', 'exec touch f',
+  'sh -c "touch f"', 'bash -c "touch f"', 'eval touch f', 'xargs rm', 'A=1 cat f', 'cat ${HOME}',
+  'cat "$HOME"', 'cat $HOME', 'cat $1', 'cat f$X', 'cat f\\\n', '/bin/cat f', './cat f',
+  'cat f #x', '(cat f)', '{ cat f; }', '! cat f', 'cat "unclosed', "cat 'unclosed",
+  'cat f\u0000g', 'sort -o out f', 'sort --output=out f', 'sort -T /tmp f', 'sort -S 1 f',
+  'sort --out=o f', 'sort --comp=sh f', 'sort --temp=/tmp f', 'sort -c f', 'tail -f f',
+  'tail -F f', 'tail --fol f', 'tail --ret f', 'tail +1f f', 'tail +1 f', 'tail -n +5 f',
+  'rg --pre sh x', 'rg -z x', 'rg --search-zip x', 'rg --pre-g x', 'rg --pr=sh x',
+  'rg --hostname-bin touch x', 'rg --config x', 'rg -f p x',
+  'rg -e -- --pre=touch hello a.txt', 'rg -g -- --hostname-bin touch -- a.txt',
+  'uniq f', 'uniq -c', 'uniq in out', 'uniq - out', 'cat a | uniq - /tmp/out',
+  'uniq -- -x out', 'uniq a.txt out3', 'uniq *.log', 'git show HEAD:p | uniq - .git/config',
+  'diff -l a b', 'diff --paginate a b', 'diff - x', 'diff -D x a b', 'diff -y a b',
+  'diff --to-file=x a', 'diff --from-file=x a',
+  'find . -name b.txt -rm', 'find . -exit', 'find . -quit', 'find . -limit 1',
+  'find . -files0-from x', 'find . -name -delete', 'find . -mtime -1 -delete',
+  'find . -newer a -rm', 'find -- x', 'find . -execdir rm {} +',
+  'head -n -5 f', 'cat -u f', 'ls -z', 'wc -L f', 'grep -P x f', 'grep -f p f', 'grep -e x -f p f',
+  'grep --incl=x f', 'grep --exclude-dir=x f', 'rg --glo x', 'rg --max x',
+  'grep --help', 'ls --help', 'cat --help', 'cat -- -x', 'cat a -- -x', 'cut --output-delimiter=x f',
+  'cat -', 'git', 'git --version', 'git help',
+  'cat *.log', 'sort *', 'find *', 'rg PRE *', 'cat a?', 'cat [ab]', 'cat ~/x', 'cat ~', 'cat =ls',
+  'ls *.md', 'cat a*b', 'echo *', 'git commit -am x', 'git checkout -- .', 'git reset --hard'];
+// The commands that git denies in a folder with git: a subcommand that writes or an option
+// that runs a program, a pager, an editor, a help page or gpg.
+const SHELL_GIT_DENIED = [
+  'git clean -fd', 'git apply p.diff', 'git stash', 'git restore .', 'git switch main',
+  'git merge x', 'git rebase x', 'git cherry-pick x', 'git am p', 'git add .', 'git rm f',
+  'git mv a b', 'git tag t', 'git branch b', 'git push', 'git fetch', 'git pull',
+  'git config a b', 'git init', 'git diff --output=out.diff', 'git diff --output out.diff',
+  'git log --output=o', 'git show --output=o', 'git -c core.pager=sh diff', 'git -C . diff',
+  'git --no-pager diff', 'git diff --ext-diff', 'git diff --textconv', 'git log --show-signature',
+  'git grep -O foo', 'git grep --open-files-in-pager=sh x', 'git diff --out=o', 'git diff --o=o',
+  'git diff --ext', 'git diff --text', 'git log --show-sig', 'git diff --no-index a b',
+  'git diff -O orderfile', 'git diff -h', 'git diff --help', 'git status --help',
+  'git log --help', 'git show --help', 'git blame --help',
+  "git grep -n'Osh -c \"echo RAN>ran.txt\" ' foo", 'git grep -nOsh foo',
+  "git grep -e -- --open-files-in-pager='touch X' dd.txt",
+  'git blame -- a.txt --output=victim.txt', 'git log -- a --ext-diff', 'git diff -- a --textconv',
+  "git log --format='%G?'", 'git log --pretty=%GG', "git log --format='%h %GG'",
+  "git show --pretty='%GS'", 'git log --format %GK', 'git blame --contents f g',
+  'git ls-files -z', 'git grep --no-index x', 'git log --all -- -x', 'git show --stat -- --x',
+  'git log *', 'git diff -- *', 'git log --pretty=format:%G', 'git status -z', 'git rev-parse --git-dir x',
+  'git log --max=3', 'git log --form=%h', 'git diff --diff=A', 'git diff --sta', 'git log --one',
+  'git worktree add x', 'git submodule update', 'git gc', 'git log -S x', 'git log -G x'];
 
 test("a reviewer session's shell, of the main session and of each agent, may only read", () => {
   const { env, file } = reviewSetup();
-  const victim = path.join(WORK, 'src', 'victim.ts');
-  const denied = [
-    `echo x > ${victim}`, 'echo x >f', `tee ${victim}`, `echo x | tee ${victim}`,
-    `sed -i s/a/b/ ${victim}`, `cp ${file} ${victim}`, `mv ${victim} ${victim}.old`,
-    `rm ${victim}`, 'touch f', 'mkdir d', `python3 -c "open('${victim}','w')"`,
-    `node -e "require('fs').writeFileSync('${victim}','x')"`, 'git commit -am x',
-    'git checkout -- .', 'git reset --hard', 'git clean -fd', 'git apply p.diff',
-    'git stash', 'git restore .', 'git switch main', 'git merge x', 'git rebase x',
-    'git cherry-pick x', 'git am p', 'git add .', 'git rm f', 'git mv a b', 'git tag t',
-    'git branch b', 'git push', 'git fetch', 'git pull', 'git config a b', 'git init',
-    'git diff --output=out.diff', 'git diff --output out.diff', 'git log --output=o',
-    'git show --output=o', 'git -c core.pager=sh diff', 'git -C . diff', 'git --no-pager diff',
-    'git diff --ext-diff', 'git diff --textconv', 'git log --show-signature',
-    'git grep -O foo', 'git grep --open-files-in-pager=sh x',
-    'echo $(touch f)', 'echo `touch f`', 'cat <(touch f)', 'cat <<EOF\nx\nEOF',
-    `cat > ${victim} <<EOF\nx\nEOF`, 'cat f >> g', 'cat < f', 'ls; touch f', 'ls && touch f',
-    'ls || touch f', 'ls | touch f', 'ls &', 'ls & touch f', 'cat f | xargs rm',
-    'find . -exec rm {} ;', 'find . -delete', 'find . -fprint out', 'find . -fprintf o x',
-    'find . -ok rm x ;', "awk 'BEGIN{system(\"touch f\")}'", 'env touch f', 'command touch f',
-    'exec touch f', 'sh -c "touch f"', 'bash -c "touch f"', 'eval touch f', 'xargs rm',
-    'sort -o out f', 'sort --output=out f', 'sort -T /tmp f', 'uniq in out', 'tail -f f',
-    'tail -F f', 'rg --pre sh x', 'rg -z x', 'rg --search-zip x', 'A=1 cat f', 'cat ${HOME}',
-    'cat "$HOME"', 'cat $HOME', 'cat $1', 'cat f$X', 'cat f\\\n', '/bin/cat f', './cat f', 'cat f #x', '(cat f)', '{ cat f; }',
-    '! cat f', 'cat "unclosed', "cat 'unclosed", 'cat f\u0000g', 'cd /tmp', 'npm run build',
-    'echo hi', 'git', 'git --version', 'git help', 'git diff --out=o', 'git diff --o=o',
-    'git diff --ext', 'git diff --text', 'git log --show-sig', 'tail --fol f', 'tail --ret f',
-    'sort --out=o f', 'sort --comp=sh f', 'sort --temp=/tmp f', 'rg --pre-g x', 'rg --pr=sh x',
-  ];
-  const allowed = ['git diff HEAD~1', 'git diff --stat', 'git diff HEAD~1 -- src/a.ts',
-    'git show HEAD', 'git log --oneline -n 5', 'git log -p -n 1', 'git status',
-    'git blame -L 1,5 src/a.ts', 'git ls-files', 'git rev-parse HEAD', 'git grep -n x',
-    'cat file', 'cat -n file', 'head -n 5 file', 'tail -n 20 file', 'ls', 'ls -la src',
-    'wc -l file', 'grep -n x file', 'grep -rn "a b" src', "grep -n 'a>b' file", 'rg x src',
-    'rg -n --files-with-matches x', 'find . -name "*.ts"', 'find src -type f -newer a',
-    'pwd', 'sort file', 'sort -u -k2 file', 'uniq file', 'uniq -c', 'cut -d, -f1 file',
-    'diff a b', 'git diff HEAD~1 | head -n 50', 'git diff --stat | wc -l',
-    'git log --oneline | grep fix', 'cat a; cat b', 'cat a && cat b', 'cat a || cat b',
-    'cat a\ncat b', 'ls *.md', 'grep -n x -- file', "cat 'a b'", 'cat "a b"',
-    `cat ${file}`, `grep -n a ${victim}`, `ls ${WORK}`];
+  const { plain, repo, tree } = shellFolders();
+  const run = (command, dir, agent) => ({ ...claude('Bash', { command }, agent), cwd: dir });
   const who = [undefined, 'worker', 'code-reviewer'];
-  for (const command of denied) {
-    for (const agent of who) {
-      const reason = guard(claude('Bash', { command }, agent), env);
-      firstLine(reason, READ_SHELL);
+  // A command that may write is denied in each folder, also with a git folder.
+  for (const command of [...SHELL_DENIED, ...SHELL_GIT_DENIED]) {
+    for (const dir of [plain, repo, tree]) {
+      for (const agent of who) {
+        firstLine(guard(run(command, dir, agent), env), READ_SHELL);
+      }
     }
   }
-  for (const command of allowed) {
+  // A read command runs in each folder, and a git read command only where there is git.
+  for (const command of SHELL_ALLOWED) {
+    for (const dir of [plain, repo, tree]) {
+      for (const agent of who.slice(0, 2)) {
+        assert.equal(guard(run(command, dir, agent), env), null, `${dir}: ${command}`);
+      }
+    }
+  }
+  for (const command of SHELL_GIT_ALLOWED) {
     for (const agent of who.slice(0, 2)) {
-      assert.equal(guard(claude('Bash', { command }, agent), env), null,
-        `${agent || 'main'}: ${command}`);
+      for (const dir of [repo, tree]) {
+        assert.equal(guard(run(command, dir, agent), env), null, `${dir}: ${command}`);
+      }
+      firstLine(guard(run(command, plain, agent), env), READ_SHELL);
     }
   }
+  // The deny line names git only in a folder with git, and has at most 100 characters.
+  const noGit = guard(run('touch f', plain), env).split('\n');
+  const withGit = guard(run('touch f', repo), env).split('\n');
+  assert.ok(!noGit[0].includes('git') && !noGit.join('\n').includes('git'), noGit.join('\n'));
+  assert.ok(withGit[0].includes('git diff, git log, git show'), withGit[0]);
+  assert.ok(noGit[0].length <= 100 && withGit[0].length <= 100);
+  assert.ok(withGit.join('\n').includes('sort -u'));
+  // A folder below a folder with git has git too.
+  const below = path.join(repo, 'a', 'b');
+  fs.mkdirSync(below, { recursive: true });
+  assert.equal(guard(run('git diff HEAD~1', below), env), null);
   // The same on Codex, where the shell tool arrives as Bash.
-  firstLine(guard(codex('Bash', { command: `echo x > ${victim}` }), env), READ_SHELL);
-  assert.equal(guard(codex('Bash', { command: 'git diff HEAD~1' }), env), null);
-  // The first line has at most 100 characters and names the commands.
-  assert.ok(guard(claude('Bash', { command: 'touch f' }), env).split('\n')[0].length <= 100);
+  firstLine(guard({ ...codex('Bash', { command: 'echo x > victim' }), cwd: repo }, env), READ_SHELL);
+  assert.equal(guard({ ...codex('Bash', { command: 'git diff HEAD~1' }), cwd: repo }, env), null);
+  assert.equal(file.length > 0, true);
   // Outside a reviewer session a shell command is allowed as before.
-  for (const command of ['touch f', `echo x > ${victim}`, 'npm run build']) {
+  for (const command of ['touch f', 'echo x > victim', 'npm run build', 'uniq a b', 'cat *.log']) {
     assert.equal(guard(claude('Bash', { command }), RUN), null, command);
+  }
+  // A file named like an option does not change the words of the command: the glob is refused.
+  const odd = next('shell-odd');
+  fs.mkdirSync(odd);
+  for (const name of ['-opwn.txt', '--pre=sh', '-delete', '--output=x']) {
+    fs.writeFileSync(path.join(odd, name), '');
+  }
+  for (const command of ['sort *', 'find *', 'rg PRE *', 'cat *', 'cat -*', 'git log *']) {
+    firstLine(guard(run(command, odd), env), READ_SHELL);
   }
 });
 
@@ -2222,6 +2301,42 @@ test('a patch of the report path through a link is decided as a Write of it is',
     assert.equal(write === null, allowed, target);
     assert.equal(patch === null, write === null, `${target}: patch as Write`);
   }
+});
+
+test('a reviewer session allows three MCP tools of qory on Codex, by their exact names', () => {
+  const { env } = reviewSetup();
+  const onCodex = (input, session = env) => decide({ input, env: session, locked, root: WORK,
+    runtime: 'codex' });
+  const onClaude = (input, session = env) => decide({ input, env: session, locked, root: WORK,
+    runtime: 'claude' });
+  const allowed = ['mcp__qory_review__read_file', 'mcp__qory_review__list_directory',
+    'mcp__qory_review__search_in_files'];
+  const refused = ['mcp__qory_review__write_file', 'mcp__qory_review__read_file2',
+    'mcp__qory_review__', 'mcp__qory_review', 'mcp__qory_reviewer__read_file',
+    'mcp__fs__read_file', 'MCP__qory_review__read_file', 'qory_review__read_file',
+    'mcp__qory_review__read_file ', 'mcp__qory_review__READ_FILE', 'xmcp__qory_review__read_file'];
+  const ONLY = 'A reviewer session allows only Read, Grep, Glob, Skill, a read shell and the report Write.';
+  for (const tool of allowed) {
+    for (const agent of [undefined, 'worker']) {
+      assert.equal(onCodex(codex(tool, { path: 'src/a.ts' }, agent)), null, `${agent}: ${tool}`);
+      // The Claude route and a call with no route deny them.
+      firstLine(onClaude(claude(tool, { path: 'src/a.ts' }, agent)), ONLY);
+      firstLine(guard(claude(tool, { path: 'src/a.ts' }, agent), env), ONLY);
+    }
+    // Outside a reviewer session nothing changes: the tool is allowed on each route.
+    assert.equal(onCodex(codex(tool, {}), RUN), null);
+    assert.equal(onClaude(claude(tool, {}), RUN), null);
+  }
+  for (const tool of refused) {
+    for (const agent of [undefined, 'worker']) {
+      firstLine(onCodex(codex(tool, {}, agent)), ONLY);
+      firstLine(onClaude(claude(tool, {}, agent)), ONLY);
+    }
+    assert.equal(onCodex(codex(tool, {}), RUN), null, `${tool} outside a review`);
+  }
+  // The deny names the three tools on Codex only.
+  assert.ok(onCodex(codex('mcp__fs__read_file', {})).includes(allowed.join(', ')));
+  assert.ok(!onClaude(claude('mcp__fs__read_file', {})).includes('qory_review'));
 });
 
 test('a link, a folder or a bad path at qory.review.report allows no write', () => {

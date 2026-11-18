@@ -8,12 +8,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, MAX_FINDING_LINES, Missing, parseJson, plainLine, plural, quote, short,
+  MAX_BYTES, MAX_FINDING_LINES, Missing, fullQuote, parseJson, plainLine, plural, short,
 } = require('../lib/base.cjs');
 const { readOpen } = require('../lib/findings.cjs');
 
 // Each line that open prints for a finding starts with this.
 const FIX_FIRST = 'Fix first: ';
+
+// A fault of the file's path, which the verb prints itself: checks.cjs cuts each line of a
+// Missing at 200 characters, and a path is printed whole, as fullQuote makes it, on the line
+// after the fix. lines is the fix and then the lines of the cause.
+class Printed extends Error {
+  constructor(lines) {
+    super(lines[0]);
+    this.lines = lines;
+  }
+}
 
 // readLimited returns the text of the first MAX_BYTES bytes of the file at full, and whether
 // the file has more bytes than that. It never reads the rest.
@@ -45,15 +55,15 @@ function open(io, file) {
     stat = fs.lstatSync(full);
   } catch (error) {
     if (error.code !== 'ENOENT') {
-      throw new Missing(`Make the file of findings open readable.\n${quote(full)} cannot be read ` +
-        `(${error.code || error.message}).`);
+      throw new Printed(['Make the file of findings open readable.',
+        `${fullQuote(full)} cannot be read (${error.code || error.message}).`]);
     }
-    return { lines: [], absent: full, last: `Checked nothing: ${quote(full)} does not exist, so ` +
-      'no finding is open.' };
+    return { lines: [], absent: full, last: `Checked nothing: ${fullQuote(full)} does not exist, ` +
+      'so no finding is open.', whole: true };
   }
   if (!stat.isFile()) {
-    throw new Missing('Give findings open the open-findings.json that qory wrote.\n' +
-      `${quote(full)} is not a regular file.`);
+    throw new Printed(['Give findings open the open-findings.json that qory wrote.',
+      `${fullQuote(full)} is not a regular file.`]);
   }
   const text = readLimited(full, name, stat.size);
   let data;
@@ -61,9 +71,9 @@ function open(io, file) {
     data = JSON.parse(text);
   } catch {
     if (stat.size > MAX_BYTES) {
-      throw new Missing(`Open ${name} with Read and fix each finding in it.\n${quote(full)} has ` +
-        `${stat.size} bytes, and findings open reads at most ${MAX_BYTES / 1024} KB, which ends ` +
-        'inside its JSON.');
+      throw new Printed([`Open ${name} with Read and fix each finding in it.`,
+        `${fullQuote(full)} has ${stat.size} bytes, and findings open reads at most ` +
+        `${MAX_BYTES / 1024} KB, which ends inside its JSON.`]);
     }
     data = parseJson(text, name);
   }
@@ -75,7 +85,7 @@ function open(io, file) {
     return `${FIX_FIRST}${one.id} (${one.severity}${where}): ${one.point}`;
   });
   if (ranked.length > lines.length) {
-    lines.push(`${FIX_FIRST}${ranked.length - lines.length} more findings in ${quote(full)}`);
+    lines.push(`${FIX_FIRST}${ranked.length - lines.length} more findings in ${fullQuote(full)}`);
   }
   const blocking = findings.filter((one) => one.severity === 'blocking').length;
   if (!findings.length) {
@@ -94,9 +104,19 @@ module.exports = {
       args: (io, what, rest) => (what === 'open' && rest.length === 1 ? null
         : 'Give findings open one file: the open-findings.json of the session.'),
       run(io, what, rest) {
-        const { lines, last, absent } = open(io, rest[0]);
-        if (absent) io.err.write(`no open findings file at ${quote(absent)}\n`);
-        io.out.write([...lines, plainLine(last)].join('\n') + '\n');
+        let found;
+        try {
+          found = open(io, rest[0]);
+        } catch (error) {
+          if (!(error instanceof Printed)) throw error;
+          const [fix, ...cause] = error.lines;
+          io.out.write(`${[fix, ...cause.map((line) => `  ${line}`),
+            'Checked nothing: the findings could not read its input.'].join('\n')}\n`);
+          return 3;
+        }
+        const { lines, last, absent, whole } = found;
+        if (absent) io.err.write(`no open findings file at ${fullQuote(absent)}\n`);
+        io.out.write([...lines, whole ? last : plainLine(last)].join('\n') + '\n');
         return lines.length ? 1 : 0;
       },
     },

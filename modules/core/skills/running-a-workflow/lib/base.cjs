@@ -118,6 +118,12 @@ function quote(text) {
   return `"${cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim(), QUOTE)}"`;
 }
 
+// fullQuote returns text, such as a path, in double quotes with the control and refused
+// characters removed as quote removes them, and with no cut: the whole text is on the line.
+function fullQuote(text) {
+  return `"${String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim()}"`;
+}
+
 // plural returns the count and the noun, with the plural form for any count but 1.
 const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -414,7 +420,7 @@ function artifactFolder(deps) {
 module.exports = {
   ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, SHORT, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
   MAX_FINDING_LINES, DISK_FACTOR, Missing, REFUSED, REFUSED_ALL,
-  CONTROL, CONTROL_ALL, hex, cut, short, given, plainLine, findingLines, quote, plural, inside,
+  CONTROL, CONTROL_ALL, hex, cut, short, given, plainLine, findingLines, quote, fullQuote, plural, inside,
   lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder, withLock,
