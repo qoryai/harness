@@ -593,6 +593,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
   path. `checks.cjs end` prints a finding for each reviewer that such a start counts and
   that has no report.
+- The verb `preflight` of the checks script, which a Build session runs before it changes
+  code. It checks that the dev container has a browser, that the `serve` command of the
+  build plan starts the app at its address, and that the setup of each demo script that
+  types a variable signs in to the app. For each missing part it writes a point
+  `run_again` with its fix to `points.json`, so the session ends with `escalate`. The
+  sign-in opens only the origin of the app's address. The build plan has the address as a
+  line `App address: <url>` in `## Summary`, and its check finds a plan with a `serve` row
+  and no such line, or a value that is no http or https URL.
 
 ### Changed
 

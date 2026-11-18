@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault or prove the commits of a fast-track change, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe and prove of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault, prove the commits of a fast-track change or check the dev container before a change, in the main session of a Build workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe, prove and preflight of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -25,11 +25,12 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.cjs probe <patch> targeted <path> [--inputs <path>]
     [--artifacts <folder>]
 <skill folder>/checks.cjs prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]
+<skill folder>/checks.cjs preflight [--inputs <path>] [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
 `/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
-`freeze` and `probe`. The script reads these from it:
+`freeze`, `probe` and `preflight`. The script reads these from it:
 
 - the time limits, when the file has them;
 - `qory.start_commits`, the commit of the checkout at the start of the run, which `scope`
@@ -87,15 +88,17 @@ the section "Diff and probe".
 
 ## When each check runs
 
-1. The agent that changes code runs `run targeted` with the paths of the test files of its
+1. In a workflow that starts the app, the session runs `preflight` first, before any
+   change. See the section "Preflight".
+2. The agent that changes code runs `run targeted` with the paths of the test files of its
    change, after each change, until they are green.
-2. After each agent of a step, the session runs `scope <step>`, then `run lint`,
+3. After each agent of a step, the session runs `scope <step>`, then `run lint`,
    `run types`, `run build` and `run targeted`, then `freeze <step>`.
-3. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and
+4. A reviewer runs `diff --from <commit>`, with the commit that the session passes, and
    reads the file whose path the line prints.
-4. A reviewer that proves a planted fault writes the patch to a file in the artifact
+5. A reviewer that proves a planted fault writes the patch to a file in the artifact
    folder, then runs `probe <patch> targeted <path>`.
-5. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
+6. In Build, the session runs `run locked` beside `lock --verify`, as an early warning.
 
 The full suite runs after the session, started by qory; a red or missing result reaches the
 next session as a finding.
@@ -130,6 +133,31 @@ the line starts with "Report to a member". `run locked` reads the lock from a st
 the agent can change, so its result is an early warning, as the result of `lock --verify`
 is in Build. Verify runs the locked checks that bind, on the clean checkout of the
 submitted commit.
+
+## Preflight
+
+`preflight` checks that the dev container has what a demo of the app needs, before the
+session changes code:
+
+1. A browser: the first that exists of `/usr/bin/chromium`, `chromium`,
+   `chromium-browser`, `google-chrome` and `google-chrome-stable`.
+2. The app: the `serve` command of the build plan starts it in the top folder of the
+   checkout, and its address returns a status below 500 within 120 seconds. The address is
+   the line `App address: <url>` in `## Summary` of the build plan.
+3. The sign-in: the setup of each demo script that types a variable passes in the browser,
+   with the values of the variables in the environment. A setup may open only the origin of
+   the app's address: an `open` of another origin fails the sign-in.
+
+With no `serve` command in the build plan, it checks the browser alone. The output of the
+serve command is in `.reports/preflight/serve.log` of the artifact folder, and the command
+stops after the check.
+
+For each missing part, `preflight` writes a point `run_again` with its fix to `points.json`
+of the artifact folder, and exits 1. Then change no code: run `check points` on
+`points.json`, and end the session. The end check sends the points with the verdict
+`escalate`, and a member reads in the fix line of each point what to change before the
+next round. Exit 3 means that an input is missing, such as a `serve` command with no
+`App address:` line: fix the input as the first line says, then run `preflight` again.
 
 ## Red and green
 

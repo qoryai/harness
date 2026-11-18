@@ -105,9 +105,8 @@ module.exports = (lib) => {
   }
 
   // demoScripts returns the demo script of each scenario of the artifact folder root, in the
-  // order of the scenarios: of each name scenario-<N> that index.json lists for demo-script
-  // and has not withdrawn, the newest version that counts, as lib/plan.cjs reads the build
-  // plan. A version folder that index.json does not list, such as one that an earlier pull
+  // order of the scenarios: of each name scenario-<N> of demo-script in index.json that is not
+  // withdrawn, the newest version that counts, as lib/plan.cjs reads the build plan. A version folder that index.json does not list, such as one that an earlier pull
   // left, decides nothing. A store that lacks the folder of that version, and a script that
   // breaks its schema, throw Missing.
   function demoScripts(root, io) {
