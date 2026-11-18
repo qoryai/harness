@@ -73,8 +73,6 @@ function originOf(url) {
 // and port of origin. <-loopback> removes the rule that sends no request to localhost and
 // 127.0.0.1 through a proxy. WebRTC then sends no UDP packet, since it may use only the
 // proxy, and the lookup of each host name fails, except of 127.0.0.1 and the host of origin.
-// Chrome 157 ignores --force-webrtc-ip-handling-policy and reads --webrtc-ip-handling-policy;
-// the browser gets both, since no test ran on the Chromium of the run's image.
 function proxyFlags(origin) {
   const url = new URL(origin);
   const port = url.port || { 'http:': '80', 'https:': '443' }[url.protocol];
@@ -82,7 +80,6 @@ function proxyFlags(origin) {
   return [`--proxy-server=${DEAD_PROXY}`,
     `--proxy-bypass-list=<-loopback>;${url.hostname}:${port}`,
     '--webrtc-ip-handling-policy=disable_non_proxied_udp',
-    '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
     `--host-resolver-rules=MAP * ~NOTFOUND, ${hosts.map((one) => `EXCLUDE ${one}`).join(', ')}`];
 }
 
