@@ -127,10 +127,10 @@ This harness needs a runtime with agents. A runtime without them needs another h
 In a run on a runtime with no tool that starts an agent, the session starts no agent,
 pushes nothing, and ends with `escalate` through `points.json`, with one `run_again` point:
 "The <agent> did not start on <runtime>, which starts no agents.", where `<agent>` is the
-first agent of the workflow in plain words, and the fix "Compose the harness for a runtime
-that starts agents, then run another round." On a runtime whose end hook runs, the end
-check records the verdict when the session records none, as for each run that ends through
-"Points".
+first agent of the workflow in plain words, and the fix "Ask an owner or admin of your
+organisation to choose a runtime that starts agents in Workspace settings > Model, then run
+another round." On a runtime whose end hook runs, the end check records the verdict when
+the session records none, as for each run that ends through "Points".
 
 An agent is a file `agents/<name>.md`. Its front matter sets `name`, `description` and
 `tools`, and a tier when the tier table of this section lists the agent. It sets no model

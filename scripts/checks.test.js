@@ -4837,8 +4837,8 @@ test('end: a runtime that starts no agents ends the run with escalate and its po
     .replace('<runtime>', 'Sample CLI'), action: 'run_again', fix: lines[2] };
   assert.equal(point.text, 'The questions writer did not start on Sample CLI, which starts ' +
     'no agents.');
-  assert.equal(point.fix, 'Compose the harness for a runtime that starts agents, then run ' +
-    'another round.');
+  assert.equal(point.fix, 'Ask an owner or admin of your organisation to choose a runtime ' +
+    'that starts agents in Workspace settings > Model, then run another round.');
   // The session starts no agent, writes points.json, checks it and ends.
   const root = fixture();
   started(root, {});

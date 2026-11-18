@@ -144,8 +144,8 @@ When your runtime has no tool that starts an agent, start no agent, push nothing
 the run as "Points" lists, with one `run_again` point. Its text is "The <agent> did not
 start on <runtime>, which starts no agents.": `<agent>` is the first agent that the
 workflow starts, in plain words, such as "questions writer", and `<runtime>` is the name of
-your runtime. Its `fix` is "Compose the harness for a runtime that starts agents, then
-run another round."
+your runtime. Its `fix` is "Ask an owner or admin of your organisation to choose a runtime
+that starts agents in Workspace settings > Model, then run another round."
 
 When the checks script exits with 2 or 3, cannot run or is refused, it checked nothing, so
 the run stops, except for `fixes`, as "Points to fix first" lists: push nothing more, and

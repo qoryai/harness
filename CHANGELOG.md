@@ -602,10 +602,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   first.
 - A run on a runtime with no tool that starts an agent ends with `escalate`: the session
   starts no agent, pushes nothing, and writes one `run_again` point, "The <agent> did not
-  start on <runtime>, which starts no agents.", with the fix "Compose the harness for a
-  runtime that starts agents, then run another round." On a runtime whose end hook runs,
-  the end check records the verdict through `points.json`, as for every end through
-  "Points".
+  start on <runtime>, which starts no agents.", with the fix "Ask an owner or admin of your
+  organisation to choose a runtime that starts agents in Workspace settings > Model, then
+  run another round." On a runtime whose end hook runs, the end check records the verdict
+  through `points.json`, as for every end through "Points".
 
 ### Changed
 
