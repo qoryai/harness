@@ -14,6 +14,9 @@ const {
 
 const qNumber = (id) => Number((/^q(\d+)$/.exec(id) || ['', 'NaN'])[1]);
 
+// The form of the type of an output, as qory's questions format has it.
+const TYPE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
 // The words of the two forms of about, for the line after a fix.
 const ABOUT_FORMS = 'It is {"work_item": true}, or {"type": ..., "name": ...} with an ' +
   'optional "item".';
@@ -76,6 +79,7 @@ function aboutCheck(run, which, question, earlier, readable) {
     run.find(`Write about of ${who} in one of its two forms.\n${ABOUT_FORMS}`);
     return;
   }
+  if (output && !outputForm(run, which, about)) return;
   const options = Array.isArray(question.options) ? question.options : [];
   if (options.some((option) => isObject(option) && 'proposal' in option) &&
     (workItem || about.item === undefined)) {
@@ -204,6 +208,9 @@ function questionsCheck(run, files) {
       if (typeof option.explanation === 'string') {
         characters(run, 'questions.json', `explanation of ${where}`, option.explanation);
       }
+      if (typeof option.proposal === 'string') {
+        characters(run, 'questions.json', `proposal of ${where}`, option.proposal);
+      }
     });
     // writing-questions (SKILL.md:52-53: "in at most 2 sentences and at most 40 words"):
     // a reason that the newest questions do not have. A reason stored before this rule passes.
@@ -272,6 +279,7 @@ function questionsCheck(run, files) {
       const where = `option ${place + 1} of ${which}`;
       sized(run, option.title, `the title of ${where}`, 200);
       sized(run, option.explanation, `the explanation of ${where}`, 2000);
+      sized(run, option.proposal, `the proposal of ${where}`, 2000, { optional: true });
       if (typeof option.explanation !== 'string') return;
       const count = sentences(option.explanation);
       if (count > 2) {
@@ -306,6 +314,33 @@ function questionsCheck(run, files) {
         `highest id of questions version ${previous.number}, and ${which} is not above it.`);
     }
   });
+}
+
+// outputForm checks the members of about of question, an output, as qory's questions format
+// has them, and returns whether each is right: only type, name and item; a type of lower-case
+// letters and digits in groups joined by single hyphens, at most 64 bytes; and a name of 1 to
+// 64 characters on one line.
+function outputForm(run, which, about) {
+  const who = short(which, 24);
+  const other = Object.keys(about).find((key) => !['type', 'name', 'item'].includes(key));
+  if (other !== undefined) {
+    run.find(`Remove ${quote(short(other, 32))} from about of ${who}: an output has only type, ` +
+      `name and item.\nAbout of ${which} has ${quote(other)}.`);
+    return false;
+  }
+  if (!TYPE_NAME.test(about.type) || Buffer.byteLength(about.type) > 64) {
+    run.find(`Write about.type of ${who} as a type, such as proposal or mockup.\nIt is ` +
+      `${valueText(about.type)}, and a type is lower-case letters and digits in groups joined ` +
+      'by single hyphens, at most 64 bytes.');
+    return false;
+  }
+  const size = [...about.name].length;
+  if (size < 1 || size > 64 || about.name.match(CONTROL_ALL) || about.name.match(REFUSED_ALL)) {
+    run.find(`Write about.name of ${who} as 1 to 64 characters on one line, such as main.\n` +
+      `It is ${valueText(about.name)}.`);
+    return false;
+  }
+  return true;
 }
 
 // sameJson compares two JSON values: objects by their members in any order, and numbers by value,

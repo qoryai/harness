@@ -1534,9 +1534,11 @@ The checks:
   and `name`, that the run can read: a name that `index.json` lists with a version that
   counts, a name with a version folder in the store, or, in a check, a type whose draft is
   at the top of the artifact folder, or a type that no module checks, such as `mockup`,
-  whose draft the check cannot find. When a module adds a reader of the ids of the type to
-  `items`, the `item` has the form of that reader, and is an id that the output has when the
-  reader can read the output. For a type with no such reader, the `item` is 1 to 32
+  whose draft the check cannot find. An output has only `type`, `name` and `item`, with a
+  `type` of lower-case letters and digits in groups joined by single hyphens, at most 64
+  bytes, and a `name` of 1 to 64 characters on one line. When a module adds a reader of the
+  ids of the type to `items`, the `item` has the form of that reader, and is an id that the
+  output has when the reader can read the output. For a type with no such reader, the `item` is 1 to 32
   characters on one line. A question with an option that has a `proposal` has an output
   and its `item` as `about`, as qory's questions format requires.
   `running-a-software-workflow` adds the reader of

@@ -3932,6 +3932,40 @@ test('questions: each question has an about of one of its two forms', () => {
   }
 });
 
+test('questions: an output about has only type, name and item, in the forms of the format', () => {
+  const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
+  exactly(add({ type: 'spec', name: 'main', note: 'x' }), 'Remove "note" from about of q7: an ' +
+    'output has only type, name and item.\n  About of q7 has "note".');
+  for (const type of ['Not A Type!', 'spec-', 'a--b', 'a'.repeat(65)]) {
+    exactly(add({ type, name: 'main' }), 'Write about.type of q7 as a type, such as proposal ' +
+      `or mockup.\n  It is "${type}", ` +
+      'and a type is lower-case letters and digits in groups joined by single hyphens, at most ' +
+      '64 bytes.');
+  }
+  for (const [name, shown] of [['', '""'], ['n'.repeat(65), null], ['a\tb', '"a b"']]) {
+    const result = add({ type: 'spec', name });
+    fails(result, /^Write about\.name of q7 as 1 to 64 characters on one line, such as main\. /);
+    if (shown) fails(result, new RegExp(` It is ${shown}\\.$`));
+  }
+  // The type and name of the format pass the form, and then the check of what the run reads.
+  fails(add({ type: 'a'.repeat(64), name: 'n'.repeat(64) }),
+    /^Set about of q7 to an output that the run can read, or to the work item\. The run can /);
+});
+
+test('questions: a proposal is text of 1 to 2000 characters', () => {
+  const add = (proposal) => questionsAfter((byId, data) => {
+    data.questions.push(q7({ about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' },
+      options: [{ title: 'The reply', explanation: 'Only the reply lists them.', proposal },
+        { title: 'The help page', explanation: 'The reply links to the help page.' }] }));
+  });
+  passes(add('p'.repeat(2000)));
+  for (const [proposal, has] of [['', 'has 0 characters'],
+    ['p'.repeat(2001), 'has 2001 characters'], [7, 'is a number']]) {
+    exactly(add(proposal), 'Write the proposal of option 1 of q7 as text of 1 to 2000 ' +
+      `characters.\n  The proposal of option 1 of q7 ${has}.`);
+  }
+});
+
 test('questions: an about names an output that the run can read, and a criterion it has', () => {
   const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
   const criteria = { type: 'acceptance-criteria', name: 'main' };
