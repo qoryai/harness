@@ -10,8 +10,8 @@ const path = require('node:path');
 // The keywords that the check applies, and those that only describe.
 const APPLIED = new Set([
   'type', 'required', 'additionalProperties', 'properties', 'enum', 'const', 'pattern',
-  'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems', 'items', '$ref',
-  'oneOf', 'allOf', 'if', 'then', 'not',
+  'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems', 'uniqueItems', 'items',
+  '$ref', 'oneOf', 'allOf', 'if', 'then', 'not',
 ]);
 // format is an annotation in JSON Schema 2020-12: Qory Apiary and this check assert no format.
 const NOTES = new Set(['$schema', '$id', 'title', 'description', 'format', '$defs']);
@@ -51,6 +51,17 @@ function brief(text, size) {
   return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
 }
 
+// canonical returns value as JSON with the members of each object in sorted order, so that two
+// values that JSON Schema counts as equal, as uniqueItems compares them, give the same text.
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    return `{${Object.keys(value).sort()
+      .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 // scalar is true for a JSON value that === compares as JSON Schema does.
 const scalar = (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value);
 
@@ -68,6 +79,7 @@ const FORMS = {
     text: 'a list of text, numbers, true, false or null',
   },
   const: { test: scalar, text: 'text, a number, true, false or null' },
+  uniqueItems: { test: (value) => value === true, text: 'true' },
 };
 
 // compile checks that each keyword of schema is one that this check reads, in a form that it
@@ -156,7 +168,7 @@ function errors(loaded, value, file) {
       }
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
         add('Write', 'so that it matches its pattern',
-          `The pattern is ${clip(schema.pattern, 120)}. It is ${shown(node)}`);
+          `The pattern is ${clip(visible(schema.pattern), 120)}. It is ${shown(node)}`);
       }
     }
     if (actual === 'integer' || actual === 'number') {
@@ -173,6 +185,14 @@ function errors(loaded, value, file) {
       }
       if (schema.maxItems !== undefined && node.length > schema.maxItems) {
         add('Cut', `to at most ${schema.maxItems} entries`, `It has ${node.length}`);
+      }
+      if (schema.uniqueItems) {
+        const seen = new Set();
+        const twice = node.find((item) => {
+          const key = canonical(item);
+          return seen.has(key) || !seen.add(key);
+        });
+        if (twice !== undefined) add('Give', 'each entry once', `${shown(twice)} is there twice`);
       }
       if (schema.items) {
         node.forEach((item, place) => visit(schema.items, item, `${at}/${place}`, found));
@@ -229,6 +249,12 @@ const UNSHOWN = new RegExp('[\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E
 // escaped returns json, as JSON.stringify wrote it, with each character of UNSHOWN as its
 // escape, such as \u202e.
 const escaped = (json) => json.replace(UNSHOWN, (char) =>
+  `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`);
+
+// visible returns text with each control character and each character of UNSHOWN as its
+// escape, such as \u0000, so that a pattern on the line of a finding has none of them.
+const visible = (text) => text.replace(/[\u0000-\u001F]/gu, (char) =>
+  `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`).replace(UNSHOWN, (char) =>
   `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`);
 
 // shown returns a value for a finding as JSON.stringify writes it, cut to limit characters, 40
