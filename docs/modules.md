@@ -124,6 +124,13 @@ software work, as rule 11 of [What the script checks](#what-the-script-checks) l
 ## Agents
 
 This harness needs a runtime with agents. A runtime without them needs another harness.
+In a run on a runtime with no tool that starts an agent, the session starts no agent,
+pushes nothing, and ends with `escalate` through `points.json`, with one `run_again` point:
+"The <agent> did not start on <runtime>, which starts no agents.", where `<agent>` is the
+first agent of the workflow in plain words, and the fix "Ask an owner or admin of your
+organisation to choose a runtime that starts agents in Workspace settings > Model, then run
+another round." On a runtime whose end hook runs, the end check records the verdict when
+the session records none, as for each run that ends through "Points".
 
 An agent is a file `agents/<name>.md`. Its front matter sets `name`, `description` and
 `tools`, and a tier when the tier table of this section lists the agent. It sets no model
@@ -668,6 +675,16 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   finding under "Findings:" has one `Point:` line, on one line, that passes the rules of the
   text that `check points` applies. A fix of the report counts no start, so a bad `Point:`
   line is fixed before the session copies it.
+  A report has at most about 2,000 tokens, counted as 8,000 bytes, so that an agent can
+  count its text: one constant, `REPORT_TOKENS` in `lib/reports.cjs`, sets the limit for
+  every agent. For an agent whose shape has the list "Files:", the files that a writer
+  wrote, its heading and the lines directly under it that are one path item each, such as
+  `- spec.md`, do not count. A path item is `- ` and a path of 1 to 255 characters with no
+  space. The first other line, a longer path item too, ends the list, and it and every line
+  after it count. A longer report is a finding, a `blocked` report too, and the first line
+  of the finding states the limit in both units. `findings` and `end --offline` check
+  reports with the same rule. A report above 256 KB gets only the finding on its size. The
+  session passes the limit to each agent at each start.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
   report" of `reviewing-drafts`. `<plugin>` is the folder two levels above the path that

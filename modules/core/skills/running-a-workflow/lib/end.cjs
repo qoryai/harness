@@ -37,7 +37,7 @@ const capital = (text) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
 // The point that end writes last when the points would pass MAX_POINTS, with left, the count
 // of the points left out, as the session writes it:
-// running-a-workflow (SKILL.md:234-238: "The run left out <m> more points").
+// running-a-workflow (SKILL.md:245-250: "The run left out <m> more points").
 const END_POINT = (left) => `The run left out ${plural(left, 'more point')}, which its output ` +
   `on the Run page lists, ${AGAIN} starts the workflow again to fix ` +
   `${left === 1 ? 'it' : 'them'}.`;
@@ -86,7 +86,7 @@ const DRAFT_BROKEN = (draft, count) => `The draft of the ${draft} breaks ` +
 
 // The point of points.json with points that break the rules for points: left of them, or
 // null when the file is no list, as the session writes it:
-// running-a-workflow (SKILL.md:239-245: "that broke the rules for points").
+// running-a-workflow (SKILL.md:251-257: "that broke the rules for points").
 const POINTS_BROKEN = (left) => (left
   ? `The run left out ${plural(left, 'point')} that broke the rules for points, which its ` +
     `output on the Run page lists, ${AGAIN} writes ${left === 1 ? 'it' : 'them'} again.`

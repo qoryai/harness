@@ -32,17 +32,17 @@ function report(io, agent, file) {
       'bytes.']
     : reportCheck(text, agent, shape, agentNames(io.plugin), io.registry().stops,
       io.registry());
-  let checked = 'last word, lists and Blocked: line';
+  let checked = 'size, last word, lists and Blocked: line';
   if (size > MAX_BYTES) {
     checked = 'its size';
   } else if (shape.point && shape.proof) {
-    checked = 'last word, lists, Blocked: line, and Point:, Proof: and Severity: lines';
+    checked = 'size, last word, lists, Blocked: line, and Point:, Proof: and Severity: lines';
   } else if (shape.proof) {
-    checked = 'last word, lists, Blocked: line, and Proof: and Severity: lines';
+    checked = 'size, last word, lists, Blocked: line, and Proof: and Severity: lines';
   } else if (shape.point) {
-    checked = 'last word, lists, Blocked: line and Point: lines';
+    checked = 'size, last word, lists, Blocked: line and Point: lines';
   } else if (shape.lists.includes('Closed:')) {
-    checked = 'last word, lists, Blocked: line and closures';
+    checked = 'size, last word, lists, Blocked: line and closures';
   }
   const failed = record(io, root, agent, real, text, !findings.length);
   let next = '';
