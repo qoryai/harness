@@ -878,7 +878,7 @@ test('preflight: a runner whose parent ends stops its browser and removes its fo
   const folder = path.join(here.dir, 'tmp');
   fs.mkdirSync(folder);
   const spec = appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS,
-    setups: [{ actions: [{ do: 'open', url: '/sign-in' },
+    limitMs: BROWSER_MS + 30000, setups: [{ actions: [{ do: 'open', url: '/sign-in' },
       { do: 'wait', text: 'Never shown', timeout_ms: 60000 }], names: [] }] });
   spec.serve.command = `echo $PPID > runner.pid; ${spec.serve.command}`;
   const parentFile = path.join(here.dir, 'parent.cjs');
@@ -893,7 +893,7 @@ test('preflight: a runner whose parent ends stops its browser and removes its fo
     .map((line) => Number(line.trim().split(' ')[0]));
   let pid = null;
   try {
-    await until(() => browsers().length > 0, 20000, 'the browser did not start');
+    await until(() => browsers().length > 0, BROWSER_MS, 'the browser did not start');
     pid = Number(fs.readFileSync(path.join(here.dir, 'runner.pid'), 'utf8'));
     parent.kill('SIGTERM');
     // The runner removes the folder of the browser after the browser exits, then exits.
@@ -1024,7 +1024,7 @@ test('preflight: the replay gets only the variables that its setup lists', { ski
   const here = checkout();
   const port = await freePort();
   const ran = await runner(appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS,
-    setups: [{ actions: [{ do: 'open', url: '/sign-in' },
+    limitMs: BROWSER_MS + 30000, setups: [{ actions: [{ do: 'open', url: '/sign-in' },
       { do: 'type', target: '#password', variable: 'DEMO_PASSWORD' }], names: [] }] }),
   { env: { DEMO_PASSWORD: 'parcel-blue-41' } });
   assert.equal(JSON.parse(ran.out).signIns[0].why, 'action 2 (type into #password) failed: the ' +
