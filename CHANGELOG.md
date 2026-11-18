@@ -651,12 +651,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `acceptance-criteria` as a structured type with the contract's JSON Schema, which
   `schemas/acceptance-criteria.schema.json` of `running-a-software-workflow` also has.
   `spec-writer` writes the file by `writing-specs`. The check of the type, the build plan,
-  the lock, the point of the ledger, the demo scenarios and the decision record read it.
-  The check keeps its rules: each criterion that is not removed is one sentence of at most
-  25 words with the check `Demo: <title>` or `Tests`, each id is there once and stays in
-  every later version, and the count of the criteria that are not removed is on the last
-  line. A file that breaks a rule is refused with its fix line, such as
-  "Set the check of ac-2 in acceptance-criteria.json to "Demo: <title>" or "Tests".".
+  the lock, the point of the ledger, the demo scenarios and the decision record read it. The
+  check keeps its rules: each criterion that is not removed is one sentence of at most 25
+  words with the check `Demo: <title>` or `Tests`, each id is there once and stays in every
+  later version, a removed criterion keeps its text and its check, and the count of the
+  criteria that are not removed is on the last line. A file that breaks a rule is refused
+  with its fix line, such as "Set the check of ac-2 in acceptance-criteria.json to "Demo:
+  <title>" or "Tests".".
 - The verification is `verification.json`, in the verification format of qory's contract,
   in place of `verification.md`: `target_version`, `matrix` with a row of `criterion`,
   `state` (`met` or `not_met`) and `evidence` for each criterion that was checked,

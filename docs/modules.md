@@ -2007,13 +2007,15 @@ changes a screen names its mockup screen and draws no wireframe. The spec has no
 `acceptance-criteria.json` is in the acceptance criteria format of qory's contract: a
 `summary`, and `criteria`, each with `id`, `text` and `check`, and with `removed` and its
 `reason` when it no longer applies. A criterion's id, such as `ac-1`, stays fixed across
-versions, and a removed id is never reused. `spec-reviewer` checks that no criterion is
-renumbered: the text of an `ac-N` never moves to another id. A rule whose "After" waits for
-an answer has no criterion until the answer comes, because a criterion needs values. The
-check is `Demo: <title>` when a person can see the criterion in the UI, else `Tests`: Shape
-plans the check, and Build records how each criterion was met. A work item has at most 7
-criteria. Above 7, the writer drops and merges none, and asks whether to split the work item
-into sub-items, because a split changes the scope.
+versions, and a removed id is never reused. A removed criterion keeps its `text` and its
+`check`: the check of the type refuses a change to either against the newest version.
+`spec-reviewer` checks that no criterion is renumbered: the text of an `ac-N` never moves to
+another id. A rule whose "After" waits for an answer has no criterion until the answer
+comes, because a criterion needs values. The check is `Demo: <title>` when a person can see
+the criterion in the UI, else `Tests`: Shape plans the check, and Build records how each
+criterion was met. A work item has at most 7 criteria. Above 7, the writer drops and merges
+none, and asks whether to split the work item into sub-items, because a split changes the
+scope.
 
 Each writer of Shape writes in the direction of the option that a question recommends or
 that the run decided, and asks a question in a later round only as `reading-the-work` lists,

@@ -1645,6 +1645,23 @@ test('criteria: a file that breaks a rule of the type check gets the fix line of
   write(removed, CRITERIA, CRITERIA_TEXT);
   exactly(push(removed, 'acceptance-criteria'), 'Keep ac-4 removed in acceptance-criteria.json.' +
     '\n  Version 2 removed it, so its number is never used again.');
+  // A criterion that version 2 removed keeps its text and its check in a later version.
+  const file = path.join(removed, 'acceptance-criteria', 'main', 'v2', CRITERIA);
+  const stored = JSON.parse(fs.readFileSync(file, 'utf8')).criteria
+    .find((one) => one.id === 'ac-4');
+  write(removed, CRITERIA, withCriteria((data) => {
+    Object.assign(at('ac-4')(data), { removed: stored.removed, text: 'The reply is short.',
+      check: 'Demo: Read the closed day' });
+  }));
+  const result = push(removed, 'acceptance-criteria');
+  const back = (member) => `^Set the ${member} of the removed ac-4 in acceptance-criteria\\.json ` +
+    'back to version 2\\. A removed criterion stays as it was, and version 2 has ';
+  fails(result, new RegExp(`${back('text')}"Each customer `));
+  fails(result, new RegExp(`${back('check')}"Tests"\\.$`));
+  write(removed, CRITERIA, withCriteria((data) => {
+    at('ac-4')(data).removed = stored.removed;
+  }));
+  passes(push(removed, 'acceptance-criteria'));
 });
 
 test('criteria: no id renumbered or reused against the newest version', () => {
