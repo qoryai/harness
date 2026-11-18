@@ -598,7 +598,7 @@ test('each finding of the schema check has the member and the fix of its keyword
   assert.deepEqual(found((d) => { d.repositories[0].draft.none = 'no-text'; }),
     ['Write /repositories/0/draft of submission.json in exactly one of its 2 forms.\nIt fits 0.']);
   assert.deepEqual(found((d) => { d.repositories = []; }),
-    ['Give /repositories of submission.json at least 1 entries.\nIt has 0.']);
+    ['Give /repositories of submission.json at least 1 entry.\nIt has 0.']);
   assert.deepEqual(found((d) => { d.text.title = 'x'.repeat(257); }),
     ['Cut /text/title of submission.json to at most 256 characters.\nIt has 257.']);
   assert.deepEqual(found((d) => { d.repositories[0].path = 'example/../x'; }),
@@ -2175,7 +2175,7 @@ test('verification: the members and values of its schema', () => {
   schemaLine((doc) => { doc.model_families.push('claude'); }, 'Give /model_families of ' +
     'verification.json each entry once.\n"claude" is there twice.');
   schemaLine((doc) => { doc.model_families = []; }, 'Give /model_families of ' +
-    'verification.json at least 1 entries.\nIt has 0.');
+    'verification.json at least 1 entry.\nIt has 0.');
   schemaLine((doc) => { doc.not_verified[0].reason = ''; }, 'Write /not_verified/0/reason of ' +
     'verification.json as text of at least 1 characters.\nIt has 0.');
   // A criterion is its id: ac- and a number with no leading zero, in lower case.

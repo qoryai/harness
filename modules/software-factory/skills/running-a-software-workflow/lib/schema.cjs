@@ -21,6 +21,9 @@ const WORDS = {
   number: 'a number', boolean: 'true or false', null: 'null',
 };
 
+// entryCount returns count with the word entry, in the plural for any count but 1.
+const entryCount = (count) => `${count} ${count === 1 ? 'entry' : 'entries'}`;
+
 // kind returns the JSON Schema type of a parsed JSON value.
 function kind(value) {
   if (value === null) return 'null';
@@ -181,10 +184,10 @@ function errors(loaded, value, file) {
     }
     if (actual === 'array') {
       if (schema.minItems !== undefined && node.length < schema.minItems) {
-        add('Give', `at least ${schema.minItems} entries`, `It has ${node.length}`);
+        add('Give', `at least ${entryCount(schema.minItems)}`, `It has ${node.length}`);
       }
       if (schema.maxItems !== undefined && node.length > schema.maxItems) {
-        add('Cut', `to at most ${schema.maxItems} entries`, `It has ${node.length}`);
+        add('Cut', `to at most ${entryCount(schema.maxItems)}`, `It has ${node.length}`);
       }
       if (schema.uniqueItems) {
         const seen = new Set();

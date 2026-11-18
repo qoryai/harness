@@ -803,7 +803,7 @@ test('criteria: only the members summary and criteria, as the schema has them', 
   fails(push(fixture(editCriteria((data) => { data.background = 'More.'; })),
     'acceptance-criteria'), /^Remove the member "background" from acceptance-criteria\.json\. /);
   fails(push(fixture(editCriteria((data) => { data.criteria = []; })), 'acceptance-criteria'),
-    /^Give \/criteria of acceptance-criteria\.json at least 1 entries\. It has 0\.$/);
+    /^Give \/criteria of acceptance-criteria\.json at least 1 entry\. It has 0\.$/);
   fails(push(fixture(editCriteria((data) => { delete data.summary; })), 'acceptance-criteria'),
     /^Add the member summary to acceptance-criteria\.json\.$/);
   const root = fixture();
