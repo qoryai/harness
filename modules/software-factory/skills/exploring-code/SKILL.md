@@ -1,6 +1,6 @@
 ---
 name: exploring-code
-description: Load before you search a target's files in a run. Contains which files belong to the target, the order to read them in, the search forms for the target and its further repositories, how to keep files with secrets out of a search, and how to report facts.
+description: Load before you search a target's files in a run. Contains which files belong to the target, the order to read them in, the search forms for the target and its further repositories, how to keep files with secrets out of a search, what to find for a build plan, and how to report facts.
 ---
 
 # Exploring code
@@ -79,6 +79,27 @@ repeat the line.
 A search that finds nothing shows only what the run can read. The thing you searched for
 can be in a system the run cannot read. Name that system in the report, and state the
 missing result as what the search found, never as a fact about that system.
+
+## For a build plan
+
+When the question you got is for a build plan, you get the acceptance criteria to plan for.
+After the search above, settle these for each criterion, and report each as a fact under
+"Facts:" with its path and line:
+
+- The files that the change touches: where the behaviour lives today and which files depend
+  on it. For a behaviour that is new, the folder where code of its kind lives, with one file
+  there as an example.
+- The tests of that area: their folder, the naming pattern of the test files, one test file
+  as an example, the helpers and fixtures that tests there use, and the command that runs
+  one test file.
+- The commands of the checks, each with the file and line that state it: the linter, the
+  type check, the build, the full suite and, when a criterion is shown in a demo, the
+  command that starts the app and the address of the app. For each command that
+  runs tests, the path of the JUnit XML result file that it writes, or the fact that it
+  writes none.
+
+A command that no file states goes under "What the files cannot show". Write no command that
+you did not find. State where each thing is, and give no opinion on which change to make.
 
 ## Report
 

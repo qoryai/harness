@@ -11,6 +11,7 @@ workflows:
   make-mockups: {access: read}
   write-demo-scenarios: {access: read}
   shape-a-ticket: {access: read}
+  plan-the-build: {tier: thinking, access: write}
 extending:
   kinds: [skills, agents, commands, output-styles]
   instructions: true

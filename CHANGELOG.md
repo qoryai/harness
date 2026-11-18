@@ -8,6 +8,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The `plan-the-build` workflow in the `software` stack, with `tier: thinking` and
+  `access: write`: the skills `workflow-plan-the-build`, `planning-builds` and
+  `checking-build-plans`, and the agents `build-planner` and `plan-reviewer`. The session
+  starts `code-explorer`, `build-planner` and `plan-reviewer` in that order and pushes
+  `build-plan` after the review. `code-explorer` and `exploring-code` also report, for
+  each criterion, the files to change, the tests of the area and the commands that run the
+  checks and the app, in the same report form as before. Each Criteria cell of the plan is
+  `AC-<N>, "<the criterion's first sentence>"`. Each Check path of a test file is also in
+  the Files of its row, so `qory scope --plan` lets the locked checks and their support
+  files in. A plan with a `serve` row has the line `App address: <url>` in its Summary. A
+  plan of more than 7 deliverables is not pushed: the run asks one question about the
+  criteria of the first 7 changes and of the others, with an option to build the first 7
+  and take in the rest as a new work item, and ends with `qory run verdict escalate`.
 - Role notes in the start of an agent. Before each start of an agent, the session runs
   `checks.cjs notes <agent> [--files <file>]`. The verb reads `role-notes.json` of the
   harness home, which qory writes, and picks the role notes whose roles include a role of
