@@ -73,9 +73,9 @@ function originOf(url) {
 // and port of origin. <-loopback> removes the rule that sends no request to localhost and
 // 127.0.0.1 through a proxy. WebRTC then sends no UDP packet, since it may use only the
 // proxy, and the lookup of each host name fails, except of 127.0.0.1 and the host of origin.
-// A TCP connection of WebRTC to a TURN server and a WebTransport session go to the proxy, so
-// they fail too. Chrome 157 and Chromium 153 ignore --force-webrtc-ip-handling-policy, so the
-// browser gets only --webrtc-ip-handling-policy.
+// In the tests, a TURN server over TCP and a WebTransport or HTTP/3 server on 127.0.0.1 get no
+// connection and no packet. Chrome 157 and Chromium 153 ignore
+// --force-webrtc-ip-handling-policy, so the browser gets only --webrtc-ip-handling-policy.
 function proxyFlags(origin) {
   const url = new URL(origin);
   const port = url.port || { 'http:': '80', 'https:': '443' }[url.protocol];

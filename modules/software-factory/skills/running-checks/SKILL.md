@@ -150,7 +150,8 @@ first demo:
    or is an IPv6 address in brackets. When another process already returns a response at
    the address, the app counts as not started, and the command does not run. A command
    that starts the app in the background and exits 0 works. The command gets no variable
-   of qory, of an agent or of a code forge, such as `QORY_RUN_KEY` or `GITHUB_TOKEN`.
+   of qory or of an agent, and no token of a code forge, such as `QORY_RUN_KEY` or
+   `GITHUB_TOKEN`, except the mark `QORY_CHECK_MARK`.
 3. The sign-in: the setup of each demo script that types a variable passes in the browser,
    with the values of the variables in the environment. The browser loads no page of
    another origin than the app's address, in the tab or in a frame, whether an `open`, a

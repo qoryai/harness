@@ -2438,12 +2438,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   browser with the values of the variables in the environment. When another process
   already returns a response at the address, the app counts as not started and the command
   does not run; a command that starts the app in the background and exits 0 counts once the
-  address responds. The command runs without each variable of the environment whose name is
-  that of a variable of qory, of an agent or of a code forge, such as `QORY_RUN_KEY`,
-  `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`. A sign-in passes when each action passes and each
-  field that a variable was typed into is gone within 10 seconds of the last action, or
-  when its last action is a `wait` that passes. Each browser call has a time limit, and
-  the browser dismisses each dialog of the app, such as an alert.
+  address responds. The command runs without each variable of qory or of an agent, or token
+  of a code forge, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`; of these,
+  it gets only `QORY_CHECK_MARK`, the mark of the supervisor. A sign-in passes when each
+  action passes and each field that a variable was typed into is gone within 10 seconds of
+  the last action, or when its last action is a `wait` that passes. Each browser call has
+  a time limit, and the browser dismisses each dialog of the app, such as an alert.
 
   The sign-in loads only pages of the origin of the app's address. The browser fails the
   load of each document of another origin, in the tab and in each frame, whether an `open`,
@@ -2454,8 +2454,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   in `--proxy-bypass-list`, after `<-loopback>`: every other request, such as a `fetch`, a
   beacon, an image, a WebSocket or a request of a service worker, fails. With
   `--webrtc-ip-handling-policy=disable_non_proxied_udp`, WebRTC sends only through the
-  proxy, so it sends no UDP packet. A WebRTC connection over TCP to a TURN server and a
-  WebTransport session or other HTTP/3 request go to the proxy too, and fail. The check of
+  proxy, so it sends no UDP packet. In tests on Chrome 157 and Chromium 153, a local TURN
+  server over TCP and a local HTTP/3 server get no connection and no packet. The check of
   the build plan takes only an App address whose host has letters, digits, `.` and `-`, or
   is an IPv6 address in brackets, so the host adds no other entry to the bypass list.
   `--host-resolver-rules` fails the lookup of each host name except 127.0.0.1 and the app's
