@@ -61,7 +61,7 @@ const REPORT_BYTES = 8192;
 const WORKFLOW = /^[a-z][a-z0-9-]{0,54}$/;
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const NAME_LENGTH = 32;
-const TIERS = ['light', 'fast', 'thinking'];
+const TIERS = ['light', 'balanced', 'thinking'];
 const MODEL = /^[!-~]{1,100}$/;
 
 // The longest finding line, so that each line keeps a quote of a value whole.

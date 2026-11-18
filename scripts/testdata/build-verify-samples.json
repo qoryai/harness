@@ -347,7 +347,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -466,7 +466,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -586,7 +586,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -705,7 +705,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -823,7 +823,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -942,7 +942,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1061,7 +1061,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1180,7 +1180,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1299,7 +1299,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1418,7 +1418,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1537,7 +1537,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1656,7 +1656,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1775,7 +1775,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -1894,7 +1894,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2012,7 +2012,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2131,7 +2131,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2250,7 +2250,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2369,7 +2369,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2488,7 +2488,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2607,7 +2607,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2726,7 +2726,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2863,7 +2863,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]
@@ -2982,7 +2982,7 @@
         {
          "agent": "software-developer",
          "role": "developer",
-         "tier": "fast",
+         "tier": "balanced",
          "model": "unknown"
         }
        ]

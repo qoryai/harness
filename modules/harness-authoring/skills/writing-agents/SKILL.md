@@ -111,8 +111,8 @@ on a name that no module ships. `docs/modules.md` in the harness repository, sec
 - `tools`: the fewest tools the role needs.
 - `model`: the tier that the table in `docs/modules.md` of the harness repository, section
   "Agents", lists for the agent's name. Write `model: ` and then a dollar sign followed by
-  `{qory:<tier>}`, with the tier `light`, `fast` or `thinking`. Never write a model id: the
-  person who composes the harness chooses the model for each tier. If the table does not
+  `{qory:<tier>}`, with the tier `light`, `balanced` or `thinking`. Never write a model id:
+  the person who composes the harness chooses the model for each tier. If the table does not
   list the agent, set no `model` key.
 
 `docs/modules.md` in the harness repository, section "Agents", states what each runtime does
