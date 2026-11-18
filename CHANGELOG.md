@@ -649,7 +649,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `{"work_item": true}`, or an output as `type` and `name`, with `item` for one entry of it,
   such as a criterion id. `questions-writer` sets it by `writing-questions`. The questions
   check refuses a question with no `about`, and a new or changed `about` that names an
-  output that the run cannot read, or an `item` that the acceptance criteria do not have.
+  output that the run cannot read. A module adds a reader of the ids of a type as `items`;
+  `running-a-software-workflow` adds one for the acceptance criteria, so the check refuses
+  an `item` that the criteria do not have.
 - A criterion id is `ac-` and a number from 1 to 9999 with no leading zero, the one form of
   qory's contract, in the schema of `acceptance-lock` and in `checks.cjs run locked`, in
   place of a number from 1 to 99.

@@ -69,7 +69,9 @@ plain text, and `criteria`, a list of at least one criterion. Each criterion has
 ## Questions
 
 List what only a person can settle in your report, and ask as `reading-the-work` lists,
-also in a later round. A part follows the recommended option of its question.
+also in a later round. A part follows the recommended option of its question. A question
+about one criterion has the `about`
+`{"type": "acceptance-criteria", "name": "main", "item": "ac-3"}`, with that criterion's id.
 
 ## Review comments and notes
 

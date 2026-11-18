@@ -203,7 +203,9 @@ function part(file) {
 // folders have counts once, from the first. A type that two files add, or that this skill
 // checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
-  const registry = { types: [], stops: [], verbs: {}, records: [], ids: [], ledger: null };
+  const registry = {
+    types: [], stops: [], verbs: {}, records: [], ids: [], items: [], ledger: null,
+  };
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -228,6 +230,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     registry.records.push(...(added.records || []));
     // Only a list adds prefixes: the string 'ac' would add a and c.
     if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
+    if (Array.isArray(added.items)) registry.items.push(...added.items);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {
       throw new base.Missing('Remove one of the two rules of the ledger: two skills add them ' +

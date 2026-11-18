@@ -5,17 +5,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  Missing, isObject, jsonKind, label, entries, parseJson, plural, quote, readFile, short, sized,
-  valueText,
+  isObject, jsonKind, label, entries, parseJson, plural, quote, short, sized, valueText,
 } = require('../lib/base.cjs');
 const {
   MARKDOWN, bareId, characters, counted, links, sentences, words,
 } = require('../lib/markdown.cjs');
 
 const qNumber = (id) => Number((/^q(\d+)$/.exec(id) || ['', 'NaN'])[1]);
-
-// A criterion id, as the acceptance criteria format of qory's contract has it.
-const CRITERION = /^ac-[1-9][0-9]{0,3}$/;
 
 // The words of the two forms of about, for the line after a fix.
 const ABOUT_FORMS = 'It is {"work_item": true}, or {"type": ..., "name": ...} with an ' +
@@ -55,36 +51,10 @@ function outputs(context, types) {
   return out;
 }
 
-// criterionIds returns the ids of the criteria that the run can read, or null when it can read
-// none: in a check, of the draft at the top of the artifact folder, else of the newest version.
-// main is the file of the type acceptance-criteria that a module of the plugin checks; with no
-// such module, the run reads no criteria.
-function criterionIds(context, main) {
-  if (!main) return null;
-  let text = null;
-  const top = path.join(context.root, main);
-  if (context.mode === 'check' && fs.existsSync(top)) {
-    text = readFile(top, main);
-  } else {
-    try {
-      const newest = context.newest('acceptance-criteria', main);
-      text = newest && newest.text;
-    } catch (error) {
-      if (!(error instanceof Missing)) throw error;
-    }
-  }
-  if (text === null) return null;
-  try {
-    const data = JSON.parse(text);
-    return new Set(data.criteria.filter(isObject).map((criterion) => criterion.id));
-  } catch {
-    return null;
-  }
-}
-
 // aboutCheck checks about of question, which in a new question, or one whose about differs from
 // earlier, the same question in the newest questions, names the work item or an output that the
-// run can read, as readable returns it, with an item that the acceptance criteria have:
+// run can read, as readable returns it, with an item of the form and in the ids that the reader
+// of the type's items, from the registry, has:
 // writing-questions (SKILL.md:80-84: "for an output"), and
 // writing-questions (SKILL.md:171-172: "has a question with no `about`").
 function aboutCheck(run, which, question, earlier, readable) {
@@ -92,8 +62,7 @@ function aboutCheck(run, which, question, earlier, readable) {
   const { about } = question;
   const who = short(which, 24);
   if (about === undefined) {
-    run.find(`Add about to ${who}: {"work_item": true}, or the type and name of an output.
-` +
+    run.find(`Add about to ${who}: {"work_item": true}, or the type and name of an output.\n` +
       `${which} has no about.`);
     return;
   }
@@ -101,30 +70,30 @@ function aboutCheck(run, which, question, earlier, readable) {
   const output = isObject(about) && !('work_item' in about) &&
     typeof about.type === 'string' && typeof about.name === 'string';
   if (!workItem && !output) {
-    run.find(`Write about of ${who} in one of its two forms.
-${ABOUT_FORMS}`);
+    run.find(`Write about of ${who} in one of its two forms.\n${ABOUT_FORMS}`);
     return;
   }
   if (workItem || (earlier && sameJson(about, earlier.about))) return;
-  const { outputs: names, criteria, known } = readable();
+  const { outputs: names, known, items } = readable();
   const shown = `${about.type} ${about.name}`;
   // In a check, the draft of a type that no module checks, such as a mockup, can lie anywhere
   // in the artifact folder, so only a push, through index.json, refuses such an output.
   const unseen = run.context.mode === 'check' && !known.has(about.type);
   if (!names.has(`${about.type}/${about.name}`) && !unseen) {
-    run.find(`Set about of ${who} to an output that the run can read, or to the work item.
-` +
+    run.find(`Set about of ${who} to an output that the run can read, or to the work item.\n` +
       `The run can read no ${short(shown, 80)}.`);
     return;
   }
-  if (about.type !== 'acceptance-criteria' || about.item === undefined) return;
-  if (typeof about.item !== 'string' || !CRITERION.test(about.item)) {
-    run.find(`Write about.item of ${who} as a criterion id, such as ac-3.
-It is ` +
-      `${valueText(about.item)}.`);
-  } else if (criteria && !criteria.has(about.item)) {
-    run.find(`Set about.item of ${who} to a criterion of the acceptance criteria.
-They have ` +
+  const reader = items.find((one) => one.type === about.type);
+  if (!reader || about.item === undefined) return;
+  if (typeof about.item !== 'string' || !reader.form.test(about.item)) {
+    run.find(`Write about.item of ${who} as an id of ${short(about.type, 40)}, such as ` +
+      `${reader.example}.\nIt is ${valueText(about.item)}.`);
+    return;
+  }
+  const ids = reader.read(run.context);
+  if (ids && !ids.has(about.item)) {
+    run.find(`Set about.item of ${who} to an entry that ${short(shown, 40)} has.\nIt has ` +
       `no ${about.item}.`);
   }
 }
@@ -149,10 +118,8 @@ function questionsCheck(run, files) {
   let read = null;
   const readable = () => {
     if (!read) {
-      const { types } = require('./points.cjs').registryOf(run.context.plugin);
-      const def = types.find((one) => one.type === 'acceptance-criteria');
-      read = { outputs: outputs(run.context, types),
-        criteria: criterionIds(run.context, def && def.main),
+      const { types, items } = require('./points.cjs').registryOf(run.context.plugin);
+      read = { outputs: outputs(run.context, types), items: items || [],
         known: new Set(types.filter((one) => one.main).map((one) => one.type)) };
     }
     return read;

@@ -574,10 +574,12 @@ skill is in a module of the harness home, from the skills of each module beside 
 name, it loads the first. The file exports a function that takes the library of
 `checks.cjs`, the exports of its `lib/` files and `lockReader`, the reader of the lock of
 `verbs/lock.cjs`, and returns `types`, the patterns of "Blocked:" lines as `stops`, the
-prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `verbs`, and `ledger`, the rules
-of the build ledger. Only `check`, `push`, `report`, `end`, `step`, `resume`, a verb of the
-registry and the usage read the registry; `starts`, `begin` and `fixes` never load it. A
-type that two skills add stops each verb that reads the registry with exit 3. A
+prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`, the readers of the ids
+of a type that the questions check reads for the `item` of an `about`, `verbs`, and
+`ledger`, the rules of the build ledger. Only `check`, `push`, `report`, `end`, `step`,
+`resume`, a verb of the registry and the usage read the registry; `starts`, `begin` and
+`fixes` never load it. A type that two skills add stops each verb that reads the registry
+with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
 the harness: the verb stops with an error that names the file and exit 3, and `end
 --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
@@ -1530,9 +1532,11 @@ The checks:
   and `name`, that the run can read: a name that `index.json` lists with a version that
   counts, a name with a version folder in the store, or, in a check, a type whose draft is
   at the top of the artifact folder, or a type that no module checks, such as `mockup`,
-  whose draft the check cannot find. Its `item`, for the type `acceptance-criteria`, is a
-  criterion id that the criteria have, when the check can read the criteria: the draft at
-  the top in a check, else the newest version;
+  whose draft the check cannot find. When a module adds a reader of the ids of the type to
+  `items`, the `item` has the form of that reader, and is an id that the output has when the
+  reader can read the output. `running-a-software-workflow` adds the reader of
+  `acceptance-criteria`: an `item` is a criterion id that the criteria have, from the draft
+  at the top in a check, else from the newest version;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:

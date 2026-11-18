@@ -80,8 +80,8 @@ question, in its order, with all its members as they are, except for these four 
   - `about`: what the question is about. Write `{"work_item": true}` for the work item
     itself, before any output. Write `{"type": "<type>", "name": "<name>"}` for an output
     that the newest artifacts or a draft in the artifact folder contain, such as
-    `{"type": "proposal", "name": "main"}`. Add `"item"` for one entry of that output, such
-    as `"item": "ac-3"` for a criterion of the acceptance criteria.
+    `{"type": "proposal", "name": "main"}`. Add `"item"` for one entry of that output, by
+    its id, such as `"item": "screen-2"` for a screen of a mockup.
   - `context`: what the person needs to answer that question, and nothing more, as
     Markdown of 1 to 20000 characters and at most 120 words. Its first sentence is the fact
     that the answer depends on, such as "The export service returns at most 10,000 rows per

@@ -3939,10 +3939,10 @@ test('questions: an about names an output that the run can read, and a criterion
   passes(add({ ...criteria, item: 'ac-3' }));
   exactly(add({ type: 'mockup', name: 'main' }), 'Set about of q7 to an output that the run ' +
     'can read, or to the work item.\n  The run can read no mockup main.');
-  exactly(add({ ...criteria, item: 'ac-9' }), 'Set about.item of q7 to a criterion of the ' +
-    'acceptance criteria.\n  They have no ac-9.');
-  exactly(add({ ...criteria, item: 'screen-2' }), 'Write about.item of q7 as a criterion id, ' +
-    'such as ac-3.\n  It is "screen-2".');
+  exactly(add({ ...criteria, item: 'ac-9' }), 'Set about.item of q7 to an entry that ' +
+    'acceptance-criteria main has.\n  It has no ac-9.');
+  exactly(add({ ...criteria, item: 'screen-2' }), 'Write about.item of q7 as an id of ' +
+    'acceptance-criteria, such as ac-3.\n  It is "screen-2".');
   // A check reads the criteria of the draft at the top of the artifact folder.
   const root = fixture(editCriteria((data) => {
     data.criteria.push(row('ac-5', 'The reply states the hours.'));
@@ -3954,7 +3954,7 @@ test('questions: an about names an output that the run can read, and a criterion
   data.questions.at(-1).about.item = 'ac-6';
   write(root, 'questions.json', data);
   fails(check(root, 'questions', path.join(root, 'questions.json')),
-    /^Set about\.item of q7 to a criterion of the acceptance criteria\. They have no ac-6\.$/);
+    /^Set about\.item of q7 to an entry that acceptance-criteria main has\. It has no ac-6\.$/);
   // A check passes a mockup that only a draft in mockup-draft/ has, with a screen as its item:
   // no module checks the type mockup, so the check cannot find its draft, and the push of the
   // questions, which reads index.json, refuses the mockup when index.json does not list it.

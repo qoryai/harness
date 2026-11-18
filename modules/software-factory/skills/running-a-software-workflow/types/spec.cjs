@@ -2,11 +2,14 @@
 // criteria are acceptance-criteria.json, in the acceptance criteria format of qory's contract.
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 module.exports = (lib) => {
   const {
-    blank, characters, firstFilled, headings, idHistory, isObject, lines, markdownText, paths,
-    plural, points, quote, same, sections, sentences, short: brief, summary, table, topSections,
-    wordLimit, words,
+    Missing, blank, characters, firstFilled, headings, idHistory, isObject, lines, markdownText,
+    paths, plural, points, quote, readFile, same, sections, sentences, short: brief, summary,
+    table, topSections, wordLimit, words,
   } = lib;
 
   const SPEC_SECTIONS = ['Summary', 'Background', 'Changes', 'Sources'];
@@ -149,6 +152,33 @@ module.exports = (lib) => {
     return new Map(list.map((criterion) => [criterion.id, criterion]));
   }
 
+  // items is the reader of the ids of the criteria, which the questions check of core reads
+  // for an about of the type acceptance-criteria: an item is a criterion id, and one of the
+  // criteria that the run can read, in a check of the draft at the top of the artifact
+  // folder, else of the newest version. read returns null when the run can read none.
+  const items = {
+    type: 'acceptance-criteria',
+    form: /^ac-[1-9][0-9]{0,3}$/,
+    example: 'ac-3',
+    read(context) {
+      let text = null;
+      const top = path.join(context.root, FILE);
+      if (context.mode === 'check' && fs.existsSync(top)) {
+        text = readFile(top, FILE);
+      } else {
+        try {
+          const newest = context.newest('acceptance-criteria', FILE);
+          text = newest && newest.text;
+        } catch (error) {
+          if (!(error instanceof Missing)) throw error;
+        }
+      }
+      if (text === null) return null;
+      const all = criteria(text);
+      return all.length ? new Set(all.map((criterion) => criterion.id)) : null;
+    },
+  };
+
   const types = [
     {
       type: 'spec',
@@ -167,5 +197,5 @@ module.exports = (lib) => {
       check: acceptanceCriteria,
     },
   ];
-  return { criteria, criterionMap, types };
+  return { criteria, criterionMap, items, types };
 };
