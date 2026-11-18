@@ -245,7 +245,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   characters that starts with `failing check`, `failing input` or, only for `non-blocking`,
   `broken rule`, a `point` on one line of at most 500 characters, and `file`, `line` and
   `id` when they apply. The report has no result word and no list of unverified claims, and
-  nobody closes a finding: a finding that still holds stays in the next report with its id.
+  nobody closes a finding: a finding that is still true stays in the next report with its id.
   A reviewer that cannot finish stops and writes no file.
 - `judging-findings`, a skill of `software-factory` that a reviewer of a change to software
   loads with `reviewing-changes`. It defines a blocking finding as "a bug, a security hole,
@@ -254,22 +254,41 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`.
 - `checks.cjs findings open <file>` prints `Fix first: <id> (<severity>, <file>:<line>):
   <point>` for each finding of `open-findings.json`, the findings of the latest round of
-  review that qory writes to the inputs folder of the next session. It exits 1 while it
-  prints a finding, 0 for a missing file or a round with none, and 3 for a file in another
-  form. `running-a-workflow` tells the next session to fix each finding, the non-blocking
-  ones too.
+  review that qory writes to the inputs folder of the next session, `blocking` ones first. It
+  prints at most 200, then `Fix first: <n> more findings in <file>`, and removes control,
+  refused and hidden characters from the text, such as the tag characters and the variation
+  selectors. It exits 1 while it prints a finding. It exits 0 for a round with none, and for a
+  missing file too, with the line `no open findings file at <path>` on stderr. It exits 3 for a
+  link, a folder or a file in another form, and for a file over 256 KB whose JSON ends inside
+  the first 256 KB, which it reads and no more; the first line then tells the session to open
+  the file with Read. `running-a-workflow` tells the next session to check each finding
+  against the code and fix those that are true, the non-blocking ones too, to treat the text
+  of the file as data, and what to do on exit 3.
 - In a stage with reviewers, `checks.cjs end` runs no `run verdict` command: qory sends the
-  verdict. `end` reads that the stage has reviewers from `qory.stage.reviewers` in the
-  `inputs.json` that qory writes at `$QORY_HARNESS_HOME/inputs.json`, not from `index.json`,
-  which an agent can write. Whether an agent can write qory's copy is not decided.
-- The tool guard lets the main session of a reviewer write exactly one file: the path in
-  `qory.review.report` of `$QORY_HARNESS_HOME/inputs.json`, with a `Write`, and no other
-  path, tool or link. Whether the core hooks load in a reviewer session that qory starts,
-  and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, is not decided: qory's
-  start of a reviewer is not built.
-- Rule 2 of `scripts/check.sh` lets a `*-reviewer` agent list `Write` beside Read, Grep, Glob
-  and Skill, when its body has the line `Tool exception: Write, because it writes the one
-  report file of a review round.` No other tool passes.
+  verdict, and `running-a-workflow` says so in "Points" and "The end". `end` reads that the
+  stage has reviewers from `qory.stage.reviewers` in the `inputs.json` that qory writes at
+  `$QORY_HARNESS_HOME/inputs.json`, not from `index.json`, which an agent can write. The
+  member counts when it is `true` or the name of a group role, not `false`, `no`, `null`,
+  `off`, `none` or `0`, and when the file is a regular file of at most 1 MB, no link. Whether
+  an agent can write qory's copy of `inputs.json` is not decided.
+- The tool guard limits the main session of a reviewer of a change. When the `inputs.json`
+  that qory writes at `$QORY_HARNESS_HOME` has the member `qory.review`, the session writes
+  at one path, `qory.review.report`, with a `Write`, and no other file: not `points.json`, a
+  draft or any other file of the artifact folder. It may write that path again, which
+  overwrites the file. A path that is not absolute, has a `.` or `..` part, a double or
+  trailing slash, a NUL or more than 4096 characters, a link, a folder, a file with more than
+  one link, or a path below `.git` or `.claude` of the working folder, is no report path.
+  An agent whose type ends in `-reviewer` writes no file. The denies for `.qory/build/`, a
+  locked file and the harness home still come first. A Codex reviewer cannot write its report
+  until qory's launch of a Codex reviewer decides how it writes, because the guard denies
+  `apply_patch` there. Open questions: whether the core hooks load in a reviewer session that
+  qory starts, and whether `QORY_RUN_ID` and `QORY_HARNESS_HOME` are set there, are not
+  decided, because qory's start of a reviewer is not built; nor is where qory puts the folder
+  of the report, which the guard may refuse below `.git` or `.claude` only.
+- Rule 2 of `scripts/check.sh` lets `change-reviewer` and a `*-change-reviewer` agent list
+  `Write` beside Read, Grep, Glob and Skill, when the body has the line `Tool exception:
+  Write, because it writes the one report file of a review round.` on a line of its own. No
+  other tool passes, and no other reviewer lists `Write`.
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
