@@ -24,6 +24,10 @@ const FLAGS = ['--headless=new', '--no-sandbox', '--remote-debugging-pipe', '--n
 const WIDTH = 1280;
 const HEIGHT = 800;
 const STOP_MS = 2000;
+// The time that halt waits for the browser to exit, and the wait before the second removal
+// of its folder.
+const HALT_MS = 1000;
+const RETRY_MS = 200;
 const POLL_MS = 100;
 const LOAD_MS = 15000;
 // The most time for the browser to start, and for the browser to return the result of one
@@ -191,8 +195,15 @@ class Browser {
     return page;
   }
 
-  // stop kills the browser and removes its temporary folder.
-  async stop() {
+  // stop kills the browser, waits up to STOP_MS for it to exit, and removes its temporary
+  // folder.
+  stop() {
+    return this.halt(STOP_MS);
+  }
+
+  // halt kills the browser, waits up to ms for it to exit, so that it no longer writes to its
+  // profile, and removes its temporary folder, for a process that exits right after.
+  async halt(ms = HALT_MS) {
     this.stopped = true;
     for (const waiting of this.pending.values()) {
       clearTimeout(waiting.timer);
@@ -200,35 +211,28 @@ class Browser {
     }
     this.pending.clear();
     if (this.proc) {
-      this.proc.kill('SIGKILL');
-      let timer;
-      const late = new Promise((resolve) => { timer = setTimeout(resolve, STOP_MS); });
-      await Promise.race([this.exited, late]);
-      clearTimeout(timer);
-    }
-    this.removeDir();
-  }
-
-  // halt kills the browser and removes its temporary folder at once, for a process that
-  // exits right after.
-  halt() {
-    this.stopped = true;
-    if (this.proc) {
       try {
         this.proc.kill('SIGKILL');
       } catch {
         // The browser has ended.
       }
+      await Promise.race([this.exited, sleep(ms)]);
     }
-    this.removeDir();
+    await this.removeDir();
   }
 
-  removeDir() {
+  // removeDir removes the temporary folder, and once more after RETRY_MS when a child of the
+  // browser still wrote to it.
+  async removeDir() {
     if (!this.dir) return;
-    try {
-      fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-    } catch {
-      // A child of the browser can still write here. The folder contains no result.
+    for (const wait of [0, RETRY_MS]) {
+      if (wait) await sleep(wait);
+      try {
+        fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      } catch {
+        // A child of the browser can still write here: the next round removes it.
+      }
+      if (!fs.existsSync(this.dir)) return;
     }
   }
 }

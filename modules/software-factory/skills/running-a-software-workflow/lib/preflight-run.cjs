@@ -15,7 +15,9 @@
 // Then it stops the browser, the process group of the command and each process with its
 // mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
 // lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
-// SIGHUP, and on an error that nothing catches. After limitMs from its start, 570 s without
+// SIGHUP, on an error that nothing catches, and within PARENT_MS of the end of its parent. A
+// watcher in the process group of the command kills that group when the runner ends, also
+// on SIGKILL; a process that left the group then keeps running. After limitMs from its start, 570 s without
 // limitMs, it stops the sign-ins and sets unfinished. It prints { app, signIns, unfinished }
 // as JSON on stdout, the one line that it prints: app is { started, ran, why }, signIns has
 // { ok, why, outside, browser } per setup, and unfinished is null or the reason in one
@@ -35,6 +37,7 @@ const { MARK, marker } = require('./supervise.cjs');
 const POLL_MS = 250;
 const REQUEST_MS = 2000;
 const GRACE_MS = 5000;
+const PARENT_MS = 500;
 // The limit of the sign-ins with no limitMs in the spec, as the most of lib/preflight.cjs.
 const LIMIT_MS = 570000;
 
@@ -44,9 +47,9 @@ const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 // its mark, and the browser.
 const running = { child: null, marks: null, browser: null };
 
-// stopNow kills what runs at once, for a process that exits right after.
-function stopNow() {
-  if (running.browser) running.browser.halt();
+// stopNow kills what runs at once, and resolves once the browser has exited or a second has
+// passed, for a process that exits right after.
+async function stopNow() {
   if (running.child && running.child.pid) {
     try {
       process.kill(-running.child.pid, 'SIGKILL');
@@ -55,21 +58,39 @@ function stopNow() {
     }
   }
   if (running.marks) running.marks.signal(running.marks.marked(), 'SIGKILL');
+  if (running.browser) await running.browser.halt();
 }
 
-for (const name of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
-  process.on(name, () => {
-    stopNow();
-    process.exit(1);
-  });
+// abort stops what runs, writes text to stderr, and exits with code, once: a second call
+// returns the first one's promise, and main prints no result after the first.
+let aborted = null;
+function abort(code, text) {
+  if (aborted) return aborted;
+  if (text) process.stderr.write(text);
+  aborted = stopNow().catch(() => {}).finally(() => process.exit(code));
+  return aborted;
 }
+
+for (const name of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(name, () => abort(1));
 for (const name of ['uncaughtException', 'unhandledRejection']) {
-  process.on(name, (error) => {
-    stopNow();
-    process.stderr.write(`${(error && error.stack) || error}\n`);
-    process.exit(3);
-  });
+  process.on(name, (error) => abort(3, `${(error && error.stack) || error}\n`));
 }
+
+// The parent of the runner, the preflight, waits for its result. A parent that ends, as on a
+// SIGTERM to the preflight alone, leaves no one to stop what runs, so the runner checks every
+// PARENT_MS that its parent still runs, and else stops what runs and exits.
+const parent = process.ppid;
+setInterval(() => {
+  let gone = process.ppid !== parent;
+  if (!gone) {
+    try {
+      process.kill(parent, 0);
+    } catch (error) {
+      gone = error.code !== 'EPERM';
+    }
+  }
+  if (gone) abort(1);
+}, PARENT_MS).unref();
 
 // statusOf resolves to the status of a GET of url, or null when no response comes.
 function statusOf(url) {
@@ -89,6 +110,11 @@ function statusOf(url) {
     request.on('error', () => resolve(null));
   });
 }
+
+// The line of the shell before the serve command: a watcher in the process group of the
+// command, which reads fd 3, a pipe that only the runner writes to. When the runner ends, also
+// by SIGKILL, the read ends, and the watcher kills the group. The command runs without fd 3.
+const WATCHER = '(read _ <&3; kill -KILL 0) </dev/null >/dev/null 2>&1 & exec 3<&-';
 
 // openLog removes what is at file, then creates a new regular file there and returns its
 // descriptor. An open of an existing file could follow a symbolic link, or wait for a reader
@@ -113,10 +139,11 @@ async function start(serve, startMs, proc) {
   const out = openLog(serve.log);
   let exit = null;
   try {
-    running.child = childProcess.spawn('/bin/sh', ['-c', serve.command], {
-      cwd: serve.cwd, detached: true, stdio: ['ignore', out, out],
+    running.child = childProcess.spawn('/bin/sh', ['-c', `${WATCHER}\n${serve.command}`], {
+      cwd: serve.cwd, detached: true, stdio: ['ignore', out, out, 'pipe'],
       env: { ...process.env, [MARK]: value },
     });
+    running.child.stdio[3].on('error', () => {});
     running.child.on('exit', (code, signal) => { exit = { code, signal }; });
     running.child.on('error', (error) => { exit = { error: error.message }; });
   } finally {
@@ -217,12 +244,9 @@ async function main() {
   } finally {
     await stop();
   }
+  if (aborted) return;
   fs.writeSync(1, `${JSON.stringify(result)}\n`);
   process.exit(0);
 }
 
-main().catch((error) => {
-  stopNow();
-  process.stderr.write(`${error.stack}\n`);
-  process.exit(3);
-});
+main().catch((error) => abort(3, `${(error && error.stack) || error}\n`));

@@ -744,6 +744,69 @@ test('preflight: SIGTERM while the runner waits for the app stops the app', asyn
   assert.equal(await isFree(port), true);
 });
 
+// until resolves once check returns true, or rejects after ms.
+async function until(check, ms, why) {
+  const end = Date.now() + ms;
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error(why);
+    await new Promise((resolve) => { setTimeout(resolve, 100); });
+  }
+}
+
+test('preflight: a runner whose parent ends stops the app and exits', async () => {
+  const here = checkout();
+  const port = await freePort();
+  // The runner waits at another address, so it runs until its parent ends. The shell of the
+  // serve command writes the pid of its parent, the runner.
+  const spec = appSpec(here, port, await freePort());
+  spec.serve.command = `echo $PPID > runner.pid; ${spec.serve.command}`;
+  const parentFile = path.join(here.dir, 'parent.cjs');
+  fs.writeFileSync(parentFile, `require('child_process').spawnSync(process.execPath, ` +
+    `[${JSON.stringify(RUNNER)}], { input: ${JSON.stringify(JSON.stringify(spec))}, ` +
+    'stdio: ["pipe", "ignore", "ignore"] });\n');
+  const parent = childProcess.spawn(process.execPath, [parentFile], { stdio: 'ignore' });
+  let pid = null;
+  try {
+    await until(async () => !(await isFree(port)), 10000, 'the app did not start');
+    pid = Number(fs.readFileSync(path.join(here.dir, 'runner.pid'), 'utf8'));
+    parent.kill('SIGTERM');
+    await until(async () => !alive(pid) && await isFree(port), 3000,
+      'the runner or the app outlived the parent');
+  } finally {
+    parent.kill('SIGKILL');
+    if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
+  }
+});
+
+test('preflight: SIGKILL of the runner stops the process group of the serve command', async () => {
+  const here = checkout();
+  const port = await freePort();
+  const child = childProcess.spawn(process.execPath, [RUNNER], { stdio: ['pipe', 'ignore',
+    'ignore'] });
+  child.stdin.end(JSON.stringify(appSpec(here, port, await freePort())));
+  try {
+    await until(async () => !(await isFree(port)), 10000, 'the app did not start');
+    child.kill('SIGKILL');
+    await until(() => isFree(port), 3000, 'the app outlived the runner');
+  } finally {
+    child.kill('SIGKILL');
+  }
+});
+
+test('preflight: halt waits for the browser to exit, then removes its folder', { skip: NO_BROWSER }, async () => {
+  const { Browser } = require(path.join(SKILL, 'lib/browser.cjs'));
+  const browser = new Browser(BROWSER);
+  await browser.start();
+  await browser.page({ origin: 'http://127.0.0.1:9' });
+  const { dir } = browser;
+  assert.equal(fs.existsSync(dir), true);
+  await browser.halt();
+  assert.notEqual(browser.proc.exitCode === null && browser.proc.signalCode === null, true);
+  assert.equal(fs.existsSync(dir), false);
+  await new Promise((resolve) => { setTimeout(resolve, 1000); });
+  assert.equal(fs.existsSync(dir), false);
+});
+
 test('preflight: a runner that fails while it waits for the app stops the app', async () => {
   const here = checkout();
   const port = await freePort();
