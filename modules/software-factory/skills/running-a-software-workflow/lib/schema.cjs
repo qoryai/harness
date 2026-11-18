@@ -1,7 +1,8 @@
-// The check of a JSON document against a JSON Schema of the folder schemas/, the same schema
-// that Qory Apiary reads from process.yaml for the type. It reads the keywords that those
-// schemas use, in the forms that they use, and throws for any other keyword or form, so that a
-// schema that the check would skip or misread never passes a document by mistake.
+// The check of a JSON document against a JSON Schema of the folder schemas/: for a custom type,
+// the json_schema of the type in process.yaml, and for the standard types acceptance-criteria
+// and verification, the format of qory's contract. It reads the keywords that those schemas use,
+// in the forms that they use, and throws for any other keyword or form, so that a schema that
+// the check would skip or misread never passes a document by mistake.
 'use strict';
 
 const fs = require('node:fs');
@@ -62,10 +63,14 @@ function brief(text, size) {
 // from the limit of the call stack.
 const MAX_DEPTH = 64;
 
-// deepAt returns the first list or object, in the order of the document, that value nests more
-// than MAX_DEPTH levels deep, the value itself being level 1: { node, at }, with at its JSON
-// pointer, such as /0/0/0. It returns null when value nests no deeper. It walks with a list in
-// place of recursion, so that a document of any depth gives an answer and no stack overflow.
+// deepAt returns the first list or object that value nests more than MAX_DEPTH levels deep, the
+// value itself being level 1: { node, at }, with at its JSON pointer, such as /0/0/0. The walk
+// takes the members of an object in the order of Object.keys: the keys that look like integers
+// first, from the lowest, then the other keys in the order of the document. Each key in at is
+// escaped as JSON Pointer escapes it, ~ as ~0 and / as ~1, and then as shown writes text, so
+// that a line feed or a bidirectional mark in a key shows as its escape. deepAt returns null
+// when value nests no deeper. It walks with a list in place of recursion, so that it returns
+// for a document of any depth, with no stack overflow.
 function deepAt(value) {
   const nested = (node) => node !== null && typeof node === 'object';
   const open = nested(value) ? [{ node: value, level: 1, parent: null, key: '' }] : [];
@@ -74,7 +79,9 @@ function deepAt(value) {
     if (entry.level > MAX_DEPTH) {
       const keys = [];
       for (let at = entry; at.parent; at = at.parent) keys.push(at.key);
-      return { node: entry.node, at: keys.reverse().map((key) => `/${key}`).join('') };
+      const escape = (key) => shown(key.replace(/~/g, '~0').replace(/\//g, '~1'), Infinity)
+        .slice(1, -1);
+      return { node: entry.node, at: keys.reverse().map((key) => `/${escape(key)}`).join('') };
     }
     const keys = Object.keys(entry.node);
     for (let place = keys.length - 1; place >= 0; place -= 1) {
@@ -85,6 +92,15 @@ function deepAt(value) {
     }
   }
   return null;
+}
+
+// depthLine returns the line after the fix for value when it nests more than MAX_DEPTH levels
+// deep, such as "The list at /0/0/0 is 65 levels deep.", or null when it nests no deeper.
+function depthLine(value) {
+  const deep = deepAt(value);
+  if (!deep) return null;
+  return `The ${Array.isArray(deep.node) ? 'list' : 'object'} at ${brief(deep.at, POINTER)} ` +
+    `is ${MAX_DEPTH + 1} levels deep.`;
 }
 
 // canonical returns value as JSON with the members of each object in sorted order, so that two
@@ -162,12 +178,8 @@ function load(type) {
 // the line after it. A pointer that brief cuts on the first line is whole on the last line.
 // A value that nests deeper than MAX_DEPTH gets one finding, before any step that recurses.
 function errors(loaded, value, file) {
-  const deep = deepAt(value);
-  if (deep) {
-    const what = Array.isArray(deep.node) ? 'list' : 'object';
-    return [`Cut the nesting of ${file} to ${MAX_DEPTH} levels.\nThe ${what} at ` +
-      `${brief(deep.at, POINTER)} is ${MAX_DEPTH + 1} levels deep.`];
-  }
+  const deep = depthLine(value);
+  if (deep) return [`Cut the nesting of ${file} to ${MAX_DEPTH} levels.\n${deep}`];
   const { schema: root, patterns } = loaded;
   const out = [];
   const resolve = (ref) => {
@@ -320,4 +332,4 @@ function shown(value, limit = 40) {
   return text ? `"${cutText}"` : cutText;
 }
 
-module.exports = { load, errors, compile, shown, escaped };
+module.exports = { MAX_DEPTH, load, errors, compile, shown, escaped, depthLine };

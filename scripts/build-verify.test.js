@@ -661,6 +661,21 @@ test('each finding of the schema check has the member and the fix of its keyword
   }
 });
 
+test('the pointer of the depth finding escapes each key, and adds no line or reversal', () => {
+  const lists = `${'['.repeat(65)}${']'.repeat(65)}`;
+  // A bidirectional mark, a line feed, a / and a ~ in the keys of a file 68 levels deep.
+  const doc = JSON.parse(`{"\\u202e": {"a\\nb/c~d": {"e": ${lists}}}}`);
+  const found = schema.errors(schema.load('verification'), doc, 'verification.json');
+  assert.deepEqual(found, ['Cut the nesting of verification.json to 64 levels.\nThe list at ' +
+    '/\\u202e/a\\nb~.../0/0/0/0/0/0 is 65 levels deep.']);
+  assert.equal(found[0].split('\n').length, 2);
+  assert.ok(!found[0].includes('\u202e'));
+  // A key that looks like an integer comes first, from the lowest, as Object.keys takes it.
+  const order = JSON.parse(`{"b": ${lists}, "10": ${lists}, "2": ${lists}}`);
+  assert.match(schema.depthLine(order), /^The list at \/2\/0\/0/);
+  assert.equal(schema.depthLine(JSON.parse(`{"a": ${'['.repeat(63)}${']'.repeat(63)}}`)), null);
+});
+
 test('each JSON type fails each invalid sample in its push', () => {
   for (const type of JSON_TYPES) {
     const name = type.startsWith('demo-') ? 'scenario-1.json' : `${type}.json`;

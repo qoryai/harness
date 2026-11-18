@@ -349,8 +349,8 @@ function outputForm(run, which, about) {
 }
 
 // sameJson compares two JSON values: objects by their members in any order, and numbers by value,
-// as JSON.parse already reads 3.0 as 3. It walks with a list in place of recursion, so that a
-// value of any depth gives an answer and no stack overflow.
+// as JSON.parse already reads 3.0 as 3. It walks with a list in place of recursion, so that it
+// returns for a value of any depth, with no stack overflow.
 function sameJson(a, b) {
   const open = [[a, b]];
   while (open.length) {
