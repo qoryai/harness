@@ -407,6 +407,8 @@ Explore included, this start replaces a point or a finding kept with a reason, a
 keeps no such finding before that start either. Nobody reviews the fix, so a pushed draft
 can still break a sentence rule.
 `code-explorer` and `shape-planner` report only to the session, so they do not load it.
+`build-planner` loads `artifact-text` and `simple-communication`, because members read the
+build plan.
 `shape-reviewer` reads outputs whose text their reviewers checked, so it skips
 `artifact-text` and the section "Sentence rules" of `reviewing-drafts`, and loads
 `simple-communication` only before it writes its first `Point:` line.
@@ -2155,6 +2157,49 @@ criterion. Both forms keep the words that `running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.
+
+`workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
+ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It
+starts `code-explorer` first, with the question of "For a build plan" in `exploring-code`:
+for each approved criterion, the files that the change touches, the tests of that area and
+the commands that run the tests, the linter, the type check, the build and the app. Then it
+starts `build-planner`, which drafts `build-plan.md` by `planning-builds`, and
+`plan-reviewer`, which reviews it read-only by `reviewing-drafts` and `checking-build-plans`.
+Both agents run on the tier `thinking`, and `code-explorer` on `balanced`. The stack lists the
+workflow with `tier: thinking` and `access: write`.
+
+- **The form of the plan.** Each Criteria cell is `AC-<N>, "<the criterion's first
+  sentence>"`, with `; ` between criteria, and never an id alone. The Commands table keeps
+  its four columns. When it has a `serve` row, the Summary has the line
+  `App address: <url>`.
+- **The Files rule.** Each Check path of a test file is also in the Files of the same row,
+  with the folder of the helpers and fixtures that its tests use. The push step of qory runs
+  `checks.cjs scope --plan` before the first push, and it refuses a changed path that no
+  Files cell lists, so `write-acceptance-checks`
+  can commit its locked checks and support files only when the plan lists them. The planner
+  and `plan-reviewer` apply the rule, and a missing path is a finding marked `writer`.
+  `types/build-plan.cjs` does not check it.
+- **The limit of 7.** A build plan has at most 7 deliverables. The check `build-plan`
+  refuses more, with a finding that starts "Cut build-plan.md to". The session then sends
+  the finding to no writer, starts no reviewer, pushes no build plan and ends the ledger step
+  as `failed`. `build-planner` lists every deliverable under "Over the limit:" in its report.
+  The session passes that list to `questions-writer` for one question with fixed texts: the
+  context has the number of changes, that 7 are for the criteria of the first 7
+  deliverables and the others for the criteria that only the later deliverables list, each
+  criterion as its first sentence in quotes. The options are to build the first 7 changes
+  here and take in the other criteria as a new work item (recommended), or to build all of
+  them here. When every criterion of the later deliverables is in the first 7 too, option 1
+  takes in the other changes instead, each by its Change cell. While the title of option 1
+  has more than 200 characters or the context has more than 120 words, the session removes
+  the last item of the list with the most items, and the list ends with "and <m> more",
+  where `<m>` counts the items removed. The run pushes the question
+  and ends with `qory run verdict escalate --points <folder>/points.json`, where the one
+  point has the action `answer`. Nothing records the member's answer in the build report yet,
+  although the second option says so, and the planner of the next round does not read it.
+  The ledger step is `failed`, with no escalation reason.
+- **Blocks.** A criterion that cannot be built as written ends the planner's report with
+  `Blocked: needs a change to criterion <ac-N>: <the change>`, as in the other small
+  workflows.
 
 ## The high-level workflow, shape-a-ticket
 
