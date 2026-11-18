@@ -673,7 +673,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   check refuses a question with no `about`, and a new or changed `about` that names an
   output that the run cannot read. A module adds a reader of the ids of a type as `items`;
   `running-a-software-workflow` adds one for the acceptance criteria, so the check refuses
-  an `item` that the criteria do not have.
+  an `item` that the criteria do not have. An `item` of any other type is 1 to 32
+  characters on one line, and a question with an option that has a `proposal` needs an
+  output and its `item` as `about`.
 - A criterion id is `ac-` and a number from 1 to 9999 with no leading zero, the one form of
   qory's contract, in the schema of `acceptance-lock` and in `checks.cjs run locked`, in
   place of a number from 1 to 99.

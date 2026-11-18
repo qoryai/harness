@@ -3968,12 +3968,40 @@ test('questions: an about names an output that the run can read, and a criterion
   data.questions.at(-1).about = { type: 'mockup', name: 'main', item: 'screen-2' };
   write(root, 'questions.json', data);
   passes(check(root, 'questions', path.join(root, 'questions.json')));
+  // An item of a type with no reader of its ids is 1 to 32 characters on one line.
+  for (const [item, shown] of [['s'.repeat(33), `"${'s'.repeat(33)}"`], ['', '""'],
+    ['screen\n2', '"screen 2"'], [2, '2']]) {
+    data.questions.at(-1).about = { type: 'mockup', name: 'main', item };
+    write(root, 'questions.json', data);
+    const fix = 'Write about\\.item of q7 as 1 to 32 characters on one line\\.';
+    fails(check(root, 'questions', path.join(root, 'questions.json')),
+      new RegExp(`^${fix} It is ${shown}\\.$`));
+  }
+  data.questions.at(-1).about = { type: 'mockup', name: 'main', item: 's'.repeat(32) };
+  write(root, 'questions.json', data);
+  passes(check(root, 'questions', path.join(root, 'questions.json')));
   // A check still refuses a type that a module checks, such as the spec, with no draft.
   fs.rmSync(path.join(root, 'spec.md'));
   data.questions.at(-1).about = { type: 'spec', name: 'other' };
   write(root, 'questions.json', data);
   fails(check(root, 'questions', path.join(root, 'questions.json')),
     /^Set about of q7 to an output that the run can read, or to the work item\. The run can /);
+});
+
+test('questions: an option with a proposal needs an output and its item as about', () => {
+  const add = (about) => questionsAfter((byId, data) => {
+    data.questions.push(q7({ about, options: [
+      { title: 'The reply', explanation: 'Only the reply lists them.',
+        proposal: 'The reply states the hours.' },
+      { title: 'The help page', explanation: 'The reply links to the help page.' },
+    ] }));
+  });
+  const criteria = { type: 'acceptance-criteria', name: 'main' };
+  passes(add({ ...criteria, item: 'ac-3' }));
+  exactly(add({ work_item: true }), 'Give about of q7 an output and its item: an option of ' +
+    'it has a proposal.\n  About is the work item.');
+  exactly(add(criteria), 'Give about of q7 an output and its item: an option of it has a ' +
+    'proposal.\n  About is an output with no item.');
 });
 
 test('questions: a kept question whose about is unchanged is not checked again', () => {

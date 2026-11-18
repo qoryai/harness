@@ -61,8 +61,9 @@ of the newest questions. It checks that a new open question has a `context`, tha
 question has an `options` list, and that no id of an item, such as `q4`, or `step-2` when a
 module gives that prefix, stands with no words in quotes beside it in a new question's
 texts. It checks that each question has an `about`, and that a new or changed `about`
-names the work item or an output that the run can read, with an `item` that the output
-has when a module reads the ids of its type. It checks the
+names the work item or an output that the run can read. An `item` is an id that the output
+has when a module reads the ids of its type, else 1 to 32 characters on one line. A
+question with an option that has a `proposal` needs an output and its `item`. It checks the
 characters of each text and the links of each `context`. Judge the rest of the check list.
 
 - Each `about` names what the question is about: the output and its entry when the question

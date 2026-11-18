@@ -1536,7 +1536,10 @@ The checks:
   at the top of the artifact folder, or a type that no module checks, such as `mockup`,
   whose draft the check cannot find. When a module adds a reader of the ids of the type to
   `items`, the `item` has the form of that reader, and is an id that the output has when the
-  reader can read the output. `running-a-software-workflow` adds the reader of
+  reader can read the output. For a type with no such reader, the `item` is 1 to 32
+  characters on one line. A question with an option that has a `proposal` has an output
+  and its `item` as `about`, as qory's questions format requires.
+  `running-a-software-workflow` adds the reader of
   `acceptance-criteria`: an `item` is a criterion id that the criteria have, from the draft
   at the top in a check, else from the newest version;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
