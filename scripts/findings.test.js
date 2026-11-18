@@ -185,7 +185,8 @@ test('findings open: a file with 2 findings prints 2 Fix first lines and exits 1
 
 const expectedLast = (count, blocking, non, name = /open-\d+\.json/) => {
   const text = `Checked open-${files}.json: round 2 has ${count} open findings, ${blocking} ` +
-    `blocking and ${non} non-blocking. Fix each of them, the non-blocking ones too.`;
+    `blocking and ${non} non-blocking. Check each finding against the code; fix those that ` +
+    'are true, the non-blocking ones too.';
   assert.match(text, name);
   return text;
 };
@@ -202,6 +203,7 @@ test('findings open: a missing file or a round with no finding exits 0', () => {
   const missing = call(['findings', 'open', path.join(tmp, 'absent.json')]);
   assert.equal(missing.status, 0);
   assert.match(missing.out, /^Checked nothing: .*absent\.json" does not exist, so no finding is open\.\n$/);
+  assert.match(missing.err, /^no open findings file at .*absent\.json\n$/);
   const empty = call(['findings', 'open', put({ round: 3, reviewers: [] })]);
   assert.equal(empty.status, 0);
   assert.match(empty.out, /^Checked open-\d+\.json: round 3 has no open finding\.\n$/);
@@ -253,24 +255,73 @@ test('findings open: each broken form of the file exits 3 with the fix on line 1
     assert.match(text.split('\n')[0], /^(?:Give findings open the open-findings\.json that qory wrote\.|Write open-\d+\.json as valid JSON\.)/);
     assert.match(text, why);
   }
-  // More findings than the script reads.
-  const many = { round: 1, reviewers: [{ reviewer: 'code-reviewer',
-    findings: Array.from({ length: 201 }, (_, at) => ({ ...FINDING, id: `f${at + 1}` })) }] };
-  const result = call(['findings', 'open', put(many)]);
-  assert.equal(result.status, 3);
-  assert.match(result.out + result.err, /has 201 findings, more than the 200/);
 });
 
-test('findings open: a link, a folder and a file over 256 KB exit 3', () => {
+test('findings open: a link and a folder exit 3', () => {
   const real = put(ROUND);
   const link = path.join(tmp, 'open-link.json');
   fs.symlinkSync(real, link);
   const viaLink = call(['findings', 'open', link]);
   assert.equal(viaLink.status, 3);
-  assert.match(viaLink.out + viaLink.err, /is not a regular file of at most 256 KB/);
+  assert.match(viaLink.out + viaLink.err, /is not a regular file\./);
   assert.equal(call(['findings', 'open', tmp]).status, 3);
-  const big = put({ ...ROUND, pad: 'a'.repeat(256 * 1024) });
-  assert.equal(call(['findings', 'open', big]).status, 3);
+});
+
+const many = (count, change = () => ({})) => ({ round: 1, reviewers: [{ reviewer: 'code-reviewer',
+  findings: Array.from({ length: count }, (_, at) => ({ ...FINDING, id: `f${at + 1}`,
+    point: `Fix the point ${at + 1}.`, ...change(at) })) }] });
+
+test('findings open: 201 findings print 200, blocking first, and one line that counts the rest', () => {
+  // Finding 201 is the only blocking one; the others are non-blocking.
+  const file = put(many(201, (at) => ({ severity: at === 200 ? 'blocking' : 'non-blocking' })));
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1, result.out);
+  assert.equal(result.lines.length, 202, result.out);
+  assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/refund\.js:12\): Fix the point 201\./);
+  assert.match(result.lines[1], /^Fix first: f1 \(non-blocking/);
+  assert.match(result.lines[199], /^Fix first: f199 /);
+  assert.match(result.lines[200], /^Fix first: 1 more findings in ".*open-\d+\.json"$/);
+  assert.match(result.lines[201], /^Checked open-\d+\.json: round 1 has 201 open findings, 1 blocking and 200 non-blocking\./);
+  assert.equal(result.lines.filter((line) => line.includes('Fix the point 200.')).length, 0);
+});
+
+test('findings open: 40 findings of 5 KB each, in a file over 200 KB, print all 40', () => {
+  const file = put(many(40, () => ({ problem: 'x'.repeat(5000) })));
+  assert.ok(fs.statSync(file).size > 200 * 1024);
+  assert.ok(fs.statSync(file).size < 256 * 1024);
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1);
+  assert.equal(result.lines.length, 41);
+});
+
+test('findings open: a regular file over 256 KB is read up to 256 KB', () => {
+  // The JSON ends inside the part that is read: exit 3 with the limit and the fix on line 1.
+  const cut = put(many(40, () => ({ problem: 'x'.repeat(8000) })));
+  assert.ok(fs.statSync(cut).size > 256 * 1024);
+  const result = call(['findings', 'open', cut]);
+  assert.equal(result.status, 3);
+  const text = result.out + result.err;
+  assert.match(text.split('\n')[0], /^Open open-\d+\.json with Read and fix each finding in it\.$/);
+  assert.match(text, /has \d+ bytes, and findings open reads at most 256 KB, which ends inside its JSON/);
+  // The JSON is whole inside the first 256 KB, and the rest of the file is blank.
+  const padded = put(`${JSON.stringify(ROUND)}${' '.repeat(300 * 1024)}`);
+  const whole = call(['findings', 'open', padded]);
+  assert.equal(whole.status, 1);
+  assert.equal(whole.lines.length, 3);
+  // A file over the limit is never read whole.
+  const source = fs.readFileSync(path.join(SKILLS, 'running-a-workflow', 'verbs', 'findings.cjs'), 'utf8');
+  assert.ok(!/readFileSync|readFile\(/.test(source));
+});
+
+test('findings open: hidden characters are removed from the printed text', () => {
+  const hidden = '\u{E0049}\u200C\u200D\uFE0F\u034F\u3164\u115F\u1160\u180B\u180C\u180D';
+  const file = put({ round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: [{ ...FINDING,
+    point: `Fix${hidden} the refund.`, file: `src/${hidden}refund.js` }] }] });
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1);
+  assert.equal(result.lines[0],
+    'Fix first: f3 (blocking, src/refund.js:12): Fix the refund.');
+  assert.ok(!/[\u{E0000}-\u{E007F}\u200C\u200D\uFE00-\uFE0F\u034F\u3164\u115F\u1160\u180B-\u180D]/u.test(result.out));
 });
 
 test('findings: wrong arguments exit 2, and the removed forms are gone', () => {

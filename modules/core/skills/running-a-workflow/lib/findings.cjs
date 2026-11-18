@@ -5,7 +5,7 @@
 'use strict';
 
 const {
-  CONTROL_ALL, MAX_FINDING_LINES, Missing, NAME, REFUSED_ALL, cut, isObject, jsonKind, short,
+  CONTROL_ALL, Missing, NAME, REFUSED_ALL, cut, isObject, jsonKind, short,
 } = require('./base.cjs');
 
 // The values of the severity of a finding.
@@ -21,12 +21,20 @@ const POINT_TEXT = 500;
 const REQUIRED = ['id', 'severity', 'point'];
 const OPTIONAL_TEXT = ['quote', 'problem', 'fix', 'proof', 'file'];
 
-// plain returns text for a line: no control or refused character.
-const plain = (text) => text.replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim();
+// The characters that show nothing and that the text of a finding of another session may hide
+// an instruction in, beside REFUSED_ALL: the tag characters, the joiners, the variation
+// selectors, the combining grapheme joiner, the Hangul fillers and the Mongolian free
+// variation selectors.
+const HIDDEN =
+  /[\u{E0000}-\u{E007F}\u200C\u200D\uFE00-\uFE0F\u034F\u3164\u115F\u1160\u180B-\u180D]/gu;
 
-// readOpen reads the parsed open-findings.json called name, and returns its round and its open
-// findings, each { reviewer, id, severity, point, file, line }, or throws Missing with the fix
-// when the file is in another form.
+// plain returns text for a line: no control, refused or hidden character.
+const plain = (text) => text.replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '')
+  .replace(HIDDEN, '').trim();
+
+// readOpen reads the parsed open-findings.json called name, and returns its round and all its
+// open findings, each { reviewer, id, severity, point, file, line }, or throws Missing with the
+// fix when the file is in another form.
 function readOpen(data, name) {
   const fix = 'Give findings open the open-findings.json that qory wrote.';
   const broken = (detail) => new Missing(`${fix}\n${short(name, 60)} ${detail}.`);
@@ -67,10 +75,7 @@ function readOpen(data, name) {
         line: finding.line === undefined ? null : finding.line });
     });
   });
-  if (found.length > MAX_FINDING_LINES) {
-    throw broken(`has ${found.length} findings, more than the ${MAX_FINDING_LINES} that open reads`);
-  }
   return { round: data.round, findings: found };
 }
 
-module.exports = { SEVERITIES, FINDING_ID, POINT_TEXT, readOpen };
+module.exports = { SEVERITIES, FINDING_ID, POINT_TEXT, plain, readOpen };

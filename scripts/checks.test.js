@@ -5313,6 +5313,21 @@ test('end: an end through points.json in a stage with reviewers runs no verdict 
   assert.deepEqual(verdicts(args), []);
 });
 
+// linked returns the path of a link to an inputs.json that has the flag, and padded the path of
+// a regular file over 1 MB that has it: end reads neither.
+function linked() {
+  const real = stageInputs({ reviewers: 'reviewers' });
+  const link = path.join(tmp, `inputs-${++folders}.json`);
+  fs.symlinkSync(real, link);
+  return link;
+}
+function padded() {
+  const file = path.join(tmp, `inputs-${++folders}.json`);
+  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'reviewers' } },
+    pad: 'a'.repeat(1024 * 1024) }));
+  return file;
+}
+
 test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs, as before', () => {
   // The flag is read from qory's inputs.json only: a member reviewers of index.json, which an
   // agent can write, a flag of another form, or an inputs.json that cannot be read changes
@@ -5323,7 +5338,9 @@ test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs
     JSON.stringify({ artifacts: [], stage: { reviewers: 'reviewers' } }));
   for (const inputs of [null, stageInputs({}), stageInputs({ reviewers: false }),
     stageInputs({ reviewers: '' }), stageInputs({ reviewers: 1 }), stageInputs({ reviewers: ['a'] }),
-    stageInputs(null), bad, path.join(tmp, 'no-inputs.json')]) {
+    stageInputs(null), bad, path.join(tmp, 'no-inputs.json'),
+    ...['false', 'no', '0', 'null', 'off', 'none', 'Reviewers', 'a b', 'x'.repeat(65), '-a']
+      .map((reviewers) => stageInputs({ reviewers })), linked(), padded()]) {
     const { third, args, root } = endThrice(inputs);
     forged(root);
     passes(third);
@@ -5331,6 +5348,17 @@ test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs
     assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`],
       String(inputs));
   }
+});
+
+test('end: an inputs.json of exactly 1 MB with the flag counts, and a role name of 64 characters', () => {
+  const file = path.join(tmp, `inputs-${++folders}.json`);
+  const head = JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } }, pad: '' });
+  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } },
+    pad: 'b'.repeat(1024 * 1024 - head.length) }));
+  assert.equal(fs.statSync(file).size, 1024 * 1024);
+  const { third, args } = endThrice(file);
+  passes(third);
+  assert.deepEqual(verdicts(args), []);
 });
 
 test('end: an end.json that cannot be read counts as the last check', () => {
