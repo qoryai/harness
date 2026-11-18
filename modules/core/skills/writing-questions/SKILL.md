@@ -135,6 +135,9 @@ Members read each `question`, each `context`, and each option's `title` and `exp
 - Each option has `title`, plain text of 1 to 200 characters with no tab or line feed, and
   `explanation`, a short explanation of the option, plain text of 1 to 2000 characters and
   at most 2 sentences.
+- An option may have `proposal`: the new text of the entry that `about.item` is set to,
+  plain text of 1 to 2000 characters that a member can edit before sending it. Add it only
+  when `about` is set to an output and its `item`.
 - Mark the option you recommend with `recommended: true` whenever what you read favours
   one, which is nearly always. When the item of your list contains a recommended
   option, mark that option, because the draft that the questions rest on follows it. Mark
@@ -170,8 +173,15 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
 - has a question with more than 4 options, such as 5;
 - has two options marked `recommended: true` in one question;
 - has a key twice in one object, such as two `state` keys in one question;
-- has a question with no `about`, or adds or changes an `about` so that it names an output
-  that `index.json` does not list, or lists as withdrawn.
+- has a question with no `about`, or adds or changes an `about` so that it is set to an
+  output that `index.json` does not list, or lists as withdrawn;
+- has an `about` with a member other than `type`, `name` and `item`, a `type` that is not
+  lower-case letters and digits in groups joined by single hyphens, or a `name` that is not
+  1 to 64 characters on one line;
+- has an `item` that is not 1 to 32 characters on one line, or, for an output whose ids a
+  module reads, such as the criterion ids of the acceptance criteria, an id it does not have;
+- has an option whose `proposal` is not text of 1 to 2000 characters, or a question with a
+  `proposal` whose `about` has no `item`.
 
 The check compares numbers by value, so `3.0` is the same run number as `3`.
 

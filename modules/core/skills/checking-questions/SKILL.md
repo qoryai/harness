@@ -15,8 +15,8 @@ start names that folder.
 `questions.json` is JSON with one member, `questions`. Each question has only `id`,
 `question`, `context`, `about`, `options`, `state`, `asked`, `follows`, `answer`, `decision`
 and `history`, each `about` only `work_item`, or `type`, `name` and `item`, each option only
-`title`, `explanation` and `recommended`, and each `decision` only `option`, `reason`, `run`
-and `at`. Members read each `question`, each `context`, each
+`title`, `explanation`, `recommended` and `proposal`, and each `decision` only `option`,
+`reason`, `run` and `at`. Members read each `question`, each `context`, each
 option's `title` and `explanation`, and each `reason`. Nothing else in it is a text that
 members read. `question` is plain text with no tab, `context` is Markdown of 1 to 20000
 characters, `title` is plain text of 1 to 200 characters, and `explanation` is plain text of
