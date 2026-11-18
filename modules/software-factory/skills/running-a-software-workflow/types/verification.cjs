@@ -80,6 +80,8 @@ module.exports = (lib) => {
     main: FILE,
     words: 'verification',
     reviewer: null,
+    // The type's size_limit in process.yaml, so that a draft and a push agree.
+    maxBytes: 1024 * 1024,
     check: verification,
   };
 };

@@ -647,9 +647,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of qory's contract, in place of the table of `acceptance-criteria.md`: a `summary`, and
   `criteria`, each with `id`, `text` and `check`, and with `removed` and its `reason` when
   the criterion no longer applies. A removed criterion keeps its text and its check; the
-  check `None` and the text "Removed, because" are gone. `process.yaml` declares
-  `acceptance-criteria` as a structured type with the contract's JSON Schema, which
-  `schemas/acceptance-criteria.schema.json` of `running-a-software-workflow` also has.
+  check `None` and the text "Removed, because" are gone. `process.yaml` keeps
+  `acceptance-criteria` by name alone, a standard type of Qory Apiary, and the draft check
+  reads the contract's JSON Schema from `schemas/acceptance-criteria.schema.json` of
+  `running-a-software-workflow`.
   `spec-writer` writes the file by `writing-specs`. The check of the type, the build plan,
   the lock, the point of the ledger, the demo scenarios and the decision record read it. The
   check keeps its rules: each criterion that is not removed is one sentence of at most 25
@@ -662,7 +663,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   in place of `verification.md`: `target_version`, `matrix` with a row of `criterion`,
   `state` (`met` or `not_met`) and `evidence` for each criterion that was checked,
   `not_verified` with the `reason` for each criterion that was not, and `model_families`.
-  `process.yaml` declares `verification` as a structured type with that JSON Schema. Beyond
+  `process.yaml` declares `verification` as a structured type with that JSON Schema and
+  the size limit of 1 MiB that it had, which the draft check applies too. Beyond
   the schema, the check requires `target_version` to be a full commit id, each criterion
   that is not removed in `matrix` or in `not_verified` exactly once, and the words of a
   criterion quoted in an evidence or a reason. The sections `## Summary`, `## Lowered` and

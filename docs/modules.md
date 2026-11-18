@@ -1995,7 +1995,7 @@ it.
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
 `spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
 `checking-specs`, so that a rule and its criteria cannot drift apart. The session pushes
-the spec, then the criteria, the structured type `acceptance-criteria`, so that a later
+the spec, then the criteria, the standard type `acceptance-criteria`, so that a later
 stage takes the criteria by type. It checks the two files apart and pushes each only when it
 changed.
 
@@ -2837,19 +2837,19 @@ template that a software-factory workspace starts with. The file sets these keys
   result. Each stage has a `description`: one paragraph of plain text, at most 500
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
-  use. `acceptance-criteria` comes first, a custom type with `base_view: structured`,
-  `size_limit: 65536`, `max_files: 1` and the `json_schema` of the acceptance criteria
-  format of qory's contract. `mockup`, `screenshot`, `demo-video`, `explainer` and
-  `decision-record` are standard types, each with its name alone. `spec` and
+  use. `acceptance-criteria`, `mockup`, `screenshot`, `demo-video`, `explainer` and
+  `decision-record` are standard types, each with its name alone. The check of an
+  `acceptance-criteria.json` draft reads the JSON Schema of the acceptance criteria format
+  of qory's contract from `skills/running-a-software-workflow/schemas/`. `spec` and
   `demo-scenarios` are custom types with `base_view: document`, `size_limit: 1048576` and
   `max_files: 1`: one Markdown file of at most 1 MiB. The types of Build and Verify follow,
   each with `max_files: 1`: `build-plan` and `build-report` with `base_view: document`,
-  and `submission`, `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence`
-  with `base_view: structured`, each with `size_limit: 1048576`, the default of Qory
-  Apiary, and `verification` with `base_view: structured` and `size_limit: 65536`. Each
-  structured type has the `json_schema` of
-  `skills/running-a-software-workflow/schemas/<type>.schema.json`; those of
-  `acceptance-criteria` and `verification` are the contract's. `build-ledger` and
+  and `submission`, `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`
+  and `verification` with `base_view: structured`, each with `size_limit: 1048576`, the
+  default of Qory Apiary. Each structured type has the `json_schema` of
+  `skills/running-a-software-workflow/schemas/<type>.schema.json`; that of `verification`
+  is the contract's. The draft check of `verification` and `build-ledger` refuses a file
+  above that size limit, as the push does. `build-ledger` and
   `acceptance-lock` also have `withdrawable: false`, so a run cannot withdraw a name of
   either type and pushes a new version instead: Qory Apiary returns 422 for that push in a
   run, and outside a run `qory artifact push --withdraw` exits 4. Every other type keeps
