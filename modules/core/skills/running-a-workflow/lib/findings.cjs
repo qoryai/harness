@@ -11,7 +11,7 @@ const {
 // The values of the severity of a finding.
 const SEVERITIES = ['blocking', 'non-blocking'];
 
-// The id that qory gives a finding: f and a number from 1.
+// The id that qory assigns to a finding: f and a number from 1.
 const FINDING_ID = /^f[1-9][0-9]{0,5}$/;
 
 // The most characters of the point that open prints on a line.

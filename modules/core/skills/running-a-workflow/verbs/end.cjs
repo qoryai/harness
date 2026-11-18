@@ -315,7 +315,7 @@ function end(io, folder) {
   const { types } = io.registry();
   const points = path.join(root, 'points.json');
   // In a stage with reviewers, qory sends the verdict from points.json after the session, and
-  // its push check refuses a verdict command from inside the container.
+  // its push check fails a verdict command from inside the container.
   const reviewed = reviewersStage(io);
   const sent = () => (reviewed ? 'no verdict command runs, because the stage has reviewers.'
     : verdict(io, points));

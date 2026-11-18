@@ -83,7 +83,7 @@ function open(io, file) {
   }
   return { lines, last: `Checked ${name}: round ${round} has ${plural(findings.length, 'open ' +
     'finding')}, ${blocking} blocking and ${findings.length - blocking} non-blocking. ` +
-    'Check each finding against the code; fix those that are true, the non-blocking ones too.' };
+    'Read the code for each finding; fix those that are true, the non-blocking ones too.' };
 }
 
 module.exports = {
@@ -94,7 +94,7 @@ module.exports = {
         : 'Give findings open one file: the open-findings.json of the session.'),
       run(io, what, rest) {
         const { lines, last, absent } = open(io, rest[0]);
-        if (absent) io.err.write(`no open findings file at ${plainLine(absent)}\n`);
+        if (absent) io.err.write(`no open findings file at ${quote(absent)}\n`);
         io.out.write([...lines, plainLine(last)].join('\n') + '\n');
         return lines.length ? 1 : 0;
       },

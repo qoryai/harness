@@ -12,7 +12,7 @@ const {
 
 // starts counts one start of name in run, in counts[run][name] of starts.json, so that a
 // count never carries over from one run to the next. shown is the words for the start in
-// the printed line, the name unless the caller says otherwise. The read, the check of the
+// the printed line, which is the name by default. The read, the check of the
 // limit and the write happen under the lock starts.json.lock, so that starts in several
 // processes at once count each start once.
 function starts(io, root, run, name, limit, shown = name) {

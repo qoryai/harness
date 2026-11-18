@@ -15,6 +15,7 @@ const SKILLS = path.join(MODULES, 'core', 'skills');
 const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.cjs');
 const { main } = require(CHECKS);
 const { watch } = require('./first-line.js');
+const { quote } = require(path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.cjs'));
 const schema = require(path.join(MODULES,
   'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
 
@@ -49,7 +50,7 @@ test('the JSON example of reviewing-changes passes the schema of the report', ()
   assert.deepEqual(problems({ reviewer: 'code-reviewer', findings: [] }), []);
 });
 
-test('the schema refuses a result word, an unknown member and each bad finding', () => {
+test('the schema fails a result word, an unknown member and each bad finding', () => {
   const broken = (change, why) => {
     const report = clone(EXAMPLE);
     change(report);
@@ -87,7 +88,7 @@ test('the schema refuses a result word, an unknown member and each bad finding',
   assert.deepEqual(problems(fine), []);
 });
 
-test('reviewing-changes tells a reviewer to write one file and, when it cannot finish, none', () => {
+test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
   assert.match(REVIEWING, /Write one file, the report, to the path in `qory\.review\.report` of `inputs\.json`/);
   assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
   assert.match(REVIEWING, /Run no command and start no agent: you have no shell/);
@@ -107,11 +108,11 @@ test('judging-findings defines a blocking finding word for word, and lists qory.
     assert.match(JUDGING, new RegExp(`^- \`${name}\`: `, 'm'), name);
   }
   assert.match(JUDGING, /\$\{qory:skills\/reviewing-changes\}/);
-  // The words that core may not hold are in this skill, which is why it is in software-factory.
+  // The words that core may not contain are in this skill, which is why it is in software-factory.
   assert.ok(!fs.existsSync(path.join(SKILLS, 'judging-findings')));
 });
 
-test('no skill or agent tells a session to use the removed verbs', () => {
+test('no skill or agent has a step that uses the removed verbs', () => {
   const found = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -160,7 +161,7 @@ const FINDING = {
   id: 'f3', severity: 'blocking', quote: 'refund = price * quantity',
   problem: 'The refund ignores the shipping fee.', fix: 'Add the shipping fee.',
   proof: 'failing input: refund an order that ships; refund() returns 20.00.',
-  point: 'The refund of an order that ships is 4.90 too low.', file: 'src/refund.js', line: 12,
+  point: 'The refund of an order that ships is 4.90 too low.', file: 'src/orders/export.ts', line: 12,
 };
 const OTHER = {
   id: 'f4', severity: 'non-blocking', quote: 'const x = total(o)', problem: 'A one-letter name.',
@@ -177,7 +178,7 @@ test('findings open: a file with 2 findings prints 2 Fix first lines and exits 1
   const result = call(['findings', 'open', put(ROUND)]);
   assert.equal(result.status, 1, result.out);
   assert.deepEqual(result.lines, [
-    'Fix first: f3 (blocking, src/refund.js:12): The refund of an order that ships is 4.90 too low.',
+    'Fix first: f3 (blocking, src/orders/export.ts:12): The refund of an order that ships is 4.90 too low.',
     'Fix first: f4 (non-blocking): A variable in the refund code has a one-letter name.',
     expectedLast(2, 1, 1),
   ]);
@@ -185,7 +186,7 @@ test('findings open: a file with 2 findings prints 2 Fix first lines and exits 1
 
 const expectedLast = (count, blocking, non, name = /open-\d+\.json/) => {
   const text = `Checked open-${files}.json: round 2 has ${count} open findings, ${blocking} ` +
-    `blocking and ${non} non-blocking. Check each finding against the code; fix those that ` +
+    `blocking and ${non} non-blocking. Read the code for each finding; fix those that ` +
     'are true, the non-blocking ones too.';
   assert.match(text, name);
   return text;
@@ -202,8 +203,10 @@ test('findings open: only non-blocking findings are printed too, with the round'
 test('findings open: a missing file or a round with no finding exits 0', () => {
   const missing = call(['findings', 'open', path.join(tmp, 'absent.json')]);
   assert.equal(missing.status, 0);
-  assert.match(missing.out, /^Checked nothing: .*absent\.json" does not exist, so no finding is open\.\n$/);
-  assert.match(missing.err, /^no open findings file at .*absent\.json\n$/);
+  const absent = path.join(tmp, 'absent.json');
+  assert.equal(missing.out,
+    `Checked nothing: ${quote(absent)} does not exist, so no finding is open.\n`);
+  assert.equal(missing.err, `no open findings file at ${quote(absent)}\n`);
   const empty = call(['findings', 'open', put({ round: 3, reviewers: [] })]);
   assert.equal(empty.status, 0);
   assert.match(empty.out, /^Checked open-\d+\.json: round 3 has no open finding\.\n$/);
@@ -277,12 +280,54 @@ test('findings open: 201 findings print 200, blocking first, and one line that c
   const result = call(['findings', 'open', file]);
   assert.equal(result.status, 1, result.out);
   assert.equal(result.lines.length, 202, result.out);
-  assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/refund\.js:12\): Fix the point 201\./);
+  assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/orders\/export\.ts:12\): Fix the point 201\./);
   assert.match(result.lines[1], /^Fix first: f1 \(non-blocking/);
   assert.match(result.lines[199], /^Fix first: f199 /);
-  assert.match(result.lines[200], /^Fix first: 1 more findings in ".*open-\d+\.json"$/);
+  assert.equal(result.lines[200], `Fix first: 1 more findings in ${quote(file)}`);
   assert.match(result.lines[201], /^Checked open-\d+\.json: round 1 has 201 open findings, 1 blocking and 200 non-blocking\./);
   assert.equal(result.lines.filter((line) => line.includes('Fix the point 200.')).length, 0);
+});
+
+// deepPut writes ROUND to a file whose full path has at least size characters, in folders of
+// at most 200 characters each, and returns the path.
+function deepPut(size) {
+  let folder = tmp;
+  while (folder.length + '/open.json'.length < size) {
+    const room = size - folder.length - '/open.json'.length - 1;
+    folder = path.join(folder, 'd'.repeat(Math.max(1, Math.min(room, 100))));
+  }
+  fs.mkdirSync(folder, { recursive: true });
+  const file = path.join(folder, 'open.json');
+  fs.writeFileSync(file, JSON.stringify(ROUND));
+  assert.ok(file.length >= size);
+  return file;
+}
+
+test('findings open: a path over 80 characters and one over 200 are printed in quote form, on any temp folder', () => {
+  for (const size of [81, 120, 201, 400]) {
+    const real = deepPut(size);
+    const absent = path.join(path.dirname(real), 'absent.json');
+    const result = call(['findings', 'open', absent]);
+    assert.equal(result.status, 0);
+    assert.equal(result.err, `no open findings file at ${quote(absent)}\n`);
+    assert.equal(result.out,
+      `Checked nothing: ${quote(absent)} does not exist, so no finding is open.\n`);
+    // The quoted path has at most 80 characters and the two quotes, cut with ... as quote cuts.
+    assert.ok([...quote(absent)].length <= 82);
+    assert.equal(quote(absent).endsWith('..."'), absent.length > 80);
+    for (const line of result.err.split('\n')) assert.ok(line.length <= 200, line);
+    // A link and a folder at a long path.
+    const folder = call(['findings', 'open', path.dirname(real)]);
+    assert.equal(folder.status, 3);
+    assert.ok(folder.err.split('\n').every((line) => line.length <= 200), folder.err);
+    assert.match(folder.err + folder.out, new RegExp(`${quote(path.dirname(real))
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is not a regular file\\.`));
+    // More than 200 findings at a long path: the count line has the quoted path.
+    const many201 = path.join(path.dirname(real), 'many.json');
+    fs.writeFileSync(many201, JSON.stringify(many(201)));
+    const counted = call(['findings', 'open', many201]);
+    assert.equal(counted.lines[200], `Fix first: 1 more findings in ${quote(many201)}`);
+  }
 });
 
 test('findings open: 40 findings of 5 KB each, in a file over 200 KB, print all 40', () => {
@@ -316,11 +361,11 @@ test('findings open: a regular file over 256 KB is read up to 256 KB', () => {
 test('findings open: hidden characters are removed from the printed text', () => {
   const hidden = '\u{E0049}\u200C\u200D\uFE0F\u034F\u3164\u115F\u1160\u180B\u180C\u180D';
   const file = put({ round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: [{ ...FINDING,
-    point: `Fix${hidden} the refund.`, file: `src/${hidden}refund.js` }] }] });
+    point: `Fix${hidden} the refund.`, file: `src/orders/${hidden}export.ts` }] }] });
   const result = call(['findings', 'open', file]);
   assert.equal(result.status, 1);
   assert.equal(result.lines[0],
-    'Fix first: f3 (blocking, src/refund.js:12): Fix the refund.');
+    'Fix first: f3 (blocking, src/orders/export.ts:12): Fix the refund.');
   assert.ok(!/[\u{E0000}-\u{E007F}\u200C\u200D\uFE00-\uFE0F\u034F\u3164\u115F\u1160\u180B-\u180D]/u.test(result.out));
 });
 
