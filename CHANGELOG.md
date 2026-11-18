@@ -624,6 +624,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   address as a line `App address: <url>` in `## Summary`, an http address in backticks, and
   its check finds a plan with a `serve` command and no such line, or a value that is no http
   or https URL.
+- A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
+  bytes, set once in `lib/reports.cjs` for every agent. A longer report is a finding of
+  `checks.cjs report`, `findings` and `end --offline`, and the finding states the limit in
+  both units, so that the agent can count its text. The list "Files:" of a writer, the
+  files it wrote, does not count. The 256 KB limit stays. The session passes the limit to
+  each agent at each start. The last line of `report`, on what it checked, lists "size"
+  first.
+- A run on a runtime with no tool that starts an agent ends with `escalate`: the session
+  starts no agent, pushes nothing, and writes one `run_again` point, "The <agent> did not
+  start on <runtime>, which starts no agents.", with the fix "Ask an owner or admin of your
+  organisation to choose a runtime that starts agents in Workspace settings > Model, then
+  run another round." On a runtime whose end hook runs, the end check records the verdict
+  through `points.json`, as for every end through "Points".
 
 ### Changed
 

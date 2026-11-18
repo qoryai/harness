@@ -205,7 +205,7 @@ test('report: a finding of a change without a proof is refused', () => {
   const check = (text) => call(root, ['report', REVIEWER, put(root, `${REVIEWER}-1.md`, text)]);
   const result = check(review([{}]));
   passes(result);
-  assert.equal(result.lines.at(-1), `Checked the report of ${REVIEWER}: last word, lists, ` +
+  assert.equal(result.lines.at(-1), `Checked the report of ${REVIEWER}: size, last word, lists, ` +
     'Blocked: line, and Point:, Proof: and Severity: lines; 0 findings.');
   fails(check(review([{}, { Proof: null }])), new RegExp('^Add a "Proof:" line to finding 2\\. ' +
     'The proof is a failing check, a planted fault that the checks miss, the failing input, ' +
@@ -288,6 +288,18 @@ test('findings add: a finding without a proof is refused, and nothing is recorde
   fails(result, /^Add a "Proof:" line to finding 2\. .* The finding is in the report of change-reviewer\.$/);
   assert.equal(result.lines.at(-1), 'Added nothing to findings.json: the report of ' +
     'change-reviewer has 1 finding.');
+  assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
+});
+
+test('findings add: a report over about 2,000 tokens is refused, and nothing is recorded', () => {
+  const root = folder();
+  const text = review([{}]).replace('/change\n', `/${'a'.repeat(8000)}\n`);
+  const file = put(root, `${REVIEWER}-1.md`, text);
+  const result = call(root, ['findings', 'add', '1', REVIEWER, file]);
+  fails(result, new RegExp('^Cut the report to about 2,000 tokens, counted as 8,000 bytes\\. ' +
+    `The report of ${REVIEWER} has ${Buffer.byteLength(text)} bytes\\.$`));
+  assert.equal(result.lines.at(-1), 'Added nothing to findings.json: the report of ' +
+    `${REVIEWER} has 1 finding.`);
   assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
 });
 
@@ -606,8 +618,8 @@ test('report: the last line of a report with a proof and no point', () => {
     'changes-needed', ''].join('\n');
   const result = call(root, ['report', PROOF_ONLY, put(root, `${PROOF_ONLY}-1.md`, text)]);
   passes(result);
-  assert.equal(result.lines.at(-1), `Checked the report of ${PROOF_ONLY}: last word, lists, ` +
-    'Blocked: line, and Proof: and Severity: lines; 0 findings.');
+  assert.equal(result.lines.at(-1), `Checked the report of ${PROOF_ONLY}: size, last word, ` +
+    'lists, Blocked: line, and Proof: and Severity: lines; 0 findings.');
 });
 
 test('findings add: CRLF, a BOM and a tab pass, and a control character is refused', () => {
