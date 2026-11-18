@@ -152,9 +152,10 @@ class Browser {
     this.proc = spawn(this.bin, args,
       { stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'], env, detached: true });
     this.pid = this.proc.pid;
-    // A process that exits with the browser still running, as by process.exit, kills its
-    // process group and removes its temporary folder.
-    const kill = () => {
+    // A process that exits before halt, as by process.exit, kills the process group of the
+    // browser and removes its temporary folder, also when the browser exited first and a child
+    // of the browser still runs. halt removes this handler.
+    this.onExit = () => {
       this.killGroup();
       try {
         fs.rmSync(this.dir, { recursive: true, force: true });
@@ -162,9 +163,7 @@ class Browser {
         // A child of the browser can still write here.
       }
     };
-    process.once('exit', kill);
-    this.proc.once('exit', () => process.removeListener('exit', kill));
-    this.proc.once('error', () => process.removeListener('exit', kill));
+    process.once('exit', this.onExit);
     this.proc.stdout.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
     this.proc.stderr.on('data', (data) => { this.output = (this.output + data).slice(-4000); });
     this.exited = new Promise((resolve) => {
@@ -313,6 +312,7 @@ class Browser {
     this.pending.clear();
     if (this.proc) {
       this.killGroup();
+      process.removeListener('exit', this.onExit);
       let timer;
       await Promise.race([this.exited,
         new Promise((resolve) => { timer = setTimeout(resolve, ms); })]);

@@ -1615,7 +1615,8 @@ find:
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
   criterion is planned as Demo; with a `serve` row, no line `App address: <url>` in
   `## Summary`, or a value that is no http or https URL whose host has only letters,
-  digits, `.` and `-` or is an IPv6 address in brackets, where an http address goes in
+  digits, `.` and `-`, starts and ends with a letter or digit and has no `..`, or is an
+  IPv6 address in brackets, where an http address goes in
   backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links
   finds a bare http link; and, in `## Deliverables` or `## Commands`, a table with other
   columns than those that the check reads, or a second table with them;
@@ -2456,8 +2457,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `--webrtc-ip-handling-policy=disable_non_proxied_udp`, WebRTC sends only through the
   proxy, so it sends no UDP packet. In tests on Chrome 157 and Chromium 153, a local TURN
   server over TCP and a local HTTP/3 server get no connection and no packet. The check of
-  the build plan takes only an App address whose host has letters, digits, `.` and `-`, or
-  is an IPv6 address in brackets, so the host adds no other entry to the bypass list.
+  the build plan takes only an App address whose host has letters, digits, `.` and `-`,
+  starts and ends with a letter or digit and has no `..`, or is an IPv6 address in
+  brackets, so the host adds no other entry to the bypass list.
   `--host-resolver-rules` fails the lookup of each host name except 127.0.0.1 and the app's
   host. The browser pauses each new window of the page, such as one of `window.open` or of
   a form or link with `target="_blank"`, fails its first request and closes it; the point

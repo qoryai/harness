@@ -785,11 +785,13 @@ test('build-plan: a plan with a serve row has the address of the app in its Summ
   }
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(`${ADDRESS}\n`, ''))),
     /^Add the line "App address: <url>" to ## Summary of build-plan.md\. The preflight opens the app there\. Write an http address in backticks: `http:\/\/localhost:3000\/`\.$/);
-  // A host other than letters, digits, . and -, or an IPv6 address in brackets, is none: the
+  // A host other than letters, digits, . and -, starting and ending with a letter or digit
+  // and with no empty part between dots, or an IPv6 address in brackets, is none: the
   // preflight gives the host to the browser in a list where ; and , separate entries.
   for (const value of ['localhost:3000', 'ftp://localhost/', '/sign-in', 'http://local host/',
     '', 'http://127.0.0.1;example.com:3000/', 'http://localhost,example.com:3000/',
-    'http://*.example.com:3000/', 'http://local%3Bhost:3000/']) {
+    'http://*.example.com:3000/', 'http://local%3Bhost:3000/', 'http://.example.test:3000/',
+    'http://example.test.:3000/', 'http://a..b:3000/']) {
     fails(push(fixture(), 'build-plan', planFile(PLAN.replace(ADDRESS, `App address: ${value}`))),
       new RegExp('^Set the App address in ## Summary of build-plan.md to an http or https ' +
         `URL\\. The value is "${value.replace(/[.*/]/g, '\\$&')}"\\.$`));

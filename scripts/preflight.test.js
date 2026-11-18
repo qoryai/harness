@@ -1071,6 +1071,34 @@ test('preflight: a process that exits with its browser running kills the browser
   }
 });
 
+test('preflight: a process that exits without halt kills the child of a browser that exited first', async () => {
+  const here = checkout();
+  const grandchild = path.join(here.dir, 'grandchild.pid');
+  // A browser that starts a grandchild, which ignores SIGHUP and SIGTERM, and then exits.
+  const browser = fakeBrowser(here, `sh -c "trap '' HUP TERM; exec sleep 93" &\n` +
+    `echo $! > '${grandchild}'\nexit 0`);
+  const main = path.join(here.dir, 'exits-later.cjs');
+  // The process waits for the start to fail, as the browser exits, and exits without halt.
+  fs.writeFileSync(main, `const { Browser } = require(${JSON.stringify(path.join(SKILL,
+    'lib/browser.cjs'))});\n` +
+    `new Browser(${JSON.stringify(browser.file)}).start(8000)\n` +
+    "  .then(() => process.exit(1), () => process.exit(0));\n");
+  const folder = path.join(here.dir, 'tmp');
+  fs.mkdirSync(folder);
+  let pid = 0;
+  try {
+    const ran = childProcess.spawnSync(process.execPath, [main],
+      { timeout: 10000, env: { ...process.env, TMPDIR: folder } });
+    pid = Number(fs.readFileSync(grandchild, 'utf8'));
+    assert.ok(pid > 1, `no pid of the grandchild: ${pid}`);
+    assert.equal(ran.status, 0, String(ran.stderr));
+    await until(() => !alive(pid), 2000, 'the child of the browser outlived the process');
+    assert.deepEqual(fs.readdirSync(folder), []);
+  } finally {
+    if (pid > 1 && alive(pid)) process.kill(pid, 'SIGKILL');
+  }
+});
+
 test('preflight: halt stops a child of the browser that keeps stderr open, and the process exits promptly', async () => {
   const here = checkout();
   const grandchild = path.join(here.dir, 'grandchild.pid');

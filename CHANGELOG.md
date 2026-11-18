@@ -637,7 +637,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   a line `Cause:` for the line that ends the run. The build plan has the address as a line
   `App address: <url>` in `## Summary`, an http address in backticks, and its check finds
   a plan with a `serve` command and no such line, or a value that is no http or https URL
-  whose host has only letters, digits, `.` and `-` or is an IPv6 address in brackets.
+  whose host has only letters, digits, `.` and `-`, starts and ends with a letter or digit
+  and has no `..`, or is an IPv6 address in brackets.
 - A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
   bytes, set once in `lib/reports.cjs` for every agent. A longer report is a finding of
   `checks.cjs report`, `findings` and `end --offline`, and the finding states the limit in

@@ -147,8 +147,9 @@ first demo:
    the line `App address: <url>` in `## Summary` of the build plan, with an http address
    in backticks, such as ``App address: `http://localhost:3000/` ``: the check of links
    finds a bare http link. The host of the address has only letters, digits, `.` and `-`,
-   or is an IPv6 address in brackets. When another process already returns a response at
-   the address, the app counts as not started, and the command does not run. A command
+   starts and ends with a letter or digit, and has no `..`; or it is an IPv6 address in
+   brackets. When another process already returns a response at the address, the app
+   counts as not started, and the command does not run. A command
    that starts the app in the background and exits 0 works. The command gets no variable
    of qory or of an agent, and no token of a code forge, such as `QORY_RUN_KEY` or
    `GITHUB_TOKEN`, except the mark `QORY_CHECK_MARK`.

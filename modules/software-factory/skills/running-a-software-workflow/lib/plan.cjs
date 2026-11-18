@@ -53,10 +53,12 @@ module.exports = (lib) => {
   // opens: "App address: <url>", with the URL in backticks or not.
   const ADDRESS = /^App address:(.*)$/;
 
-  // The host of an App address: letters, digits, . and -, or an IPv6 address in brackets.
-  // The browser of the preflight gets the host in --proxy-bypass-list, where a ; or a , would
-  // add an entry and a * would match other hosts, so a URL with another host is none.
-  const HOST = /^(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])$/;
+  // The host of an App address: letters, digits, . and -, starting and ending with a letter or
+  // digit, with no empty part between dots, or an IPv6 address in brackets. The browser of the
+  // preflight gets the host in --proxy-bypass-list, where a ; or a , would add an entry, a *
+  // would match other hosts, and a leading . would match each host under it, so a URL with
+  // another host is none.
+  const HOST = /^(?:(?!.*\.\.)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:.]+\])$/;
 
   // appAddress returns { value, url } of the first line "App address:" of summary, the lines
   // of ## Summary: value is the text after the colon, and url the http or https URL that it
