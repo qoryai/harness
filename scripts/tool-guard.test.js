@@ -472,8 +472,8 @@ test('patchPaths reads each file of a Codex patch', () => {
 // The regular expression that patchPaths used before it scanned each line once. It stays here
 // only to compare: on a header line that has a run of white space and then a character that
 // is no white space, it takes time in the square of the run.
-const OLD_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f' +
-  '\\u3000';
+const OLD_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f' +
+  '\\u205f\\u3000';
 const OLD_PATCH_FILE = new RegExp(`^[${OLD_SPACE}]*\\*\\*\\* (?:Add File|Update File|` +
   `Delete File|Move to): ([^]*?)[${OLD_SPACE}]*$`);
 const oldPatchPaths = (text) => text.split('\n').map((line) => OLD_PATCH_FILE.exec(line))
@@ -497,7 +497,8 @@ test('patchPaths reads the same paths as the regular expression that it replaced
   const near = ['\ufeff', '\u200b', '\u180e', '\u0084', '\u00a1', '\u2010', '\u3001', '\u0000'];
   const words = ['Add File', 'Update File', 'Delete File', 'Move to', 'add file', 'ADD FILE',
     'Add  File', 'AddFile', 'Move To', 'Rename', 'Add File:', ''];
-  const pieces = ['', 'a.ts', 'd/e.ts', 'x y', 'a\u3000b', ': c', '*** x', '\\', '.', '\u00e9', '*'];
+  const pieces = ['', 'a.ts', 'd/e.ts', 'x y', 'a\u3000b', ': c', '*** x', '\\', '.', '\u00e9',
+    '*'];
   const run = () => Array.from({ length: random(4) }, () => (random(8) === 0 ? pick(near)
     : pick(spaces))).join('');
   const lines = [];
@@ -562,6 +563,110 @@ test('a patch line with 250,000 spaces is read in under 1 second by each reader'
   timed('countsAsWrite', () => countsAsWrite('Bash', { command }, PLACE));
   const text = `*** Begin Patch\n*** Add File: /a${spaces}x\n`;
   timed('apply_patch', () => guard(codex('apply_patch', { command: text })));
+});
+
+test('a path of 250,000 characters of .reports/ returns a decision in under 1 second', () => {
+  const first = (text) => (text === null ? null : text.split('\n')[0]);
+  const timed = (name, run) => {
+    const start = process.hrtime.bigint();
+    const result = run();
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    assert.ok(ms < 1000, `${name}: ${ms} ms`);
+    return first(result);
+  };
+  const seen = new Set();
+  for (const unit of ['.reports/', '.reports/a/', '.reports/.reports/x', '/', '=', ':']) {
+    const big = unit.repeat(Math.ceil(250000 / unit.length)).slice(0, 250000);
+    const small = unit.repeat(3);
+    // A path that ends in .json is denied, and a path that ends in x is not, under .reports/.
+    for (const end of ['x', 'a.json']) {
+      for (const agent of [undefined, 'implementer']) {
+        const calls = (text) => [
+          ['Codex shell', codex('Bash', { command: `cat > /dev/null <<'X'\n*** Begin Patch\n` +
+            `*** Add File: /a${text}\nX` }, agent)],
+          ['Codex apply_patch', codex('apply_patch', { command: `*** Begin Patch\n` +
+            `*** Add File: /a${text}\n` }, agent)],
+          ['Claude Write', claude('Write', { file_path: `/a${text}`, content: 'x' }, agent)],
+          ['Claude Edit', claude('Edit', { file_path: `/a${text}`, old_string: 'a',
+            new_string: 'b' }, agent)]];
+        const long = calls(big + end);
+        const short = calls(small + end);
+        for (let at = 0; at < long.length; at += 1) {
+          const expected = first(guard(short[at][1]));
+          seen.add(expected);
+          assert.equal(timed(`${long[at][0]} ${unit}...${end}`, () => guard(long[at][1])),
+            expected, `${long[at][0]} ${unit}...${end}`);
+        }
+      }
+    }
+  }
+  // Both answers occur: a deny of a write to .reports/ and a pass.
+  assert.ok(seen.has(null) && [...seen].some((one) => one && one.startsWith('Write no file')),
+    [...seen].join(' | '));
+});
+
+// decoyShell returns a Codex shell call: a here-document whose patch has a header line with a
+// path of 250,000 characters, then the apply_patch call of a patch that adds file.
+const decoyShell = (path250k, file) => `cat > /dev/null <<'X'\n*** Begin Patch\n` +
+  `*** Add File: ${path250k}\nX\napply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${file}\n` +
+  '+{}\n*** End Patch\nEOF\n';
+
+test('a decoy path of 250,000 characters does not hide a real write, in under 1 second', () => {
+  const folder = '.reports/'.repeat(Math.ceil(250000 / 9)).slice(0, 250000);
+  const decoys = [[`/a${folder}x`, '.reports/end.json', 'Write no file under .reports/'],
+    [`/a${' '.repeat(250000)}x`, '.qory/build/steps.json', 'Leave .qory/build/ as it is']];
+  for (const [decoy, file, start] of decoys) {
+    for (const make of [codex, claude]) {
+      const begun = process.hrtime.bigint();
+      const reason = guard(make('Bash', { command: decoyShell(decoy, file) }, 'implementer'));
+      const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+      assert.ok(ms < 1000, `${file}: ${ms} ms`);
+      firstLine(reason, start);
+    }
+  }
+});
+
+test('each hook entry decides a call of 250,000 characters in under 5 seconds', () => {
+  const home = harnessHome();
+  const env = { ...fakeQory(server()), QORY_HARNESS_HOME: home, CLAUDE_PROJECT_DIR: WORK };
+  const load = os.loadavg()[0].toFixed(1);
+  // run starts the hook script as a process, with the JSON of the input on stdin as the
+  // runtime sends it, and returns the JSON that it prints, or null when it prints nothing.
+  const run = (script, input) => {
+    const begun = process.hrtime.bigint();
+    const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', script)],
+      { input: JSON.stringify(input), env, cwd: WORK, encoding: 'utf8', maxBuffer: 1 << 26 });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 5000, `${script}: ${ms} ms at load average ${load}`);
+    assert.equal(ran.status, 0, ran.stderr);
+    return ran.stdout === '' ? null : JSON.parse(ran.stdout);
+  };
+  const folder = '.reports/'.repeat(Math.ceil(250000 / 9)).slice(0, 250000);
+  const spaces = ' '.repeat(250000);
+  for (const [decoy, file, start] of [[`/a${spaces}x`, '.qory/build/steps.json',
+    'Leave .qory/build/ as it is'], [`/a${folder}x`, '.reports/end.json',
+    'Write no file under .reports/']]) {
+    const command = decoyShell(decoy, file);
+    for (const [script, make] of [['tool-guard-codex.cjs', codex],
+      ['tool-guard-claude.cjs', claude]]) {
+      const out = run(script, make('Bash', { command }, 'implementer')).hookSpecificOutput;
+      assert.equal(out.permissionDecision, 'deny', `${script} ${file}`);
+      firstLine(out.permissionDecisionReason, start);
+    }
+  }
+  // The Gemini entry of reports-guard: a write to a .json path under 250,000 characters of
+  // .reports/ is denied, a shell command that ends in spaces and 2>&1 is not.
+  const denied = run('reports-guard-gemini.cjs', { tool_name: 'write_file', cwd: WORK,
+    tool_input: { file_path: `${folder}a.json`, content: 'x' } });
+  assert.equal(denied.decision, 'deny');
+  assert.ok(denied.reason.startsWith('Write no file under .reports/'), denied.reason);
+  assert.deepEqual(run('reports-guard-gemini.cjs', { tool_name: 'run_shell_command', cwd: WORK,
+    tool_input: { command: `ls${spaces}x` } }), {});
+  assert.deepEqual(run('reports-guard-gemini.cjs', { tool_name: 'run_shell_command', cwd: WORK,
+    tool_input: { command: `ls${spaces} 2>&1` } }), {});
+  const shell = run('reports-guard-gemini.cjs', { tool_name: 'run_shell_command', cwd: WORK,
+    tool_input: { command: `rm .reports/end.json${spaces} 2>&1` } });
+  assert.equal(shell.decision, 'deny');
 });
 
 // harnessHome makes a folder with the layout of a composed harness, hooks/ and

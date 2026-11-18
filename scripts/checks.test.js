@@ -5742,7 +5742,9 @@ test('reports-guard strips a trailing 2>&1 as the expression that it replaced di
     }
     inputs.push(text);
   }
-  for (const input of inputs) assert.equal(withoutRedirect(input), old(input), JSON.stringify(input));
+  for (const input of inputs) {
+    assert.equal(withoutRedirect(input), old(input), JSON.stringify(input));
+  }
   assert.equal(withoutRedirect('ls  \t 2>&1 \n'), 'ls');
   assert.equal(withoutRedirect('ls 2>&1x'), 'ls 2>&1x');
 });
@@ -5767,6 +5769,68 @@ test('reports-guard returns in under 1 second on a command with 250,000 spaces',
   // The checks.cjs of the run with a trailing 2>&1 still passes, as before.
   assert.equal(decide({ kind: 'shell', args: { command: `node ${checks} end /w/.reports  2>&1` },
     env, script }), null);
+});
+
+test('reportsJson reads the same texts as the regular expression that it replaced', () => {
+  const { reportsJson } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.cjs'));
+  // The regular expression that decide used before, which takes time in the square of a text of
+  // repeated `.reports/`, and stays here only to compare.
+  const old = new RegExp('(?:^|[/\\s\'"=:])\\.reports\\/(?:[^\\s\'"]*\\/)?[^\\s\'"/]*\\.json' +
+    '(?:\\.lock[^\\s\'"/]*)?(?=$|[\\s\'"])', 'im');
+  // The pieces: the folder and its near misses, each ending of a name, each separator, white
+  // space of each kind, and the characters that JavaScript's i flag or m flag treat in a
+  // special way: U+212A (Kelvin sign), U+017F (long s), U+2028 and U+2029, and U+FEFF.
+  const pieces = ['.reports/', '.REPORTS/', '.Reports/', '.report/', 'reports/', '.reports',
+    '.json', '.JSON', '.Json', '.json.lock', '.JSON.LOCK', '.lock', '.json.lockx',
+    '.json.lock.json', '/', '/', '=', ':', "'", '"', ' ', '\t', '\n', '\r', '\u00a0',
+    '\u2028', '\u2029', '\u0085', '\u212a', '\u017f', '.reports\u212a/', '.json.loc\u212a',
+    '\ufeff', 'a', 'x', 'dir', '.', '..', '.reports/a/', 'e', 'n', '-', '\\'];
+  let seed = 20260519;
+  const random = (limit) => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return (seed >>> 8) % limit;
+  };
+  let hits = 0;
+  const texts = ['', '.reports/end.json', ' .reports/a/b.json ', "'.reports/x.json.lock'",
+    '.reports/a.json.lock.break', '.reports/\u212a.json', 'x.reports/a.json', '.reports//a.json'];
+  for (let at = 0; at < 12000; at += 1) {
+    // Half of the texts start with the folder after a separator, so that many are hits.
+    let text = random(2) === 0 ? '' : pieces[random(pieces.length)] + '.reports/';
+    for (let count = 1 + random(9); count > 0; count -= 1) text += pieces[random(pieces.length)];
+    texts.push(text);
+  }
+  for (const text of texts) {
+    const expected = old.test(text);
+    if (expected) hits += 1;
+    assert.equal(reportsJson(text), expected, JSON.stringify(text));
+  }
+  assert.ok(texts.length >= 5000 && hits > 1000, `${hits} of ${texts.length} texts are hits`);
+  assert.ok(texts.length - hits > 1000, `${hits} of ${texts.length} texts are hits`);
+});
+
+test('reports-guard reads a write of 250,000 characters of .reports/ in under 1 second', () => {
+  const { decide } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.cjs'));
+  const home = harnessHome();
+  const script = path.join(home, 'hooks', 'reports-guard-gemini.cjs');
+  const env = { QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: tmp };
+  const write = (args) => decide({ kind: 'write', args, env, script });
+  for (const unit of ['.reports/', '.reports/a/', '.reports/.reports/x', '/', '=', ':']) {
+    const big = unit.repeat(Math.ceil(250000 / unit.length)).slice(0, 250000);
+    const small = unit.repeat(3);
+    for (const [name, make] of [['file_path', (text) => ({ file_path: `/w/${text}` })],
+      ['paths', (text) => ({ paths: [text, `/w/${text}`] })]]) {
+      for (const end of ['x', 'a.json', 'a.json.lock', 'a.json.lock.break', 'a.txt']) {
+        const start = process.hrtime.bigint();
+        const denied = write(make(big + end));
+        const ms = Number(process.hrtime.bigint() - start) / 1e6;
+        assert.ok(ms < 1000, `${name} ${unit}...${end}: ${ms} ms`);
+        assert.equal(denied, write(make(small + end)), `${name} ${unit}...${end}`);
+      }
+    }
+  }
+  // The deny is not a false answer of both: the short path of the folder is denied.
+  assert.equal(typeof write({ file_path: '.reports/a/end.json' }), 'string');
+  assert.equal(write({ file_path: '.reports/a/end.txt' }), null);
 });
 
 test('each reports-guard adapter writes the deny of its runtime', () => {

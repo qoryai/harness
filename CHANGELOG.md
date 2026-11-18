@@ -1302,10 +1302,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   they took 31 s. Two regular expressions took time in the square of a run of white space:
   the one that reads the header line of a Codex patch (`*** Add File: <path>`), on a line with
   `/a`, 250,000 spaces and `x`, and the one that strips a trailing `2>&1` from a shell
-  command, on a command with 250,000 spaces and then `x`. Codex runs the call when a hook
-  passes its timeout (120 s in `modules/core/settings/codex/config.toml`), so a patch or a
-  command with a long run of spaces went past the guard. Each reads the line in one scan and
-  returns the same result as the expression on every input that the tests compare.
+  command, on a command with 250,000 spaces and then `x`. In a test with Codex 0.169.0 and a
+  hook timeout of 20 s, Codex ran the call after the hook timed out. The hook timeout is 120 s
+  in `modules/core/settings/codex/config.toml`, and the hook took 213 s on a patch line of
+  450,000 spaces. Each expression is now one scan of the line, with the same result on every
+  input that the tests compare. The check of a write for a path `.reports/*.json` also reads
+  a text in linear time: its regular expression took 5 to 11 s on 250,000 characters of
+  repeated `.reports/`, and it now reads each word of the text once.
 - The headless Chrome of `render-mockups.cjs` and of the `preflight` verb starts with
   `--use-mock-keychain` and `--password-store=basic`. Before, Chrome on macOS opened the
   keychain and could show the dialog "A keychain cannot be found to store" to the person at
