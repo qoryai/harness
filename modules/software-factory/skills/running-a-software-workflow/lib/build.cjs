@@ -36,10 +36,16 @@ module.exports = (lib) => {
   const SCENARIO_JSON = /^(scenario-[1-9][0-9]?)\.json$/;
 
   // jsonFile parses text, the file of a structured type, and checks it against the schema of
-  // type. It returns the data when the schema passes, else null.
+  // type. It returns the data when the schema passes, else null. A document that nests deeper
+  // than schema.MAX_DEPTH is refused before any reader walks it.
   function jsonFile(run, type, file, text) {
     const data = parseJson(text, file);
     run.did('schema');
+    if (schema.tooDeep(data)) {
+      run.find(`Cut the nesting of ${file} to ${schema.MAX_DEPTH} levels.\n` +
+        `It has objects or lists more than ${schema.MAX_DEPTH} levels deep.`);
+      return null;
+    }
     const found = schema.errors(schema.load(type), data, file);
     for (const line of found) run.find(line);
     return found.length ? null : data;

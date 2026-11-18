@@ -56,6 +56,26 @@ function brief(text, size) {
   return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
 }
 
+// The most levels of objects and lists that a document of a structured type may nest. The
+// deepest schema of schemas/ needs 5 levels, and the readers of a document, such as canonical,
+// recurse once per level, so 64 leaves room for a schema to grow and keeps every reader far
+// from the limit of the call stack.
+const MAX_DEPTH = 64;
+
+// tooDeep reports whether value nests objects and lists more than MAX_DEPTH levels deep, the
+// value itself being level 1. It walks with a list in place of recursion, so that a document
+// of any depth gives an answer and no stack overflow.
+function tooDeep(value) {
+  const open = [[value, 1]];
+  while (open.length) {
+    const [node, level] = open.pop();
+    if (node === null || typeof node !== 'object') continue;
+    if (level > MAX_DEPTH) return true;
+    for (const child of Object.values(node)) open.push([child, level + 1]);
+  }
+  return false;
+}
+
 // canonical returns value as JSON with the members of each object in sorted order, so that two
 // values that JSON Schema counts as equal, as uniqueItems compares them, give the same text.
 function canonical(value) {
@@ -282,4 +302,4 @@ function shown(value, limit = 40) {
   return text ? `"${cutText}"` : cutText;
 }
 
-module.exports = { load, errors, compile, shown, escaped };
+module.exports = { MAX_DEPTH, load, errors, compile, shown, escaped, tooDeep };

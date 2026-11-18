@@ -2178,6 +2178,14 @@ test('verification: the members and values of its schema', () => {
     'verification.json at least 1 entry.\nIt has 0.');
   schemaLine((doc) => { doc.not_verified[0].reason = ''; }, 'Write /not_verified/0/reason of ' +
     'verification.json as text of at least 1 character.\nIt has 0.');
+  // A list of model families nested 10,000 levels deep is refused before uniqueItems compares
+  // its entries, with no stack overflow.
+  const deep = Buffer.from(JSON.stringify(verified(() => {}), null, 2).replace(
+    '"model_families": [', `"model_families": [${'['.repeat(10000)}${']'.repeat(10000)}, `));
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'verification', ['verification.json', deep]), 'Cut the nesting of ' +
+      'verification.json to 64 levels.\nIt has objects or lists more than 64 levels deep.');
+  }
   // A criterion is its id: ac- and a number with no leading zero, in lower case.
   for (const id of ['AC-1', 'ac-01', 'AC-1, "The saved reply"']) {
     fails(push(fixture(), 'verification', verificationFile(verified((doc) => {

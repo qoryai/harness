@@ -1664,6 +1664,19 @@ test('criteria: a file that breaks a rule of the type check gets the fix line of
   passes(push(removed, 'acceptance-criteria'));
 });
 
+test('criteria: a file nested deeper than 64 levels is refused with no stack overflow', () => {
+  const root = fixture();
+  for (const deep of [`${'['.repeat(10000)}${']'.repeat(10000)}`,
+    `{"summary": "One.", "criteria": ${'['.repeat(65)}${']'.repeat(65)}}`]) {
+    fs.writeFileSync(path.join(root, CRITERIA), deep);
+    for (const result of [check(root, 'acceptance-criteria', path.join(root, CRITERIA)),
+      push(root, 'acceptance-criteria')]) {
+      exactly(result, 'Cut the nesting of acceptance-criteria.json to 64 levels.\n  It has ' +
+        'objects or lists more than 64 levels deep.');
+    }
+  }
+});
+
 test('criteria: no id renumbered or reused against the newest version', () => {
   const root = fixture();
   write(root, CRITERIA, withCriteria((data) => { data.criteria.pop(); }));
