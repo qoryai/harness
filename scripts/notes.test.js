@@ -49,8 +49,8 @@ const READ_LIST = ['```text', 'What you read:', '- <path>', '', 'Blocked: <why>'
   '<done or blocked>', '```', '', 'Only a blocked report has the "Blocked:" line.'];
 agentFile(DEVELOPER, ...READ_LIST);
 agentFile('constructor', ...READ_LIST);
-// The reviewer of a change reports as reviewing-changes lists, with "Findings:" and a "Point:".
-agentFile(REVIEWER, 'Report as `reviewing-changes` lists in its section "The report".');
+// The reviewer reports as reviewing-drafts lists, with "Findings:" and a "Point:".
+agentFile(REVIEWER, 'Report as `reviewing-drafts` lists in its section "The report".');
 agentFile(FIXER, '```text', 'What you read:', '- <path>', '', 'Closed:',
   '- <id>: <closing proof>', '', 'Blocked: <why>', '<done or blocked>', '```', '',
   'Only a blocked report has the "Blocked:" line.');
@@ -611,14 +611,13 @@ test('report: a corrupt record fails with its fix, and a record that is no file'
   assert.equal(read.lines[0], 'Make .reports/note-starts.json readable, or remove it.');
 });
 
-test('report and findings: "Role notes read:" after "Findings:" is no finding, and a missing one is', () => {
+test('report: "Role notes read:" after "Findings:" is no finding, and a missing one is', () => {
   const run = setup({ files: ['src/app.py'] });
   assert.equal(notes(run, REVIEWER).status, 0);
   const item = ['1. Quote: "refundDays = 0"',
     '   Problem: A refund takes zero days, and the request asks for three.',
     '   Fix: A refund takes three days.',
-    '   Proof: failing check: run the refund check on the change; it prints "expected 3, got 0".',
-    '   Severity: break',
+    '   Marks: writer, no direction, break',
     '   Point: The change gives a refund of zero days to every order.'].join('\n');
   const write = (name, list) => {
     const file = path.join(run.artifacts, '.reports', name);
@@ -630,31 +629,23 @@ test('report and findings: "Role notes read:" after "Findings:" is no finding, a
   const missing = call(run.deps, ['report', REVIEWER, without]);
   assert.equal(missing.status, 1, missing.out);
   assert.equal(missing.lines[0], 'List python-review under Role notes read: in the report.');
-  const refused = call(run.deps, ['findings', 'add', '1', REVIEWER, without]);
-  assert.equal(refused.status, 1, refused.out);
-  assert.equal(fs.existsSync(path.join(run.artifacts, '.reports', 'findings.json')), false);
   const full = write(`${REVIEWER}-2.md`, ['Role notes read:', '- python-review', '']);
   const passed = call(run.deps, ['report', REVIEWER, full]);
   assert.equal(passed.status, 0, passed.out);
-  const added = call(run.deps, ['findings', 'add', '1', REVIEWER, full]);
-  assert.equal(added.status, 0, added.out);
-  const kept = JSON.parse(fs.readFileSync(path.join(run.artifacts, '.reports', 'findings.json'),
-    'utf8'));
-  assert.equal(kept.findings.length, 1);
 });
 
-test('findings close: the report of the fixer needs the role notes of its start', () => {
+test('report: the report of the fixer needs the role notes of its start', () => {
   const run = setup({ files: ['src/app.py'] });
   assert.equal(notes(run, FIXER).status, 0);
   const file = path.join(run.artifacts, '.reports', `${FIXER}-1.md`);
   const fixed = (list) => ['What you read:', '- /tmp/qory-artifacts/change', '', ...list,
     'Closed:', '- none', '', 'done', ''].join('\n');
   fs.writeFileSync(file, fixed([]));
-  const missing = call(run.deps, ['findings', 'close', FIXER, file]);
+  const missing = call(run.deps, ['report', FIXER, file]);
   assert.equal(missing.status, 1, missing.out);
   assert.equal(missing.lines[0], 'List python-fix under Role notes read: in the report.');
   fs.writeFileSync(file, fixed(['Role notes read:', '- python-fix', '']));
-  const listed = call(run.deps, ['findings', 'close', FIXER, file]);
+  const listed = call(run.deps, ['report', FIXER, file]);
   assert.doesNotMatch(listed.out, /Role notes read/);
 });
 

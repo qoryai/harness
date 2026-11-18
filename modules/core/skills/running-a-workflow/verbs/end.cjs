@@ -24,20 +24,33 @@ const END_TRIES = 3;
 
 // agentOf returns the agent that a name of starts.json counts, or null: the name itself,
 // such as questions-reviewer, or the part after <workflow>-<n>-, such as questions-reviewer
-// of explore-1-questions-reviewer, or the part after the slash of a start on a subject, such
-// as code-reviewer of change/code-reviewer. A name such as explore-a-ticket, a follow of a
-// workflow, has none.
+// of explore-1-questions-reviewer. A name such as explore-a-ticket, a follow of a workflow,
+// has none.
 function agentOf(name, agents) {
   if (agents.has(name)) return name;
-  if (name.includes('/')) {
-    const agent = name.slice(name.lastIndexOf('/') + 1);
-    return agents.has(agent) ? agent : null;
-  }
   for (const match of name.matchAll(/-[0-9]+-/g)) {
     const rest = name.slice(match.index + match[0].length);
     if (agents.has(rest)) return rest;
   }
   return null;
+}
+
+// reviewersStage reports whether the stage of the run has reviewers: qory.stage.reviewers of
+// the inputs.json at io.inputs is the name of the group role, or true. The hook passes the copy
+// that qory writes at $QORY_HARNESS_HOME/inputs.json, not index.json, which an agent that
+// writes into the artifact folder can change. With no --inputs, or a file that cannot be read
+// or has no such member, the stage has none, and end keeps its verdict.
+function reviewersStage(io) {
+  if (!io.inputs) return false;
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(io.inputs, 'utf8'));
+  } catch {
+    return false;
+  }
+  const stage = isObject(data) && isObject(data.qory) ? data.qory.stage : null;
+  const flag = isObject(stage) ? stage.reviewers : null;
+  return flag === true || (typeof flag === 'string' && flag !== '');
 }
 
 // endReports checks that the newest report of each agent under root/.reports passed report,
@@ -290,6 +303,11 @@ function end(io, folder) {
   }
   const { types } = io.registry();
   const points = path.join(root, 'points.json');
+  // In a stage with reviewers, qory sends the verdict from points.json after the session, and
+  // its push check refuses a verdict command from inside the container.
+  const reviewed = reviewersStage(io);
+  const sent = () => (reviewed ? 'no verdict command runs, because the stage has reviewers.'
+    : verdict(io, points));
   // The verdict that this run recorded, looked up once and only when a check needs it.
   let lookup;
   const stored = () => {
@@ -318,7 +336,7 @@ function end(io, folder) {
       pointResults = endPoints(root, points, io);
       if (!pointResults.length) {
         return { status: 0, findings: [], last: 'Checked points.json: the run ended with it, ' +
-          `and ${verdict(io, points)}` };
+          `and ${sent()}` };
       }
     }
     let reportResults;
@@ -342,7 +360,8 @@ function end(io, folder) {
   if (!findings.length) return { status: 0, findings, last: `${what}.` };
   if (failed < END_TRIES) {
     return { status: 1, findings, last: `${what}; check ${failed} of ${END_TRIES}. Fix them, ` +
-      `then end again. At check ${END_TRIES}, the run ends with the verdict escalate.` };
+      `then end again. At check ${END_TRIES}, the run ends with ${reviewed ? 'points' :
+        'the verdict escalate'}.` };
   }
   // The points of a points.json of the run stay, each that passes the check of a point.
   const { kept, mine, list, left } = endList(
@@ -352,7 +371,7 @@ function end(io, folder) {
   return { status: 0, findings: [...left.map(leftLine), ...findings],
     last: `${what}; check ${Math.min(failed, END_TRIES)} of ` +
     `${END_TRIES}, so the run ends: ${kept.length ? 'added' : 'wrote'} ` +
-    `${plural(mine.length, 'point')} to points.json, and ${verdict(io, points)}` };
+    `${plural(mine.length, 'point')} to points.json, and ${sent()}` };
 }
 
 // The usage of end --offline, on two lines.

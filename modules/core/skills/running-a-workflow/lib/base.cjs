@@ -50,10 +50,6 @@ const PLACES = 4;
 // has no .git and no .qory.
 const DISK_FACTOR = 2;
 
-// A reviewer starts at most this many times on one subject in a run: the first review and
-// two more after fixes.
-const STARTS_PER_SUBJECT = 3;
-
 // Missing exits 3 with message, the line that starts with the fix, and the lines of more
 // after it, such as the value that the fix rests on. With listed true, each entry of more is
 // a finding, which a count of the findings includes, not a line after the first one.
@@ -417,7 +413,7 @@ function artifactFolder(deps) {
 
 module.exports = {
   ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, SHORT, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
-  MAX_FINDING_LINES, DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
+  MAX_FINDING_LINES, DISK_FACTOR, Missing, REFUSED, REFUSED_ALL,
   CONTROL, CONTROL_ALL, hex, cut, short, given, plainLine, findingLines, quote, plural, inside,
   lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,

@@ -8,10 +8,12 @@ const path = require('node:path');
 const {
   Missing, NAME, isObject, parseJson, quote, readFile, sha256, short, withLock, writeJson,
 } = require('./base.cjs');
-const { FINDING_FIELD, changeLines } = require('./findings.cjs');
 const { fence, lines, sections } = require('./markdown.cjs');
 const { READ_HEADING, notesLines } = require('./notes.cjs');
 const { pointRules, pointText } = require('../types/points.cjs');
+
+// The label of a field of a finding, such as "   Fix: <what must hold>" or "1. Quote: "a"".
+const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 
 // The "Blocked:" line that
 // running-a-workflow (SKILL.md:166-168: "One that starts with `needs <type>`") lists by its
@@ -68,8 +70,8 @@ function readPart(file, title, what) {
 // returns the words of the last line, the list headings, the lines such as "Direction:",
 // the lists that may be left out, per last word the lists that it leaves out, the lists that
 // may not be "- none", the most characters of a list's lines, whether a finding of the shape
-// has an indented "Point:" line and an indented "Proof:" line, and the records of records
-// whose heading the shape has. records are those of the registry, each { heading, fields,
+// has an indented "Point:" line, and the records of records whose heading the shape has.
+// records are those of the registry, each { heading, fields,
 // what, check(text) }, which a module adds: check returns why the report breaks the record,
 // or null, and fields, which may be left out, lists the lines of the record that check covers,
 // so that no other check of the report looks for them. The agent and the skill are read from
@@ -161,7 +163,6 @@ function expected(plugin, agent, folders = [plugin], records = []) {
     filled,
     within,
     point: shape.some((line) => /^\s+Point:/.test(line)),
-    proof: shape.some((line) => /^\s+Proof:/.test(line)),
   };
 }
 
@@ -323,11 +324,9 @@ function sizeLine(text, agent, shape) {
 // lines of the whole text are checked, those lines included; for a blocked report, only its
 // "Blocked:" lines. When shape has a "Point:" line, each finding has one, which pointLines
 // checks against agents, the agent names, and the rules that pointRules reads from registry,
-// the registry of the plugin. When shape has a "Proof:" line or a list "Closed:", changeLines
-// checks the proofs, severities, judgements and closures. A report that is not blocked lists
-// each name of notes.names, the role notes of the starts of agent that count for the report,
-// under "Role notes read:", and the notes file of those starts has not changed, as notesLines
-// checks.
+// the registry of the plugin. A report that is not blocked lists each name of notes.names,
+// the role notes of the starts of agent that count for the report, under "Role notes read:",
+// and the notes file of those starts has not changed, as notesLines checks.
 function reportCheck(text, agent, shape, agents = new Set(), stops = [], registry = {},
   notes = { names: [], changed: [] }) {
   const size = sizeLine(text, agent, shape);
@@ -398,10 +397,6 @@ function reportCheck(text, agent, shape, agents = new Set(), stops = [], registr
   }
   if (shape.point && !absent.has('Findings:')) {
     findings.push(...pointLines(all, shape, agent, agents, pointRules(registry)));
-  }
-  if (shape.proof || shape.lists.includes('Closed:')) {
-    const items = absent.has('Findings:') ? [] : findingItems(all, shape);
-    findings.push(...changeLines(all, shape, agent, items, last));
   }
   findings.push(...notesLines(all, notes, agent));
   for (const one of shape.records || []) {
