@@ -289,7 +289,9 @@ class Browser {
   }
 
   // halt kills the browser, waits up to ms for it to exit, so that it no longer writes to its
-  // profile, and removes its temporary folder, for a process that exits right after.
+  // profile, and removes its temporary folder, for a process that exits right after. A child
+  // of the browser, such as a crash handler on macOS, can keep the pipes of the browser open
+  // after the kill, so halt closes them, and the process can exit with that child running.
   async halt(ms = HALT_MS) {
     this.stopped = true;
     for (const waiting of this.pending.values()) {
@@ -307,6 +309,10 @@ class Browser {
       await Promise.race([this.exited,
         new Promise((resolve) => { timer = setTimeout(resolve, ms); })]);
       clearTimeout(timer);
+      for (const stream of this.proc.stdio) {
+        if (stream) stream.destroy();
+      }
+      this.proc.unref();
     }
     await this.removeDir();
   }

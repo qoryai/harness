@@ -1034,6 +1034,42 @@ test('preflight: a process that exits with its browser running kills the browser
   assert.deepEqual(fs.readdirSync(folder), []);
 });
 
+test('preflight: a process exits after halt while a child of the browser keeps stderr open', async () => {
+  const here = checkout();
+  const grandchild = path.join(here.dir, 'grandchild.pid');
+  // A browser that starts a grandchild, which keeps stdout, stderr and the pipes open and
+  // runs on after the browser is killed.
+  const browser = fakeBrowser(here, `sh -c "trap '' HUP TERM; exec sleep 95" &\n` +
+    `echo $! > '${grandchild}'\nexec sleep 96`);
+  const main = path.join(here.dir, 'halts.cjs');
+  // The process halts the browser once the grandchild has written its pid, and then has
+  // nothing more to run.
+  const quoted = JSON.stringify(grandchild);
+  fs.writeFileSync(main, `const fs = require('fs');\nconst { Browser } = require(${
+    JSON.stringify(path.join(SKILL, 'lib/browser.cjs'))});\n` +
+    `const browser = new Browser(${JSON.stringify(browser.file)});\n` +
+    'browser.start(8000).catch(() => {});\n' +
+    `const timer = setInterval(() => {\n  if (!fs.existsSync(${quoted}) ||\n` +
+    `    !fs.readFileSync(${quoted}, 'utf8').endsWith('\\n')) return;\n` +
+    "  clearInterval(timer);\n  browser.halt().then(() => console.log('halted'));\n}, 50);\n");
+  let pid = 0;
+  try {
+    const started = Date.now();
+    const ran = childProcess.spawnSync(process.execPath, [main],
+      { timeout: 10000, env: { ...process.env, TMPDIR: here.dir } });
+    pid = Number(fs.readFileSync(grandchild, 'utf8'));
+    assert.ok(pid > 1, `no pid of the grandchild: ${pid}`);
+    assert.equal(ran.status, 0, `the process ran for ${Date.now() - started} ms`);
+    assert.equal(String(ran.stdout), 'halted\n');
+    // The grandchild still runs, so its stderr was open when the process exited.
+    assert.equal(alive(pid), true);
+  } finally {
+    if (pid > 1 && alive(pid)) process.kill(pid, 'SIGKILL');
+    const parent = fs.existsSync(browser.pid) ? Number(fs.readFileSync(browser.pid, 'utf8')) : 0;
+    if (parent > 1 && alive(parent)) process.kill(parent, 'SIGKILL');
+  }
+});
+
 test('preflight: a demo script that types a key of qory, of an agent or of a code forge exits 3 before the app starts', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   assert.deepEqual(['QORY_RUN_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
