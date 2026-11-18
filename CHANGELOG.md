@@ -682,7 +682,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   to 99. `lib/criterion.cjs` of `running-a-software-workflow` has the pattern, and a test
   compares the copy in `pack-mockups.cjs` with it.
 - The schema check of `running-a-software-workflow` applies `uniqueItems`, which the
-  verification format uses, and shows a pattern's control characters as escapes.
+  verification format uses, shows a pattern's control characters as escapes, and writes
+  "at least 1 entry" in place of "at least 1 entries".
 - `.github/workflows/check.yml` builds qory at `0e02282`, qory's commit after
   qoryai/qory#127, which has the acceptance criteria and verification formats and `about`
   on each question, in place of `1deb56e`.
@@ -795,17 +796,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with its question and states how many points it left out and where the member reads them.
   A stop on a criterion keeps the criterion's id and its text in quotes, and a technical
   decision record with no way left names the answer and gives its question and options.
-- The verification and the explainer of `software-factory` show a criterion as its id and
-  its text in quotes, such as `AC-1, "Export saves a CSV file"`, in the Criterion cell of
-  the matrix and in each criterion heading of the explainer; the checks read the id in
-  any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
-  run could not <why>.", and the check refuses an empty or missing one. The Criteria cell
-  of a build plan lists each criterion in that form too, with `; ` between them, and the
-  check refuses an id with no text in quotes, such as `ac-1, ac-2`. The checks of the build
-  plan, the verification and the explainer refuse a text in quotes beside an id that is not
-  the criterion's first sentence in the criteria version that they read: in a Criteria or
-  Criterion cell, in an explainer heading, and anywhere in `## Lowered` and
-  `## Not verified`. The comparison ignores backticks, runs of spaces and one `.`, `!` or
+- The explainer of `software-factory` shows a criterion as its id and its text in quotes,
+  such as `AC-1, "Export saves a CSV file"`, in each criterion heading; the check reads the
+  id in any case. The Criteria cell of a build plan lists each criterion in that form too,
+  with `; ` between them, and the check refuses an id with no text in quotes, such as
+  `ac-1, ac-2`. The checks of the build plan, the verification and the explainer refuse a
+  text in quotes beside an id that is not the criterion's first sentence in the criteria
+  version that they read: in a Criteria cell, in an explainer heading, and in each
+  `evidence` and `reason` of `verification.json`. The comparison ignores backticks, runs of spaces and one `.`, `!` or
   `?` at the end of the quote. The finding starts with the fix and gives the words, or,
   when the line would have more than 200 characters, points to the criterion.
 - Each stop on the spec ends with the change after a colon, such as
