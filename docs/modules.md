@@ -2267,16 +2267,17 @@ of the criterion is cut in both to its first 8 words and "...".
   folder contains a Files entry of any row that is a file and no Check path, such as `src/`
   with `src/a.ts`; a Check path with no folder adds none. A code folder that contains its
   check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
-  `check-reviewer` reports a write there to code under test. The code under test in those
-  Files is outside it. Then the session starts `check-reviewer`, which reads the checks, the
-  draft and the records read-only by `reviewing-drafts` and `checking-acceptance-checks`.
-  The reviewer gets no "Checks:", because the draft has no `sha256` before `lock`. It gets
-  "Changed paths:" instead, the output of `git status --porcelain --untracked-files=all` and
-  of `git diff --name-only --no-renames <start commit>`, which the session runs in the
-  working folder before each start, with the files of each new folder, because the reviewer
-  reads files only. After a review with no finding left that fails a push, the session runs
-  `freeze checks`, sets `commit` in the draft to the commit that `freeze` printed, runs
-  `checks.cjs lock`, and ends the step as `done` with `--pushed acceptance-lock/main/<N>`.
+  `check-reviewer` reports a write there to code under test. Its other Files are not in it,
+  and `check-reviewer` reports a write to code under test. Then the session starts
+  `check-reviewer`, which reads the checks, the draft and the records read-only by
+  `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no "Checks:",
+  because the draft has no `sha256` before `lock`. It gets "Changed paths:" instead, the
+  output of `git status --porcelain --untracked-files=all` and of `git diff --name-only
+  --no-renames <start commit>`, which the session runs in the working folder before each
+  start, with the files of each new folder, because the reviewer reads files only. After a
+  review with no finding left that fails a push, the session runs `freeze checks`, sets
+  `commit` in the draft to the commit that `freeze` printed, runs `checks.cjs lock`, and
+  ends the step as `done` with `--pushed acceptance-lock/main/<N>`.
 - **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
   `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
   criterion planned as `Tests` with no check; a check that did not fail on the start commit

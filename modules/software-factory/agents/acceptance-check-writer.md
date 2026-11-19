@@ -94,8 +94,7 @@ the lines are about, and repeat the lists of your newest report, changed for thi
   so that no check of it fails there, report
   `Blocked: needs a change to criterion <ac-N>: <the change>`.
 - If a check needs a file outside the check scope of its row, report
-  `Blocked: the check scope of the row lists no folder for <path>, which the check of
-  <ac-N> needs.`
+  `Blocked: no folder of the check scope covers <path>, which the check of <ac-N> needs.`
 - If a check still does not fail with a failed test after 5 runs, report
   `Blocked: the check of <ac-N> does not fail with a failed test: <its last line>`.
 - If writing a file fails, report `blocked` with the file and the state of the folders.
@@ -119,7 +118,7 @@ Blocked: needs acceptance-criteria
 Blocked: needs build-plan
 Blocked: the acceptance criteria have no approved version.
 Blocked: needs a change to criterion <ac-N>: <the change>
-Blocked: the check scope of the row lists no folder for <path>, which the check of <ac-N> needs.
+Blocked: no folder of the check scope covers <path>, which the check of <ac-N> needs.
 Blocked: the check of <ac-N> does not fail with a failed test: <its last line>
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>

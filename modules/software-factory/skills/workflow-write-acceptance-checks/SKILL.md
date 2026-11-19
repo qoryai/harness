@@ -51,8 +51,8 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
      Files entry of any row that is a file and no Check path, such as `src/` with
      `src/a.ts`; a Check path with no folder adds none. A code folder that contains its
      check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
-     `check-reviewer` reports a write there to code under test. Its other Files, such as the
-     code under test, are not in it;
+     `check-reviewer` reports a write there to code under test. Its other Files are not in
+     it, and `check-reviewer` reports a write to code under test;
    - whether the app starts: `## Commands` has a `serve` row with a command, and
      `## Summary` has a line that starts with `App address:`;
    - whether a demo script exists: `index.json` lists an artifact of type `demo-script` with

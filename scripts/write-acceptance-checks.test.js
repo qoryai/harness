@@ -1052,8 +1052,8 @@ test('report: the writer and the reviewer pass with the shapes that their agents
   assert.equal(run('acceptance-check-writer', written).status, 0);
   for (const line of ['Blocked: needs a change to criterion ac-2: The start commit already ' +
     'meets it.', 'Blocked: needs build-plan',
-  'Blocked: the check scope of the row lists no folder for tests/fixtures/orders.json, which ' +
-    'the check of ac-1 needs.']) {
+  'Blocked: no folder of the check scope covers tests/fixtures/orders.json, which the check ' +
+    'of ac-1 needs.']) {
     const blocked = `What you read:\n- a\n\nFiles:\n- none\n\n${line}\n\nblocked\n`;
     const result = run('acceptance-check-writer', blocked);
     assert.equal(result.status, 0, `${line}\n${result.out}`);

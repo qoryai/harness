@@ -41,8 +41,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   unless the folder contains a Files entry of any row that is a file and no Check path, such
   as `src/` with `src/a.ts`; a Check path with no folder adds none. A code folder that
   contains its check, such as `src/export/` for `src/export/export.test.ts`, is in scope,
-  and `check-reviewer` reports a write there to code under test. The code under test in
-  those Files is outside the scope.
+  and `check-reviewer` reports a write there to code under test. Its other Files are not in
+  it, and `check-reviewer` reports a write to code under test.
 - `checks.cjs lock`, `check acceptance-lock` and its push check fail on a lock with no check
   of a criterion that its criteria version plans as Tests, with the fix line "Add a check
   of <id> to acceptance-lock.json, then lock again."
