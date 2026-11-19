@@ -1354,6 +1354,28 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 `NO_PROXY` in both cases, through which qory reaches the gateway. Gemini CLI passes `PATH`
 and `HOME` by default.
 
+Each of the 13 hook commands in `modules/core/settings/` starts `node` through
+`env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code, Codex, Gemini
+CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads no
+preload into a hook process. `DYLD_INSERT_LIBRARIES`, the variable of macOS, is not on the
+list.
+
+A shell reads `BASH_ENV` before it runs the first word of its command, so `env -u` cannot
+clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the environment of
+Gemini CLI, and Gemini CLI loads `.env` and `.gemini/.env` into that environment. On a real
+Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its script before a hook command.
+So `settings/gemini/settings.json` does two things:
+
+- It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
+  field to the environment of the hook after the other variables, and bash reads no file for
+  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it is
+  read from the source of 0.68.0.
+- It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
+  `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a `.env` file of the
+  project. The list also has `DEBUG` and `DEBUG_MODE`, the default that a list replaces.
+  Gemini CLI applies the list to `.env` only, not to `.gemini/.env`: with the list set and no
+  `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before the hook.
+
 In a run, a guard runs before each tool call: `tool-guard-claude.cjs` on Claude Code and
 `tool-guard-codex.cjs` on Codex, through `tool-guard.cjs`. The `PreToolUse` hooks of
 `settings/claude/settings.json` and `settings/codex/config.toml` match every tool (`*`),

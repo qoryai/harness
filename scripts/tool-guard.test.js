@@ -5095,6 +5095,176 @@ test('the child that reads the input of a hook runs without NODE_OPTIONS', () =>
   }
 });
 
+// hookCommands returns each command that a fragment of modules/core/settings/ registers as a
+// hook, as { file, command }: read from the five files, so that a command that is added or
+// changed there is read too.
+function hookCommands() {
+  const dir = path.join(MODULES, 'core', 'settings');
+  const found = [];
+  const walk = (file, value) => {
+    if (Array.isArray(value)) value.forEach((one) => walk(file, one));
+    else if (value !== null && typeof value === 'object') {
+      for (const [key, one] of Object.entries(value)) {
+        if (typeof one === 'string' && (key === 'command' || key === 'bash')) {
+          found.push({ file, command: one });
+        } else walk(file, one);
+      }
+    }
+  };
+  for (const file of ['claude/settings.json', 'gemini/settings.json', 'cursor/hooks.json',
+    'copilot/hooks.json']) {
+    walk(file, JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')).hooks);
+  }
+  const toml = fs.readFileSync(path.join(dir, 'codex/config.toml'), 'utf8');
+  for (const [, quoted] of toml.matchAll(/^command = (".*")$/gm)) {
+    found.push({ file: 'codex/config.toml', command: JSON.parse(quoted) });
+  }
+  return found;
+}
+
+const UNSET = ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_AUDIT'];
+
+test('each hook command of the five runtimes starts node through env -u of the four names', () => {
+  const commands = hookCommands();
+  assert.equal(commands.length, 13, JSON.stringify(commands.map((one) => one.file)));
+  for (const { file, command } of commands) {
+    const start = /\benv((?: -u [A-Z_]+)+) node "\$QORY_HARNESS_HOME\/hooks\/[a-z-]+\.cjs"/
+      .exec(command);
+    assert.ok(start, `${file}: ${command}`);
+    assert.deepEqual(start[1].split(' -u ').slice(1), UNSET, `${file}: ${command}`);
+    // No second node runs outside the wrapper, as in `node a.cjs || node b.cjs`.
+    assert.equal(command.match(/\bnode "/g).length, 1, `${file}: ${command}`);
+  }
+});
+
+test('Gemini CLI settings list the names in excludedEnvVars and clear BASH_ENV and ENV in each hook', () => {
+  const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
+    'core/settings/gemini/settings.json'), 'utf8'));
+  assert.deepEqual(settings.advanced.excludedEnvVars,
+    ['DEBUG', 'DEBUG_MODE', ...UNSET, 'BASH_ENV', 'ENV']);
+  const hooks = Object.values(settings.hooks).flatMap((groups) => groups.flatMap((group) =>
+    group.hooks));
+  assert.equal(hooks.length, 2);
+  for (const hook of hooks) assert.deepEqual(hook.env, { BASH_ENV: '', ENV: '' }, hook.name);
+});
+
+test('a preload in NODE_OPTIONS loads in a registered hook command only without env -u', () => {
+  const home = harnessHome();
+  const work = next('preload');
+  fs.mkdirSync(work);
+  const preload = path.join(work, 'preload.cjs');
+  const marker = path.join(work, 'marker');
+  fs.writeFileSync(preload, `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'x');\n`);
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: work,
+    NODE_OPTIONS: `--require ${preload}` };
+  const registered = hookCommands().filter(({ file }) => file === 'gemini/settings.json' ||
+    file === 'claude/settings.json');
+  const guards = registered.filter(({ command }) => /reports-guard-gemini|tool-guard-claude/
+    .test(command));
+  assert.equal(guards.length, 3);
+  for (const { file, command } of guards) {
+    const input = file.startsWith('gemini')
+      ? { tool_name: 'run_shell_command', cwd: work, tool_input: { command: 'ls' } }
+      : claude('Bash', { command: 'ls' });
+    // The command as registered, then the command with the wrapper cut out.
+    for (const [text, loads] of [[command, false],
+      [command.replace(/env(?: -u [A-Z_]+)+ node/, 'node'), true]]) {
+      fs.rmSync(marker, { force: true });
+      const ran = childProcess.spawnSync('/bin/sh', ['-c', text], { input: JSON.stringify(input),
+        env, cwd: work, encoding: 'utf8', timeout: 20000, killSignal: 'SIGKILL' });
+      assert.equal(ran.error, undefined, `${file}: ${ran.error}`);
+      assert.equal(fs.existsSync(marker), loads, `${file}: ${text}`);
+    }
+  }
+});
+
+// geminiRun starts the real Gemini CLI 0.68.0 with a hook that the fragment of core registers for
+// AfterAgent, but for SessionStart, which fires at the start of a session before any model call.
+// The call that follows goes to a proxy at 127.0.0.1:9, where nothing listens, so the run
+// needs no login and sends nothing. The hook runs a probe in place of end-gate-gemini.cjs: the
+// probe writes the six variables that it finds in its environment. The fragment's settings
+// stand in for the system settings file that qory points GEMINI_CLI_SYSTEM_SETTINGS_PATH at,
+// which Gemini CLI reads only from a folder that root owns. `plain` cuts the hook down to the
+// bare command with no wrapper and no env field; `advanced` false leaves out excludedEnvVars;
+// `envFile` is the file that holds the variables: .env or .gemini/.env. It returns what the
+// probe wrote, and whether the script of BASH_ENV ran.
+async function geminiRun({ plain, advanced, envFile }) {
+  const names = [...UNSET, 'BASH_ENV', 'ENV'];
+  const dir = next('gemini');
+  const [proj, home, qory] = ['proj', 'home', 'qory'].map((name) => path.join(dir, name));
+  fs.mkdirSync(path.join(proj, '.gemini'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini'), { recursive: true });
+  fs.mkdirSync(path.join(qory, 'hooks'), { recursive: true });
+  const probe = path.join(dir, 'probe.json');
+  const ran = path.join(dir, 'bash-env-ran');
+  fs.writeFileSync(path.join(qory, 'hooks', 'end-gate-gemini.cjs'),
+    `const names = ${JSON.stringify(names)};\n` +
+    'const seen = {};\n' +
+    'for (const name of names) if (name in process.env) seen[name] = process.env[name];\n' +
+    `require('node:fs').writeFileSync(${JSON.stringify(probe)}, JSON.stringify(seen));\n` +
+    "process.stdout.write('{}');\n");
+  const script = path.join(dir, 'bash-env.sh');
+  fs.writeFileSync(script, `echo ran >> ${JSON.stringify(ran)}\n`);
+  const fragment = JSON.parse(fs.readFileSync(path.join(MODULES,
+    'core/settings/gemini/settings.json'), 'utf8'));
+  const registered = fragment.hooks.AfterAgent[0].hooks[0];
+  const hook = plain ? { type: 'command',
+    command: registered.command.replace(/env(?: -u [A-Z_]+)+ node/, 'node') } : registered;
+  const settings = { ...fragment, hooks: { SessionStart: [{ hooks: [hook] }] } };
+  if (!advanced) delete settings.advanced;
+  fs.writeFileSync(path.join(home, '.gemini', 'settings.json'), JSON.stringify(settings));
+  fs.writeFileSync(path.join(proj, envFile), [`BASH_ENV=${script}`, `ENV=${script}`,
+    'NODE_OPTIONS=--no-warnings', `NODE_PATH=${path.join(dir, 'none')}`,
+    `LD_PRELOAD=${path.join(dir, 'none.so')}`, `LD_AUDIT=${path.join(dir, 'none.so')}`,
+    ''].join('\n'));
+  const child = childProcess.spawn('gemini', ['-p', 'hi'], { cwd: proj, stdio: 'ignore',
+    env: { PATH: process.env.PATH, HOME: home, GEMINI_CLI_HOME: home,
+      GEMINI_CLI_TRUST_WORKSPACE: 'true', GEMINI_API_KEY: 'test-key-not-real',
+      HTTPS_PROXY: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9',
+      QORY_HARNESS_HOME: qory } });
+  const closed = new Promise((resolve) => child.on('close', resolve));
+  child.on('error', () => {});
+  // Poll for the probe's file: the session starts, runs the hook, and goes on to the model call.
+  const until = Date.now() + 90000;
+  while (!fs.existsSync(probe) && child.exitCode === null && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const killer = setTimeout(() => child.kill('SIGKILL'), 3000);
+  child.kill('SIGTERM');
+  await closed;
+  clearTimeout(killer);
+  assert.ok(fs.existsSync(probe), 'the hook of Gemini CLI did not run');
+  return { seen: JSON.parse(fs.readFileSync(probe, 'utf8')), ran: fs.existsSync(ran), script };
+}
+
+test('Gemini CLI 0.68.0 runs a registered hook with no preload and no BASH_ENV from a .env file', async (t) => {
+  const version = childProcess.spawnSync('gemini', ['--version'], { encoding: 'utf8',
+    timeout: 60000 });
+  if (version.stdout === undefined || version.stdout.trim() !== '0.68.0') {
+    t.skip('Gemini CLI 0.68.0 is not on PATH');
+    return;
+  }
+  const [bare, both, project, projectBoth] = await pooled([
+    // The hook as registered, with the variables in .gemini/.env, which excludedEnvVars skips.
+    () => geminiRun({ advanced: true, envFile: '.gemini/.env' }),
+    // The hook with no wrapper and no env field: the variables reach it, and BASH_ENV runs.
+    () => geminiRun({ plain: true, advanced: true, envFile: '.gemini/.env' }),
+    // A project .env with excludedEnvVars of the fragment, and the same with no list.
+    () => geminiRun({ plain: true, advanced: true, envFile: '.env' }),
+    () => geminiRun({ plain: true, advanced: false, envFile: '.env' }),
+  ]);
+  const all = [...UNSET, 'BASH_ENV', 'ENV'].sort();
+  assert.deepEqual(bare.seen, { BASH_ENV: '', ENV: '' });
+  assert.equal(bare.ran, false);
+  assert.deepEqual(Object.keys(both.seen).sort(), all);
+  assert.equal(both.seen.BASH_ENV, both.script);
+  assert.equal(both.ran, true);
+  assert.deepEqual(project.seen, {});
+  assert.equal(project.ran, false);
+  assert.deepEqual(Object.keys(projectBoth.seen).sort(), all);
+  assert.equal(projectBoth.ran, true);
+});
+
 test('the checks that wait for a clock of the guard', { concurrency: true }, async (t) => {
   await Promise.all(waited.map(([name, fn]) => t.test(name, fn)));
 });
