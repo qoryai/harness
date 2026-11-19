@@ -156,8 +156,8 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
   says(section(writer, 'Guardrails'), 'You run no command, except ' +
     '`<skill folder>/checks.cjs run targeted <path>... --inputs <path>`');
   says(section(writer, 'Guardrails'), 'below a folder of the check scope of that row, which is ' +
-    'its Check path, and each folder of its Files that contains the Check path or lies under ' +
-    'the folder of the Check path');
+    'its Check path, and each folder of its Files that is the first folder of the Check path ' +
+    'or lies below it');
 });
 
 test('the stack declares write-acceptance-checks with tier balanced and access write', () => {
@@ -850,11 +850,14 @@ test('scope checks refuses the code under test of a row with a check, and any Fi
   assert.match(deliverable.out, /^Passed: 3 changed paths in the files of d-1/m);
 });
 
-test('scope checks takes a helper folder below the folder of the Check path', () => {
-  const rule = 'its Check path, and each folder of its Files that contains the Check path or ' +
-    'lies under the folder of the Check path (`tests/` for `tests/x.test.ts`), unless the ' +
-    'folder contains a Files entry of any row that is a file and no Check path, such as ' +
-    '`src/` with `src/a.ts`; a Check path with no folder adds none';
+test('scope checks takes a helper folder below the first folder of the Check path', () => {
+  const rule = 'its Check path, and each folder of its Files that is the first folder of the ' +
+    'Check path or lies below it (`src/` and `src/test/resources/` for ' +
+    '`src/test/java/x/FooTest.java`), unless the folder contains a Files entry of any row ' +
+    'that is a file and no Check path, such as `src/` with `src/a.ts`; a Check path with no ' +
+    'folder adds none. A code folder that contains its check, such as `src/export/` for ' +
+    '`src/export/export.test.ts`, is in scope, and `check-reviewer` reports a write there to ' +
+    'code under test';
   for (const text of [WORKFLOW, skill('writing-acceptance-checks'),
     skill('checking-acceptance-checks'), agent('acceptance-check-writer'),
     read(ROOT, 'docs/modules.md')]) says(text, rule);
@@ -923,26 +926,46 @@ test('scope checks refuses the code under test near the check, as src/ or src/ma
   writeFile(a2, 'src/a.test.cjs', CHECK_1);
   writeFile(a2, 'src/helper.cjs', "'use strict';\n");
   assert.equal(session(a2)('scope', 'checks', '--inputs', a2.inputs).status, 1);
-  // Case B: a Java layout. src/main/java/x/ does not lie under src/test/java/x/.
-  const files = '`src/main/java/x/`, `src/test/resources/`';
-  const plan = planOf([[files, '`src/test/java/x/FooTest.java`']]);
-  const b = work({ plan });
-  writeFile(b, 'src/test/java/x/FooTest.java', 'class FooTest {}\n');
-  assert.equal(session(b)('scope', 'checks', '--inputs', b.inputs).status, 0);
-  writeFile(b, 'src/main/java/x/Foo.java', 'class Foo {}\n');
-  const refusedB = session(b)('scope', 'checks', '--inputs', b.inputs);
-  assert.equal(refusedB.status, 1, refusedB.out);
-  assert.equal(refusedB.lines[0], 'Undo the change to "src/main/java/x/Foo.java", or end the ' +
-    'step as failed: it is outside the scope.');
-  assert.equal(session(b)('freeze', 'checks', '--inputs', b.inputs).status, 1);
-  // src/test/resources/ neither contains the Check path nor lies under src/test/java/x/.
-  const c = work({ plan });
-  writeFile(c, 'src/test/java/x/FooTest.java', 'class FooTest {}\n');
-  writeFile(c, 'src/test/resources/r.txt', 'r\n');
-  const refusedC = session(c)('scope', 'checks', '--inputs', c.inputs);
-  assert.equal(refusedC.status, 1, refusedC.out);
-  assert.equal(refusedC.lines[0], 'Undo the change to "src/test/resources/r.txt", or end the ' +
-    'step as failed: it is outside the scope.');
+  // Maven: src/test/resources/ is below src/, the first folder of the Check path, so a write
+  // there passes scope checks and freeze checks.
+  const maven = '`src/test/java/x/FooTest.java`';
+  const resources = work({ plan: planOf([['`src/test/resources/`', maven]]) });
+  writeFile(resources, 'src/test/java/x/FooTest.java', 'class FooTest {}\n');
+  writeFile(resources, 'src/test/resources/r.txt', 'r\n');
+  const mavenScope = session(resources)('scope', 'checks', '--inputs', resources.inputs);
+  assert.equal(mavenScope.status, 0, mavenScope.out);
+  assert.equal(session(resources)('freeze', 'checks', '--inputs', resources.inputs).status, 0);
+  // Rails: spec/fixtures/ is below spec/.
+  const rails = work({ plan: planOf([['`spec/fixtures/`', '`spec/models/x_spec.rb`']]) });
+  writeFile(rails, 'spec/models/x_spec.rb', 'describe X\n');
+  writeFile(rails, 'spec/fixtures/x.yml', 'a: 1\n');
+  const railsScope = session(rails)('scope', 'checks', '--inputs', rails.inputs);
+  assert.equal(railsScope.status, 0, railsScope.out);
+  assert.equal(session(rails)('freeze', 'checks', '--inputs', rails.inputs).status, 0);
+  // Maven with Files src/main/java/x/: that folder is below src/, so it is in scope as long as
+  // no code file of any row lies under it, and a write to Foo.java passes. This is the limit of
+  // the rule: check-reviewer reports the write, and no check refuses it.
+  const main = work({ plan: planOf([['`src/main/java/x/`', maven]]) });
+  writeFile(main, 'src/test/java/x/FooTest.java', 'class FooTest {}\n');
+  writeFile(main, 'src/main/java/x/Foo.java', 'class Foo {}\n');
+  const mainScope = session(main)('scope', 'checks', '--inputs', main.inputs);
+  assert.equal(mainScope.status, 0, mainScope.out);
+  // With the code file Foo.java in the Files of a row, src/main/java/x/ is out.
+  const both = '`src/main/java/x/Foo.java`, `src/main/java/x/`';
+  const listed = work({ plan: planOf([[both, maven]]) });
+  writeFile(listed, 'src/test/java/x/FooTest.java', 'class FooTest {}\n');
+  assert.equal(session(listed)('scope', 'checks', '--inputs', listed.inputs).status, 0);
+  writeFile(listed, 'src/main/java/x/Foo.java', 'class Foo {}\n');
+  const refusedListed = session(listed)('scope', 'checks', '--inputs', listed.inputs);
+  assert.equal(refusedListed.status, 1, refusedListed.out);
+  assert.equal(refusedListed.lines[0], 'Undo the change to "src/main/java/x/Foo.java", or end ' +
+    'the step as failed: it is outside the scope.');
+  assert.equal(session(listed)('freeze', 'checks', '--inputs', listed.inputs).status, 1);
+  // A code folder that contains its check is in scope: no check refuses a write there.
+  const near = work({ plan: planOf([['`src/export/`', '`src/export/export.test.cjs`']]) });
+  writeFile(near, 'src/export/export.test.cjs', CHECK_1);
+  writeFile(near, 'src/export/export.cjs', "'use strict';\n");
+  assert.equal(session(near)('scope', 'checks', '--inputs', near.inputs).status, 0);
   // The folder of the Check path with a file of another row that is no check: out.
   const d = work({ plan: planOf([['`tests/`', '`tests/x.check.cjs`'],
     ['`tests/other.cjs`', 'n/a']]) });

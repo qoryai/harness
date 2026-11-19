@@ -46,10 +46,13 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
      criteria of that row are the ones of its Criteria cell, and its Files are the Files of
      that row;
    - the check scope of each row with a check path: its Check path, and each folder of its
-     Files that contains the Check path or lies under the folder of the Check path (`tests/`
-     for `tests/x.test.ts`), unless the folder contains a Files entry of any row that is a
-     file and no Check path, such as `src/` with `src/a.ts`; a Check path with no folder
-     adds none. Its other Files, such as the code under test, are not in it;
+     Files that is the first folder of the Check path or lies below it (`src/` and
+     `src/test/resources/` for `src/test/java/x/FooTest.java`), unless the folder contains a
+     Files entry of any row that is a file and no Check path, such as `src/` with
+     `src/a.ts`; a Check path with no folder adds none. A code folder that contains its
+     check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
+     `check-reviewer` reports a write there to code under test. Its other Files, such as the
+     code under test, are not in it;
    - whether the app starts: `## Commands` has a `serve` row with a command, and
      `## Summary` has a line that starts with `App address:`;
    - whether a demo script exists: `index.json` lists an artifact of type `demo-script` with

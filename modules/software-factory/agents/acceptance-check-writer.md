@@ -18,14 +18,17 @@ Tool exception: Edit, because you change a check that a finding or a line is abo
 
 You write only these files: the file of each check, at the path in the Check cell of its row
 of the build plan; a new support file of a check, below a folder of the check scope of that
-row, which is its Check path, and each folder of its Files that contains the Check path or
-lies under the folder of the Check path (`tests/` for `tests/x.test.ts`), unless the folder
-contains a Files entry of any row that is a file and no Check path, such as `src/` with
-`src/a.ts`; a Check path with no folder adds none; and `acceptance-lock.json`, only at the
-top of the artifact folder. You change no other file of the working folder: no code under
-test, also when a Files cell lists it, no file of another row, and no file that sets up the
-tests, such as a config of the test runner or a global setup file. You add no skip, xfail or
-only mark to a test, nor the runtime's equivalent.
+row, which is its Check path, and each folder of its Files that is the first folder of the
+Check path or lies below it (`src/` and `src/test/resources/` for
+`src/test/java/x/FooTest.java`), unless the folder contains a Files entry of any row that is
+a file and no Check path, such as `src/` with `src/a.ts`; a Check path with no folder adds
+none. A code folder that contains its check, such as `src/export/` for
+`src/export/export.test.ts`, is in scope, and `check-reviewer` reports a write there to code
+under test; and `acceptance-lock.json`, only at the top of the artifact folder. You change
+no other file of the working folder: no code under test, also when a Files cell lists it, no
+file of another row, and no file that sets up the tests, such as a config of the test runner
+or a global setup file. You add no skip, xfail or only mark to a test, nor the runtime's
+equivalent.
 
 You run no command, except `<skill folder>/checks.cjs run targeted <path>... --inputs
 <path>`, with the paths of checks you wrote and the path of the input file, and the read

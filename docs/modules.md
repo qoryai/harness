@@ -2262,19 +2262,21 @@ of the criterion is cut in both to its first 8 words and "...".
   writer drafts `acceptance-lock.json`, with `failed_with` set to the `exit` of the record
   of the last run, each support file under `support`, and no `sha256`. The session runs
   `scope checks`, which allows only the check scope of each row with a check path: its Check
-  path, and each folder of its Files that contains the Check path or lies under the folder
-  of the Check path (`tests/` for `tests/x.test.ts`), unless the folder contains a Files
-  entry of any row that is a file and no Check path, such as `src/` with `src/a.ts`; a Check
-  path with no folder adds none. The code under test in those Files is outside it. Then the
-  session starts `check-reviewer`, which reads the checks, the draft and the records
-  read-only by `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no
-  "Checks:", because the draft has no `sha256` before `lock`. It gets "Changed paths:"
-  instead, the output of `git status --porcelain --untracked-files=all` and of `git diff
-  --name-only --no-renames <start commit>`, which the session runs in the working folder
-  before each start, with the files of each new folder, because the reviewer reads files
-  only. After a review with no finding left that fails a push, the session runs `freeze
-  checks`, sets `commit` in the draft to the commit that `freeze` printed, runs `checks.cjs
-  lock`, and ends the step as `done` with `--pushed acceptance-lock/main/<N>`.
+  path, and each folder of its Files that is the first folder of the Check path or lies
+  below it (`src/` and `src/test/resources/` for `src/test/java/x/FooTest.java`), unless the
+  folder contains a Files entry of any row that is a file and no Check path, such as `src/`
+  with `src/a.ts`; a Check path with no folder adds none. A code folder that contains its
+  check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
+  `check-reviewer` reports a write there to code under test. The code under test in those
+  Files is outside it. Then the session starts `check-reviewer`, which reads the checks, the
+  draft and the records read-only by `reviewing-drafts` and `checking-acceptance-checks`.
+  The reviewer gets no "Checks:", because the draft has no `sha256` before `lock`. It gets
+  "Changed paths:" instead, the output of `git status --porcelain --untracked-files=all` and
+  of `git diff --name-only --no-renames <start commit>`, which the session runs in the
+  working folder before each start, with the files of each new folder, because the reviewer
+  reads files only. After a review with no finding left that fails a push, the session runs
+  `freeze checks`, sets `commit` in the draft to the commit that `freeze` printed, runs
+  `checks.cjs lock`, and ends the step as `done` with `--pushed acceptance-lock/main/<N>`.
 - **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
   `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
   criterion planned as `Tests` with no check; a check that did not fail on the start commit
@@ -2497,25 +2499,27 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   commits since then, against the Files of the step's deliverable, or of every deliverable
   for `fix:f<N>` and for `--plan`. For `checks`, the step of `write-acceptance-checks`, they
   count against the check scope of each deliverable whose Check is a check path: that path,
-  and each folder of its Files that contains the Check path or lies under the folder of the
-  Check path (`tests/` for `tests/x.test.ts`), unless the folder contains a Files entry of
-  any row that is a file and no Check path, such as `src/` with `src/a.ts`; a Check path
-  with no folder adds none. A Check cell such as `n/a`, `none` or a scenario id is no check
-  path. Exactly one of `<step>` and `--plan` is given. No file has a separate rule:
-  `qory.yaml`, a hook program and a module count as any path. A path under `.qory` counts as
-  none, as qory leaves `.qory` out of every commit, and so does an untracked result file. A
-  path that the index marks skip-worktree or assume-unchanged counts when its file differs.
-  A path under `.qory` in a commit since `--base` is outside the scope, as qory pushes the
-  commit as it is. With the base from `--inputs`, a `deliverable:d-<N>` step judges a path
-  of a commit since the base against the Files of that deliverable and of each deliverable
-  before it in the order of the build plan, such as "the files of d-1 and d-2", and an
-  uncommitted path, or a path that is also changed now, against the Files of the step.
-  Without `--inputs`, the step judges every changed path, committed or not, against the
-  Files of the step. A committed path outside its scope gets the line "Take "<path>" out of
-  the commits since the base: it is outside the files of d-1 and d-2."; an uncommitted one
-  gets "Undo the change to "<path>"". With a committed path outside, the last finding on a
-  committed path has, indented after it, "For example: git reset --soft <c>, git restore -s
-  <c> -SW -- <path>, commit (<c>: before the path).", where `git restore` brings the path
+  and each folder of its Files that is the first folder of the Check path or lies below it
+  (`src/` and `src/test/resources/` for `src/test/java/x/FooTest.java`), unless the folder
+  contains a Files entry of any row that is a file and no Check path, such as `src/` with
+  `src/a.ts`; a Check path with no folder adds none. A code folder that contains its check,
+  such as `src/export/` for `src/export/export.test.ts`, is in scope, and `check-reviewer`
+  reports a write there to code under test. A Check cell such as `n/a`, `none` or a scenario
+  id is no check path. Exactly one of `<step>` and `--plan` is given. No file has a separate
+  rule: `qory.yaml`, a hook program and a module count as any path. A path under `.qory`
+  counts as none, as qory leaves `.qory` out of every commit, and so does an untracked
+  result file. A path that the index marks skip-worktree or assume-unchanged counts when its
+  file differs. A path under `.qory` in a commit since `--base` is outside the scope, as
+  qory pushes the commit as it is. With the base from `--inputs`, a `deliverable:d-<N>` step
+  judges a path of a commit since the base against the Files of that deliverable and of each
+  deliverable before it in the order of the build plan, such as "the files of d-1 and d-2",
+  and an uncommitted path, or a path that is also changed now, against the Files of the
+  step. Without `--inputs`, the step judges every changed path, committed or not, against
+  the Files of the step. A committed path outside its scope gets the line "Take "<path>" out
+  of the commits since the base: it is outside the files of d-1 and d-2."; an uncommitted
+  one gets "Undo the change to "<path>"". With a committed path outside, the last finding on
+  a committed path has, indented after it, "For example: git reset --soft <c>, git restore
+  -s <c> -SW -- <path>, commit (<c>: before the path).", where `git restore` brings the path
   back as it was at `<c>`, or removes it when it was not there, and "If the path is in a
   frozen or pushed commit, report to a member.", as a reset drops the commit that the build
   ledger records and a push that qory made cannot be redone. The lines of the scope of the

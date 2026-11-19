@@ -192,19 +192,19 @@ module.exports = (lib) => {
     /^[^/.][^/]*\.[A-Za-z0-9]+$/.test(cell.split('/').pop());
 
   // checkScope returns the paths that a deliverable with a check path allows to the step
-  // checks: the check path, and each folder of its Files that contains the check path or lies
-  // under the folder of the check path (tests/ for tests/x.test.ts, so tests/ and
-  // tests/helpers/), unless it contains a Files entry of any row in rows that is a file and no
-  // check path, such as src/ with src/a.ts: that file is code under test. A check path with no
-  // folder adds none. The other paths of its Files are not in it.
+  // checks: the check path, and each folder of its Files that is the first folder of the check
+  // path or lies below it (src/ and src/test/resources/ for src/test/java/x/FooTest.java),
+  // unless it contains a Files entry of any row in rows that is a file and no check path, such
+  // as src/ with src/a.ts: that file is code under test. A check path with no folder adds none.
+  // A code folder that contains its check, such as src/export/ for src/export/export.test.ts, is
+  // in it, and the reviewer reports a write there to code under test; no check refuses it.
   const checkScope = (row, rows) => {
-    const folder = row.check.slice(0, row.check.lastIndexOf('/') + 1);
+    const top = row.check.slice(0, row.check.indexOf('/') + 1);
     const checks = new Set(rows.filter((one) => isPath(one.check)).map((one) => one.check));
     const code = rows.flatMap((one) => one.paths)
       .filter((one) => !one.endsWith('/') && !checks.has(one));
-    return [row.check, ...row.paths.filter((one) => folder && one.endsWith('/') &&
-      (row.check.startsWith(one) || one.startsWith(folder)) &&
-      !code.some((file) => file.startsWith(one)))];
+    return [row.check, ...row.paths.filter((one) => top && one.endsWith('/') &&
+      one.startsWith(top) && !code.some((file) => file.startsWith(one)))];
   };
 
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
