@@ -1339,9 +1339,9 @@ test('decision record: a block of at most 20000 characters passes, measured as Q
   const size = /^Cut the Mermaid block of decision-1 to 20000 characters: it has (\d+)\.$/;
   // The text of a code block ends with a line feed. Mermaid compares it without its %% comment
   // lines (not %%{), the blank lines before them, and the white space at its start.
-  // sized(count) is a block of count characters in that measure.
+  // sized(count) is a block of count characters in that measure, with spaces for 0 words.
   const head = 'flowchart LR\n  A["';
-  const sized = (count, before = '') => drawn(`${before}${head}${'x'.repeat(count - head.length - 3)}"]`);
+  const sized = (count, before = '') => drawn(`${before}${head}${' '.repeat(count - head.length - 3)}"]`);
   passes(push(fixture(sized(19999)), 'decision-record'));
   passes(push(fixture(sized(20000)), 'decision-record'));
   const over = push(fixture(sized(20001)), 'decision-record');
@@ -1552,7 +1552,7 @@ test('decision record: the 450 words leave out the diagram', () => {
 });
 
 // A diagram of about 40 lines with nodes, labels, subgraphs, links, classes and styles, and no
-// comment: it has fewer than the 200 free tokens.
+// comment: it has fewer than the 700 free characters.
 const DIAGRAM_40 = [
   'flowchart LR',
   '  subgraph intake ["Intake of a reply"]',
@@ -1609,7 +1609,7 @@ function totalWords(...edits) {
   return Number(found[1]);
 }
 
-// FLOW_40 is a flowchart of 40 lines with 2 subgraphs, labels and 4 style lines: 162 tokens.
+// FLOW_40 is a flowchart of 40 lines with 2 subgraphs, labels and 4 style lines: 653 characters.
 const FLOW_40 = [
   'flowchart TD',
   '  subgraph intake [Intake of a reply]',
@@ -1653,7 +1653,7 @@ const FLOW_40 = [
   '  linkStyle 0 stroke:#333',
 ].join('\n');
 
-// CLASS_5 is a class diagram of 5 classes and 38 members, with relations: 113 tokens.
+// CLASS_5 is a class diagram of 5 classes and 38 members, with relations: 641 characters.
 const CLASS_5 = [
   'classDiagram',
   '  class Reply {',
@@ -1712,7 +1712,7 @@ const CLASS_5 = [
 ].join('\n');
 
 // SEQUENCE_20 is a sequence diagram of 5 participants, 19 messages, a note, an alt and a loop:
-// 113 tokens.
+// 465 characters.
 const SEQUENCE_20 = [
   'sequenceDiagram',
   '  participant C as Customer',
@@ -1745,52 +1745,90 @@ const SEQUENCE_20 = [
   '  S-->>M: Thanks',
 ].join('\n');
 
-// A diagram of tokens tokens: a flowchart with one label of tokens - 3 words.
-const flowOf = (tokens) => `flowchart LR\n  A["${many(tokens - 3)}"] --> B`;
+// plain returns the characters of text that no entity, white space or Mermaid symbol changes: the
+// count of a diagram that has none of those but the symbols and spaces.
+const plain = (text) => Array.from(text.replace(/[\s\-=.<>|*()[\]{}:;&~%"']/gu, '')).length;
+// flowOf returns a flowchart whose characters are count: "flowchart", "LR" and "A" are 12.
+const flowOf = (count) => `flowchart LR\n  A["${'x'.repeat(count - 12)}"]`;
+// words returns the words that a record of exactly 450 words has with the diagram body.
+const withDiagram = (body) => totalWords(cost(exactWords()), drawn(body));
 
-test('decision record: the first 200 tokens of each diagram are free, and each token after counts', () => {
+test('decision record: each diagram has 700 free characters, and 6 more cost one word', () => {
   const exact = exactWords();
   const mermaid = require(MERMAID);
-  // The 3 usual diagrams add 0.
-  for (const [name, body, tokens] of [['a flowchart', FLOW_40, 162], ['a class diagram', CLASS_5, 113],
-    ['a sequence diagram', SEQUENCE_20, 113], ['DIAGRAM_40', DIAGRAM_40, 138], ['CLASS_40', CLASS_40, 123]]) {
-    assert.equal(mermaid.tokens(body), tokens, name);
+  // The usual diagrams add 0.
+  for (const [name, body, count] of [['a flowchart', FLOW_40, 653], ['a class diagram', CLASS_5, 641],
+    ['a sequence diagram', SEQUENCE_20, 465], ['DIAGRAM_40', DIAGRAM_40, 612],
+    ['CLASS_40', CLASS_40, 677]]) {
+    assert.equal(mermaid.characters(body), count, name);
     passes(push(fixture(cost(exact), drawn(body)), 'decision-record'));
   }
-  // 200 tokens add 0, so that a record of exactly 450 words passes. 201 add 1.
-  assert.equal(mermaid.tokens(flowOf(200)), 200);
-  passes(push(fixture(cost(exact), drawn(flowOf(200))), 'decision-record'));
-  assert.equal(mermaid.tokens(flowOf(201)), 201);
-  fails(push(fixture(cost(exact), drawn(flowOf(201))), 'decision-record'),
+  // 700 characters add 0, 701 add 1, 706 add 1, and 707 add 2.
+  assert.equal(mermaid.characters(flowOf(700)), 700);
+  passes(push(fixture(cost(exact), drawn(flowOf(700))), 'decision-record'));
+  fails(push(fixture(cost(exact), drawn(flowOf(701))), 'decision-record'),
     /^Cut decision-record.md to 450 words: it has 451\./);
-  // An emoji is a token: 250 add 50, though no letter or digit is in them.
-  const emoji = `flowchart LR\n  A["${Array(247).fill('\u{1F600}').join(' ')}"] --> B`;
-  assert.equal(mermaid.tokens(emoji), 250);
-  assert.equal(totalWords(cost(exact), drawn(emoji)), 450 + 50);
-  // Each of these 5 diagrams has more than 200 tokens, and each token after the 200 counts.
-  const ids = Array.from({ length: 1000 }, (_, at) => `w${at}`);
-  const label30 = (at) => `  N${at}["${Array.from({ length: 30 }, (_, word) => `l${word}`).join('\n')}"]`;
-  const cases = {
-    'a label of 30 words, one word on each line':
-      [`flowchart LR\n${Array.from({ length: 10 }, (_, at) => label30(at)).join('\n')}`, 2 + 10 * 30],
-    'a style line with an arrow':
-      [`sequenceDiagram\n  style ->> A: ${many(1000)}`, 1 + 1 + 1 + 1000],
-    'a create line':
-      [`sequenceDiagram\n  create participant B as ${many(1000)}`, 1 + 4 + 1000],
-    'a loop with arrows': [`sequenceDiagram\n  loop ${ids.join(' -> ')}`, 1 + 1 + 1000],
-    '200 style members of a class':
-      [`classDiagram\n  class C {\n${'    style w0 w1 w2 w3 w4\n'.repeat(200)}  }`, 1 + 1 + 1 + 200 * 6],
-  };
-  for (const [name, [body, tokens]] of Object.entries(cases)) {
-    assert.equal(mermaid.tokens(body), tokens, name);
-    assert.equal(totalWords(cost(exact), drawn(body)), 450 + tokens - 200, name);
-  }
-  // 2 diagrams of 250 tokens add 2 x 50: each diagram has its own 200 free tokens.
+  assert.equal(withDiagram(flowOf(701)), 451);
+  assert.equal(withDiagram(flowOf(706)), 451);
+  assert.equal(withDiagram(flowOf(707)), 452);
+  fails(push(fixture(cost(exact), drawn(flowOf(707))), 'decision-record'),
+    /^Cut decision-record.md to 450 words: it has 452\./);
+  // An emoji is one character: 800 of them are 812 with the 12 of the others.
+  const emoji = `flowchart LR\n  A["${'\u{1F600}'.repeat(800)}"]`;
+  assert.equal(mermaid.characters(emoji), 812);
+  assert.equal(withDiagram(emoji), 450 + Math.ceil(112 / 6));
+  // 2 diagrams of 760 characters add 2 x 10: each diagram has its own 700 free characters.
   const two = (first, second) => [drawn(first), ['decision-record.md', /\n*$/,
     `${decision(2, false)}\n\n\`\`\`mermaid\n${second}\n\`\`\`\n`]];
   const small = 'flowchart LR\n  A --> B';
-  assert.equal(totalWords(cost(500), ...two(flowOf(250), flowOf(250)))
-    - totalWords(cost(500), ...two(small, small)), 100);
+  assert.equal(totalWords(cost(500), ...two(flowOf(760), flowOf(760)))
+    - totalWords(cost(500), ...two(small, small)), 20);
+});
+
+test('decision record: the texts that a count of words by form missed are charged in full', () => {
+  const ids = Array.from({ length: 1000 }, (_, at) => `w${at}`);
+  const label30 = (at) => `  N${at}["${many(30).split(' ').join('\n')}"]`;
+  const word = (count, join) => Array(count).fill('word').join(join);
+  const cases = {
+    'a label of 30 words, one word on each line':
+      `flowchart LR\n${Array.from({ length: 10 }, (_, at) => label30(at)).join('\n')}`,
+    'a style line with an arrow': `sequenceDiagram\n  style ->> A: ${many(1000)}`,
+    'a create line': `sequenceDiagram\n  create participant B as ${many(1000)}`,
+    'a loop with arrows': `sequenceDiagram\n  loop ${ids.join(' -> ')}`,
+    '200 style members of a class':
+      `classDiagram\n  class C {\n${'    style w0 w1 w2 w3 w4\n'.repeat(200)}  }`,
+    'words joined by <br>': `flowchart LR\n  A["${word(200, '<br>')}"]`,
+    'words joined by ;': `flowchart LR\n  A["${word(200, ';')}"]`,
+    'a glued chain of 200 edges': `flowchart LR\n  ${Array.from({ length: 201 }, (_, at) => `n${at}`).join('-->')}`,
+    'words joined by U+2800': `flowchart LR\n  A["${word(200, '\u2800')}"]`,
+  };
+  for (const [name, body] of Object.entries(cases)) {
+    const count = body.replace(/\u2800/g, 'x').replace(/<br>/g, 'br');
+    assert.equal(require(MERMAID).characters(body), plain(count), name);
+    assert.ok(plain(count) > 700, name);
+    assert.equal(withDiagram(body), 450 + Math.ceil((plain(count) - 700) / 6), name);
+  }
+  // "#32;" is a space: 200 words joined by it are 800 characters, and "&nbsp;" is one too.
+  for (const join of ['#32;', '&#32;', '&#x20;', '&nbsp;', '#nbsp;', '&amp;']) {
+    const body = `flowchart LR\n  A["${Array(200).fill('word').join(join)}"]`;
+    assert.equal(withDiagram(body), 450 + Math.ceil((800 + 12 - 700) / 6), join);
+  }
+});
+
+test('decision record: an entity counts as the character it stands for', () => {
+  const { characters } = require(MERMAID);
+  const count = (text) => characters(`flowchart LR\n  A["${text}"]`) - 12;
+  assert.equal(count('&#9829;&#x2665;#9829;&hearts;#hearts;'), 5);
+  assert.equal(count('a&nbsp;b&#32;c#32;d&amp;e&lt;f&gt;'), 6);
+  // A name that the decoder does not list stays text, so that its letters count.
+  assert.equal(count('&notaname;'), 'notaname'.length);
+  assert.equal(count('#notaname;'), '#notaname'.length);
+  // Mermaid writes "#x41;" as "&x41;", which the page shows as text.
+  assert.equal(count('#x41;'), '#x41'.length);
+  assert.equal(count('&#x41;'), 1);
+  // A number that is no character is U+FFFD, one character, and an entity decodes once.
+  assert.equal(count('&#0;&#xD800;&#1114112;'), 3);
+  assert.equal(count('&amp;nbsp;'), 4);
 });
 
 test('decision record: a Mermaid block with a %%{ line is refused, and its words count none', () => {
@@ -1799,34 +1837,34 @@ test('decision record: a Mermaid block with a %%{ line is refused, and its words
     directive);
   fails(push(fixture(drawn('%%{init: {}}%%\nflowchart LR\n  A --> B')), 'decision-record'), directive);
   const mermaid = require(MERMAID);
-  assert.equal(mermaid.tokens(`flowchart LR\n  A --> B\n%%{ ${many(500)} }%%`), 4);
+  assert.equal(mermaid.characters(`flowchart LR\n  A --> B\n%%{ ${many(500)} }%%`), 13);
   // The size leaves out a %% comment line, and a directive line is dropped before.
   assert.equal(mermaid.size(mermaid.source('flowchart LR\n%%{ init }%%\n  A')),
     'flowchart LR\n  A\n'.length);
   assert.equal(mermaid.directive('flowchart LR\n%​%{ init }%%'), true);
 });
 
-test('decision record: a token is a run with no white space, and only a syntax token counts 0', () => {
-  const { tokens } = require(MERMAID);
-  // A token of only - = . < > | * ( ) [ ] { } : ; & ~ % " ' counts 0.
-  assert.equal(tokens('flowchart LR\n  A --> B\n  A -.-> B\n  A ==> B\n  A --- B\n  A ~~~ B'), 12);
-  assert.equal(tokens('flowchart LR\n  C & D --> E'), 5);
-  assert.equal(tokens('flowchart LR\n  A[(x)] -->|y| B'), 5);
-  assert.equal(tokens('flowchart LR\n  A[ ( ) ] ; { } : " \' %%'), 3);
-  // Every other token counts, node ids and keywords included.
-  assert.equal(tokens('flowchart LR\n  subgraph s\n  direction TB\n  end'), 7);
-  assert.equal(tokens('flowchart LR\n  A[one two] --> B("three")'), 5);
-  assert.equal(tokens('sequenceDiagram\n  participant A as Alice\n  A->>B: hi there'), 8);
-  // A %% comment counts as any other text, with an image in it. A %%{ line and a click line are
-  // stripped before the count, as Qory Apiary strips them.
-  assert.equal(tokens('flowchart LR\n%% one two three'), 5);
-  assert.equal(tokens(`flowchart LR\n%% ![${many(10)}](u)`), 12);
-  assert.equal(tokens('flowchart LR\n  A --> B\n  click A call cb() "one two three"'), 4);
-  // An emoji, a letter and a digit are tokens, and so is a word of 2 non-Latin characters.
-  assert.equal(tokens('flowchart LR\n  \u{1F600} \u4F60\u597D 1'), 5);
-  // The charge is the count above FREE_TOKENS.
-  assert.equal(require(MERMAID).FREE_TOKENS, 200);
-  assert.equal(require(MERMAID).charged(flowOf(250)), 50);
+test('decision record: white space and the Mermaid symbols count 0, every other character counts', () => {
+  const { characters } = require(MERMAID);
+  // "flowchart" and "LR" are 11, and the symbols and spaces of the other lines are 0.
+  assert.equal(characters('flowchart LR\n  A --> B\n  A -.-> B\n  A ==> B\n  A --- B\n  A ~~~ B'), 21);
+  assert.equal(characters('flowchart LR\n  C & D --> E'), 14);
+  assert.equal(characters('flowchart LR\n  A[ ( ) ] ; { } : " \' %% | * < > ~ - = .'), 12);
+  // Tabs, U+00A0, U+3000 and U+2003 are white space. U+2800 is no white space.
+  assert.equal(characters('flowchart\tLR\n\u00A0A\u3000B\u2003C'), 14);
+  assert.equal(characters('flowchart LR\n  A\u2800B'), 14);
+  // A node id, a keyword and a %% comment count, with an image in it. A click line does not.
+  assert.equal(characters('flowchart LR\n  subgraph s\n  direction TB\n  end'), 34);
+  assert.equal(characters('flowchart LR\n%% one two three'), 11 + 11);
+  assert.equal(characters(`flowchart LR\n%% ![${many(10)}](u)`), 11 + 42);
+  assert.equal(characters('flowchart LR\n  A --> B\n  click A call cb() "one two three"'), 13);
+  // A letter outside Latin and a digit are one character each.
+  assert.equal(characters('flowchart LR\n  你好 1'), 14);
+  // The cost is the characters over FREE_CHARACTERS, in groups of CHARACTERS_PER_WORD.
+  assert.equal(require(MERMAID).FREE_CHARACTERS, 700);
+  assert.equal(require(MERMAID).CHARACTERS_PER_WORD, 6);
+  assert.equal(require(MERMAID).charged(flowOf(701)), 1);
+  assert.equal(require(MERMAID).charged(flowOf(700)), 0);
 });
 
 test('decision record: a time limit for text that made a pattern slow', () => {
@@ -1846,7 +1884,7 @@ test('decision record: a time limit for text that made a pattern slow', () => {
   timed('blank lines in a sequence diagram', drawn(`sequenceDiagram\n${'\n'.repeat(150000)}  A->>B: x`));
   timed('blank lines before a properties line', drawn(`sequenceDiagram\n${' \n'.repeat(75000)}properties A`));
   timed('nested image starts', ['decision-record.md', '- Why: ', `- Why: ${'![x'.repeat(30000)}${']'.repeat(30000)} `]);
-  timed('tokens', drawn(`flowchart LR\n${'a '.repeat(9400)}`));
+  timed('characters', drawn(`flowchart LR\n${'a #32;&nbsp;'.repeat(1500)}`));
   timed('spaces after an image start', ['decision-record.md', '- Why: ', `- Why: ![a](${' '.repeat(250000)}x `]);
   timed('image destinations that do not close', ['decision-record.md', '- Why: ', `- Why: ${'![a]('.repeat(15000)} `]);
   timed('image starts with a long alt', ['decision-record.md', '- Why: ', `- Why: ${'![a b '.repeat(20000)} `]);
@@ -1866,8 +1904,8 @@ test('decision record: the checks of a diagram take linear time on long runs', (
   timed('blank lines', () => {
     assert.equal(mermaid.loads(`sequenceDiagram\n${'\n'.repeat(200000)}properties A`), true);
   });
-  timed('tokens', () => {
-    assert.equal(mermaid.tokens(`flowchart LR\n${'a '.repeat(500000)}`), 500002);
+  timed('characters', () => {
+    assert.equal(mermaid.characters(`flowchart LR\n${'a #32;&nbsp;&#x20;&foo; '.repeat(50000)}`), 11 + 50000 * 4);
   });
   timed('comments with no end', () => {
     assert.equal(mermaid.loads(`flowchart LR\n${'/*a'.repeat(150000)}`), false);
@@ -1884,10 +1922,10 @@ test('decision record: the checks of a diagram take linear time on long runs', (
   });
 });
 
-test('decision record: a class diagram of 40 members adds no token to a record of 450 words', () => {
+test('decision record: a class diagram of 40 members adds no word to a record of 450 words', () => {
   const exact = exactWords();
   passes(push(fixture(cost(exact), drawn(CLASS_40)), 'decision-record'));
-  // A member line of 30 words adds 0: the 200 free tokens of the diagram take them.
+  // A member line of 30 words adds 0: the 700 free characters of the diagram take them.
   const long = `classDiagram\n  class Reply {\n    ${many(30)}\n  }\n  Reply --> Hours`;
   passes(push(fixture(cost(exact), drawn(long)), 'decision-record'));
   // An entity diagram and a state diagram of usual size add nothing.

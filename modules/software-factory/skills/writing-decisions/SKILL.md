@@ -113,9 +113,6 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   question.
 
 The other rules stay, such as the edit in place of the newest version, and the 450 words.
-They also count the tokens of each diagram after its first 200. A token is a run of
-characters with no white space, and a token of only the characters
-``- = . < > | * ( ) [ ] { } : ; & ~ % " '`` counts 0, such as `-->` and `[(`.
 
 - A diagram shows the change in how two parts call each other, or in a flow of states, and
   nothing else, and it is no drawing of the system's architecture.
@@ -140,8 +137,9 @@ characters with no white space, and a token of only the characters
   as text, under a line that says why it failed. It shows a block over 20,000 characters as
   the size-error diagram of Mermaid, with its source in `<details>`. The check refuses each
   of them.
-- The first 200 tokens of each diagram are free, and each token after them counts toward the
-  450 words, node ids and keywords included.
+- Each diagram's characters other than spaces and Mermaid symbols over 700 cost one word per
+  6. The Mermaid symbols are ``- = . < > | * ( ) [ ] { } : ; & ~ % " '``, "spaces" covers
+  every white-space character, and an entity counts as the character it stands for.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw

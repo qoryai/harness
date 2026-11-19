@@ -23,9 +23,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Qory Apiary measures them, a flowchart with more than 200 edges, and a `%%{` line.
   `lib/mermaid.cjs` reads the text as Qory Apiary draws it, without the characters that Qory
   Apiary strips, and counts every link of a flowchart, because Qory Apiary sets the limit
-  but has no edge count. The first 200 tokens of each diagram are free, and each token after
-  them counts toward the 450 words, node ids and keywords included. A token is as
-  `writing-decisions` defines it. The decision record also refuses an HTML `<img>` and a
+  but has no edge count. Each diagram's characters other than spaces and Mermaid symbols
+  over 700 cost one word per 6. The decision record also refuses an HTML `<img>` and a
   reference image next to an inline image, by the new option `everyImage` of `links` in
   `lib/markdown.cjs`, which no other type sets. An inline image needs its closing `)`, and a
   blank line in its alt text or before its address makes it no image. `checking-decisions`

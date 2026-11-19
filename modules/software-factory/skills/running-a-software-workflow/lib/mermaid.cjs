@@ -1,8 +1,8 @@
 // The part of the Mermaid hook of Qory Apiary that decides whether a block is drawn as a
 // diagram: the text it draws, its type, the syntax that loads an address, and its limits.
 // A port of assets/js/hooks/mermaid.js of qoryai/apiary, so that a check of the harness
-// refuses a block that Qory Apiary shows as text, and counts the tokens of a diagram, which the
-// 450 words of a record count after the free tokens of each diagram.
+// refuses a block that Qory Apiary shows as text, and counts the characters of a diagram, which
+// the 450 words of a record count above the free characters of each diagram.
 'use strict';
 
 // The settings of mermaid.js (lines 158-159): maxTextSize and maxEdges.
@@ -284,24 +284,64 @@ function edges(text) {
   return joined.reduce((sum, parts) => sum + statementEdges(parts.join(' ')), 0);
 }
 
-// FREE_TOKENS tokens of each diagram are free: each token after them counts toward the 450 words
-// of a record. A token is a run of characters with no white space, counted after source(). A
-// token of only the characters in SYNTAX counts 0; every other token counts, node ids and
-// keywords included. The core word count is not used, because it reads Markdown.
-const FREE_TOKENS = 200;
-const SYNTAX = /^[-=.<>|*()[\]{}:;&~%"']+$/;
+// FREE_CHARACTERS characters of each diagram are free, and each 6 after them cost one word of
+// the 450 of a record. The characters are those of source(), with each entity as the character
+// it stands for, that are no white space and not in SYMBOLS. The core word count is not used,
+// because it reads Markdown.
+const FREE_CHARACTERS = 700;
+const CHARACTERS_PER_WORD = 6;
+const SYMBOLS = new Set([...'-=.<>|*()[]{}:;&~%"\'']);
 
-// tokens returns the number of tokens of the Mermaid block with this text that count.
-function tokens(text) {
+// The named entities that the decoder knows. Mermaid writes "#name;" as "&name;", and the page
+// reads it as HTML. An entity that is not in the list stays text, so that its letters count.
+const ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ensp: ' ',
+  emsp: ' ', thinsp: ' ', shy: '­', copy: '©', reg: '®',
+  trade: '™', hellip: '…', mdash: '—', ndash: '–', lsquo: '‘',
+  rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
+  bull: '•', middot: '·', times: '×', divide: '÷', deg: '°',
+  plusmn: '±', micro: 'µ', para: '¶', sect: '§', euro: '€',
+  pound: '£', yen: '¥', cent: '¢', hearts: '♥', spades: '♠',
+  clubs: '♣', diams: '♦', larr: '←', rarr: '→', uarr: '↑',
+  darr: '↓', harr: '↔', check: '✓', infin: '∞', ne: '≠',
+  le: '≤', ge: '≥', sum: '∑', radic: '√', pi: 'π', alpha: 'α',
+  beta: 'β', lambda: 'λ', mu: 'μ', omega: 'ω', Omega: 'Ω',
+};
+
+// codePoint returns the character of a number, as HTML reads it: U+FFFD for 0, a surrogate and
+// a number over 0x10FFFF.
+function codePoint(number) {
+  const valid = number > 0 && number <= 0x10ffff && !(number >= 0xd800 && number <= 0xdfff);
+  return valid ? String.fromCodePoint(number) : '�';
+}
+
+// decoded returns text with each entity as the character it stands for, in one pass: "&#32;",
+// "&#x20;", "&name;", and Mermaid's "#32;" and "#name;" ("#x20;" is no number to Mermaid: it
+// writes "&x20;", which the page shows as text).
+function decoded(text) {
+  const entity = /&#([xX][0-9a-fA-F]+|\d+);|#(\d+);|[&#](\w+);/g;
+  return text.replace(entity, (all, number, plain, name) => {
+    if (number !== undefined) {
+      return codePoint(/^[xX]/.test(number) ? parseInt(number.slice(1), 16) : Number(number));
+    }
+    if (plain !== undefined) return codePoint(Number(plain));
+    return Object.hasOwn(ENTITIES, name) ? ENTITIES[name] : all;
+  });
+}
+
+// characters returns the number of characters of the Mermaid block with this text that count.
+function characters(text) {
   let count = 0;
-  for (const token of source(text).split(/\s+/)) {
-    if (token !== '' && !SYNTAX.test(token)) count++;
+  for (const char of decoded(source(text))) {
+    if (!SYMBOLS.has(char) && !/\s/u.test(char)) count += 1;
   }
   return count;
 }
 
-// charged returns the number of tokens of the block that count toward a word limit.
-const charged = (text) => Math.max(0, tokens(text) - FREE_TOKENS);
+// charged returns the number of words that the block costs: one for each 6 characters over
+// FREE_CHARACTERS.
+const charged = (text) => Math.ceil(Math.max(0, characters(text) - FREE_CHARACTERS) /
+  CHARACTERS_PER_WORD);
 
 // refusal returns why Qory Apiary shows the Mermaid block with this text as text, or draws
 // it as an error, as { reason, found }, or null when it draws the block. reason is `type`,
@@ -320,6 +360,6 @@ function refusal(text) {
 }
 
 module.exports = {
-  FREE_TOKENS, MAX_CHARACTERS, MAX_EDGES, TYPES, charged, directive, edges, loads, refusal, size,
-  source, tokens, typeOf,
+  CHARACTERS_PER_WORD, FREE_CHARACTERS, MAX_CHARACTERS, MAX_EDGES, TYPES, characters, charged,
+  directive, edges, loads, refusal, size, source, typeOf,
 };

@@ -2267,11 +2267,14 @@ reference with no definition is no image.
 - a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
   a removed decision's diagram is not in that count.
 
-The 450 words also count the tokens of each diagram after its first 200, node ids and
-keywords included. A token is as `writing-decisions` defines it. `tokens` in
-`lib/mermaid.cjs` counts the tokens of the text that `source()` returns. It does not read
-Markdown, so `![...](u)` in a comment hides no token, and a `%%` comment counts as any other
-text. `source()` strips each `click` line, so it counts no token.
+Each diagram's characters other than spaces and Mermaid symbols over 700 cost one word per
+6. The Mermaid symbols are ``- = . < > | * ( ) [ ] { } : ; & ~ % " '``, "spaces" covers
+every white-space character, and an entity counts as the character it stands for.
+`characters` in `lib/mermaid.cjs` counts them in the text that `source()` returns, and
+decodes `&#32;`, `&#x20;`, `#32;`, `&name;` and `#name;` for the names that it lists. A name
+that it does not list stays text, so that its letters count, and `#x20;` is no number to
+Mermaid, so its characters count. It does not read Markdown, so `![...](u)` in a comment
+hides no character. `source()` strips each `click` line, so it counts none.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
