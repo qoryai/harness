@@ -8,6 +8,44 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
+  `access: write`: the skills `workflow-write-acceptance-checks`,
+  `writing-acceptance-checks` and `checking-acceptance-checks`, and the agents
+  `acceptance-check-writer` and `check-reviewer`. The session reads the newest build plan
+  and the newest `acceptance-criteria.json`. The agents start only when the JSON has a live
+  criterion whose `check` is `Tests`; with none, the run ends `passed`. When such a
+  criterion is in no row of the plan that has a check path, the run ends with a `run_again`
+  point whose fix is to plan the build again, with the quote of the criterion cut to its
+  first 8 words when the point has more than 500 characters. With no build plan or no
+  acceptance criteria, the run ends with a `run_again` point that has a fix. A check path is
+  a relative path whose file name has an extension, as `lib/plan.cjs` reads it; `n/a`,
+  `none`, `-` and `TBD` are none. In the ledger step `checks`, the writer writes each check
+  at its Check path and its new helpers below a folder of its check scope, runs each with
+  `checks.cjs run targeted` until it fails with a failed test on the start commit, and
+  drafts `acceptance-lock.json`. Before each review, the session runs `git status
+  --porcelain --untracked-files=all` and `git diff --name-only --no-renames <start commit>`
+  and passes both outputs to the reviewer as "Changed paths:". After the review, the session
+  runs `freeze checks`, sets `commit` to the commit of the checks, and runs `checks.cjs
+  lock`, which pushes `acceptance-lock`. Then it runs `checks.cjs preflight`, when the plan
+  starts the app and `index.json` lists a demo script, and `checks.cjs run locked`; with no
+  demo script, it runs the checks with no app check. A locked check that does not fail with
+  a failed test in two runs ends the run with one question per check, about the criterion,
+  with the check, the criterion and what both runs printed. `check-reviewer` reports, with
+  the mark `break`, which here means that the run must not push the lock, a command or a
+  check that runs or imports a file whose only use is the tests and that the lock lists
+  neither as a check nor under `support[]`, a changed test setup, a skip, xfail or only
+  mark, and each changed path that the writer's "Files:" lacks. `scope` and `freeze` take
+  the step `checks`, with only the check scope of each deliverable with a check path: its
+  Check path, and each folder of its Files that is the first folder of the Check path or
+  lies below it (`src/` and `src/test/resources/` for `src/test/java/x/FooTest.java`),
+  unless the folder contains a Files entry of any row that is a file and no Check path, such
+  as `src/` with `src/a.ts`; a Check path with no folder adds none. A code folder that
+  contains its check, such as `src/export/` for `src/export/export.test.ts`, is in scope,
+  and `check-reviewer` reports a write there to code under test. Its other Files are not in
+  it, and `check-reviewer` reports a write to code under test.
+- `checks.cjs lock`, `check acceptance-lock` and its push check fail on a lock with no check
+  of a criterion that its criteria version plans as Tests, with the fix line "Add a check
+  of <id> to acceptance-lock.json, then lock again."
 - The `plan-the-build` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-plan-the-build`, `planning-builds` and
   `checking-build-plans`, and the agents `build-planner` and `plan-reviewer`. The session
@@ -743,6 +781,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   through `points.json`, as for every end through "Points".
 
 ### Changed
+
+- Shape routes a word that asks for a screen that the newest spec does not list as
+  `Mockup screen:`, such as the comment "draw a mockup of the export screen" at the gate,
+  to `write-specs` and then `make-mockups`. Before, `shape-planner` sent a comment that
+  is about the mockup only to `make-mockups`, `designer` drew only the screens that the
+  spec lists, and the run ended with "The spec states no screen change, so the run pushed
+  no mockup." Now `spec-writer` adds a part with a `Mockup screen:` line for such a word, as
+  `writing-specs` lists, `check` runs on the spec, and the planner starts again after the
+  spec push, so the mockup workflow follows. After a follow of `write-specs` in the log
+  after the word's `at`, the planner lists `write-specs` no more for the word: it lists
+  `make-mockups` when the spec lists the screen and the newest mockup lacks it, and else,
+  when nothing else needs it, puts it under "Not run". The session of `shape-a-ticket`
+  starts the planner again after a follow of `write-specs` that pushed no spec, while a
+  later workflow of the same pass is still listed or has a pending item. `shape-reviewer`
+  sends no finding to `write-specs` for a word whose last reply of the spec writer has
+  outcome `declined`, `answered` or `asked`, so the run does not loop to its limit.
 
 - The acceptance criteria are `acceptance-criteria.json`, in the acceptance criteria format
   of qory's contract, in place of the table of `acceptance-criteria.md`: a `summary`, and

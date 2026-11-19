@@ -144,8 +144,9 @@ module.exports = (lib) => {
   // pulled build plan: address is the URL of the line "App address:" of ## Summary, or null
   // for none, and badHost is the value of that line when it has a URL whose host breaks
   // HOST, or null;
-  // each deliverable { id, change, criteria, files, problem }, where criteria has the ids of
-  // the Criteria cell, and each command by its kind,
+  // each deliverable { id, change, criteria, check, files, problem }, where criteria has the
+  // ids of the Criteria cell and check the Check cell without backticks, and each command by
+  // its kind,
   // { command, resultFile, source }, with null for none. With none set, and a folder that
   // --artifacts or qory.start_artifacts gives (io.pinned), an index.json that lists no
   // version of build-plan gives { none: true }, a plan with no deliverable: the session
@@ -165,7 +166,8 @@ module.exports = (lib) => {
       ['Id', 'Change', 'Criteria', 'Files', 'Check']).map((row) => {
       const files = filesCell(row.Files);
       return { id: plainCell(row.Id), change: row.Change.trim(),
-        criteria: lib.criterionList(row.Criteria).map((one) => one.id), ...files };
+        criteria: lib.criterionList(row.Criteria).map((one) => one.id),
+        check: plainCell(row.Check), ...files };
     });
     const commands = {};
     for (const row of sectionRows(newest.text, 'Commands',
@@ -178,11 +180,37 @@ module.exports = (lib) => {
     return { root, version: newest.number, address, badHost, deliverables, commands };
   }
 
-  // STEP matches the id of a step of the build ledger that changes files.
-  const STEP = /^(?:deliverable:(d-[1-9][0-9]*)|fix:(f[1-9][0-9]*))$/;
+  // STEP matches the id of a step of the build ledger that changes files: a deliverable, a
+  // fix, or checks, the step of write-acceptance-checks that writes the acceptance checks.
+  const STEP = /^(?:deliverable:(d-[1-9][0-9]*)|fix:(f[1-9][0-9]*)|(checks))$/;
+
+  // isPath reports whether cell, a Check cell without backticks, is a check path: a relative
+  // path of the work folder, with no space and no . or .. part, whose file name has an
+  // extension, as a test file has, such as tests/export.test.ts. n/a, none, N/A, -, TBD and the
+  // id of a scenario have none.
+  const isPath = (cell) => /^[^\s/][^\s]*$/.test(cell) && !/(?:^|\/)\.\.?(?:\/|$)/.test(cell) &&
+    /^[^/.][^/]*\.[A-Za-z0-9]+$/.test(cell.split('/').pop());
+
+  // checkScope returns the paths that a deliverable with a check path allows to the step
+  // checks: the check path, and each folder of its Files that is the first folder of the check
+  // path or lies below it (src/ and src/test/resources/ for src/test/java/x/FooTest.java),
+  // unless it contains a Files entry of any row in rows that is a file and no check path, such
+  // as src/ with src/a.ts: that file is code under test. A check path with no folder adds none.
+  // A code folder that contains its check, such as src/export/ for src/export/export.test.ts, is
+  // in it, and the reviewer reports a write there to code under test; no check refuses it.
+  const checkScope = (row, rows) => {
+    const top = row.check.slice(0, row.check.indexOf('/') + 1);
+    const checks = new Set(rows.filter((one) => isPath(one.check)).map((one) => one.check));
+    const code = rows.flatMap((one) => one.paths)
+      .filter((one) => !one.endsWith('/') && !checks.has(one));
+    return [row.check, ...row.paths.filter((one) => top && one.endsWith('/') &&
+      one.startsWith(top) && !code.some((file) => file.startsWith(one)))];
+  };
 
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
   // the Files of every deliverable, because a finding of the review may be in any of them.
+  // For checks, it is the checkScope of each deliverable whose Check is a check path: that path
+  // and each folder of its Files that `checkScope` allows.
   // With no step, for scope --plan, it is the Files of every deliverable too: a push has the
   // commits of every step, and a commit names no step. With no build plan, it is no path.
   // With through set and a deliverable step, it is the Files of that deliverable and of each
@@ -193,6 +221,7 @@ module.exports = (lib) => {
     const match = step ? STEP.exec(step) : [];
     let rows = match[1] ? plan.deliverables.filter((row) => row.id === match[1])
       : plan.deliverables;
+    if (match[3]) rows = rows.filter((row) => isPath(row.check));
     if (match[1] && !rows.length) {
       const id = match[1].length > 30 ? `${match[1].slice(0, 27)}...` : match[1];
       throw new Missing(`Give ${verb} a deliverable of the build plan: version ${plan.version} ` +
@@ -220,9 +249,11 @@ module.exports = (lib) => {
         `it.\nIn the Files of ${bad.id}, ${bad.problem}.`);
     }
     return {
-      paths: [...new Set(rows.flatMap((row) => row.paths))],
+      paths: [...new Set(rows.flatMap((row) => (match[3]
+        ? checkScope(row, plan.deliverables) : row.paths)))],
       words: match[1] ? `the files of ${match[1]}`
-        : step ? 'the files of the deliverables' : 'the files of the build plan',
+        : match[3] ? 'the files of the acceptance checks'
+          : step ? 'the files of the deliverables' : 'the files of the build plan',
     };
   }
 
@@ -237,5 +268,7 @@ module.exports = (lib) => {
     return work.changed.filter((file) => !(work.untracked.has(file) && results.has(file)));
   }
 
-  return { filesCell, covers, plainCell, appAddress, readPlan, writeScope, changesOf, STEP };
+  return {
+    filesCell, covers, plainCell, isPath, appAddress, readPlan, writeScope, changesOf, STEP,
+  };
 };

@@ -5,8 +5,8 @@
 
 module.exports = (lib) => {
   const {
-    appAddress, brief, criterionList, filesCell, inOrder, liveCriteria, markdownText, plural, quote,
-    sectionTable, sectionTitles, short, wrongWords,
+    appAddress, brief, criterionList, filesCell, inOrder, isPath, liveCriteria, markdownText,
+    plural, quote, sectionTable, sectionTitles, short, wrongWords,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -23,11 +23,6 @@ module.exports = (lib) => {
 
   const plainCell = (cell) => cell.replace(/`/g, '').trim();
 
-  // A check path: a relative path of the work folder, with no space and no . or .. part, whose
-  // file name has an extension, as a test file has, such as tests/export.test.ts. "n/a" and
-  // "none" have none.
-  const isPath = (cell) => /^[^\s/][^\s]*$/.test(cell) && !/(?:^|\/)\.\.?(?:\/|$)/.test(cell) &&
-    /^[^/.][^/]*\.[A-Za-z0-9]+$/.test(cell.split('/').pop());
   // The check of a criterion planned as Demo: the id of its scenario.
   const isScenario = (cell) => /^scenario-[1-9][0-9]?$/.test(cell);
 

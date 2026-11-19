@@ -244,7 +244,9 @@ test('a command whose writes the guard does not read is denied when it reaches a
     for (const command of ['node -e "console.log(1)"', 'npm test', 'npm run build',
       'python3 -c "print(1)"', 'curl -o /tmp/x https://example.com', `sed -n 1,20p ${file}`,
       `git restore --staged ${file}`, `grep -n x ${file}`, "find checks -name '*.ts'",
-      `sh -c 'ls ${file}'`, 'make build', 'git status', `if grep -q x ${file}; then echo y; fi`,
+      `sh -c 'ls ${file}'`, 'make build', 'git status',
+      'git status --porcelain --untracked-files=all', 'git diff --name-only --no-renames 1a2b3c4',
+      `if grep -q x ${file}; then echo y; fi`,
       `for f in checks/*; do echo "$f"; done`, `cat ${file} | wc -l`,
       // The working folder and the folders above it run over the whole folder, as a command
       // with no path does.
