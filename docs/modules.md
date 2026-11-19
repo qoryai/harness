@@ -2269,12 +2269,11 @@ reference with no definition is no image.
 
 Each diagram's characters other than spaces and Mermaid symbols over 700 cost one word per
 6. The Mermaid symbols are ``- = . < > | * ( ) [ ] { } : ; & ~ % " '``, "spaces" covers
-every white-space character, and an entity counts as the character it stands for.
+every white-space character, and an entity such as `&nbsp;` counts as it is written.
 `characters` in `lib/mermaid.cjs` counts them in the text that `source()` returns, and
-decodes `&#32;`, `&#x20;`, `#32;`, `&name;` and `#name;` for the names that it lists. A name
-that it does not list stays text, so that its letters count, and `#x20;` is no number to
-Mermaid, so its characters count. It does not read Markdown, so `![...](u)` in a comment
-hides no character. `source()` strips each `click` line, so it counts none.
+decodes no entity: `&nbsp;` counts its 4 letters, and `&#x20;` its 4 characters `#x20`. It
+does not read Markdown, so `![...](u)` in a comment hides no character. `source()` strips
+each `click` line, so it counts none.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for

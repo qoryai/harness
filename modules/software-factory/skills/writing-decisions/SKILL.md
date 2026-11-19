@@ -139,7 +139,7 @@ The other rules stay, such as the edit in place of the newest version, and the 4
   of them.
 - Each diagram's characters other than spaces and Mermaid symbols over 700 cost one word per
   6. The Mermaid symbols are ``- = . < > | * ( ) [ ] { } : ; & ~ % " '``, "spaces" covers
-  every white-space character, and an entity counts as the character it stands for.
+  every white-space character, and an entity such as `&nbsp;` counts as it is written.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw

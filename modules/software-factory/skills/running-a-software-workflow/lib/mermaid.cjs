@@ -291,47 +291,10 @@ const FREE_CHARACTERS = 700;
 const CHARACTERS_PER_WORD = 6;
 const SYMBOLS = new Set([...'-=.<>|*()[]{}:;&~%"\'']);
 
-// The named entities that the decoder knows. Mermaid writes "#name;" as "&name;", and the page
-// reads it as HTML. An entity that is not in the list stays text, so that its letters count.
-const ENTITIES = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ensp: ' ',
-  emsp: ' ', thinsp: ' ', shy: '­', copy: '©', reg: '®',
-  trade: '™', hellip: '…', mdash: '—', ndash: '–', lsquo: '‘',
-  rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
-  bull: '•', middot: '·', times: '×', divide: '÷', deg: '°',
-  plusmn: '±', micro: 'µ', para: '¶', sect: '§', euro: '€',
-  pound: '£', yen: '¥', cent: '¢', hearts: '♥', spades: '♠',
-  clubs: '♣', diams: '♦', larr: '←', rarr: '→', uarr: '↑',
-  darr: '↓', harr: '↔', check: '✓', infin: '∞', ne: '≠',
-  le: '≤', ge: '≥', sum: '∑', radic: '√', pi: 'π', alpha: 'α',
-  beta: 'β', lambda: 'λ', mu: 'μ', omega: 'ω', Omega: 'Ω',
-};
-
-// codePoint returns the character of a number, as HTML reads it: U+FFFD for 0, a surrogate and
-// a number over 0x10FFFF.
-function codePoint(number) {
-  const valid = number > 0 && number <= 0x10ffff && !(number >= 0xd800 && number <= 0xdfff);
-  return valid ? String.fromCodePoint(number) : '�';
-}
-
-// decoded returns text with each entity as the character it stands for, in one pass: "&#32;",
-// "&#x20;", "&name;", and Mermaid's "#32;" and "#name;" ("#x20;" is no number to Mermaid: it
-// writes "&x20;", which the page shows as text).
-function decoded(text) {
-  const entity = /&#([xX][0-9a-fA-F]+|\d+);|#(\d+);|[&#](\w+);/g;
-  return text.replace(entity, (all, number, plain, name) => {
-    if (number !== undefined) {
-      return codePoint(/^[xX]/.test(number) ? parseInt(number.slice(1), 16) : Number(number));
-    }
-    if (plain !== undefined) return codePoint(Number(plain));
-    return Object.hasOwn(ENTITIES, name) ? ENTITIES[name] : all;
-  });
-}
-
 // characters returns the number of characters of the Mermaid block with this text that count.
 function characters(text) {
   let count = 0;
-  for (const char of decoded(source(text))) {
+  for (const char of source(text)) {
     if (!SYMBOLS.has(char) && !/\s/u.test(char)) count += 1;
   }
   return count;

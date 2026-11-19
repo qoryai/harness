@@ -1775,8 +1775,8 @@ const SEQUENCE_20 = [
   '  S-->>M: Thanks',
 ].join('\n');
 
-// plain returns the characters of text that no entity, white space or Mermaid symbol changes: the
-// count of a diagram that has none of those but the symbols and spaces.
+// plain returns the characters of text that are no white space and no Mermaid symbol, as the text
+// is written: an entity such as &nbsp; counts its letters.
 const plain = (text) => Array.from(text.replace(/[\s\-=.<>|*()[\]{}:;&~%"']/gu, '')).length;
 // flowOf returns a flowchart whose characters are count: "flowchart", "LR" and "A" are 12.
 const flowOf = (count) => `flowchart LR\n  A["${'x'.repeat(count - 12)}"]`;
@@ -1838,27 +1838,31 @@ test('decision record: the texts that a count of words by form missed are charge
     assert.ok(plain(count) > 700, name);
     assert.equal(withDiagram(body), 450 + Math.ceil((plain(count) - 700) / 6), name);
   }
-  // "#32;" is a space: 200 words joined by it are 800 characters, and "&nbsp;" is one too.
-  for (const join of ['#32;', '&#32;', '&#x20;', '&nbsp;', '#nbsp;', '&amp;']) {
+  // An entity counts as it is written, so that a join of 200 words by "&nbsp;" costs the 4 letters
+  // of each join, and "#32;", "&#32;", "&#x20;", "#x20;" and "&amp;" cost 3, 3, 3, 4 and 3.
+  for (const [join, letters] of [['#32;', 3], ['&#32;', 3], ['&#x20;', 4], ['#x20;', 4],
+    ['&nbsp;', 4], ['&amp;', 3], ['&hearts;', 6], ['#9829;', 5]]) {
     const body = `flowchart LR\n  A["${Array(200).fill('word').join(join)}"]`;
-    assert.equal(withDiagram(body), 450 + Math.ceil((800 + 12 - 700) / 6), join);
+    const count = 12 + 800 + 199 * letters;
+    assert.equal(require(MERMAID).characters(body), count, join);
+    assert.equal(withDiagram(body), 450 + Math.ceil((count - 700) / 6), join);
   }
 });
 
-test('decision record: an entity counts as the character it stands for', () => {
+test('decision record: an entity counts as it is written', () => {
   const { characters } = require(MERMAID);
   const count = (text) => characters(`flowchart LR\n  A["${text}"]`) - 12;
-  assert.equal(count('&#9829;&#x2665;#9829;&hearts;#hearts;'), 5);
-  assert.equal(count('a&nbsp;b&#32;c#32;d&amp;e&lt;f&gt;'), 6);
-  // A name that the decoder does not list stays text, so that its letters count.
+  assert.equal(count('a&nbsp;b'), 6);
+  assert.equal(count('&quot;'.repeat(1000)), 4000);
+  assert.equal(count('&#x20;'), 4);
+  assert.equal(count('&#32;'), 3);
+  assert.equal(count('#32;'), 3);
+  assert.equal(count('#x20;'), 4);
+  assert.equal(count('&hearts;'), 6);
+  assert.equal(count('#9829;'), 5);
+  assert.equal(count('&amp;'), 3);
+  assert.equal(count('&amp;nbsp;'), 7);
   assert.equal(count('&notaname;'), 'notaname'.length);
-  assert.equal(count('#notaname;'), '#notaname'.length);
-  // Mermaid writes "#x41;" as "&x41;", which the page shows as text.
-  assert.equal(count('#x41;'), '#x41'.length);
-  assert.equal(count('&#x41;'), 1);
-  // A number that is no character is U+FFFD, one character, and an entity decodes once.
-  assert.equal(count('&#0;&#xD800;&#1114112;'), 3);
-  assert.equal(count('&amp;nbsp;'), 4);
 });
 
 test('decision record: a Mermaid block with a %%{ line is refused, and its words count none', () => {
@@ -1935,7 +1939,8 @@ test('decision record: the checks of a diagram take linear time on long runs', (
     assert.equal(mermaid.loads(`sequenceDiagram\n${'\n'.repeat(200000)}properties A`), true);
   });
   timed('characters', () => {
-    assert.equal(mermaid.characters(`flowchart LR\n${'a #32;&nbsp;&#x20;&foo; '.repeat(50000)}`), 11 + 50000 * 4);
+    assert.equal(mermaid.characters(`flowchart LR\n${'a #32;&nbsp;&#x20;&foo; '.repeat(50000)}`),
+      11 + 50000 * 15);
   });
   timed('comments with no end', () => {
     assert.equal(mermaid.loads(`flowchart LR\n${'/*a'.repeat(150000)}`), false);
