@@ -29,10 +29,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   strips each `click`, `link`, `callback` and `links` statement line and the front matter,
   and the check refuses neither. A line that starts with `|` counts toward the 450 words
   unless it forms a table with a delimiter row. Where the check cannot tell whether a table
-  starts, such as in a quote or a list item, the lines count. The decision record has no
-  `![` or `<img` anywhere, code blocks and diagrams included, and you write `\![` outside
-  code for a literal `![`: the new option `everyImage` of `links` in `lib/markdown.cjs`,
-  which no other type sets, refuses each one. `checking-decisions` has the reviewer judge each diagram, and
+  starts, such as in a quote or a list item, the lines count. In every Markdown document, a
+  fence line inside a block of HTML opens no code block, as Qory Apiary does, so the text
+  after the block counts. The decision record has no `![` or `<img` anywhere, code
+  blocks and diagrams included, and you write `\![` outside code for a literal `![`: the
+  new option `everyImage` of `links` in `lib/markdown.cjs`, which no other type sets,
+  refuses each one. `checking-decisions` has the reviewer judge each diagram, and
   `decision-writer` and `decision-reviewer` load `visuals` when the record has one.
 - The `review-changes` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-review-changes`, `checking-code`, `checking-tests`

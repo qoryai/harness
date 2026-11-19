@@ -2290,6 +2290,13 @@ The check cannot tell whether a table starts in a quote, in a list item or after
 so it counts those lines. It counts every such line in a text with over 50,000 table cells
 (lines times the most `|` on a line plus 1), which Qory Apiary shows as written.
 
+In every Markdown document that `lines` in `lib/markdown.cjs` reads, a fence line inside a
+block of HTML opens no code block, because Qory Apiary shows it as HTML. The block starts at
+a tag as CommonMark lists, also in a quote or a list item, and ends at a blank line (kinds 6
+and 7) or at its end mark (kinds 1 to 5). A tag alone on a line (kind 7) starts no block in
+a plain paragraph. A block in a quote ends at a line with no `>`. The check counts every line
+of a decision record where it cannot tell whether a table starts.
+
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
 that, on the text that Qory Apiary draws: without the invisible characters that

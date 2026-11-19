@@ -1709,6 +1709,65 @@ test('decision record: every line that starts with "|" counts in a text with ove
   assert.equal(counted(record(200), false, { tables: false }).includes('wq9'), false);
 });
 
+test('a fence line in a block of HTML opens no code block, so the text after it counts', () => {
+  const { lines, counted } = require(MARKDOWN);
+  const kept = (text) => counted(text, false);
+  // Qory Apiary shows the fence line in a block of HTML as HTML, and the prose after the block.
+  const blocks = {
+    '<div>': '<div>\n```mermaid\nx\n\nprose wq1',
+    '<!-- -->': '<!--\n```mermaid\nx\n\nprose wq1\n-->',
+    '<script>': '<script>\n```mermaid\nx\n\nprose wq1\n</script>',
+    '<pre>': '<pre>\n```mermaid\nx\n\nprose wq1\n</pre>',
+    '<?': '<?php\n```mermaid\nx\n\nprose wq1\n?>',
+    '<![CDATA[': '<![CDATA[\n```mermaid\nx\n\nprose wq1\n]]>',
+    '<!X': '<!DOCTYPE\n```mermaid\nx\n\nprose wq1\n>',
+    'a tag alone on a line': '<span>\n```mermaid\nx\n\nprose wq1',
+    'a tag in a list item': '- <div>\n  ```mermaid\n  x\n\nprose wq1',
+  };
+  for (const [name, text] of Object.entries(blocks)) {
+    assert.ok(kept(text).includes('wq1'), name);
+    assert.equal(lines(text).some((line) => line.fenced), false, name);
+  }
+  // A fence after the block has closed is a fence: its Mermaid block counts for nothing.
+  const closed = {
+    'a blank line after <div>': '<div>\n\n```mermaid\nwq2\n```\nwq3',
+    'an end mark of a comment': '<!--\nx\n-->\n```mermaid\nwq2\n```\nwq3',
+    'a blank line after a tag': '<span>\n\n```mermaid\nwq2\n```\nwq3',
+    'a quote that ends after a tag': '> <div>\n```mermaid\nwq2\n```\nwq3',
+    'a tag that cannot start a block in a paragraph': 'text\n<span>\n```mermaid\nwq2\n```\nwq3',
+  };
+  for (const [name, text] of Object.entries(closed)) {
+    assert.equal(kept(text).includes('wq2'), false, name);
+    assert.ok(kept(text).includes('wq3'), name);
+    assert.ok(lines(text).some((line) => line.fenced), name);
+  }
+});
+
+test('a fence line in a block of HTML: a spec counts the text after it, and a record refuses it', () => {
+  const words = ['spec.md', /\n*$/, `\n\n<div>\n\`\`\`text\n\n${many(500)}\n`];
+  fails(push(fixture(words), 'spec'), /^Cut spec.md to 450 words: it has \d+\./);
+  // A Mermaid fence at the start of a line in a block of HTML is a block that Qory Apiary does
+  // not draw as one, but the check counts the line and refuses it.
+  fails(push(fixture(['decision-record.md', COST, (item) =>
+    `${item}\n\n<div>\n\`\`\`mermaid\nflowchart LR\n  A --> B\n\`\`\``]), 'decision-record'), FENCE);
+});
+
+test('a fence line in a block of HTML: the reading takes linear time', () => {
+  const { lines } = require(MARKDOWN);
+  for (const [name, text] of [
+    ['tags', '<a b="c">\n'.repeat(30000)],
+    ['long tag lines', `<a ${'b '.repeat(125000)}`],
+    ['long tag lines with more marks', `- > - > <a ${'b="c" '.repeat(40000)}x`],
+    ['blank lines in a comment', `<!--\n${'\n'.repeat(120000)}-->`],
+    ['quote marks', `${'> '.repeat(120000)}<div>`],
+    ['fences', '<div>\n```\n\n'.repeat(20000)],
+  ]) {
+    const started = Date.now();
+    lines(text);
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
 test('decision record: the table scan takes linear time', () => {
   for (const [name, text] of [
     ['a long line', `|${'|'.repeat(250000)}`],
