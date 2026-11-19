@@ -1179,11 +1179,17 @@ the command that reaches `.reports`. A command still reaches the folder past the
 through a variable built without `.r`, or with a `.r` after a letter, digit or `_`, as in
 `d=x.rep; cat ${d#x}orts/starts.json`, `shopt -s dotglob`, `find` or `cp -r` of the parent
 folder, a glob after a `cd` in the command, `python -c`, or a script that it writes to a
-file and then runs. Each hook has a timeout of 10 seconds. A guard that runs past it lets
-the call run on Cursor and Copilot CLI: both fail open. When `decide` throws, the adapter
-denies the call with "Make the call smaller or simpler, and send it again."; before that, a
-call nested 3,000 levels deep made the guard exit 1, which lets the call run on both. On
-Cursor, the guard
+file and then runs. Each hook has a timeout of 10 seconds. A hook that runs past its timeout
+lets the call run on Cursor and on Copilot CLI ([Cursor](https://cursor.com/docs/agent/hooks),
+[Copilot CLI](https://docs.github.com/en/copilot/reference/hooks-reference)). Of a hook that
+fails, the pages say this. Cursor: a crash and an exit code other than 0 and 2 let the call run
+unless `failClosed` is true, and exit code 2 blocks it. Gemini CLI: an exit code other than 0
+and 2 is a warning, and the CLI continues ([hooks](https://geminicli.com/docs/hooks/)).
+Copilot CLI: a command hook of `preToolUse` that errors denies the call, with "Denied by
+preToolUse hook (hook errored)". Each adapter of Gemini CLI, Cursor and Copilot CLI calls
+`safeDecide`, and when `decide` throws it prints the deny of its runtime, and exits with the
+code that blocks there: 2 on Cursor. A crash outside `decide`, such as running out of memory
+or an error before `safeDecide`, is outside what the adapter can catch. On Cursor, the guard
 never prints `allow`, for the reason in the paragraph after the list of hooks. The hooks:
 
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.

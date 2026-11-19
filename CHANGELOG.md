@@ -1378,10 +1378,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   limit), or when one glob has more than 5 parts with a glob character, as `*/*/*/*/*/*`.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
-  that collects the strings of the arguments, the adapter exited 1, and the call ran. That
-  function walks a list, not a recursion, and each adapter denies the call, with the first
-  line "Make the call smaller or simpler, and send it again.", when `decide` throws in a run.
-  Cursor exits 2, as on any deny. `reportsJson` returns `false` for a value that is no string.
+  that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini
+  CLI, an exit code other than 0 and 2 does not block the call ([Cursor](https://cursor.com/docs/agent/hooks),
+  [Gemini CLI](https://geminicli.com/docs/hooks/)). That function walks a list, not a
+  recursion, and each adapter calls `safeDecide`, which denies the call, with the first line
+  "Make the call smaller or simpler, and send it again.", when `decide` throws in a run. Cursor
+  exits 2, as on any deny. A crash outside `decide`, such as running out of memory, is outside
+  what the adapter can catch. `reportsJson` returns `false` for a value that is no string.
 - The reports guard denies a write to `.reportſ/end.json` and `.reports/end.json.locK`, and a
   shell command that names `.reportſ/`. On a disk that ignores case, as the default disk of
   macOS does, U+017F (long s) is `s` and U+212A (Kelvin sign) is `k`, so these are the paths
