@@ -107,10 +107,9 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
 - The rule that a document "has no limit on pictures": a decision has at most one diagram,
   and the record at most 2.
 - The points after a picture: the items of the form replace them.
-- The table of options and the other pictures: the record has no table, no wireframe and
-  no image of any form, that is no `![alt](address)`, no reference image such as
-  `![alt][label]`, and no `<img>`. The ways that a person compares are the options of the
-  question.
+- The table of options and the other pictures: the record has no table and no wireframe,
+  and no `![` or `<img` outside a fenced code block. Write `\![` for a literal `![`. The
+  ways that a person compares are the options of the question.
 
 The other rules stay, such as the edit in place of the newest version, and the 450 words.
 

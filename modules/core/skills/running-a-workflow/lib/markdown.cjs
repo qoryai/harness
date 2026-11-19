@@ -367,344 +367,51 @@ function address(addr) {
   return null;
 }
 
-// label returns a link label as Markdown compares it: lower case, each run of white space as
-// one space.
-const label = (text) => text.toLowerCase().replace(/\s+/g, ' ').trim();
-
-// A label of a link reference has at most 999 characters (CommonMark).
-const LABEL_LIMIT = 999;
-// ADDRESS_LIMIT is the length that a link address may have (artifact-text). imageAddresses finds
-// the end of a longer address, and returns its first ADDRESS_LIMIT + 1 characters.
-const ADDRESS_LIMIT = 2048;
-// The start of a link reference definition: marks of a quote or list item, its label, and the
-// white space after its colon. imageAddresses reads its address, its title and the end of its line.
-const DEFINITION = new RegExp('[ \\t]*(?:(?:>|(?:[-*+]|\\d{1,9}[.)])(?=[ \\t]))[ \\t]*)*' +
-  '\\[((?:[^[\\]\\\\]|\\\\.)+)\\]:[ \\t]*(?:\\n[ \\t]*)?', 'y');
-const AUTOLINK = /<[A-Za-z][A-Za-z0-9+.-]{1,31}:[^\s<>]*>/y;
-
-// finder returns a function from an index to the first element of list from there, or -1, by a
-// binary search. list holds increasing indexes that one pass of the caller found, so that a
-// search takes the same time however long the run of characters before its end is.
-function finder(list) {
-  return (from) => {
-    let low = 0;
-    let high = list.length;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      if (list[middle] < from) low = middle + 1;
-      else high = middle;
-    }
-    return low < list.length ? list[low] : -1;
-  };
-}
-
-// matches returns the index of each match of the global pattern in text.
-const matches = (text, pattern) => Array.from(text.matchAll(pattern), (found) => found.index);
-
-// listsOf returns the indexes of the characters of text that a backslash does not escape, for
-// each set of characters: quotes, single quotes, parentheses, the < > and line feed that end an
-// address in <>, and brackets. A backslash escapes the next character, and "\\" is a backslash.
-function listsOf(text) {
-  const lists = { double: [], single: [], paren: [], angle: [], bracket: [] };
-  const where = { 34: lists.double, 39: lists.single, 40: lists.paren, 41: lists.paren,
-    60: lists.angle, 62: lists.angle, 10: lists.angle, 91: lists.bracket, 93: lists.bracket };
-  let slashes = 0;
-  for (let at = 0; at < text.length; at += 1) {
-    const code = text.charCodeAt(at);
-    if (code === 92) {
-      slashes += 1;
-    } else {
-      if (slashes % 2 === 0 && where[code]) where[code].push(at);
-      slashes = 0;
-    }
-  }
-  return lists;
-}
-
-// The start of a line that interrupts a paragraph, by group: a heading, a quote, a bullet, a
-// number, a fence (no group), and a rule or the underline of a heading.
-const BLOCK = new RegExp('^ {0,3}(?:(#{1,6})(?:[ \\t]|$)|(>)|([-*+])(?:[ \\t]|$)|' +
-  '(\\d{1,9})[.)](?:[ \\t]|$)|`{3}|~{3}|((?:[-*_][ \\t]*){3,}|=+[ \\t]*)$)');
-
-// paragraphEnds returns the index of each line feed after which a paragraph of text may end: a
-// blank line, and a line that starts a heading, a quote (unless the line before is one too), a
-// list item, a fence or a rule, which end the paragraph before it, and a heading or rule ends the
-// paragraph after it too. A code span or an inline image does not cross one.
-function paragraphEnds(text) {
-  const ends = [];
-  const lines = /[^\n]*/g;
-  let before = -1;
-  let wasQuote = false;
-  let wasItem = false;
-  for (let start = 0; start <= text.length; start = lines.lastIndex + 1) {
-    lines.lastIndex = start;
-    const line = lines.exec(text)[0];
-    const end = start + line.length;
-    const marks = BLOCK.exec(line);
-    const blank = /^[ \t]*$/.test(line);
-    const quote = !!marks && marks[2] !== undefined;
-    const item = !!marks && (marks[3] !== undefined || (marks[4] !== undefined &&
-      (marks[4] === '1' || wasItem)));
-    const starts = blank || (marks && !quote && !(marks[4] !== undefined && !item)) ||
-      (quote && !wasQuote);
-    if (starts && before !== -1) ends.push(before);
-    if (blank || (marks && (marks[1] !== undefined || marks[5] !== undefined))) {
-      if (end < text.length) ends.push(end);
-    }
-    // A line with no mark goes on with the quote before it, as a lazy continuation does.
-    wasQuote = quote || (wasQuote && !starts);
-    wasItem = item;
-    before = end;
-    lines.lastIndex = end;
-    if (end >= text.length) break;
-  }
-  return ends.filter((at, index) => index === 0 || at > ends[index - 1]);
-}
-
-// clip returns the first ADDRESS_LIMIT + 1 characters of an address, never half of a pair of a
-// surrogate: a longer address is as wrong as that, and a report copies it once for each image.
-function clip(text, from, to) {
-  let end = Math.min(to, from + ADDRESS_LIMIT + 1);
-  if (end < to && /[\uD800-\uDBFF]/.test(text[end - 1])) end -= 1;
-  return text.slice(from, end);
-}
-
-// imageAddresses returns the address of each image of text, in any form, as CommonMark reads the
-// text: an HTML <img> (address "<img>"), an inline image ![alt](address "title"), and a reference
-// image, ![alt][label], ![alt][] and ![alt], whose label has a definition in defined (its
-// address is the definition's). It reads the text from start to end as a CommonMark parser does:
-// a backslash escapes the next character, a code span or an autolink hides what is in it, an
-// address and a title hide what is in them, and a link takes the brackets of the links before
-// it out of use. An inline image with no ")" and a reference whose label has no definition are
-// no image, and a blank line ends a paragraph, so no image crosses it. A search that could run
-// to the end uses a list that one pass made, so that a long line takes linear time. An address
-// has no length limit, but the function returns its first ADDRESS_LIMIT + 1 characters.
-function imageAddresses(text) {
+// imageStarts returns the first image start of each kind on each line of text that is outside a
+// fenced code block, as { line, text, mark }: a "![" with an even number of backslashes before
+// it (an odd number makes it a literal "![", and "\\![" has an even number), and a "<img" in any
+// case, also in inline code, with no backslash before it. It reads no other Markdown, so that no
+// form of an image (inline, reference, in a quote or a list item) is missed. A fenced block is
+// recognised only at column 0: an opening line of 3 or more backticks (with no backtick after
+// them) or tildes, up to a closing line of the same character, at least as long, with nothing
+// after it but white space (up to 3 spaces before it, as CommonMark allows), or up to the end of
+// the text. A fence anywhere else is no fence, so a start in it is refused.
+function imageStarts(text) {
   const found = [];
-  for (const _tag of text.matchAll(/<img(?=[\s/>]|$)/gi)) found.push('<img>');
-  const size = text.length;
-  const nextEnd = finder(paragraphEnds(text));
-  // The marks of a quote at the start of a line are no text: a quote goes on after one.
-  const nextText = finder(Array.from(text.matchAll(/\n[ \t]*>[ \t>]*|[^ \t\n]/g))
-    .filter((found) => found[0].length === 1).map((found) => found.index));
-  const lists = listsOf(text);
-  const nextDouble = finder(lists.double);
-  const nextSingle = finder(lists.single);
-  const nextParen = finder(lists.paren);
-  const nextAngle = finder(lists.angle);
-  const nextBracket = finder(lists.bracket);
-  const runs = new Map();
-  for (const run of text.matchAll(/`+/g)) {
-    if (!runs.has(run[0].length)) runs.set(run[0].length, []);
-    runs.get(run[0].length).push(run.index);
-  }
-  const nextRun = new Map(Array.from(runs, ([length, at]) => [length, finder(at)]));
-  const blank = (from, to) => {
-    const at = nextEnd(from);
-    return at !== -1 && at < to;
-  };
-  // blankBefore reports whether the line at index at starts a paragraph: it is the first line,
-  // it starts a list item, a quote after a line that is none, or the line before is blank, a
-  // heading, a rule or a list item with no text.
-  const blankBefore = (index) => {
-    if (index === 0) return true;
-    const from = text.lastIndexOf('\n', index - 2) + 1;
-    const line = text.slice(from, index - 1);
-    const marks = BLOCK.exec(line);
-    const current = BLOCK.exec(text.slice(index, text.indexOf('\n', index) === -1 ? size
-      : text.indexOf('\n', index)));
-    const opens = current !== null && (current[3] !== undefined || current[4] !== undefined ||
-      (current[2] !== undefined && !(marks !== null && marks[2] !== undefined)));
-    return opens || /^[ \t]*$/.test(line) || (marks !== null && (marks[1] !== undefined ||
-      marks[5] !== undefined || (marks[3] !== undefined && /^ {0,3}[-*+][ \t]*$/.test(line))));
-  };
-  // definitionEnd returns the index of the end of the line of a definition whose address ends at
-  // index from, after its title if it has one, or -1 when text that is no title follows.
-  const definitionEnd = (from) => {
-    let at = from;
-    const skipSpaces = () => {
-      while (text[at] === ' ' || text[at] === '\t') at += 1;
-    };
-    skipSpaces();
-    if (at === size || text[at] === '\n') return at;
-    const mark = text[at];
-    if (at === from || !'"\'('.includes(mark)) return -1;
-    const close = { '"': nextDouble, "'": nextSingle, '(': nextParen }[mark](at + 1);
-    if (close === -1 || (mark === '(' && text[close] !== ')')) return -1;
-    at = close + 1;
-    skipSpaces();
-    return at === size || text[at] === '\n' ? at : -1;
-  };
-  // after returns the index of the first character from index at that is no space, tab or line
-  // feed.
-  const after = (at) => {
-    const next = nextText(at);
-    return next === -1 ? size : next;
-  };
-  // destination returns the end and the range of the address that starts at index at, in <> or
-  // not, as CommonMark reads it: no space or control character, parentheses in pairs, at most 32
-  // deep, and a backslash escapes the next character. It returns null for text that is none.
-  const destination = (start) => {
-    if (text[start] === '<') {
-      const close = nextAngle(start + 1);
-      if (close === -1 || text[close] !== '>') return null;
-      return { end: close + 1, range: [start + 1, close], angle: true };
+  let open = null;
+  lineList(text).forEach((line, index) => {
+    if (open) {
+      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (close && close[1][0] === open.mark && close[1].length >= open.size) open = null;
+      return;
     }
-    let at = start;
-    let level = 0;
-    while (at < size) {
-      const code = text.charCodeAt(at);
-      if (code <= 32 || code === 127) break;
-      if (code === 92 && at + 1 < size && text.charCodeAt(at + 1) === 32) break;
-      if (code === 92 && at + 1 < size && text.charCodeAt(at + 1) > 32 &&
-        text.charCodeAt(at + 1) !== 127) {
-        at += 2;
-        continue;
-      }
-      if (code === 40) {
-        level += 1;
-        if (level > 32) return null;
-      } else if (code === 41) {
-        if (level === 0) break;
-        level -= 1;
-      }
-      at += 1;
+    const start = /^(`{3,}|~{3,})/.exec(line);
+    if (start && !(start[1][0] === '`' && line.includes('`', start[1].length))) {
+      open = { mark: start[1][0], size: start[1].length };
+      return;
     }
-    return level === 0 ? { end: at, range: [start, at], angle: false } : null;
-  };
-  // tail returns the index after the ")" of an inline image or link whose "(" is at index open,
-  // with the range of its address, or null.
-  const tail = (open) => {
-    const parsed = destination(after(open + 1));
-    if (!parsed) return null;
-    let at = parsed.end;
-    const { range } = parsed;
-    const spaced = after(at);
-    if (spaced > at && '"\'('.includes(text[spaced])) {
-      const mark = text[spaced];
-      const close = { '"': nextDouble, "'": nextSingle, '(': nextParen }[mark](spaced + 1);
-      if (close !== -1 && (mark !== '(' || text[close] === ')')) at = after(close + 1);
-      else at = spaced;
-    } else {
-      at = spaced;
+    let bang = line.indexOf('![');
+    while (bang !== -1) {
+      let slashes = 0;
+      while (bang - slashes > 0 && line[bang - slashes - 1] === '\\') slashes += 1;
+      if (slashes % 2 === 0) break;
+      bang = line.indexOf('![', bang + 1);
     }
-    if (text[at] !== ')' || blank(open, at)) return null;
-    return { end: at + 1, range };
-  };
-  // The definitions of link references, by label: a line that starts one, in a paragraph or not,
-  // so that no image that uses one is missed. skipped has the start of each definition that
-  // starts a paragraph, with its end, because the address of such a definition is no image.
-  const defined = new Map();
-  const skipped = new Map();
-  let previousEnd = -1;
-  for (let line = 0; line !== -1 && line <= size;) {
-    DEFINITION.lastIndex = line;
-    const head = DEFINITION.exec(text);
-    const parsed = head && destination(DEFINITION.lastIndex);
-    const end = parsed && (parsed.angle || parsed.end > parsed.range[0])
-      ? definitionEnd(parsed.end) : -1;
-    if (end !== -1) {
-      const rest = /[ \t]*\n/y;
-      rest.lastIndex = Math.max(previousEnd, 0);
-      const afterDefinition = previousEnd !== -1 && rest.test(text) && rest.lastIndex === line;
-      if (blankBefore(line) || afterDefinition) {
-        const key = label(head[1]);
-        if (!defined.has(key)) defined.set(key, clip(text, parsed.range[0], parsed.range[1]));
-        skipped.set(line, end);
-        previousEnd = end;
+    if (bang !== -1) found.push({ line: index + 1, text: line, mark: '![' });
+    for (const tag of line.matchAll(/<img/gi)) {
+      if (line[tag.index - 1] !== '\\') {
+        found.push({ line: index + 1, text: line, mark: '<img' });
+        break;
       }
     }
-    const newline = text.indexOf('\n', head ? Math.max(line, DEFINITION.lastIndex) : line);
-    line = newline === -1 ? -1 : newline + 1;
-  }
-  // Each "[" and "![" before a "]" that closes none yet, with active false when a link inside
-  // it took it out of use.
-  const openers = [];
-  let inactive = 0;
-  let at = 0;
-  while (at < size) {
-    const char = text[at];
-    if (skipped.has(at)) {
-      at = skipped.get(at);
-      continue;
-    }
-    if (char === '\\') {
-      at += 2;
-    } else if (char === '`') {
-      let length = 1;
-      while (text[at + length] === '`') length += 1;
-      const close = runs.has(length) ? nextRun.get(length)(at + length) : -1;
-      const ends = nextEnd(at + length);
-      at = close !== -1 && (ends === -1 || ends > close) ? close + length : at + length;
-    } else if (char === '<') {
-      AUTOLINK.lastIndex = at;
-      at = AUTOLINK.test(text) ? AUTOLINK.lastIndex : at + 1;
-    } else if (char === '!' && text[at + 1] === '[') {
-      openers.push({ at, image: true, active: true });
-      at += 2;
-    } else if (char === '[') {
-      openers.push({ at, image: false, active: true });
-      at += 1;
-    } else if (char === ']') {
-      const opener = openers.pop();
-      inactive = Math.min(inactive, openers.length);
-      const start = opener ? opener.at + (opener.image ? 2 : 1) : 0;
-      if (!opener || !opener.active || blank(opener.at, at)) {
-        at += 1;
-        continue;
-      }
-      let end = -1;
-      let address = null;
-      if (text[at + 1] === '(') {
-        const inline = tail(at + 1);
-        if (inline) {
-          end = inline.end;
-          address = clip(text, inline.range[0], inline.range[1]);
-        }
-      }
-      if (end === -1 && at - start <= LABEL_LIMIT) {
-        // A label in [] names the reference, "[]" and no label name the text of the alt.
-        let key = null;
-        let refEnd = at + 1;
-        const close = text[at + 1] === '[' ? nextBracket(at + 2) : -1;
-        if (close !== -1 && text[close] === ']' && close - at - 2 <= LABEL_LIMIT) {
-          const named = text.slice(at + 2, close);
-          refEnd = close + 1;
-          if (named === '') key = label(text.slice(start, at));
-          else if (named.trim() !== '') key = label(named);
-        } else if (text[at + 1] !== '[' || close === -1 || text[close] !== ']') {
-          key = label(text.slice(start, at));
-        }
-        if (key !== null && defined.has(key)) {
-          end = refEnd;
-          address = defined.get(key);
-        }
-      }
-      if (end === -1) {
-        at += 1;
-        continue;
-      }
-      if (opener.image) {
-        found.push(address);
-      } else {
-        for (let index = openers.length - 1; index >= inactive; index -= 1) {
-          if (!openers[index].image) openers[index].active = false;
-        }
-        inactive = openers.length;
-      }
-      at = end;
-    } else {
-      at += 1;
-    }
-  }
+  });
   return found;
 }
 
 // links checks each link and image of Markdown text outside code. images(addr) returns
 // whether the skill for the artifact allows that image, and links whether it allows a link.
-// With everyImage, the check reads each image with imageAddresses() over the whole text, and
-// no longer line by line: an HTML <img> (address "<img>"), an inline image and a reference
-// image. images(addr) decides on each of them.
+// With everyImage, the check refuses each "![" and "<img" outside a fenced code block, as
+// imageStarts() finds them, and images(addr) decides on none of them.
 function links(
   run,
   file,
@@ -714,19 +421,15 @@ function links(
 ) {
   run.did('links');
   const at = where ? `${where} of ${file}` : file;
-  const list = lines(text);
-  const report = (addr) => {
-    // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, unless the skill of
-    // the artifact allows it.
-    if (images(addr)) return;
-    run.find(`Remove the image ${quote(short(addr, 32))} from ${short(at)}.\nThe image is ` +
-      `${quote(addr)} in ${at}.`);
-  };
   if (everyImage) {
-    const joined = list.map((line) => (line.fenced ? '' : line.text)).join('\n');
-    imageAddresses(joined).forEach(report);
+    for (const start of imageStarts(text)) {
+      const literal = start.mark === '![' ? '\\![' : '\\<img';
+      const shown = [...start.text.slice(0, 160)].slice(0, 40).join('');
+      run.find(`Remove the image from ${short(at)}, or write \`${literal}\` for a literal ` +
+        `\`${start.mark}\`.\nLine ${start.line} is ${quote(shown)}.`);
+    }
   }
-  for (const line of list) {
+  for (const line of lines(text)) {
     if (line.fenced) continue;
     let rest = withoutCode(line.text);
     const found = [];
@@ -748,7 +451,12 @@ function links(
     }
     for (const link of found) {
       if (link.image) {
-        report(link.addr);
+        // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, unless the skill of
+        // the artifact allows it.
+        if (!images(link.addr)) {
+          run.find(`Remove the image ${quote(short(link.addr, 32))} from ${short(at)}.\nThe ` +
+            `image is ${quote(link.addr)} in ${at}.`);
+        }
         continue;
       }
       if (!allowLinks) {

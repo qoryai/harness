@@ -2243,17 +2243,10 @@ spec changes.
 The record keeps its list of decisions and may add pictures. `writing-decisions` follows the
 section "Markdown documents" of `artifact-text` for them. A decision whose chosen way
 changes how two parts call each other, or a flow of states, may end with one Mermaid
-diagram, drawn by `visuals`. The record has no wireframe, table or image of any form:
-`checks.cjs` also refuses a reference image, such as `![alt][label]`, and an `<img>`. It
-reads them through the option `everyImage` of `links` in `lib/markdown.cjs`, which only the
-decision record sets, so no other type changes. With it the check reads each image over the
-whole text, not line by line: an inline image whose alt text or address runs over 2 lines,
-an address in `<>`, a reference image with brackets in its alt text, and a definition at the
-start of a line, in a list item or in a quote, with its label over 2 lines or its address on
-the next line. An inline image needs its closing `)`, and a blank line in its alt text or
-before its address makes it no image, so `![a](x y)` and `Use ![a](x` are no image. A
-reference with no definition is no image. A finding shows at most the first 2,049 characters
-of an address.
+diagram, drawn by `visuals`. The record has no wireframe or table, and no `![` or `<img`
+outside a fenced code block, and you write `\![` for a literal `![`. `checks.cjs` refuses
+each one through the option `everyImage` of `links` in `lib/markdown.cjs`, which only the
+decision record sets, so no other type changes.
 
 `checks.cjs` refuses, each with a fix line that starts with the fix:
 
