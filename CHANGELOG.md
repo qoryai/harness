@@ -785,8 +785,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The standard type `explainer` of `software-factory` is called `walkthrough`: the Verify
-  stage's output in `process.yaml`, its push check in `qory-module.yaml`, and its file
+- The standard type `explainer` of `software-factory` is called `walkthrough`: its entry
+  in `artifact_types` of `process.yaml`, its push check in `qory-module.yaml`, and its file
   `walkthrough.md`. The check reads the same sections as before. Before, the type and its
   file were `explainer` and `explainer.md`.
 - Shape routes a word that asks for a screen that the newest spec does not list as
