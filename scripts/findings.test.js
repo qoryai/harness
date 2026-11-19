@@ -477,6 +477,28 @@ const INVISIBLE = {
   'musical format 1D17A': '\u{1D17A}',
   'shorthand format 1BCA0': '\u{1BCA0}',
   'shorthand format 1BCA3': '\u{1BCA3}',
+  'Mongolian vowel separator 180F': '\u180F',
+  'unassigned default ignorable 2065': '\u2065',
+  'unassigned default ignorable FFF0': '\uFFF0',
+  'unassigned default ignorable FFF8': '\uFFF8',
+  'tag block E0080': '\u{E0080}',
+  'tag block E00FF': '\u{E00FF}',
+  'variation selector supplement E01F0': '\u{E01F0}',
+  'variation selector supplement E0FFF': '\u{E0FFF}',
+  'Arabic number sign 0600': '\u0600',
+  'Arabic number sign 0605': '\u0605',
+  'Arabic end of ayah 06DD': '\u06DD',
+  'Syriac abbreviation mark 070F': '\u070F',
+  'Arabic pound mark 0890': '\u0890',
+  'Arabic piastre mark 0891': '\u0891',
+  'Arabic disputed end of ayah 08E2': '\u08E2',
+  'Kaithi number sign 110BD': '\u{110BD}',
+  'Kaithi number sign above 110CD': '\u{110CD}',
+  'Egyptian hieroglyph format 13430': '\u{13430}',
+  'Egyptian hieroglyph format 1343F': '\u{1343F}',
+  'soft hyphen 00AD': '\u00AD',
+  'zero width joiner 200D': '\u200D',
+  'zero width non-joiner 200C': '\u200C',
 };
 
 test('findings open: each invisible character is removed from a file name and a finding file', () => {
@@ -501,7 +523,7 @@ test('findings open: each invisible character is removed from a file name and a 
 // combining sequence, and the code point on each side of each removed range.
 const KEPT = [0xE9, 0x4E2D, 0x1F600, 0x1D11E, 0x65, 0x301, 0x34E, 0x350, 0x115E, 0x1161, 0x17B3,
   0x17B6, 0x3163, 0x3165, 0xFDFF, 0xFE10, 0xFF9F, 0xFFA1, 0xFFFD, 0x2070, 0x1D172, 0x1D17B,
-  0x1BC9F, 0x1BCA4, 0xE0080, 0xE00FF, 0xE01F0, 0xE000];
+  0x1BC9F, 0x1BCA4, 0xE000, 0xE1000];
 
 test('findings open: a visible character stays, also next to a removed range', () => {
   for (const point of KEPT) {

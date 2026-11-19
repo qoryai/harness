@@ -38,7 +38,8 @@ ${qory:skills/simple-communication} before you write a finding.
   - `sort`: `-u -r -n -f -k <value> -t <value>`. `cut`: `-s -f -d -c -b`.
   - The tool that compares two files: `-u -r -q -w -b`. The guard also denies `/`, a path
     under `/dev`, `/proc` or `/sys` (`/dev/null` too: name the file itself), and each file
-    that is no regular file or folder.
+    that is no regular file or folder, among the operands and, for a folder and a file, the
+    file of that name inside the folder.
   - The version control tool, in a folder under version control, with no option before the
     subcommand. These are the options of each subcommand. The one that compares revisions,
     which has the name of the tool that compares two files: `-w -b -p`, `-U <number>`,

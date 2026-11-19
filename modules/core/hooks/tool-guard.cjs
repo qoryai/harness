@@ -2573,19 +2573,37 @@ const FIND_NUMBER = new Set(['size', 'mtime', 'mmin']);
 // file to a temporary file without a limit. The compare ignores case, as macOS reads a path.
 const REVIEW_DEVICES = /^\/(?:dev|proc|sys)(?:\/|$)/i;
 
-// reviewDiffRefused reports whether word, an operand of diff, is a file that diff does not
-// read: / itself, a path under /dev, /proc or /sys, in the text or through links, or a file
-// that is neither a regular file nor a folder. A .. part applies to the real path of the
-// folder before it, as walkPath reads it. The file may change between this read and the read
-// of diff.
-function reviewDiffRefused(folder, word) {
-  const target = real(joined(folder, word));
+// reviewDiffPath reports whether diff may not read the path that text and joinedPath give, as
+// text and for walkPath: / itself, a path under /dev, /proc or /sys, in the text or through
+// links, or a file that is neither a regular file nor a folder. A .. part applies to the real
+// path of the folder before it, as walkPath reads it.
+function reviewDiffPath(text, joinedPath) {
+  const target = real(joinedPath);
   const bad = (full) => REVIEW_DEVICES.test(full) || full === path.parse(full).root;
-  if (bad(path.resolve(folder, word)) || bad(target)) return true;
+  if (bad(text) || bad(target)) return true;
   const stat = disk.stat(target);
   if (stat && !stat.isFile() && !stat.isDirectory()) return true;
   const resolved = disk.realpath(target);
   return resolved !== null && bad(resolved);
+}
+
+// reviewDiffRefused returns the first of operands, the operands of diff, that diff may not
+// read, or undefined. When one of two operands is a folder and the other an existing file,
+// diff reads the file of that name in the folder, which is checked too. The file may change
+// between this read and the read of diff.
+function reviewDiffRefused(folder, operands) {
+  const alone = operands.find((one) => reviewDiffPath(path.resolve(folder, one),
+    joined(folder, one)));
+  if (alone !== undefined || operands.length !== 2) return alone;
+  const kind = (one) => disk.stat(real(joined(folder, one)));
+  const stats = operands.map(kind);
+  for (let at = 0; at < 2; at += 1) {
+    const [inside, other] = [stats[at], stats[1 - at]];
+    if (!inside || !inside.isDirectory() || !other || other.isDirectory()) continue;
+    const within = `${operands[at]}${path.sep}${path.basename(operands[1 - at])}`;
+    if (reviewDiffPath(path.resolve(folder, within), joined(folder, within))) return within;
+  }
+  return undefined;
 }
 
 // reviewWords splits command into simple commands, each a list of words, as the shell does for
@@ -2760,9 +2778,8 @@ function reviewShell(command, git, folder) {
     } else {
       refused = reviewArgs(args, REVIEW_OPTIONS[name]);
       if (refused !== null) return `the option ${reviewShown(refused)} of ${name}`;
-      const device = name === 'diff' ? args.find((one) => !one.startsWith('-') &&
-        reviewDiffRefused(folder, one))
-        : undefined;
+      const device = name === 'diff'
+        ? reviewDiffRefused(folder, args.filter((one) => !one.startsWith('-'))) : undefined;
       if (device !== undefined) return `the file ${reviewShown(device)} of diff`;
     }
   }

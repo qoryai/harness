@@ -119,14 +119,10 @@ function quote(text) {
 }
 
 // The characters that show nothing and that the text of another session may hide an
-// instruction in, beside REFUSED_ALL: the tag characters, the joiners, the variation selectors
-// and their supplement, the combining grapheme joiner, the Hangul fillers, the Mongolian free
-// variation selectors, the deprecated format characters, the Khmer inherent vowels, the object
-// replacement character, the musical and shorthand format characters, and a lone surrogate.
-const HIDDEN = new RegExp('[\\u{E0000}-\\u{E007F}\\u200C\\u200D\\uFE00-\\uFE0F' +
-  '\\u{E0100}-\\u{E01EF}\\u034F\\u3164\\u115F\\u1160\\uFFA0\\u180B-\\u180D' +
-  '\\u206A-\\u206F\\u17B4\\u17B5\\uFFFC\\u{1D173}-\\u{1D17A}\\u{1BCA0}-\\u{1BCA3}' +
-  '\\uD800-\\uDFFF]', 'gu');
+// instruction in, beside REFUSED_ALL: the Unicode classes Default_Ignorable_Code_Point (the
+// tag characters, the joiners, the variation selectors, the Hangul fillers and others) and Cf
+// (format characters), the object replacement character, and a lone surrogate.
+const HIDDEN = /[\p{Default_Ignorable_Code_Point}\p{Cf}\uFFFC\uD800-\uDFFF]/gu;
 
 // plain returns text for a line: no control, refused or hidden character.
 const plain = (text) => text.replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '')
