@@ -300,10 +300,12 @@ workflows:
 - `plan-reviewer`: an agent that reviews a build plan by `reviewing-drafts` against
   `checking-build-plans`, read-only, and reports findings as text.
 - `workflow-write-acceptance-checks`: orchestrate the acceptance checks of one ticket. When
-  the build plan has a check, the session starts `acceptance-check-writer` and
+  the acceptance criteria have a live criterion with `check` set to `Tests` and the build
+  plan has a check path for it, the session starts `acceptance-check-writer` and
   `check-reviewer`, commits the checks, locks them with `acceptance-lock`, and runs each
-  locked check on the start commit, where it must fail. A locked check that does not fail in
-  two runs ends with `qory run verdict escalate` and one question to a member.
+  locked check on the start commit, where it must fail. It runs the app check only when a
+  demo script exists. A locked check that does not fail in two runs ends with
+  `qory run verdict escalate` and one question to a member.
 - `writing-acceptance-checks`: load it before you write the acceptance checks. The skill
   contains where each check goes, its command, the run on the start commit, the support
   files and the draft of the lock.
@@ -312,7 +314,8 @@ workflows:
 - `acceptance-check-writer`: an agent that writes the checks by `writing-acceptance-checks`,
   runs each with `checks.cjs run targeted`, and drafts `acceptance-lock.json`.
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
-  `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings as text.
+  `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
+  as text. The session passes it the changed paths of the working folder.
 - `settings/claude/settings.json`: the run may load the skills of this module, start its
   agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
