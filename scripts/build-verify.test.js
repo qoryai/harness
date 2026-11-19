@@ -220,7 +220,7 @@ const MORE_SAMPLES = {
 // samplesOf returns the samples of type.
 const samplesOf = (type) => SAMPLES[type] || MORE_SAMPLES[type];
 
-const EXPLAINER = `## Summary
+const WALKTHROUGH = `## Summary
 
 Commit: ${C2}. The saved reply lists the new support hours.
 
@@ -474,7 +474,7 @@ test('process.yaml lists the seven custom types of Build and Verify last, with t
   // The standard types stay listed by name alone.
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   for (const name of ['acceptance-criteria', 'verification', 'screenshot', 'demo-video',
-    'explainer']) {
+    'walkthrough']) {
     assert.match(yaml, new RegExp(`\\n  - name: ${name}\\n  - name: `));
   }
 });
@@ -547,7 +547,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
     'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
-    explainer: 'verification, acceptance-criteria',
+    walkthrough: 'verification, acceptance-criteria',
   };
   for (const [type, read] of Object.entries(reads)) {
     const entry = `  - type: ${type}\n    command: [${program}, push, ${type}]\n` +
@@ -876,7 +876,7 @@ test('build-plan: the text in quotes is the first sentence of the criterion', ()
     'AC-1 in the criteria.');
 });
 
-test('build-plan, verification and explainer: a quote inside the words stays in them', () => {
+test('build-plan, verification and walkthrough: a quote inside the words stays in them', () => {
   for (const sentence of ['"Export" saves a CSV file', 'The "Export" button saves a CSV file',
     'The reply says "Open every day"']) {
     for (const end of ['', '.']) {
@@ -885,8 +885,8 @@ test('build-plan, verification and explainer: a quote inside the words stays in 
         'build-plan');
       passes(push(withAc2(sentence), 'verification', verificationFile(evidence(`${quoted}: met.`))),
         'verification');
-      passes(push(withAc2(sentence, explained), 'explainer', explainerFile(EXPLAINER.replace(
-        CR2, quoted))), 'explainer');
+      passes(push(withAc2(sentence, inVerify), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
+        CR2, quoted))), 'walkthrough');
     }
     // Text after the closing quote of a cell or a heading is a difference.
     const extra = `AC-2, "${sentence}" and more"`;
@@ -895,8 +895,8 @@ test('build-plan, verification and explainer: a quote inside the words stays in 
     // In an evidence, a quote ends after the words: words that go on are a difference.
     exactly(push(withAc2(sentence), 'verification', verificationFile(evidence(`AC-2, ` +
       `"${sentence} and more": met.`))), quoteLine('AC-2', EVIDENCE, sentence));
-    exactly(push(withAc2(sentence, explained), 'explainer', explainerFile(EXPLAINER.replace(
-      CR2, extra))), quoteLine('AC-2', 'the heading of explainer.md', sentence));
+    exactly(push(withAc2(sentence, inVerify), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
+      CR2, extra))), quoteLine('AC-2', 'the heading of walkthrough.md', sentence));
   }
 });
 
@@ -2414,113 +2414,113 @@ test('verification: a criterion quoted in an evidence or a reason', () => {
 });
 
 // withAc2 returns a fixture whose approved criteria give ac-2 the one sentence sentence, and
-// with make, a fixture of another kind, such as explained.
+// with make, a fixture of another kind, such as inVerify.
 function withAc2(sentence, make = fixture) {
   const folder = make();
   recriteria(folder, 1, (list) => { criterionOf(list, 'ac-2').text = `${sentence}.`; });
   return folder;
 }
 
-// ---- explainer ----------------------------------------------------------------------------
+// ---- walkthrough ----------------------------------------------------------------------------
 
-const explainerFile = (md) => ['explainer.md', md];
+const walkthroughFile = (md) => ['walkthrough.md', md];
 
-// explained returns a fixture with VERIFICATION as verification version 1.
-function explained() {
+// inVerify returns a fixture with VERIFICATION as verification version 1.
+function inVerify() {
   const folder = fixture();
   version(folder, 'verification', 'main', 1, 'verification.json', VERIFICATION);
   return folder;
 }
 
-test('explainer: the explainer passes check and push', () => {
-  passes(push(explained(), 'explainer', explainerFile(EXPLAINER)), 'explainer');
-  passes(check(explained(), 'explainer', explainerFile(EXPLAINER)), 'explainer');
+test('walkthrough: the walkthrough passes check and push', () => {
+  passes(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  passes(check(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
 });
 
-test('explainer: ## Summary, the criteria by number, then ## Risk on merge', () => {
-  const pattern = /^Give explainer.md ## Summary, ## AC-<N>, "<first sentence>" by number, ## Risk on merge\. It has /;
-  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge', '## Risks'))), pattern);
-  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## AC-4,', '## AC-1,'))), pattern);
-  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('## AC-4, "Each', '## "Each'))), pattern);
+test('walkthrough: ## Summary, the criteria by number, then ## Risk on merge', () => {
+  const pattern = /^Give walkthrough.md ## Summary, ## AC-<N>, "<first sentence>" by number, ## Risk on merge\. It has /;
+  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge', '## Risks'))), pattern);
+  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## AC-4,', '## AC-1,'))), pattern);
+  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## AC-4, "Each', '## "Each'))), pattern);
 });
 
-test('explainer: the criterion sections by their heading, with no ## Summary first', () => {
+test('walkthrough: the criterion sections by their heading, with no ## Summary first', () => {
   // The line of the order, and no line to add a section: each criterion has its section.
-  const shape = printed('Give explainer.md ## Summary, ## AC-<N>, "<first sentence>" by ' +
+  const shape = printed('Give walkthrough.md ## Summary, ## AC-<N>, "<first sentence>" by ' +
     'number, ## Risk on merge.\nIt has ## AC-1, "The saved reply for delayed orders lists the ' +
     'support hours as 8:00 to 20:00", ## AC-2, "The reply states th....');
-  const noSummary = EXPLAINER.replace(/^## Summary\n\n.*\n\n/, '');
+  const noSummary = WALKTHROUGH.replace(/^## Summary\n\n.*\n\n/, '');
   assert.ok(noSummary.startsWith('## AC-1, '));
   // A U+FEFF before ## Summary makes that line text before the first heading.
-  const bom = ['Start explainer.md with its first ## heading: it has text before that heading.',
-    ...shape, 'Remove the refused character U+FEFF from explainer.md.'];
-  for (const [md, lines] of [[noSummary, shape], [`\uFEFF${EXPLAINER}`, bom]]) {
+  const bom = ['Start walkthrough.md with its first ## heading: it has text before that heading.',
+    ...shape, 'Remove the refused character U+FEFF from walkthrough.md.'];
+  for (const [md, lines] of [[noSummary, shape], [`\uFEFF${WALKTHROUGH}`, bom]]) {
     for (const mode of [check, push]) {
-      const result = mode(explained(), 'explainer', explainerFile(md));
+      const result = mode(inVerify(), 'walkthrough', walkthroughFile(md));
       assert.equal(result.status, 1, result.out);
       assert.deepEqual(result.lines.slice(0, -1), lines, result.out);
     }
   }
 });
 
-test('explainer: a long claim takes time in proportion to its length', () => {
+test('walkthrough: a long claim takes time in proportion to its length', () => {
   for (const word of ['a', 'a:1', '`a', '(matrix row ac-1 ']) {
     const long = `- ${word.repeat(Math.ceil(250000 / word.length))} x`;
     const started = process.hrtime.bigint();
-    fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
+    fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
       '- The film shows them, matrix row ac-1.', long))), /^End the claim "- [`a(]/);
     assert.ok(process.hrtime.bigint() - started < 2000000000n, `${word}: over 2 s`);
   }
 });
 
-test('explainer: each claim ends with its source', () => {
-  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(', `replies/delayed-order.md:3`', ''))),
-    /^End the claim "- The reply has the new hours\." in ## AC-1 of explainer.md with its source\. The source is a path:line or a matrix row\.$/);
-  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
-    /^End the claim "- The job sends o\.\.\.r, the job file\." in ## AC-4 of explainer\.md with its source\. The source is a path:line or a matrix row\. The claim is "- The job sends one reply per customer, the job file\."\.$/);
+test('walkthrough: each claim ends with its source', () => {
+  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(', `replies/delayed-order.md:3`', ''))),
+    /^End the claim "- The reply has the new hours\." in ## AC-1 of walkthrough.md with its source\. The source is a path:line or a matrix row\.$/);
+  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
+    /^End the claim "- The job sends o\.\.\.r, the job file\." in ## AC-4 of walkthrough\.md with its source\. The source is a path:line or a matrix row\. The claim is "- The job sends one reply per customer, the job file\."\.$/);
   for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
     '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.',
     '(matrix row ac-4)', 'matrix row ac-1234.']) {
-    passes(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
-      '`jobs/corrected-reply.ts:10-24`.', source))), 'explainer');
+    passes(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
+      '`jobs/corrected-reply.ts:10-24`.', source))), 'walkthrough');
   }
   for (const source of ['`jobs/corrected-reply.ts`.', 'jobs/corrected-reply.ts:0',
     'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)',
     'matrix row ac-04.', 'matrix row ac-10000.']) {
-    fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
+    fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), /^End the claim "- The job sends/);
   }
-  passes(check(explained(), 'explainer', explainerFile(EXPLAINER.replace(
-    '- The film shows them, matrix row ac-1.', '- x (matrix row ac-2)'))), 'explainer');
+  passes(check(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
+    '- The film shows them, matrix row ac-1.', '- x (matrix row ac-2)'))), 'walkthrough');
 });
 
-test('explainer: the commit of the verification is its target_version', () => {
+test('walkthrough: the commit of the verification is its target_version', () => {
   const ofC1 = verified((doc) => { doc.target_version = C1; });
   const root = fixture();
   version(root, 'verification', 'main', 1, 'verification.json', ofC1);
-  fails(push(root, 'explainer', explainerFile(EXPLAINER)),
-    new RegExp(`^Set the commit of explainer.md to ${C1}\\. That id is the verified commit, and ` +
-      `explainer.md has ${C2}\\.$`));
+  fails(push(root, 'walkthrough', walkthroughFile(WALKTHROUGH)),
+    new RegExp(`^Set the commit of walkthrough.md to ${C1}\\. That id is the verified commit, and ` +
+      `walkthrough.md has ${C2}\\.$`));
   // A push reads the newest verification, version 2 here, which verified C2.
   const newer = fixture();
   version(newer, 'verification', 'main', 1, 'verification.json', ofC1);
   version(newer, 'verification', 'main', 2, 'verification.json', VERIFICATION);
-  passes(push(newer, 'explainer', explainerFile(EXPLAINER)), 'explainer');
-  fails(push(newer, 'explainer', explainerFile(EXPLAINER.replace(C2, C1))),
-    new RegExp(`^Set the commit of explainer.md to ${C2}\\. That id is the verified commit, and ` +
-      `explainer.md has ${C1}\\.$`));
+  passes(push(newer, 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  fails(push(newer, 'walkthrough', walkthroughFile(WALKTHROUGH.replace(C2, C1))),
+    new RegExp(`^Set the commit of walkthrough.md to ${C2}\\. That id is the verified commit, and ` +
+      `walkthrough.md has ${C1}\\.$`));
   // In a check, the draft verification.json at the top of the folder is the verification.
   const top = fixture();
   version(top, 'verification', 'main', 1, 'verification.json', ofC1);
   write(top, 'verification.json', VERIFICATION);
-  passes(check(top, 'explainer', explainerFile(EXPLAINER)), 'explainer');
-  fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(`Commit: ${C2}`, 'Commit:'))),
-    /^Start a line of ## Summary of explainer.md with "Commit: "/);
+  passes(check(top, 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(`Commit: ${C2}`, 'Commit:'))),
+    /^Start a line of ## Summary of walkthrough.md with "Commit: "/);
 });
 
-test('explainer: a verification with no full verified commit is a finding', () => {
+test('walkthrough: a verification with no full verified commit is a finding', () => {
   const line = 'Set target_version of verification.json to the verified commit\'s full id.\n' +
-    'Then push verification.json and explainer.md again.';
+    'Then push verification.json and walkthrough.md again.';
   // A target_version that is no full commit id, none, and a file that is no JSON object.
   for (const verification of [verified((doc) => { doc.target_version = 'main'; }),
     verified((doc) => { doc.target_version = 'a1b2c3d'; }),
@@ -2531,84 +2531,84 @@ test('explainer: a verification with no full verified commit is a finding', () =
       return folder;
     };
     for (const mode of [check, push]) {
-      exactly(mode(stored(), 'explainer', explainerFile(EXPLAINER)), line);
+      exactly(mode(stored(), 'walkthrough', walkthroughFile(WALKTHROUGH)), line);
     }
     // In a check, the draft verification.json at the top of the folder is the verification.
-    const top = explained();
+    const top = inVerify();
     write(top, 'verification.json', verification);
-    exactly(check(top, 'explainer', explainerFile(EXPLAINER)), line);
+    exactly(check(top, 'walkthrough', walkthroughFile(WALKTHROUGH)), line);
   }
 });
 
-test('explainer: each line of a criterion section is a claim, a bullet', () => {
-  const paragraph = EXPLAINER.replace('- The film shows them, matrix row ac-1.',
+test('walkthrough: each line of a criterion section is a claim, a bullet', () => {
+  const paragraph = WALKTHROUGH.replace('- The film shows them, matrix row ac-1.',
     '- The film shows them, matrix row ac-1.\n\nThe reply is now correct for every customer.');
   for (const mode of [push, check]) {
-    exactly(mode(explained(), 'explainer', explainerFile(paragraph)), 'Write ## AC-1 of ' +
-      'explainer.md as bullets, each a claim that ends with its source.\nThe section has the ' +
+    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(paragraph)), 'Write ## AC-1 of ' +
+      'walkthrough.md as bullets, each a claim that ends with its source.\nThe section has the ' +
       'text "The reply is now correct for every customer.".');
   }
   // A paragraph with a source is still no bullet, and neither is a table or a fence.
   for (const text of ['The reply is correct, `replies/delayed-order.md:3`.',
     '| Claim | Source |\n|---|---|\n| The reply is correct. | `replies/delayed-order.md:3` |',
     '```\nThe reply is correct, `replies/delayed-order.md:3`.\n```']) {
-    fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
-      '## AC-4, "Each', `${text}\n\n## AC-4, "Each`))), /^Write ## AC-3 of explainer\.md as bullets/);
+    fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
+      '## AC-4, "Each', `${text}\n\n## AC-4, "Each`))), /^Write ## AC-3 of walkthrough\.md as bullets/);
   }
   // Blank lines and the indented lines of a bullet pass.
-  passes(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
+  passes(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
     '- The film shows them, matrix row ac-1.', '\n\n- The film shows them,\n  matrix row ac-1.\n'))),
-  'explainer');
+  'walkthrough');
 });
 
-test('explainer: a section per live criterion, of a live criterion, once', () => {
+test('walkthrough: a section per live criterion, of a live criterion, once', () => {
   for (const mode of [push, check]) {
-    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(
+    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
       /## AC-2, [^]*?(?=## AC-3)/, ''))), 'Add the section ## AC-2, "<first sentence>" ' +
-      'to explainer.md.\nNo section has AC-2.');
-    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
+      'to walkthrough.md.\nNo section has AC-2.');
+    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge',
       '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
-      '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md.\nThe ' +
+      '## Risk on merge'))), 'Remove the section ## AC-9 from walkthrough.md.\nThe ' +
       'acceptance criteria have no such criterion that is not removed.');
     // An id has up to four digits, as every criterion id has.
-    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
+    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge',
       '## AC-1234, "A criterion that the criteria do not have"\n\n- A claim, matrix row ' +
-      'ac-1.\n\n## Risk on merge'))), 'Remove the section ## AC-1234 from explainer.md.\nThe ' +
+      'ac-1.\n\n## Risk on merge'))), 'Remove the section ## AC-1234 from walkthrough.md.\nThe ' +
       'acceptance criteria have no such criterion that is not removed.');
   }
   // The text in quotes of a heading is the first sentence of the criterion, with no regard to
   // backticks, runs of spaces and the case of the id.
   for (const mode of [push, check]) {
-    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(`## ${CR2}`,
-      '## AC-2, "The hours"'))), quoteLine('AC-2', 'the heading of explainer.md', AC2));
-    passes(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace(`## ${CR2}`,
-      `## ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'explainer');
+    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(`## ${CR2}`,
+      '## AC-2, "The hours"'))), quoteLine('AC-2', 'the heading of walkthrough.md', AC2));
+    passes(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(`## ${CR2}`,
+      `## ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'walkthrough');
   }
   // Two sections of ac-1 are out of order too.
-  const twice = explainerFile(EXPLAINER.replace('## AC-2, "The reply',
+  const twice = walkthroughFile(WALKTHROUGH.replace('## AC-2, "The reply',
     '## ac-1, "The saved reply"\n\n- Again, matrix row ac-1.\n\n## AC-2, "The reply'));
-  const result = push(explained(), 'explainer', twice);
-  fails(result, /^Give AC-1 one section in explainer\.md\. It has 2\.$/);
-  fails(result, /^Give explainer\.md ## Summary, ## AC-<N>, "<first sentence>" by number, /);
+  const result = push(inVerify(), 'walkthrough', twice);
+  fails(result, /^Give AC-1 one section in walkthrough\.md\. It has 2\.$/);
+  fails(result, /^Give walkthrough\.md ## Summary, ## AC-<N>, "<first sentence>" by number, /);
   // A removed criterion has no section: version 2 of the criteria removes ac-3.
-  const removed = () => withoutAc3(explained);
-  const noThree = explainerFile(EXPLAINER.replace(/## AC-3, [^]*?(?=## AC-4)/, ''));
+  const removed = () => withoutAc3(inVerify);
+  const noThree = walkthroughFile(WALKTHROUGH.replace(/## AC-3, [^]*?(?=## AC-4)/, ''));
   // Check and push read the approved version 2, the newest, and agree.
   for (const mode of [push, check]) {
-    passes(mode(removed(), 'explainer', noThree), 'explainer');
-    exactly(mode(removed(), 'explainer', explainerFile(EXPLAINER)), 'Remove the section ' +
-      '## AC-3 from explainer.md.\nThe acceptance criteria have no such criterion that ' +
+    passes(mode(removed(), 'walkthrough', noThree), 'walkthrough');
+    exactly(mode(removed(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'Remove the section ' +
+      '## AC-3 from walkthrough.md.\nThe acceptance criteria have no such criterion that ' +
       'is not removed.');
   }
 });
 
-test('explainer: a push with no verification version is a finding', () => {
-  const line = 'Push the verification before the explainer.\nThe artifacts have no ' +
+test('walkthrough: a push with no verification version is a finding', () => {
+  const line = 'Push the verification before the walkthrough.\nThe artifacts have no ' +
     'verification version.';
-  exactly(push(fixture(), 'explainer', explainerFile(EXPLAINER)), line);
-  exactly(check(fixture(), 'explainer', explainerFile(EXPLAINER)), line);
+  exactly(push(fixture(), 'walkthrough', walkthroughFile(WALKTHROUGH)), line);
+  exactly(check(fixture(), 'walkthrough', walkthroughFile(WALKTHROUGH)), line);
   // With any commit: the push compares none.
-  exactly(push(fixture(), 'explainer', explainerFile(EXPLAINER.replace(C2, C1))), line);
+  exactly(push(fixture(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(C2, C1))), line);
 });
 
 // ---- The criteria version that the checks read -------------------------------------------
@@ -2617,18 +2617,18 @@ test('explainer: a push with no verification version is a finding', () => {
 const READERS = [
   ['build-plan', planFile(PLAN), 'the build plan'],
   ['verification', verificationFile(VERIFICATION), 'the verification'],
-  ['explainer', explainerFile(EXPLAINER), 'the explainer'],
+  ['walkthrough', walkthroughFile(WALKTHROUGH), 'the walkthrough'],
 ];
 
-test("build-plan, verification, explainer and acceptance-lock: a run's version above the target", () => {
+test("build-plan, verification, walkthrough and acceptance-lock: a run's version above the target", () => {
   // Version 1 is approved, and a run stored version 2: the push gets only version 2.
-  const run = () => criteriaVersion(explained(), 2, { at: LATER });
+  const run = () => criteriaVersion(inVerify(), 2, { at: LATER });
   for (const mode of [check, push]) {
     for (const [type, file, what] of READERS) exactly(mode(run(), type, file), askAbove(what, 1, 2));
     exactly(mode(run(), 'acceptance-lock', lockFile(LOCK_DOC)), askMounted(1, 2));
   }
   // Without a run's version above it, a check and a push read a person's version 2.
-  const person = () => criteriaVersion(explained(), 2, { writer: PERSON, at: LATER });
+  const person = () => criteriaVersion(inVerify(), 2, { writer: PERSON, at: LATER });
   for (const mode of [check, push]) {
     for (const [type, file] of READERS) passes(mode(person(), type, file), type);
     passes(mode(person(), 'acceptance-lock', lockFile(LOCK_2)), 'acceptance-lock');
@@ -2639,7 +2639,7 @@ test("build-plan, verification, explainer and acceptance-lock: a run's version a
 // version 2, and index.json lists a run's version 3. With mounted, the store has version 3, as
 // the push gets it; else it has no folder of version 3, as an artifact folder may lack it.
 const third = (mounted) => () => {
-  const folder = criteriaVersion(explained(), 2, { writer: PERSON, at: LATER });
+  const folder = criteriaVersion(inVerify(), 2, { writer: PERSON, at: LATER });
   listed(folder, 'acceptance-criteria', 3, 'av_ac3', { at: LATEST });
   if (mounted) {
     version(folder, 'acceptance-criteria', 'main', 3, 'acceptance-criteria.json', CRITERIA);
@@ -2653,7 +2653,7 @@ test("acceptance-lock: a lock of a person's version 2 below a run's version 3 no
   exactly(push(third(true)(), 'acceptance-lock', lockFile(LOCK_2)), askMounted(2, 3, false));
 });
 
-test("build-plan, verification and explainer: a run's version 3 listed but not in the folder", () => {
+test("build-plan, verification and walkthrough: a run's version 3 listed but not in the folder", () => {
   for (const [type, file, what] of READERS) {
     exactly(check(third(false)(), type, file), askAbove(what, 2, 3, false));
     exactly(push(third(true)(), type, file), askAbove(what, 2, 3, false));
@@ -2664,11 +2664,11 @@ test("build-plan, verification and explainer: a run's version 3 listed but not i
 // index.json has no approved criteria version.
 const unapprovedLine = (what) => `Write ${what} after a person approves the acceptance criteria.`;
 
-test('build-plan, verification and explainer: no criteria version in index.json', () => {
+test('build-plan, verification and walkthrough: no criteria version in index.json', () => {
   // index.json lists no criteria, with and without version 1 in the artifact folder: no
   // version is approved.
   const none = (keep) => () => {
-    const folder = explained();
+    const folder = inVerify();
     if (!keep) fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
     indexed(folder, (index) => {
       index.artifacts = index.artifacts.filter((one) => one.type !== 'acceptance-criteria');
@@ -2685,7 +2685,7 @@ test('build-plan, verification and explainer: no criteria version in index.json'
   }
   // A check whose artifact folder has no file of the approved version gets the line to pull it.
   const unpulled = () => {
-    const folder = explained();
+    const folder = inVerify();
     fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
     return folder;
   };
@@ -2698,20 +2698,20 @@ test('build-plan, verification and explainer: no criteria version in index.json'
   }
 });
 
-test('build-plan, verification and explainer: no approved criteria version', () => {
+test('build-plan, verification and walkthrough: no approved criteria version', () => {
   // With no approval there is no target, also when a person stored version 1 and a run
   // stored version 2: no version is read in place of the target.
   const stores = [
-    () => unapproved(explained),
+    () => unapproved(inVerify),
     () => {
-      const folder = unapproved(explained);
+      const folder = unapproved(inVerify);
       indexed(folder, (index) => {
         index.artifacts.find((one) => one.type === 'acceptance-criteria').versions[0].writer =
           PERSON;
       });
       return criteriaVersion(folder, 2, { at: LATER });
     },
-    () => criteriaVersion(unapproved(explained), 2, { writer: PERSON, at: LATER }),
+    () => criteriaVersion(unapproved(inVerify), 2, { writer: PERSON, at: LATER }),
   ];
   for (const make of stores) {
     for (const mode of [check, push]) {
@@ -2723,9 +2723,9 @@ test('build-plan, verification and explainer: no approved criteria version', () 
   }
 });
 
-test('build-plan, verification and explainer: no index.json exits 3', () => {
+test('build-plan, verification and walkthrough: no index.json exits 3', () => {
   const bare = () => {
-    const folder = explained();
+    const folder = inVerify();
     fs.rmSync(path.join(folder, 'index.json'));
     return folder;
   };
@@ -2739,10 +2739,10 @@ test('build-plan, verification and explainer: no index.json exits 3', () => {
   }
 });
 
-test('build-plan, verification, explainer and acceptance-lock: one criteria number twice', () => {
+test('build-plan, verification, walkthrough and acceptance-lock: one criteria number twice', () => {
   // Version 1 is approved, and index.json lists version 2 of a run and version 2 of a person.
   const twice = () => {
-    const folder = criteriaVersion(explained(), 2, { at: LATER });
+    const folder = criteriaVersion(inVerify(), 2, { at: LATER });
     listed(folder, 'acceptance-criteria', 2, 'av_ac2b', { writer: PERSON, at: LATEST });
     return folder;
   };
@@ -2784,10 +2784,10 @@ test('acceptance-lock: the line to pull and the line for no approval come before
   both(unlisted, LOCK_DOC, pulls);
 });
 
-test('build-plan, verification, explainer and acceptance-lock: the line for a member first', () => {
+test('build-plan, verification, walkthrough and acceptance-lock: the line for a member first', () => {
   // Version 1 is approved, and a run stored version 2. Each file has a fault of its format
   // that depends on the criteria, and the check gives only the line for a member.
-  const run = () => criteriaVersion(explained(), 2, { at: LATER });
+  const run = () => criteriaVersion(inVerify(), 2, { at: LATER });
   const faults = [
     ['build-plan', planFile(PLAN.replace('## Commands', '## Command list')), 'the build plan'],
     ['build-plan', planFile(PLAN.replace(/\| d-2 .*\n/, '')), 'the build plan'],
@@ -2797,10 +2797,10 @@ test('build-plan, verification, explainer and acceptance-lock: the line for a me
       'the verification'],
     ['verification', verificationFile(verified((doc) => { delete doc.matrix; })),
       'the verification'],
-    ['explainer', explainerFile(EXPLAINER.replace(/## AC-2, [^]*?(?=## AC-3)/, '')),
-      'the explainer'],
-    ['explainer', explainerFile(EXPLAINER.replace('## Risk on merge', '## Risks')),
-      'the explainer'],
+    ['walkthrough', walkthroughFile(WALKTHROUGH.replace(/## AC-2, [^]*?(?=## AC-3)/, '')),
+      'the walkthrough'],
+    ['walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge', '## Risks')),
+      'the walkthrough'],
   ];
   const wrongCheck = clone(LOCK_DOC);
   wrongCheck.checks[0].criterion = 'ac-1';
@@ -2810,11 +2810,11 @@ test('build-plan, verification, explainer and acceptance-lock: the line for a me
   }
 });
 
-test('build-plan, verification, explainer and acceptance-lock: a version above the target of no run', () => {
+test('build-plan, verification, walkthrough and acceptance-lock: a version above the target of no run', () => {
   // Version 1 is approved, and version 2 has a writer of kind bot, or none.
   const makers = [
-    () => criteriaVersion(explained(), 2, { writer: { kind: 'bot' }, at: LATER }),
-    () => criteriaVersion(explained(), 2, { writer: undefined, at: LATER }),
+    () => criteriaVersion(inVerify(), 2, { writer: { kind: 'bot' }, at: LATER }),
+    () => criteriaVersion(inVerify(), 2, { writer: undefined, at: LATER }),
   ];
   for (const make of makers) {
     for (const mode of [check, push]) {
@@ -2919,16 +2919,16 @@ test('every finding line of the types of Build and Verify but a quote has at mos
     })]) {
     run(fixture, 'verification', verificationFile(doc));
   }
-  for (const md of [heading(EXPLAINER, 'Risk on merge'), heading(EXPLAINER, 'Summary'),
-    EXPLAINER.replace('## AC-2, "The reply', `## AC-2, "${LONG}"\n\n${LONG}\n\n- ${LONG}\n\n## AC-99, "${LONG}"\n\n## AC-2, "The reply`),
-    EXPLAINER.replace(`Commit: ${C2}`, `Commit: ${'f'.repeat(64)}`)]) {
-    run(explained, 'explainer', ['explainer.md', md]);
-    run(fixture, 'explainer', ['explainer.md', md]);
+  for (const md of [heading(WALKTHROUGH, 'Risk on merge'), heading(WALKTHROUGH, 'Summary'),
+    WALKTHROUGH.replace('## AC-2, "The reply', `## AC-2, "${LONG}"\n\n${LONG}\n\n- ${LONG}\n\n## AC-99, "${LONG}"\n\n## AC-2, "The reply`),
+    WALKTHROUGH.replace(`Commit: ${C2}`, `Commit: ${'f'.repeat(64)}`)]) {
+    run(inVerify, 'walkthrough', ['walkthrough.md', md]);
+    run(fixture, 'walkthrough', ['walkthrough.md', md]);
   }
   // Criteria versions over 999999: a person's version with and without its folder, and a run's
   // version above it.
   const huge = (stored, above) => () => {
-    const folder = explained();
+    const folder = inVerify();
     listed(folder, 'acceptance-criteria', 1e20, 'av_ac_huge', { writer: PERSON, at: LATER });
     if (stored) {
       version(folder, 'acceptance-criteria', 'main', 1e20, 'acceptance-criteria.json', CRITERIA);
@@ -2955,7 +2955,7 @@ test('every finding line of the types of Build and Verify but a quote has at mos
 test('the types of Build and Verify are in the registry, with the usage', () => {
   const result = call({ cwd: tmp, artifacts: [tmp] }, []);
   assert.equal(result.status, 2);
-  for (const type of [...JSON_TYPES, ...DOCUMENT_TYPES, 'demo-video', 'screenshot', 'explainer']) {
+  for (const type of [...JSON_TYPES, ...DOCUMENT_TYPES, 'demo-video', 'screenshot', 'walkthrough']) {
     assert.match(result.err, new RegExp(`[ ,]${type}[,]`), type);
   }
 });

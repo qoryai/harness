@@ -213,7 +213,7 @@ a model id. An agent sets the tier that this table lists for its name:
 | Tier | Agents |
 |---|---|
 | `thinking` | `build-planner`, `software-developer`, `software-debugger`, `acceptance-check-writer`, `feedback-triager`, and every `*-reviewer` except `demo-reviewer` |
-| `balanced` | `code-explorer`, `browser-demo-author`, `submission-writer`, `explainer-writer` and `demo-reviewer` |
+| `balanced` | `code-explorer`, `browser-demo-author`, `submission-writer`, `walkthrough-writer` and `demo-reviewer` |
 
 An agent that the table does not list sets no `model` key.
 
@@ -1732,7 +1732,7 @@ The checks:
 
 The types of Build and Verify are `submission`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
-`screenshot`, `verification` and `explainer`. The check of each JSON type checks the file
+`screenshot`, `verification` and `walkthrough`. The check of each JSON type checks the file
 against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`.
 For a custom type, `process.yaml` has the same schema as the type's `json_schema`, and
 Qory Apiary reads it there. `verification` is a standard type: its schema is the
@@ -1748,30 +1748,30 @@ The approved demo scenarios are the version that `approved_version` in `index.js
 to, when the store has that version, else the newest version. A push store has only the
 newest version of each type that the check reads.
 
-`build-plan`, `verification`, `explainer` and `acceptance-lock` read one criteria version,
+`build-plan`, `verification`, `walkthrough` and `acceptance-lock` read one criteria version,
 the target: the approved version, or the newest version that a person stored after it (a
 writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
 a version counts neither, because `index.json` has no time of a decision to compare with
 the newest lock. One function, `criteriaTarget` of
 `running-a-software-workflow/lib/build.cjs`, computes the target for the four types. A check
 and a push read the versions in `index.json`, not the folders of the store, so that they
-agree. The build plan, the verification and the explainer read the target before any other
+agree. The build plan, the verification and the walkthrough read the target before any other
 check of the type, so that a finding of the read is the only finding of that check. A
 finding on the files that a check or a push gets, such as "Remove notes.txt from the
 files." with the line "A build-plan version has no file notes.txt." after it, comes before
 the finding of the read.
 With no approved version there is no target, also when a person stored a version: those
 three types get "Write the build plan after a person approves the acceptance criteria.",
-with the verification or the explainer in place of the build plan, and the lock gets its
+with the verification or the walkthrough in place of the build plan, and the lock gets its
 line below. When `index.json` lists a version above the target, the push gets that version
 in place of the target, and a check and a push of each of the four types get one finding,
 such as "Ask a member to upload the acceptance criteria they accept as a new version." with
 the line "Then push the build plan again: the run stored version 2 after the approved
-version 1." after it, with the verification or the explainer in place of the build plan,
+version 1." after it, with the verification or the walkthrough in place of the build plan,
 and "Then lock that version" for the lock. When the writer of that version is not of kind
 `run`, the reason is "no member uploaded the newer criteria version 2". Two criteria
 versions of one number in `index.json` exit 3 with "Run `qory artifact pull`, then check
-the build plan again.", with the verification, the explainer or the lock in place of the
+the build plan again.", with the verification, the walkthrough or the lock in place of the
 build plan, and so does the check of one of those three types with no `index.json`. A push
 store with no file of the target gets "Store the acceptance criteria before you push the
 build plan." with the line "The push check found no version of them." after it. A check
@@ -1902,7 +1902,7 @@ find:
   twice, such as in both; a criterion there that the criteria do not have, or have
   removed; and a text in quotes beside the id of a criterion that the criteria have, other
   than the criterion's words, in an `evidence` or a `reason`;
-- `explainer`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
+- `walkthrough`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
   number, with the id in any case and the criterion's words in quotes, then
   `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
   criterion of the acceptance criteria that is not removed and has no section, a section of
@@ -1913,9 +1913,9 @@ find:
   id, or one other than the verified commit, the `target_version`: in a check, that of
   `verification.json` at the top of the artifact folder, else of the newest verification
   version; in a push, that of the newest verification version, which the push check reads.
-  With no verification, the finding is "Push the verification before the explainer.", with
+  With no verification, the finding is "Push the verification before the walkthrough.", with
   the line "The artifacts have no verification version." after it. A verification whose
-  `target_version` is no full commit id is a finding of the explainer too, in a check and
+  `target_version` is no full commit id is a finding of the walkthrough too, in a check and
   in a push.
 
 A Build session records each step it runs in the build ledger, so that a session that stops
@@ -2149,7 +2149,7 @@ push_checks:
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, `build-plan`, `acceptance-lock` and `verification` read
 `[acceptance-criteria]`, `demo-script` reads `[demo-scenarios]`, `demo-evidence`,
-`demo-video` and `screenshot` read `[demo-script]`, `explainer` reads
+`demo-video` and `screenshot` read `[demo-script]`, `walkthrough` reads
 `[verification, acceptance-criteria]`, and the other types read nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
 `review-comments`, with the program `scripts/push-check.cjs`. `software-factory` declares
@@ -3281,7 +3281,7 @@ template that a software-factory workspace starts with. The file sets these keys
   characters, on what the stage does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `verification`, `mockup`, `screenshot`, `demo-video`,
-  `explainer` and `decision-record` are standard types, each with its name alone. The
+  `walkthrough` and `decision-record` are standard types, each with its name alone. The
   checks of an `acceptance-criteria.json` and a `verification.json` draft read the JSON
   Schemas of the acceptance criteria and verification formats of qory's contract from
   `skills/running-a-software-workflow/schemas/`, and refuse a draft above 256 KB, the

@@ -9014,8 +9014,8 @@ test('withdrawal: each first line for a member is at most 100 characters', () =>
   const lines = [new Context(root, 'push', tmp).lacksBefore(longest, 999).message];
   const run = (context) => ({ context, did() {}, find(line) { lines.push(line); } });
   // The words of the three types that read the criteria, as build-plan.cjs, verification.cjs
-  // and explainer.cjs pass them.
-  for (const what of ['the build plan', 'the verification', 'the explainer']) {
+  // and walkthrough.cjs pass them.
+  for (const what of ['the build plan', 'the verification', 'the walkthrough']) {
     assert.equal(build.liveCriteria(run(new Context(root, 'push', tmp)), what), null);
   }
   const lock = types.find((def) => def.type === 'acceptance-lock');

@@ -42,7 +42,7 @@ const STOPS = [
 // The types of Build and Verify, each in types/<type>.cjs.
 const BUILD_AND_VERIFY = [
   'submission', 'build-plan', 'build-report', 'build-ledger', 'acceptance-lock', 'demo-script',
-  'demo-evidence', 'demo-video', 'screenshot', 'verification', 'explainer',
+  'demo-evidence', 'demo-video', 'screenshot', 'verification', 'walkthrough',
 ];
 
 // workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
