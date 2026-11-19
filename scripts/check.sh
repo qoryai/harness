@@ -5,6 +5,8 @@
 #
 # Usage: scripts/check.sh
 # Set `QORY` to the qory binary to run; the default is `qory`.
+# Set `QORY_SOURCE` to the folder of qory at the commit `QORY_CONTRACTS_COMMIT` of
+# .github/workflows/check.yml: the findings tests read the review report schema from it.
 #
 # Every compose runs with --dry-run, except the ones that write the settings and hook files
 # of the core and software stacks into temporary checkouts. So the script writes only to a

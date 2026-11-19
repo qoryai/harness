@@ -1,5 +1,5 @@
 // Tests of the review of a change: the skills that define a reviewer's report, the report in
-// the JSON format of the review round against the fixture of its schema, and the verb
+// the JSON format of the review round against qory's schema of it, and the verb
 // `findings open` of the checks script of running-a-workflow, which prints the findings that
 // the next session fixes first. scripts/check.sh runs them.
 'use strict';
@@ -29,8 +29,16 @@ const REVIEWING = fs.readFileSync(path.join(SKILLS, 'reviewing-changes', 'SKILL.
 const JUDGING = fs.readFileSync(path.join(MODULES,
   'software-factory/skills/judging-findings/SKILL.md'), 'utf8');
 
-// The fixture of qory's report schema, and the document that it checks.
-const SCHEMA_FILE = path.join(__dirname, 'testdata', 'review-report.schema.json');
+// qory's report schema, read from the folder QORY_SOURCE, qory at the commit that
+// .github/workflows/check.yml pins as QORY_CONTRACTS_COMMIT, and the document that it checks.
+const PIN = /^\s*QORY_CONTRACTS_COMMIT: (\w+)$/m.exec(fs.readFileSync(
+  path.join(__dirname, '..', '.github', 'workflows', 'check.yml'), 'utf8'))[1];
+const SCHEMA_PATH = 'contracts/harness/v1/review-report.schema.json';
+const SCHEMA_FILE = path.join(process.env.QORY_SOURCE || '', SCHEMA_PATH);
+if (!process.env.QORY_SOURCE || !fs.existsSync(SCHEMA_FILE)) {
+  throw new Error(`Check out qory at ${PIN} and set QORY_SOURCE to its folder. The tests ` +
+    `read ${SCHEMA_PATH} from it, and QORY_SOURCE is ${process.env.QORY_SOURCE || 'not set'}.`);
+}
 const loaded = {
   file: SCHEMA_FILE,
   schema: JSON.parse(fs.readFileSync(SCHEMA_FILE, 'utf8')),
@@ -75,6 +83,11 @@ test('the schema fails a result word, an unknown member and each bad finding', (
   broken((report) => { report.findings[0].point = 'a'.repeat(501); }, 'a point over 500');
   broken((report) => { report.findings[0].point = 'Two lines.\nThe second.'; },
     'a point on two lines');
+  broken((report) => { report.findings[0].point = 'One line.\r'; }, 'a point with a return');
+  broken((report) => { report.findings[0].point = ''; }, 'an empty point');
+  broken((report) => { report.findings[0].point = '   '; }, 'a point of only spaces');
+  broken((report) => { report.findings[0].point = ' \t '; },
+    'a point of a tab and spaces');
   broken((report) => { report.findings[0].id = 'x1'; }, 'an id of another form');
   broken((report) => { report.findings[0].id = 'f0'; }, 'an id of 0');
   broken((report) => { report.findings[0].line = 0; }, 'a line of 0');
@@ -88,6 +101,9 @@ test('the schema fails a result word, an unknown member and each bad finding', (
   fine.findings[1].point = 'a'.repeat(500);
   fine.findings[1].proof = `broken rule: ${'a'.repeat(987)}`;
   assert.equal(fine.findings[1].proof.length, 1000);
+  assert.deepEqual(problems(fine), []);
+  // A point with spaces around a character that is not a space passes.
+  fine.findings[1].point = '  one line  ';
   assert.deepEqual(problems(fine), []);
 });
 
@@ -258,6 +274,7 @@ test('findings open: each broken form of the file exits 3 with the fix on line 1
     [finding({ point: 4 }), /point as a number, not text/],
     [finding({ point: undefined }), /point as missing, not text/],
     [finding({ point: ' \u0007 ' }), /an empty point/],
+    [finding({ point: '   ' }), /an empty point/],
     [finding({ proof: [] }), /proof as a list, not text/],
     [finding({ line: 0 }), /a line that is not a whole number/],
     [finding({ line: '3' }), /a line that is not a whole number/],
