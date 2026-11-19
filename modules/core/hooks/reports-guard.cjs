@@ -33,7 +33,15 @@
 // times its alternatives (250 ms of estimate for one call, 83,334 names read at most). A glob
 // with braces that can put two * side by side (`*{*,}`) is denied, because fs.globSync expands
 // the braces and reads the ** as a globstar; a glob with a / inside braces is expanded by the
-// guard, and each word is scanned in the folders that it reaches.
+// guard, and each word is scanned in the folders that it reaches. A glob with a backslash and a
+// glob character is denied: fs.globSync reads a backslash as a path separator, and a globstar
+// after it walks the whole disk. The count of braces is the larger of two readings, as
+// minimatch reads them, and every word that braces make is matched against .reports.
+// The calls of fs.globSync of one command, for the words with a * ? or [ that pass these
+// checks, run in a child process that spawnSync kills with SIGKILL after 2.5 s in all. The
+// kill, a failure of the child and bad output of the child deny the call. A hook has 10 s: the
+// checks before the child and the child's 2.5 s bound it. The checks inside the child, 250 ms
+// for each call and 600 ms between the calls, stay.
 // decide splits the command into words in Node and runs no shell. A command still reaches
 // .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
@@ -52,6 +60,7 @@
 // <home>/modules/core/skills/running-a-workflow/checks.cjs, as end-gate.cjs lists.
 'use strict';
 
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -565,10 +574,11 @@ function rangeCount(pattern, start, end) {
   return count > BigInt(HUGE) ? HUGE : Number(count);
 }
 
-// braces returns how many patterns pattern makes by brace expansion, without making them: the
-// sum of the alternatives of each {a,b}, the size of each range {1..9}, and the product of
-// braces side by side or inside one another, clamped at 1e12. It reads each character once.
-function braces(pattern) {
+// bracesText returns how many patterns pattern makes by brace expansion, counting a `{` with no
+// `}` as a group: the sum of the alternatives of each {a,b}, the size of each range {1..9}, and
+// the product of braces side by side or inside one another, clamped at 1e12. It reads each
+// character once.
+function bracesText(pattern) {
   const stack = [];
   let count = 1;
   for (let at = 0; at < pattern.length; at += 1) {
@@ -723,15 +733,52 @@ function namesOf(dir, budget) {
 // escape, and star is true for an unescaped `*`; a group is {alts}, a list of item lists, one for
 // each word between the commas of a pair of braces (`{a,b}`) or for each word of the range of a
 // pair (`{1..3}`, `{a..e..2}`, as {range}); and the braces of a pair with no comma and no range
-// are text around the items of their content, as `{a}`. A `{` with no `}`, a `}` with no `{`, and
-// a `{` after `$` are text, written `\{` and `\}`. When a pair has no comma and a `,` and a `}`
+// are {wrap}, text around the items of their content, as `{a}`; when the content makes more than
+// one word, minimatch reads each word w as the braces `{w}` again, a range or a list of words. A `{` with no `}`, a `}` with no `{`, and
+// a `{` after `$` are text, written `?` so that no pattern reads them as braces. When a pair has no comma and a `,` and a `}`
 // follow it, its `}` is text and the group goes on to the next `}`, as `{}2,}` does in bash. It
 // throws Over for groups nested more than MAX_NESTED deep.
 const MAX_EXPANDED = 4096;
 const MAX_NESTED = 32;
+const RANGE = /^(?:-?\d+\.\.-?\d+|[A-Za-z]\.\.[A-Za-z])(?:\.\.-?\d+)?$/;
+const tooMany = () => new Over(`The braces in the command make more than ${MAX_EXPANDED.toLocaleString('en-US')} ` +
+  `patterns, and the guard expands at most ${MAX_EXPANDED.toLocaleString('en-US')}.`);
+
+// rangeWords returns the words of the range text, as `1..3`, `01..10..3` or `a..e`, in bash's
+// order. It throws Over for more than MAX_EXPANDED words.
+function rangeWords(text) {
+  const number = /^(-?\d+)\.\.(-?\d+)(?:\.\.(-?\d+))?$/.exec(text);
+  const [, low, high, by] = number || /^([A-Za-z])\.\.([A-Za-z])(?:\.\.(-?\d+))?$/.exec(text);
+  const start = number ? bigOf(low) : BigInt(low.charCodeAt(0));
+  const stop = number ? bigOf(high) : BigInt(high.charCodeAt(0));
+  let step = by === undefined ? 1n : bigOf(by);
+  if (start === null || stop === null || step === null) throw tooMany();
+  if (step < 0n) step = -step;
+  if (step === 0n) step = 1n;
+  const width = number && (/^-?0\d/.test(low) || /^-?0\d/.test(high))
+    ? Math.max(low.replace('-', '').length, high.replace('-', '').length) : 0;
+  const words = [];
+  const up = stop >= start;
+  for (let at = start; up ? at <= stop : at >= stop; at += up ? step : -step) {
+    if (words.length >= MAX_EXPANDED) throw tooMany();
+    if (!number) words.push(String.fromCharCode(Number(at)));
+    else words.push(`${at < 0n ? '-' : ''}${(at < 0n ? -at : at).toString().padStart(width, '0')}`);
+  }
+  return words;
+}
+
+// parseBraces returns the items of pattern, read once for each text: the last 64 are kept.
+const parsed = new Map();
 function parseBraces(pattern) {
-  const tooMany = () => new Over(`The braces in the command make more than ${MAX_EXPANDED.toLocaleString('en-US')} ` +
-    `patterns, and the guard expands at most ${MAX_EXPANDED.toLocaleString('en-US')}.`);
+  let items = parsed.get(pattern);
+  if (items === undefined) {
+    items = parseOnce(pattern);
+    if (parsed.size >= 64) parsed.clear();
+    parsed.set(pattern, items);
+  }
+  return items;
+}
+function parseOnce(pattern) {
   // The commas that no backslash escapes, up to each index, the first comma at or after each
   // index that no comma follows (the `,(?!,)` of the group that has a `}` after it), and the
   // last `}` up to each index: closeOf reads them once for each candidate, so that a word of
@@ -778,29 +825,6 @@ function parseBraces(pattern) {
     }
     return -1;
   };
-  const rangeOf = (text) => {
-    const number = /^(-?\d+)\.\.(-?\d+)(?:\.\.(-?\d+))?$/.exec(text);
-    const letter = /^([A-Za-z])\.\.([A-Za-z])(?:\.\.(-?\d+))?$/.exec(text);
-    const one = number || letter;
-    if (one === null) return null;
-    const [, low, high, by] = one;
-    const start = number ? bigOf(low) : BigInt(low.charCodeAt(0));
-    const stop = number ? bigOf(high) : BigInt(high.charCodeAt(0));
-    let step = by === undefined ? 1n : bigOf(by);
-    if (start === null || stop === null || step === null) throw tooMany();
-    if (step < 0n) step = -step;
-    if (step === 0n) step = 1n;
-    const width = number && (/^-?0\d/.test(low) || /^-?0\d/.test(high))
-      ? Math.max(low.replace('-', '').length, high.replace('-', '').length) : 0;
-    const words = [];
-    const up = stop >= start;
-    for (let at = start; up ? at <= stop : at >= stop; at += up ? step : -step) {
-      if (words.length >= MAX_EXPANDED) throw tooMany();
-      if (!number) words.push(String.fromCharCode(Number(at)));
-      else words.push(`${at < 0n ? '-' : ''}${(at < 0n ? -at : at).toString().padStart(width, '0')}`);
-    }
-    return words;
-  };
   const read = (from, to, depth) => {
     if (depth > MAX_NESTED) {
       throw new Over(`The braces in the command are nested more than ${MAX_NESTED} deep, and the ` +
@@ -814,7 +838,7 @@ function parseBraces(pattern) {
         items.push({ lit: pattern.slice(at, at + 2), star: false });
         at += 1;
       } else if (close < 0) {
-        items.push({ lit: ch === '{' || ch === '}' ? `\\${ch}` : ch, star: ch === '*' });
+        items.push({ lit: ch === '{' || ch === '}' ? '?' : ch, star: ch === '*' });
       } else {
         const pieces = [];
         let begin = at + 1;
@@ -828,21 +852,25 @@ function parseBraces(pattern) {
             begin = scan + 1;
           }
         }
-        const words = pieces.length === 0 ? rangeOf(pattern.slice(at + 1, close)) : null;
+        const text = pattern.slice(at + 1, close);
+        const range = pieces.length === 0 && RANGE.test(text) ? text : null;
         if (pieces.length > 0) {
           pieces.push([begin, close]);
           items.push({ alts: pieces.map(([one, two]) => read(one, two, depth + 1)) });
-        } else if (words !== null) {
-          items.push({ range: words });
+        } else if (range !== null) {
+          items.push({ range });
         } else {
-          items.push({ lit: '\\{', star: false }, ...read(at + 1, close, depth + 1),
-            { lit: '\\}', star: false });
+          items.push({ wrap: read(at + 1, close, depth + 1) });
         }
         at = close;
       }
     }
     return items;
   };
+  // minimatch reads a `{}` at the start of the whole pattern as text, as `find -exec {}` needs.
+  if (pattern.startsWith('{}')) {
+    return [{ lit: '?', star: false }, { lit: '?', star: false }, ...read(2, pattern.length, 0)];
+  }
   return read(0, pattern.length, 0);
 }
 
@@ -873,25 +901,72 @@ function starsMeet(pattern) {
 }
 
 // expandBraces returns the words that bash makes of the braces in pattern, in which a `{` or a `}`
-// that bash reads as text is written `\{` or `\}`, so that fs.globSync expands none. Escapes stay
-// as they are. A word that bash makes empty is dropped, as bash drops it. It throws Over for more
+// that bash reads as text is written `?`, so that fs.globSync expands no braces of them. A word
+// that is empty is dropped, as bash drops it, unless keepEmpty is true. It throws Over for more
 // than MAX_EXPANDED words.
-function expandBraces(pattern) {
-  const tooMany = () => new Over(`The braces in the command make more than ${MAX_EXPANDED.toLocaleString('en-US')} ` +
-    `patterns, and the guard expands at most ${MAX_EXPANDED.toLocaleString('en-US')}.`);
-  const words = (items) => {
-    let made = [''];
+function expandBraces(pattern, keepEmpty = false) {
+  return wordsOf(parseBraces(pattern)).filter((one) => keepEmpty || one !== '');
+}
+
+// wordsOf returns the words that the items of parseBraces make. It throws Over for more than
+// MAX_EXPANDED words.
+function wordsOf(items) {
+  let made = [''];
+  for (const item of items) {
+    let next;
+    if (item.alts !== undefined) next = item.alts.flatMap(wordsOf);
+    else if (item.range !== undefined) next = rangeWords(item.range);
+    else if (item.wrap !== undefined) next = wrapWords(wordsOf(item.wrap));
+    else next = [item.lit];
+    if (made.length * next.length > MAX_EXPANDED) throw tooMany();
+    made = made.flatMap((one) => next.map((two) => one + two));
+  }
+  return made;
+}
+
+// wrapWords returns the words of a pair of braces with no comma and no range, from the words of
+// its content: a single word w is text, `?w?`; with more, minimatch reads each word w as `{w}`
+// again, so that w makes the words of a range, or the words between its commas, or `?w?`.
+function wrapWords(content) {
+  if (content.length === 1) return [`?${content[0]}?`];
+  return content.flatMap((word) => {
+    if (RANGE.test(word)) return rangeWords(word);
+    return word.includes(',') ? word.split(',') : [`?${word}?`];
+  });
+}
+
+// braces returns how many patterns pattern makes by brace expansion, without making them: the
+// most of what bracesText counts and of what the items of parseBraces make, which is the way that
+// expandBraces reads the braces, clamped at 1e12. fs.globSync reads braces as minimatch does and
+// parseBraces reads them the same way, but a count below the one of minimatch lets a command
+// make more words than the caps allow; the larger of the two counts is the cap.
+function braces(pattern) {
+  const count = (items) => {
+    let made = 1;
     for (const item of items) {
-      let next;
-      if (item.alts !== undefined) next = item.alts.flatMap(words);
-      else if (item.range !== undefined) next = item.range;
-      else next = [item.lit];
-      if (made.length * next.length > MAX_EXPANDED) throw tooMany();
-      made = made.flatMap((one) => next.map((two) => one + two));
+      let one = 1;
+      if (item.alts !== undefined) one = item.alts.reduce((sum, alt) => Math.min(sum + count(alt), 1e12), 0);
+      else if (item.range !== undefined) one = rangeCount(item.range, 0, item.range.length) || 1;
+      else if (item.wrap !== undefined) one = wrapCount(item.wrap);
+      made = Math.min(made * one, 1e12);
     }
     return made;
   };
-  return words(parseBraces(pattern)).filter((one) => one !== '');
+  // The braces of a pair with no comma and no range make the words of their content, or, when
+  // that is more than one word, the words that minimatch makes of each: the content is made in
+  // full when it has at most MAX_EXPANDED words, and counts as HUGE when it has more.
+  const wrapCount = (items) => {
+    const inner = count(items);
+    if (inner === 1) return 1;
+    if (inner > MAX_EXPANDED) return HUGE;
+    try {
+      return wrapWords(wordsOf(items)).length;
+    } catch (error) {
+      if (error instanceof Over) return HUGE;
+      throw error;
+    }
+  };
+  return Math.max(bracesText(pattern), count(parseBraces(pattern)));
 }
 
 // slashInBraces returns true when pattern has a / inside a pair of braces, or after a { that has
@@ -1025,17 +1100,38 @@ const unitsOver = () => new Over(`The braces in the command make more than ` +
   `${MAX_GLOB_UNITS.toLocaleString('en-US')} patterns, and the guard expands at most ` +
   `${MAX_GLOB_UNITS.toLocaleString('en-US')}.`);
 
+// startsEmpty returns true when the first path part of pattern, the text before its first / that
+// is outside braces, has braces and can be empty, as `{*,}` in `{*,}/*`: the word then makes a
+// relative path and an absolute one.
+function startsEmpty(pattern) {
+  let depth = 0;
+  for (let at = 0; at < pattern.length; at += 1) {
+    const ch = pattern[at];
+    if (ch === '\\') at += 1;
+    else if (ch === '{') depth += 1;
+    else if (ch === '}' && depth > 0) depth -= 1;
+    else if (ch === '/' && depth === 0) {
+      const first = pattern.slice(0, at);
+      return first.includes('{') && expandBraces(first, true).includes('');
+    }
+  }
+  return false;
+}
+
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
 // pattern that has a glob character matches, so that a glob of a file that does not exist yet
-// matches its folder. Each ** counts as *, as in bash without globstar, so that no pattern
-// walks a whole tree; braces that can make ** from two * are denied (checkGlob). A pattern with
-// a / inside braces has path parts that differ between its expansions, and the folders that a
-// part scans depend on the expansion: the guard expands the braces, and scans
-// each word as a pattern, so that fs.globSync expands no braces of it. A word with no
-// `*`, `?` or `[` is a path, and is returned as it is. It throws the error of fs.globSync, and
-// Over when pattern passes a limit before any scan, or when budget, which counts the calls,
-// matches and time of all the globs of a command, has none left. It checks the time before each
-// folder part, so a long pattern ends at the limit.
+// matches its folder, and the words that its braces make, as text, when one of them is
+// .reports: `.{rep,x}orts` makes .reports where no such folder is. Each ** counts as *, as in
+// bash without globstar, so that no pattern walks a whole tree; braces that can make ** from
+// two * are denied (checkGlob), and so is a backslash in a glob, which fs.globSync reads as a
+// path separator and a globstar after it walks the whole disk. A pattern with a / inside braces,
+// or a first part that can be empty, has path parts that differ between its expansions: the
+// guard expands the braces, and scans each word as a pattern, so that fs.globSync expands no
+// braces of it. A pattern with no `*`, `?` or `[` is not scanned. It throws the error of
+// fs.globSync, and Over when pattern passes a limit before any scan, or when budget, which counts
+// the calls, matches and time of all the globs of a command, has none left. It checks the time
+// before each folder part, so a long pattern ends at the limit. budget.hooks.noCaps, a hook for checks of the guard,
+// turns off the checks of backslashes and braces, so that the limit of the child process decides.
 function globbed(pattern, cwd, budget) {
   overTime(budget);
   if (pattern.length > MAX_GLOB_LENGTH) {
@@ -1043,24 +1139,34 @@ function globbed(pattern, cwd, budget) {
     throw new Over(`A glob of the command has more than ${most} characters, and the guard ` +
       `expands at most ${most}.`);
   }
+  const caps = budget.hooks.noCaps !== true;
+  if (caps && pattern.includes('\\') && /[*?[{]/.test(pattern)) {
+    throw new Over(`Remove the backslash before the glob character, or write the path without a ` +
+      `glob: the glob ${short(pattern)} has a backslash, which fs.globSync reads as a path separator.`);
+  }
   const text = pattern.replace(/\*{2,}/g, '*');
-  const slashed = slashInBraces(text);
+  const wild = /[*?[]/.test(text);
+  const slashed = caps && (slashInBraces(text) || startsEmpty(text));
   if (!slashed && text.split('/').filter((one) => GLOB.test(one)).length > MAX_GLOB_DEPTH) {
     throw new Over(`A glob of the command has more than ${MAX_GLOB_DEPTH} parts with a glob character, ` +
       `and the guard expands at most ${MAX_GLOB_DEPTH}.`);
   }
   checkGlob(text);
-  if (!slashed) return scanParts(text, cwd, budget);
-  const made = braces(text);
-  budget.units += made * (/[*?[]/.test(text) ? WILDCARD_UNITS : 1);
+  const made = caps ? braces(text) : 1;
+  if (made * (wild ? WILDCARD_UNITS : 1) > MAX_GLOB_UNITS && made > 1) throw unitsOver();
+  const words = made > 1 || slashed ? expandBraces(text) : [text];
+  const found = words.length > 1 || slashed ? words.filter((word) => REPORTS.test(word)) : [];
+  if (!wild) {
+    if (made > 1) budget.units += made;
+    if (budget.units > MAX_GLOB_UNITS) throw unitsOver();
+    return found;
+  }
+  if (!slashed) return found.concat(scanParts(text, cwd, budget));
+  budget.units += made * WILDCARD_UNITS;
   if (budget.units > MAX_GLOB_UNITS) throw unitsOver();
-  const found = [];
-  for (const word of expandBraces(text)) {
+  for (const word of words) {
     overTime(budget);
-    if (!/[*?[]/.test(word)) {
-      found.push(word.replace(/\\(.)/g, '$1'));
-      continue;
-    }
+    if (!/[*?[]/.test(word)) continue;
     if (word.split('/').filter((one) => GLOB.test(one)).length > MAX_GLOB_DEPTH) {
       throw new Over(`A glob of the command has more than ${MAX_GLOB_DEPTH} parts with a glob ` +
         `character, and the guard expands at most ${MAX_GLOB_DEPTH}.`);
@@ -1073,14 +1179,115 @@ function globbed(pattern, cwd, budget) {
 // short returns raw, cut to 60 characters, for a line of a deny.
 const short = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}…` : raw);
 
-// hidden returns the part of command that reaches .reports though its text does not contain
-// .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
-// ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob.
-function hidden(command, cwd, env, globs) {
+// The limit of the child process that runs the fs.globSync calls of one command: no check of
+// the input can promise that a call that cannot be stopped returns, so the guard stops it. The
+// hook has 10 s on Cursor, Copilot CLI and Gemini CLI.
+const GLOB_CHILD_MS = 2500;
+const CHILD = 'const g = require(process.argv[1]);' +
+  "const input = JSON.parse(require('fs').readFileSync(0, 'utf8'));" +
+  'process.stdout.write(JSON.stringify({ deny: g.globsChild(input) }));';
+
+// guardHooks returns the hooks for checks of the guard, from QORY_REPORTS_GUARD_TEST, a JSON object that the
+// runtime sets for a hook that it starts, and that a shell command of the agent cannot set
+// there: globMs, a limit for the child lower than GLOB_CHILD_MS; stall, a text that makes the
+// child of a command with it in a glob never return; fail, which makes the child exit with 3,
+// print text that is no JSON, print a deny that is no text, or print 2 MiB; and noCaps, which turns off the checks of
+// backslashes and braces (see globbed), so that only the limit of the child decides. None of
+// them lets a call pass that the guard denies without them, but noCaps.
+function guardHooks() {
+  try {
+    const hooks = JSON.parse(process.env.QORY_REPORTS_GUARD_TEST || '{}');
+    return hooks !== null && typeof hooks === 'object' ? hooks : {};
+  } catch {
+    return {};
+  }
+}
+
+// globsHidden returns the second line of the deny for the first of the glob words in list, each
+// { raw, value }, that reaches .reports from cwd, or null. It throws what fs.globSync throws for
+// no word: a word that it cannot expand is a deny.
+function globsHidden(list, cwd, hooks) {
   const budget = { calls: 0, matches: 0, units: 0, names: new Map(), seen: new Map(),
-    start: Date.now() };
+    start: Date.now(), hooks };
   // The globs that match nothing under .reports: a word that repeats one costs no more work.
   const clean = new Set();
+  for (const { raw, value } of list) {
+    if (clean.has(value)) continue;
+    let matches;
+    try {
+      matches = globbed(value, cwd, budget);
+    } catch (error) {
+      if (error instanceof Over) {
+        return error.message;
+      }
+      return `fs.globSync could not expand the glob ${short(raw)}: ${error.message}.`;
+    }
+    const match = matches.find((one) => REPORTS.test(one));
+    if (match !== undefined) return `The glob ${raw} matches ${match}.`;
+    clean.add(value);
+  }
+  return null;
+}
+
+// globsChild is what the child process runs: input is { list, cwd, hooks }.
+function globsChild({ list, cwd, hooks }) {
+  if (typeof hooks.stall === 'string' && list.some(({ value }) => value.includes(hooks.stall))) {
+    for (;;);
+  }
+  if (hooks.fail === 'exit') process.exit(3);
+  if (hooks.fail === 'garbage') {
+    process.stdout.write('not json');
+    process.exit(0);
+  }
+  if (hooks.fail === 'type') {
+    process.stdout.write('{"deny":["x"]}');
+    process.exit(0);
+  }
+  if (hooks.fail === 'big') {
+    process.stdout.write(JSON.stringify({ deny: 'x'.repeat(2 << 20) }));
+    process.exit(0);
+  }
+  return globsHidden(list, cwd, hooks);
+}
+
+// globsInChild runs globsHidden for list in a child process, which spawnSync kills after
+// GLOB_CHILD_MS: a call of fs.globSync that does not return, a crash, and an output that is not
+// { deny: string or null } of at most 1 MiB each deny the call.
+function globsInChild(list, cwd) {
+  const hooks = guardHooks();
+  const limit = Math.min(GLOB_CHILD_MS, hooks.globMs > 0 ? hooks.globMs : GLOB_CHILD_MS);
+  const failed = `Use a narrower glob: the globs of the command did not finish in ` +
+    `${limit.toLocaleString('en-US')} ms, or could not run, and the guard blocks the call.`;
+  const env = { ...process.env };
+  delete env.NODE_OPTIONS;
+  let ran;
+  try {
+    ran = childProcess.spawnSync(process.execPath, ['--max-old-space-size=256', '-e', CHILD,
+      __filename], { input: JSON.stringify({ list, cwd, hooks }), encoding: 'utf8', env,
+      timeout: limit, killSignal: 'SIGKILL', maxBuffer: 1 << 20, stdio: ['pipe', 'pipe', 'ignore'] });
+  } catch {
+    return failed;
+  }
+  if (ran.error !== undefined || ran.status !== 0 || typeof ran.stdout !== 'string') return failed;
+  let out;
+  try {
+    out = JSON.parse(ran.stdout);
+  } catch {
+    return failed;
+  }
+  if (out === null || typeof out !== 'object'
+    || (out.deny !== null && typeof out.deny !== 'string')) return failed;
+  return out.deny;
+}
+
+// hidden returns the part of command that reaches .reports though its text does not contain
+// .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
+// ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob. A glob word with a `*`, `?`
+// or `[` is expanded by fs.globSync in a child process, unless inline is true, which the checks of the guard set;
+// one with only braces is read as text, in this process.
+function hidden(command, cwd, env, globs, inline) {
+  const pending = [];
+  const textual = [];
   for (const { raw, value: text, glob, tilde } of words(command)) {
     let value = text;
     const name = tilde ? /^~([^/]*)/.exec(text)[1] : null;
@@ -1098,26 +1305,17 @@ function hidden(command, cwd, env, globs) {
       return `The guard needs Node 22 or later to expand the glob ${raw}; this is Node ` +
         `${process.versions.node}.`;
     }
-    if (clean.has(value)) continue;
-    let matches;
-    try {
-      matches = globbed(value, cwd, budget);
-    } catch (error) {
-      if (error instanceof Over) {
-        return error.message;
-      }
-      return `fs.globSync could not expand the glob ${short(raw)}: ${error.message}.`;
-    }
-    const match = matches.find((one) => REPORTS.test(one));
-    if (match !== undefined) return `The glob ${raw} matches ${match}.`;
-    clean.add(value);
+    (/[*?[]/.test(value) ? pending : textual).push({ raw, value });
   }
+  const text = globsHidden(textual, cwd, guardHooks());
+  if (text !== null) return text;
   const built = BUILT.exec(command);
   if (built !== null && DOT_R.test(command)) {
     const sign = { $: '$', '`': 'a backtick' }[built[0]] || 'eval';
     return `The command has ${sign} and .r, which can build the name .reports.`;
   }
-  return null;
+  if (pending.length === 0) return null;
+  return inline ? globsHidden(pending, cwd, guardHooks()) : globsInChild(pending, cwd);
 }
 
 // decide returns the reason to deny a call, or null to let it run. kind is 'write' for a tool
@@ -1128,7 +1326,7 @@ function hidden(command, cwd, env, globs) {
 // With globs false, decide expands no glob: fs.globSync has no limit on its work, so
 // tool-guard.cjs, which bounds the work of each call, matches globs itself.
 function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
-  globs = true }) {
+  globs = true, inline = false }) {
   if (!env.QORY_RUN_ID) return null;
   if (kind === 'write') {
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
@@ -1149,7 +1347,7 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
     const special = notProgram(command, env);
     if (special !== null) return SPECIAL_REASON + special;
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
-    const part = hidden(command, from, env, globs);
+    const part = hidden(command, from, env, globs, inline);
     return part === null ? null : HIDDEN_REASON + part;
   }
   return null;
@@ -1172,6 +1370,6 @@ function safeDecide(call) {
   }
 }
 
-module.exports = { readInput, decide, safeDecide, runsChecks, withoutRedirect, reportsJson, flat,
+module.exports = { readInput, decide, safeDecide, globsChild, braces, runsChecks, withoutRedirect, reportsJson, flat,
   REPORTS, HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON,
   SPECIAL_REASON };
