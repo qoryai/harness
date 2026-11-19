@@ -774,7 +774,7 @@ skill_names() {
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
 # agent with no rule is untested. No skill here has the key, and the list stays complete.
-# qory passes these rules only to Claude Code. At qory 1deb56e, a Codex home has no allow
+# qory passes these rules only to Claude Code. At qory 0e02282, a Codex home has no allow
 # list and gets every composed skill (internal/render/codex/codex.go and
 # internal/render/address.go). For Codex, the check is that
 # harness compose --dry-run --runtime codex for the software stack lists every skill and
@@ -2593,6 +2593,9 @@ expect "the build ledger's tests pass" 0 "$ROOT" node --test scripts/ledger.test
 expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
+# The tests of the preflight: the browser, the app of the serve command and the sign-in of
+# the demo scripts. The sign-in tests start a browser, and skip when the machine has none.
+expect "the preflight tests pass" 0 "$ROOT" node --test scripts/preflight.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the
@@ -2603,10 +2606,7 @@ PUSH=$ROOT/modules/software-factory/skills/running-a-software-workflow/workflow-
 CORE_PUSH=$ROOT/modules/core/scripts/push-check.cjs
 cp -R "$TESTDATA" "$TMP/artifacts" || exit 1
 for type in acceptance-criteria questions; do
-	case $type in
-	questions) file=questions.json ;;
-	*) file=$type.md ;;
-	esac
+	file=$type.json
 	mkdir -p "$TMP/artifacts/$type/main/v1" && cp "$TESTDATA/$file" "$TMP/artifacts/$type/main/v1/" ||
 		exit 1
 done
@@ -2625,9 +2625,10 @@ expect "rule 9: the testdata's new questions pass their limits" 0 "$TMP/question
 printf '%s\n' "$OUT" | grep -Fq 'limits of new questions' ||
 	fail "rule 9: the check of the testdata's questions ran the limits of new questions"
 pass "rule 9: the check of the testdata's questions ran the limits of new questions"
-for type in spec acceptance-criteria decision-record demo-scenarios; do
+for file in spec.md acceptance-criteria.json decision-record.md demo-scenarios.md; do
+	type=${file%.*}
 	expect "rule 9: the testdata's $type passes every check" 0 "$TMP/artifacts" node "$PUSH" \
-		push "$type" "$type.md"
+		push "$type" "$file"
 done
 for type in questions review-comments; do
 	expect "rule 9: the testdata's $type passes every check of core" 0 "$TMP/artifacts" \

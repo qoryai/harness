@@ -66,7 +66,7 @@
       "properties": {
         "criterion": {
           "type": "string",
-          "pattern": "^ac-[1-9][0-9]?$"
+          "pattern": "^ac-[1-9][0-9]{0,3}$"
         },
         "repository": {
           "type": "string",

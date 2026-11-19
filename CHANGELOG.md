@@ -163,7 +163,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   call held the ledger lock for 10 s."
 - A point `run_again` of `points.json` may have `fix`, the step for the person, which
   `checks.cjs check points` checks by the rules of the text of a point. The verdict schema
-  of qory 1deb56e has the member.
+  of qory 0e02282 has the member.
 - `process.yaml` of `software-factory` sets `withdrawable: false` for `acceptance-lock` and
   `build-ledger`, so a run cannot withdraw the lock on the acceptance checks or the build
   ledger, and pushes a new version instead. `scripts/build-verify.test.js` checks the two
@@ -324,10 +324,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   tool guard limits that `Write` to the main session and the report path.
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
-  `demo-script`, `demo-evidence` and `verification`, with a JSON Schema for each structured
-  type. `workflow-checks.cjs` checks these types, `demo-video`, `screenshot` and `explainer`
-  before each review and in each type's push check. A type of the checks script may set its
-  file size limit and mark files that the check does not read as text.
+  `demo-script` and `demo-evidence`, with a JSON Schema for each structured type, and
+  `verification`, a standard type of Qory Apiary listed by name alone. `workflow-checks.cjs`
+  checks these types, `demo-video`, `screenshot` and `explainer` before each review and in
+  each type's push check. A type of the checks script may set its file size limit and mark
+  files that the check does not read as text.
 - `checks.cjs lock <file>` and `checks.cjs lock --verify [--version <N>]`, the lock on the
   acceptance checks. `lock` writes the SHA-256 of each check and support file that the draft
   `acceptance-lock.json` lists into it, checks it, and pushes it. The push check of
@@ -416,11 +417,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   time that the agent wrote, runs no program, and writes only `points.json` to `--out`. It
   exits 0 with no finding, 1 with findings and `points.json`, 2 for a wrong argument, 3 for
   an input it cannot read, and 4 on a crash. In-session `end` is unchanged, and qory at
-  `1deb56e` runs no `end --offline`.
+  `0e02282` runs no `end --offline`.
 - `software-factory` ships Codex settings, `settings/codex/config.toml`: live web search
   off (`web_search = "disabled"`), and a `Stop` hook that runs the end check through
   `hooks/end-gate-codex.cjs`. Exit 2 with the findings on stderr keeps a `codex exec` turn
-  going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `1deb56e` writes no
+  going; Codex 0.167.2 ran the hook with its trusted hash, and qory at `0e02282` writes no
   `trusted_hash` and does not pass `--dangerously-bypass-hook-trust`, so Codex does not
   run the hook in a run. The file sets no model, provider, sandbox or approval mode.
   `scripts/check.sh` checks that a compose for Codex writes both settings. A check that
@@ -451,8 +452,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `.github/workflows/check.yml` runs `scripts/check.sh` on each pull request, with qory
   built at a pinned commit, because no qory release reads the `workflows` key or the
   `withdrawable` key of an artifact type, has `qory run verdict escalate --points`, has
-  `qory run verdict --track`, or has `fix` on a point. The pin is `1deb56e`, the merge of
-  qoryai/qory#125.
+  `qory run verdict --track`, or has `fix` on a point. The pin is `0e02282`, the merge
+  of qoryai/qory#127.
 - The `software` stack, `stacks/software/qory-stack.yaml`, with the modules `core` and
   `software-factory`, for a checkout in a software-factory workspace to extend. It
   declares the workflow `explore-a-ticket` with `access: read`.
@@ -683,6 +684,43 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   older than 5 s, only while it has the file `.reports/starts.json.lock.break`, so that no
   two calls remove a lock at once, unless two calls both remove an old break file. The deny
   rules of `.reports` protect each file there whose name has `.json.lock`.
+- The verb `preflight` of the checks script, which a Build session runs right before a
+  scenario script runs for the first time, and a Verify session first, before any film. It
+  checks that the dev container has a browser that starts, that the `serve` command of the
+  build plan starts the app at its address, and that the setup of each demo script that
+  types a variable signs in to the app. For each missing part it writes a point `run_again`
+  with its fix to `points.json`, so the session ends with `escalate`. Another process at the
+  address counts as an app that did not start. The browser fails the load of each document
+  of another origin than the app's, in the tab and in each frame, after an `open`, a
+  redirect, a link or a script, and the sign-in then writes a point and types nothing more.
+  It sends each other request to a host and port other than the app's, such as a `fetch`, an
+  image, a WebSocket or a request of a service worker, to a proxy at port 9 of 127.0.0.1,
+  where nothing listens. In tests on Chrome 157 and Chromium 153, WebRTC sends no UDP
+  packet and opens no TCP connection to a TURN server, and WebTransport and HTTP/3 send no
+  QUIC packet. The lookup of each host name fails, except of 127.0.0.1 and the app's host.
+  The browser closes each new window before its first request, which also writes the
+  point: the point of the origin of that request, or "The app at <App address> opens a new
+  window during sign-in, and the run closed it: a run uses one window." An origin in the
+  point that contains a typed value is written as "another origin". A `type` acts only on
+  the app's origin, with the focus in the element of its target. The replay gets only the
+  variables that its setup types, and a setup that types a variable of qory or of an
+  agent, or a token of a code forge such as `GITLAB_TOKEN`, exits 3. The serve command
+  gets no such variable either, and no variable that a demo script types, in a setup or a
+  step. After the check, also on a failure, a signal or the end of `preflight`, the
+  process groups of the serve command and of the browser stop, and on Linux each process
+  with the mark of `run`; a process that leaves the groups and removes the mark keeps
+  running. After a SIGKILL of the runner of the check, the process groups of the command
+  and of the browser stop, and every process that left them keeps running. `preflight`
+  ends within 585 seconds, below the 600 seconds after which the Bash tool of Claude Code
+  stops a command. Each browser call has a time limit, and the browser dismisses dialogs.
+  An exit 3 for a missing build plan, a bad App address host, a missing address, a demo
+  script that is missing, cannot be read, breaks its format rules or types such a key, or
+  a check that did not finish prints a line `Cause:` for the line that ends the run. The
+  build plan has the address as a line `App address: <url>` in `## Summary`, an http
+  address in backticks, and its check finds a plan with a `serve` command and no such
+  line, or a value that is no http or https URL whose host has only letters, digits, `.`
+  and `-`, starts and ends with a letter or digit and has no `..`, or is an IPv6 address
+  in brackets.
 - A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
   bytes, set once in `lib/reports.cjs` for every agent. A longer report is a finding of
   `checks.cjs report` and `end --offline`, and the finding states the limit in
@@ -699,6 +737,65 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The acceptance criteria are `acceptance-criteria.json`, in the acceptance criteria format
+  of qory's contract, in place of the table of `acceptance-criteria.md`: a `summary`, and
+  `criteria`, each with `id`, `text` and `check`, and with `removed` and its `reason` when
+  the criterion no longer applies. A removed criterion keeps its text and its check; the
+  check `None` and the text "Removed, because" are gone. `process.yaml` keeps
+  `acceptance-criteria` by name alone, a standard type of Qory Apiary, and the draft check
+  reads the contract's JSON Schema from `schemas/acceptance-criteria.schema.json` of
+  `running-a-software-workflow`.
+  `spec-writer` writes the file by `writing-specs`. The check of the type, the build plan,
+  the lock, the point of the ledger, the demo scenarios and the decision record read it. The
+  check keeps its rules: each criterion that is not removed is one sentence of at most 25
+  words with the check `Demo: <title>` or `Tests`, each id is there once and stays in every
+  later version, a removed criterion keeps its text and its check, and the count of the
+  criteria that are not removed is on the last line. A file that breaks a rule is refused
+  with its fix line, such as "Set the check of ac-2 in acceptance-criteria.json to "Demo:
+  <title>" or "Tests".".
+- The verification is `verification.json`, in the verification format of qory's contract,
+  in place of `verification.md`: `target_version`, `matrix` with a row of `criterion`,
+  `state` (`met` or `not_met`) and `evidence` for each criterion that was checked,
+  `not_verified` with the `reason` for each criterion that was not, and `model_families`.
+  `process.yaml` lists `verification` by name alone, a standard type of Qory Apiary, and
+  the draft check reads the contract's JSON Schema from
+  `schemas/verification.schema.json` of `running-a-software-workflow` and refuses a draft
+  above 256 KB, its default. The draft check of `build-ledger` reads the `size_limit` of
+  1 MiB from `process.yaml`, so that it refuses what the push refuses. Beyond the schema,
+  the check requires `target_version` to be a full commit id, each criterion
+  that is not removed in `matrix` or in `not_verified` exactly once, and the words of a
+  criterion quoted in an evidence or a reason. The sections `## Summary`, `## Lowered` and
+  `## Accepted findings` and the state `Needs a person` are gone, because the format has no
+  place for them. The explainer reads the verified commit from `target_version`.
+- The schema check of each JSON type refuses a file that nests lists and objects more
+  than 64 levels deep, before any other step of the check, with the JSON pointer of the
+  first list or object past that depth: "Cut the nesting of verification.json to 64
+  levels." The deepest schema needs 5 levels, and a file of any depth gets this finding
+  with no stack overflow. A stored `build-ledger` version nested deeper than 64 levels
+  exits 3 with "Report to a member: build-ledger version <N> nests deeper than 64 levels.".
+- Every question of `questions.json` has `about`, as qory's questions format requires:
+  `{"work_item": true}`, or an output as `type` and `name`, with `item` for one entry of it,
+  such as a criterion id. `questions-writer` sets it by `writing-questions`. The questions
+  check refuses a question with no `about`, and a new or changed `about` that is set to an
+  output that the run cannot read. A module adds a reader of the ids of a type as `items`;
+  `running-a-software-workflow` adds one for the acceptance criteria, so the check refuses
+  an `item` that the criteria do not have. An `item` of any other type is 1 to 32
+  characters on one line. An output has only `type`, `name` and `item`, with the forms of
+  the format. The check also refuses an option with a `proposal` in a question whose
+  `about` is not an output with an `item`, and, in a new question, a `proposal` that is
+  not text of 1 to 2000 characters.
+- A criterion id is `ac-` and a number from 1 to 9999 with no leading zero, the one form of
+  qory's contract, in the schema of `acceptance-lock`, in `checks.cjs run locked`, and in
+  the section headings and matrix rows of the explainer check, in place of a number from 1
+  to 99. `lib/criterion.cjs` of `running-a-software-workflow` has the pattern, and a test
+  compares the copy in `pack-mockups.cjs` with it.
+- The schema check of `running-a-software-workflow` applies `uniqueItems`, which the
+  verification format uses, shows a pattern's control characters as escapes, and writes
+  "at least 1 entry" and "at least 1 character" in place of "at least 1 entries" and "at
+  least 1 characters".
+- `.github/workflows/check.yml` builds qory at `0e02282`, the merge of
+  qoryai/qory#127, which has the acceptance criteria and verification formats and `about`
+  on each question, in place of `1deb56e`.
 - The reviewer of a change no longer reports as text. `reviewing-changes` has no `break` or
   `no break` severity, no `planted fault` proof, no closing of a finding, no judgement of
   earlier closures, no lists "Unverified:" and "Blocked:", and no last word `clean`,
@@ -714,11 +811,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `<subject>/<agent>`. The verb `panel` is still in the script, and no skill has a step
   to run it.
 - The middle model tier is `balanced` in place of `fast`, qory's name for it.
-  qory at `1deb56e` fails the compose on `${qory:fast}`. `code-explorer` sets
+  qory at `0e02282` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the
   tier `light`, `balanced` or `thinking`, and rule 3 of `scripts/check.sh` fails on
-  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `1deb56e`, the merge of
-  qoryai/qory#125, in place of `91f02f0`.
+  `${qory:fast}`. `.github/workflows/check.yml` builds qory at `0e02282`, the merge
+  of qoryai/qory#127, in place of `91f02f0`.
 - Each script of `core` and `software-factory` ends in `.cjs` in place of `.js`: the
   hooks, `checks.cjs` with `lib/`, `verbs/` and `types/`, `versions.cjs`, `push-check.cjs`,
   `workflow-checks.cjs` with its files, and the scripts of `designing-mockups`. Node loads a
@@ -822,19 +919,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with its question and states how many points it left out and where the member reads them.
   A stop on a criterion keeps the criterion's id and its text in quotes, and a technical
   decision record with no way left names the answer and gives its question and options.
-- The verification and the explainer of `software-factory` show a criterion as its id and
-  its text in quotes, such as `AC-1, "Export saves a CSV file"`, in the Criterion cell of
-  the matrix and in each criterion heading of the explainer; the checks read the id in
-  any case. A matrix row with `Needs a person` has the Evidence "Check <what>, because the
-  run could not <why>.", and the check refuses an empty or missing one. The Criteria cell
-  of a build plan lists each criterion in that form too, with `; ` between them, and the
-  check refuses an id with no text in quotes, such as `ac-1, ac-2`. The checks of the build
-  plan, the verification and the explainer refuse a text in quotes beside an id that is not
-  the criterion's first sentence in the criteria version that they read: in a Criteria or
-  Criterion cell, in an explainer heading, and anywhere in `## Lowered` and
-  `## Not verified`. The comparison ignores backticks, runs of spaces and one `.`, `!` or
-  `?` at the end of the quote. The finding starts with the fix and gives the words, or,
-  when the line would have more than 200 characters, points to the criterion.
+- The explainer of `software-factory` shows a criterion as its id and its text in quotes,
+  such as `AC-1, "Export saves a CSV file"`, in each criterion heading; the check reads the
+  id in any case. The Criteria cell of a build plan lists each criterion in that form too,
+  with `; ` between them, and the check refuses an id with no text in quotes, such as `ac-1,
+  ac-2`. The checks of the build plan, the verification and the explainer refuse a text in
+  quotes beside an id that is not the criterion's first sentence in the criteria version
+  that they read: in a Criteria cell, in an explainer heading, and in each `evidence` and
+  `reason` of `verification.json`. The comparison ignores backticks, runs of spaces and one
+  `.`, `!` or `?` at the end of the quote. The finding starts with the fix and gives the
+  words, or, when the line would have more than 200 characters, points to the criterion.
 - Each stop on the spec ends with the change after a colon, such as
   `Blocked: needs a change to criterion ac-3: the feedback asks to export only the filtered
   rows`, and the session copies the change into the point.
@@ -929,7 +1023,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   does not except, on two patterns of different tiers that match a common name, on a name
   listed under two tiers, and on a name that a row of its tier also excepts.
   `writing-agents` and `harness-reviewer` follow the same rule.
-- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `1deb56e`,
+- `docs/modules.md`, `README.md` and `scripts/check.sh` state what qory at `0e02282`,
   Forager at `123b34ab` and apiary-core at `962c97fa` do, in place of text about work that
   is not built. In a test, a read run on Claude Code 2.1.323 cannot open the `references/`
   files of `simple-communication`.
@@ -1331,6 +1425,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The headless Chrome of `render-mockups.cjs` and of the `preflight` verb starts with
+  `--use-mock-keychain` and `--password-store=basic`. Before, Chrome on macOS opened the
+  keychain and could show the dialog "A keychain cannot be found to store" to the person at
+  the screen. Each launcher also kills its browser when its node process exits, so an exit
+  that skips the stop of the browser leaves no browser running.
 - A check and a push check read the newest version of a type from `index.json`: the newest
   version that it lists and no cancelled run wrote. Before, they read the highest version
   folder, so a folder that an earlier pull left, and that `index.json` does not list,

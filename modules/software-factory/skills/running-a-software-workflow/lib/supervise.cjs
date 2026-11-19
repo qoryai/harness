@@ -150,4 +150,7 @@ function main() {
   });
 }
 
-main();
+// lib/preflight-run.cjs marks the serve command with marker and MARK too.
+if (require.main === module) main();
+
+module.exports = { MARK, marker };

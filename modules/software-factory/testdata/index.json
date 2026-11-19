@@ -146,8 +146,8 @@
           "at": "2026-10-18T09:20:30Z",
           "files": [
             {
-              "filename": "acceptance-criteria.md",
-              "content_type": "text/markdown",
+              "filename": "acceptance-criteria.json",
+              "content_type": "application/json",
               "size": 512,
               "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
             }

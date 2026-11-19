@@ -129,14 +129,10 @@ const CRITERIA = [
   ['ac-3', 'The button is off for an empty list.'],
   ['ac-4', 'An export that times out shows a message.'],
 ];
-const CRITERIA_MD = `## Summary
-
-Four criteria cover the export of the order list.
-
-| Id | Criterion | Planned check |
-|---|---|---|
-${CRITERIA.map(([id, text]) => `| ${id} | ${text} | Tests |`).join('\n')}
-`;
+const CRITERIA_JSON = `${JSON.stringify({
+  summary: 'Four criteria cover the export of the order list.',
+  criteria: CRITERIA.map(([id, text]) => ({ id, text, check: 'Tests' })),
+}, null, 2)}\n`;
 const T = '2026-11-18T10:00:00Z';
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -227,7 +223,7 @@ function work() {
       files: [], approvals: [] }] }] };
   for (const root of [w.artifacts, w.store]) {
     fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(index));
-    version(root, 'acceptance-criteria', 1, 'acceptance-criteria.md', CRITERIA_MD);
+    version(root, 'acceptance-criteria', 1, 'acceptance-criteria.json', CRITERIA_JSON);
   }
   w.log = path.join(w.bin, 'log');
   fs.writeFileSync(path.join(w.bin, 'index.js'),
@@ -344,7 +340,7 @@ function report(w, name, text) {
 // The files of the step: any files, as the ledger tests give them.
 function stepFiles() {
   const dir = fresh('inputs');
-  return ['criteria.md', 'skill.md', 'agent.md'].map((name) => {
+  return ['criteria.json', 'skill.md', 'agent.md'].map((name) => {
     fs.writeFileSync(path.join(dir, name), `The ${name} of the step.\n`);
     return path.join(dir, name);
   });
@@ -497,8 +493,10 @@ function questionOf(count, rows = CHANGES.slice(0, count), texts = Object.fromEn
   return { ...result, lists: base, cuts, shared };
 }
 
+// The question asks which changes the work item builds, so its about is the work item.
 const questionsOf = (question, at = 1) => JSON.stringify({ questions: [{
-  id: `q${at}`, ...question, state: 'open', asked: { run: 1, at: T } }] });
+  id: `q${at}`, about: { work_item: true }, ...question, state: 'open',
+  asked: { run: 1, at: T } }] });
 
 test('a plan of 8 deliverables ends escalate: no plan is pushed, a question and a point are', () => {
   const w = work();
@@ -702,8 +700,8 @@ test('the example plan of planning-builds passes the check of build-plan, with i
   const call = session(w);
   // The criteria of the example are the testdata's: replace the fixture's version.
   const testdata = path.join(SOFTWARE, 'testdata');
-  version(w.artifacts, 'acceptance-criteria', 1, 'acceptance-criteria.md',
-    fs.readFileSync(path.join(testdata, 'acceptance-criteria.md'), 'utf8'));
+  version(w.artifacts, 'acceptance-criteria', 1, 'acceptance-criteria.json',
+    fs.readFileSync(path.join(testdata, 'acceptance-criteria.json'), 'utf8'));
   version(w.artifacts, 'demo-scenarios', 1, 'demo-scenarios.md',
     fs.readFileSync(path.join(testdata, 'demo-scenarios.md'), 'utf8'));
   const file = path.join(w.artifacts, 'build-plan.md');

@@ -265,7 +265,7 @@ module.exports = (lib) => {
   // plannedDemos checks open, the scenarios that are not removed, against the criteria.
   function plannedDemos(run, open) {
     // writing-demo-scenarios (SKILL.md:50-51, 57: "with the title of the criteria's") and
-    // writing-specs (SKILL.md:48-50: "The demo scenario with that title shows it"): each Demo:
+    // writing-specs (SKILL.md:57-59: "The demo scenario with that title shows it"): each Demo:
     // <title> is on the Shows: line of the one scenario with that title, and each ac-N on a Shows:
     // line is planned so. Only
     // checking-demo-scenarios (SKILL.md:59-60: "line of the scenario with that title")

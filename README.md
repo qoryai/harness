@@ -256,8 +256,8 @@ for a run of those workflows:
   red, and the time limits that a repository sets under `command_limits_minutes`.
 - `writing-specs`: load it before you write a spec and its acceptance criteria. The skill
   contains the spec's sections, with a Today/After table of the rules that change in each
-  part, and the criteria table: at most 7 criteria, each with a fixed id such as `ac-1` and
-  a planned check, `Demo: <title>` or `Tests`.
+  part, and the criteria file, `acceptance-criteria.json`: at most 7 criteria, each with a
+  fixed id such as `ac-1` and a check, `Demo: <title>` or `Tests`.
 - `checking-specs`: load it before you write or review a spec and its criteria. The skill
   contains the steps of a review, and the check list.
 - `spec-writer`: an agent that drafts a run's spec and acceptance criteria by

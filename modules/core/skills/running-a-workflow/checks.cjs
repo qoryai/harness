@@ -94,8 +94,11 @@
 // end. All these commands use /qory/qory, or qory from PATH when /qory/qory does not exist.
 // starts.json, local.json, results.json, end.json, points.json, findings.json, the locks
 // starts.json.lock, results.json.lock and findings.json.lock with their .break files, the
-// draft that lock <file> fills and the files of the ledger are the only files this script
-// writes; the pull and the push of qory write to the artifact folder.
+// draft that lock <file> fills, the files of the ledger and `.reports/preflight/serve.log`,
+// the output of the command that the verb preflight of the registry starts, are the only
+// files this script writes, besides the browser profile of preflight in a new folder under
+// $TMPDIR, which it removes afterwards; the pull and the push of qory write to the artifact
+// folder.
 //
 // end --offline checks a run after its session, outside the agent's container. Besides the
 // agents and skills of the harness home, it reads only its arguments; give each argument
@@ -146,7 +149,7 @@
 // that contradicts itself or a verdict file with another verdict; 4 when the script
 // crashes, with the fix and the error on stderr. When Node cannot load the script, it exits
 // 1 with no points.json, so a caller counts exit 1 with no valid points.json as 4. qory at
-// 1deb56e runs no end --offline.
+// 0e02282 runs no end --offline.
 //
 // panel lists the members of the group role agents/<group>, reviewers when --group is left
 // out, that start for the files of a change. It reads the rows of the group from

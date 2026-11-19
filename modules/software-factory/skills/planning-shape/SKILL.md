@@ -32,9 +32,9 @@ spec and acceptance criteria. A workflow runs when a word concerns its output, a
   newest record does not decide, or a criterion on a decision's "Rests on:" line changed.
 - `make-mockups`: when the work changes a screen that the newest mockup lacks, or a
   criterion that a screen lists changed.
-- `write-demo-scenarios`: when a criterion's planned check "Demo: <title>" has no scenario
-  of that title, a scenario that is not removed has a title that no planned check names, or
-  a criterion in a `Shows:` line or its planned check changed.
+- `write-demo-scenarios`: when a criterion's check "Demo: <title>" has no scenario of that
+  title, a scenario that is not removed has a title that no criterion's check names, or a
+  criterion in a `Shows:` line or its check changed.
 
 The reason for a workflow that does not run names the missing case. A word on one output
 reruns only what depends on that output.

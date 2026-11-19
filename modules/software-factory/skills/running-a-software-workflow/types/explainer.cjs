@@ -2,6 +2,8 @@
 // criterion and ## Risk on merge, each claim with its source, and the verified commit.
 'use strict';
 
+const { NUMBER } = require('../lib/criterion.cjs');
+
 module.exports = (lib) => {
   const {
     brief, COMMIT, commitLine, cut, headings, isPoint, liveCriteria, markdownText, quote,
@@ -9,16 +11,15 @@ module.exports = (lib) => {
   } = lib;
 
   const FILE = 'explainer.md';
-  // The heading of a criterion section: the id, in any case, then the criterion's first
-  // sentence in quotes, as the Criterion cell of the verification has it, such as
-  // AC-1, "Export saves a CSV file".
-  const CRITERION = /^ac-([1-9][0-9]?), +"(.+)"$/i;
+  // The heading of a criterion section: the id, in any case, then the criterion's text in
+  // quotes, such as AC-1, "Export saves a CSV file".
+  const CRITERION = new RegExp(`^ac-(${NUMBER}), +"(.+)"$`, 'i');
   // A claim ends with its source: a path and line, such as `src/export.ts:12` or
   // `src/export.ts:12-18`, as its last word, or a row of the matrix, such as "matrix row AC-2".
   // Either may start with "(" and end with "." or ")". Both patterns start at a fixed place, so
   // a long claim takes time in proportion to its length.
   const PATH_LINE = /^\(?`?[^\s`]+:[1-9][0-9]*(?:-[1-9][0-9]*)?`?[.)]?$/;
-  const MATRIX_ROW = /(?:^|\s)\(?matrix row ac-[1-9][0-9]?[.)]?$/i;
+  const MATRIX_ROW = new RegExp(`(?:^|\\s)\\(?matrix row ac-${NUMBER}[.)]?$`, 'i');
   const sourced = (claim) => PATH_LINE.test(claim.split(/\s/).pop()) || MATRIX_ROW.test(claim);
 
   // claims returns each bullet of a section, with its indented lines joined to it, and the
@@ -120,8 +121,8 @@ module.exports = (lib) => {
           'verification version.');
       } else if (!verified.commit || !COMMIT.test(verified.commit)) {
         // With no full verified commit, the check has no commit to compare: a finding.
-        run.find('Start a line of ## Summary of verification.md with "Commit: " and the ' +
-          `verified commit's full id.\nThen push verification.md and ${FILE} again.`);
+        run.find('Set target_version of verification.json to the verified commit\'s full id.\n' +
+          `Then push verification.json and ${FILE} again.`);
       } else if (commit !== verified.commit) {
         run.find(`Set the commit of ${FILE} to ${verified.commit}.\nThat id is the verified ` +
           `commit, and ${FILE} has ${commit}.`);

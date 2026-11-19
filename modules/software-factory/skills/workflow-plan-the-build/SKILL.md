@@ -25,7 +25,7 @@ not load the rules it needs, so it pushed no build plan."
    `running-a-software-workflow`. Then run `<skill folder>/checks.cjs resume` once, as "The
    build ledger" of that skill lists.
 2. Run `step begin` for the step `plan` of the workflow `plan-the-build`, as "The build
-   ledger" lists. Its files are the `acceptance-criteria.md` and, when the work item has
+   ledger" lists. Its files are the `acceptance-criteria.json` and, when the work item has
    one, the `spec.md` that the pull wrote, the `SKILL.md` of this skill and the agent file
    of ${qory:agents/build-planner}.
    With "Replay plan", start no agent and push nothing: the earlier plan stands, so go to

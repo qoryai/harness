@@ -38,7 +38,7 @@ not load the rules it needs, so it pushed no spec."
 
    ```
    <qory> artifact push spec <folder>/spec.md
-   <qory> artifact push acceptance-criteria <folder>/acceptance-criteria.md
+   <qory> artifact push acceptance-criteria <folder>/acceptance-criteria.json
    ```
 
 6. Do the other items of "Questions and replies", then "The end".

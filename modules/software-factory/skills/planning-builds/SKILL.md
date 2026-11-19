@@ -53,7 +53,7 @@ deliverable.
   by commas. End a folder with `/`. The scope check before the push refuses a commit with a
   path that no Files cell lists. A path that does not exist yet is a file that the change
   creates, and the Change contains the words "new file" for it, with no path.
-- **Check:** one value, so a deliverable lists criteria of one planned check only:
+- **Check:** one value, so a deliverable lists criteria of one check only:
   - for criteria planned as `Tests`, the path of their test file, such as
     `tests/corrected-reply.test.ts`;
   - for criteria planned as `Demo: <title>`, the id of the scenario in the newest

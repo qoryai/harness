@@ -23,7 +23,7 @@ const KINDS = { targeted: 'targeted_checks', lint: 'fast_checks', types: 'fast_c
   build: 'fast_checks', locked: 'targeted_checks' };
 
 // A criterion as the lock has it.
-const CRITERION = /^ac-[1-9][0-9]?$/;
+const { CRITERION_ID: CRITERION } = require('../lib/criterion.cjs');
 
 // A path that run targeted passes to the command: below the top of the checkout, with no
 // part . or .., and never read as an option.

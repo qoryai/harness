@@ -45,6 +45,11 @@ test('the flags turn off the network and never allow a page to read files', () =
   assert.ok(!render.FLAGS.includes('--allow-file-access-from-files'));
 });
 
+test('the browser opens no macOS keychain, so it shows no dialog', () => {
+  assert.ok(render.FLAGS.includes('--use-mock-keychain'));
+  assert.ok(render.FLAGS.includes('--password-store=basic'));
+});
+
 test('the browser lays out a tall page as wide as its picture, with no scrollbar', () => {
   assert.ok(render.FLAGS.includes('--hide-scrollbars'));
 });
