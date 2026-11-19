@@ -593,8 +593,8 @@ function globbed(pattern, cwd, budget) {
       `and the guard expands at most ${MAX_GLOB_DEPTH}.`);
   }
   checkGlob(text);
-  // The end of each folder part, from the first with a glob character on: no prefix is made
-  // and tested again.
+  // The end of each folder part, from the first with a glob character on: each prefix is cut
+  // from the text once, and read for a glob character once.
   const ends = [];
   let end = -1;
   let wild = false;
