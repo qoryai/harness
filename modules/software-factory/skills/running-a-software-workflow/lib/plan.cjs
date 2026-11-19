@@ -192,14 +192,19 @@ module.exports = (lib) => {
     /^[^/.][^/]*\.[A-Za-z0-9]+$/.test(cell.split('/').pop());
 
   // checkScope returns the paths that a deliverable with a check path allows to the step
-  // checks: the check path, and each folder of its Files that is the first folder of the check
-  // path or below it, such as tests/ and tests/helpers/ for tests/x.test.ts, where
-  // planning-builds lists the folder of the helpers. A check path with no folder adds none. The
-  // other paths of its Files, such as the code under test, are not in it.
-  const checkScope = (row) => {
-    const top = row.check.slice(0, row.check.indexOf('/') + 1);
-    return [row.check,
-      ...row.paths.filter((one) => top && one.endsWith('/') && one.startsWith(top))];
+  // checks: the check path, and each folder of its Files that contains the check path or lies
+  // under the folder of the check path (tests/ for tests/x.test.ts, so tests/ and
+  // tests/helpers/), unless it contains a Files entry of any row in rows that is a file and no
+  // check path, such as src/ with src/a.ts: that file is code under test. A check path with no
+  // folder adds none. The other paths of its Files are not in it.
+  const checkScope = (row, rows) => {
+    const folder = row.check.slice(0, row.check.lastIndexOf('/') + 1);
+    const checks = new Set(rows.filter((one) => isPath(one.check)).map((one) => one.check));
+    const code = rows.flatMap((one) => one.paths)
+      .filter((one) => !one.endsWith('/') && !checks.has(one));
+    return [row.check, ...row.paths.filter((one) => folder && one.endsWith('/') &&
+      (row.check.startsWith(one) || one.startsWith(folder)) &&
+      !code.some((file) => file.startsWith(one)))];
   };
 
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
@@ -244,7 +249,8 @@ module.exports = (lib) => {
         `it.\nIn the Files of ${bad.id}, ${bad.problem}.`);
     }
     return {
-      paths: [...new Set(rows.flatMap((row) => (match[3] ? checkScope(row) : row.paths)))],
+      paths: [...new Set(rows.flatMap((row) => (match[3]
+        ? checkScope(row, plan.deliverables) : row.paths)))],
       words: match[1] ? `the files of ${match[1]}`
         : match[3] ? 'the files of the acceptance checks'
           : step ? 'the files of the deliverables' : 'the files of the build plan',
