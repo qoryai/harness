@@ -21,6 +21,9 @@ const FILE = 'build-report.md';
 const CLOSING = 'The result of the last round is in the review in Qory Apiary, not in this report.';
 // The text of an item of ## Left out that the check of the report refuses.
 const REPLACED = "an item that the report cannot contain; see the row's report in the ledger";
+// The item of ## Left out for a row with a list `Left out:` that leftOut cannot read.
+const UNREAD =
+  "a list Left out: that the report cannot read; see the row's report in the ledger";
 
 module.exports = (lib) => {
   const {
@@ -179,15 +182,6 @@ module.exports = (lib) => {
     return { items, problems };
   }
 
-  // leftOutFindings returns one finding for each row of ledger whose report has a list
-  // `Left out:` that leftOut cannot read. The cause is in the report of the row, not in
-  // submission.md, so the first line starts with the same words for each row.
-  const leftOutFindings = (ledger) => ledger.steps.flatMap((row) => {
-    const { problems } = leftOut(row.report || '');
-    return problems.length ? [`Fix the list Left out: of step ${row.id}.\nWrite it as lines - ` +
-      `<item>: <risk>, or as Left out: none. The report of the row has ${problems[0]}.`] : [];
-  });
-
   // stateAt returns the result, green or red, of the locked check on commit in the newest
   // record of `run locked` on that commit with no uncommitted change, or unknown.
   function stateAt(records, commit, check) {
@@ -268,10 +262,16 @@ module.exports = (lib) => {
     // An item goes through plainText and the cut of a point. An item that the check of the
     // report refuses, such as a path of the machine or a link that is not https://, is
     // replaced, so that the report never breaks the check.
-    const left = rows.flatMap((row) => leftOut(row.report || '').items
-      .map((item) => cut(plainText(item), POINT_TEXT)).filter(Boolean)
-      .map((item) => `- ${row.id}: ${item}`)
-      .map((line) => (refused(line, data.machine) ? `- ${row.id}: ${REPLACED}` : line)));
+    // A row with a list that leftOut cannot read adds one line, after the items that it
+    // could read, and the report goes on: a done row never changes, so a stop would loop.
+    const left = rows.flatMap((row) => {
+      const read = leftOut(row.report || '');
+      return [...read.items
+        .map((item) => cut(plainText(item), POINT_TEXT)).filter(Boolean)
+        .map((item) => `- ${row.id}: ${item}`)
+        .map((line) => (refused(line, data.machine) ? `- ${row.id}: ${REPLACED}` : line)),
+      ...(read.problems.length ? [`- ${row.id}: ${UNREAD}`] : [])];
+    });
     out.push(['Left out', left.length ? left : ['none']]);
     return `${out.map(([title, body]) => `## ${title}\n\n${body.join('\n')}`).join('\n\n')}\n`;
   }
@@ -292,6 +292,6 @@ module.exports = (lib) => {
     return out;
   }
 
-  return { BUILD_REPORT_FILE: FILE, gatherReport: gather, leftOutFindings, renderReport: render,
+  return { BUILD_REPORT_FILE: FILE, gatherReport: gather, leftOut, renderReport: render,
     splitReport: split };
 };

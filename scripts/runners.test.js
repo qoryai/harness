@@ -3467,39 +3467,47 @@ test('report-build: a row whose report has no Left out: line has no item and no 
   assert.ok(reportOf(dir).endsWith('## Left out\n\nnone\n'));
 });
 
-// unreadable runs report-build on a row whose report cannot be read, after a valid run
-// wrote the hand-off file, and checks the finding.
-function unreadable(report, cause) {
+// UNREAD is the item that report-build renders for a row with a list that it cannot read.
+const UNREAD = "- deliverable:d-1: a list Left out: that the report cannot read; see the row's report in the ledger";
+
+// unreadable runs report-build on a row whose report has a list that it cannot read, after
+// an earlier run wrote the hand-off file, and checks that the run goes on, renders the
+// placeholder line and that check build-report accepts the report.
+function unreadable(report, items = []) {
   const { dir } = buildRepo();
   const file = handoffPath(dir);
   assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
-  assert.equal(fs.existsSync(file), true);
   fs.rmSync(path.join(dir, '.qory/artifacts/build-report.md'));
   setReport(dir, report);
   const got = call(dir, ['report-build'], withHandoff(file));
-  assert.equal(got.status, 1, got.out + got.err);
-  assert.equal(got.lines[0], 'Fix the list Left out: of step deliverable:d-1.');
-  assert.ok(got.lines.some((line) => line.includes(`has ${cause}.`)), got.out);
-  assert.equal(got.lines.at(-1), 'Wrote no file: 1 finding on the build ledger.');
-  assert.equal(fs.existsSync(file), false);
-  assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), false);
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(fs.existsSync(file), true);
+  const left = reportOf(dir).split('## Left out\n\n')[1];
+  assert.equal(left, `${[...items.map((item) => `- deliverable:d-1: ${item}`), UNREAD].join('\n')}\n`);
+  const checked = call(dir, ['check', 'build-report', path.join(dir, '.qory/artifacts/build-report.md')]);
+  assert.equal(checked.status, 0, checked.out + checked.err);
 }
 
-test('report-build: an indented bullet after Left out: is a finding with the row id', () => {
-  unreadable('Built it.\n\nLeft out:\n  - Dates: nobody reads them.\n', 'an indented list');
+test('report-build: an indented bullet after Left out: renders the placeholder line', () => {
+  unreadable('Built it.\n\nLeft out:\n  - Dates: nobody reads them.\n');
 });
 
-test('report-build: a risk wrapped onto a second line is a finding with the row id', () => {
-  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads\n  them yet.\n', 'an item that continues on an indented line');
+test('report-build: a risk wrapped onto a second line renders the placeholder line', () => {
+  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads\n  them yet.\n');
 });
 
-test('report-build: Left out: none followed by items is a finding with the row id', () => {
-  unreadable('Built it.\n\nLeft out: none\n- Dates: nobody reads them.\n', 'items after `Left out: none`');
+test('report-build: Left out: none followed by items renders the placeholder line', () => {
+  unreadable('Built it.\n\nLeft out: none\n- Dates: nobody reads them.\n');
 });
 
-test('report-build: text after Left out: that is not none, and a header with no item, are findings', () => {
-  unreadable('Built it.\n\nLeft out: Dates.\n', 'text after `Left out:` on its line that is not none');
-  unreadable('Built it.\n\nLeft out:\nDone.\n', 'no item and no none after `Left out:`');
+test('report-build: text after Left out: that is not none, and a header with no item, render the placeholder line', () => {
+  unreadable('Built it.\n\nLeft out: Dates.\n');
+  unreadable('Built it.\n\nLeft out:\nDone.\n');
+});
+
+test('report-build: a readable list beside an unreadable one keeps its items', () => {
+  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\nMore.\n\nLeft out:\n  - Retry: it never fails.\n',
+    ['Dates: nobody reads them.']);
 });
 
 test('report-build: a hand-off over 262144 bytes drops the oldest commits of steps until it fits', () => {
@@ -3602,6 +3610,24 @@ test('report-build: a hand-off folder that is a link out of the checkout exits 3
     assert.deepEqual(fs.readdirSync(outside), []);
     assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), false);
   }
+});
+
+test('report-build --drop and the cleanup on failure remove no file in a folder that a link moves out of the checkout', () => {
+  const { dir } = buildRepo();
+  const outside = path.join(tmp, `outside-${++count}`);
+  fs.mkdirSync(outside);
+  fs.writeFileSync(path.join(outside, 'submission.json'), '{}\n');
+  fs.mkdirSync(path.join(dir, '.qory'), { recursive: true });
+  fs.symlinkSync(outside, path.join(dir, '.qory/handoff'));
+  const file = path.join(dir, '.qory/handoff/submission.json');
+  const dropped = call(dir, ['report-build', '--drop'], withHandoff(file));
+  assert.equal(dropped.status, 3, dropped.out + dropped.err);
+  assert.deepEqual(dropped.err.split('\n').filter(Boolean).length, 1, dropped.err);
+  assert.match(dropped.err, /leads outside the checkout/);
+  assert.equal(fs.existsSync(path.join(outside, 'submission.json')), true);
+  const failed = call(dir, ['report-build', '--bad'], withHandoff(file));
+  assert.equal(failed.status, 2, failed.out + failed.err);
+  assert.equal(fs.existsSync(path.join(outside, 'submission.json')), true);
 });
 
 test('report-build --drop removes the hand-off file and nothing else, and exits 2 with another argument', () => {

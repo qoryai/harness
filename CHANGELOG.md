@@ -35,10 +35,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `## Tests`, `## Disclosed`) of the draft pull request to `.reports/submission.md`, then
   runs `checks.cjs report-build`. A runtime with no agent tool, a start that fails and a
   `blocked` report end the run as "Failures" of `running-a-workflow` lists. An exit 1 of
-  `report-build` that is not about a list `Left out:` starts the agent again, at most
-  twice, and ends the run not ready with one `run_again` point when it stays; so does an
-  exit 1 of `check build-report`, with no restart. Exits 2, 3 and 4 end as "Failures"
-  lists.
+  `report-build` starts the agent again, at most twice, and ends the run not ready with
+  one `run_again` point when it stays; so does an exit 1 of `check build-report`, with no
+  restart. Exits 2, 3 and 4 end as "Failures" lists.
 - The verb `checks.cjs report-build [--inputs <path>]` in `software-factory`. It writes
   `build-report.md` in the artifact folder, with the tables of the standard track rendered
   from the build ledger and the records of the checks. Only when `QORY_SUBMISSION_HANDOFF`
@@ -54,14 +53,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     before `## Problem` exits with 1.
   - A list `Left out:` in the `report` of a ledger row is the lines `- <item>: <risk>` or
     `* <item>: <risk>` after the line `Left out:` or `**Left out:**` and its blank lines.
-    A list that the verb cannot read exits with 1 and the first line "Fix the list Left
-    out: of step <row id>.", before it reads `submission.md`: the session ends with one
-    `run_again` point and starts no writer.
+    A list that the verb cannot read adds the item "a list Left out: that the report
+    cannot read; see the row's report in the ledger" for that row, after the items that it
+    can read, and the verb goes on, so that a row that never changes does not stop every
+    later run.
   - When the hand-off file would have more than 262144 bytes, it leaves out the oldest
     commits of `steps` until the file fits; qory shows them as unreviewed.
   - `report-build --drop` removes the hand-off file and writes nothing else. The session
     runs it when `check build-report` exits with 1 and when the push of `build-report`
-    fails, so that qory's submit step reads no text of a change that is not ready.
+    fails, so that qory's submit step reads no text of a change that is not ready. It, and
+    the removal on each non-zero exit, remove the file only when the real path of its
+    folder is inside the real path of the checkout top, the rule of the write. Else they
+    remove nothing and print one line, and `--drop` exits 3.
   - `checks.cjs check build-report` in a session renders the tables again and compares the
     text of each section with the file byte for byte. With `--inputs`, it also compares
     Summary, Review rounds and Counts, which need the rounds that sit beside

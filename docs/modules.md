@@ -2513,11 +2513,7 @@ in this order:
 2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
    in the artifact folder and writes the hand-off file at the value of
    `QORY_SUBMISSION_HANDOFF`, under `.qory/handoff/`. The ledger's edit check skips
-   `.qory/`. With exit 1 and a first line that starts with "Fix the list Left out: of
-   step", a step's `report` in the build ledger has a list `Left out:` that the verb cannot
-   read: the session starts no writer, and the run ends with one `run_again` point, "The
-   change is not ready, because the report of a step has a list Left out: that cannot be
-   read." With any other exit 1, a rule of the text broke: the session starts
+   `.qory/`. With exit 1, a rule of the text broke: the session starts
    `submission-writer` again with the lines that `report-build` printed, at most twice.
    When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
    because the description of the change still breaks the rules for it." With exit 2, 3 or
@@ -3036,15 +3032,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `* <item>: <risk>` that start at the first column after the line `Left out:` or
     `**Left out:**` and the blank lines after it, up to the first line that is no such
     item. `Left out: none` is an empty list, and a row whose report has no such line has
-    no item. A list that the verb cannot read exits 1 with no file, before it reads
-    `submission.md`, and with the first line "Fix the list Left out: of step <row id>.":
-    an indented bullet, an item that continues on an indented line, items after `Left out:
-    none`, text after `Left out:` that is not `none`, and a line `Left out:` with no item.
-    Each item loses its control, refused and
-    hidden characters and is cut to 500 characters, the length of a point of
-    `open-findings.json`. An item that `check build-report` refuses, such as a path of
-    the machine or a link that is not `https://`, becomes `an item that the report cannot
-    contain; see the row's report in the ledger`.
+    no item. A list that the verb cannot read adds the item `- <row id>: a list Left out:
+    that the report cannot read; see the row's report in the ledger` after the items of
+    that row that it can read, and stops nothing. Unreadable are an indented bullet, an
+    item that continues on an indented line, items after `Left out: none`, text after
+    `Left out:` that is not `none`, and a line `Left out:` with no item. Each item loses
+    its control, refused and hidden characters and is cut to 500 characters, the length of
+    a point of `open-findings.json`. An item that `check build-report` refuses, such as a
+    path of the machine or a link that is not `https://`, becomes `an item that the report
+    cannot contain; see the row's report in the ledger`.
 
   A `|` in a cell is written `\|`, with each backslash before it doubled. A proof of a
   finding is cut to 500 characters, and a proof that is empty or only spaces is `none`.
@@ -3076,20 +3072,22 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `submission.md` that is no regular file or has more than 262,144 bytes, or a step of
   more than 128 characters exits 1 with the fix, and the verb writes no file. A commit that
   git does not have is a lost row of a cancelled run and has no entry in `steps`; any other
-  failure of git exits 3 with a fix line. On each non-zero exit, the verb removes a regular
-  file at the path of `QORY_SUBMISSION_HANDOFF`, so that qory never reads the text of an
-  earlier run. It writes the hand-off file first and `build-report.md` second, each through
-  a temporary file in its folder that it renames into place. When a write fails, it removes
-  the temporary files, leaves neither file and exits 3 with a fix line. Without the
-  variable, it writes `build-report.md`, prints one line that it wrote no hand-off file and
-  exits 0. `check build-report`, in a session with the ledger in the artifact folder,
-  renders the sections again from the same records and exits 1 for each section whose text
-  differs from the file byte for byte, line breaks, trailing spaces, blank lines and
-  heading spacing included, with the fix "Run report-build to write ## <section> of
-  build-report.md again." Without `--inputs`, it leaves out `## Summary`, `## Review
-  rounds` and `## Counts`, which need the rounds, and prints a line that says so. With no
-  ledger, it prints a line that the tables were not checked. `push` and `end --offline`
-  check the order of the sections alone.
+  failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`, the verb
+  removes a regular file at the path of `QORY_SUBMISSION_HANDOFF`, so that qory never reads
+  the text of an earlier run, only when the real path of the folder of the file is inside
+  the real path of the checkout top, the rule of the write. Else it removes nothing, prints
+  one line, and `--drop` exits 3. It writes the hand-off file first and `build-report.md`
+  second, each through a temporary file in its folder that it renames into place. When a
+  write fails, it removes the temporary files, leaves neither file and exits 3 with a fix
+  line. Without the variable, it writes `build-report.md`, prints one line that it wrote
+  no hand-off file and exits 0. `check build-report`, in a session with the ledger in the
+  artifact folder, renders the sections again from the same records and exits 1 for each
+  section whose text differs from the file byte for byte, line breaks, trailing spaces,
+  blank lines and heading spacing included, with the fix "Run report-build to write ##
+  <section> of build-report.md again." Without `--inputs`, it leaves out `## Summary`,
+  `## Review rounds` and `## Counts`, which need the rounds, and prints a line that says
+  so. With no ledger, it prints a line that the tables were not checked. `push` and
+  `end --offline` check the order of the sections alone.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,

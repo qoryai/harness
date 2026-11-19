@@ -12,10 +12,11 @@
 // row, to the id of the row, for the commits in <base of the first row>..HEAD; a commit in
 // two rows goes to the later row. When the file would have more than 262144 bytes, the verb
 // leaves out the oldest commits of steps until it fits. Without the variable, the verb
-// writes build-report.md and no hand-off file, and exits 0. With a ledger report whose list
-// Left out: it cannot read, or a text or a hand-off that breaks a rule, it writes no file
-// and exits 1. On every non-zero exit, it removes a regular file at the path of the
-// variable, so that qory's submit step never reads the text of an earlier run. It writes
+// writes build-report.md and no hand-off file, and exits 0. With a text or a hand-off that
+// breaks a rule, it writes no file and exits 1. A ledger report whose list Left out: it
+// cannot read adds one line to ## Left out and stops nothing. On every non-zero exit, it
+// removes a regular file at the path of the variable, whose folder is inside the checkout,
+// so that qory's submit step never reads the text of an earlier run. It writes
 // the hand-off file first and build-report.md second, each through a temporary file in its
 // folder that it renames into place; a write that fails, or a folder that a link moves out
 // of the checkout, leaves neither file and exits 3 with a fix line.
@@ -113,11 +114,26 @@ module.exports = (lib) => {
   }
 
   // dropHandoff removes a regular file at the absolute path in QORY_SUBMISSION_HANDOFF, so a
-  // failure never leaves the text of an earlier run for qory's submit step. It returns
-  // removed, absent, or failed, after it prints the fix.
+  // failure never leaves the text of an earlier run for qory's submit step. It removes
+  // nothing when the real path of the folder of the file is outside the real path of the
+  // checkout top, the rule of the write. It returns removed, absent, or failed, after it
+  // prints the fix.
   function dropHandoff(io) {
     const target = io.env.QORY_SUBMISSION_HANDOFF;
     if (!target || !path.isAbsolute(target)) return 'absent';
+    try {
+      if (outside(git.top(Missing, io.cwd, io.env), path.dirname(target))) {
+        io.err.write(`Remove ${short(target, 30)} by hand: its folder leads outside the ` +
+          'checkout.\n');
+        return 'failed';
+      }
+    } catch (error) {
+      if (error instanceof Missing) {
+        io.err.write(`Remove ${short(target, 30)} by hand: the verb is in no checkout.\n`);
+        return 'failed';
+      }
+      throw error;
+    }
     try {
       if (!fs.lstatSync(target).isFile()) return 'absent';
       fs.rmSync(target);
@@ -211,13 +227,6 @@ module.exports = (lib) => {
       inputs: inputs && path.resolve(io.cwd, inputs) });
     if (!data) {
       throw new Missing('Run checks.cjs resume first.\n.reports/build-ledger.json does not exist.');
-    }
-    // The cause is in the report of a ledger row, which the submission writer cannot fix, so
-    // no other finding goes with it.
-    const unread = lib.leftOutFindings(data.ledger);
-    if (unread.length) {
-      io.print(unread, `Wrote no file: ${plural(unread.length, 'finding')} on the build ledger.`);
-      return 1;
     }
     const target = io.env.QORY_SUBMISSION_HANDOFF || undefined;
     const written = path.join(root, lib.BUILD_REPORT_FILE);

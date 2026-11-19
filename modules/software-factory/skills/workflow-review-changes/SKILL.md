@@ -131,13 +131,7 @@ reviewers of the next round get them. Then, in this order:
 2. Run `<skill folder>/checks.cjs report-build --inputs <input file>`. It writes
    `build-report.md` in `<folder>` and the hand-off file at the value of
    `QORY_SUBMISSION_HANDOFF`. On each non-zero exit it removes an earlier hand-off file.
-   - With exit 1 and a first line that starts with "Fix the list Left out: of step", a
-     step's `report` in the build ledger has a list `Left out:` that `report-build` cannot
-     read. The cause is in the ledger, not in `submission.md`, so start no agent, and end
-     as "Points" of `running-a-workflow` lists, with one `run_again` point: "The change is
-     not ready, because the report of a step has a list Left out: that cannot be read."
-     Print the first line of `report-build` in your output.
-   - With any other exit 1, a rule of the text broke. Start
+   - With exit 1, a rule of the text broke. Start
      ${qory:agents/submission-writer} again with each line that `report-build` printed
      quoted, at most twice, check its report as step 1 lists, and run `report-build` again
      after each start. When it still exits with 1 after the second start, end as "Points"

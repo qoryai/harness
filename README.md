@@ -329,10 +329,9 @@ workflows:
   every check passes, it does five steps, in this order:
   1. It starts `submission-writer`; a start that fails, a report that fails its check
      after two fixes and a `blocked` report end the run as Failures.
-  2. It runs `checks.cjs report-build`. With exit 1 for a list `Left out:` in a step's
-     report that the verb cannot read, it starts no writer and ends with one `run_again`
-     point. With any other exit 1, it starts `submission-writer` again, at most twice, then
-     ends with one `run_again` point; with exit 2, 3 or 4, it ends as Failures.
+  2. It runs `checks.cjs report-build`. With exit 1, it starts `submission-writer` again,
+     at most twice, then ends with one `run_again` point; with exit 2, 3 or 4, it ends as
+     Failures.
   3. It runs `checks.cjs check build-report`. With exit 1, it runs `checks.cjs report-build
      --drop`, ends with one `run_again` point and starts no writer; with exit 2, 3 or 4, it
      ends as Failures.
