@@ -39,7 +39,7 @@ const RUN_FOLDER = /^(?:\/|~\/|\.\/$|(?:\.\.?\/)*(?:\.reports|\.qory\/artifacts)
 
 // The files that a run writes besides the files of the types, and its scripts.
 const RUN_FILES = new Set([
-  'points.json', 'index.json', 'inputs.json', 'findings.json', 'end.json', 'checks.cjs',
+  'points.json', 'index.json', 'inputs.json', 'end.json', 'checks.cjs',
   'versions.cjs', 'workflow-checks.cjs', 'trusted-checks.json',
 ]);
 

@@ -38,14 +38,8 @@ function report(io, agent, file) {
   let checked = 'size, last word, lists and Blocked: line';
   if (size > MAX_BYTES) {
     checked = 'its size';
-  } else if (shape.point && shape.proof) {
-    checked = 'size, last word, lists, Blocked: line, and Point:, Proof: and Severity: lines';
-  } else if (shape.proof) {
-    checked = 'size, last word, lists, Blocked: line, and Proof: and Severity: lines';
   } else if (shape.point) {
     checked = 'size, last word, lists, Blocked: line and Point: lines';
-  } else if (shape.lists.includes('Closed:')) {
-    checked = 'size, last word, lists, Blocked: line and closures';
   }
   const failed = record(io, root, agent, real, text, !findings.length);
   if (!findings.length) markPassed(io, root, run, agent, mine.file, mine.sha256);

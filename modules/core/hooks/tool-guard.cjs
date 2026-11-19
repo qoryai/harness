@@ -13,7 +13,16 @@
 //   alone, by the rules of reports-guard.cjs, which Claude Code's settings and Codex lack;
 // - a write from the main session, a call whose input has no agent_id, outside the
 //   artifact folder. Both runtimes set agent_id only in a call of an agent that the session
-//   started.
+//   started. A reviewer of a change, which qory starts as the main agent of its session, is
+//   the other way round: when $QORY_HARNESS_HOME/inputs.json has the member qory.review, the
+//   main session writes one path, qory.review.report, with a Write or an apply_patch that adds
+//   it, and no other file, the artifact folder included. It denies by default, for the main
+//   session and each agent: REVIEW_TOOLS, the report write and the commands of reviewShell
+//   are all it allows, and it starts no agent. The guard denies the write tools (Write, Edit,
+//   MultiEdit, NotebookEdit and apply_patch) to each agent of that session, whatever its type,
+//   and to each agent whose type ends in -reviewer in any session, the report path included.
+//   Outside a reviewer session it does not run reviewShell for such an agent; the other
+//   rules of the guard limit its shell.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -34,7 +43,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { folder } = require('./end-gate.cjs');
+const { folder, inputsFile } = require('./end-gate.cjs');
 const steps = require('./step-limit.cjs');
 const reportsGuard = require('./reports-guard.cjs');
 
@@ -42,7 +51,7 @@ const reportsGuard = require('./reports-guard.cjs');
 const WRITE_TOOLS = { Write: ['file_path'], Edit: ['file_path'], MultiEdit: ['file_path'],
   NotebookEdit: ['notebook_path'] };
 // The tools that start an agent on Claude Code.
-const AGENT_TOOLS = new Set(['Agent', 'Task']);
+const AGENT_TOOLS = new Set(['Agent', 'Task', 'spawn_agent']);
 // The white space that Codex's patch parser trims from a line, as Rust's trim does: the
 // characters of Unicode's White_Space. JavaScript's \s lacks U+0085 and adds U+FEFF.
 const PATCH_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f' +
@@ -295,6 +304,29 @@ const IN_PLACE = /^(?:sed|perl)$/;
 // or perl with -i, as in -i, -i.bak or -pi, or sed with --in-place or --in-place=<suffix>.
 const inPlace = (tool, words) => IN_PLACE.test(tool) && plainWords(words).some((word) =>
   /^-[A-Za-z]*i/.test(word) || (tool === 'sed' && /^--in-place(?:=|$)/.test(word)));
+
+// The one header of a patch that reviewDeny accepts: a path with no white space at either end,
+// as Codex trims it, after one space.
+const PATCH_ADD = new RegExp(`^\\*\\*\\* Add File: ([^${PATCH_SPACE}](?:[^]*[^${PATCH_SPACE}])?)$`);
+
+// reportPatch returns the path that patch adds, when patch has the form of this comment, else
+// null. The form is a patch of the tool apply_patch, split at line feeds, with no carriage
+// return and no NUL: the line `*** Begin Patch`, the line `*** Add File: <path>`, lines that each
+// start with +, and the line `*** End Patch`, with at most one line feed after it. Each line is
+// compared as it is, with no white space trimmed. <path> is absolute, has no . or .. part, no
+// empty part and no trailing slash, and has at most PATH_MAX characters. A second header, an
+// update, a delete, a move and any other line make it null.
+function reportPatch(patch) {
+  if (typeof patch !== 'string' || patch.includes('\r') || patch.includes('\0')) return null;
+  const lines = patch.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  if (lines.length < 3 || lines[0] !== PATCH || lines.at(-1) !== '*** End Patch') return null;
+  const add = PATCH_ADD.exec(lines[1]);
+  if (!add || !lines.slice(2, -1).every((line) => line.startsWith('+'))) return null;
+  const file = add[1];
+  return file.length <= PATH_MAX && path.isAbsolute(file) && path.normalize(file) === file &&
+    !file.endsWith(path.sep) ? file : null;
+}
 
 // patchPaths returns the paths that a Codex patch adds, changes, deletes or moves to, from
 // each line that Codex can read as a header. Codex splits the patch at line feeds.
@@ -1901,10 +1933,21 @@ function decide(args) {
 
 // decideCall returns the answer of decide, and spends from spend.
 function decideCall({ input, env = process.env, script = process.argv[1], locked, root: start,
-  spend, runFolder }) {
+  spend, runFolder, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
-  if (call.kind === 'agent') return call.reason;
+  if (call.kind === 'agent') {
+    // A reviewer session starts no agent, as reviewReport reads it. Any other session starts
+    // one, and an agent in the background is denied.
+    return call.reason || (reviewReport(env) ? REVIEW_NO_AGENT : null);
+  }
+  // A reviewer session allows the tools of REVIEW_TOOLS and no other that is no write or shell:
+  // a tool that the guard does not know is denied there, and allowed in any other session.
+  // On Codex it allows the three tools of REVIEW_MCP too, for the main session and each agent.
+  if (call.kind === null && reviewReport(env) && !REVIEW_TOOLS.has(input.tool_name) &&
+    !(runtime === 'codex' && REVIEW_MCP.has(input.tool_name))) {
+    return reviewToolDeny(input.tool_name, runtime);
+  }
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
   // reports-guard.cjs denies a write of .reports/*.json and a shell command that reaches
   // .reports/ other than checks.cjs alone, with the same reasons on each runtime. It reads a
@@ -1921,6 +1964,14 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     ? reportsGuard.decide({ kind: 'write', env, script, cwd: input.cwd,
       args: { paths: call.paths } }) : null);
   if (reports) return reports;
+  // The guard reads the files that a shell command writes only from the paths in its text, so
+  // the main session and each agent of a reviewer session run the commands of reviewShell only.
+  if (call.kind === 'shell' && reviewReport(env)) {
+    const folder = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
+    const git = reviewHasGit(folder);
+    const refused = reviewShell(call.command, git, folder);
+    if (refused !== null) return reviewShellDeny(git, refused);
+  }
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
   const root = real(start);
@@ -1962,7 +2013,14 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const unsure = walked.find((one) => one.unsure);
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
-  if (agent) return null;
+  if (agent) {
+    // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
+    // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
+    // writes. The first kind has no reviewShell here, only the other rules for a shell.
+    return /-reviewer$/.test(String(input.agent_type)) || reviewReport(env) ? reviewDeny({
+      call, input, paths, env, root, nocase, agent: true }) : null;
+  }
+  if (reviewReport(env)) return reviewDeny({ call, input, paths, env, root, nocase });
   const artifacts = artifactFolder(root, env, runFolder);
   const outside = paths.find((full) => !artifacts || !inside(full, artifacts));
   if (!outside) return null;
@@ -2411,6 +2469,378 @@ function reportsGlob(command, cwd, dirs, fold) {
   return null;
 }
 
+// The most bytes of inputs.json that reviewReport reads.
+const INPUTS_MAX = 1024 * 1024;
+
+// reviewReport returns { report } for a session of a reviewer, or null for any other session. A
+// session is a reviewer's when the inputs.json that qory wrote at $QORY_HARNESS_HOME, a regular
+// file of at most INPUTS_MAX bytes, has the member qory.review as an object; a link, a file that
+// is no JSON, a larger file or no such member makes it any other session. qory writes
+// qory.review only in a reviewer session, not in the session that builds the change.
+// report is qory.review.report when it is a normalised absolute path: no relative path, no
+// . or .. part, no empty part from a double slash, no trailing slash, no NUL and at most
+// PATH_MAX characters; otherwise null, and the session of the reviewer writes no file.
+function reviewReport(env) {
+  const file = inputsFile(env);
+  if (!file) return null;
+  let review;
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.size > INPUTS_MAX) return null;
+    review = JSON.parse(fs.readFileSync(file, 'utf8')).qory.review;
+  } catch {
+    return null;
+  }
+  if (review === null || typeof review !== 'object' || Array.isArray(review)) return null;
+  const report = review.report;
+  const usable = typeof report === 'string' && report.length <= PATH_MAX &&
+    !report.includes('\0') && path.isAbsolute(report) && path.normalize(report) === report &&
+    !report.endsWith(path.sep);
+  return { report: usable ? report : null };
+}
+
+const REVIEW_ONLY = 'Write only qory.review.report, with Write or apply_patch: a reviewer writes ' +
+  'no other file.\nThe path is in inputs.json of the harness home; a link, a file with more than ' +
+  'one link and a path below .git or .claude of the working folder are denied. ';
+const REVIEW_NONE = 'Stop the review and write no file: qory.review.report cannot be used.\n' +
+  'It must be an absolute path with no . or .. part, no double or trailing slash. ';
+const REVIEW_AGENT = 'Report in your text: the write tools are denied to a reviewer agent.\n' +
+  'It applies to each agent of a reviewer session and to each agent whose type ends in ' +
+  '-reviewer. ';
+const REVIEW_NO_AGENT = 'Start no agent: a reviewer reads the change and writes its report ' +
+  'itself.\nThe session has qory.review in inputs.json of the harness home.';
+// The tools of a reviewer session besides the report write and the shell: the read tools and
+// two tools that only plan.
+const REVIEW_TOOLS = new Set(['Read', 'Grep', 'Glob', 'Skill', 'TodoWrite', 'update_plan']);
+// The read tools of the qory review server, allowed on Codex by exact name. Codex sends
+// mcp__, the server id, __ and the tool name as tool_name (source of rust-v0.169.0).
+const REVIEW_MCP_PREFIX = 'mcp__qory_review__';
+const REVIEW_MCP_TOOLS = ['read_file', 'list_directory', 'search_in_files'];
+const REVIEW_MCP = new Set(REVIEW_MCP_TOOLS.map((one) => `${REVIEW_MCP_PREFIX}${one}`));
+// reviewShown returns text for a deny line: printable ASCII only, at most size characters.
+const reviewShown = (text, size = 60) => String(text).replace(/[^\x20-\x7e]/g, '?').slice(0, size);
+const reviewToolDeny = (name, runtime) => 'Use Read, Grep, Glob, a read shell or the report ' +
+  `Write, not ${reviewShown(name, 28)}.\n` +
+  `A reviewer session denies the tool ${reviewShown(name)}.` +
+  (runtime === 'codex' ? ` On Codex it allows ${[...REVIEW_MCP].join(', ')}.` : '');
+// The options of each command of a reviewer's shell. flags are short options with no value,
+// valued short options with a value, long and longValued long options without and with a
+// value (after = or as the next word). noPlus refuses a word that starts with +.
+const REVIEW_OPTIONS = {
+  cat: { flags: 'nbsAETv' },
+  head: { flags: '0123456789qv', valued: 'nc' },
+  tail: { flags: '0123456789qv', valued: 'nc', noPlus: true },
+  ls: { flags: 'laA1RhdtrSFp' },
+  wc: { flags: 'lwcm' },
+  grep: { flags: 'nivwxFErRlLcoHhs', valued: 'eABC', longValued: ['include', 'exclude'] },
+  rg: { flags: 'inNSsFwxclovHIq', valued: 'egtTmABC',
+    long: ['files', 'hidden', 'no-ignore', 'files-with-matches', 'count', 'line-number',
+      'no-line-number', 'ignore-case', 'smart-case', 'case-sensitive', 'fixed-strings',
+      'word-regexp', 'invert-match', 'only-matching', 'no-heading', 'heading'],
+    longValued: ['glob', 'type', 'type-not', 'max-count', 'max-depth', 'context',
+      'after-context', 'before-context', 'regexp'] },
+  pwd: { flags: 'LP' },
+  sort: { flags: 'urnf', valued: 'kt' },
+  cut: { flags: 's', valued: 'fdcb' },
+  diff: { flags: 'urqwb' },
+};
+// The same for git, by subcommand, in a folder with git. A --format or --pretty value with
+// %G, %+G, %-G or % G starts gpg, so it is refused.
+const GIT_STAT = ['stat', 'name-only', 'name-status', 'shortstat', 'numstat', 'no-color'];
+const GIT_GPG = /%[-+ ]?G/;
+const REVIEW_GIT = {
+  diff: { flags: 'wbp', valued: 'U',
+    long: [...GIT_STAT, 'cached', 'staged', 'exit-code', 'quiet'], longValued: ['diff-filter'] },
+  show: { flags: 'wsp', valued: 'U', long: [...GIT_STAT, 'oneline', 'no-patch'],
+    longValued: ['format', 'pretty'] },
+  log: { flags: 'p0123456789', valued: 'nU',
+    long: [...GIT_STAT, 'oneline', 'graph', 'all', 'no-merges', 'merges', 'follow', 'patch',
+      'reverse'],
+    longValued: ['max-count', 'since', 'until', 'author', 'grep', 'diff-filter', 'format',
+      'pretty', 'skip'] },
+  status: { flags: 'sb', long: ['short', 'porcelain'] },
+  blame: { flags: 'we', valued: 'L' },
+  'ls-files': { flags: 'cmod',
+    long: ['cached', 'others', 'modified', 'deleted', 'exclude-standard'] },
+  'rev-parse': { long: ['show-toplevel', 'abbrev-ref', 'is-inside-work-tree'] },
+  grep: { flags: 'nivwFEclLoHhqI', valued: 'eABC' },
+};
+// The primaries of find that a reviewer's shell allows: with no value, with a text value, and
+// with a number, which may start with - or +.
+const FIND_PLAIN = new Set(['print', 'print0', 'prune', 'empty', 'not', 'o', 'a']);
+const FIND_TEXT = new Set(['name', 'iname', 'path', 'ipath', 'type', 'maxdepth', 'mindepth',
+  'newer', 'regex']);
+const FIND_NUMBER = new Set(['size', 'mtime', 'mmin']);
+// The files that diff does not read in a reviewer's shell: BSD diff copies a device or system
+// file to a temporary file without a limit. The compare ignores case, as macOS reads a path.
+const REVIEW_DEVICES = /^\/(?:dev|proc|sys)(?:\/|$)/i;
+
+// reviewDiffPath returns true when diff would open a device, a pipe, / or a path under
+// /dev, /proc or /sys. text is the operand as typed; joinedPath is the operand for walkPath,
+// which applies a .. part to the real path of the folder before it.
+function reviewDiffPath(text, joinedPath) {
+  const target = real(joinedPath);
+  const bad = (full) => REVIEW_DEVICES.test(full) || full === path.parse(full).root;
+  if (bad(text) || bad(target)) return true;
+  const stat = disk.stat(target);
+  if (stat && !stat.isFile() && !stat.isDirectory()) return true;
+  const resolved = disk.realpath(target);
+  return resolved !== null && bad(resolved);
+}
+
+// reviewDiffRefused returns the first of operands, the operands of diff, that diff may not
+// read, or undefined. When one of two operands is a folder and the other an existing file,
+// diff reads the file of that name in the folder, which is checked too. The file may change
+// between this read and the read of diff.
+function reviewDiffRefused(folder, operands) {
+  const alone = operands.find((one) => reviewDiffPath(path.resolve(folder, one),
+    joined(folder, one)));
+  if (alone !== undefined || operands.length !== 2) return alone;
+  const kind = (one) => disk.stat(real(joined(folder, one)));
+  const stats = operands.map(kind);
+  for (let at = 0; at < 2; at += 1) {
+    const [inside, other] = [stats[at], stats[1 - at]];
+    if (!inside || !inside.isDirectory() || !other || other.isDirectory()) continue;
+    const sep = operands[at].endsWith(path.sep) ? '' : path.sep;
+    const within = `${operands[at]}${sep}${path.basename(operands[1 - at])}`;
+    if (reviewDiffPath(path.resolve(folder, within), joined(folder, within))) return within;
+  }
+  return undefined;
+}
+
+// reviewWords splits command into simple commands, each a list of words, as the shell does for
+// a command of plain words. Commands are separated by |, ||, &&, ; and line feeds. It returns
+// the reason, as text, for a command with anything else: a control character, an open quote,
+// more than 20000 characters, a background &, a |&, or outside single quotes a $, a backtick or
+// a backslash. Outside quotes it also refuses < > ( ) { } ! #, the characters * ? [ that the
+// shell expands to file names (also to names that start with -), a ^ that zsh expands when
+// its option extendedglob is set, a word that starts with =, and a ~ at the start of a word
+// or after = or :, which the shell expands to a home path.
+// For the = and ~ rules, word is the text of the word so far, which an empty quote leaves
+// empty.
+function reviewWords(command) {
+  const text = String(command);
+  if (text.length > 20000) return 'a command of more than 20000 characters';
+  const commands = [];
+  let words = [];
+  let word = '';
+  let started = false;
+  let quote = null;
+  const endWord = () => {
+    if (started) words.push(word);
+    word = '';
+    started = false;
+  };
+  const endCommand = () => {
+    endWord();
+    if (words.length) commands.push(words);
+    words = [];
+  };
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at];
+    const code = char.charCodeAt(0);
+    if ((code < 32 && char !== '\t' && char !== '\n') || code === 127) {
+      return 'a control character';
+    }
+    if (quote === "'") {
+      if (char === "'") quote = null;
+      else word += char;
+    } else if (quote === '"') {
+      if (char === '"') quote = null;
+      else if ('$`\\'.includes(char)) return `the character ${char} in double quotes`;
+      else word += char;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+      started = true;
+    } else if (char === ' ' || char === '\t') {
+      endWord();
+    } else if (char === '\n' || char === ';') {
+      endCommand();
+    } else if (char === '|') {
+      if (text[at + 1] === '|') at += 1;
+      else if (text[at + 1] === '&') return 'the pipe |&';
+      endCommand();
+    } else if (char === '&') {
+      if (text[at + 1] !== '&') return 'a background &';
+      at += 1;
+      endCommand();
+    } else if ('`$<>(){}\\!#*?[^'.includes(char)) {
+      return `the character ${char} outside quotes`;
+    } else if (char === '~' && (word === '' || /[=:]$/.test(word))) {
+      return 'a ~ that starts a word or follows = or : outside quotes';
+    } else if (char === '=' && word === '') {
+      return 'a word that starts with = outside quotes';
+    } else {
+      word += char;
+      started = true;
+    }
+  }
+  if (quote !== null) return 'an open quote';
+  endCommand();
+  return commands;
+}
+
+// reviewArgs returns the first word of args that the options of allowed, an entry of
+// REVIEW_OPTIONS or REVIEW_GIT, do not list, or null. It checks each word that starts with -,
+// also after --, and the value of an option.
+function reviewArgs(args, allowed) {
+  const { flags = '', valued = '', long = [], longValued = [], noPlus = false } = allowed;
+  if (noPlus) {
+    const plus = args.find((one) => one.startsWith('+'));
+    if (plus !== undefined) return plus;
+  }
+  // The value of an option: the rest of the word, or the next word, which starts with no -.
+  const take = (rest, at) => {
+    if (rest !== '') return { value: rest, at };
+    const value = args[at + 1];
+    return value === undefined || value.startsWith('-') ? null : { value, at: at + 1 };
+  };
+  let ended = false;
+  for (let at = 0; at < args.length; at += 1) {
+    const word = args[at];
+    if (!word.startsWith('-')) continue;
+    if (ended || word === '-') return word;
+    if (word === '--') {
+      ended = true;
+    } else if (word.startsWith('--')) {
+      const equals = word.indexOf('=');
+      const name = word.slice(2, equals < 0 ? word.length : equals);
+      if (equals < 0 && long.includes(name)) continue;
+      if (!longValued.includes(name)) return word;
+      const got = take(equals < 0 ? '' : word.slice(equals + 1), at);
+      if (got === null || ((name === 'format' || name === 'pretty') && GIT_GPG.test(got.value))) {
+        return word;
+      }
+      at = got.at;
+    } else {
+      for (let one = 1; one < word.length; one += 1) {
+        if (flags.includes(word[one])) continue;
+        if (!valued.includes(word[one])) return word;
+        const got = take(word.slice(one + 1), at);
+        if (got === null) return word;
+        at = got.at;
+        break;
+      }
+    }
+  }
+  return null;
+}
+
+// reviewFind returns the first word of args, the words after find, that is no primary of
+// FIND_PLAIN, FIND_TEXT or FIND_NUMBER or has no value of its kind, or null.
+function reviewFind(args) {
+  for (let at = 0; at < args.length; at += 1) {
+    const word = args[at];
+    if (!word.startsWith('-')) continue;
+    const primary = word.slice(1);
+    if (FIND_PLAIN.has(primary)) continue;
+    const next = args[at + 1];
+    if (next === undefined) return word;
+    if (FIND_NUMBER.has(primary) && /^[-+]?[0-9]+[ckMGbw]?$/.test(next)) at += 1;
+    else if (FIND_TEXT.has(primary) && !next.startsWith('-')) at += 1;
+    else return word;
+  }
+  return null;
+}
+
+// reviewHasGit reports whether folder, or a folder above it, has a .git folder or file. It
+// runs no git.
+function reviewHasGit(folder) {
+  let at = path.resolve(folder);
+  for (let depth = 0; depth < 256; depth += 1) {
+    const stat = disk.lstat(path.join(at, '.git'));
+    if (stat && (stat.isDirectory() || stat.isFile())) return true;
+    const up = path.dirname(at);
+    if (up === at) return false;
+    at = up;
+  }
+  return false;
+}
+
+// reviewShell returns null when command only reads, and else what it refuses, as text. Each
+// command is one of REVIEW_OPTIONS, find, or git when git is true, with the listed options.
+// An empty command runs nothing and is allowed. folder is the working folder.
+function reviewShell(command, git, folder) {
+  const commands = reviewWords(command);
+  if (typeof commands === 'string') return commands;
+  for (const [name, ...args] of commands) {
+    let refused = null;
+    if (name === 'git') {
+      if (!git) return `the command ${reviewShown(name)}`;
+      if (!Object.hasOwn(REVIEW_GIT, args[0])) {
+        return args.length ? `the git subcommand ${reviewShown(args[0])}`
+          : 'git with no subcommand';
+      }
+      refused = reviewArgs(args.slice(1), REVIEW_GIT[args[0]]);
+      if (refused !== null) return `the option ${reviewShown(refused)} of git ${args[0]}`;
+    } else if (name === 'find') {
+      refused = reviewFind(args);
+      if (refused !== null) return `the word ${reviewShown(refused)} of find`;
+    } else if (!Object.hasOwn(REVIEW_OPTIONS, name)) {
+      return `the command ${reviewShown(name)}`;
+    } else {
+      refused = reviewArgs(args, REVIEW_OPTIONS[name]);
+      if (refused !== null) return `the option ${reviewShown(refused)} of ${name}`;
+      const device = name === 'diff'
+        ? reviewDiffRefused(folder, args.filter((one) => !one.startsWith('-'))) : undefined;
+      if (device !== undefined) return `the file ${reviewShown(device)} of diff`;
+    }
+  }
+  return null;
+}
+
+// reviewShellDeny returns the deny for a shell command with the refusal that reviewShell
+// returned. Its fixed text contains git only when the working folder has git.
+const reviewShellDeny = (git, refused) => 'Run only read commands: cat, head, tail, ls, wc, ' +
+  `grep, rg, find, ${git ? 'git diff, git log, git show.' : 'sort, cut, diff.'}\n` +
+  `Refused: ${refused}.\n` +
+  'A reviewer session writes only its report file, so each other command is denied, and so ' +
+  'is an option that the command does not list, a redirect, $( ), a backtick, a variable and ' +
+  'a * ? [ ^ outside quotes, and a ~ that starts a word or follows = or : outside quotes. The ' +
+  'commands are cat, head, tail, ' +
+  `ls, wc, grep, rg, find, sort, cut, diff and pwd${git ? ', and git diff, show, log, ' +
+  'status, blame, ls-files, rev-parse and grep' : ''}. For unique lines use sort -u.`;
+
+// reviewDeny returns the deny of a write from a reviewer, or null for the one write that the
+// main session of a reviewer may make: a Write, with one path, or an apply_patch of the form
+// of reportPatch, to qory.review.report of reviewReport. An agent never may. The path
+// is read through the links of the folders above it; a link, a folder or a file with more than
+// one link at the path, a path below .git or .claude of the working folder, and a path that the
+// guard cannot read through are no report path. On a disk that ignores case, the compare
+// ignores it too: the folder of the report decides, as caseless reads it, and so does the working
+// folder. The deny reasons that come first, the harness home, .qory/build/ and a locked file,
+// were returned before this.
+function reviewDeny({ call, input, paths, env, root, nocase, agent = false }) {
+  const review = reviewReport(env);
+  const report = review ? review.report : null;
+  // The real path that the call writes, for the one form of call that may write the report: a
+  // Write with one path, or an apply_patch of exactly the form that reportPatch reads, of the
+  // main session. The path of a patch is the one that reportPatch returns.
+  let asked = null;
+  if (!agent && call.kind === 'write') {
+    if (input.tool_name === 'Write' && paths.length === 1) {
+      asked = paths[0];
+    } else if (input.tool_name === 'apply_patch') {
+      const file = reportPatch((input.tool_input || {}).command);
+      const walked = file === null ? null : walkPath(file);
+      if (walked && !walked.unsure) asked = walked.real;
+    }
+  }
+  if (report && asked !== null) {
+    const stat = disk.lstat(report);
+    const named = walkPath(report);
+    if ((!stat || (stat.isFile() && stat.nlink === 1)) && !named.unsure) {
+      const folded = nocase || caseless(path.dirname(named.real));
+      const fold = (full) => (folded ? full.toLowerCase() : full);
+      const kept = ['.git', '.claude'].some((name) =>
+        under(fold(named.real), fold(path.join(root, name))));
+      if (!kept && fold(asked) === fold(named.real)) return null;
+    }
+  }
+  const head = agent ? REVIEW_AGENT : report ? REVIEW_ONLY : REVIEW_NONE;
+  return `${head}The call writes ${paths.join(', ')}.`;
+}
+
 // artifactFolder returns the artifact folder of the run, as end-gate.cjs finds it from root and
 // env, with the folders above it read through their links, or null when the folder itself is
 // a link: an agent that replaces the folder with a link to / would make every write a write
@@ -2509,7 +2939,7 @@ function run({ runtime, before } = {}) {
     const write = countsAsWrite(input.tool_name, input.tool_input,
       placeOf(input, args.root, env), deadline);
     reason = steps.limited(args, write) || (before && before(input)) ||
-      decide({ input, env, script, root: args.root, deadline });
+      decide({ input, env, script, root: args.root, deadline, runtime });
     // A denied call wrote nothing: on Codex its line has write false, and on Claude Code
     // PostToolBatch counts no write of a call whose id is in the denied file. A count
     // folder that cannot be written keeps the reason: limited reads that folder.

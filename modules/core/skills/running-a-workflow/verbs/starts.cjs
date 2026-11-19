@@ -6,15 +6,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  LIMIT, LOCAL, Missing, NAME, RUN, STARTED, STARTS_PER_SUBJECT, artifactFolder, isObject,
-  given, jsonKind, parseJson, plural, quote, readFile, short, withLock,
+  LIMIT, LOCAL, Missing, NAME, RUN, artifactFolder, isObject, given, jsonKind, parseJson,
+  plural, quote, readFile, short, withLock,
 } = require('../lib/base.cjs');
 
 // starts counts one start of name in run, in counts[run][name] of starts.json, so that a
 // count never carries over from one run to the next. shown is the words for the start in
-// the printed line: the name, or <agent> on <subject> for a start on a subject. The read, the
-// check of the limit and the write happen under the lock starts.json.lock, so that starts in
-// several processes at once count each start once.
+// the printed line, which is the name by default. The read, the check of the
+// limit and the write happen under the lock starts.json.lock, so that starts in several
+// processes at once count each start once.
 function starts(io, root, run, name, limit, shown = name) {
   const folder = path.join(root, '.reports');
   const file = path.join(folder, 'starts.json');
@@ -106,43 +106,26 @@ function localKey(root) {
 module.exports = {
   verbs: {
     starts: {
-      usage: ['starts <run> <name> <limit>', 'starts <run> <reviewer> --subject <subject>'],
+      usage: ['starts <run> <name> <limit>'],
       args(io, what, rest) {
         if (!RUN.test(what || '')) {
           return 'Give a run of at most 64 letters, digits, hyphens and underscores.\nThe ' +
             `argument is ${given(what)}.`;
         }
-        const arity = 'Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer ' +
-          'and --subject <subject>.';
-        if (rest[1] === '--subject') {
-          if (!STARTED.test(rest[0])) {
-            return 'Give a reviewer as <agent> or <prefix>:<agent>.\nThe argument is ' +
-              `${given(rest[0])}.`;
-          }
-          if (rest.length !== 3) return arity;
-          if (!NAME.test(rest[2])) {
-            return 'Give a subject of lower-case letters, digits and hyphens, such as ' +
-              `change.\nThe argument is ${given(rest[2])}.`;
-          }
-          return null;
-        }
         if (!NAME.test(rest[0] || '')) {
           return 'Give a name of lower-case letters, digits and hyphens.\nThe argument is ' +
             `${given(rest[0])}.`;
         }
-        if (rest.length !== 2 || !LIMIT.test(rest[1])) return arity;
+        if (rest.length !== 2 || !LIMIT.test(rest[1])) {
+          return 'Give starts a run, a name and a limit of 1 to 99.';
+        }
         return null;
       },
       run(io, what, rest) {
         // With no run id, the counts go under the key that begin wrote in the same folder.
         const root = artifactFolder(io);
         const run = what === LOCAL ? localKey(root) : what;
-        // A start on a subject counts under <subject>/<agent>, which no name of the first
-        // form can be, with the prefix of the runtime left out, as the report files are named.
-        const result = rest[1] === '--subject'
-          ? starts(io, root, run, `${rest[2]}/${STARTED.exec(rest[0])[1]}`, STARTS_PER_SUBJECT,
-            `${STARTED.exec(rest[0])[1]} on ${rest[2]}`)
-          : starts(io, root, run, rest[0], Number(rest[1]));
+        const result = starts(io, root, run, rest[0], Number(rest[1]));
         // The refusal prints as a finding, so that its whole name prints indented below it.
         if (result.status) io.print([result.line], null);
         else io.print([], result.line);

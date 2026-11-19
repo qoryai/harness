@@ -26,6 +26,7 @@
       "Skill(harness:workflow-plan-the-build)",
       "Skill(harness:planning-builds)",
       "Skill(harness:checking-build-plans)",
+      "Skill(harness:judging-findings)",
       "Skill(harness:workflow-write-acceptance-checks)",
       "Skill(harness:writing-acceptance-checks)",
       "Skill(harness:checking-acceptance-checks)",
