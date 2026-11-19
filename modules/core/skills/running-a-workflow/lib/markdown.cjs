@@ -236,60 +236,151 @@ const HTML_ENDS = [
   [/^ {0,3}<![A-Za-z]/, />/],
 ];
 
+// The columns that the white space at the start of a line takes, with a tab as far as the next
+// multiple of 4.
+function indentOf(text) {
+  let column = 0;
+  for (const char of text) {
+    if (char === ' ') column += 1;
+    else if (char === '\t') column += 4 - (column % 4);
+    else break;
+  }
+  return column;
+}
+
+// Qory Apiary trims a table cell of these 4 characters only, not of every white space.
+const trimCell = (cell) => cell.replace(/^[ \t\v\f]+|[ \t\v\f]+$/g, '');
+
+// tableCells returns the cells of a table line like cells, trimmed as Qory Apiary trims them. A
+// line with only a `|` has none.
+function tableCells(text) {
+  const line = trimCell(text);
+  if (line === '|') return [];
+  return line
+    .replace(/^\|/, '')
+    .replace(/(^|[^\\])\|$/, '$1')
+    .split(/(?<!\\)\|/)
+    .map(trimCell);
+}
+
+// A line of cells made of dashes, with or without `|` at its ends: the shape of a delimiter row.
+const DELIMITER_SHAPE = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t\v\f]*$/;
+
 // tableLines returns, for each line of list, whether it is a row of a table as Qory Apiary shows
-// it: a line that starts with `|` and at most 3 spaces, and a delimiter row right after it with
-// as many cells. A table goes on over the lines that start with `|`, up to a line that does not.
-// When a line may be in a quote, a list item or an HTML block, where a table may not start,
-// no table starts before the next blank line, and the lines count.
+// it. A table is a header line that starts with `|` and at most 3 spaces and has a cell, and
+// right after it a delimiter row with as many cells, indented as far. The table goes on over the
+// lines that start with `|` and are indented as far as the header, but not over a line with only
+// a `|`.
+// The check cannot tell whether a table starts in a quote, in a list item, after an HTML block,
+// after a delimiter-shaped line that opened no table, or in the paragraph of a list item, so it
+// starts none there until the next blank line, and the lines count.
 function tableLines(list) {
   const rows = new Array(list.length).fill(false);
   const pipe = (line) => !line.fenced && /^ {0,3}\|/.test(line.text);
+  // A blank line has only spaces and tabs, as in CommonMark: trim also drops \v and \f.
+  const empty = (line) => /^[ \t]*$/.test(line.text);
   let blocked = false;
   let waiting = null;
   let inTable = false;
+  let poisoned = false;
+  let item = false;
+  let gap = false;
+  let head = 0;
+  // follow tracks the list item at a line that is not blank: a line after a blank line that is no
+  // part of the item ends it, and a marker starts one.
+  const follow = (text) => {
+    const marker = /^\s*([-*+]|\d+[.)])(\s|$)/.test(text);
+    if (item && gap && indentOf(text) < 2 && !marker) item = false;
+    gap = false;
+    if (marker) item = true;
+  };
   for (let at = 0; at < list.length; at += 1) {
     const line = list[at];
     if (line.fenced) {
       inTable = false;
-    } else if (blank(line)) {
+      gap = false;
+    } else if (empty(line)) {
       inTable = false;
+      poisoned = false;
+      gap = true;
       if (!waiting) blocked = false;
     } else if (waiting) {
+      gap = false;
       if (waiting.test(line.text)) waiting = null;
-    } else if (/^\s*(>|[-*+](\s|$)|\d+[.)](\s|$)|<)/.test(line.text)) {
-      blocked = true;
-      inTable = false;
-      for (const [start, end] of HTML_ENDS) {
-        const found = start.exec(line.text);
-        if (found && !end.test(line.text.slice(found[0].length))) waiting = end;
-      }
-    } else if (blocked) {
-      inTable = false;
-    } else if (inTable) {
-      if (pipe(line)) rows[at] = true;
-      else inTable = false;
-    } else if (pipe(line) && at + 1 < list.length && pipe(list[at + 1])) {
-      const next = cells(list[at + 1].text);
-      if (delimiter(next) && next.length === cells(line.text).length) {
-        rows[at] = true;
-        rows[at + 1] = true;
-        at += 1;
-        inTable = true;
+    } else {
+      const here = indentOf(line.text);
+      follow(line.text);
+      if (/^\s*(>|[-*+](\s|$)|\d+[.)](\s|$)|<)/.test(line.text)) {
+        blocked = true;
+        inTable = false;
+        for (const [start, end] of HTML_ENDS) {
+          const found = start.exec(line.text);
+          if (found && !end.test(line.text.slice(found[0].length))) waiting = end;
+        }
+      } else if (blocked) {
+        inTable = false;
+      } else {
+        if (inTable && pipe(line) && !/^ *\|[ \t\v\f]*$/.test(line.text) && here >= head) {
+          rows[at] = true;
+          continue;
+        }
+        // The line that ends a table is read as any other line.
+        inTable = false;
+        let opened = false;
+        const shaped = DELIMITER_SHAPE.test(line.text);
+        // A delimiter-shaped line in a paragraph that opened no table with the line before it.
+        if (shaped && at > 0 && !empty(list[at - 1]) && !list[at - 1].fenced) poisoned = true;
+        if (!poisoned && pipe(line) && at + 1 < list.length && pipe(list[at + 1])) {
+          const header = tableCells(line.text);
+          const next = tableCells(list[at + 1].text);
+          if (header.length > 0 && delimiter(next) && next.length === header.length &&
+            indentOf(list[at + 1].text) >= here) {
+            rows[at] = true;
+            rows[at + 1] = true;
+            at += 1;
+            inTable = true;
+            head = here;
+            opened = true;
+          }
+        }
+        if (!opened && shaped) poisoned = true;
+        if (!opened && item && here >= 2) blocked = true;
       }
     }
   }
   return rows;
 }
 
+// tooManyCells reports whether text has more table cells than Qory Apiary formats: it shows such
+// a text as written. Its count is the lines times the most `|` on a line plus 1, and 0 with no
+// `|` (`table_cells` and `@max_cells` of `ArtifactLive.Markdown` in qoryai/apiary).
+function tooManyCells(text) {
+  let lines = 1;
+  let here = 0;
+  let most = 0;
+  for (let at = 0; at < text.length; at += 1) {
+    const code = text.charCodeAt(at);
+    if (code === 124) here += 1;
+    else if (code === 10 || (code === 13 && text.charCodeAt(at + 1) !== 10)) {
+      lines += 1;
+      most = Math.max(most, here);
+      here = 0;
+    }
+  }
+  most = Math.max(most, here);
+  return most > 0 && (most + 1) * lines > 50000;
+}
+
 // counted returns the text whose words count, as
 // artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
 // first paragraph. Other code blocks count. With options.tables, a line that starts with `|`
-// counts unless tableLines shows it as a table row.
+// counts unless tableLines shows it as a table row, and every such line counts in a text with
+// more table cells than tooManyCells allows.
 function counted(text, background, options = {}) {
   const kept = [];
   const list = lines(text);
-  const rows = options.tables ? tableLines(list) : null;
+  const rows = options.tables ? (tooManyCells(text) ? [] : tableLines(list)) : null;
   let section = '';
   let paragraph = 'before';
   for (const [at, line] of list.entries()) {

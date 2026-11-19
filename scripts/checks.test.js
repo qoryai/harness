@@ -1199,7 +1199,7 @@ test('decision record: every Mermaid block that Qory Apiary draws counts toward 
   // The info string of a backtick fence has no backtick: such a line is no fence.
   for (const block of ['```text\nflowchart LR\n```', '```mermaidx\nflowchart LR\n```',
     '> ```python\n> x = 1\n> ```', '```code``` & more text', '```code`` and R&D',
-    '> ```x`` & y']) {
+    '> ```x`` & y', '```mermaid x`\nflowchart LR\n```']) {
     assert.equal(found(push(record(block), 'decision-record')), false, block);
   }
   // A block in a quote or a list item skips the checks of a block, so each one alone in the
@@ -1656,7 +1656,7 @@ test('decision record: a line that starts with "|" counts unless it is in a tabl
   assert.ok(over(`${table}\nend of the table\n${lines}`));
   // A line indented 4 spaces is code, not a table.
   assert.ok(over(table.replace(/^/gm, '    ')));
-  // In a quote, a list item or an HTML block, a table may not start.
+  // In a quote, a list item or an HTML block, the check cannot tell whether a table starts.
   assert.ok(over(`- item\n${table}`));
   assert.ok(over(`> quote\n${table}`));
   assert.ok(over(`<div>\n${table}`));
@@ -1668,6 +1668,45 @@ test('decision record: a line that starts with "|" counts unless it is in a tabl
   assert.ok(over(`${piped(200)}\n${table}`));
   // A table in a fence of 5 backticks is code: it counts.
   assert.ok(over(`\`\`\`\`\`text\n${table}\n\`\`\`\`\``));
+});
+
+const MARKDOWN = path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs');
+
+test('decision record: a line of a table that Qory Apiary shows as prose counts', () => {
+  const { counted } = require(MARKDOWN);
+  const kept = (text) => counted(text, false, { tables: true });
+  // Each text has "wq1" or "wq2" as a word of prose, or of a table that the check cannot tell
+  // from prose, so the check counts it.
+  const cases = {
+    'a line with only a pipe ends a table': ['| wq0 |\n|---|\n|\n| wq1 |\n', 'wq1'],
+    'a line with only a pipe is no header': ['|\n|-|\n| wq1 |\n', 'wq1'],
+    'a no-break space after a header makes a cell': ['| wq0 |  \n|---|\n', 'wq0'],
+    'an em space around dashes is no delimiter row': ['| wq0 |\n|  ---  |\n', 'wq0'],
+    'a row indented less than the header ends the table':
+      ['- x\n\n  | a |\n  |---|\n  | y |\n| wq1 |\n', 'wq1'],
+    'a line that continues the paragraph of a list item': ['* x\n\n  y\n| wq1 |\n|---|\n', 'wq1'],
+    'a line that continues the paragraph of an item with a tab':
+      ['-\tx\n\n\twq5\n| wq1 |\n|---|\n', 'wq1'],
+    'a delimiter-shaped line that opened no table': ['| wq0 | wq1 |\n|---|\n| wq2 |\n|---|\n', 'wq2'],
+    'a delimiter-shaped line after a line that opened no table':
+      ['| wq0 | wq1 |\n|---|\n|---|\n| wq2 |\n', 'wq2'],
+  };
+  for (const [name, [text, word]] of Object.entries(cases)) {
+    assert.ok(kept(text).includes(word), name);
+  }
+  // The same texts without the cause: the table adds no word.
+  assert.equal(kept('| wq0 |\n|---|\n| wq1 |\n').includes('wq'), false);
+  assert.equal(kept('- x\n\n  | wq0 |\n  |---|\n  | wq1 |\n').includes('wq'), false);
+});
+
+test('decision record: every line that starts with "|" counts in a text with over 50,000 cells', () => {
+  const { counted } = require(MARKDOWN);
+  const record = (rows) => `${'| a '.repeat(300)}|\n|${'---|'.repeat(300)}\n${'| wq9 |\n'.repeat(rows)}`;
+  // Qory Apiary formats a text of lines x (most pipes on a line + 1) cells up to 50,000 and shows
+  // a text with more as written: 100 rows have 102 x 301 = 30,702 cells, 200 have 61,102.
+  assert.equal(counted(record(100), false, { tables: true }).includes('wq9'), false);
+  assert.equal(counted(record(200), false, { tables: true }).includes('wq9'), true);
+  assert.equal(counted(record(200), false, { tables: false }).includes('wq9'), false);
 });
 
 test('decision record: the table scan takes linear time', () => {
@@ -1723,11 +1762,11 @@ test('decision record: a time limit for text that made a pattern slow', () => {
 
 test('decision record: a line of 100,000 backticks or tildes takes linear time', () => {
   for (const mark of ['`', '~']) {
-    for (const tail of ['', 'x', ' &', ' mermaid']) {
+    for (const end of ['', 'x', ' &', ' mermaid']) {
+      const line = `${mark.repeat(100000)}${end}`;
       const started = Date.now();
-      push(fixture(['decision-record.md', COST, (item) => `${item}\n\n${mark.repeat(100000)}${tail}`]),
-        'decision-record');
-      assert.ok(Date.now() - started < 1500, `${mark}${tail} took ${Date.now() - started} ms`);
+      push(fixture(['decision-record.md', COST, (item) => `${item}\n\n${line}`]), 'decision-record');
+      assert.ok(Date.now() - started < 1500, `${mark}${end} took ${Date.now() - started} ms`);
     }
   }
 });

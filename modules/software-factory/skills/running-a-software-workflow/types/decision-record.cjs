@@ -24,7 +24,7 @@ module.exports = (lib) => {
   // a back reference, so the time is linear in the length of the line.
   // shortcut: reads quote and list marks only, replace when a test with Apiary's parser exists.
   const MERMAID_LINE = new RegExp('^[ \\t]*(?:(?:>|[-*+](?=[ \\t])|\\d{1,9}[.)](?=[ \\t]))' +
-    '[ \\t]*)*(?:(?=(`{3,}))\\1(?:[ \\t]*mermaid(?=\\s|$)|(?=[^`]*$)[^`]*&)' +
+    '[ \\t]*)*(?:(?=(`{3,}))\\1(?=[^`]*$)(?:[ \\t]*mermaid(?=\\s|$)|[^`]*&)' +
     '|(?=(~{3,}))\\2(?:[ \\t]*mermaid(?=\\s|$)|.*&))', 'i');
 
   // idOf returns the id of a decision as the first line of a finding shows it: up to 16

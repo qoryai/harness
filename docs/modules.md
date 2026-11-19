@@ -2286,6 +2286,9 @@ edges bound them.
 A line that starts with `|` counts toward the 450 words, unless it forms a table with a
 delimiter row: `counted` in `lib/markdown.cjs` takes the option `tables` for it, which only
 the decision record sets. A spec, a question and a review reply leave out every such line.
+The check cannot tell whether a table starts in a quote, in a list item or after an HTML block,
+so it counts those lines. It counts every such line in a text with over 50,000 table cells
+(lines times the most `|` on a line plus 1), which Qory Apiary shows as written.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
