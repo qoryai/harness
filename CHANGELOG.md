@@ -24,9 +24,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `lib/mermaid.cjs` reads the text as Qory Apiary draws it, without the characters that Qory
   Apiary strips, and counts every link of a flowchart, because Qory Apiary sets the limit
   but has no edge count. Each diagram's characters other than spaces and Mermaid symbols
-  over 700 cost one word per 6. The decision record has no `![` or `<img` outside a
-  fenced code block, and you write `\![` for a literal `![`: the new option `everyImage` of
-  `links` in `lib/markdown.cjs`, which no other type sets, refuses each one.
+  over 700 cost one word per 6. The decision record has no `![` or `<img` anywhere,
+  code blocks and diagrams included, and you write `\![` outside code for a literal `![`:
+  the new option `everyImage` of `links` in `lib/markdown.cjs`, which no other type sets,
+  refuses each one.
   `checking-decisions` has the reviewer judge each diagram, and `decision-writer` and
   `decision-reviewer` load `visuals` when the record has one.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and

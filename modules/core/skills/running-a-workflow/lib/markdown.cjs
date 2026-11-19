@@ -367,29 +367,14 @@ function address(addr) {
   return null;
 }
 
-// imageStarts returns the first image start of each kind on each line of text that is outside a
-// fenced code block, as { line, text, mark }: a "![" with an even number of backslashes before
-// it (an odd number makes it a literal "![", and "\\![" has an even number), and a "<img" in any
-// case, also in inline code, with no backslash before it. It reads no other Markdown, so that no
-// form of an image (inline, reference, in a quote or a list item) is missed. A fenced block is
-// recognised only at column 0: an opening line of 3 or more backticks (with no backtick after
-// them) or tildes, up to a closing line of the same character, at least as long, with nothing
-// after it but white space (up to 3 spaces before it, as CommonMark allows), or up to the end of
-// the text. A fence anywhere else is no fence, so a start in it is refused.
+// imageStarts returns the first image start of each kind on each line of text, as
+// { line, text, mark }: a "![" with an even number of backslashes right before it (an odd number
+// makes it a literal "![", and "\\![" has an even number), and a "<img" in any case, whatever
+// comes before it. It reads no Markdown, so that no form of an image is missed: it also finds a
+// start in a code block, in inline code, in a quote and in a list item.
 function imageStarts(text) {
   const found = [];
-  let open = null;
   lineList(text).forEach((line, index) => {
-    if (open) {
-      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
-      if (close && close[1][0] === open.mark && close[1].length >= open.size) open = null;
-      return;
-    }
-    const start = /^(`{3,}|~{3,})/.exec(line);
-    if (start && !(start[1][0] === '`' && line.includes('`', start[1].length))) {
-      open = { mark: start[1][0], size: start[1].length };
-      return;
-    }
     let bang = line.indexOf('![');
     while (bang !== -1) {
       let slashes = 0;
@@ -398,20 +383,15 @@ function imageStarts(text) {
       bang = line.indexOf('![', bang + 1);
     }
     if (bang !== -1) found.push({ line: index + 1, text: line, mark: '![' });
-    for (const tag of line.matchAll(/<img/gi)) {
-      if (line[tag.index - 1] !== '\\') {
-        found.push({ line: index + 1, text: line, mark: '<img' });
-        break;
-      }
-    }
+    if (/<img/i.test(line)) found.push({ line: index + 1, text: line, mark: '<img' });
   });
   return found;
 }
 
 // links checks each link and image of Markdown text outside code. images(addr) returns
 // whether the skill for the artifact allows that image, and links whether it allows a link.
-// With everyImage, the check refuses each "![" and "<img" outside a fenced code block, as
-// imageStarts() finds them, and images(addr) decides on none of them.
+// With everyImage, the check refuses each "![" and "<img", as imageStarts() finds them, and
+// images(addr) decides on none of them.
 function links(
   run,
   file,
@@ -423,10 +403,10 @@ function links(
   const at = where ? `${where} of ${file}` : file;
   if (everyImage) {
     for (const start of imageStarts(text)) {
-      const literal = start.mark === '![' ? '\\![' : '\\<img';
       const shown = [...start.text.slice(0, 160)].slice(0, 40).join('');
-      run.find(`Remove the image from ${short(at)}, or write \`${literal}\` for a literal ` +
-        `\`${start.mark}\`.\nLine ${start.line} is ${quote(shown)}.`);
+      const fix = start.mark === '![' ? `, or write \`\\![\` outside code for a literal \`![\``
+        : ': the record has no `<img`';
+      run.find(`Remove the image from ${short(at)}${fix}.\nLine ${start.line} is ${quote(shown)}.`);
     }
   }
   for (const line of lines(text)) {

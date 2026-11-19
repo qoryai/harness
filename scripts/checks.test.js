@@ -1161,7 +1161,7 @@ test('decision record: 1 or 2 Mermaid diagrams in the record pass, 3 fail', () =
 test('decision record: an image is refused', () => {
   fails(push(fixture(['decision-record.md', '- Decision: The hours stay',
     '- Decision: ![Flow](flow.svg) The hours stay']), 'decision-record'),
-    /^Remove the image from decision-record\.md, or write `\\!\[` for a literal `!\[`\. Line /);
+    /^Remove the image from decision-record\.md, or write `\\!\[` outside code for a literal `!\[`\. Line /);
 });
 
 test('decision record: a ~~~ fence is a Mermaid block, and an info string after mermaid is not', () => {
@@ -1448,65 +1448,65 @@ const scanImages = (text) => {
   return findings.filter((finding) => finding.startsWith('Remove the image from '));
 };
 
-test('decision record: each "![" and "<img" outside a fenced code block is refused', () => {
+test('decision record: each "![" and "<img" is refused, in code too', () => {
   const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
-  const bang = 'Remove the image from decision-record.md, or write `\\![` for a literal `![`.';
-  const tag = 'Remove the image from decision-record.md, or write `\\<img` for a literal `<img`.';
+  const bang = 'Remove the image from decision-record.md, or write `\\![` outside code for a literal `![`.';
+  const tag = 'Remove the image from decision-record.md: the record has no `<img`.';
   // The fix line has the form of the other fix lines, and a second line has the line and its start.
   assert.deepEqual(scanImages('First line\nSee ![a](x) here'), [`${bang}\nLine 2 is "See ![a](x) here".`]);
   assert.deepEqual(scanImages('<IMG src=x>'), [`${tag}\nLine 1 is "<IMG src=x>".`]);
   const long = scanImages(`![a](${'x'.repeat(100)})`);
   assert.equal(long[0].split('\n')[1], `Line 1 is "![a](${'x'.repeat(35)}".`);
   // Each form is refused, with no reading of Markdown: in a quote, in a list item, in inline
-  // code, in an indented fence, after an even number of backslashes, as a reference image and in
-  // a paragraph that is not closed.
+  // code, in a fenced block of backticks or tildes, in an indented fence, after an even number of
+  // backslashes, as a reference image and in a paragraph that is not closed.
   for (const text of [
-    '> ![a](x)', '- ![a](x)', '1. ![a](x)', '`![a](x)`', '  ```\n![a](x)\n  ```', '> ```\n> ![a](x)\n> ```',
-    '- ```\n  ![a](x)\n  ```', '\\\\![a](x)', '\\\\\\\\![a](x)', '![a][r]\n\n[r]: https://e.example/i.png',
-    '![a][]', '![a]', 'Use ![a](x without a close', '![a\n\nb](x)', '[a]: ![a]:',
-    '![a](x y)', '```a`![a](x)', '``` ```\n![a](x)',
+    '> ![a](x)', '- ![a](x)', '1. ![a](x)', '`![a](x)`', '```\n![a](x)\n```', '~~~\n![a](x)\n~~~',
+    '```mermaid\n![a](x)\n```', '  ```\n![a](x)\n  ```', '> ```\n> ![a](x)\n> ```', '\\\\![a](x)',
+    '\\\\\\\\![a](x)', '![a][r]\n\n[r]: https://e.example/i.png', '![a][]', '![a]',
+    'Use ![a](x without a close', '![a\n\nb](x)', '[a]: ![a]:', '![a](x y)', '```a`![a](x)',
+    // The forms that a reader of fences, HTML blocks and definitions missed.
+    '```\ntext\n```\n![c](d)\n```', '<div>\n```\n\n![c](d)\n```', '<!--\n```\n-->\n![c](d)',
+    "[a]: /u '\n```\n'\n![c](d)", '```\n![a](x)',
   ]) {
     assert.equal(scanImages(text).length, 1, JSON.stringify(text));
-    assert.match(scanImages(text)[0], /^Remove the image from decision-record\.md, or write `\\!\[`/);
+    assert.match(scanImages(text)[0], /^Remove the image from decision-record\.md, or write `\\!\[` outside code/);
   }
-  assert.equal(scanImages('<img src=x>').length, 1);
-  assert.equal(scanImages('`<img src=x>`').length, 1);
-  assert.equal(scanImages('\\\\<img src=x>').length, 0, 'a backslash right before it');
+  // A "<img" is refused whatever comes before it, a backslash or 2 of them too.
+  for (const text of ['<img src=x>', '`<img src=x>`', '\\<img src=x>', '\\\\<img src=x>', '```\n<img>\n```']) {
+    assert.equal(scanImages(text).length, 1, JSON.stringify(text));
+    assert.match(scanImages(text)[0], /^Remove the image from decision-record\.md: the record has no `<img`\./);
+  }
   // A "![" and a "<img" on one line are 2 findings, and many on a line are 1 each.
   assert.equal(scanImages('![a](x) <img src=y> ![b](z)').length, 2);
   assert.equal(scanImages('![a](x)\n![b](y)').length, 2);
+  assert.equal(scanImages('```\n```x\n![a](x)\n```\n![b](y)').length, 2);
   // A backslash before "![" makes it literal, and so does any odd number of them.
-  for (const text of ['\\![a](x)', '\\\\\\![a](x)', 'x \\![a](x)', '\\<img src=x>', '\\![a](x) \\<img>']) {
+  for (const text of ['\\![a](x)', '\\\\\\![a](x)', 'x \\![a](x)', '```mermaid\nflowchart LR\n  A --> B\n```', '']) {
     assert.deepEqual(scanImages(text), [], JSON.stringify(text));
   }
   // The same through the check of the record.
   fails(push(fixture(why('![Flow](flow.svg) ')), 'decision-record'),
-    /^Remove the image from decision-record\.md, or write `\\!\[` for a literal `!\[`\. Line /);
+    /^Remove the image from decision-record\.md, or write `\\!\[` outside code for a literal `!\[`\. Line /);
   fails(push(fixture(why('<img src="flow.svg"> ')), 'decision-record'),
-    /^Remove the image from decision-record\.md, or write `\\<img` for a literal `<img`\. Line /);
-  passes(push(fixture(why('\\![Flow](flow.svg) and \\<img> ')), 'decision-record'));
+    /^Remove the image from decision-record\.md: the record has no `<img`\. Line /);
+  passes(push(fixture(why('\\![Flow](flow.svg) ')), 'decision-record'));
+  passes(push(fixture(diagram(1)), 'decision-record'));
 });
 
-test('decision record: a start in a fenced code block at column 0 is no image', () => {
-  assert.deepEqual(scanImages('```\n![a](x)\n<img src=x>\n```'), []);
-  assert.deepEqual(scanImages('~~~\n![a](x)\n~~~'), []);
-  assert.deepEqual(scanImages('```mermaid\nflowchart LR\n  A --> B\n```\n'), []);
-  // A closing fence needs the same character, at least as many of it, and nothing after it.
-  assert.equal(scanImages('````\n```\n![a](x)\n```\n````\n![b](y)').length, 1);
-  assert.equal(scanImages('```\n~~~\n![a](x)\n```\n![b](y)').length, 1);
-  assert.equal(scanImages('```\n```x\n![a](x)\n```\n![b](y)').length, 1);
-  assert.equal(scanImages('```\n![a](x)\n```  \n![b](y)').length, 1);
-  assert.equal(scanImages('```\n![a](x)\n   ```\n![b](y)').length, 1);
-  // A line of backticks with a backtick after them opens no fence, and an indented one neither.
-  assert.equal(scanImages('```a``` ![a](x)').length, 1);
-  assert.equal(scanImages(' ```\n![a](x)\n ```').length, 1);
-});
-
-test('decision record: a fence that is never closed swallows the rest, as CommonMark reads it', () => {
-  assert.deepEqual(scanImages('```\n![a](x)\n<img src=y>'), []);
-  assert.deepEqual(scanImages('text\n~~~\nno end\n![a](x)'), []);
-  // An image start before the fence is still refused.
-  assert.equal(scanImages('![a](x)\n```\n![b](y)').length, 1);
+test('markdown links: a caller without everyImage reads images as before', () => {
+  const links = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs')).links;
+  const run = (text, options) => {
+    const findings = [];
+    links({ did() {}, find: (finding) => findings.push(finding) }, 'f.md', '', text, options);
+    return findings;
+  };
+  assert.deepEqual(run('![a](x.png) and <img src=y>', {}), [
+    'Remove the image "x.png" from f.md.\nThe image is "x.png" in f.md.',
+  ]);
+  assert.deepEqual(run('![a](x.png)', { images: () => true }), []);
+  assert.deepEqual(run('```\n![a](x.png)\n```', {}), []);
+  assert.deepEqual(run('![a](https://e.example/x.png)', { everyImage: true }).length, 1);
 });
 
 test('decision record: the image scan takes linear time', () => {
@@ -1524,8 +1524,8 @@ test('decision record: the image scan takes linear time', () => {
     ['escaped starts', '\\![a](x) '.repeat(25000), 0],
     ['backslashes and starts', '\\\\![a]'.repeat(40000), 1],
     ['backticks', '`'.repeat(250000), 0],
-    ['an open fence', `\`\`\`\n${'![a](x)\n'.repeat(30000)}`, 0],
-    ['fence lines', '```\n![a](x)\n```\n'.repeat(20000), 0],
+    ['fence lines', '```\n![a](x)\n```\n'.repeat(20000), 20000],
+    ['tags', '<img>\n'.repeat(30000), 30000],
     ['nested alt text', `${'![a'.repeat(80000)}${']'.repeat(80000)}`, 1],
     ['quote marks', `${'> '.repeat(100000)}![a](x)`, 1],
   ]) {

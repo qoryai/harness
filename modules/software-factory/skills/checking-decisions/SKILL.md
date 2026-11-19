@@ -14,7 +14,8 @@ A version is one Markdown file, `decision-record.md`. Members read all of it. A 
 and an `ac-N` are terms that members read, not words of the system that runs you.
 `declines.md` is no part of a version. The record may have a Mermaid diagram under a
 decision, as `writing-decisions` lists. It has no wireframe and no table, and no `![` or
-`<img` outside a fenced code block: you write `\![` for a literal `![`.
+`<img` anywhere, code blocks and diagrams included: write `\![` outside code for a
+literal `![`.
 
 Load ${qory:skills/visuals} when the record has a diagram.
 

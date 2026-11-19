@@ -108,8 +108,9 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   and the record at most 2.
 - The points after a picture: the items of the form replace them.
 - The table of options and the other pictures: the record has no table and no wireframe,
-  and no `![` or `<img` outside a fenced code block. Write `\![` for a literal `![`. The
-  ways that a person compares are the options of the question.
+  and no `![` or `<img` anywhere, code blocks and diagrams included. Write `\![` outside
+  code for a literal `![`. The ways that a person compares are the options of the
+  question.
 
 The other rules stay, such as the edit in place of the newest version, and the 450 words.
 

@@ -125,7 +125,7 @@ module.exports = (lib) => {
   }
 
   // diagramFinding reports the first rule that the Mermaid blocks of a decision break, as
-  // writing-decisions (SKILL.md:118: "Write the diagram in a") lists them.
+  // writing-decisions (SKILL.md:119: "Write the diagram in a") lists them.
   function diagramFinding(run, decision) {
     const id = idOf(decision.id);
     if (!decision.diagrams) return;
@@ -154,7 +154,7 @@ module.exports = (lib) => {
     // writing-decisions (SKILL.md:32-48, 80-81: "Use this form, in this order"): ## Decisions only,
     // each decision with its items in order, or only its reason when removed. The no-choice line
     // alone only
-    // checking-decisions (SKILL.md:76, 96: "The spec leaves no technical choice open.") has.
+    // checking-decisions (SKILL.md:77, 97: "The spec leaves no technical choice open.") has.
     run.did('sections');
     const parts = topSections(run, 'decision-record.md', list);
     const titles = parts.map((part) => part.title);
@@ -197,13 +197,13 @@ module.exports = (lib) => {
           `${expected.map((name) => `"${name}:"`).join(', ')}.${whole(decision.id)}`);
       }
     }
-    // writing-decisions (SKILL.md:139: "characters other than spaces and Mermaid symbols"): the
+    // writing-decisions (SKILL.md:140: "characters other than spaces and Mermaid symbols"): the
     // 450 words count one word for each 6 characters of a diagram over its first 700.
     const diagramWords = all.flatMap((decision) => decision.blocks)
       .filter((block) => block.end !== null)
       .reduce((sum, block) => sum + mermaid.charged(block.text), 0);
     wordLimit(run, 'decision-record.md', md, false, diagramWords);
-    // writing-decisions (SKILL.md:145: "a third diagram in the record fail"): the Mermaid
+    // writing-decisions (SKILL.md:146: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
       0);
@@ -248,7 +248,7 @@ module.exports = (lib) => {
     }
     // writing-decisions (SKILL.md:43: "- Question: `q6`."): "Question:" cites a question
     // of this run. That it is decided or answered, and open for an open decision, only
-    // checking-decisions (SKILL.md:50-51: "needs a question with no recommended option")
+    // checking-decisions (SKILL.md:51-52: "needs a question with no recommended option")
     // states.
     let questions = null;
     for (const decision of all) {

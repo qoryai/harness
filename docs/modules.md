@@ -2244,9 +2244,9 @@ The record keeps its list of decisions and may add pictures. `writing-decisions`
 section "Markdown documents" of `artifact-text` for them. A decision whose chosen way
 changes how two parts call each other, or a flow of states, may end with one Mermaid
 diagram, drawn by `visuals`. The record has no wireframe or table, and no `![` or `<img`
-outside a fenced code block, and you write `\![` for a literal `![`. `checks.cjs` refuses
-each one through the option `everyImage` of `links` in `lib/markdown.cjs`, which only the
-decision record sets, so no other type changes.
+anywhere, code blocks and diagrams included, and you write `\![` outside code for a
+literal `![`. `checks.cjs` refuses each one through the option `everyImage` of `links` in
+`lib/markdown.cjs`, which only the decision record sets, so no other type changes.
 
 `checks.cjs` refuses, each with a fix line that starts with the fix:
 
