@@ -1185,20 +1185,23 @@ test('decision record: at most one diagram in a decision', () => {
 test('decision record: the diagram is the last text of its decision, after a blank line', () => {
   const moved = /^Put the Mermaid diagram of decision-1 after its last item, with a blank line before it\.$/;
   const lastItem = '- Cost: The next change of hours edits this reply again, and support pays that cost.';
-  // Between items.
+  const after = /^Put the text after the Mermaid diagram of decision-1 above it, or delete it\.$/;
+  // Between items: with no blank line before the diagram, and with one but an item after it.
   fails(push(fixture(['decision-record.md', '- Rests on:', `${BLOCK()}\n- Rests on:`]), 'decision-record'),
     moved);
   fails(push(fixture(['decision-record.md', '- Rests on:', `\n${BLOCK()}\n\n- Rests on:`]), 'decision-record'),
-    moved);
+    after);
   // Before the first item.
   fails(push(fixture(['decision-record.md', '- Decision:', `${BLOCK()}\n\n- Decision:`]), 'decision-record'),
     moved);
   // Right after the last item, with no blank line.
   fails(push(fixture(['decision-record.md', lastItem, `${lastItem}\n${BLOCK()}`]), 'decision-record'),
     moved);
-  // Text after the diagram.
+  // Text after the diagram: the blank line before it is right, so the fix is another.
   fails(push(fixture(diagram(1), ['decision-record.md', '```\n', '```\n\nMore text.\n']), 'decision-record'),
-    moved);
+    after);
+  fails(push(fixture(diagram(1), ['decision-record.md', '```\n', '```\nMore text.\n']), 'decision-record'),
+    after);
   // Blank lines after it are no text.
   passes(push(fixture(diagram(1), ['decision-record.md', /\n*$/, '\n\n\n']), 'decision-record'));
 });
@@ -1221,7 +1224,7 @@ test('decision record: a removed decision has no diagram, and it counts for no l
     result.out);
 });
 
-test('decision record: an unclosed Mermaid block is refused, and hides nothing', () => {
+test('decision record: an unclosed Mermaid block is refused, and leaves nothing unchecked', () => {
   const closing = /^Close the Mermaid block of decision-1 with a line of 3 backticks\.$/;
   const open = (tail) => ['decision-record.md', COST,
     (item) => `${item}\n\n\`\`\`mermaid\nflowchart LR\n  A --> B\n${tail}`];
@@ -1236,6 +1239,37 @@ test('decision record: an unclosed Mermaid block is refused, and hides nothing',
     /^Close the Mermaid block of decision-1 with a line of 5 tildes\.$/);
   fails(push(fixture(tildes('````')), 'decision-record'),
     /^Close the Mermaid block of decision-1 with a line of 4 backticks\.$/);
+});
+
+test('decision record: how a closing fence ends a Mermaid block', () => {
+  // block returns the edit that adds one Mermaid block with the given opening and closing
+  // lines after the Cost item of decision-1, and crlf changes every line end of the file.
+  const block = (open, close) => ['decision-record.md', COST,
+    (item) => `${item}\n\n${open}\nflowchart LR\n  A --> B\n${close}`];
+  const crlf = ['decision-record.md', /^[\s\S]*$/, (text) => text.replace(/\n/g, '\r\n')];
+  const closing = /^Close the Mermaid block of decision-1 with a line of 3 backticks\.$/;
+  const tildes = /^Close the Mermaid block of decision-1 with a line of 3 tildes\.$/;
+  // A longer closing fence, and spaces or a tab after the closing fence, close the block.
+  passes(push(fixture(block('```mermaid', '````')), 'decision-record'));
+  passes(push(fixture(block('~~~mermaid', '~~~~~')), 'decision-record'));
+  passes(push(fixture(block('```mermaid', '```  ')), 'decision-record'));
+  passes(push(fixture(block('```mermaid', '```\t')), 'decision-record'));
+  passes(push(fixture(block('~~~mermaid', '~~~ \t ')), 'decision-record'));
+  // A shorter closing fence, and text after the closing fence, do not.
+  fails(push(fixture(block('````mermaid', '```')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 4 backticks\.$/);
+  fails(push(fixture(block('```mermaid', '``` x')), 'decision-record'), closing);
+  // CRLF line ends, with the block closed and unclosed.
+  passes(push(fixture(block('```mermaid', '```'), crlf), 'decision-record'));
+  passes(push(fixture(block('~~~mermaid', '~~~'), crlf), 'decision-record'));
+  fails(push(fixture(block('```mermaid', 'A --> C'), crlf), 'decision-record'), closing);
+  fails(push(fixture(block('~~~mermaid', 'A --> C'), crlf), 'decision-record'), tildes);
+  // A line of backticks inside a tilde block is a line of the block, not its end.
+  passes(push(fixture(block('~~~mermaid', '```\n  C --> D\n~~~')), 'decision-record'));
+  fails(push(fixture(block('~~~mermaid', '```\n  C --> D')), 'decision-record'), tildes);
+  // A line of tildes inside a backtick block is a line of the block, not its end.
+  passes(push(fixture(block('```mermaid', '~~~\n  C --> D\n```')), 'decision-record'));
+  fails(push(fixture(block('```mermaid', '~~~\n  C --> D')), 'decision-record'), closing);
 });
 
 test('decision record: the 450 words leave out the diagram', () => {

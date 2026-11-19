@@ -99,12 +99,13 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
 
 - The summary, the background and the parts: the record has only `## Decisions`, and each
   decision starts with its items.
-- "Start with one picture" and the reason of a part with no picture: a picture is optional
-  and stands after the last item, and a decision with no picture needs no reason.
+- The rule "start with one picture" and the reason of a part with no picture: a picture is
+  optional and stands after the last item, and a decision with no picture needs no reason.
 - "Pick the picture by what the part changes": a decision has a picture only when the
   chosen way changes how two parts call each other, or a flow of states, and the picture
   is a Mermaid diagram.
-- "No limit on pictures": a decision has at most one diagram, and the record at most 2.
+- The rule that a document "has no limit on pictures": a decision has at most one diagram,
+  and the record at most 2.
 - The points after a picture: the items of the form replace them.
 - The table of options and the other pictures: the record has no table, no wireframe and
   no image. The ways that a person compares are the options of the question.
@@ -112,8 +113,8 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
 The other rules stay, such as the 450 words, which leave out the words of a diagram, and
 the edit in place of the newest version.
 
-- A diagram shows that change and nothing else, and it is no drawing of the system's
-  architecture.
+- A diagram shows the change in how two parts call each other, or in a flow of states, and
+  nothing else, and it is no drawing of the system's architecture.
 - Write the diagram in a ```` ```mermaid ```` block, after a blank line, as the last text of
   its decision, after the last item. Close the block with its fence line. Draw it by the
   rules of ${qory:skills/visuals}: load it before you draw or change a diagram. If it

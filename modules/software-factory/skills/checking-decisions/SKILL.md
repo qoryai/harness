@@ -76,16 +76,16 @@ When you review, the run gives you the lines of its checks script under "Checks:
 the heading of each decision, each id once, the items of each decision in order, the form
 of a removed or open decision, and the limit of 450 words, which leaves out the words of
 Mermaid diagrams. It checks that a Mermaid block is closed, that a decision has at most one
-and a removed decision none, that it is the last text of its decision, after a blank line,
-and that the decisions that are not removed have at most 2 in the record. It checks that
-"Rests on:" lists criteria of the newest acceptance criteria that are not removed, or one
-of its two other lines, and that "Question:" lists a question of this run's questions in
-the state that the decision needs. The push form reads only the newest questions version,
-which does not have this run's new questions yet, so it does not report a "Question:" id
-that is missing there; the check before your start reports it. It checks that the ids keep
-the newest version's ids and numbers, and it checks the characters, each link and image,
-`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
-check list.
+and a removed decision none, that a Mermaid block is the last text of its decision, after a
+blank line, and that the decisions that are not removed have at most 2 in the record. It
+checks that "Rests on:" lists criteria of the newest acceptance criteria that are not
+removed, or one of its two other lines, and that "Question:" lists a question of this run's
+questions in the state that the decision needs. The push form reads only the newest
+questions version, which does not have this run's new questions yet, so it does not report a
+"Question:" id that is missing there; the check before your start reports it. It checks that
+the ids keep the newest version's ids and numbers, and it checks the characters, each link
+and image, `.qory/repositories` and each path of the machine the run is on. Judge the rest
+of the check list.
 
 - The text "The spec leaves no technical choice open." stands only when the spec's
   `## Changes` parts leave no technical choice open, no further choice exists, and no

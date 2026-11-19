@@ -13,7 +13,7 @@ module.exports = (lib) => {
 
   const NO_CHOICE = 'The spec leaves no technical choice open.';
 
-  // writing-decisions (SKILL.md:107: "the record at most 2"): at most 2
+  // writing-decisions (SKILL.md:108: "the record at most 2"): at most 2
   // Mermaid diagrams in decisions that are not removed.
   const MAX_DIAGRAMS = 2;
 
@@ -25,8 +25,9 @@ module.exports = (lib) => {
 
   // decisions reads decision-record.md: one entry per ### heading, with its items and its
   // Mermaid blocks. A Mermaid block is no item: it ends the item before it. diagrams counts
-  // the blocks, unclosed is the block with no closing fence, else null, and placed is true when
-  // each block follows the last item after a blank line and nothing but blank lines follows it.
+  // the blocks, unclosed is the block with no closing fence, else null, placed is true when
+  // each block follows an item after a blank line, and last is true when nothing but blank
+  // lines follows each closed block.
   function decisions(text) {
     return sections(lines(text), 3)
       .slice(1)
@@ -66,8 +67,9 @@ module.exports = (lib) => {
           continues = items[items.length - 1] !== null;
         });
         const placed = blocks.every((one) => one.end !== null && one.items > 0 &&
-          one.start > 0 && blank(part.lines[one.start - 1]) &&
-          part.lines.slice(one.end + 1).every(blank));
+          one.start > 0 && blank(part.lines[one.start - 1]));
+        const last = blocks.every((one) => one.end === null || part.lines.slice(one.end + 1)
+          .every(blank));
         const fields = items.map((item) => {
           const match = item === null ? null : /^([^:]+): (.*)$/.exec(item);
           return match ? { name: match[1], value: match[2] } : { name: null, value: item };
@@ -81,13 +83,14 @@ module.exports = (lib) => {
           open: Boolean(decision && decision.value === OPEN_DECISION),
           unclosed: blocks.find((one) => one.end === null) || null,
           placed,
+          last,
           removed: items.length === 1 && items[0] !== null && REMOVED.test(items[0]),
         };
       });
   }
 
   // diagramFinding reports the first rule that the Mermaid blocks of a decision break, as
-  // writing-decisions (SKILL.md:117-124: "Write the diagram in a") lists them.
+  // writing-decisions (SKILL.md:118: "Write the diagram in a") lists them.
   function diagramFinding(run, decision) {
     const id = idOf(decision.id);
     if (!decision.diagrams) return;
@@ -96,12 +99,14 @@ module.exports = (lib) => {
       const { char, size } = decision.unclosed;
       fix = `Close the Mermaid block of ${id} with a line of ${size} ` +
         `${char === '~' ? 'tildes' : 'backticks'}.`;
-    }
-    else if (decision.removed) fix = `Remove the Mermaid diagram of ${id}, which is removed.`;
-    else if (decision.diagrams > 1) {
+    } else if (decision.removed) {
+      fix = `Remove the Mermaid diagram of ${id}, which is removed.`;
+    } else if (decision.diagrams > 1) {
       fix = `Cut ${id} to one Mermaid diagram: it has ${decision.diagrams}.`;
     } else if (!decision.placed) {
       fix = `Put the Mermaid diagram of ${id} after its last item, with a blank line before it.`;
+    } else if (!decision.last) {
+      fix = `Put the text after the Mermaid diagram of ${id} above it, or delete it.`;
     }
     if (fix) run.find(fix + whole(decision.id));
   }
@@ -156,7 +161,7 @@ module.exports = (lib) => {
       }
     }
     wordLimit(run, 'decision-record.md', md, false);
-    // writing-decisions (SKILL.md:122-124: "a third diagram in the record fail"): the Mermaid
+    // writing-decisions (SKILL.md:124: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed. wordLimit leaves them out of the 450 words.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
       0);
@@ -165,7 +170,7 @@ module.exports = (lib) => {
         'Keep the diagrams of the decisions that change how two parts call each other or a ' +
         'state flow.');
     }
-    // writing-decisions (SKILL.md:87-90: "an open decision with `- Rests on: no criterion yet.`"):
+    // writing-decisions (SKILL.md:87-88: "an open decision with `- Rests on: no criterion yet.`"):
     // "Rests on:" lists ac-N of the newest criteria that are not removed; an open decision may have
     // "no criterion yet.", and after a person's no, a decision has "no criterion, by the answer."
     let byId = null;
@@ -199,9 +204,9 @@ module.exports = (lib) => {
         }
       }
     }
-    // writing-decisions (SKILL.md:43, 129-130: "- Question: `q6`."): "Question:" cites a question
+    // writing-decisions (SKILL.md:43: "- Question: `q6`."): "Question:" cites a question
     // of this run. That it is decided or answered, and open for an open decision, only
-    // checking-decisions (SKILL.md:49-50, 94-96: "needs a question with no recommended option")
+    // checking-decisions (SKILL.md:49-50: "needs a question with no recommended option")
     // states.
     let questions = null;
     for (const decision of all) {

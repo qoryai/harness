@@ -14,12 +14,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `visuals`. The check of the type `decision-record` refuses, each with a fix line that
   starts with the fix: a Mermaid block with no closing fence ("Close the Mermaid block of
   decision-1 with a line of 3 backticks.", with the length and the mark of the opening
-  fence), a second diagram in a decision, a diagram that
-  is not the last text of its decision after a blank line, a diagram in a removed decision,
-  and a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has
-  3."). It still refuses an image, and the 450 words leave out the words of a diagram.
-  `checking-decisions` has the reviewer judge each diagram, and `decision-writer` and
-  `decision-reviewer` load `visuals` when the record has one.
+  fence), a second diagram in a decision, a diagram that is not the last text of its
+  decision after a blank line, a diagram in a removed decision, and a third diagram in the
+  record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."). It still refuses an
+  image, and the 450 words leave out the words of a diagram. `checking-decisions` has the
+  reviewer judge each diagram, and `decision-writer` and `decision-reviewer` load `visuals`
+  when the record has one.
 - The `plan-the-build` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-plan-the-build`, `planning-builds` and
   `checking-build-plans`, and the agents `build-planner` and `plan-reviewer`. The session
