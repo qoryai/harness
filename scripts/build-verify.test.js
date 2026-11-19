@@ -1,8 +1,9 @@
 // Tests of the checks of the types of Build and Verify, which workflow-checks.cjs of
 // running-a-software-workflow adds to the checks script. scripts/check.sh runs them. Each type
 // has a version that passes, and each rule a test that breaks it and watches the check fail.
-// scripts/testdata/build-verify-samples.json has 50 documents of the five JSON types, each
-// valid or invalid against the type's JSON Schema. A push runs on a store with the files that
+// scripts/testdata/build-verify-samples.json has 50 documents of five JSON types, and
+// MORE_SAMPLES has documents of acceptance-criteria and verification, each valid or invalid
+// against the type's JSON Schema. A push runs on a store with the files that
 // qory mounts for a push check: index.json and the newest version of the type and of each type
 // that its entry in qory-module.yaml reads.
 'use strict';
@@ -25,8 +26,11 @@ const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
 
 const JSON_TYPES = ['submission', 'build-ledger', 'acceptance-lock', 'demo-script',
-  'demo-evidence'];
-const DOCUMENT_TYPES = ['build-plan', 'build-report', 'verification'];
+  'demo-evidence', 'verification'];
+const DOCUMENT_TYPES = ['build-plan', 'build-report'];
+// The JSON types that process.yaml defines with a json_schema: every JSON type but verification,
+// a standard type of Qory Apiary.
+const CUSTOM_JSON_TYPES = JSON_TYPES.filter((type) => type !== 'verification');
 const C1 = '5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e';
 const C2 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const H = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -39,6 +43,20 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 const text = (value) => (typeof value === 'string' ? value : JSON.stringify(value));
 
 // ---- Valid versions of each type, on the testdata's criteria and scenarios -----------------
+
+// CRITERIA is the acceptance-criteria.json of the testdata, parsed.
+const CRITERIA = JSON.parse(fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.json'),
+  'utf8'));
+
+// criteriaDoc returns CRITERIA after change, a function of its list of criteria.
+function criteriaDoc(change = () => {}) {
+  const doc = clone(CRITERIA);
+  change(doc.criteria);
+  return doc;
+}
+
+// criterionOf returns the criterion id of the list of criteria.
+const criterionOf = (list, id) => list.find((one) => one.id === id);
 
 const STEPS = [
   ['Open the saved reply for delayed orders.',
@@ -131,35 +149,76 @@ const REPORT_FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'N
 const REPORT_SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run']
   .map(section).join('\n');
 
-const VERIFICATION = `## Summary
+// VERIFICATION is a verification of C2: ac-3 is not verified, each other criterion is met.
+const VERIFICATION = {
+  target_version: C2,
+  matrix: [
+    { criterion: 'ac-1', state: 'met', evidence: 'Film: demo-video scenario-1 v1, step 1 passed.' },
+    { criterion: 'ac-2', state: 'met', evidence: 'Film: demo-video scenario-1 v1, step 2 passed.' },
+    { criterion: 'ac-4', state: 'met',
+      evidence: 'Locked check `tests/corrected-reply.test.ts` passed: exit 0, 4 tests.' },
+  ],
+  not_verified: [{ criterion: 'ac-3', reason: 'The run could not record the demo video of ' +
+    '"Read the closed day": the app\'s setup failed.' }],
+  model_families: ['claude', 'deepseek'],
+};
 
-Commit: ${C2}. Each criterion is met.
+// verified returns VERIFICATION after change, a function of a copy of it.
+function verified(change = () => {}) {
+  const doc = clone(VERIFICATION);
+  change(doc);
+  return doc;
+}
 
-## Matrix
+// MORE_SAMPLES has valid and invalid documents of the types whose samples are not in
+// scripts/testdata/build-verify-samples.json, in its form.
+const MORE_SAMPLES = {
+  'acceptance-criteria': {
+    valid: [
+      { why: 'the criteria of the testdata', doc: CRITERIA },
+      { why: 'a removed criterion keeps its text and check', doc: criteriaDoc((list) => {
+        criterionOf(list, 'ac-3').removed = { reason: 'The shop never closes.' };
+      }) },
+    ],
+    invalid: [
+      { why: 'an id with a leading zero', doc: criteriaDoc((list) => { list[0].id = 'ac-01'; }) },
+      { why: 'no criterion', doc: criteriaDoc((list) => list.splice(0)) },
+      { why: 'a criterion with no check', doc: criteriaDoc((list) => { delete list[0].check; }) },
+      { why: 'a removed criterion with no reason',
+        doc: criteriaDoc((list) => { list[2].removed = {}; }) },
+      { why: 'a member the schema does not define',
+        doc: { ...CRITERIA, version: 1 } },
+    ],
+  },
+  verification: {
+    valid: [
+      { why: 'a criterion not verified', doc: VERIFICATION },
+      { why: 'a full id of 64 digits, a criterion not met and none unverified',
+        doc: verified((doc) => {
+          doc.target_version = H;
+          doc.matrix[0].state = 'not_met';
+          doc.not_verified = [];
+        }) },
+      { why: 'a version that is no commit fits the grammar of any target',
+        doc: verified((doc) => { doc.target_version = 'release/2026.11'; }) },
+    ],
+    invalid: [
+      { why: 'a state other than met and not_met',
+        doc: verified((doc) => { doc.matrix[0].state = 'needs a person'; }) },
+      { why: 'a model family twice', doc: verified((doc) => doc.model_families.push('claude')) },
+      { why: 'no model family', doc: verified((doc) => { doc.model_families = []; }) },
+      { why: 'a criterion id in upper case',
+        doc: verified((doc) => { doc.matrix[0].criterion = 'AC-1'; }) },
+      { why: 'no target_version', doc: verified((doc) => { delete doc.target_version; }) },
+      { why: 'a target_version with a space',
+        doc: verified((doc) => { doc.target_version = 'main branch'; }) },
+      { why: 'an empty reason', doc: verified((doc) => { doc.not_verified[0].reason = ''; }) },
+    ],
+  },
+};
 
-| Criterion | State | Evidence |
-|---|---|---|
-| AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00" | Met | Film: demo-video scenario-1 v1, step 1 passed. |
-| AC-2, "The reply states that the hours apply every day, on weekends and public holidays too" | Met | Film: demo-video scenario-1 v1, step 2 passed. |
-| AC-3, "The reply states that support is closed on 25 December" | Needs a person | Check "Read the closed day" in the app, because the run could not record its demo video: the app's setup failed, and Sam Example accepted that. |
-| AC-4, "Each customer who got the reply with the old hours receives a corrected reply that lists the new hours" | Met | Locked check \`tests/corrected-reply.test.ts\` passed: exit 0, 4 tests. |
-
-## Lowered
-
-- None.
-
-## Not verified
-
-- AC-3, "The reply states that support is closed on 25 December": Check "Read the closed day" in the app, because the run could not record its demo video: the app's setup failed, and Sam Example accepted that.
-
-## Accepted findings
-
-- None.
-
-## Model families
-
-Build: claude. Verify: deepseek.
-`;
+// samplesOf returns the samples of type.
+const samplesOf = (type) => SAMPLES[type] || MORE_SAMPLES[type];
 
 const EXPLAINER = `## Summary
 
@@ -203,13 +262,23 @@ ${STEPS[1][0]}
 
 let folders = 0;
 
+// recriteria changes the criteria of version number in root by change, a function of the list
+// of criteria.
+function recriteria(root, number, change) {
+  const file = path.join(root, 'acceptance-criteria', 'main', `v${number}`,
+    'acceptance-criteria.json');
+  const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  change(doc.criteria);
+  fs.writeFileSync(file, JSON.stringify(doc));
+}
+
 // fixture copies the testdata to a new artifact folder, with version 1 of the acceptance
 // criteria and the demo scenarios, and an index.json in which a person approved criteria
 // version 1.
 function fixture() {
   const root = path.join(tmp, `run-${++folders}`);
   fs.cpSync(TESTDATA, root, { recursive: true });
-  for (const [type, file] of [['acceptance-criteria', 'acceptance-criteria.md'],
+  for (const [type, file] of [['acceptance-criteria', 'acceptance-criteria.json'],
     ['demo-scenarios', 'demo-scenarios.md']]) {
     version(root, type, 'main', 1, file, fs.readFileSync(path.join(root, file), 'utf8'));
   }
@@ -363,13 +432,12 @@ function passes(result, type) {
 
 // ---- The template, the schemas and the push checks ----------------------------------------
 
-// templateEntries returns each entry of artifact_types in process.yaml after
-// demo-scenarios, with its keys, and its json_schema parsed: the template writes each schema
-// as indented JSON.
-function templateEntries() {
+// artifactEntries returns each entry of artifact_types in process.yaml, with its keys, and its
+// json_schema parsed: the template writes each schema as indented JSON.
+function artifactEntries() {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   const list = yaml.slice(yaml.indexOf('\nartifact_types:\n'));
-  const entries = list.split(/\n  - name: /).slice(1).map((block) => {
+  return list.split(/\n  - name: /).slice(1).map((block) => {
     const [name, ...rest] = block.split('\n');
     const entry = { name };
     const schemaAt = rest.findIndex((line) => line === '    json_schema:');
@@ -381,16 +449,21 @@ function templateEntries() {
     if (schemaAt >= 0) entry.json_schema = JSON.parse(rest.slice(schemaAt + 1).join('\n'));
     return entry;
   });
+}
+
+// templateEntries returns each entry of artifactEntries after demo-scenarios: the types of
+// Build and Verify.
+function templateEntries() {
+  const entries = artifactEntries();
   return entries.slice(entries.findIndex((entry) => entry.name === 'demo-scenarios') + 1);
 }
 
-test('process.yaml lists the eight types of Build and Verify last, at the defaults', () => {
+test('process.yaml lists the seven custom types of Build and Verify last, with their limits', () => {
   const entries = templateEntries();
   assert.deepEqual(entries.map((entry) => entry.name), ['submission', 'build-plan',
-    'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence',
-    'verification']);
+    'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence']);
   for (const entry of entries) {
-    const structured = JSON_TYPES.includes(entry.name);
+    const structured = CUSTOM_JSON_TYPES.includes(entry.name);
     assert.equal(entry.base_view, structured ? 'structured' : 'document', entry.name);
     assert.equal(entry.size_limit, 1048576, entry.name);
     assert.equal(entry.max_files, 1, entry.name);
@@ -400,9 +473,43 @@ test('process.yaml lists the eight types of Build and Verify last, at the defaul
   assert.ok(fs.statSync(PROCESS).size <= 65536);
   // The standard types stay listed by name alone.
   const yaml = fs.readFileSync(PROCESS, 'utf8');
-  for (const name of ['screenshot', 'demo-video', 'explainer']) {
+  for (const name of ['acceptance-criteria', 'verification', 'screenshot', 'demo-video',
+    'explainer']) {
     assert.match(yaml, new RegExp(`\\n  - name: ${name}\\n  - name: `));
   }
+});
+
+// The draft check of build-ledger refuses what the push refuses, by the size_limit that
+// lib/template.cjs reads from process.yaml. verification, a standard type, has the default
+// draft limit, as acceptance-criteria has.
+test('the draft size limit of build-ledger is its size_limit, and verification has the default', () => {
+  const { loadRegistry } = require(path.join(MODULES,
+    'core/skills/running-a-workflow/lib/registry.cjs'));
+  const { types } = loadRegistry(path.join(MODULES, 'core'));
+  const limits = Object.fromEntries(artifactEntries().map((entry) => [entry.name,
+    entry.size_limit]));
+  assert.equal(limits['build-ledger'], 1048576);
+  assert.equal(types.find((one) => one.type === 'build-ledger').maxBytes, 1048576);
+  assert.equal(types.find((one) => one.type === 'verification').maxBytes, undefined);
+  // A type listed by name alone has no size_limit to read: the reader throws.
+  const { sizeLimit } = require(path.join(MODULES,
+    'software-factory/skills/running-a-software-workflow/lib/template.cjs'));
+  assert.throws(() => sizeLimit('verification'),
+    /^Error: Set size_limit of verification under artifact_types in /);
+  // A ledger of 300 KB, above the default of 256 KB, gets no finding on its size; one byte
+  // above 1 MiB gets the finding.
+  const line = JSON.stringify(LEDGER);
+  const padded = (size) =>
+    `${line.slice(0, -1)}${' '.repeat(size - 1 - Buffer.byteLength(line))}}\n`;
+  const ledgerSize = /^Cut build-ledger\.json to at most 1024 KB\./;
+  const ledger = (bytes) => check(fixture(), 'build-ledger', ['build-ledger.json', padded(bytes)]);
+  assert.ok(!ledger(300 * 1024).lines.some((one) => ledgerSize.test(one)));
+  fails(ledger(1024 * 1024 + 1), ledgerSize);
+  // A verification draft one byte above 256 KB gets the finding.
+  const text = JSON.stringify(VERIFICATION, null, 2);
+  const over = `${text.slice(0, -1)}${' '.repeat(256 * 1024 + 1 - Buffer.byteLength(text))}}`;
+  fails(check(fixture(), 'verification', ['verification.json', over]),
+    /^Cut verification\.json to at most 256 KB\./);
 });
 
 // A run cannot withdraw a name of acceptance-lock or build-ledger. The flag is a plain YAML
@@ -417,8 +524,15 @@ test('process.yaml sets withdrawable: false for acceptance-lock and build-ledger
 });
 
 test('each JSON Schema of schemas/ is the json_schema of its type in process.yaml', () => {
-  const entries = templateEntries().filter((entry) => entry.json_schema);
-  assert.deepEqual(entries.map((entry) => entry.name).sort(), [...JSON_TYPES].sort());
+  // acceptance-criteria and verification are standard types of Qory Apiary, listed by name
+  // alone, so process.yaml has no JSON Schema of either to compare: their draft checks read
+  // schemas/acceptance-criteria.schema.json and schemas/verification.schema.json, the
+  // formats of qory's contract.
+  const [criteria, verification] = artifactEntries();
+  assert.deepEqual(criteria, { name: 'acceptance-criteria' });
+  assert.deepEqual(verification, { name: 'verification' });
+  const entries = artifactEntries().filter((entry) => entry.json_schema);
+  assert.deepEqual(entries.map((entry) => entry.name).sort(), [...CUSTOM_JSON_TYPES].sort());
   for (const entry of entries) {
     const file = path.join(SKILL, 'schemas', `${entry.name}.schema.json`);
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), entry.json_schema, entry.name);
@@ -443,9 +557,16 @@ test('qory-module.yaml has a push check per type, with the types that each check
   }
 });
 
-test('the schema check throws for a keyword that it does not check', () => {
-  assert.throws(() => schema.compile({ type: 'object', uniqueItems: true }, 'x.json'),
-    /Fix x\.json\.\nThe keyword uniqueItems at # of x\.json is one that lib\/schema\.cjs does not check/);
+test('the schema check throws for a keyword it does not check, and checks uniqueItems', () => {
+  assert.throws(() => schema.compile({ type: 'object', maxProperties: 2 }, 'x.json'),
+    /Fix x\.json\.\nThe keyword maxProperties at # of x\.json is one that lib\/schema\.cjs does /);
+  // uniqueItems is a keyword that it checks.
+  const unique = { type: 'array', uniqueItems: true };
+  schema.compile(unique, 'x.json');
+  const loaded = { schema: unique, patterns: new Map() };
+  assert.deepEqual(schema.errors(loaded, [{ a: 1, b: 2 }, 'a', { b: 2, a: 1 }], 'x.json'),
+    ['Give x.json each entry once.\n{"b":2,"a":1} is there twice.']);
+  assert.deepEqual(schema.errors(loaded, [1, '1', [1]], 'x.json'), []);
   assert.throws(() => schema.compile({ properties: { a: { minContains: 1 } } }, 'x.json'),
     /minContains at #\/properties\/a/);
 });
@@ -460,8 +581,9 @@ test('the schema check throws for a form of a keyword that it does not check', (
   thrown({ enum: [{ a: 1 }, 'b'] }, /Write enum at # of x.json as a list of text, numbers, true, /);
   thrown({ enum: 'b' }, /Write enum at # of x.json as a list of text/);
   thrown({ const: [1] }, /Write const at # of x.json as text, a number, true, false or null, /);
+  thrown({ uniqueItems: false }, /Write uniqueItems at # of x.json as true, /);
   // The forms that the schemas of schemas/ use.
-  for (const type of JSON_TYPES) schema.load(type);
+  for (const type of ['acceptance-criteria', ...JSON_TYPES]) schema.load(type);
   schema.compile({ type: 'object', additionalProperties: true, properties: {
     a: { enum: ['x', 1, true, null] }, b: { const: null } } }, 'x.json');
 });
@@ -483,6 +605,19 @@ test('the 50 samples: each valid one passes its schema, each invalid one fails i
   assert.equal(count, 50);
 });
 
+test('the samples of acceptance-criteria and verification pass or fail their schema', () => {
+  for (const [type, kinds] of Object.entries(MORE_SAMPLES)) {
+    const loaded = schema.load(type);
+    for (const sample of kinds.valid) {
+      assert.deepEqual(schema.errors(loaded, sample.doc, 'x.json'), [], `${type}: ${sample.why}`);
+    }
+    for (const sample of kinds.invalid) {
+      assert.notDeepEqual(schema.errors(loaded, sample.doc, 'x.json'), [],
+        `${type}: ${sample.why}`);
+    }
+  }
+});
+
 test('each finding of the schema check has the member and the fix of its keyword', () => {
   const loaded = schema.load('submission');
   const doc = clone(SAMPLES.submission.valid[0].doc);
@@ -502,7 +637,7 @@ test('each finding of the schema check has the member and the fix of its keyword
   assert.deepEqual(found((d) => { d.repositories[0].draft.none = 'no-text'; }),
     ['Write /repositories/0/draft of submission.json in exactly one of its 2 forms.\nIt fits 0.']);
   assert.deepEqual(found((d) => { d.repositories = []; }),
-    ['Give /repositories of submission.json at least 1 entries.\nIt has 0.']);
+    ['Give /repositories of submission.json at least 1 entry.\nIt has 0.']);
   assert.deepEqual(found((d) => { d.text.title = 'x'.repeat(257); }),
     ['Cut /text/title of submission.json to at most 256 characters.\nIt has 257.']);
   assert.deepEqual(found((d) => { d.repositories[0].path = 'example/../x'; }),
@@ -526,15 +661,39 @@ test('each finding of the schema check has the member and the fix of its keyword
   }
 });
 
+test('the pointer of the depth finding escapes each key, and adds no line or reversal', () => {
+  const lists = `${'['.repeat(65)}${']'.repeat(65)}`;
+  // Keys short enough that the cut pointer keeps each escape: U+202E and "~/" at the start,
+  // and a key with a line feed as the last member, 65 levels deep.
+  const doc = JSON.parse(`{"\\u202e": {"~/": ${'['.repeat(61)}{"x\\ny": []}${']'.repeat(61)}}}`);
+  const found = schema.errors(schema.load('verification'), doc, 'verification.json');
+  assert.deepEqual(found, ['Cut the nesting of verification.json to 64 levels.\nThe list at ' +
+    '/\\u202e/~0~1/...0/0/0/0/x\\ny is 65 levels deep.']);
+  const pointer = found[0].split('\n')[1];
+  // ~ is ~0 and / is ~1, as JSON Pointer escapes them; U+202E and the line feed are their
+  // escapes as text, a backslash and letters.
+  assert.ok(pointer.includes('/~0~1/'), pointer);
+  assert.ok(pointer.includes('/\\u202e/'), pointer);
+  assert.ok(pointer.includes('/x\\ny '), pointer);
+  assert.equal(found[0].split('\n').length, 2);
+  assert.ok(!found[0].includes('\u202e'));
+  // A key that looks like an integer comes first, from the lowest, as Object.keys takes it.
+  const order = JSON.parse(`{"b": ${lists}, "10": ${lists}, "2": ${lists}}`);
+  assert.match(schema.depthLine(order), /^The list at \/2\/0\/0/);
+  assert.equal(schema.depthLine(JSON.parse(`{"a": ${'['.repeat(63)}${']'.repeat(63)}}`)), null);
+});
+
 test('each JSON type fails each invalid sample in its push', () => {
   for (const type of JSON_TYPES) {
     const name = type.startsWith('demo-') ? 'scenario-1.json' : `${type}.json`;
-    for (const sample of SAMPLES[type].invalid) {
+    for (const sample of samplesOf(type).invalid) {
       const root = fixture();
       const result = push(root, type, [name, sample.doc]);
       assert.equal(result.status, 1, `${type}: ${sample.why}\n${result.out}`);
-      // The lock checks the approval of the criteria before the schema.
-      const before = type === 'acceptance-lock' ? 'approval, ' : '(compact JSON, )?';
+      // The lock checks the approval of the criteria before the schema, and the verification
+      // reads the criteria first.
+      const before = { 'acceptance-lock': 'approval, ', verification: 'criteria, ' }[type] ||
+        '(compact JSON, )?';
       assert.match(result.lines.at(-1),
         new RegExp(`^Checked ${type} \\(${name}\\): ${before}schema; `));
     }
@@ -684,18 +843,17 @@ test('build-plan: the text in quotes is the first sentence of the criterion', ()
   // sentences: after e.g. the sentence goes on.
   const eg = 'The saved reply for delayed orders lists the hours, e.g. Monday to Friday';
   const folder = fixture();
-  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(
-    'The saved reply for delayed orders lists the support hours as 8:00 to 20:00.',
-    `${eg}. It shows them in the reply.`));
+  const ac1 = (words) => recriteria(folder, 1, (list) => {
+    criterionOf(list, 'ac-1').text = words;
+  });
+  ac1(`${eg}. It shows them in the reply.`);
   passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${eg}"`))), 'build-plan');
   exactly(push(folder, 'build-plan', planFile(PLAN.replace(CR1,
     'AC-1, "The saved reply for delayed orders lists the hours, e.g"'))),
   quoteLine('AC-1', 'd-1 of build-plan.md', eg));
   // A quote after the full stop stays in the words.
   const closed = 'The saved reply for delayed orders says "Closed"';
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(`${eg}.`, 'The saved reply ' +
-    'for delayed orders says "Closed."'));
+  ac1('The saved reply for delayed orders says "Closed." It shows them in the reply.');
   passes(push(folder, 'build-plan', planFile(PLAN.replace(CR1, `AC-1, "${closed}"`))),
     'build-plan');
   // The first line stays within 100 characters, and the line of the words within 200. Words
@@ -704,8 +862,7 @@ test('build-plan: the text in quotes is the first sentence of the criterion', ()
   assert.ok(start.split('\n')[0].length <= 100, start);
   const sized = (size) => {
     const words = `The saved reply ${'a'.repeat(size - 'The saved reply '.length)}`;
-    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(
-      /\| ac-1 \| [^|]* \|/, `| ac-1 | ${words}. |`));
+    ac1(`${words}.`);
     return words;
   };
   // 31 characters before the words and 2 after them: 167 characters of words fit.
@@ -726,8 +883,8 @@ test('build-plan, verification and explainer: a quote inside the words stays in 
       const quoted = `AC-2, "${sentence}${end}"`;
       passes(push(withAc2(sentence), 'build-plan', planFile(PLAN.replace(CR2, quoted))),
         'build-plan');
-      passes(push(withAc2(sentence), 'verification', verificationFile(VERIFICATION.replace(CR2,
-        quoted))), 'verification');
+      passes(push(withAc2(sentence), 'verification', verificationFile(evidence(`${quoted}: met.`))),
+        'verification');
       passes(push(withAc2(sentence, explained), 'explainer', explainerFile(EXPLAINER.replace(
         CR2, quoted))), 'explainer');
     }
@@ -735,8 +892,9 @@ test('build-plan, verification and explainer: a quote inside the words stays in 
     const extra = `AC-2, "${sentence}" and more"`;
     exactly(push(withAc2(sentence), 'build-plan', planFile(PLAN.replace(CR2, extra))),
       quoteLine('AC-2', 'd-1 of build-plan.md', sentence));
-    exactly(push(withAc2(sentence), 'verification', verificationFile(VERIFICATION.replace(CR2,
-      extra))), quoteLine('AC-2', '## Matrix of verification.md', sentence));
+    // In an evidence, a quote ends after the words: words that go on are a difference.
+    exactly(push(withAc2(sentence), 'verification', verificationFile(evidence(`AC-2, ` +
+      `"${sentence} and more": met.`))), quoteLine('AC-2', EVIDENCE, sentence));
     exactly(push(withAc2(sentence, explained), 'explainer', explainerFile(EXPLAINER.replace(
       CR2, extra))), quoteLine('AC-2', 'the heading of explainer.md', sentence));
   }
@@ -861,30 +1019,25 @@ test('build-plan: one table in each section that the check reads', () => {
   }
 });
 
-test('build-plan and verification: another table before the table that the check reads', () => {
+test('build-plan: another table before the table that the check reads', () => {
   const note = '| Note |\n|---|\n| x |\n\n';
   const plan = PLAN.replace('| Id | Change |', `${note}| Id | Change |`);
-  const matrix = VERIFICATION.replace('| Criterion | State |', `${note}| Criterion | State |`);
   for (const mode of [push, check]) {
     exactly(mode(fixture(), 'build-plan', planFile(plan)), 'Remove the table with the columns ' +
       '"Note" from ## Deliverables of build-plan.md.\nThe check reads only the table with the ' +
       'columns Id, Change, Criteria, Files, Check.');
-    exactly(mode(fixture(), 'verification', verificationFile(matrix)), 'Remove the table with ' +
-      'the columns "Note" from ## Matrix of verification.md.\nThe check reads only the table ' +
-      'with the columns Criterion, State, Evidence.');
   }
 });
 
 test('build-plan, verification and demo-script read the approved version', () => {
   // Version 2 of the criteria, which a run stored, adds ac-5; index.json approves version 1 or
   // version 2.
-  const criteria = fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
-    .replace(/(\| ac-4 .*\n)/,
-      '$1| ac-5 | The corrected reply contains the order number. | Tests |\n');
+  const criteria = criteriaDoc((list) => list.push({ id: 'ac-5',
+    text: 'The corrected reply contains the order number.', check: 'Tests' }));
   const root = (approve) => {
     const folder = fixture();
     listed(folder, 'acceptance-criteria', 2, 'av_ac2');
-    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.md', criteria);
+    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.json', criteria);
     if (approve) {
       indexed(folder, (index) => {
         index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version =
@@ -894,7 +1047,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
     return folder;
   };
   const add = 'Add AC-5 to the Criteria of a deliverable of build-plan.md.\nNo row lists AC-5.';
-  const row = 'Give AC-5 one row in ## Matrix of verification.md.\nThe matrix has 0 rows of AC-5.';
+  const row = 'Add ac-5 to matrix or to not_verified of verification.json.\nIt is in neither.';
   for (const mode of [check, push]) {
     exactly(mode(root(true), 'build-plan', planFile(PLAN)), add);
     exactly(mode(root(true), 'verification', verificationFile(VERIFICATION)), row);
@@ -1125,6 +1278,20 @@ test('build-ledger: a withdrawal and a new push drop no row of the version befor
     'check again.');
 });
 
+test('build-ledger: a stored version of 10,000 levels exits 3 before the rows are compared', () => {
+  const deep = `${'['.repeat(10000)}${']'.repeat(10000)}`;
+  const stored = JSON.stringify(LEDGER).replace('"steps":[{', `"steps":[{"x":${deep},`);
+  for (const mode of [push, check]) {
+    const folder = fixture();
+    version(folder, 'build-ledger', 'main', 1, 'build-ledger.json', stored);
+    const result = mode(folder, 'build-ledger', ledgerFile(LEDGER));
+    assert.equal(result.status, 3, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), ['Report to a member: build-ledger version 1 ' +
+      'nests deeper than 64 levels.', '  The list at /steps/0/x/0/.../0/0/0/0/0/0 is 65 ' +
+      'levels deep.']);
+  }
+});
+
 test('build-ledger: each row of the newest version stays, but a running row may end', () => {
   const stored = clone(LEDGER);
   const root = () => {
@@ -1266,8 +1433,7 @@ function locked(doc = LOCK_DOC) {
 // to root, listed in index.json with fields.
 function criteriaVersion(root, number, fields) {
   listed(root, 'acceptance-criteria', number, `av_ac${number}`, fields);
-  version(root, 'acceptance-criteria', 'main', number, 'acceptance-criteria.md',
-    fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+  version(root, 'acceptance-criteria', 'main', number, 'acceptance-criteria.json', CRITERIA);
   return root;
 }
 
@@ -1699,8 +1865,7 @@ function big({ approved = null, persons = {}, folders = [], locks = [],
     artifact.approved_version = approved === null ? null : `av_ac${approved}`;
   });
   for (const number of folders) {
-    version(folder, 'acceptance-criteria', 'main', number, 'acceptance-criteria.md',
-      fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+    version(folder, 'acceptance-criteria', 'main', number, 'acceptance-criteria.json', CRITERIA);
   }
   locks.forEach(([criteria, at], place) => {
     version(folder, 'acceptance-lock', 'main', 998 + place, 'acceptance-lock.json',
@@ -1840,13 +2005,15 @@ test('acceptance-lock: each check is of a criterion planned as Tests', () => {
 
 test('acceptance-lock: the Tests criteria of the criteria version of the lock', () => {
   // Version 1 is approved; a person's version 2 adds ac-5 as Tests and plans ac-4 as a Demo.
-  const criteria = fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
-    .replace(/(\| ac-4 .*)\| Tests \|\n/,
-      '$1| Demo: Read the new hours |\n| ac-5 | The corrected reply contains the order number. | Tests |\n');
+  const criteria = criteriaDoc((list) => {
+    criterionOf(list, 'ac-4').check = 'Demo: Read the new hours';
+    list.push({ id: 'ac-5', text: 'The corrected reply contains the order number.',
+      check: 'Tests' });
+  });
   const root = () => {
     const folder = fixture();
     listed(folder, 'acceptance-criteria', 2, 'av_ac2', { writer: PERSON, at: LATER });
-    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.md', criteria);
+    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.json', criteria);
     return folder;
   };
   const doc = clone(LOCK_DOC);
@@ -1868,7 +2035,8 @@ test('acceptance-lock: the Tests criteria of the criteria version of the lock', 
   };
   doc.checks[0].criterion = 'ac-5';
   fails(check(missing(), 'acceptance-lock', lockFile(doc)),
-    /^Pull version 2 of the acceptance criteria, then check again\. The artifact folder has no acceptance-criteria\/main\/v2\/acceptance-criteria.md\.$/);
+    new RegExp('^Pull version 2 of the acceptance criteria, then check again\\. The artifact ' +
+      'folder has no acceptance-criteria/main/v2/acceptance-criteria\\.json\\.$'));
   const none = () => {
     const folder = missing();
     fs.rmSync(path.join(folder, 'acceptance-criteria'), { recursive: true });
@@ -2068,162 +2236,190 @@ test('screenshot: no pictures of a scenario whose script has the evidence film',
 
 // ---- verification -------------------------------------------------------------------------
 
-const verificationFile = (md) => ['verification.md', md];
+const verificationFile = (doc) => ['verification.json', doc];
+
+// AC3 is the first sentence of ac-3, with no full stop.
+const AC3 = 'The reply states that support is closed on 25 December';
+
+// withoutAc3 returns a fixture of make in which a person stored version 2 of the criteria,
+// which removes ac-3, and index.json approves it.
+function withoutAc3(make = fixture) {
+  const folder = make();
+  listed(folder, 'acceptance-criteria', 2, 'av_ac2', { writer: PERSON, at: LATER });
+  version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.json',
+    criteriaDoc((list) => {
+      criterionOf(list, 'ac-3').removed = { reason: 'The shop never closes.' };
+    }));
+  indexed(folder, (index) => {
+    index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version =
+      'av_ac2';
+  });
+  return folder;
+}
 
 test('verification: the matrix of the approved criteria passes check and push', () => {
   passes(push(fixture(), 'verification', verificationFile(VERIFICATION)), 'verification');
   passes(check(fixture(), 'verification', verificationFile(VERIFICATION)), 'verification');
-});
-
-test('verification: its six sections in order', () => {
-  const md = VERIFICATION.replace('## Lowered', '## Not lowered');
-  fails(push(fixture(), 'verification', verificationFile(md)),
-    /^Give verification.md the 6 sections of its type, in their order\. They are ## Summary, ## Matrix, ## Lowered, ## Not verified, /);
-});
-
-test('verification: one row per criterion, with a state of the three', () => {
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(/\| AC-2, .*\n/, ''))),
-    /^Give AC-2 one row in ## Matrix of verification.md\. The matrix has 0 rows of AC-2\.$/);
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| ac-1, "The reply'))),
-    /^Give AC-1 one row in ## Matrix of verification.md\. The matrix has 2 rows of AC-1\.$/);
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-2, "The reply', '| AC-9, "The reply'))),
-    /^Remove the row "AC-9" from ## Matrix of verification.md\. The acceptance criteria have no such criterion that is not removed\.$/);
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('20:00" | Met |', '20:00" | Passed |'))),
-    /^Set the state of AC-1 in verification.md to Met, Not met or Needs a person\. The state is "Passed"\.$/);
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| Evidence |', '| Proof |'))),
-    /^Put a table with the columns Criterion, State, Evidence in ## Matrix of verification.md\.$/);
-});
-
-test('verification: a row that needs a person states what to check and why', () => {
-  const row = (evidence) => VERIFICATION.replace(/(\| Needs a person \|) [^|\n]* \|/,
-    `$1 ${evidence} |`);
-  // The example of a row that needs a person, with no setup fault.
-  passes(push(fixture(), 'verification', verificationFile(row('Check that the printed ' +
-    'invoice fits on one A4 page, because the run could not print from the dev container.'))),
-    'verification');
-  const line = (value) => 'Write the Evidence of AC-3 in verification.md as a check for a ' +
-    'person.\nA check for a person has the form "Check <what>, because the run could not ' +
-    `<why>." The Evidence is ${value}.`;
+  // Each criterion in matrix, one of them not met, and a full id of 64 digits.
+  const all = verified((doc) => {
+    doc.target_version = H;
+    doc.matrix.splice(2, 0, { criterion: 'ac-3', state: 'not_met',
+      evidence: 'Film: demo-video scenario-1 v1, step 3 failed.' });
+    doc.not_verified = [];
+  });
   for (const mode of [push, check]) {
-    exactly(mode(fixture(), 'verification', verificationFile(row(''))), line('empty'));
-    exactly(mode(fixture(), 'verification', verificationFile(row('Needs a person.'))),
-      line('"Needs a person."'));
-    exactly(mode(fixture(), 'verification', verificationFile(row('No film: a setup fault.'))),
-      line('"No film: a setup fault."'));
+    passes(mode(fixture(), 'verification', verificationFile(all)), 'verification');
   }
-  // A row with no Evidence cell at all.
-  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
-    /(\| Needs a person \|) [^|\n]* \|/, '$1'))), line('empty'));
 });
 
-test('verification: the Criterion cell has the id in any case and the text in quotes', () => {
-  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace('| AC-1, ',
-    '| ac-1, '))), 'verification');
-  exactly(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(
-    /\| AC-1, "[^|]*" \|/, '| ac-1 |'))),
-  'Write the Criterion cell of AC-1 in verification.md as AC-1, "<first sentence>".\nThe cell ' +
-    'is "ac-1".');
-});
-
-test('verification: the text in quotes is the first sentence of the criterion', () => {
+test('verification: the members and values of its schema', () => {
+  const schemaLine = (change, line) => {
+    for (const mode of [push, check]) {
+      exactly(mode(fixture(), 'verification', verificationFile(verified(change))), line);
+    }
+  };
+  for (const member of ['target_version', 'matrix', 'not_verified', 'model_families']) {
+    schemaLine((doc) => { delete doc[member]; }, `Add the member ${member} to verification.json.`);
+  }
+  schemaLine((doc) => { doc.matrix[0].state = 'Met'; }, 'Set /matrix/0/state of ' +
+    'verification.json to a value that the schema lists.\nThe schema lists met, not_met. It is ' +
+    '"Met".');
+  schemaLine((doc) => { doc.model_families.push('claude'); }, 'Give /model_families of ' +
+    'verification.json each entry once.\n"claude" is there twice.');
+  schemaLine((doc) => { doc.model_families = []; }, 'Give /model_families of ' +
+    'verification.json at least 1 entry.\nIt has 0.');
+  schemaLine((doc) => { doc.not_verified[0].reason = ''; }, 'Write /not_verified/0/reason of ' +
+    'verification.json as text of at least 1 character.\nIt has 0.');
+  // A list of model families nested 10,000 levels deep is refused before uniqueItems compares
+  // its entries, with no stack overflow.
+  const deep = Buffer.from(JSON.stringify(verified(() => {}), null, 2).replace(
+    '"model_families": [', `"model_families": [${'['.repeat(10000)}${']'.repeat(10000)}, `));
   for (const mode of [push, check]) {
-    passes(mode(fixture(), 'verification', verificationFile(VERIFICATION)), 'verification');
-    exactly(mode(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
-      'AC-2, "The reply states the hours"'))),
-    quoteLine('AC-2', '## Matrix of verification.md', AC2));
+    exactly(mode(fixture(), 'verification', ['verification.json', deep]), 'Cut the nesting of ' +
+      'verification.json to 64 levels.\nThe list at /model_famili.../0/0/0/0/0/0 is 65 levels ' +
+      'deep.');
   }
-  // Backticks and runs of spaces do not count, and the id matches in any case.
-  passes(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(CR2,
-    `ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'verification');
+  // A criterion is its id: ac- and a number with no leading zero, in lower case.
+  for (const id of ['AC-1', 'ac-01', 'AC-1, "The saved reply"']) {
+    fails(push(fixture(), 'verification', verificationFile(verified((doc) => {
+      doc.matrix[0].criterion = id;
+    }))), /^Write \/matrix\/0\/criterion of verification\.json so that it matches its pattern\./);
+  }
+});
+
+test('verification: each live criterion once, in matrix or in not_verified', () => {
+  const twice = 'Keep ac-1 once in matrix or in not_verified of verification.json.\n';
+  const cases = [
+    [(doc) => doc.not_verified.push({ criterion: 'ac-1', reason: 'The film has no sound.' }),
+      `${twice}It is in matrix and in not_verified.`],
+    [(doc) => doc.matrix.push({ criterion: 'ac-1', state: 'not_met', evidence: 'Step 1 failed.' }),
+      `${twice}It is 2 times in matrix.`],
+    [(doc) => doc.not_verified.push({ criterion: 'ac-3', reason: 'The app did not start.' }),
+      'Keep ac-3 once in matrix or in not_verified of verification.json.\nIt is 2 times in ' +
+      'not_verified.'],
+    [(doc) => doc.matrix.splice(1, 1),
+      'Add ac-2 to matrix or to not_verified of verification.json.\nIt is in neither.'],
+    [(doc) => { doc.matrix[1].criterion = 'ac-9'; }, 'Remove ac-9 from matrix of ' +
+      'verification.json.\nThe acceptance criteria have no such criterion that is not removed.',
+    'Add ac-2 to matrix or to not_verified of verification.json.\nIt is in neither.'],
+    [(doc) => doc.not_verified.push({ criterion: 'ac-9', reason: 'No such criterion.' }),
+      'Remove ac-9 from not_verified of verification.json.\nThe acceptance criteria have no ' +
+      'such criterion that is not removed.'],
+  ];
+  for (const mode of [push, check]) {
+    for (const [change, ...lines] of cases) {
+      const result = mode(fixture(), 'verification', verificationFile(verified(change)));
+      assert.equal(result.status, 1, result.out);
+      assert.deepEqual(result.lines.slice(0, -1), lines.flatMap(printed), result.out);
+    }
+    // Version 2 of the criteria removes ac-3: the verification has no line of it.
+    passes(mode(withoutAc3(), 'verification', verificationFile(verified((doc) => {
+      doc.not_verified = [];
+    }))), 'verification');
+    exactly(mode(withoutAc3(), 'verification', verificationFile(VERIFICATION)), 'Remove ac-3 ' +
+      'from not_verified of verification.json.\nThe acceptance criteria have no such ' +
+      'criterion that is not removed.');
+  }
+});
+
+test('verification: target_version is the full id of the verified commit', () => {
+  const loaded = schema.load('verification');
+  for (const value of ['main', 'a1b2c3d', C2.toUpperCase(), `${C2}0`]) {
+    const doc = verified((one) => { one.target_version = value; });
+    // The schema accepts each value: its grammar fits a version of any target.
+    assert.deepEqual(schema.errors(loaded, doc, 'verification.json'), [], value);
+    for (const mode of [push, check]) {
+      exactly(mode(fixture(), 'verification', verificationFile(doc)), 'Set target_version of ' +
+        `verification.json to the verified commit's full id.\nIt is "${value}", and a full id ` +
+        'is 40 or 64 lower-case hexadecimal digits.');
+    }
+  }
+});
+
+// evidence returns VERIFICATION with text as the evidence of ac-2, and reason with text as the
+// reason of ac-3; EVIDENCE and REASON are their places in the findings.
+const evidence = (text) => verified((doc) => { doc.matrix[1].evidence = text; });
+const reason = (text) => verified((doc) => { doc.not_verified[0].reason = text; });
+const EVIDENCE = '/matrix/1/evidence of verification.json';
+const REASON = '/not_verified/0/reason of verification.json';
+
+test('verification: a criterion quoted in an evidence or a reason', () => {
+  for (const mode of [push, check]) {
+    exactly(mode(fixture(), 'verification', verificationFile(evidence('AC-2, "The hours" is ' +
+      'not met: the film shows weekdays only.'))), quoteLine('AC-2', EVIDENCE, AC2));
+    exactly(mode(fixture(), 'verification', verificationFile(reason('AC-3, "The closed day" ' +
+      'has no film: the setup failed.'))), quoteLine('AC-3', REASON, AC3));
+  }
+  // A quote as the criteria have it passes in any line, also wrapped, with a full stop at the
+  // end, or in prose; the check reads no other part of the text.
+  for (const doc of [
+    evidence(`${CR2}: the film shows it.`),
+    evidence(`The film shows the hours, so ac-2, "${AC2}." is met.`),
+    evidence('AC-2 is met.'),
+    reason(`AC-3, "${AC3.replace(' is closed', '\n  is closed')}" has no film.`),
+    reason(`AC-3, "${AC3}." has no film.`),
+    // Markdown around the id and its quote, a link, and 's after the quote.
+    evidence(`**${CR2}**: met, see "the film".`),
+    evidence(`[${CR2}](https://example.com/film)'s state is met.`),
+    evidence(`_${CR2}_: met.`),
+    // An id that the criteria do not have, and an id inside a longer word.
+    evidence('AC-9, "A criterion that the criteria do not have": met.'),
+    evidence('xac-2, "The hours" and foo-AC-2, "The hours" are no ids.'),
+  ]) {
+    passes(push(fixture(), 'verification', verificationFile(doc)), 'verification');
+  }
+  const wrong = (doc, line) => exactly(push(fixture(), 'verification', verificationFile(doc)),
+    line);
+  const hours = quoteLine('AC-2', EVIDENCE, AC2);
+  // Markdown around a wrong quote, in bold or italics, does not hide it.
+  wrong(evidence('**AC-2, "The hours"**: met.'), hours);
+  wrong(evidence('_AC-2, "The hours"_: met.'), hours);
+  // A wrapped wrong quote, and one line for two wrong quotes of one criterion.
+  wrong(reason('AC-3, "The closed\n  day" has no film.'), quoteLine('AC-3', REASON, AC3));
+  wrong(evidence('AC-2, "The hours": met, as AC-2, "The hours" was.'), hours);
+  // A quote that starts with the words and goes on is wrong.
+  wrong(evidence(`AC-2, "${AC2} and more": met.`), hours);
+  // A quote inside the first sentence stays in the words, at its start, in its middle and at
+  // its end, also with a full stop after it.
+  for (const sentence of ['"Export" saves a CSV file', 'The "Export" button saves a CSV file',
+    'The reply says "Open every day"']) {
+    const folder = withAc2(sentence);
+    for (const end of ['', '.']) {
+      passes(push(folder, 'verification', verificationFile(evidence(`AC-2, "${sentence}${end}": ` +
+        'met.'))), 'verification');
+    }
+    exactly(push(folder, 'verification', verificationFile(evidence('AC-2, "The "Export": met.'))),
+      quoteLine('AC-2', EVIDENCE, sentence));
+  }
 });
 
 // withAc2 returns a fixture whose approved criteria give ac-2 the one sentence sentence, and
 // with make, a fixture of another kind, such as explained.
 function withAc2(sentence, make = fixture) {
   const folder = make();
-  const file = path.join(folder, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/\| ac-2 \| [^|]* \|/,
-    `| ac-2 | ${sentence}. |`));
+  recriteria(folder, 1, (list) => { criterionOf(list, 'ac-2').text = `${sentence}.`; });
   return folder;
 }
-
-test('verification: a criterion quoted in ## Lowered or ## Not verified', () => {
-  const AC3 = 'The reply states that support is closed on 25 December';
-  const lowered = (text) => VERIFICATION.replace('## Lowered\n\n- None.', `## Lowered\n\n${text}`);
-  const unverified = (quoted) => VERIFICATION.replace(/(## Not verified\n\n- AC-3, )"[^"]*"/,
-    `$1"${quoted}"`);
-  for (const mode of [push, check]) {
-    exactly(mode(fixture(), 'verification', verificationFile(lowered('- AC-2, "The hours": ' +
-      'lowered from Met to Not met. The film shows weekdays only.'))),
-    quoteLine('AC-2', '## Lowered of verification.md', AC2));
-    exactly(mode(fixture(), 'verification', verificationFile(unverified('The closed day'))),
-      quoteLine('AC-3', '## Not verified of verification.md', AC3));
-  }
-  // A quote as the criteria have it passes in any line, also wrapped, with a full stop at the
-  // end, or in prose; the check reads no other part of the lines.
-  for (const md of [
-    lowered(`- ${CR2}: lowered from Met to Not met. The film shows weekdays only.`),
-    lowered(`The film shows weekdays only, so ac-2, "${AC2}." is not met.`),
-    lowered('- AC-2 was lowered.'),
-    unverified(AC3.replace(' is closed', '\n  is closed')),
-    unverified(`${AC3}.`),
-    // Markdown around the id and its quote, a link, and 's after the quote.
-    lowered(`- **${CR2}**: lowered from Met to Not met, see "the film".`),
-    lowered(`- [${CR2}](https://example.com/film)'s state is lowered.`),
-    lowered(`- _${CR2}_: lowered from Met to Not met.`),
-    // An id that the criteria do not have, and an id inside a longer word.
-    lowered('- AC-9, "A criterion that the criteria do not have": lowered.'),
-    lowered('- xac-2, "The hours" and foo-AC-2, "The hours" are no ids.'),
-  ]) {
-    passes(push(fixture(), 'verification', verificationFile(md)), 'verification');
-  }
-  const wrong = (md, line) => exactly(push(fixture(), 'verification', verificationFile(md)), line);
-  const hours = quoteLine('AC-2', '## Lowered of verification.md', AC2);
-  // Markdown around a wrong quote, in bold or italics, does not hide it.
-  wrong(lowered('- **AC-2, "The hours"**: lowered.'), hours);
-  wrong(lowered('- _AC-2, "The hours"_: lowered.'), hours);
-  // A wrapped wrong quote, and one line for two wrong quotes of one criterion.
-  wrong(unverified('The closed\n  day'),
-    quoteLine('AC-3', '## Not verified of verification.md', AC3));
-  wrong(lowered('- AC-2, "The hours": lowered, as AC-2, "The hours" was.'), hours);
-  // A quote that starts with the words and goes on is wrong.
-  wrong(lowered(`- AC-2, "${AC2} and more": lowered.`), hours);
-  // A quote inside the first sentence stays in the words, at its start, in its middle and at
-  // its end, also with a full stop after it.
-  const said = 'The reply says "Open every day"';
-  for (const sentence of ['"Export" saves a CSV file', 'The "Export" button saves a CSV file',
-    said]) {
-    const folder = withAc2(sentence);
-    for (const end of ['', '.']) {
-      passes(push(folder, 'verification', verificationFile(lowered(`- AC-2, "${sentence}${end}": ` +
-        'lowered.').replace(CR2, `AC-2, "${sentence}${end}"`))), 'verification');
-    }
-    exactly(push(folder, 'verification', verificationFile(lowered('- AC-2, "The "Export": ' +
-      'lowered.').replace(CR2, `AC-2, "${sentence}"`))),
-    quoteLine('AC-2', '## Lowered of verification.md', sentence));
-  }
-});
-
-test('verification: one table in ## Matrix', () => {
-  // A second table after the matrix, with a row of ac-1 that is not met.
-  const md = VERIFICATION.replace('\n## Lowered', '\n| Criterion | State | Evidence |\n' +
-    '|---|---|---|\n| ac-1 | Not met | Film: demo-video scenario-1 v1, step 1 failed. |\n\n' +
-    '## Lowered');
-  for (const mode of [push, check]) {
-    exactly(mode(fixture(), 'verification', verificationFile(md)),
-      'Put the rows of ## Matrix of verification.md in one table: it has 2 tables.');
-  }
-});
-
-test('verification: the line of the verified commit', () => {
-  for (const mode of [push, check]) {
-    exactly(mode(fixture(), 'verification', verificationFile(VERIFICATION.replace(
-      `Commit: ${C2}. `, ''))), 'Start a line of ## Summary of verification.md with "Commit: " ' +
-      `and the verified commit's full id.`);
-  }
-  fails(push(fixture(), 'verification', verificationFile(VERIFICATION.replace(`Commit: ${C2}`, 'Commit: a1b2c3d'))),
-    /^Start a line of ## Summary of verification.md with "Commit: " and the verified commit's full id\.$/);
-});
 
 // ---- explainer ----------------------------------------------------------------------------
 
@@ -2232,7 +2428,7 @@ const explainerFile = (md) => ['explainer.md', md];
 // explained returns a fixture with VERIFICATION as verification version 1.
 function explained() {
   const folder = fixture();
-  version(folder, 'verification', 'main', 1, 'verification.md', VERIFICATION);
+  version(folder, 'verification', 'main', 1, 'verification.json', VERIFICATION);
   return folder;
 }
 
@@ -2284,12 +2480,13 @@ test('explainer: each claim ends with its source', () => {
     /^End the claim "- The job sends o\.\.\.r, the job file\." in ## AC-4 of explainer\.md with its source\. The source is a path:line or a matrix row\. The claim is "- The job sends one reply per customer, the job file\."\.$/);
   for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
     '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.',
-    '(matrix row ac-4)']) {
+    '(matrix row ac-4)', 'matrix row ac-1234.']) {
     passes(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), 'explainer');
   }
   for (const source of ['`jobs/corrected-reply.ts`.', 'jobs/corrected-reply.ts:0',
-    'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)']) {
+    'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)',
+    'matrix row ac-04.', 'matrix row ac-10000.']) {
     fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(
       '`jobs/corrected-reply.ts:10-24`.', source))), /^End the claim "- The job sends/);
   }
@@ -2297,46 +2494,48 @@ test('explainer: each claim ends with its source', () => {
     '- The film shows them, matrix row ac-1.', '- x (matrix row ac-2)'))), 'explainer');
 });
 
-test('explainer: the commit of the verification', () => {
+test('explainer: the commit of the verification is its target_version', () => {
+  const ofC1 = verified((doc) => { doc.target_version = C1; });
   const root = fixture();
-  version(root, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
+  version(root, 'verification', 'main', 1, 'verification.json', ofC1);
   fails(push(root, 'explainer', explainerFile(EXPLAINER)),
     new RegExp(`^Set the commit of explainer.md to ${C1}\\. That id is the verified commit, and ` +
       `explainer.md has ${C2}\\.$`));
   // A push reads the newest verification, version 2 here, which verified C2.
   const newer = fixture();
-  version(newer, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
-  version(newer, 'verification', 'main', 2, 'verification.md', VERIFICATION);
+  version(newer, 'verification', 'main', 1, 'verification.json', ofC1);
+  version(newer, 'verification', 'main', 2, 'verification.json', VERIFICATION);
   passes(push(newer, 'explainer', explainerFile(EXPLAINER)), 'explainer');
   fails(push(newer, 'explainer', explainerFile(EXPLAINER.replace(C2, C1))),
     new RegExp(`^Set the commit of explainer.md to ${C2}\\. That id is the verified commit, and ` +
       `explainer.md has ${C1}\\.$`));
-  // In a check, the draft verification.md at the top of the folder is the verification.
+  // In a check, the draft verification.json at the top of the folder is the verification.
   const top = fixture();
-  version(top, 'verification', 'main', 1, 'verification.md', VERIFICATION.replace(C2, C1));
-  write(top, 'verification.md', VERIFICATION);
+  version(top, 'verification', 'main', 1, 'verification.json', ofC1);
+  write(top, 'verification.json', VERIFICATION);
   passes(check(top, 'explainer', explainerFile(EXPLAINER)), 'explainer');
   fails(push(explained(), 'explainer', explainerFile(EXPLAINER.replace(`Commit: ${C2}`, 'Commit:'))),
     /^Start a line of ## Summary of explainer.md with "Commit: "/);
 });
 
 test('explainer: a verification with no full verified commit is a finding', () => {
-  const line = 'Start a line of ## Summary of verification.md with "Commit: " and the ' +
-    'verified commit\'s full id.\nThen push verification.md and explainer.md again.';
-  for (const verification of [VERIFICATION.replace(`Commit: ${C2}. `, ''),
-    VERIFICATION.replace(`Commit: ${C2}`, 'Commit: a1b2c3d'),
-    VERIFICATION.replace('## Summary', '## Overview')]) {
+  const line = 'Set target_version of verification.json to the verified commit\'s full id.\n' +
+    'Then push verification.json and explainer.md again.';
+  // A target_version that is no full commit id, none, and a file that is no JSON object.
+  for (const verification of [verified((doc) => { doc.target_version = 'main'; }),
+    verified((doc) => { doc.target_version = 'a1b2c3d'; }),
+    verified((doc) => { delete doc.target_version; }), 'Commit: a1b2c3d', [C2]]) {
     const stored = () => {
       const folder = fixture();
-      version(folder, 'verification', 'main', 1, 'verification.md', verification);
+      version(folder, 'verification', 'main', 1, 'verification.json', verification);
       return folder;
     };
     for (const mode of [check, push]) {
       exactly(mode(stored(), 'explainer', explainerFile(EXPLAINER)), line);
     }
-    // In a check, the draft verification.md at the top of the folder is the verification.
+    // In a check, the draft verification.json at the top of the folder is the verification.
     const top = explained();
-    write(top, 'verification.md', verification);
+    write(top, 'verification.json', verification);
     exactly(check(top, 'explainer', explainerFile(EXPLAINER)), line);
   }
 });
@@ -2371,6 +2570,11 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
       '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
       '## Risk on merge'))), 'Remove the section ## AC-9 from explainer.md.\nThe ' +
       'acceptance criteria have no such criterion that is not removed.');
+    // An id has up to four digits, as every criterion id has.
+    exactly(mode(explained(), 'explainer', explainerFile(EXPLAINER.replace('## Risk on merge',
+      '## AC-1234, "A criterion that the criteria do not have"\n\n- A claim, matrix row ' +
+      'ac-1.\n\n## Risk on merge'))), 'Remove the section ## AC-1234 from explainer.md.\nThe ' +
+      'acceptance criteria have no such criterion that is not removed.');
   }
   // The text in quotes of a heading is the first sentence of the criterion, with no regard to
   // backticks, runs of spaces and the case of the id.
@@ -2387,19 +2591,7 @@ test('explainer: a section per live criterion, of a live criterion, once', () =>
   fails(result, /^Give AC-1 one section in explainer\.md\. It has 2\.$/);
   fails(result, /^Give explainer\.md ## Summary, ## AC-<N>, "<first sentence>" by number, /);
   // A removed criterion has no section: version 2 of the criteria removes ac-3.
-  const removed = () => {
-    const folder = explained();
-    listed(folder, 'acceptance-criteria', 2, 'av_ac2', { writer: PERSON, at: LATER });
-    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.md',
-      fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8')
-        .replace(/\| ac-3 \| .* \|\n/,
-          '| ac-3 | Removed, because the shop never closes. | None |\n'));
-    indexed(folder, (index) => {
-      index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version =
-        'av_ac2';
-    });
-    return folder;
-  };
+  const removed = () => withoutAc3(explained);
   const noThree = explainerFile(EXPLAINER.replace(/## AC-3, [^]*?(?=## AC-4)/, ''));
   // Check and push read the approved version 2, the newest, and agree.
   for (const mode of [push, check]) {
@@ -2421,7 +2613,7 @@ test('explainer: a push with no verification version is a finding', () => {
 
 // ---- The criteria version that the checks read -------------------------------------------
 
-// READERS has, for each Markdown type that reads the criteria, its file and its words.
+// READERS has, for each type but the lock that reads the criteria, its file and its words.
 const READERS = [
   ['build-plan', planFile(PLAN), 'the build plan'],
   ['verification', verificationFile(VERIFICATION), 'the verification'],
@@ -2450,8 +2642,7 @@ const third = (mounted) => () => {
   const folder = criteriaVersion(explained(), 2, { writer: PERSON, at: LATER });
   listed(folder, 'acceptance-criteria', 3, 'av_ac3', { at: LATEST });
   if (mounted) {
-    version(folder, 'acceptance-criteria', 'main', 3, 'acceptance-criteria.md',
-      fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+    version(folder, 'acceptance-criteria', 'main', 3, 'acceptance-criteria.json', CRITERIA);
   }
   return folder;
 };
@@ -2500,7 +2691,8 @@ test('build-plan, verification and explainer: no criteria version in index.json'
   };
   for (const [type, file, what] of READERS) {
     exactly(check(unpulled(), type, file), 'Pull version 1 of the acceptance criteria, then ' +
-      'check again.\nThe artifact folder has no acceptance-criteria/main/v1/acceptance-criteria.md.');
+      'check again.\nThe artifact folder has no ' +
+      'acceptance-criteria/main/v1/acceptance-criteria.json.');
     exactly(push(unpulled(), type, file), `Store the acceptance criteria before you push ${what}.` +
       '\nThe push check found no version of them.');
   }
@@ -2599,9 +2791,11 @@ test('build-plan, verification, explainer and acceptance-lock: the line for a me
   const faults = [
     ['build-plan', planFile(PLAN.replace('## Commands', '## Command list')), 'the build plan'],
     ['build-plan', planFile(PLAN.replace(/\| d-2 .*\n/, '')), 'the build plan'],
-    ['verification', verificationFile(VERIFICATION.replace(/\| Criterion \|[^]*?\n\n/, '')),
+    ['verification', verificationFile(verified((doc) => doc.matrix.splice(1, 1))),
       'the verification'],
-    ['verification', verificationFile(VERIFICATION.replace('## Lowered', '## Lowered x')),
+    ['verification', verificationFile(verified((doc) => { doc.target_version = 'main'; })),
+      'the verification'],
+    ['verification', verificationFile(verified((doc) => { delete doc.matrix; })),
       'the verification'],
     ['explainer', explainerFile(EXPLAINER.replace(/## AC-2, [^]*?(?=## AC-3)/, '')),
       'the explainer'],
@@ -2669,7 +2863,7 @@ test('every finding line of the types of Build and Verify but a quote has at mos
   const LIST = Array.from({ length: 80 }, (_, place) => place);
   for (const type of JSON_TYPES) {
     const name = type.startsWith('demo-') ? 'scenario-1.json' : `${type}.json`;
-    for (const sample of [...SAMPLES[type].valid, ...SAMPLES[type].invalid]) {
+    for (const sample of [...samplesOf(type).valid, ...samplesOf(type).invalid]) {
       run(withScript, type, [name, stretched(sample.doc)]);
       run(withScript, type, [name, sample.doc]);
       // Control characters, lists and objects in place of each value.
@@ -2716,14 +2910,14 @@ test('every finding line of the types of Build and Verify but a quote has at mos
   for (const md of [heading(REPORT_FULL, 'Steps'), `${REPORT_FULL}\n## ${LONG}\n`]) {
     run(fixture, 'build-report', ['build-report.md', md]);
   }
-  for (const md of [heading(VERIFICATION, 'Lowered'), heading(VERIFICATION, 'Summary'),
-    VERIFICATION.replace(/\| AC-2, "[^|]*" \| Met \| [^|]* \|/, `| ${LONG} | ${LONG} |`),
-    VERIFICATION.replace(/\| AC-3, "[^|]*" \| Needs a person \| [^|]* \|/,
-      `| AC-3, "${LONG}" | Needs a person | ${LONG} |`),
-    VERIFICATION.replace('## Lowered\n\n- None.', `## Lowered\n\n- ${LONG}\n- AC-2, "${LONG}": ` +
-      `lowered from Met to Needs a person. ${LONG}`),
-    `${VERIFICATION.replace('Commit: ', `Commit: ${LONG}`)}\n| ${LONG} |\n|---|\n`]) {
-    run(fixture, 'verification', ['verification.md', md]);
+  // A verification with a long target_version, evidence and reason, and long quotes.
+  for (const doc of [verified((one) => { one.target_version = 'x'.repeat(255); }),
+    verified((one) => {
+      one.matrix[1].evidence = `AC-2, "${LONG}": ${LONG}`;
+      one.matrix.push({ criterion: 'ac-9999', state: 'met', evidence: LONG });
+      one.not_verified.push({ criterion: 'ac-1', reason: `AC-1, "${LONG}" ${LONG}` });
+    })]) {
+    run(fixture, 'verification', verificationFile(doc));
   }
   for (const md of [heading(EXPLAINER, 'Risk on merge'), heading(EXPLAINER, 'Summary'),
     EXPLAINER.replace('## AC-2, "The reply', `## AC-2, "${LONG}"\n\n${LONG}\n\n- ${LONG}\n\n## AC-99, "${LONG}"\n\n## AC-2, "The reply`),
@@ -2737,8 +2931,7 @@ test('every finding line of the types of Build and Verify but a quote has at mos
     const folder = explained();
     listed(folder, 'acceptance-criteria', 1e20, 'av_ac_huge', { writer: PERSON, at: LATER });
     if (stored) {
-      version(folder, 'acceptance-criteria', 'main', 1e20, 'acceptance-criteria.md',
-        fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+      version(folder, 'acceptance-criteria', 'main', 1e20, 'acceptance-criteria.json', CRITERIA);
     }
     if (above) {
       listed(folder, 'acceptance-criteria', 1e20 + 32768, 'av_ac_above',

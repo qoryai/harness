@@ -1,6 +1,6 @@
 ---
 name: checking-shape
-description: Load before you read a Shape run's outputs together. Contains the steps of the read across outputs, the match of planned checks and demo scenarios, which wins when a criterion and a mockup page differ, where each finding goes, and the check list.
+description: Load before you read a Shape run's outputs together. Contains the steps of the read across outputs, the match of the criteria's checks and demo scenarios, which wins when a criterion and a mockup page differ, where each finding goes, and the check list.
 ---
 
 # Checking Shape
@@ -31,10 +31,10 @@ as the steps below ask for it.
 3. Choice against record. Each choice of how to build that the spec leaves open has a
    decision. A line of "Checks:" on a "Rests on:" or "Question:" line is a finding for
    `write-technical-decisions`.
-4. Planned checks against demo scenarios. A line of "Checks:" on a planned demo or a
+4. Checks of the criteria against demo scenarios. A line of "Checks:" on a planned demo or a
    `Shows:` line, such as a missing scenario, or a scenario that is not removed and is extra
-   or lists other ids, is a finding for `write-demo-scenarios`. A planned check "Tests" for
-   a criterion that a person can see in the UI, or "Demo" for one that no one can see, is a
+   or lists other ids, is a finding for `write-demo-scenarios`. A check "Tests" for a
+   criterion that a person can see in the UI, or "Demo" for one that no one can see, is a
    finding for `write-specs`. Each screen that a step cites is in `screens.json`.
 5. Criterion against page. Compare the `ac-N` ids that each screen lists with what its
    page shows. Where they differ, the criterion applies, and the mockup states that in

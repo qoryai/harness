@@ -77,8 +77,8 @@ function indexed(root, change) {
 function artifacts() {
   const root = next('artifacts');
   fs.cpSync(TESTDATA, root, { recursive: true });
-  const criteria = fs.readFileSync(path.join(root, 'acceptance-criteria.md'), 'utf8');
-  writeJson(path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md'),
+  const criteria = fs.readFileSync(path.join(root, 'acceptance-criteria.json'), 'utf8');
+  writeJson(path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json'),
     criteria);
   indexed(root, (index) => {
     index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version = 'av_ac1';
@@ -117,8 +117,9 @@ function stored(root, number, doc, fields = {}) {
 // criteriaVersion adds version number of the acceptance criteria, with the text of version 1.
 function criteriaVersion(root, number, fields) {
   listed(root, 'acceptance-criteria', number, fields);
-  writeJson(path.join(root, 'acceptance-criteria', 'main', `v${number}`, 'acceptance-criteria.md'),
-    fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+  const file = path.join(root, 'acceptance-criteria', 'main', `v${number}`,
+    'acceptance-criteria.json');
+  writeJson(file, fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.json'), 'utf8'));
   return root;
 }
 
@@ -620,8 +621,8 @@ test('the first line of each refusal of a repository has at most 100 characters'
   cases.push([unlisted2, PASS_VERSION, /^  index\.json lists no version 999999999\.$/]);
   const store = artifacts();
   listed(store, 'acceptance-criteria', LONGEST);
-  const draft = path.join(next('files'), 'acceptance-criteria.md');
-  writeJson(draft, fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.md'), 'utf8'));
+  const draft = path.join(next('files'), 'acceptance-criteria.json');
+  writeJson(draft, fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.json'), 'utf8'));
   const lacks = call({ cwd: store, artifacts: [] }, ['push', 'acceptance-criteria', draft]);
   cases.push([lacks, `Run \`qory artifact pull acceptance-criteria --version ${LONGEST}\`, ` +
     'then check again.', /^  The store lacks acceptance-criteria version 999999999, the newest /]);
@@ -783,6 +784,28 @@ test('a repository with a part . or .. fails the JSON Schema of the lock', () =>
     assert.match(result.lines.at(-1), /^Locked nothing: Checked acceptance-lock/, repository);
     assert.deepEqual(result.calls, [], repository);
   }
+});
+
+test('a check of ac-123 passes the JSON Schema of the lock, and ac-10000 fails it', () => {
+  // The criteria plan ac-123 as Tests in place of ac-4, in the folder and in the store.
+  const root = artifacts();
+  for (const file of [path.join(root, 'acceptance-criteria.json'),
+    path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json')]) {
+    writeJson(file, fs.readFileSync(file, 'utf8').replace('"ac-4"', '"ac-123"'));
+  }
+  const draft = clone(DRAFT);
+  draft.checks[0].criterion = 'ac-123';
+  const result = lock(root, working(), draft);
+  exitsWith(result, 0);
+  assert.equal(readJson(result.file).checks[0].criterion, 'ac-123');
+  assert.equal(result.calls.length, 1);
+  draft.checks[0].criterion = 'ac-10000';
+  const long = lock(artifacts(), working(), draft);
+  assert.equal(long.status, 1, long.out);
+  assert.ok(long.lines.some((line) => line.includes('/checks/0/criterion of acceptance-lock.json')),
+    long.out);
+  assert.match(long.lines.at(-1), /^Locked nothing: Checked acceptance-lock/);
+  assert.deepEqual(long.calls, []);
 });
 
 test('lock refuses a file or a folder that cannot be read', { skip: process.getuid &&
@@ -1314,7 +1337,7 @@ const contextOf = (root) => new LIB.Context(root, 'check', '/tmp');
 test('a criteria version of a cancelled run is no newest version, no upload and no approval', () => {
   // Version 2 of a cancelled run is the newest version by number.
   const run = criteriaVersion(artifacts(), 2, { cancelled: true, at: LATER });
-  assert.equal(contextOf(run).newest('acceptance-criteria', 'acceptance-criteria.md').number, 1);
+  assert.equal(contextOf(run).newest('acceptance-criteria', 'acceptance-criteria.json').number, 1);
   assert.equal(LIB.newestCriteria(contextOf(run)), 1);
   // A person's upload in a cancelled run is no upload.
   const person = criteriaVersion(artifacts(), 2, { cancelled: true, writer: PERSON, at: LATER });
@@ -1471,7 +1494,7 @@ test('every type family exits 3 when the store lacks the newest version that cou
     same('questions', 'questions.json'),
     same('review-comments', 'review-comments.json'),
     // The documents of software-factory.
-    same('acceptance-criteria', 'acceptance-criteria.md'),
+    same('acceptance-criteria', 'acceptance-criteria.json'),
     same('decision-record', 'decision-record.md'),
     same('demo-scenarios', 'demo-scenarios.md'),
     // The types of Build and Verify, and a type of several names.

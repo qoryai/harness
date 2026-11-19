@@ -25,7 +25,7 @@ let folders = 0;
 const FILES = {
   proposal: ['proposal.md', 'sources.json', 'delayed-order-reply.svg'],
   spec: ['spec.md'],
-  'acceptance-criteria': ['acceptance-criteria.md'],
+  'acceptance-criteria': ['acceptance-criteria.json'],
   'decision-record': ['decision-record.md'],
   'demo-scenarios': ['demo-scenarios.md'],
   questions: ['questions.json'],
@@ -71,6 +71,47 @@ function version(root, type, number, file, text) {
 
 function write(root, file, text) {
   fs.writeFileSync(path.join(root, file), typeof text === 'string' ? text : JSON.stringify(text));
+}
+
+const CRITERIA = 'acceptance-criteria.json';
+const CRITERIA_TEXT = fs.readFileSync(path.join(TESTDATA, CRITERIA), 'utf8');
+
+// row returns a criterion of acceptance-criteria.json; with a reason, a removed one.
+function row(id, text, check = 'Tests', reason) {
+  return { id, text, check, ...(reason === undefined ? {} : { removed: { reason } }) };
+}
+
+// criteriaText returns data as acceptance-criteria.json, as the testdata writes it: one
+// criterion per line, so that an edit of one line changes one criterion.
+function criteriaText(data) {
+  const inline = (value) => (value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? `{${Object.entries(value).map(([key, one]) => `"${key}": ${inline(one)}`).join(', ')}}`
+    : JSON.stringify(value));
+  const { criteria, ...rest } = data;
+  const members = Object.entries(rest)
+    .map(([key, value]) => `  "${key}": ${JSON.stringify(value)}`);
+  const list = (criteria || []).map((one) => `    ${inline(one)}`).join(',\n');
+  return `{\n${[...members, `  "criteria": [\n${list}\n  ]`].join(',\n')}\n}\n`;
+}
+
+// editCriteria returns the fixture edit that applies change to the parsed criteria, as it
+// changes them in place.
+const editCriteria = (change) => [CRITERIA, /^[\s\S]*$/, (text) => {
+  const data = JSON.parse(text);
+  change(data);
+  return criteriaText(data);
+}];
+
+// setCriterion returns the fixture edit that merges fields into the criterion id.
+const setCriterion = (id, fields) => editCriteria((data) => {
+  Object.assign(data.criteria.find((one) => one.id === id), fields);
+});
+
+// withCriteria returns the parsed testdata criteria, changed by change.
+function withCriteria(change) {
+  const data = JSON.parse(CRITERIA_TEXT);
+  change(data);
+  return criteriaText(data);
 }
 
 function call(deps, argv) {
@@ -758,15 +799,19 @@ test('spec: each part opens with a Rule, Today, After table', () => {
   fails(push(root, 'spec'), /^Open the part ".*" of spec\.md with a Rule, Today, After table\.$/);
 });
 
-test('criteria: only ## Summary, then the table, and nothing after it', () => {
-  fails(push(fixture(['acceptance-criteria.md', '## Summary', '## Background']), 'acceptance-criteria'),
-    /only the section ## Summary\. It has ## Background/);
-  const bare = fixture();
-  write(bare, 'acceptance-criteria.md', '## Summary\n\nNo table.\n');
-  fails(push(bare, 'acceptance-criteria'), /^Put the table of criteria after the summary of acceptance-criteria\.md\. The table has the columns Id, Criterion/);
+test('criteria: only the members summary and criteria, as the schema has them', () => {
+  fails(push(fixture(editCriteria((data) => { data.background = 'More.'; })),
+    'acceptance-criteria'), /^Remove the member "background" from acceptance-criteria\.json\. /);
+  fails(push(fixture(editCriteria((data) => { data.criteria = []; })), 'acceptance-criteria'),
+    /^Give \/criteria of acceptance-criteria\.json at least 1 entry\. It has 0\.$/);
+  fails(push(fixture(editCriteria((data) => { delete data.summary; })), 'acceptance-criteria'),
+    /^Add the member summary to acceptance-criteria\.json\.$/);
   const root = fixture();
-  fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), '\nOne more line.\n');
-  fails(push(root, 'acceptance-criteria'), /the file ends with the table/);
+  fs.appendFileSync(path.join(root, CRITERIA), '\nOne more line.\n');
+  const after = push(root, 'acceptance-criteria');
+  // Text after the JSON is no JSON: the push reads no input.
+  assert.equal(after.status, 3, after.out);
+  assert.equal(after.lines[0], 'Write acceptance-criteria.json as valid JSON.');
 });
 
 test('scenarios: only ## Summary', () => {
@@ -852,7 +897,7 @@ test('scenarios: the Evidence check reads CRLF line ends and blank lines at the 
 });
 
 test('scenarios: a removed scenario has no Evidence line', () => {
-  const removed = fixture(['acceptance-criteria.md', '| Demo: Read the closed day |', '| Tests |']);
+  const removed = fixture([CRITERIA, '"check": "Demo: Read the closed day"', '"check": "Tests"']);
   const text = fs.readFileSync(path.join(removed, 'demo-scenarios.md'), 'utf8');
   const second = text.indexOf('### scenario-2:');
   write(removed, 'demo-scenarios.md', `${text.slice(0, second)}### scenario-2: Read the closed day\n\nRemoved, because it ended.\n`);
@@ -860,7 +905,7 @@ test('scenarios: a removed scenario has no Evidence line', () => {
 });
 
 // NO_DEMO plans every criterion of the testdata as Tests, so that no scenario is left.
-const NO_DEMO = ['acceptance-criteria.md', /\| Demo: [^|]*\|/g, '| Tests |'];
+const NO_DEMO = [CRITERIA, /"check": "Demo: [^"]*"/g, '"check": "Tests"'];
 const SCENARIOS = fs.readFileSync(path.join(TESTDATA, 'demo-scenarios.md'), 'utf8');
 
 // withScenarios returns a fixture with the edits, where version 1 of demo-scenarios is the
@@ -1495,19 +1540,18 @@ test('at most 3 points per part', () => {
 });
 
 test('criteria: one sentence of at most 25 words', () => {
-  const root = fixture(
-    ['acceptance-criteria.md', /\| ac-1 \| [^|]*\|/, `| ac-1 | ${many(26)}. |`],
-    ['acceptance-criteria.md', /\| ac-4 \| [^|]*\|/, '| ac-4 | One. Two. |'],
-  );
+  const root = fixture(setCriterion('ac-1', { text: `${many(26)}.` }),
+    setCriterion('ac-4', { text: 'One. Two.' }));
   const result = push(root, 'acceptance-criteria');
-  fails(result, /^Cut ac-1 in acceptance-criteria.md to 25 words\. It has 26 words\.$/);
-  fails(result, /^Write ac-4 in acceptance-criteria.md as one sentence\. It has 2 sentences\.$/);
+  fails(result, /^Cut the text of ac-1 in acceptance-criteria\.json to 25 words\. It has 26 /);
+  fails(result,
+    /^Write the text of ac-4 in acceptance-criteria\.json as one sentence\. It has 2 sentences\.$/);
 });
 
 test('criteria: more than 7 is no finding, and the last line states the count', () => {
-  const rows = [5, 6, 7, 8].map((n) => `| ac-${n} | The reply states the hours. | Tests |`).join('\n');
-  const root = fixture();
-  fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), `${rows}\n`);
+  const root = fixture(editCriteria((data) => {
+    data.criteria.push(...[5, 6, 7, 8].map((n) => row(`ac-${n}`, 'The reply states the hours.')));
+  }));
   const result = push(root, 'acceptance-criteria');
   passes(result);
   assert.match(result.lines.at(-1), /; 8 criteria that are not removed; 0 findings\.$/);
@@ -1556,41 +1600,124 @@ test('replies: only new replies count, at most 80 words', () => {
 
 // ---- Ids ----------------------------------------------------------------------------------
 
-test('criteria: ac-N, one row each, a removed row with its reason, and a planned check', () => {
-  fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| ac-3 |']), 'acceptance-criteria'),
-    /^Give each criterion of acceptance-criteria.md a different id\. ac-3 is there twice/);
-  fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed. | None |']), 'acceptance-criteria'),
-    /^Write ac-4 as removed, or plan it as "Demo: <title>" or "Tests"\. Write a removed criterion/);
-  fails(push(fixture(['acceptance-criteria.md', '| Tests |', '| Later |']), 'acceptance-criteria'),
-    /^Set the planned check of ac-4 to "Demo: <title>" or "Tests"/);
+test('criteria: each id once, and a check of Demo: <title> or Tests', () => {
+  fails(push(fixture(setCriterion('ac-4', { id: 'ac-3' })), 'acceptance-criteria'),
+    /^Give each criterion of acceptance-criteria\.json a different id\. ac-3 is there twice\.$/);
+  fails(push(fixture(setCriterion('ac-4', { check: 'Later' })), 'acceptance-criteria'),
+    /^Set the check of ac-4 in acceptance-criteria\.json to "Demo: <title>" or "Tests"\. The /);
+});
+
+test('criteria: a file that breaks a rule of the type check gets the fix line of that rule', () => {
+  // Each draft breaks one rule at the top of the artifact folder; version 1 is the testdata.
+  const refused = (change, ...lines) => {
+    const root = fixture();
+    write(root, CRITERIA, withCriteria(change));
+    exactly(push(root, 'acceptance-criteria'), lines.join('\n  '));
+  };
+  const at = (id) => (data) => data.criteria.find((one) => one.id === id);
+  refused((data) => { at('ac-2')(data).check = 'Later'; },
+    'Set the check of ac-2 in acceptance-criteria.json to "Demo: <title>" or "Tests".',
+    'The check is "Later".');
+  refused((data) => { at('ac-1')(data).text = 'The reply lists the hours. It lists them daily.'; },
+    'Write the text of ac-1 in acceptance-criteria.json as one sentence.', 'It has 2 sentences.');
+  refused((data) => { at('ac-1')(data).text = `${many(26)}.`; },
+    'Cut the text of ac-1 in acceptance-criteria.json to 25 words.', 'It has 26 words.');
+  refused((data) => { data.summary = 'One. Two. Three. Four.'; },
+    'Write the summary of acceptance-criteria.json in 1 to 3 sentences: it has 4.');
+  refused((data) => { at('ac-1')(data).id = 'ac-01'; },
+    'Write /criteria/0/id of acceptance-criteria.json so that it matches its pattern.',
+    'The pattern is ^ac-[1-9][0-9]{0,3}$. It is "ac-01".');
+  refused((data) => { data.criteria.push(row('ac-3', 'The reply states the hours.')); },
+    'Give each criterion of acceptance-criteria.json a different id.', 'ac-3 is there twice.');
+  refused((data) => { data.criteria.splice(1, 1); },
+    'Keep ac-2 in acceptance-criteria.json, marked removed if it no longer applies.',
+    'Version 1 has it.');
+  // A removed criterion keeps its text and its check as they were, and passes.
+  const removed = fixture();
+  write(removed, CRITERIA, withCriteria((data) => {
+    at('ac-4')(data).removed = { reason: 'Support sends no corrected reply.' };
+  }));
+  passes(push(removed, 'acceptance-criteria'));
+  // Once a version removes it, a criterion that comes back is refused.
+  version(removed, 'acceptance-criteria', 2, CRITERIA,
+    fs.readFileSync(path.join(removed, CRITERIA), 'utf8'));
+  withdrawIn(removed, 'acceptance-criteria', 2, false);
+  write(removed, CRITERIA, CRITERIA_TEXT);
+  exactly(push(removed, 'acceptance-criteria'), 'Keep ac-4 removed in acceptance-criteria.json.' +
+    '\n  Version 2 removed it, so its number is never used again.');
+  // A criterion that version 2 removed keeps its text and its check in a later version.
+  const file = path.join(removed, 'acceptance-criteria', 'main', 'v2', CRITERIA);
+  const stored = JSON.parse(fs.readFileSync(file, 'utf8')).criteria
+    .find((one) => one.id === 'ac-4');
+  write(removed, CRITERIA, withCriteria((data) => {
+    Object.assign(at('ac-4')(data), { removed: stored.removed, text: 'The reply is short.',
+      check: 'Demo: Read the closed day' });
+  }));
+  const result = push(removed, 'acceptance-criteria');
+  const back = (member) => `^Set the ${member} of the removed ac-4 in acceptance-criteria\\.json ` +
+    'back to version 2\\. A removed criterion stays as it was, and version 2 has ';
+  fails(result, new RegExp(`${back('text')}"Each customer `));
+  fails(result, new RegExp(`${back('check')}"Tests"\\.$`));
+  write(removed, CRITERIA, withCriteria((data) => {
+    at('ac-4')(data).removed = stored.removed;
+  }));
+  passes(push(removed, 'acceptance-criteria'));
+});
+
+test('criteria: a file nested deeper than 64 levels is refused with no stack overflow', () => {
+  const root = fixture();
+  const run = (text) => {
+    fs.writeFileSync(path.join(root, CRITERIA), text);
+    return [check(root, 'acceptance-criteria', path.join(root, CRITERIA)),
+      push(root, 'acceptance-criteria')];
+  };
+  for (const [deep, at] of [
+    [`${'['.repeat(10000)}${']'.repeat(10000)}`, '/0/0/0/0/0/0/.../0/0/0/0/0/0'],
+    [`{"summary": "One.", "criteria": ${'['.repeat(65)}${']'.repeat(65)}}`,
+      '/criteria/0/0.../0/0/0/0/0/0'],
+  ]) {
+    for (const result of run(deep)) {
+      exactly(result, 'Cut the nesting of acceptance-criteria.json to 64 levels.\n  The list ' +
+        `at ${at} is 65 levels deep.`);
+    }
+  }
+  // 64 levels pass the depth check, and the schema check reads the document.
+  for (const result of run(`{"summary": "One.", "criteria": ${'['.repeat(63)}${']'.repeat(63)}}`)) {
+    assert.ok(!result.findings.some((line) => line.startsWith('Cut the nesting')), result.out);
+    fails(result, /^Write \/criteria\/0 of acceptance-criteria\.json as an object\./);
+  }
 });
 
 test('criteria: no id renumbered or reused against the newest version', () => {
   const root = fixture();
-  const top = fs.readFileSync(path.join(root, 'acceptance-criteria.md'), 'utf8');
-  fs.writeFileSync(path.join(root, 'acceptance-criteria.md'), top.replace(/\| ac-4 .*\n?/, ''));
-  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 in acceptance-criteria.md.*Version 1 has it/);
+  write(root, CRITERIA, withCriteria((data) => { data.criteria.pop(); }));
+  fails(push(root, 'acceptance-criteria'),
+    /^Keep ac-4 in acceptance-criteria\.json, marked removed if it no longer applies\. Version 1 /);
   const reused = fixture();
-  version(reused, 'acceptance-criteria', 2, 'acceptance-criteria.md',
-    top.replace(/\| ac-4 .*/, '| ac-4 | Removed, because it ended. | None |\n| ac-6 | Removed, because it ended. | None |'));
+  version(reused, 'acceptance-criteria', 2, CRITERIA, withCriteria((data) => {
+    data.criteria[3].removed = { reason: 'It ended.' };
+    data.criteria.push(row('ac-6', 'The reply states the hours.', 'Tests', 'It ended.'));
+  }));
   withdrawIn(reused, 'acceptance-criteria', 2, false);
-  const draft = `${top.trimEnd()}\n| ac-5 | The reply states the hours. | Tests |\n| ac-6 | Removed, because it ended. | None |\n`;
-  fs.writeFileSync(path.join(reused, 'acceptance-criteria.md'), draft);
+  write(reused, CRITERIA, withCriteria((data) => {
+    data.criteria.push(row('ac-5', 'The reply states the hours.'),
+      row('ac-6', 'The reply states the hours.', 'Tests', 'It ended.'));
+  }));
   const result = push(reused, 'acceptance-criteria');
-  fails(result, /^Keep ac-4 removed in acceptance-criteria.md\. Version 2 removed it/);
-  fails(result, /^Give the new criterion ac-5 in acceptance-criteria.md a number above 6/);
+  fails(result, /^Keep ac-4 removed in acceptance-criteria\.json\. Version 2 removed it/);
+  fails(result, /^Give the new criterion ac-5 in acceptance-criteria\.json a number above 6/);
 });
 
 test('push: a version folder that index.json does not list counts for nothing', () => {
   const root = fixture();
-  const top = fs.readFileSync(path.join(root, 'acceptance-criteria.md'), 'utf8');
   // A folder v2, as an earlier pull can leave it, with ac-4 removed.
-  version(root, 'acceptance-criteria', 2, 'acceptance-criteria.md',
-    top.replace(/\| ac-4 .*/, '| ac-4 | Removed, because it ended. | None |'));
+  version(root, 'acceptance-criteria', 2, CRITERIA, withCriteria((data) => {
+    data.criteria[3].removed = { reason: 'It ended.' };
+  }));
   passes(push(root, 'acceptance-criteria'));
   // Listed, version 2 is the newest version, so the push keeps ac-4 removed.
   withdrawIn(root, 'acceptance-criteria', 2, false);
-  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 removed in acceptance-criteria.md/);
+  fails(push(root, 'acceptance-criteria'), /^Keep ac-4 removed in acceptance-criteria\.json/);
 });
 
 test('scenarios: no id renumbered or reused against the newest version', () => {
@@ -1627,8 +1754,8 @@ function withdrawIn(root, type, number, withdraw = true) {
 
 test('ids: a withdrawal and a new push drop no id of the version before it', () => {
   for (const [type, file, from, to, finding] of [
-    ['acceptance-criteria', 'acceptance-criteria.md', /\| ac-4 .*\n?/, '',
-      /^Keep ac-4 in acceptance-criteria.md.*Version 1 has it/],
+    ['acceptance-criteria', CRITERIA, /,\n *\{"id": "ac-4".*/, '',
+      /^Keep ac-4 in acceptance-criteria\.json.*Version 1 has it/],
     ['decision-record', 'decision-record.md', '`decision-1`', '`decision-2`',
       /^Keep decision-1 in decision-record.md.*Version 1 has it/],
     ['demo-scenarios', 'demo-scenarios.md', '### scenario-2:', '### scenario-3:',
@@ -1758,7 +1885,8 @@ test('review comments: a reply cites a question that exists and, when asked, is 
 test('decision record: Rests on: cites criteria that exist and are not removed', () => {
   fails(push(fixture(['decision-record.md', '`ac-3`', '`ac-9`']), 'decision-record'),
     /ac-9 is not in the newest criteria/);
-  fails(push(fixture(['acceptance-criteria.md', /\| ac-3 \| .*$/m, '| ac-3 | Removed, because the day stays open. | None |']), 'decision-record'),
+  fails(push(fixture(setCriterion('ac-3', { removed: { reason: 'The day stays open.' } })),
+    'decision-record'),
     /ac-3 is removed/);
   fails(push(fixture(['decision-record.md', '- Rests on: `ac-1`, `ac-2`, `ac-3`.', '- Rests on: all of them.']), 'decision-record'),
     /^List the ac-N that decision-1 rests on/);
@@ -1773,7 +1901,8 @@ test('decision record: Question: cites a decided or answered question of this ru
 });
 
 test('scenarios: planned demos and Shows: lines match both ways', () => {
-  fails(push(fixture(['acceptance-criteria.md', 'Demo: Read the closed day', 'Demo: Read the open day']), 'demo-scenarios'),
+  fails(push(fixture([CRITERIA, 'Demo: Read the closed day', 'Demo: Read the open day']),
+    'demo-scenarios'),
     /The title is "Read the open day"/);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-1, ac-2', 'Shows: ac-1']), 'demo-scenarios'),
     /^Add ac-2 to the Shows: line of scenario-1/);
@@ -2119,12 +2248,16 @@ test('push: files in a separate folder, with the artifact store as the working f
 test('push: a type that needs no other type checks alone, with no index.json', () => {
   const store = path.join(tmp, `store-${++folders}`);
   fs.mkdirSync(store);
-  for (const file of ['proposal.md', 'sources.json', 'delayed-order-reply.svg', 'spec.md', 'acceptance-criteria.md', 'questions.json']) {
+  for (const file of ['proposal.md', 'sources.json', 'delayed-order-reply.svg', 'spec.md', CRITERIA,
+    'questions.json']) {
     fs.copyFileSync(path.join(TESTDATA, file), path.join(store, file));
   }
-  // A first push adds only open questions with no decision and decided questions.
+  // A first push adds only open questions with no decision and decided questions. With no
+  // version of any output, each about is the work item.
   const data = JSON.parse(fs.readFileSync(path.join(store, 'questions.json'), 'utf8'));
-  write(store, 'questions.json', { questions: data.questions.filter((q) => ['q4', 'q6'].includes(q.id)) });
+  const first = data.questions.filter((q) => ['q4', 'q6'].includes(q.id))
+    .map((q) => ({ ...q, about: { work_item: true } }));
+  write(store, 'questions.json', { questions: first });
   for (const type of ['proposal', 'spec', 'acceptance-criteria', 'questions']) passes(push(store, type));
 });
 
@@ -3429,7 +3562,8 @@ test('a hostile line of 200 KB takes less than 5 s in every check', () => {
     write(root, 'decision-record.md', `## Decisions\n\n### \`decision-1\`: a\n\n- Decision: ${line}\n`);
     const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
     data.questions.push({ id: 'q7', question: line.slice(0, 60000), context: line.slice(0, 60000),
-      options: [{ title: 'A', explanation: line.slice(0, 60000) }], state: 'open' });
+      about: { work_item: true }, options: [{ title: 'A', explanation: line.slice(0, 60000) }],
+      state: 'open' });
     data.questions.push({ ...data.questions[5], id: 'q8',
       decision: { ...data.questions[5].decision, reason: line.slice(0, 20000) } });
     write(root, 'questions.json', data);
@@ -3461,8 +3595,9 @@ test('a draft above 256 KB is one finding, and no check reads it', () => {
 
 test('at most 50 findings, then one line with the number left out', () => {
   const root = fixture();
-  const rows = Array.from({ length: 60 }, (_, n) => `| x-${n} | One. | Tests |`).join('\n');
-  fs.appendFileSync(path.join(root, 'acceptance-criteria.md'), `${rows}\n`);
+  write(root, CRITERIA, withCriteria((data) => {
+    data.criteria.push(...Array.from({ length: 60 }, (_, n) => row(`x-${n}`, 'One.')));
+  }));
   const result = push(root, 'acceptance-criteria');
   assert.equal(result.status, 1);
   assert.equal(result.findings.length, 52);
@@ -3545,7 +3680,8 @@ test('a type with two names and no main, or a version with no file, exits 3', ()
   const result = push(empty, 'demo-scenarios');
   assert.equal(result.status, 3);
   assert.equal(result.lines[0], 'Pull the artifacts again.');
-  assert.match(result.lines[1], /^ {2}acceptance-criteria\/main\/v2 has no acceptance-criteria.md/);
+  assert.match(result.lines[1],
+    /^ {2}acceptance-criteria\/main\/v2 has no acceptance-criteria\.json/);
 });
 
 test('an entry that is no object is a finding: question, comment, reply and source', () => {
@@ -3640,13 +3776,20 @@ test('decision record: a line right after an item continues it, also with no ind
     /^Give decision-1 its 6 items in their order/);
 });
 
-test('criteria: only the exact removed form is removed', () => {
-  const root = fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed items stay. | None |']);
-  fails(push(root, 'acceptance-criteria'), /^Write ac-4 as removed, or plan it as "Demo: <title>" or "Tests"\. Write a removed criterion as "Removed, because <the reason>\." with the planned check None\.$/);
-  const kept = fixture(['acceptance-criteria.md', /\| ac-4 \| [^|]*\| Tests \|/, `| ac-4 | Removed items stay in the list, ${many(30)}. | Tests |`]);
-  fails(push(kept, 'acceptance-criteria'), /^Cut ac-4 in acceptance-criteria.md to 25 words/);
-  fails(push(fixture(['acceptance-criteria.md', /\| ac-4 \| .*$/m, '| ac-4 | Removed, because it ended. | Tests |']), 'acceptance-criteria'),
-    /^Set the planned check of the removed ac-4 to None\. The planned check is "Tests"\.$/);
+test('criteria: only the member removed marks a criterion removed', () => {
+  // A text that starts with "Removed" is a live criterion, checked as one.
+  const kept = fixture(setCriterion('ac-4',
+    { text: `Removed items stay in the list, ${many(30)}.` }));
+  fails(push(kept, 'acceptance-criteria'),
+    /^Cut the text of ac-4 in acceptance-criteria\.json to 25 words/);
+  // A removed criterion keeps its text and its check as they were, and neither is checked.
+  passes(push(fixture(setCriterion('ac-4', { removed: { reason: 'It ended.' } })),
+    'acceptance-criteria'));
+  const long = fixture(setCriterion('ac-4',
+    { text: `One. ${many(30)}.`, check: 'Later', removed: { reason: 'It ended.' } }));
+  const result = push(long, 'acceptance-criteria');
+  passes(result);
+  assert.match(result.lines.at(-1), /; 3 criteria that are not removed; 0 findings\.$/);
   fails(push(fixture(['demo-scenarios.md', 'Shows: ac-3', 'Shows: ac-3\n\nRemoved later.']), 'demo-scenarios'),
     /^Give the removed scenario-2 only the line "Removed, because <the reason>\."/);
 });
@@ -3673,6 +3816,7 @@ function q7(changes) {
   return {
     id: 'q7',
     question: 'Which page lists the hours?',
+    about: { work_item: true },
     context: 'The ticket asks for the new hours, and the reply and the help page both list hours.',
     options: [
       { title: 'The reply', explanation: 'Only the reply lists them.' },
@@ -3707,6 +3851,7 @@ test('questions: a new question is open with no decision, or decided by the run 
 const EXPORT_LIMIT = {
   id: 'q7',
   question: 'Which export limit do you want built for this criterion?',
+  about: { type: 'acceptance-criteria', name: 'main', item: 'ac-4' },
   context: 'The export service returns at most 10,000 rows per request. The approved ' +
     'criterion asks for 50,000. This stage waits until you pick, and your pick changes the ' +
     'approved criteria.',
@@ -3772,6 +3917,7 @@ test('questions: an answer that gives the choice back leads to a new decided que
   data.questions.push({
     id: 'q7',
     question: 'Which database stores the reports?',
+    about: { work_item: true },
     options: [
       { title: 'The current PostgreSQL', explanation: 'The reports stay in the database that the shop uses.', recommended: true },
       { title: 'A separate database', explanation: 'The reports move to a database of their own.' },
@@ -3789,6 +3935,7 @@ test('questions: an answer that gives the choice back leads to a new decided que
   const q8 = {
     id: 'q8',
     question: 'How are the report tables laid out in PostgreSQL?',
+    about: { work_item: true },
     options: [
       { title: 'One table per report month', explanation: 'An old month is removed by dropping its table.' },
       { title: 'One table for all reports', explanation: 'Every report shares one table with a month column.' },
@@ -3810,6 +3957,194 @@ test('questions: an answer that gives the choice back leads to a new decided que
   marked.options[0].recommended = true;
   write(root, 'questions.json', { questions: [...data.questions, marked] });
   fails(push(root, 'questions'), /^Remove recommended from the options of the decided q8/);
+});
+
+test('questions: each question has an about of one of its two forms', () => {
+  const add = (question) => questionsAfter((byId, data) => { data.questions.push(question); });
+  passes(add(q7({ about: { work_item: true } })));
+  const { about, ...none } = q7();
+  assert.ok(about);
+  exactly(add(none), 'Add about to q7: {"work_item": true}, or the type and name of an ' +
+    'output.\n  q7 has no about.');
+  // A list or an object shows as its kind, and a scalar as its JSON.
+  for (const [form, shown] of [[{ work_item: false }, 'an object'], [{ type: 'spec' }, 'an object'],
+    [['work_item'], 'a list'], ['the work item', '"the work item"'], [3, '3'], [null, 'null']]) {
+    exactly(add(q7({ about: form })), 'Write about of q7 in one of its two forms.\n  It is ' +
+      `${shown}.\n  The forms are {"work_item": true}, and {"type": ..., "name": ...} with an ` +
+      'optional "item".');
+  }
+});
+
+test('questions: an about of 10,000 levels gets its finding with no stack overflow', () => {
+  const deep = `${'['.repeat(10000)}${']'.repeat(10000)}`;
+  const deepened = (data) => JSON.stringify(data).replace('"DEEP"', deep);
+  exactly(questionsAfter((byId, data) => {
+    data.questions.push(q7({ about: 'DEEP' }));
+    return deepened(data);
+  }), 'Write about of q7 in one of its two forms.\n  It is a list.\n  The forms are ' +
+    '{"work_item": true}, and {"type": ..., "name": ...} with an optional "item".');
+  // An item of 10,000 levels that the newest questions have too is the same about.
+  const root = fixture();
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.find((question) => question.id === 'q2').about =
+    { type: 'mockup', name: 'main', item: 'DEEP' };
+  version(root, 'questions', 2, 'questions.json', deepened(data));
+  write(root, 'questions.json', deepened(data));
+  passes(push(root, 'questions'));
+});
+
+test('questions: an output about has only type, name and item, in the forms of the format', () => {
+  const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
+  exactly(add({ type: 'spec', name: 'main', note: 'x' }), 'Remove "note" from about of q7: an ' +
+    'output has only type, name and item.\n  About of q7 has "note".');
+  exactly(add({ type: 'spec', name: 'main', [`a${'b'.repeat(40)}`]: 1 }), 'Remove ' +
+    `"abbbbbb...bbbbbb" from about of q7: an output has only type, name and item.\n  About ` +
+    'of q7 has "abbbbbb...bbbbbb".');
+  for (const type of ['Not A Type!', 'spec-', 'a--b', 'a'.repeat(65)]) {
+    exactly(add({ type, name: 'main' }), 'Write about.type of q7 as a type, such as proposal ' +
+      `or mockup.\n  It is "${type}", ` +
+      'and a type is lower-case letters and digits in groups joined by single hyphens, at most ' +
+      '64 bytes.');
+  }
+  for (const [name, shown] of [['', '""'], ['n'.repeat(65), null], ['a\tb', '"a b"']]) {
+    const result = add({ type: 'spec', name });
+    fails(result, /^Write about\.name of q7 as 1 to 64 characters on one line, such as main\. /);
+    if (shown) fails(result, new RegExp(` It is ${shown}\\.$`));
+  }
+  // The type and name of the format pass the form, and then the check of what the run reads.
+  fails(add({ type: 'a'.repeat(64), name: 'n'.repeat(64) }),
+    /^Set about of q7 to an output that the run can read, or to the work item\. The run can /);
+});
+
+test('questions: a proposal is text of 1 to 2000 characters', () => {
+  const add = (proposal) => questionsAfter((byId, data) => {
+    data.questions.push(q7({ about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' },
+      options: [{ title: 'The reply', explanation: 'Only the reply lists them.', proposal },
+        { title: 'The help page', explanation: 'The reply links to the help page.' }] }));
+  });
+  passes(add('p'.repeat(2000)));
+  for (const [proposal, has] of [['', 'has 0 characters'],
+    ['p'.repeat(2001), 'has 2001 characters'], [7, 'is a number']]) {
+    exactly(add(proposal), 'Write the proposal of option 1 of q7 as text of 1 to 2000 ' +
+      `characters.\n  The proposal of option 1 of q7 ${has}.`);
+  }
+});
+
+test('questions: an about names an output that the run can read, and a criterion it has', () => {
+  const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
+  const criteria = { type: 'acceptance-criteria', name: 'main' };
+  passes(add(criteria));
+  passes(add({ ...criteria, item: 'ac-3' }));
+  exactly(add({ type: 'mockup', name: 'main' }), 'Set about of q7 to an output that the run ' +
+    'can read, or to the work item.\n  The run can read no mockup main.');
+  exactly(add({ ...criteria, item: 'ac-9' }), 'Set about.item of q7 to an entry that ' +
+    'acceptance-criteria main has.\n  It has no ac-9.');
+  exactly(add({ ...criteria, item: 'screen-2' }), 'Write about.item of q7 as an id of ' +
+    'acceptance-criteria, such as ac-3.\n  It is "screen-2".');
+  // A check reads the criteria of the draft at the top of the artifact folder.
+  const root = fixture(editCriteria((data) => {
+    data.criteria.push(row('ac-5', 'The reply states the hours.'));
+  }));
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  data.questions.push(q7({ about: { ...criteria, item: 'ac-5' } }));
+  write(root, 'questions.json', data);
+  passes(check(root, 'questions', path.join(root, 'questions.json')));
+  data.questions.at(-1).about.item = 'ac-6';
+  write(root, 'questions.json', data);
+  fails(check(root, 'questions', path.join(root, 'questions.json')),
+    /^Set about\.item of q7 to an entry that acceptance-criteria main has\. It has no ac-6\.$/);
+  // A draft of the criteria that is not JSON, or has no criteria, has no ids to compare.
+  for (const broken of ['{"criteria": ', '[]', '{"summary": "x"}']) {
+    fs.writeFileSync(path.join(root, 'acceptance-criteria.json'), broken);
+    passes(check(root, 'questions', path.join(root, 'questions.json')));
+  }
+  // A check passes a mockup that only a draft in mockup-draft/ has, with a screen as its item:
+  // no module checks the type mockup, so the check cannot find its draft, and the push of the
+  // questions, which reads index.json, refuses the mockup when index.json does not list it.
+  fs.mkdirSync(path.join(root, 'mockup-draft'));
+  write(root, 'mockup-draft/screens.json', { screens: [] });
+  data.questions.at(-1).about = { type: 'mockup', name: 'main', item: 'screen-2' };
+  write(root, 'questions.json', data);
+  passes(check(root, 'questions', path.join(root, 'questions.json')));
+  // An item of a type with no reader of its ids is 1 to 32 characters on one line.
+  for (const [item, shown] of [['s'.repeat(33), `"${'s'.repeat(33)}"`], ['', '""'],
+    ['screen\n2', '"screen 2"'], [2, '2']]) {
+    data.questions.at(-1).about = { type: 'mockup', name: 'main', item };
+    write(root, 'questions.json', data);
+    const fix = 'Write about\\.item of q7 as 1 to 32 characters on one line\\.';
+    fails(check(root, 'questions', path.join(root, 'questions.json')),
+      new RegExp(`^${fix} It is ${shown}\\.$`));
+  }
+  data.questions.at(-1).about = { type: 'mockup', name: 'main', item: 's'.repeat(32) };
+  write(root, 'questions.json', data);
+  passes(check(root, 'questions', path.join(root, 'questions.json')));
+  // A check still refuses a type that a module checks, such as the spec, with no draft.
+  fs.rmSync(path.join(root, 'spec.md'));
+  data.questions.at(-1).about = { type: 'spec', name: 'other' };
+  write(root, 'questions.json', data);
+  fails(check(root, 'questions', path.join(root, 'questions.json')),
+    /^Set about of q7 to an output that the run can read, or to the work item\. The run can /);
+});
+
+test('questions: an option with a proposal needs an output and its item as about', () => {
+  const add = (about) => questionsAfter((byId, data) => {
+    data.questions.push(q7({ about, options: [
+      { title: 'The reply', explanation: 'Only the reply lists them.',
+        proposal: 'The reply states the hours.' },
+      { title: 'The help page', explanation: 'The reply links to the help page.' },
+    ] }));
+  });
+  const criteria = { type: 'acceptance-criteria', name: 'main' };
+  passes(add({ ...criteria, item: 'ac-3' }));
+  exactly(add({ work_item: true }), 'Give about of q7 an output and its item: an option of ' +
+    'it has a proposal.\n  About is the work item.');
+  exactly(add(criteria), 'Give about of q7 an output and its item: an option of it has a ' +
+    'proposal.\n  About is an output with no item.');
+});
+
+test('questions: an item of the criteria is one of the name that about is set to', () => {
+  const root = fixture();
+  const questions = path.join(root, 'questions.json');
+  const original = fs.readFileSync(questions, 'utf8');
+  const ask = (about) => {
+    const data = JSON.parse(original);
+    data.questions.push(q7({ about }));
+    write(root, 'questions.json', data);
+    return check(root, 'questions', questions);
+  };
+  const stored = fs.readFileSync(path.join(root, CRITERIA), 'utf8');
+  const withSix = criteriaText({ ...JSON.parse(stored), criteria: [...JSON.parse(stored).criteria,
+    row('ac-6', 'The reply states the hours.')] });
+  // A link at the top of the artifact folder is no draft: the check reads the stored version,
+  // which has no ac-6, as a check of the criteria refuses the link.
+  const elsewhere = path.join(tmp, `criteria-${Date.now()}.json`);
+  fs.writeFileSync(elsewhere, withSix);
+  fs.rmSync(path.join(root, CRITERIA));
+  fs.symlinkSync(elsewhere, path.join(root, CRITERIA));
+  const main = { type: 'acceptance-criteria', name: 'main' };
+  exactly(ask({ ...main, item: 'ac-6' }), 'Set about.item of q7 to an entry that ' +
+    'acceptance-criteria main has.\n  It has no ac-6.');
+  // A draft that is a file is read: it has ac-6.
+  fs.rmSync(path.join(root, CRITERIA));
+  fs.writeFileSync(path.join(root, CRITERIA), withSix);
+  passes(ask({ ...main, item: 'ac-6' }));
+  // Another name reads its newest version, not the draft of main.
+  const second = path.join(root, 'acceptance-criteria', 'second', 'v1');
+  fs.mkdirSync(second, { recursive: true });
+  fs.writeFileSync(path.join(second, CRITERIA), criteriaText({ summary: 'One criterion.',
+    criteria: [row('ac-1', 'The reply lists the hours.')] }));
+  passes(ask({ type: 'acceptance-criteria', name: 'second', item: 'ac-1' }));
+  exactly(ask({ type: 'acceptance-criteria', name: 'second', item: 'ac-6' }), 'Set about.item ' +
+    'of q7 to an entry that acceptance-criteria second has.\n  It has no ac-6.');
+});
+
+test('questions: a kept question whose about is unchanged is not checked again', () => {
+  // Version 2 has q2 about a mockup that the run cannot read, as an earlier run left it.
+  const mockup = (byId) => { byId('q2').about = { type: 'mockup', name: 'main' }; };
+  passes(questionsAfter(() => {}, mockup));
+  exactly(questionsAfter((byId) => { byId('q2').about = { type: 'mockup', name: 'other' }; },
+    mockup), 'Set about of q2 to an output that the run can read, or to the work item.\n' +
+    '  The run can read no mockup other.');
 });
 
 test('questions: no question that exists becomes decided, or gets, changes or loses a decision', () => {
@@ -3964,8 +4299,9 @@ test('a quote cuts no surrogate pair, and one finding is singular', () => {
   const one = push(fixture(['spec.md', '## Background', '## Context']), 'spec');
   assert.match(one.lines.at(-1), /; 1 finding\.$/);
   const criteria = fixture();
-  write(criteria, 'acceptance-criteria.md', fs.readFileSync(path.join(criteria, 'acceptance-criteria.md'), 'utf8')
-    .replace(/\| ac-[234] \| [^|]*\| [^|]*\|/g, (row) => row.replace(/\| ac-(\d) \| [^|]*\| [^|]*\|/, '| ac-$1 | Removed, because it ended. | None |')));
+  write(criteria, CRITERIA, withCriteria((data) => {
+    for (const one of data.criteria.slice(1)) one.removed = { reason: 'It ended.' };
+  }));
   assert.match(push(criteria, 'acceptance-criteria').lines.at(-1), /; 1 criterion that is not removed;/);
 });
 
@@ -3981,8 +4317,9 @@ test('each finding of the sections and files fires on a draft that breaks it', (
     /^Start ## Changes in spec.md with a ### part/);
   fails(push(fixture(['spec.md', /^### .*$/gm, 'A line.']), 'spec'),
     /^Add at least one ### part under ## Changes in spec.md/);
-  fails(push(fixture(['acceptance-criteria.md', '| ac-4 |', '| criterion-4 |']), 'acceptance-criteria'),
-    /^Write the id of row 4 in acceptance-criteria.md as ac-<N>\. The id is "criterion-4"\.$/);
+  fails(push(fixture(setCriterion('ac-4', { id: 'criterion-4' })), 'acceptance-criteria'),
+    new RegExp('^Write /criteria/3/id of acceptance-criteria\\.json so that it matches its ' +
+      'pattern\\. The pattern is \\^ac-\\[1-9\\]\\[0-9\\]\\{0,3\\}\\$\\. It is "criterion-4"\\.$'));
   fails(push(fixture(['demo-scenarios.md', /^### .*$/gm, 'A line.']), 'demo-scenarios'),
     /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
   fails(push(fixture(['demo-scenarios.md', /Starting state: the support member `sam@example.com` signs in with a password\. The account is in the support team, which has the saved reply for delayed orders\. The list of saved replies is open\.\n\n\| Step \| Action \| What the viewer sees \| Screen \|\n\|---\|---\|---\|---\|\n\| 1 \| Open the saved reply for delayed orders\. \| The reply states[^\n]*\n\nShows: ac-3/, 'Removed, because it ended.\n\nA second line.']), 'demo-scenarios'),
@@ -4527,17 +4864,21 @@ test('report: an unclosed backtick is no stop line', () => {
     /^Start "Blocked:" with a stop line .* of decision-writer is none\.$/);
 });
 
-test('a missing member is "missing", and a row with no id is named by its place', () => {
+test('a missing member is "missing", and a criterion with no id is named by its place', () => {
   const root = fixture();
   const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
-  data.questions.push({ id: 'q7', state: 'open', options: [{ title: 'A', explanation: 7 }] });
+  data.questions.push({ id: 'q7', state: 'open', about: { work_item: true },
+    options: [{ title: 'A', explanation: 7 }] });
   write(root, 'questions.json', data);
   const questions = push(root, 'questions');
   fails(questions, /^Write the question of q7 as text of 1 to 500 characters\. The question of q7 is missing\.$/);
   fails(questions, /^Write the explanation of option 1 of q7 as text of 1 to 2000 characters\. The explanation of option 1 of q7 is a number\.$/);
   const empty = fixture();
-  fs.appendFileSync(path.join(empty, 'acceptance-criteria.md'), '|  | The reply states the hours. | Later |\n');
-  fails(push(empty, 'acceptance-criteria'), /^Set the planned check of row 5 to "Demo: <title>" or "Tests"/);
+  write(empty, CRITERIA, withCriteria((data) => {
+    data.criteria.push(row('', 'The reply states the hours.', 'Later'));
+  }));
+  fails(push(empty, 'acceptance-criteria'),
+    /^Write \/criteria\/4\/id of acceptance-criteria\.json so that it matches its .* It is ""\.$/);
 });
 
 // ---- Results of the report check and the end check ----------------------------------------
@@ -5349,7 +5690,7 @@ test('the scripts and hooks run in a repository whose package.json sets "type": 
   fs.mkdirSync(path.join(work, '.git'));
   const artifacts = path.join(repo, 'artifacts');
   fs.cpSync(TESTDATA, artifacts, { recursive: true });
-  for (const [type, file] of [['acceptance-criteria', 'acceptance-criteria.md'],
+  for (const [type, file] of [['acceptance-criteria', CRITERIA],
     ['questions', 'questions.json']]) {
     fs.mkdirSync(path.join(artifacts, type, 'main', 'v1'), { recursive: true });
     fs.copyFileSync(path.join(TESTDATA, file), path.join(artifacts, type, 'main', 'v1', file));
@@ -6031,15 +6372,16 @@ test('end --offline: a draft with no report of its reviewer, or with a link, is 
     action: 'run_again' }]);
   // A link to a file with the bytes of the stored version is still a draft, and a finding.
   const two = offlineRun();
-  const stored = path.join(two.store, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.md');
-  fs.rmSync(path.join(two.artifacts, 'acceptance-criteria.md'));
-  fs.symlinkSync(stored, path.join(two.artifacts, 'acceptance-criteria.md'));
+  const stored = path.join(two.store, 'acceptance-criteria', 'main', 'v1', CRITERIA);
+  fs.rmSync(path.join(two.artifacts, CRITERIA));
+  fs.symlinkSync(stored, path.join(two.artifacts, CRITERIA));
   fs.renameSync(path.join(two.artifacts, '.reports', 'scenario-reviewer-1.md'),
     path.join(tmp, `moved-${++folders}.md`));
   fs.symlinkSync(path.join(tmp, `moved-${folders}.md`),
     path.join(two.artifacts, '.reports', 'scenario-reviewer-1.md'));
   const second = offline(two);
-  fails(second, /^Name the file itself, not a link to it\. .*acceptance-criteria\.md is a link\.$/);
+  fails(second,
+    /^Name the file itself, not a link to it\. .*acceptance-criteria\.json is a link\.$/);
   fails(second, /^Write \.reports\/scenario-reviewer-1\.md as a regular file\. \.reports\/scenario-reviewer-1\.md is not one\.$/);
 });
 
@@ -7456,14 +7798,14 @@ test('index.json: a withdrawn main has no approved or counted version', () => {
     artifact.approved_version = 'av_acceptance-criteria_main_1';
     return [artifact];
   };
-  const file = ['acceptance-criteria/main/v1/acceptance-criteria.md'];
+  const file = ['acceptance-criteria/main/v1/acceptance-criteria.json'];
   const context = new Context(withdrawnStore(criteria([[3, WITHDRAWN], [2], [1, person]]), file),
     'check', tmp);
   assert.equal(build.approvedNumber(context, 'acceptance-criteria'), null);
   assert.deepEqual(build.countedOf(context, 'acceptance-criteria'), []);
   assert.equal(build.newestCriteria(context), null);
   assert.equal(build.criteriaTarget(context, 'the build plan'), null);
-  assert.equal(context.newest('acceptance-criteria', 'acceptance-criteria.md'), null);
+  assert.equal(context.newest('acceptance-criteria', CRITERIA), null);
   // A later upload by a member lists the criteria again, without the withdrawal.
   const again = new Context(withdrawnStore(criteria([[4, person], [3, WITHDRAWN], [2],
     [1, person]]), file), 'check', tmp);
@@ -7493,7 +7835,7 @@ test('end --offline: counts judges a withdrawal on the base', () => {
   const person = { writer: { kind: 'person', name: 'Sam Example' } };
   const criteria = entry('acceptance-criteria', 'main', [[2, { ...WITHDRAWN,
     writer: { kind: 'run', run_id: 'run_new' } }], [1, person]]);
-  const root = withdrawnStore([criteria], ['acceptance-criteria/main/v1/acceptance-criteria.md']);
+  const root = withdrawnStore([criteria], ['acceptance-criteria/main/v1/acceptance-criteria.json']);
   const view = { runs: new Set(['run_new']), questions: null };
   const offlineContext = new Context(root, 'check', tmp, root, view);
   assert.equal(offlineContext.withdrawn('acceptance-criteria'), false);

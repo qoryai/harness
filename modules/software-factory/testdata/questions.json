@@ -3,6 +3,9 @@
     {
       "id": "q1",
       "question": "Which hours apply on public holidays?",
+      "about": {
+        "work_item": true
+      },
       "options": [
         {
           "title": "The same hours",
@@ -31,6 +34,10 @@
     {
       "id": "q2",
       "question": "Should the reply list the hours, or link to the help page that lists them?",
+      "about": {
+        "type": "proposal",
+        "name": "main"
+      },
       "options": [
         {
           "title": "List the hours",
@@ -50,6 +57,9 @@
     {
       "id": "q3",
       "question": "From which date does the reply list the new hours?",
+      "about": {
+        "work_item": true
+      },
       "context": "Since 2026-10-01, support answers from 8:00 to 20:00, according to the ticket. The earlier answer is 2026-11-01, a month after the hours changed.",
       "options": [],
       "state": "open",
@@ -75,6 +85,11 @@
     {
       "id": "q4",
       "question": "Should customers who got the reply with the old hours receive a corrected reply?",
+      "about": {
+        "type": "acceptance-criteria",
+        "name": "main",
+        "item": "ac-4"
+      },
       "context": "Each customer who got the saved reply since 2026-10-01 has the old hours, because the reply still lists the hours that ended on that date.",
       "options": [
         {
@@ -96,6 +111,11 @@
     {
       "id": "q5",
       "question": "Should the reply list 25 December as closed?",
+      "about": {
+        "type": "acceptance-criteria",
+        "name": "main",
+        "item": "ac-3"
+      },
       "context": "The answer about public holidays: they follow the weekday hours, except 25 December, when support is closed.",
       "options": [
         {
@@ -120,6 +140,9 @@
     {
       "id": "q6",
       "question": "Where are the support hours kept?",
+      "about": {
+        "work_item": true
+      },
       "options": [
         {
           "title": "In the reply's text",

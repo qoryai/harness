@@ -47,8 +47,8 @@ Evidence: pictures
 
 - `## Summary` has one to three sentences. The file has no Background, and no other `##`
   section.
-- **Heading:** `### scenario-<N>: <title>`, with the title of the criteria's
-  "Planned check", word for word.
+- **Heading:** `### scenario-<N>: <title>`, with the title of the criteria's check
+  `Demo: <title>`, word for word.
 - **Starting state:** what the demo needs before step 1: the account and its role, how it
   signs in, the data, and the open screen, with the values that the criteria state.
 - **Steps:** one row per action, at most 8 rows. "What the viewer sees" is what the screen
@@ -77,7 +77,7 @@ Evidence: pictures
 ## What the scenarios cover
 
 Cover the criteria as the check list of `checking-demo-scenarios` lists. A criterion with
-the planned check `Tests` has no scenario, also when the spec states its rule. No scenario
+the check `Tests` has no scenario, also when the spec states its rule. No scenario
 contradicts a `Stays:` point of the spec.
 
 You never change a criterion. A word that needs a criterion changed or added stops you, as

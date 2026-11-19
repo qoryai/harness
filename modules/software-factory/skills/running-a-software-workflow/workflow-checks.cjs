@@ -3,7 +3,8 @@
 // running-a-workflow loads from every skill folder with this file, as its lib/registry.cjs
 // lists: the types proposal, spec, acceptance-criteria, decision-record and demo-scenarios;
 // the types of Build and Verify, which BUILD_AND_VERIFY lists, with the JSON Schemas of
-// schemas/, which process.yaml also contains for Qory Apiary; the Blocked: lines on the
+// schemas/, which process.yaml also contains for Qory Apiary, but for the standard types
+// acceptance-criteria and verification, which it lists by name alone; the Blocked: lines on the
 // spec and its criteria; and the rules of the build ledger, in lib/ledger.cjs, which the verbs
 // step and resume of the checks script apply.
 //
@@ -85,6 +86,9 @@ function workflowChecks(core) {
     // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
     // checks of a point and a question read.
     ids: ['ac', 'd', 'step', 'scenario', 'decision'],
+    // The readers of the items of a type, which the check of an about of a question reads:
+    // the criterion ids of the acceptance criteria.
+    items: [spec.items],
     // The proof of the fast track, for a test that gives it the folder of the parsers.
     proof: { prove: lib.prove, trackLists: lib.trackLists },
     // The checks of the preflight, for a test that gives it the parts to check.

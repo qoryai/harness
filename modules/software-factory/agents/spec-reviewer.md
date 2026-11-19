@@ -54,7 +54,7 @@ any fact or finding from a higher workflow, the writer's lists "What only a pers
 settle" and "Review comments" and, when the writer declined a comment, the path of
 `declines.md`. You also get the checks the run passes you, as `reviewing-drafts` lists.
 
-The drafts are `spec.md` and `acceptance-criteria.md` at the top of the artifact folder.
+The drafts are `spec.md` and `acceptance-criteria.json` at the top of the artifact folder.
 The newest version of a type is the folder `<type>/main/v<N>/` with the largest `<N>`: read
 those of `spec`, `acceptance-criteria`, `proposal`, `mockup`, `questions` and
 `review-comments`. You fetch no web page. A refused tool call stays refused. Read through

@@ -1,0 +1,9 @@
+{
+  "summary": "Four criteria cover the new hours in the saved reply for delayed orders and the corrected reply to customers who got the old hours. A person sees the first three in a demo.",
+  "criteria": [
+    {"id": "ac-1", "text": "The saved reply for delayed orders lists the support hours as 8:00 to 20:00.", "check": "Demo: Read the new hours"},
+    {"id": "ac-2", "text": "The reply states that the hours apply every day, on weekends and public holidays too.", "check": "Demo: Read the new hours"},
+    {"id": "ac-3", "text": "The reply states that support is closed on 25 December.", "check": "Demo: Read the closed day"},
+    {"id": "ac-4", "text": "Each customer who got the reply with the old hours receives a corrected reply that lists the new hours.", "check": "Tests"}
+  ]
+}
