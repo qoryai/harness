@@ -42,8 +42,8 @@ The file of a type cannot be read when `<start>/index.json` or
 `<start>/<type>/<name>/v<N>/<file>` does not exist or cannot be read, when no entry is
 left, when the entry's `newest_version` is null, when more than one entry is left and none
 has the name `main`, or when `<name>` is no folder name. A folder name has only letters,
-digits, `.`, `_` and `-`, and is not `.` or `..`. When `qory.start_artifacts` is missing, or one of the three files cannot be read,
-stop and write no file.
+digits, `.`, `_` and `-`, and is not `.` or `..`. When `qory.start_artifacts` is missing,
+or one of the three files cannot be read, stop and write no file.
 
 ## The area
 
