@@ -67,9 +67,10 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 
 - `blocking`, with a `failing input` traced through the quoted lines, or a `failing check`:
   a bug of step 2 or 3, a security hole of step 4, and data loss of step 5.
-- `non-blocking`, with a `broken rule` proof when a file of the repository writes the rule
-  down, such as a style guide, with that file and line: dead code that the change adds, an
-  unclear name, duplicated code, a missing comment on a limit, and a break of such a rule.
+- `non-blocking`, with a `broken rule` proof that quotes the file and line of the rule when
+  a file of the repository contains it, such as a style guide: dead code that the change
+  adds, an unclear name, duplicated code, a missing comment on a limit, and a break of such
+  a rule.
 - A bug, a hole or a loss that you cannot prove by reading is `non-blocking`, or you leave
   it out.
 

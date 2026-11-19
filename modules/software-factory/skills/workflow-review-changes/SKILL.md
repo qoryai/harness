@@ -52,8 +52,8 @@ with 1 on it.
      "Changes requested" lists, with the line "<k> locked files differ from the acceptance
      lock, so the change was not reviewed: <paths>." `<paths>` is the path in each line of
      `lock --verify` that starts with "Restore" or "Make", joined by ", ". With one file,
-     write "1 locked file differs". When no line names a file, use "The stored acceptance
-     lock differs from its record, so the change was not reviewed."
+     write "1 locked file differs". When no line contains a path, use "The stored
+     acceptance lock differs from its record, so the change was not reviewed."
    - With 2, 3 or 4, end as "Failures" lists for the checks script.
 5. Do "The end".
 
@@ -70,7 +70,8 @@ the ledger with `grep -a -n -- '' <path>`, as `run-artifacts` lists:
    an agent pushed during this run does not count. Take the Id and the Change cell of each
    row of `## Deliverables`.
 2. The ledger: take `<M>`, the `newest_version` of `build-ledger` in `index.json`, and read
-   `<folder>/build-ledger/main/v<M>/build-ledger.json`, which `resume` pulled. Read no file
+   `<folder>/build-ledger/main/v<M>/build-ledger.json`, which `resume` pulled. When
+   `index.json` lists no version of `build-ledger`, no step has a row yet. Read no file
    under `.reports` with the shell: the guard denies a shell command that reaches that
    folder.
 3. A deliverable `d-<N>` is built when the ledger has a row in `steps` with the `id`
@@ -80,12 +81,11 @@ the ledger with `grep -a -n -- '' <path>`, as `run-artifacts` lists:
 Then decide, in this order, and go no further when a case ends the run:
 
 - When item 1 finds no version of `build-plan`, start nothing and end as "Points" lists,
-  with one `run_again` point. Its text is "The work item has no build plan, so the
-  change was not reviewed." and its `fix` is "Plan the build, so that a run pushes the build
+  with one `run_again` point. Its text is "The work item has no build plan, so the change
+  was not reviewed." and its `fix` is "Plan the build, so that a run pushes the build
   plan."
-- When `index.json` lists no version of `build-ledger`, or the ledger cannot be read, end
-  as "Failures" lists, with "The review of the change did not start, because the build
-  ledger could not be read."
+- When the ledger of item 2 exists and cannot be read, end as "Failures" lists, with "The
+  review of the change did not start, because the build ledger could not be read."
 - When one or more deliverables are not built, run no `lock --verify`, and end as "Changes
   requested" lists, with the line "<k> of <n> planned changes are not built: <list>."
   `<n>` counts the rows of `## Deliverables`, and `<k>` those that are not built. `<list>`
