@@ -1905,11 +1905,18 @@ test('a word that asks for a screen the spec lacks: no second write-specs for th
   const module = path.join(MODULES, 'software-factory');
   const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
   const planning = read('skills/planning-shape/SKILL.md');
-  assert.match(planning, /After a follow of `write-specs` in the log after the word's `at`, the spec needs no further change for the word, also when the reply of the spec writer has outcome `declined` or `asked`: list `make-mockups` alone/);
+  assert.match(planning, /After a follow of `write-specs` in the log after the word's `at`, the spec needs no further change for the word, also when the reply of the spec writer has outcome `declined` or `asked`\. Then, when the newest spec lists the screen, list `make-mockups`\./);
+  // Otherwise the screen has no spec part, so make-mockups is "Not run", with the reason.
+  assert.match(planning, /Otherwise list `make-mockups` under "Not run", with the reason that the spec does not list the screen/);
+  // The rule and its end agree: write-specs runs for the word until that follow.
+  assert.match(planning, /does not list as `Mockup screen:`, until a follow of `write-specs` after the word's `at` \(rule \d of/);
+  assert.match(planning, /it reruns `write-specs`, then `make-mockups`, until a follow of `write-specs` after the word's `at`/);
   assert.match(planning, /and the log has no follow of `write-specs` after the word's `at`: the spec needs a change/);
   // checking-shape covers the same word, so shape-reviewer sends it to write-specs no more.
   const shape = read('skills/checking-shape/SKILL.md');
-  assert.match(shape, /A word on the spec whose last reply declined, answered or asked about that part, or that a follow of `write-specs` after the word's `at` already took, is covered/);
+  // shape-reviewer gets no follow log, so the follow is no part of its rule.
+  assert.match(shape, /A word on the spec whose last reply declined, answered or asked about that part is covered/);
+  assert.doesNotMatch(shape, /already took/);
   assert.match(shape, /the finding goes to `write-specs`, unless the word is covered as step 1 lists/);
   // The wording of checking-specs item 7, which the two lines above repeat.
   assert.match(read('skills/checking-specs/SKILL.md'), /unless its last reply declined, answered or asked about that part/);
@@ -1921,6 +1928,8 @@ test('a word that asks for a screen the spec lacks: the spec writer can add its 
   const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
   assert.match(read('skills/designing-mockups/SKILL.md'),
     /When no part of the spec names a `Mockup screen:`, write no page/);
+  assert.match(read('skills/designing-mockups/SKILL.md'),
+    /6\. Draw only the screens that the spec lists as `Mockup screen:`\. Note each/);
   assert.match(read('skills/writing-specs/SKILL.md'),
     /## A screen that a person asks for A person's word that asks for a screen/);
   assert.match(read('agents/spec-writer.md'),
