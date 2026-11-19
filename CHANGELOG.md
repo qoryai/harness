@@ -1429,7 +1429,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   CLI, an exit code other than 0 and 2 does not block the call ([Cursor](https://cursor.com/docs/agent/hooks),
   [Gemini CLI](https://geminicli.com/docs/hooks/)). That function walks a list, not a
   recursion, and each adapter calls `safeDecide`, which denies the call, with the first line
-  "The guard failed on this call and blocks it: send a smaller call.", when `decide` throws
+  "Send a smaller call: the guard failed on this call and blocks it.", when `decide` throws
   in a run. Cursor exits 2, as on any deny. A crash outside `decide`, such as running out of memory, is outside
   what the adapter can catch. `reportsJson` returns `false` for a value that is no string.
 - The reports guard denies a write to `.reportſ/end.json` and `.reports/end.json.locK`, and a

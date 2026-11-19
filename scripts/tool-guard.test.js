@@ -2322,7 +2322,7 @@ test('a call nested 3,000 levels deep is decided like any other call, and denied
     const thrown = run(runtime, inputs[runtime]);
     assert.ok(thrown.out && denied(runtime, thrown.out), runtime);
     const reason = thrown.out.reason || thrown.out.agent_message || thrown.out.permissionDecisionReason;
-    firstLine(reason, 'The guard failed on this call and blocks it: send a smaller call.');
+    firstLine(reason, 'Send a smaller call: the guard failed on this call and blocks it.');
     assert.match(reason, /\nThe guard of \.reports\/ stopped on this call: Error: boom$/, runtime);
     assert.equal(thrown.status, runtime === 'cursor' ? 2 : 0, runtime);
   }

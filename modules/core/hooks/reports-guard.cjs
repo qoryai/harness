@@ -934,7 +934,7 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
 }
 
 // The deny of a call that made decide throw. The second line has the error.
-const FAILED_REASON = 'The guard failed on this call and blocks it: send a smaller call.\n';
+const FAILED_REASON = 'Send a smaller call: the guard failed on this call and blocks it.\n';
 
 // safeDecide returns what decide returns for call, or, when decide throws in a run, a deny with
 // FAILED_REASON and the error. The adapters call it, so that a call that the guard cannot read
