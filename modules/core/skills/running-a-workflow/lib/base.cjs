@@ -101,9 +101,11 @@ function short(text, size = SHORT) {
   return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
 }
 
-// plainLine removes control and refused characters, and cuts the line to LINE characters.
+// plainLine removes control, refused and hidden characters, and cuts the line to LINE
+// characters.
 function plainLine(text) {
-  return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd(), LINE);
+  return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '')
+    .replace(HIDDEN, '').trimEnd(), LINE);
 }
 
 // findingLines returns the lines of a finding, each made plain by plainLine. A finding has

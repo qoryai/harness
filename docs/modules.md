@@ -1359,19 +1359,19 @@ tool's error. The first line of each reason starts with what to do. The guard de
   without a wall, the trusted hash of the hooks file is written.
   `--dangerously-bypass-hook-trust` is refused. Whether MCP calls made through the code mode
   of Codex reach the `PreToolUse` hook is not checked. (5) The guard sets no run-time limit
-  on an allowed command. A very large number as an option value hangs BSD `cut`, `tail` and
-  `grep` until the tool timeout (`cut -b 99999999999`; `cut -c` and `cut -f` hang the same
-  way); a pattern of `grep -E`, `find -regex` or `rg` can take unbounded time; a command
-  that reads an endless file, such as `cat /dev/zero`, runs until the tool times out; `git`
-  compares two paths outside the work tree as `diff` does, and a named pipe among them
-  blocks it (`git diff a.txt ../x/ff`); a recursive search of BSD `grep -r` or `-R` blocks
-  on a named pipe in the tree; and `sort` may write temporary files under the system
-  temporary folder for large input, which the guard allows. (6) The report schema limits
-  `file` of a finding to 500 characters, and `findings open` prints the `file` of a finding
-  whole, without a cut. The glob rule covers a word that the shell expands, not a pattern
-  that a command expands itself: `grep -e` and `find -name` take a pattern, so a quoted `*`
-  stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard denies
-  both.
+  on an allowed command. A very large number as an option value hangs BSD `cut` with `-b`,
+  `-c` or `-f`, and BSD `grep` with `-B` or `-C`, until the tool timeout (`cut -b
+  99999999999`); a pattern of `grep -E`, `find -regex` or `rg` can take unbounded time; a
+  command that reads an endless file, such as `cat /dev/zero`, runs until the tool times
+  out; `git diff` with a path outside the work tree compares files as `diff` does, and a
+  named pipe among the paths blocks it (`git diff ../x/ff a.txt`); a recursive search of BSD
+  `grep -r` or `-R` blocks on a named pipe in the tree; and `sort` may write temporary files
+  under the system temporary folder for large input, which the guard allows. (6) The report
+  schema limits `file` of a finding to 500 characters, and `findings open` prints the `file`
+  of a finding whole, without a cut. The glob rule covers a word that the shell expands, not
+  a pattern that a command expands itself: `grep -e` and `find -name` take a pattern, so a
+  quoted `*` stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard
+  denies both.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,

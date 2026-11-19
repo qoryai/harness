@@ -559,6 +559,16 @@ test('findings open: hidden characters are removed from the printed text', () =>
   assert.ok(!/[\u{E0000}-\u{E007F}\u200C\u200D\uFE00-\uFE0F\u034F\u3164\u115F\u1160\u180B-\u180D]/u.test(result.out));
 });
 
+test('plainLine removes hidden characters, as plain does', () => {
+  const { plainLine } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'base.cjs'));
+  const points = { 'U+180F': String.fromCodePoint(0x180F), 'U+E0001': String.fromCodePoint(0xE0001),
+    'lone surrogate': String.fromCharCode(0xD800), 'U+200D': String.fromCodePoint(0x200D) };
+  for (const [name, one] of Object.entries(points)) {
+    assert.equal(plainLine(`Re${one}move ${one}me${one}`), 'Remove me', name);
+  }
+  assert.equal(plainLine('caf\u00e9 \u4e2d \u{1F600}'), 'caf\u00e9 \u4e2d \u{1F600}');
+});
+
 test('findings: wrong arguments exit 2, and the removed forms are gone', () => {
   for (const argv of [['findings'], ['findings', 'open'], ['findings', 'open', 'a', 'b'],
     ['findings', 'show'], ['findings', 'add', '1', 'code-reviewer', 'r.md'],
