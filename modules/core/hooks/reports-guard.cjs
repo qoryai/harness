@@ -48,8 +48,8 @@ const REPORTS_START = /(?:^|[/=:])\.reports\//i;
 const WORD = /[^\s'"]+/g;
 
 // reportsJson reports whether text has a path under a folder .reports that ends in .json, or
-// whose name has .json.lock, alone or inside a patch. It reads each word once: a regular
-// expression for the whole path takes time in the square of a text of repeated `.reports/`.
+// whose name has .json.lock, alone or inside a patch. It reads each word once: the regular
+// expression that it replaced took time in the square of a text of repeated `.reports/`.
 function reportsJson(text) {
   for (const [word] of text.matchAll(WORD)) {
     if (!REPORTS_START.test(word)) continue;
@@ -104,8 +104,8 @@ const realPath = (file) => {
 };
 
 // withoutRedirect returns command without its white space at both ends and without a ` 2>&1`
-// at its end, with the white space before it. A regular expression for that takes time in the
-// square of a run of white space.
+// at its end, with the white space before it. The regular expression that it replaced took time
+// in the square of a run of white space.
 function withoutRedirect(command) {
   const text = command.trim();
   if (!text.endsWith('2>&1')) return text;

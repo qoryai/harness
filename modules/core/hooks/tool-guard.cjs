@@ -303,8 +303,8 @@ function patchPaths(patch) {
 }
 
 // patchPath returns the path in a line of a Codex patch that adds, changes, deletes or moves
-// to a file, or '' for any other line or an empty path. It scans the line once, as a regular
-// expression takes time in the square of a run of white space.
+// to a file, or '' for any other line or an empty path. It scans the line once: the regular
+// expression that it replaced took time in the square of a run of white space.
 function patchPath(line) {
   let start = 0;
   while (start < line.length && PATCH_SPACE_CHAR.test(line[start])) start++;

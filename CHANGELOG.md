@@ -1365,14 +1365,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   A guard cannot stop a regular expression at its time limit, and a hook that outlasts its
   timeout lets the call run. In Codex 0.169.0 a hook that times out marks the hook run as
   failed and the tool call continues
-  ([`codex-rs/hooks/src/engine/command_runner.rs:369-379`](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/hooks/src/engine/command_runner.rs#L369-L379),
-  [`codex-rs/hooks/src/events/pre_tool_use.rs:205-218`](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/hooks/src/events/pre_tool_use.rs#L205-L218)
-  and [`codex-rs/core/src/hook_runtime.rs:239-247`](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core/src/hook_runtime.rs#L239-L247),
-  all at tag `rust-v0.169.0`). Claude Code before 2.1.295 runs the call too (the entry about
-  `onFailure: "block"` in this file), as do Cursor and Copilot CLI (`docs/modules.md`, in the
-  paragraph about the 10-second hook timeout). The Codex hook timeout is 120 s in
-  `modules/core/settings/codex/config.toml`. By extrapolation, the patch header expression
-  passes 120 s at about 500,000 characters of spaces, and the `.reports/` expression at about
+  ([`codex-rs/hooks/src/engine/command_runner.rs:369-379`](https://github.com/openai/codex/blob/d32063f96c2dff1dc96af839b3952abb6acfeda4/codex-rs/hooks/src/engine/command_runner.rs#L369-L379),
+  [`codex-rs/hooks/src/events/pre_tool_use.rs:205-218`](https://github.com/openai/codex/blob/d32063f96c2dff1dc96af839b3952abb6acfeda4/codex-rs/hooks/src/events/pre_tool_use.rs#L205-L218)
+  and [`codex-rs/core/src/hook_runtime.rs:239-247`](https://github.com/openai/codex/blob/d32063f96c2dff1dc96af839b3952abb6acfeda4/codex-rs/core/src/hook_runtime.rs#L239-L247),
+  all at tag `rust-v0.169.0`, commit `d32063f96c2d`). Claude Code before 2.1.295 runs the call
+  too (the entry about `onFailure: "block"` in this file), as do Cursor and Copilot CLI
+  (`docs/modules.md`, in the paragraph about the 10-second hook timeout). The Codex hook
+  timeout is 120 s in `modules/core/settings/codex/config.toml`. By extrapolation, the old
+  expression for the patch header passes 120 s at about 500,000 characters of spaces, the one
+  for `2>&1` at about 475,000, and the one for `.reports/` at about
   850,000 characters. Each expression is one scan of the line or of the words of the text,
   with the same result on every input that the tests compare.
 - The headless Chrome of `render-mockups.cjs` and of the `preflight` verb starts with
