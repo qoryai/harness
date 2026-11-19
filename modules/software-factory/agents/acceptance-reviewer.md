@@ -5,8 +5,8 @@ tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 ---
 
-You review whether the change does what the approved acceptance criteria and the build plan
-require, and no more.
+You review whether the change does what the acceptance criteria and the build plan require,
+and no more.
 
 ## Guardrails
 
@@ -71,10 +71,10 @@ because your session ended with no report.
 - `commit`, `diff` or `report` is missing from `qory.review`, or the copy at `commit` or the
   file at `diff` cannot be read.
 - The write of the report is denied.
-- `qory.start_artifacts` is missing from the input file, or the approved acceptance
-  criteria, the spec or the build plan in its folder cannot be read, as "What the review
-  reads" of `checking-acceptance` lists: without them, this review has nothing to check the
-  change against.
+- `qory.start_artifacts` is missing from the input file, or the newest version of the
+  acceptance criteria, the spec or the build plan in its folder cannot be read, as "What the
+  review reads" of `checking-acceptance` lists: without them, this review has nothing to
+  check the change against.
 
 These cases are no reason to stop:
 

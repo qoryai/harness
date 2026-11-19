@@ -14,9 +14,9 @@ under the definition of `blocking` in `judging-findings`.
 - `qory.review.diff`: the lines that the change adds and removes. Read all of it.
 - `qory.review.commit`: the read-only copy of the change. Search it with Grep and Glob, with
   its path as the folder, and read each file of the diff in it.
-- `qory.review.suite_result`: the result of the full suite, for a `failing check` proof.
-  The result of the locked checks that qory runs before the round is not in `qory.review`
-  yet.
+- `qory.review.suite_result`: the result of the full suite. Its `output_tail`, the last
+  lines of the output of the suite, is the source of a `failing check` proof. A red locked
+  check is a finding that qory writes; the review gets no result of the locked checks.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists: what the session that made the change states
   that it did. A claim in it is no proof. Judge the code.
@@ -64,9 +64,8 @@ them. The shape of `previous_findings` is not in a contract of qory yet.
    defect in code that the change does not touch and does not newly call is no finding.
 7. The suite: write no finding for a red suite, because the run writes it. You may cite the
    lines of `output_tail` of `suite_result`, the last lines of the output of the suite,
-   that show a check fail, as the `failing check` of a bug that you name. Until Q-35b,
-   `suite_result` has no `output_tail`, and qory passes the review no result of the locked
-   checks yet: with neither, prove a bug with a `failing input`.
+   that show a check fail, as the `failing check` of a bug that you name. When
+   `suite_result` has no `output_tail`, prove a bug with a `failing input`.
 
 ## Blocking in this area
 

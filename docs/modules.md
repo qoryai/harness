@@ -2505,12 +2505,12 @@ review round. In a stage with none, such as when `inputs.json` has no
   failing test. Only `acceptance-reviewer` reports a criterion that the change does not
   meet; it also reports a planned change that is not in the diff, a changed path that no
   Files cell of the build plan lists, and work that no rule of the spec requires. It reads
-  the approved acceptance criteria, the spec and the build plan from the folder of
+  the acceptance criteria, the spec and the build plan from the folder of
   `qory.start_artifacts`, each at the `newest_version` of its entry `main`, or of its one
   entry, in `index.json`, with withdrawn entries left out. A bug that also breaks a
   criterion gets two findings: the cause from `code-reviewer`, and the criterion from
-  `acceptance-reviewer`. A red suite is the finding that qory writes. A `failing check`
-  proof cites the lines of `output_tail` of `suite_result`.
+  `acceptance-reviewer`. A red suite and a red locked check are findings that qory writes.
+  A `failing check` proof cites the lines of `output_tail` of `suite_result`.
 - **Earlier findings.** Each reviewer re-reads each finding of `previous_findings`, as
   `reviewing-changes` and `judging-findings` list, and repeats with its id each finding of
   its area that is still true.
@@ -2524,8 +2524,6 @@ review round. In a stage with none, such as when `inputs.json` has no
     stops with no report;
   - `output_tail` of `suite_result`, the last lines of the output of the suite, so
     `suite_result` has counts only;
-  - the result of the locked checks that qory runs before the round, as a value of
-    `qory.review`;
   - the shape of `previous_findings`.
 
 ## The high-level workflow, shape-a-ticket
