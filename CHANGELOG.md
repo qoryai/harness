@@ -1586,6 +1586,202 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The reports guard reads the first word of a command, to find out whether it is a copy of
+  `checks.cjs`, only when it is a regular file of the size of `checks.cjs`, and then at most
+  that size and one byte. It read the whole file, so `/dev/zero` grew the hook to 44.8 GB, a
+  FIFO blocked it until the timeout of the hook, which lets the call run on Cursor and
+  Copilot CLI, and any program such as `/usr/bin/git` was read in full. A command whose
+  first word is a path to a device, a pipe or a socket is denied with the first line "Start
+  the command with a program or a script, not a device, pipe or socket." A regular file of
+  another size is decided by the other rules of the guard: the command is not `checks.cjs`.
+  The guard opens the file without blocking (`O_NONBLOCK`) and reads its type and size from
+  the open file, because another process may rename a FIFO over the path between the stat of
+  the path and the open: the open waited for a writer, and 11 of 600 runs of a rename loop
+  hung. A FIFO opened this way is not read.
+- The reports guard of Gemini CLI, Cursor and Copilot CLI decides a command with 62,500 words
+  of `***` in 30 ms, where it took 70 s with the working folder at `/tmp`. It expanded each
+  glob word with a separate `fs.globSync` call, and the hook outlasted its timeout of 10 s,
+  which lets the call run on Cursor and Copilot CLI. Equal globs share one call, and a
+  command whose globs need more than 256 different calls, match more than 100,000 paths in
+  all, or take more than 600 ms in all, checked between the calls, is denied with the first line "Leave .reports/ to
+  checks.cjs, and name other files with no `$`, backtick, eval or glob." and the limit on the
+  second line. A command of 256 different globs `a<n>*` in a folder of 1,000 files takes
+  0.36 s at load 19. A brace is counted before `fs.globSync` runs, as the patterns that it
+  makes: `ls f{1..100000}.txt` took 31.6 s and `ls {1..9}{1..9}{1..9}{1..9}{1..9}` 12.1 s,
+  and the hook outlasted its timeout. A command is denied when its braces make more than
+  4,096 patterns in all, where a pattern with a wildcard counts 256 (`f{1..16}*` is at the
+  limit), or when one glob has more than 5 parts with a glob character, as `*/*/*/*/*/*`.
+  Four more words of a command stalled the guard, and the call ran on Cursor and Copilot CLI:
+  `ls {000000000000000000000000000000001..0000000000000000000000000000100000}` counted 1 and
+  `fs.globSync` took 84 s and 303 MB, because the count skipped a range of more than 40
+  characters; `ls *a*a*a*a*c` took more than 20 s in a folder with a file name of 254 `a`, as
+  `fs.globSync` matches a part with a regular expression that takes time in the power of its
+  `*`; `ls *"(a|aa)"*"(a|aa)"*"(a|aa)"b` took 12.5 s, because the quotes that bash removes
+  leave an extended glob; and a word of 65,530 `/` and `*` took 9.1 s, in a loop that built
+  each prefix of the word again. The count reads the numbers of a range as numbers. A glob is
+  denied with more than 3 `*` in one path part, more than 8 in all, more than 16 `*` and `?`
+  in a part, more than 32 in all, a `(` after `*`, `?`, `+`, `@` or `!`, or more than 4,096
+  characters, and the loop checks the time before each folder part. A cap on the
+  number of `*` does not bound a call that cannot be stopped, because the time of `*a*a*c` is
+  about 1 ms for each name of 254 characters in the folder that it scans: 12,000 files with
+  names of 254 characters (240 `a`, 5 digits and `!`) took 13.6 s, 1,000 took 1.15 s, at load
+  12, and `case x in *a*a*c) :;; esac; echo forged > <folder>/.rep*/x.json` outlasted the
+  10 s timeout of the hook, which lets the call run on Cursor and Copilot CLI. Before
+  `fs.globSync` runs for a part with 2 or more `*`, the guard reads the names of the folders
+  that the part scans (at most 83,334 of one folder, and 2,000 folders) and adds 3 microseconds
+  for each name and, for each name, `length^stars` times 0.5 ns for 2 `*` or 0.08 ns for 3 `*`,
+  which is 25 to 100 % more than the measured times. A command whose sum passes 250 ms is denied
+  with "Use a narrower glob:" on the second line, and so is a part with 3 `*` in a folder of
+  more than 20,000 names. The deny of the 12,000 names takes 10 to 141 ms. The folders that a part scans are
+  all the folders among the matches of the part before it: the guard took the first 2,001 matches and then dropped the
+  files, so 2,100 files that sort before 100 folders (`a00000` to `a02099` and `z000` to `z099`,
+  each folder with 120 names of 254 characters) hid every folder, and `*/*a*a*c` took 15.4 s.
+  The check of each match costs 0.26 s for 100,000 files at load 25, and a part over 2,000
+  folders is denied with "Use a narrower glob:". A part with 1 `*`, as `a*c` or `f*`, costs
+  2.2 microseconds for each name and is limited only by the names it reads (see the next
+  entry): `*`, `.r*`, `*/*.json`, `a*c` and `a*b*c` pass in 50,000 files, and `*`, `a*` and
+  `*.json` in the 12,000 long names.
+- The guard counts the `*` of a glob for each alternative of its braces, and bounds every glob
+  part by the names it scans. `cat {src/*,lib/*}` and `ls {*.ts,*.js,*.md,*.json}` were denied
+  (the stars were added across the alternatives and not reset at `/`); each pair of braces
+  counts as its largest alternative, counted from the text before the braces, so
+  `x{*a,*b}y{*c,*d}*e*` has 4 `*` and `{*a*a*c,b}` is limited by the work estimate, which
+  multiplies by the number of alternatives. A part with fewer than 2 `*` read no names and had no limit: `ls {a..p}*` (16 alternatives) took
+  0.67 s on 50,000 names, over the 600 ms that the guard allows. Every part with a `*`, `?`
+  or `[` costs 2.2 microseconds for each name and 0.6 microseconds for each alternative
+  after the first, within the same 250 ms of one call: `ls {a..p}*` is denied in 0.04 s,
+  while `{a,b,c,d,f}*`, `*`, `.r*`, `*/*.json`, `a*c`, `f*` and `a*b*c` pass in the same
+  folder. A folder of 83,334 names or more is denied for a part with a `*`.
+- A brace that puts two `*` side by side, and a `/` inside braces, no longer let a glob stall.
+  The guard reads `**` as `*` before it expands braces, and `fs.globSync` expands them itself:
+  `*{*,}` has no `**` in its text, and `fs.globSync` read its `**` as a globstar. `ls /*{*,}`
+  walked the whole disk and never returned, so on Cursor and Copilot CLI the call, and a
+  `; echo x > art/.rep*/x.json` after it, ran at the timeout of the hook (10 s); the 50
+  characters `/{*{,**},??*[[?,}/[a}\/]]},?}a\\[\a[[a?/[[}{?{,}/[` hung it too. A glob is
+  denied, before any call, when an expansion of its braces can have two `*` side by side:
+  `*{*,}`, `{*,}*`, `*{,*}`, `*{,}*`, `{*,*}{*,*}`, `{src/*,lib/*}*` and `x*{,}*`. `{a,b}*`,
+  `*.{ts,js}`, `{*.ts,*.js}` and `{a,b}{*,}` pass. In a pass over 40,000 random patterns of
+  `*`, `{`, `}`, `,` and `a`, no pattern that the guard let through made `fs.globSync` read a
+  globstar. A part after a `/` inside braces skipped the estimate: the first glob part was the
+  text after the brace, a folder that is not there with 0 names, so `ls {l01/,...,l15/}*`, with
+  15 links to one folder of 200,000 files, took 14.9 s (and `ls {real/,x}*` passed without the
+  limit of 83,334 names). The guard expands such a word itself (at most 16 words with a
+  glob character, 4,096 without, braces nested at most 32 deep) and scans each word in the
+  folders that the word reaches, so that the same pattern is denied in 0.05 s, as `ls l01/*`
+  is. This replaces the
+  denial of a part with 2 or more `*` after a `/` inside braces: `{src/*a*a*c,lib}` and
+  `{x,y/}*a*c` pass in a normal folder.
+
+- The reports guard of Gemini CLI, Cursor and Copilot CLI stops a glob that stalls: it runs the
+  `fs.globSync` calls of one command in a child process that it kills after 2.5 s, shared by all
+  the children of one hook process (250 string arguments of `write_bash`, one child each, took
+  more than 10 s on Copilot CLI, which runs a call past 10 s), and denies
+  the call with "Use a narrower glob:" when the child is killed, cannot start, exits with a code
+  other than 0, or prints bad output. `ls \*\*\*\*\*\*\*\*\*\*` (a backslash and a star, 10 times)
+  never returned, because `fs.globSync` reads a backslash as a path separator: a glob with a
+  backslash and a `*`, `?` or `[` is denied before any call to `fs.globSync` (inside the child);
+  a word of braces only, as `echo a\{b,c}`, never reaches it and passes. 76 of the patterns of 6 characters of
+  `\ { } , * a` hung. `{a}2,}` repeated 30 times, followed by `*`, made 2^29 words for
+  `fs.globSync` and counted 1 for the guard, so a `; echo x > .rep*/x.json` after it ran at the
+  hook timeout of 10 s; the count of braces is now the larger of the guard's reading and the one
+  of minimatch (in 60,000 random strings of 4 alphabets, none counted below minimatch). A
+  word of braces that builds `.reports` (`mkdir -p .{rep,x}orts`, `echo x > {.reports,y}/x.json`)
+  passed where the folder was not there; the guard tests each word of the braces. `{*,}/*/*/*/*`
+  made a relative and an absolute word, and the guard scanned only the working folder; it scans
+  each word, the absolute one from `/`. Normal commands (`ls {*.ts,*.js}`, `cat src/{a,b}.ts`,
+  `cat {src/*,lib/*}`, `*.txt`) pass; a command with a `*` costs a child of 37 to 40 ms at load 41.
+  The first line of the deny of a backslash is "Leave .reports/ to checks.cjs, and name other
+  files with no `$`, backtick, eval or glob."; the second starts with "Remove the backslash
+  before the glob character".
+  The variable `QORY_REPORTS_GUARD_TEST` has 3 fields, `globMs`, `stall` and `fail`, which can
+  only lower the limit of the child or deny a call. No field turns off a check, because Gemini
+  CLI 0.68.0 loads the `.env` of the workspace into the environment of a hook, and the guard
+  does not deny a write to `.env`; the options `noCaps` and `waitMs` belong to `decide`, which
+  the adapters call with fixed fields.
+- The reports guard of Copilot CLI denies a call when its hook process has used 8 s: the adapter
+  calls the guard for each string argument of `write_bash`, and 14,000 arguments of 4,096 brace
+  words each, with `echo x > art/.reports/x.json` last, ran past the 10 s of the hook, which
+  Copilot CLI treats as no answer and runs. From 8 s after the start of the process, each
+  further call is denied with the first line "Send fewer or smaller arguments in one tool
+  call." The shared deadline of the children and the 600 ms budget use a monotonic clock
+  (`performance.now()`), so a step of the system clock changes neither. A backslash at the end of
+  a word is dropped by the shell, so `mkdir .reports\`, `echo x > .reports\` and
+  `mkdir -p {.reports,y}\` make `.reports`; the guard denies them, and `ls {x,y}\` and
+  `echo a\{b,c}` pass.
+- The reports guard of Gemini CLI, Cursor and Copilot CLI denies a hook process that has more
+  than 8 MiB of text in its arguments, whatever the text is, writes included. The check of 8 s
+  read the clock once for each call, so one call of 80 MB on Cursor, or a field of 40 MB before a
+  field that writes `.reports/x.json` on Copilot CLI, ran past the 10 s of the hook, which kills
+  it, and a hook with no answer lets the call run. The guard sums the lengths of the strings of
+  all its calls, plus the length of each key and 16 for each entry of an object, 8 for each item
+  of an array and the length of the working folder (a measure of the work, not an exact count:
+  4,000,000 entries of `"<base36>":""` took 9.4 s), and denies the call that crosses
+  8 * 1024 * 1024, before it reads the text, with the first line
+  "Send fewer or smaller arguments in one tool call." A call that makes the count throw is
+  denied in a run too.
+- In a run, the reports guards of Gemini CLI, Cursor and Copilot CLI and the tool guard of Claude
+  Code and Codex deny an input of more than 16 MiB on stdin before they parse it, with the first
+  line "Send fewer or smaller arguments in one tool call." and the second line "The input of this
+  call is more than 16 MiB, ...". A child process, without NODE_OPTIONS in its environment, reads
+  stdin and stops at 16 MiB + 1 byte, so the memory stays near 16 MiB, and an input that does not
+  end by 8 s after the start of the hook gets the 8 s deny, not the kill of the runtime at 10 s. Before, the hook read and parsed such an input
+  in full. The reports guards also deny an input that is not a JSON object (text, an empty input,
+  an array), with the first line "Send the call again."; before, it was read as no call and the
+  call ran. Outside a run, nothing changes.
+- The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
+  and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
+  that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini
+  CLI, an exit code other than 0 and 2 does not block the call ([Cursor](https://cursor.com/docs/agent/hooks),
+  [Gemini CLI](https://geminicli.com/docs/hooks/)). That function walks a list, not a
+  recursion, and each adapter calls `safeDecide`, which denies the call, with the first line
+  "Send a smaller call: the guard failed on this call and blocks it.", when `decide` throws
+  in a run. Cursor exits 2, as on any deny. A crash outside `decide`, such as running out of memory, is outside
+  what the adapter can catch. `reportsJson` returns `false` for a value that is no string.
+- The reports guard denies a write to `.reportſ/end.json` and `.reports/end.json.locK`, and a
+  shell command that names `.reportſ/`. On a disk that ignores case, as the default disk of
+  macOS does, U+017F (long s) is `s` and U+212A (Kelvin sign) is `k`, so these are the paths
+  of the report files. The expressions that match `.reports`, `.json` and `.json.lock` had
+  the `i` flag and no `u` flag, which folds neither letter. They have both flags.
+- The reports guard denies a write to `.reports/a b/../report.json` and a write through a link
+  to a `.reports` folder or to a file in it. It split the path at the space and never
+  resolved `..` or links, so it saw no `.reports/` path. The guard reads each path of a
+  write, and each header line of a patch, as the disk resolves it from the working folder of
+  the call: where the folder `.reports/a b/` exists, the disk reads `a b/..` as `.reports`;
+  where it does not exist, the write fails, and the guard still reads the `..` as text and
+  denies. The guard reads the whole text of an argument as one path too, so a line break in
+  it is part of a folder name, also when a line of the text is a patch header such as
+  `*** Add File: ok`; the text `*** Add File: ok`, a line break and `/../l1/x.json` reached
+  `l1/x.json` through a link to `.reports` and passed. The header lines of a patch are read two
+  ways, and a deny by either counts. Codex splits the patch at line feeds only, trims the
+  white space of Unicode's White_Space from both ends of the line, and takes the rest after
+  the exact start `*** Add File: ` as the path, so a path may have a carriage return inside
+  or a space at its start. The broader reading ends a line at each line break of that set
+  (U+0085, U+2028, U+2029, `\v`, `\f`, `\r`) and also drops the white space at the left of the
+  path. A link named `lk` and a carriage return and `X` to `.reports`, and the patch
+  `*** Add File: lk` and a carriage return and `X/x.json`, passed when the guard read only the
+  broader line; so did a link named with a leading space and `*** Add File:  lk/x.json`.
+  U+0085 (NEL) before `*** Add File: l1/x.json` passed when the guard used the `\s` of
+  JavaScript, which lacks it. The guard reads each path two ways: as the kernel opens it, with each `..`
+  applied to the folder that the part before it resolves to, and as a tool that cuts each `..`
+  out of the text before it opens the file; the second reading joins the path to the working
+  folder and follows each link of the result. A deny by either reading counts. With
+  `lnk -> deep/d1/d2` and `l2 -> art/.reports`, the kernel opens `lnk/../l2/x.json` as
+  `deep/d1/l2/x.json`, which is not there, and a tool that cuts `lnk/..` first writes
+  `l2/x.json`, in `.reports`: the guard denies it. The second reading runs for each path that has a
+  `.` or `..` part or an empty part, and for each path of more than 4,096 characters, which
+  no disk opens, with or without `..`: `x/../` 1,000 times and then
+  `.reports/a b/../report.json` is denied, and so is `../` 1,400 times, the working folder
+  without its first `/`, and `/l1/x.json`; so is `./` 2,100 times and then `l1/x.json`, and
+  `/` 4,100 times and then the working folder and `/l1/x.json`, which passed. A relative
+  path is joined to the text of the working folder, to the folder that its links lead to, and
+  to what `fs.realpathSync` returns for it, because a tool may resolve against any of them:
+  with the working folder `lnk -> deep/d1/d2`, `d2/y -> other/inner` and
+  `deep/d1/l4 -> .reports`, `y/../../l4/x.json` is `l4/x.json` next to `lnk` for the kernel
+  and the text, and `deep/d1/l4/x.json` against the folder that the link leads to. The cut runs in one pass; `path.posix.normalize`
+  took 26 s on 990 KB of `../`. The paths of one call share 16,384 steps, one for
+  each part of a path, `.` and `..` too; a call that needs more is denied with "Write fewer
+  files in one call, each with a short path and no link." A path through more than 40 links,
+  or through a link loop, is denied with "Remove the link loop from the path."
 - The tool guard and the reports guard read a line of 250,000 spaces in under 5 ms (0.2 ms
   for the patch line and 4 ms for the shell command, measured). Three regular expressions
   took time in the square of the length of such a line or path. The one that reads the header

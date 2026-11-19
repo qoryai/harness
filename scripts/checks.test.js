@@ -7275,9 +7275,10 @@ test('reports-guard denies a shell command that reaches .reports through a glob,
   assert.match(shell('cat ~-/.rep*'), /\nThe guard reads ~- in the word ~-\/\.rep\* as OLDPWD, which is not set\.$/);
   assert.match(shell('cat ~alex/.rep*'), /\nThe guard does not expand ~alex in the glob ~alex\/\.rep\*\.$/);
   assert.equal(shell('ls ~alex/notes.md'), null);
-  // A glob that fs.globSync throws on is denied: bash still expands a pattern too long for it.
+  // A glob of more than 4,096 characters is denied before fs.globSync runs: bash still expands
+  // it, and fs.globSync stopped on one of 64 KB.
   assert.match(shell(`cat .[${'r'.repeat(70000)}]eports/starts.json`),
-    /\nfs\.globSync could not expand the glob \.\[r+…: pattern is too long\.$/);
+    /\nA glob of the command has more than 4,096 characters, and the guard expands at most 4,096\.$/);
   // A glob expands from the working folder of the command, which the hook's input contains.
   assert.equal(shell('cat ../.rep*/starts.json'), null);
   assert.match(shell('cat ../.rep*/starts.json', path.join(cwd, 'src')),
@@ -7368,9 +7369,10 @@ test('reports-guard returns in under 1 second on a command with 250,000 spaces',
 test('reportsJson reads the same texts as the regular expression that it replaced', () => {
   const { reportsJson } = require(path.join(MODULES, 'core', 'hooks', 'reports-guard.cjs'));
   // The regular expression that decide used before, which takes time in the square of a text of
-  // repeated `.reports/`, and is kept only for the comparison.
+  // repeated `.reports/`, and is kept only for the comparison. It has the u flag, as reportsJson
+  // has: with i, the u flag folds U+017F and U+212A, as a disk that ignores case does.
   const old = new RegExp('(?:^|[/\\s\'"=:])\\.reports\\/(?:[^\\s\'"]*\\/)?[^\\s\'"/]*\\.json' +
-    '(?:\\.lock[^\\s\'"/]*)?(?=$|[\\s\'"])', 'im');
+    '(?:\\.lock[^\\s\'"/]*)?(?=$|[\\s\'"])', 'imu');
   // The pieces: the folder and its near misses, each ending of a name, each separator, white
   // space of each kind, and the characters that JavaScript's i flag or m flag treat in a
   // special way: U+212A (Kelvin sign), U+017F (long s), U+2028 and U+2029, and U+FEFF.

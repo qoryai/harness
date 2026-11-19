@@ -19,7 +19,13 @@ const guardModule = require(path.join(HOOKS, 'tool-guard.cjs'));
 const { lockedFiles, patchPaths, countsAsWrite } = guardModule;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tool-guard-test-')));
-test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// The folders of the checks go a few at a time: some hold 50,000 files, and the removal of a
+// folder is a series of calls that waits for the disk.
+test.after(async () => {
+  await pooled(fs.readdirSync(tmp).map((name) => () => fs.promises.rm(path.join(tmp, name),
+    { recursive: true, force: true })));
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
 
 // The artifact folder of a run, which no test makes, so that a /tmp/qory-artifacts that
 // another run left on this machine changes no test.
@@ -689,6 +695,23 @@ function harnessHome() {
   for (const module of ['core', 'software-factory']) {
     fs.symlinkSync(path.join(MODULES, module), path.join(home, 'modules', module));
   }
+  return home;
+}
+
+// patchedHome returns a harness home whose reports-guard.cjs has `from` replaced by `to`: no
+// adapter and no environment variable sets the options of decide, so a copy that the check
+// patches is the way through the real wrappers to a guard with another limit. More pairs of
+// from and to, in the arguments after the first two, patch the copy in more places.
+function patchedHome(from, to, ...more) {
+  const home = harnessHome();
+  const file = path.join(home, 'hooks', 'reports-guard.cjs');
+  let text = fs.readFileSync(file, 'utf8');
+  const pairs = [from, to, ...more];
+  for (let at = 0; at < pairs.length; at += 2) {
+    assert.ok(text.includes(pairs[at]), `reports-guard.cjs has ${pairs[at]}`);
+    text = text.replace(pairs[at], pairs[at + 1]);
+  }
+  fs.writeFileSync(file, text);
   return home;
 }
 
@@ -1665,8 +1688,10 @@ test('the first line of each deny has at most 100 characters and says what to do
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const texts = { ...guardModule.REASONS, WRITE_REASON: reports.WRITE_REASON,
     SHELL_REASON: reports.SHELL_REASON, HIDDEN_REASON: reports.HIDDEN_REASON,
+    PATH_REASON: reports.PATH_REASON, LOOP_REASON: reports.LOOP_REASON, FAILED_REASON: reports.FAILED_REASON,
+    SPECIAL_REASON: reports.SPECIAL_REASON,
     STEPS: steps.REASON, UNWRITABLE: steps.UNWRITABLE };
-  assert.ok(Object.keys(texts).length >= 19, Object.keys(texts).join(' '));
+  assert.ok(Object.keys(texts).length >= 23, Object.keys(texts).join(' '));
   for (const [name, text] of Object.entries(texts)) {
     const [first, ...rest] = text.split('\n');
     assert.ok(first.length <= 100, `${name}: ${first.length} characters: ${first}`);
@@ -2201,6 +2226,1309 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     `mkdir -p docs && cat > docs/a.md <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
+});
+
+test('a path is read as the disk resolves it: a `..` after a folder with a space, and a link', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('dots');
+  fs.mkdirSync(path.join(work, '.reports', 'a b'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'src'));
+  fs.symlinkSync('.reports', path.join(work, 'src', 'link'));
+  fs.symlinkSync('../.reports/new.json', path.join(work, 'src', 'dangling'));
+  const at = (input) => ({ ...input, cwd: work });
+  const denied = (reason) => firstLine(reason, 'Write no file under .reports/');
+  // The folder exists, so the disk reads `a b/..` as `.reports`.
+  for (const file of ['.reports/a b/../report.json', `${work}/.reports/a b/../report.json`,
+    '.reports/a b/./../report.json', '.reports/a b/../a b/../x.json.lock',
+    'src/link/report.json', 'src/link/a b/../report.json', 'src/dangling', 'src/../src/dangling']) {
+    for (const make of [claude, codex]) {
+      denied(guard(at(make(make === claude ? 'Write' : 'apply_patch', make === claude
+        ? { file_path: file, content: '{}' } : patch(file), 'implementer')), RUN));
+    }
+    // The shell reads the redirect with .reports/ in its text; a link or `..` is a path.
+    assert.equal(reports.decide({ kind: 'write', args: { file_path: file }, env: RUN, cwd: work }),
+      reports.WRITE_REASON, file);
+  }
+  // A path with a space in a patch of a shell call, and a raw patch text of Copilot CLI.
+  for (const make of [claude, codex]) {
+    denied(guard(at(make('Bash', { command: `apply_patch <<'EOF'\n*** Begin Patch\n` +
+      `*** Add File: .reports/a b/../report.json\n+{}\n*** End Patch\nEOF` }, 'implementer'))));
+  }
+  assert.equal(reports.decide({ kind: 'write', env: RUN, cwd: work,
+    args: '*** Update File: .reports/a b/../report.json\n@@\n-1\n+0\n' }), reports.WRITE_REASON);
+  const shell = reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: work,
+    args: { command: "echo '{}' > '.reports/a b/../report.json'" } });
+  assert.ok(shell.startsWith('Write to .reports/ only through checks.cjs.'), shell);
+  // Paths that end up outside .reports/, or in a file that is no .json, pass.
+  for (const file of ['a b/../report.json', 'src/link/note.md', '.reports/a b/../../report.json',
+    '.reports/missing/../note.md', 'src/dangling.txt']) {
+    assert.equal(reports.decide({ kind: 'write', args: { file_path: file }, env: RUN, cwd: work }),
+      null, file);
+  }
+  // Each part of a path costs one of 16,384 steps for all the paths of a call: 4 paths of 2,000
+  // parts pass, 9 are denied with PATH_REASON, in under 1 second.
+  const long = (count) => `*** Begin Patch\n${`*** Add File: ${'a/'.repeat(2000)}x.md\n`.repeat(count)}`;
+  assert.equal(reports.decide({ kind: 'write', env: RUN, cwd: work, args: long(4) }), null);
+  const begun = process.hrtime.bigint();
+  const over = reports.decide({ kind: 'write', env: RUN, cwd: work, args: long(9) });
+  assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+  assert.equal(over, reports.PATH_REASON);
+  firstLine(guard(at(codex('apply_patch', { command: long(9) }, 'implementer'))),
+    'Write fewer files in one call');
+});
+
+test('a disk that ignores case reads U+017F as s and U+212A as k: the guard does too', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const write = (file_path) => reports.decide({ kind: 'write', args: { file_path }, env: RUN,
+    cwd: WORK });
+  // .reportſ is .reports, .jſon is .json and .json.locK is .json.lock on such a disk.
+  for (const file of ['.reports/end.json', '.reportſ/end.json', '.REPORTſ/end.json',
+    '.reports/end.jſon', '.reports/end.JSON', '.reports/end.json.locK',
+    '/w/.reportſ/sub/starts.jſon.locK', '=.reportſ/end.json']) {
+    assert.equal(write(file), reports.WRITE_REASON, file);
+    assert.equal(guard(claude('Write', { file_path: file, content: '{}' }, 'implementer')),
+      reports.WRITE_REASON, file);
+  }
+  const shell = (command) => reports.decide({ inline: true, kind: 'shell', args: { command }, env: RUN,
+    cwd: WORK });
+  for (const command of ['rm .reportſ/end.json', 'cat ".reportſ"', 'cd x/.REPORTſ']) {
+    assert.ok(shell(command).startsWith('Write to .reports/ only through checks.cjs.'), command);
+  }
+  // Near misses stay open: another letter, and the folder without its slash.
+  for (const file of ['.reportſ', '.reportz/end.json', '.reports/end.jsonſ',
+    '.reports/end.jsok', '.reports/end.lock']) {
+    assert.equal(write(file), null, file);
+  }
+});
+
+test('a call nested 3,000 levels deep is decided like any other call, and denied when it hides a .reports JSON path, on each of the three adapters; a throw of decide blocks the call', () => {
+  const home = harnessHome();
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  // run starts the real adapter as a process, and kills it after 5 s.
+  const run = (runtime, input) => {
+    const ran = childProcess.spawnSync(process.execPath,
+      [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { input, env, cwd: WORK,
+        encoding: 'utf8', timeout: 5000, killSignal: 'SIGKILL', maxBuffer: 1 << 24 });
+    assert.equal(ran.error, undefined, `${runtime}: ${ran.error}`);
+    return { status: ran.status, out: ran.stdout === '' ? null : JSON.parse(ran.stdout),
+      err: ran.stderr };
+  };
+  const nested = (leaf) => `${'['.repeat(3000)}${JSON.stringify(leaf)}${']'.repeat(3000)}`;
+  // The input of each runtime for a write whose argument edits is the text at the bottom.
+  const calls = {
+    gemini: (leaf) => `{"tool_name":"write_file","tool_input":{"file_path":"a.md","edits":${nested(leaf)}}}`,
+    cursor: (leaf) => `{"hook_event_name":"preToolUse","tool_name":"Write","tool_input":{"file_path":"a.md","edits":${nested(leaf)}}}`,
+    copilot: (leaf) => `{"toolName":"edit","toolArgs":${JSON.stringify(`{"path":"a.md","edits":${nested(leaf)}}`)}}`,
+  };
+  const denied = (runtime, out) => (runtime === 'gemini' ? out.decision === 'deny'
+    : runtime === 'cursor' ? out.permission === 'deny' : out.permissionDecision === 'deny');
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    // A .reports/end.json at the bottom is found, and the call is refused.
+    const hit = run(runtime, calls[runtime]('/w/.reports/end.json'));
+    assert.ok(hit.out && denied(runtime, hit.out), `${runtime}: ${JSON.stringify(hit)}`.slice(0, 300));
+    assert.equal(hit.status, runtime === 'cursor' ? 2 : 0, runtime);
+    // A text with no such path passes.
+    const miss = run(runtime, calls[runtime]('/w/notes.md'));
+    assert.equal(miss.status, 0, `${runtime}: ${miss.err.slice(0, 200)}`);
+    assert.ok(miss.out === null || !denied(runtime, miss.out), runtime);
+  }
+  // A decide that throws denies the call in a run, with exit 2 on Cursor, and passes outside one.
+  const hooks = path.join(home, 'hooks', 'reports-guard.cjs');
+  const text = fs.readFileSync(hooks, 'utf8');
+  assert.ok(text.includes('function decide('));
+  fs.writeFileSync(hooks, text.replace('function decide(',
+    "function decide() { throw new Error('boom'); }\nfunction unused("));
+  const inputs = {
+    gemini: '{"tool_name":"run_shell_command","tool_input":{"command":"ls"}}',
+    cursor: '{"hook_event_name":"beforeShellExecution","command":"ls"}',
+    copilot: '{"toolName":"bash","toolArgs":"{\\"command\\":\\"ls\\"}"}',
+  };
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    const thrown = run(runtime, inputs[runtime]);
+    assert.ok(thrown.out && denied(runtime, thrown.out), runtime);
+    const reason = thrown.out.reason || thrown.out.agent_message || thrown.out.permissionDecisionReason;
+    firstLine(reason, 'Send a smaller call: the guard failed on this call and blocks it.');
+    assert.match(reason, /\nThe guard of \.reports\/ stopped on this call: Error: boom$/, runtime);
+    assert.equal(thrown.status, runtime === 'cursor' ? 2 : 0, runtime);
+  }
+  delete env.QORY_RUN_ID;
+  assert.equal(run('gemini', inputs.gemini).status, 0);
+  assert.deepEqual(run('gemini', inputs.gemini).out, {});
+  // reportsJson returns false for a value that is no string.
+  const { reportsJson } = require(path.join(HOOKS, 'reports-guard.cjs'));
+  for (const value of [undefined, null, 5, {}, ['.reports/end.json'], true]) {
+    assert.equal(reportsJson(value), false, String(value));
+  }
+});
+
+test('a command with many globs is decided in under 1 second, and one over the limits is denied', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('globs');
+  fs.mkdirSync(work);
+  for (let at = 0; at < 200; at += 1) fs.writeFileSync(path.join(work, `f${at}.txt`), '');
+  const shell = (command) => {
+    const start = process.hrtime.bigint();
+    const reason = reports.decide({ inline: true, kind: 'shell', args: { command }, env: RUN, cwd: work });
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    assert.ok(ms < 1000, `${command.slice(0, 20)}: ${ms} ms at load average ` +
+      `${os.loadavg()[0].toFixed(1)}`);
+    return reason;
+  };
+  const different = (count) => `ls ${Array.from({ length: count }, (_, at) => `a${at}*`).join(' ')}`;
+  // 62,500 equal globs, which took 70 s one expansion at a time, cost one expansion.
+  assert.equal(shell(`ls ${'*** '.repeat(62500)}`), null);
+  // 256 different globs are at the limit and pass; 257 are over it.
+  assert.equal(shell(different(256)), null);
+  for (const count of [257, 62500]) {
+    const reason = firstLine(shell(different(count)), 'Leave .reports/ to checks.cjs, and name');
+    assert.equal(reason.split('\n')[1],
+      'The command has more than 256 different globs, and the guard expands at most 256.');
+  }
+  // A glob that matches under .reports is found past equal words before it.
+  fs.mkdirSync(path.join(work, '.reports'));
+  fs.writeFileSync(path.join(work, '.reports', 'end.json'), '{}');
+  assert.match(shell(`ls ${'*** '.repeat(1000)}.rep*/end.json`),
+    /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
+  // The paths that the globs match, and the time that they take, have limits too.
+  const { globSync } = fs;
+  const { performance } = require('node:perf_hooks');
+  const { now } = performance;
+  try {
+    fs.globSync = () => Array.from({ length: 60000 }, (_, at) => `f${at}`);
+    assert.equal(shell('ls a* b*').split('\n')[1],
+      'The globs of the command match more than 100,000 paths, and the guard reads at most 100,000.');
+    assert.equal(shell('ls a*'), null);
+    let clock = 0;
+    performance.now = () => (clock += 400);
+    fs.globSync = () => [];
+    assert.equal(shell('ls a* b* c*').split('\n')[1],
+      'The globs of the command take more than 600 ms, and the guard waits at most 600 ms.');
+  } finally {
+    fs.globSync = globSync;
+    performance.now = now;
+  }
+});
+
+test('the first word of a command is read only as a file of the size of checks.cjs', async () => {
+  const net = require('node:net');
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const home = harnessHome();
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  const dir = next('first');
+  fs.mkdirSync(dir);
+  const fifo = path.join(dir, 'pipe');
+  childProcess.execFileSync('mkfifo', [fifo]);
+  const socket = path.join(dir, 's.sock');
+  // The path of a unix socket has at most 103 characters, so it is bound by its name from its
+  // folder, in the same turn.
+  const server = net.createServer();
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    server.listen('s.sock');
+  } finally {
+    process.chdir(cwd);
+  }
+  await new Promise((resolve) => server.once('listening', resolve));
+  try {
+    // The real hook, killed after 2 s: it printed a deny in under 1 s, or it was still reading.
+    const hook = (command) => {
+      const begun = process.hrtime.bigint();
+      const ran = childProcess.spawnSync(process.execPath,
+        [path.join(home, 'hooks', 'reports-guard-gemini.cjs')], { cwd: WORK, env,
+          input: JSON.stringify({ tool_name: 'run_shell_command', tool_input: { command } }),
+          encoding: 'utf8', timeout: 2000, killSignal: 'SIGKILL' });
+      const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+      assert.equal(ran.error, undefined, `${command}: ${ran.error} after ${ms} ms`);
+      assert.ok(ms < 1000, `${command}: ${ms} ms at load average ${os.loadavg()[0].toFixed(1)}`);
+      return JSON.parse(ran.stdout);
+    };
+    // The deny cuts a word of over 60 characters to 59 and an ellipsis, as short does.
+    const shortWord = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}\u2026` : raw);
+    for (const word of ['/dev/zero', '/dev/urandom', fifo, socket]) {
+      for (const command of [`${word} x`, `node ${word}`, `"${word}" 2>&1`]) {
+        const out = hook(command);
+        assert.equal(out.decision, 'deny', command);
+        firstLine(out.reason, 'Start the command with a program or a script, not a device');
+        assert.ok(out.reason.split('\n')[1].includes(shortWord(word)), command);
+      }
+    }
+    // A file, a folder and a path that is not there pass.
+    for (const word of [process.execPath, dir, path.join(dir, 'missing'), '/dev/null/x']) {
+      assert.deepEqual(hook(`${word} x`), {}, word);
+    }
+  } finally {
+    server.close();
+  }
+  // A file of 600 MB, which no run of checks.cjs equals, is not read, and the command passes.
+  const big = path.join(dir, 'big');
+  fs.writeFileSync(big, '');
+  fs.truncateSync(big, 600 * (1 << 20));
+  fs.chmodSync(big, 0o755);
+  const { readFileSync, readSync } = fs;
+  const reads = [];
+  fs.readFileSync = (file, ...rest) => {
+    reads.push(String(file));
+    return readFileSync(file, ...rest);
+  };
+  fs.readSync = (fd, ...rest) => {
+    reads.push(`fd ${fd}`);
+    return readSync(fd, ...rest);
+  };
+  try {
+    const run = { kind: 'shell', env, script: path.join(home, 'hooks', 'reports-guard-gemini.cjs'),
+      cwd: WORK };
+    assert.equal(reports.decide({ ...run, args: { command: `${big} x` } }), null);
+    assert.deepEqual(reads, []);
+    // A copy of checks.cjs with the bytes of the original runs, and a copy with one byte changed
+    // does not, at the same size.
+    const checks = path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.cjs');
+    const text = fs.readFileSync(checks);
+    reads.length = 0;
+    fs.writeFileSync(path.join(dir, 'same.cjs'), text);
+    const changed = Buffer.from(text);
+    changed[changed.length - 2] ^= 1;
+    fs.writeFileSync(path.join(dir, 'changed.cjs'), changed);
+    const report = (file) => reports.decide({ ...run,
+      args: { command: `${file} report a .reports/a-1.md` } });
+    assert.equal(report(path.join(dir, 'same.cjs')), null);
+    assert.ok(report(path.join(dir, 'changed.cjs')).startsWith('Write to .reports/ only'));
+  } finally {
+    fs.readFileSync = readFileSync;
+    fs.readSync = readSync;
+  }
+});
+
+test('a line break in a path is part of a folder name, and a patch has one path per header', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('newline');
+  fs.mkdirSync(path.join(work, '.reports', 'a\nb'), { recursive: true });
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  for (const file of ['.reports/a\nb/../report.json', `${work}/.reports/a\nb/../end.json.lock`,
+    '.reports/a\nb/../a\nb/../x.json']) {
+    assert.equal(write({ file_path: file }), reports.WRITE_REASON, JSON.stringify(file));
+    assert.equal(guard({ ...claude('Write', { file_path: file, content: '{}' }, 'implementer'),
+      cwd: work }), reports.WRITE_REASON, JSON.stringify(file));
+  }
+  // A patch with a header is read by its header lines: the line break ends the path.
+  assert.equal(write('*** Update File: .reports/a b/../x.json\n@@\n-1\n+0\n'),
+    reports.WRITE_REASON);
+  assert.equal(write('*** Update File: a\nb/../x.json\n@@\n'), null);
+  assert.equal(write({ file_path: '.reports/a\nb/../note.md' }), null);
+});
+
+test('a path over 4,096 characters is read with each `..` cut out as text, and one under it as the disk reads it', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('long');
+  fs.mkdirSync(path.join(work, '.reports', 'a b'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'src'));
+  fs.symlinkSync('../.reports', path.join(work, 'src', 'link'));
+  const write = (args) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+    return reason;
+  };
+  const cut = 'x/../'.repeat(1000);
+  for (const tail of ['.reports/a b/../report.json', '.reports/report.json', 'src/link/report.json',
+    'src/link/a b/../end.json.lock']) {
+    const file = cut + tail;
+    assert.ok(file.length > 4096, `${file.length} characters`);
+    assert.equal(write({ file_path: file }), reports.WRITE_REASON, tail);
+    assert.equal(write({ file_path: `${work}/${file}` }), reports.WRITE_REASON, tail);
+    assert.equal(write('*** Add File: ' + file + '\n'), reports.WRITE_REASON, tail);
+  }
+  assert.equal(cut.length + '.reports/a b/../report.json'.length, 5027);
+  // A path over the limit that reaches no report file passes, and so does one at the limit.
+  assert.equal(write({ file_path: cut + 'notes.md' }), null);
+  const legit = 'a/'.repeat(2046) + 'n.md';
+  assert.equal(legit.length, 4096);
+  assert.equal(write({ file_path: legit }), null);
+  assert.equal(write({ file_path: `${legit}x` }), null);
+  // At the limit, the disk's reading of `..` applies.
+  const tail = '.reports/a b/../x.json';
+  const edge = 'a/'.repeat((4096 - tail.length) / 2) + tail;
+  assert.equal(edge.length, 4096);
+  assert.equal(write({ file_path: edge }), reports.WRITE_REASON);
+});
+
+test('each part of a path costs a step, also `.` and an empty part, and a call over the steps is denied quickly', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('steps');
+  fs.mkdirSync(path.join(work, '.reports'), { recursive: true });
+  // A link whose target is `./` 500 times and then a file: 500 parts that need no disk read.
+  fs.symlinkSync(`${'./'.repeat(500)}notes.md`, path.join(work, 'dots'));
+  fs.symlinkSync(`${'./'.repeat(500)}.reports/report.json`, path.join(work, 'hit'));
+  const timed = (args) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 1000, `${ms} ms at load average ${os.loadavg()[0].toFixed(1)}`);
+    return reason;
+  };
+  assert.equal(timed({ file_path: 'hit' }), reports.WRITE_REASON);
+  // 20 paths through the link need 10,000 steps and pass; 60 need 30,000, over the 16,384 of a
+  // call, and are denied.
+  assert.equal(timed({ paths: Array(20).fill('dots') }), null);
+  assert.equal(timed({ paths: Array(60).fill('dots') }), reports.PATH_REASON);
+  assert.equal(timed(`*** Begin Patch\n${'*** Add File: dots\n'.repeat(60)}`), reports.PATH_REASON);
+  // `.` parts cost steps too: 7 paths of 2,000 of them pass, 10 are over the budget.
+  const dots = `${'./'.repeat(2000)}x.md`;
+  assert.equal(timed({ paths: Array(7).fill(dots) }), null);
+  assert.equal(timed({ paths: Array(10).fill(dots) }), reports.PATH_REASON);
+});
+
+test('the working folder is read once per call, and a link loop is denied with LOOP_REASON', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const base = next('loops');
+  const deep = path.join(base, ...Array(108).fill('d'));
+  fs.mkdirSync(path.join(deep, '.reports'), { recursive: true });
+  const timed = (args, cwd = deep) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+    return reason;
+  };
+  // The folder has 108 parts. 400 relative paths of 1 part pass: each costs one part, and
+  // the folder costs its parts once. Read for each path they would need 43,000 steps.
+  const names = Array.from({ length: 400 }, (_, at) => `f${at}.md`);
+  assert.equal(timed({ paths: names }), null);
+  assert.equal(timed(`*** Begin Patch\n${names.map((one) => `*** Add File: ${one}\n`).join('')}`),
+    null);
+  assert.equal(timed({ paths: [...names, '.reports/end.json'] }), reports.WRITE_REASON);
+  // A link that leads back to itself, two links that lead to each other, and a link that
+  // contains itself 250 times are denied, not called a call with too many files.
+  fs.symlinkSync('self', path.join(deep, 'self'));
+  fs.symlinkSync('b', path.join(deep, 'a'));
+  fs.symlinkSync('a', path.join(deep, 'b'));
+  fs.symlinkSync(Array(250).fill('l').join('/'), path.join(deep, 'l'));
+  for (const file of ['self', 'a', 'b/x.json', 'l', 'l/x.md']) {
+    const reason = timed({ file_path: file });
+    assert.equal(reason, reports.LOOP_REASON, file);
+    firstLine(reason, 'Remove the link loop from the path.');
+  }
+  // A path of 40 links in a row passes, and 41 do not.
+  const chain = (count) => {
+    for (let at = 0; at < count; at += 1) {
+      fs.symlinkSync(at === count - 1 ? 'end.md' : `c${count}-${at + 1}`,
+        path.join(deep, `c${count}-${at}`));
+    }
+    return `c${count}-0`;
+  };
+  assert.equal(timed({ file_path: chain(40) }), null);
+  assert.equal(timed({ file_path: chain(41) }), reports.LOOP_REASON);
+});
+
+test('a shared folder part of globs is expanded once for all the words that have it', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('shared');
+  fs.mkdirSync(path.join(work, 'a1'), { recursive: true });
+  const shell = (command) => reports.decide({ inline: true, kind: 'shell', args: { command }, env: RUN,
+    cwd: work });
+  // 200 words a*/f<n> need 201 different expansions, as the folder part `a*` is shared, and
+  // the limit is 256. Expanded separately for each word, they need 400.
+  const words = Array.from({ length: 200 }, (_, at) => `a*/f${at}`).join(' ');
+  assert.equal(shell(`ls ${words}`), null);
+});
+
+test('a brace or a deep wildcard in one word is counted before fs.globSync runs, and a command over the limit is denied in under 1 second', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const home = harnessHome();
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  const work = next('braces');
+  fs.mkdirSync(work);
+  for (let at = 0; at < 200; at += 1) fs.writeFileSync(path.join(work, `f${at}.txt`), '');
+  fs.mkdirSync(path.join(work, ...Array(5).fill('d')), { recursive: true });
+  // The real adapters, killed after 3 s: each stall below took 12 s to 31 s without the count.
+  const hook = (runtime, command) => {
+    const input = runtime === 'gemini'
+      ? { tool_name: 'run_shell_command', cwd: work, tool_input: { command } }
+      : { toolName: 'bash', cwd: work, toolArgs: JSON.stringify({ command }) };
+    const begun = process.hrtime.bigint();
+    const ran = childProcess.spawnSync(process.execPath,
+      [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { env, cwd: work,
+        input: JSON.stringify(input), encoding: 'utf8', timeout: 3000, killSignal: 'SIGKILL' });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.equal(ran.error, undefined, `${command.slice(0, 40)}: ${ran.error} after ${ms} ms`);
+    assert.ok(ms < 1000, `${command.slice(0, 40)}: ${ms} ms at load average ` +
+      `${os.loadavg()[0].toFixed(1)}`);
+    const out = JSON.parse(ran.stdout);
+    return out.reason || out.permissionDecisionReason || null;
+  };
+  const over = (reason, fragment) => {
+    firstLine(reason, 'Leave .reports/ to checks.cjs, and name other files with no');
+    assert.equal(reason.split('\n')[1].endsWith(fragment), true, reason);
+  };
+  const braces = 'The braces in the command make more than 4,096 patterns, and the guard expands at most 4,096.';
+  for (const [command, fragment] of [['ls f{1..100000}.txt', braces],
+    ['ls {1..9}{1..9}{1..9}{1..9}{1..9}', braces], [`ls ${'{a,b}'.repeat(16)}*`, braces],
+    ['ls f{1..4097}.txt', braces], ['ls f{1..17}*', braces],
+    ['ls f{1..3000}.txt g{1..3000}.txt', braces], ['ls {a..z}{a..z}{a..z}{a..z}{a..z}', braces],
+    ['ls */*/*/*/*/*/*', 'has more than 5 parts with a glob character, and the guard expands at most 5.'],
+    ['ls {a,b}/*/*/*/*/*/*', 'has more than 5 parts with a glob character, and the guard expands at most 5.']]) {
+    for (const runtime of ['gemini', 'copilot']) over(hook(runtime, command), fragment);
+  }
+  // The call of the report: the words after a stall are never reached.
+  over(hook('copilot', 'cat f{1..100000}.txt .r*/end.json.lock'), braces);
+  // A word at the limit is decided by the other rules, in under 1 second: it passes.
+  const shell = (command) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ inline: true, kind: 'shell', args: { command }, env: RUN, cwd: work });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000, command);
+    return reason;
+  };
+  for (const command of ['ls f{1..4096}.txt', 'ls f{1..16}*', 'ls */*/*/*/*', 'ls {a,b}/*/*/*/*',
+    `ls ${'{a,b}'.repeat(12)}`, 'ls f{1..2000}.txt g{1..2000}.txt', 'ls {x}* \\{a,b}*',
+    'cp a.md {x,y}/', 'ls f{1,2,3}.txt']) {
+    assert.equal(shell(command), null, command);
+  }
+  // A hit under .reports is still found when it comes before a word at the limit.
+  fs.mkdirSync(path.join(work, '.reports'));
+  fs.writeFileSync(path.join(work, '.reports', 'end.json'), '{}');
+  assert.match(shell('ls .rep*/end.json f{1..4096}.txt'),
+    /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
+});
+
+// adapterCall returns the script, the stdin and the environment that start the real adapter of
+// runtime (gemini, cursor or copilot) from harness home on a write or shell call in cwd.
+function adapterCall(home, runtime, kind, args, cwd, hooks, extraEnv) {
+  const shell = kind === 'shell';
+  const input = {
+    gemini: { tool_name: shell ? 'run_shell_command' : 'write_file', tool_input: shell
+      ? { command: args } : args, cwd },
+    cursor: shell ? { hook_event_name: 'beforeShellExecution', command: args, cwd }
+      : { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: args, cwd },
+    copilot: { toolName: shell ? 'bash' : 'edit', cwd, toolArgs: typeof args === 'string' && !shell
+      ? args : JSON.stringify(shell ? { command: args } : args) },
+  }[runtime];
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, ...extraEnv };
+  if (hooks !== null) env.QORY_REPORTS_GUARD_TEST = JSON.stringify(hooks);
+  return { runtime, file: path.join(home, 'hooks', `reports-guard-${runtime}.cjs`),
+    input: JSON.stringify(input), env };
+}
+
+// adapterResult reads the output of an adapter that ended after ms, or the kill of one that ran
+// past its limit.
+function adapterResult(call, ran, ms) {
+  if (ran.error !== undefined) return { denied: false, ms, killed: true, reason: '' };
+  const out = ran.stdout === '' ? {} : JSON.parse(ran.stdout);
+  const reason = out.reason || out.agent_message || out.permissionDecisionReason || '';
+  return { denied: call.runtime === 'cursor' ? ran.status === 2 : reason !== '', ms,
+    killed: false, reason };
+}
+
+// adapter starts that adapter and kills it after limit ms. It returns whether the call is
+// denied, how many ms the adapter took, and whether it was killed.
+function adapter(home, runtime, kind, args, cwd, limit = 5000, hooks = null, extraEnv = {}) {
+  const call = adapterCall(home, runtime, kind, args, cwd, hooks, extraEnv);
+  const begun = process.hrtime.bigint();
+  const ran = childProcess.spawnSync(process.execPath, [call.file], { input: call.input,
+    env: call.env, cwd: WORK, encoding: 'utf8', timeout: limit, killSignal: 'SIGKILL',
+    maxBuffer: 1 << 24 });
+  return adapterResult(call, ran, Number(process.hrtime.bigint() - begun) / 1e6);
+}
+
+// spawned starts the node script file with input on stdin and kills it after limit ms. It
+// resolves with { error, status, stdout } as spawnSync returns them, and error is set for a kill.
+// A check that runs it blocks this process for no long work meanwhile, so the kill is on time.
+function spawned(file, input, env, cwd, limit) {
+  return new Promise((resolve) => {
+    const child = childProcess.spawn(process.execPath, [file], { env, cwd,
+      stdio: ['pipe', 'pipe', 'ignore'] });
+    let stdout = '';
+    let error;
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (data) => { stdout += data; });
+    child.stdin.on('error', () => {});
+    const killer = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) {
+        error = new Error('killed after the limit');
+        child.kill('SIGKILL');
+      }
+    }, limit);
+    child.on('error', (failed) => { error = failed; });
+    child.on('close', (status) => {
+      clearTimeout(killer);
+      resolve({ error, status, stdout });
+    });
+    child.stdin.end(input);
+  });
+}
+
+// adapterAsync is adapter that does not block this process, for pooled.
+async function adapterAsync(home, runtime, kind, args, cwd, limit = 5000, hooks = null,
+  extraEnv = {}) {
+  const call = adapterCall(home, runtime, kind, args, cwd, hooks, extraEnv);
+  const begun = process.hrtime.bigint();
+  const ran = await spawned(call.file, call.input, call.env, WORK, limit);
+  return adapterResult(call, ran, Number(process.hrtime.bigint() - begun) / 1e6);
+}
+
+// withGuardTest runs fn with QORY_REPORTS_GUARD_TEST set to the JSON of hooks, in this process,
+// and restores the variable.
+function withGuardTest(hooks, fn) {
+  const before = process.env.QORY_REPORTS_GUARD_TEST;
+  process.env.QORY_REPORTS_GUARD_TEST = JSON.stringify(hooks);
+  try {
+    return fn();
+  } finally {
+    if (before === undefined) delete process.env.QORY_REPORTS_GUARD_TEST;
+    else process.env.QORY_REPORTS_GUARD_TEST = before;
+  }
+}
+
+// waiting registers a check that mostly waits for a clock of the guard (1.5 s, 2.5 s or 8 s).
+// The registered checks run together in the last check of the file, so that their waits
+// overlap. They block this process for no long work, because the times they assert run in it.
+const waited = [];
+const waiting = (name, fn) => waited.push([name, fn]);
+
+// POOL is the number of child processes that a check starts at once: a few, so that a small
+// runner is not overloaded and the checks of times keep their margins.
+const POOL = Math.max(1, Math.min(4, os.availableParallelism()));
+
+// pooled runs the async functions of jobs, at most size at a time, and returns their results
+// in order. It waits for all of them, then throws the first failure.
+async function pooled(jobs, size = POOL) {
+  const results = new Array(jobs.length);
+  const failures = [];
+  let at = 0;
+  const worker = async () => {
+    while (at < jobs.length) {
+      const mine = at;
+      at += 1;
+      try {
+        results[mine] = await jobs[mine]();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(size, jobs.length) }, worker));
+  if (failures.length > 0) throw failures[0];
+  return results;
+}
+
+test('the whole text is read as one path, also when a line of it is a patch header', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('whole');
+  fs.mkdirSync(path.join(work, '*** Add File: ok\n'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'art', '.reports', 'a b'), { recursive: true });
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  // The folder `*** Add File: ok\n` is in work, and the text goes up from it.
+  const inWork = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  for (const file of ['*** Add File: ok\n/../art/.reports/a b/../x.json',
+    '*** Add File: ok\n/../l1/x.json', '*** Update File: ok\n/../l1/x.json.lock']) {
+    assert.equal(inWork({ file_path: file }), reports.WRITE_REASON, JSON.stringify(file));
+    assert.equal(inWork(file), reports.WRITE_REASON, JSON.stringify(file));
+    assert.equal(guard({ ...claude('Write', { file_path: file, content: '{}' }, 'implementer'),
+      cwd: work }), reports.WRITE_REASON, JSON.stringify(file));
+  }
+  // The header lines of a patch still count, and a patch that reaches no report file passes.
+  assert.equal(inWork('*** Add File: l1/x.json\n+{}\n'), reports.WRITE_REASON);
+  assert.equal(inWork('*** Add File: ok\n/../art/notes.md'), null);
+  assert.equal(inWork({ file_path: '*** Add File: ok\n/../l1/notes.md' }), null);
+  // The adapters of the three runtimes deny the same calls.
+  const home = harnessHome();
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    for (const file of ['*** Add File: ok\n/../art/.reports/a b/../x.json',
+      '*** Add File: ok\n/../l1/x.json']) {
+      const hit = adapter(home, runtime, 'write', { file_path: file }, work);
+      assert.equal(hit.denied, true, `${runtime}: ${JSON.stringify(file)}`);
+      firstLine(hit.reason || reports.WRITE_REASON, 'Write no file under .reports/');
+    }
+    assert.equal(adapter(home, runtime, 'write', { file_path: 'art/notes.md' }, work).denied,
+      false, runtime);
+  }
+  // Copilot CLI passes a raw patch text as toolArgs.
+  assert.equal(adapter(home, 'copilot', 'write', '*** Add File: ok\n/../l1/x.json', work).denied,
+    true);
+});
+
+test('a patch header between U+0085, U+2028 or other white space of Codex is read as a header', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('nel');
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  for (const space of ['\u0085', ' ', ' ', '\v', '\f', '\r', ' ', '　']) {
+    for (const [header, file] of [['Add File', 'l1/x.json'], ['Update File', 'l1/x.json.lock'],
+      ['Delete File', 'art/.reports/x.json'], ['Move to', 'l1/y.json']]) {
+      const text = `${space}*** ${header}: ${file}${space}`;
+      assert.equal(write(text), reports.WRITE_REASON, JSON.stringify(text));
+      // Only a line break ends the line before the header.
+      if (/[\v\f\r\u0085\u2028\u2029]/.test(space)) {
+        assert.equal(write(`*** Begin Patch${space}*** ${header}: ${file}${space}+x`),
+          reports.WRITE_REASON, JSON.stringify(text));
+      }
+    }
+    assert.equal(write(`${space}*** Add File: l1/notes.md${space}`), null, JSON.stringify(space));
+  }
+  // Copilot CLI passes the raw patch text of apply_patch.
+  const home = harnessHome();
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    const hit = adapter(home, runtime, 'write', { patch: '\u0085*** Add File: l1/x.json\u0085' },
+      work);
+    assert.equal(hit.denied, true, runtime);
+  }
+  assert.equal(adapter(home, 'copilot', 'write', '\u0085*** Add File: l1/x.json\u0085', work).denied,
+    true);
+  // A header line of 250,000 white space characters is read in under 1 second.
+  const begun = process.hrtime.bigint();
+  assert.equal(write(`*** Add File: ${'\u0085'.repeat(250000)}x`), null);
+  assert.equal(write(`${'　'.repeat(250000)}*** Add File: l1/x.json`), reports.WRITE_REASON);
+  assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+});
+
+test('a path is read as the kernel opens it and as a tool that cuts each `..` out of the text first', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('both');
+  fs.mkdirSync(path.join(work, 'deep', 'd1', 'd2'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'sub'));
+  fs.symlinkSync('deep/d1/d2', path.join(work, 'lnk'));
+  fs.symlinkSync('art/.reports', path.join(work, 'l2'));
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  const write = (args) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+    return reason;
+  };
+  // The kernel opens lnk/../l2/x.json as deep/d1/l2/x.json, which is not there; a tool that
+  // cuts `lnk/..` out first opens l2/x.json, which is a link to .reports.
+  for (const file of ['lnk/../l2/x.json', 'lnk/../l2/x.json.lock', './lnk/../l1/x.json',
+    `${work}/lnk/../l2/x.json`]) {
+    assert.equal(write({ file_path: file }), reports.WRITE_REASON, file);
+    assert.equal(write(`*** Add File: ${file}\n+{}\n`), reports.WRITE_REASON, file);
+    assert.equal(guard({ ...claude('Write', { file_path: file, content: '{}' }, 'implementer'),
+      cwd: work }), reports.WRITE_REASON, file);
+  }
+  // A path over 4,096 characters that goes up past the root of the disk and then down through
+  // the working folder: as text it is the working folder and l1/x.json.
+  const over = '../'.repeat(1400) + work.slice(1) + '/l1/x.json';
+  assert.ok(over.length > 4096, `${over.length} characters`);
+  assert.equal(write({ file_path: over }), reports.WRITE_REASON);
+  assert.equal(write(`*** Add File: ${over}\n`), reports.WRITE_REASON);
+  assert.equal(write({ file_path: `${over.slice(0, -'l1/x.json'.length)}sub/x.md` }), null);
+  // The kernel reads lr/../x.json as .reports/x.json, but a tool that cuts `lr/..` first writes
+  // x.json in the working folder: the kernel reading denies it.
+  fs.mkdirSync(path.join(work, 'art', '.reports', 'sub'));
+  fs.symlinkSync('art/.reports/sub', path.join(work, 'lr'));
+  assert.equal(write({ file_path: 'lr/../x.json' }), reports.WRITE_REASON);
+  // A path that goes up and down and reaches no report file passes.
+  for (const file of ['sub/../a.txt', 'lnk/../a.json', 'sub/../l1/note.md', 'a/../../x.md']) {
+    assert.equal(write({ file_path: file }), null, file);
+  }
+  // A path of 990 KB of `../` is decided in under 1 second (write checks the time).
+  assert.equal(write({ file_path: `${'../'.repeat(330000)}x.md` }), null);
+  assert.equal(write({ file_path: `${'../'.repeat(330000)}${work.slice(1)}/l1/x.json` }),
+    reports.WRITE_REASON);
+  assert.equal(write({ file_path: `${'../'.repeat(330000)}.reports/a b/../x.json` }),
+    reports.WRITE_REASON);
+  // The adapters of the three runtimes decide the same, in under 1 second.
+  const home = harnessHome();
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    for (const file of ['lnk/../l2/x.json', over, `${'../'.repeat(330000)}${work.slice(1)}/l1/x.json`]) {
+      const hit = adapter(home, runtime, 'write', { file_path: file }, work, 3000);
+      assert.equal(hit.killed, false, runtime);
+      assert.equal(hit.denied, true, `${runtime}: ${file.slice(0, 40)}`);
+      assert.ok(hit.ms < 1500, `${runtime}: ${hit.ms} ms`);
+    }
+  }
+});
+
+test('flat cuts each `..` out of a path as path.posix.normalize does, in linear time', () => {
+  const { flat } = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const pieces = ['', '.', '..', 'a', 'b c', '/', '//', 'x.json', '.reports', '...'];
+  let seed = 11;
+  const pick = (count) => {
+    seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff;
+    return (seed >>> 8) % count;
+  };
+  for (let n = 0; n < 5000; n += 1) {
+    let text = '';
+    for (let parts = pick(9); parts > 0; parts -= 1) {
+      text += pieces[pick(pieces.length)] + (pick(3) === 0 ? '' : '/');
+    }
+    assert.equal(flat(text), path.posix.normalize(text), JSON.stringify(text));
+  }
+  // path.posix.normalize took 2.2 s on 300 KB and 26 s on 990 KB of this.
+  for (const text of ['../'.repeat(330000) + 'x', '../'.repeat(100000), '/a/'.repeat(1) +
+    '../'.repeat(330000)]) {
+    const begun = process.hrtime.bigint();
+    flat(text);
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000, `${text.length} characters`);
+  }
+});
+
+test('a glob that makes fs.globSync stall is denied before the call, in under 1 second, on each adapter', async () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  // A folder with a file name of 254 `a` and `!`, the worst name for a glob with `*`, and 5,000
+  // files; the guard was measured to 50,000 files too (CHANGELOG).
+  const work = next('stall');
+  fs.mkdirSync(path.join(work, 'many'), { recursive: true });
+  fs.writeFileSync(path.join(work, `${'a'.repeat(254)}!`), '');
+  fs.writeFileSync(path.join(work, 'b.json'), '');
+  for (let n = 0; n < 5000; n += 1) fs.writeFileSync(path.join(work, 'many', `f${n}.txt`), '');
+  const shell = (command) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ inline: true, waitMs: 600000, kind: 'shell', args: { command }, env: RUN, cwd: work });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 5000, `${ms} ms: ${command.slice(0, 60)}`);
+    return reason;
+  };
+  const denied = (command, fragment) => {
+    const reason = shell(command);
+    assert.ok(reason && reason.startsWith(reports.HIDDEN_REASON), `${command.slice(0, 60)}: ${reason}`);
+    assert.ok(reason.includes(fragment), `${fragment}: ${reason}`);
+  };
+  const stars = 'has more than 3 * in one path part';
+  const wide = (count) => `0${'0'.repeat(30)}1..${'0'.repeat(count)}100000`;
+  const home = harnessHome();
+  const stalls = [
+    // (a) a brace range with zeros before its numbers, in each form of range.
+    [`ls {${wide(28)}}`, 'make more than 4,096 patterns'],
+    [`ls {${wide(28)}..0}`, 'make more than 4,096 patterns'],
+    ['ls f{100000..00000000000000000000000000000000001}', 'make more than 4,096 patterns'],
+    ['ls f{-100000..5}', 'make more than 4,096 patterns'],
+    ['ls f{5..-100000..-3}', 'make more than 4,096 patterns'],
+    ['ls f{1..9999999999999999999999999999999999999999}', 'make more than 4,096 patterns'],
+    ['ls f{a..Z..0}{1..99}{1..99}', 'make more than 4,096 patterns'],
+    // (b) `*` that a regular expression matches in the power of their number, and an extended glob.
+    ['ls *a*a*a*a*c', stars], ['ls *aa*aa*aa*c', stars], ['ls *?*?*?*c', stars],
+    ['ls *"(a|aa)"*"(a|aa)"*"(a|aa)"b', 'an extended glob'],
+    ['ls +\\(a\\|aa\\)+\\(a\\|aa\\)b*', 'an extended glob'],
+    ['ls @"(a|aa)"*', 'an extended glob'], ['ls !"(a)"*', 'an extended glob'],
+    ['ls *a*a*c/*a*a*c/*a*a*c', 'has more than 8 * in all'],
+    ['ls ?????????????????', 'has more than 16 * and ? in one path part'],
+    ['ls ????????????????/????????????????/????????????????/?', 'has more than 32'],
+    ['ls {*a*,b/}*a*a*', 'a brace that can put two * side by side'],
+    // (c) a word of 65,530 slashes, and words that differ in `*` only.
+    [`ls ${'/'.repeat(65530)}*`, 'more than 4,096 characters'],
+    [`ls ${['*', '**', '***'].map((one) => `${'/'.repeat(30000)}${one}`).join(' ')}`,
+      'more than 4,096 characters'],
+    [`ls ${'a/'.repeat(2048)}*`, 'more than 4,096 characters'],
+  ];
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
+  for (const [command, fragment] of stalls) {
+    denied(command, fragment);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, work, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 60)}`);
+      });
+    }
+  }
+  // Words at a limit pass, and so do ordinary globs, also in the folder with the worst name.
+  for (const command of ['ls *a*a*c', 'ls *?*?*', 'ls ????????????????', 'ls *', 'ls .r*',
+    'ls */*.json', 'ls a*b*c', 'ls [a-z]*', 'ls *a*a*c/*a*a*c/*a*', 'ls many/f{0001..4096}.txt',
+    'ls many/f{4096..1}.txt', 'ls f{-5..5}.txt', 'ls f{1..100..0}.txt', `ls ${'a/'.repeat(2046)}*`,
+    'ls {a,b}/*/*/*/*', 'ls *.{js,ts,json}']) {
+    assert.equal(shell(command), null, command);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', command, work, 3000);
+      assert.equal(ran.denied, false, command);
+    });
+  }
+  // A hit under .reports is still found when it comes before a word at a limit. The folder is
+  // made after the runs, because the globs of the runs above pass only while it is not there.
+  await pooled(jobs);
+  fs.mkdirSync(path.join(work, '.reports'));
+  fs.writeFileSync(path.join(work, '.reports', 'end.json'), '{}');
+  assert.match(shell('ls .rep*/end.json *a*a*c'),
+    /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
+});
+
+test('the first word is opened without blocking and read by its type on the open file', () => {
+  const home = harnessHome();
+  const dir = next('race');
+  fs.mkdirSync(dir);
+  const fifo = path.join(dir, 'pipe');
+  childProcess.execFileSync('mkfifo', [fifo]);
+  const checks = path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.cjs');
+  const copy = path.join(dir, 'same.cjs');
+  fs.copyFileSync(checks, copy);
+  // The child makes the stat of the path say "a file of the size of checks.cjs" for the FIFO, as
+  // when another process renames a FIFO over the path after the stat. A blocking open waits for
+  // a writer for ever, so the child is killed after 5 s.
+  const source = `
+    const fs = require('node:fs');
+    const [hooks, fifo, copy, checks] = process.argv.slice(1);
+    const reports = require(hooks + '/reports-guard.cjs');
+    const stat = fs.statSync;
+    fs.statSync = (file, ...rest) => stat(file === fifo ? checks : file, ...rest);
+    const open = fs.openSync;
+    const flags = [];
+    let fifoFd = -1;
+    fs.openSync = (file, mode, ...rest) => {
+      flags.push([file, mode]);
+      const fd = open(file, mode, ...rest);
+      if (file === fifo) fifoFd = fd;
+      return fd;
+    };
+    const close = fs.closeSync;
+    fs.closeSync = (fd) => {
+      if (fd === fifoFd) fifoFd = -1;
+      return close(fd);
+    };
+    const read = fs.readSync;
+    let reads = 0;
+    fs.readSync = (fd, ...args) => {
+      if (fd === fifoFd) reads += 1;
+      return read(fd, ...args);
+    };
+    const env = { QORY_RUN_ID: 'run-1' };
+    const script = hooks + '/reports-guard-gemini.cjs';
+    const run = (file) => reports.runsChecks(file + ' report a .reports/a-1.md', env, script);
+    console.log(JSON.stringify([run(fifo), run(copy), flags.filter(([file]) => file === fifo || file === copy)
+      .map(([file, mode]) => [file === fifo ? 'fifo' : 'copy', (mode & fs.constants.O_NONBLOCK) !== 0]), reads]));
+  `;
+  const begun = process.hrtime.bigint();
+  const ran = childProcess.spawnSync(process.execPath,
+    ['-e', source, path.join(home, 'hooks'), fifo, copy, checks],
+    { encoding: 'utf8', timeout: 5000, killSignal: 'SIGKILL' });
+  const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+  assert.equal(ran.error, undefined, `the open blocked: ${ran.error} after ${ms} ms`);
+  assert.equal(ran.status, 0, ran.stderr);
+  // The FIFO is no checks.cjs and is not read, a copy with the bytes is one, and each open has
+  // O_NONBLOCK.
+  assert.deepEqual(JSON.parse(ran.stdout), [false, true, [['fifo', true], ['copy', true]], 0]);
+});
+
+test('a header path of a raw patch is read as Codex reads it: a line break or a space in a link name counts', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('names');
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  const patch = (header, file) => `*** Begin Patch\n*** ${header}: ${file}\n+a\n*** End Patch\n`;
+  const home = harnessHome();
+  // Codex splits a patch at line feeds only, so the path of `*** Add File: lk\rX/x.json` is
+  // `lk\rX/x.json`, a path under the link named `lk\rX`.
+  for (const name of ['lk\rX', 'lk X', 'lk X', 'lk\u0085X', 'lk\vX', 'lk\fX']) {
+    fs.symlinkSync('art/.reports', path.join(work, name));
+    for (const header of ['Add File', 'Update File', 'Delete File', 'Move to']) {
+      const text = patch(header, `${name}/x.json`);
+      assert.equal(write(text), reports.WRITE_REASON, JSON.stringify(text));
+    }
+    const text = patch('Add File', `${name}/x.json`);
+    assert.equal(adapter(home, 'copilot', 'write', text, work).denied, true, JSON.stringify(name));
+    // The same name in an ordinary file that is no report file passes.
+    assert.equal(write(patch('Add File', `${name}/notes.md`)), null, JSON.stringify(name));
+  }
+  // Codex strips only the exact start of the line, so a space, a tab or U+3000 after it is a
+  // part of the path: `*** Add File:  lk/x.json` writes under the link named ` lk`.
+  for (const space of [' ', '\t', '　']) {
+    fs.symlinkSync('art/.reports', path.join(work, `${space}lk`));
+    const text = patch('Add File', `${space}lk/x.json`);
+    assert.equal(write(text), reports.WRITE_REASON, JSON.stringify(text));
+    assert.equal(write(patch('Update File', ` ${space}lk/x.json`)), null, JSON.stringify(text));
+    assert.equal(adapter(home, 'copilot', 'write', text, work).denied, true, JSON.stringify(space));
+  }
+  // A tool that ends the line at U+0085 reads the same name, with its space.
+  assert.equal(write('*** Begin Patch\u0085*** Add File:  lk/x.json\u0085+a'), reports.WRITE_REASON);
+  // A link with no space in its name is still reached through the header, and so is one that
+  // a tool reads with the white space cut off.
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  assert.equal(write(patch('Add File', ' l1/x.json')), reports.WRITE_REASON);
+  assert.equal(write('\u0085*** Add File: l1/x.json\u0085'), reports.WRITE_REASON);
+});
+
+test('a path over 4,096 characters, or with a `.` or empty part, is also read as text, against each working folder', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('over');
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  const write = (file, cwd = work) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args: { file_path: file }, env: RUN, cwd });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000, `${file.length} characters`);
+    return reason;
+  };
+  // A path over 4,096 characters with no `..`: a tool that cuts each `.` and empty part out
+  // of the text first writes l1/x.json, a link to .reports.
+  for (const file of ['./'.repeat(2100) + 'l1/x.json', '/'.repeat(4100) + work + '/l1/x.json',
+    `${work}/${'./'.repeat(2100)}l1/x.json`, './'.repeat(2100) + 'l1/x.json.lock']) {
+    assert.ok(file.length > 4096, `${file.length} characters`);
+    assert.equal(write(file), reports.WRITE_REASON, file.slice(0, 30));
+    assert.equal(write(`*** Add File: ${file}\n`), reports.WRITE_REASON, file.slice(0, 30));
+  }
+  // An absolute path of 4,096 characters is read by the kernel, and one of 4,097 as text.
+  const tail = `${work}/l1/x.json`;
+  for (const length of [4095, 4096, 4097, 4098]) {
+    const file = '/'.repeat(length - tail.length) + tail;
+    assert.equal(file.length, length);
+    assert.equal(write(file), reports.WRITE_REASON, `${length} characters`);
+  }
+  // A path with a `.` or empty part that reaches no report file passes, over the limit too.
+  assert.equal(write('./'.repeat(2100) + 'l1/notes.md'), null);
+  assert.equal(write('a//b/./c.txt'), null);
+  assert.equal(write('/'.repeat(4100) + work + '/art/notes.md'), null);
+
+  // The working folder may be a link: a tool may resolve a relative path against the folder
+  // that the link leads to, and the kernel against that folder too, but with `..` of the link.
+  const real = path.join(work, 'deep', 'd1', 'd2');
+  fs.mkdirSync(real, { recursive: true });
+  fs.mkdirSync(path.join(work, 'other', 'inner'), { recursive: true });
+  fs.symlinkSync('../../../other/inner', path.join(real, 'y'));
+  fs.symlinkSync('../../art/.reports', path.join(work, 'deep', 'd1', 'l4'));
+  fs.symlinkSync('deep/d1/d2', path.join(work, 'lnk'));
+  const linked = path.join(work, 'lnk');
+  // The kernel reads y/../../l4 as l4 in the working folder, the text of the folder as l4 next
+  // to lnk, and a tool that resolves against the real folder as deep/d1/l4: a link to .reports.
+  assert.equal(write('y/../../l4/x.json', linked), reports.WRITE_REASON);
+  assert.equal(write('y/../../l4/notes.md', linked), null);
+  assert.equal(write('y/../../l4/x.json', path.join(work, 'deep')), null);
+});
+
+// shortNames returns a folder of 50,000 files, f0.txt to f49999.txt. The first check that
+// needs it makes it and the others read it, so that the files are made once.
+let shortFolder;
+function shortNames() {
+  if (shortFolder === undefined) {
+    shortFolder = next('short');
+    fs.mkdirSync(shortFolder);
+    for (let n = 0; n < 50000; n += 1) fs.writeFileSync(path.join(shortFolder, `f${n}.txt`), '');
+  }
+  return shortFolder;
+}
+
+test('a glob with 2 or more `*` is denied when the names it scans would take too long, before fs.globSync runs', async () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  // 12,000 files with names of 254 characters (240 `a`, 5 digits and `!`): fs.globSync takes
+  // about 1 ms for each name with `*a*a*c`, so 12 s, and the hook outlasts its timeout. The
+  // second folder has 50,000 short names, and the third a few files with ordinary names.
+  const work = next('scan');
+  const many = path.join(work, 'many');
+  const small = path.join(work, 'small');
+  for (const folder of [many, small, path.join(work, 'art', '.reports')]) {
+    fs.mkdirSync(folder, { recursive: true });
+  }
+  for (let n = 0; n < 12000; n += 1) {
+    fs.writeFileSync(path.join(many, `${'a'.repeat(240)}${String(n).padStart(5, '0')}!`), '');
+  }
+  // The folder of 50,000 names is shared, and a link in the working folder puts it among the
+  // folders that a glob of the working folder scans.
+  const short = shortNames();
+  fs.symlinkSync(short, path.join(work, 'short'));
+  for (const name of ['a.md', 'b.json', 'abc.txt', 'notes-1-2.md']) {
+    fs.writeFileSync(path.join(small, name), '');
+  }
+  const home = patchedHome('const MAX_GLOB_MS = 600;', 'const MAX_GLOB_MS = 600000;');
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ inline: true, waitMs: 600000, kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 5000, `${ms} ms: ${command.slice(0, 60)}`);
+    return reason;
+  };
+  const narrow = (reason, command) => {
+    assert.ok(reason && reason.startsWith(reports.HIDDEN_REASON), `${command}: ${reason}`);
+    assert.match(reason, /\nUse a narrower glob: the part \S+ of a glob of the command /,
+      command);
+  };
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
+  // The call that forges a report file, through the real adapters, which are killed after 3 s:
+  // the glob in the case arm is read, and the guard denies before the 12,000 names are matched.
+  const forge = `case x in *a*a*c) :;; esac; echo forged > ${work}/art/.rep*/x.json`;
+  for (const command of [forge, 'ls *a*a*c', 'ls *a?*a?*c', 'ls *a*a*0', 'ls a*b*c', 'ls *a*c']) {
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, many, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)} ran past 3 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)}`);
+        assert.match(ran.reason, /\nUse a narrower glob: /, `${runtime}: ${command.slice(0, 40)}`);
+      });
+    }
+  }
+  // A part of a longer glob scans the folders that the part before it matches.
+  jobs.push(async () => {
+    const root = await adapterAsync(home, 'copilot', 'shell', 'ls m*/*a*a*c', work, 3000);
+    assert.equal(root.killed, false);
+    assert.equal(root.denied, true);
+  });
+  for (const command of ['ls many/*a*a*c', 'ls m*/*a*a*c', 'ls {many,none}/*a*a*c',
+    'ls ./many/*a*a*0', 'ls */*a*a*c']) {
+    narrow(shell(command, work), command);
+  }
+  // The same patterns in a folder of ordinary names pass.
+  for (const command of ['ls *a*a*c', 'ls *a?*a?*c', 'ls a*b*c', 'ls *a*c', 'ls *-*-*.md',
+    forge.replace(`${work}/art`, 'x').replace('x/.rep', '/nope/.rep')]) {
+    assert.equal(shell(command, small), null, command);
+  }
+  // A glob with 1 `*` takes time in the length of the names, so no folder size stops it, and
+  // none of these is denied in the folder of 50,000 names or the one of 12,000 long names.
+  for (const command of ['ls *', 'ls f1*', 'ls *.txt', 'ls */*.json', 'ls a*b*c', 'ls f*0*.txt',
+    'ls f*1*.txt']) {
+    assert.equal(shell(command, short), null, command);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', command, short, 3000);
+      assert.equal(ran.denied, false, command);
+    });
+  }
+  for (const command of ['ls *', 'ls a*', 'ls *!', 'ls *.json', 'ls */*.json']) {
+    assert.equal(shell(command, many), null, command);
+  }
+  // A folder of more than 20,000 names makes a part with 3 `*` too slow, whatever the names.
+  narrow(shell('ls f*1*2*.txt', short), 'ls f*1*2*.txt');
+  assert.match(shell('ls f*1*2*.txt', short), /a folder of more than 20,000 names/);
+  // The global limit holds with a hit: .reports is found before a glob at the limits.
+  assert.match(shell('ls .rep*/x.json', path.join(work, 'art')), /\nThe glob \.rep\*\/x\.json matches/);
+  await pooled(jobs);
+});
+
+test('a part scans the folders that the part before it matches, also when 2,100 files sort before them', async () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  // 2,100 empty files a00000 to a02099 and 100 folders z000 to z099, each with 120 files whose
+  // names have 254 characters: fs.globSync('*/*a*a*c') takes 15 s here, and the first 2,001
+  // matches of `*` are all files.
+  const hide = next('hide');
+  fs.mkdirSync(path.join(hide, 'art', '.reports'), { recursive: true });
+  for (let n = 0; n < 2100; n += 1) {
+    fs.writeFileSync(path.join(hide, `a${String(n).padStart(5, '0')}`), '');
+  }
+  for (let n = 0; n < 100; n += 1) {
+    const folder = path.join(hide, `z${String(n).padStart(3, '0')}`);
+    fs.mkdirSync(folder);
+    for (let at = 0; at < 120; at += 1) {
+      fs.writeFileSync(path.join(folder, `${'a'.repeat(249)}${String(1000 + at)}`), '');
+    }
+  }
+  const other = path.join(path.dirname(hide), `${path.basename(hide)}-other`);
+  fs.mkdirSync(other);
+  const home = patchedHome('const MAX_GLOB_MS = 600;', 'const MAX_GLOB_MS = 600000;');
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ inline: true, waitMs: 600000, kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 5000, `${ms} ms: ${command}`);
+    return reason;
+  };
+  const narrow = /\nUse a narrower glob: the part \S+ of a glob of the command /;
+  const forge = (glob) => `ls ${glob}; echo forged > art/.rep*/x.json`;
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
+  for (const glob of ['*/*a*a*c', './*/*a*a*c', '?*/*a*a*c', '[a-z]*/*a*a*c', '*/*a*c', 'z*/*a*a*c']) {
+    const command = forge(glob);
+    assert.match(shell(command, hide), narrow, glob);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, hide, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${glob} ran past 3 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${glob}`);
+      });
+    }
+  }
+  // The folder may be reached from another working folder.
+  assert.match(shell(forge(`../${path.basename(hide)}/*/*a*a*c`), other), narrow);
+  // More than 2,000 folders under one part are denied, with the same text.
+  const wide = next('wide');
+  fs.mkdirSync(wide);
+  for (let n = 0; n < 2001; n += 1) fs.mkdirSync(path.join(wide, `d${String(n).padStart(4, '0')}`));
+  assert.match(shell('ls */*a*c', wide), /\nUse a narrower glob: .* scans more than 2,000 folders\.$/);
+  // 2,100 files and a few small folders: the same globs pass.
+  const small = next('small');
+  fs.mkdirSync(small);
+  for (let n = 0; n < 2100; n += 1) fs.writeFileSync(path.join(small, `a${String(n).padStart(5, '0')}`), '');
+  for (const folder of ['z000', 'z001', 'z002']) {
+    fs.mkdirSync(path.join(small, folder));
+    for (const name of ['abc.txt', 'a-b-c.md', 'notes.md']) {
+      fs.writeFileSync(path.join(small, folder, name), '');
+    }
+  }
+  for (const glob of ['*/*a*c', '*/*a*a*c', 'z*/*a*c', './*/*a*c']) {
+    assert.equal(shell(`ls ${glob}`, small), null, glob);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', `ls ${glob}`, small, 3000);
+      assert.equal(ran.denied, false, glob);
+    });
+  }
+  await pooled(jobs);
+});
+
+test('`*` are counted for each alternative of a brace, and a part with alternatives is bounded by the names it scans', async () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('alts');
+  const normal = path.join(work, 'normal');
+  const adversarial = path.join(work, 'adversarial');
+  const border = path.join(work, 'border');
+  for (const folder of [path.join(normal, 'src'), path.join(normal, 'lib'), adversarial, border]) {
+    fs.mkdirSync(folder, { recursive: true });
+  }
+  for (const name of ['a.ts', 'b.js', 'c.md', 'd.json', 'a.txt', 'b.txt', 'src/x.ts', 'lib/y.ts']) {
+    fs.writeFileSync(path.join(normal, name), '');
+  }
+  // 600 names of 254 characters: `*a*a*c` takes 1 ms for each, in one call of fs.globSync.
+  for (let n = 0; n < 600; n += 1) {
+    fs.writeFileSync(path.join(adversarial, `${'a'.repeat(248)}${String(n).padStart(5, '0')}!`), '');
+  }
+  // 150 names of 254 characters: one `*a*a*c` is 197 ms of the estimate, and two alternatives
+  // make 394 ms, over the 250 ms of one call.
+  for (let n = 0; n < 150; n += 1) {
+    fs.writeFileSync(path.join(border, `${'a'.repeat(248)}${String(n).padStart(5, '0')}!`), '');
+  }
+  // 50,000 names: a part with 1 `*` and 16 alternatives took 0.67 s, and 17 took 0.52 s in
+  // fs.globSync alone, where `*` takes 0.1 s.
+  const short = shortNames();
+  // The 600 ms between two calls is wall time, which a loaded machine can pass: the allowed
+  // commands run with a limit of 600 s, and the denials in this check are by the estimate.
+  const home = patchedHome('const MAX_GLOB_MS = 600;', 'const MAX_GLOB_MS = 600000;');
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ inline: true, waitMs: 600000, kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 5000, `${ms} ms: ${command}`);
+    return reason;
+  };
+  // Each alternative is counted from the text before the braces, so these pass: the base guard
+  // (5c25e957) denied neither.
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
+  for (const command of ['cat {src/*,lib/*}', 'ls {*.ts,*.js,*.md,*.json}', 'ls {a,b}*.txt',
+    'ls {src,lib}/*.ts', 'ls *.{ts,js,md,json}', 'ls {a,b}*{.txt,.md}']) {
+    assert.equal(shell(command, normal), null, command);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', command, normal, 3000);
+      assert.equal(ran.denied, false, command);
+    });
+  }
+  // The largest alternative counts, with the text before and after the braces.
+  const stars = /more than 3 \* in one path part/;
+  assert.match(shell('ls x{*a,*a*a}*a*', normal), stars);
+  assert.match(shell('ls x{*a*a,*a}*a*', normal), stars);
+  assert.match(shell('ls x{*a,*b}y{*c,*d}*e*', normal), stars);
+  assert.equal(shell('ls x{*a,*b}y{*c,*d}*', normal), null);
+  // Braces that can put two `*` side by side are denied, whatever the stars count.
+  const meet = /\nA glob of the command has a brace that can put two \* side by side/;
+  for (const command of ['ls *{*a,*b}*', 'ls {*a*,b/}*a*a*', 'ls {a/*a*,b}*', 'ls {src/*,lib/*}*']) {
+    assert.match(shell(command, normal), meet, command);
+  }
+  // A / inside braces is read for each expansion of the braces, in the folder of that expansion.
+  for (const command of ['ls {src/*a*a*c,lib}', 'ls {x,y/}*a*c']) {
+    assert.equal(shell(command, normal), null, command);
+  }
+  // The work is counted for the largest alternative, and for all of them.
+  for (const command of ['ls {*a*a*c,b}', 'ls {b,c,*a*a*c}', 'ls *a*{a*c,b}']) {
+    assert.match(shell(command, adversarial), /\nUse a narrower glob: /, command);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, adversarial, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command}`);
+        assert.equal(ran.denied, true, `${runtime}: ${command}`);
+      });
+    }
+  }
+  assert.equal(shell('ls {*a*a*c,b}', normal), null);
+  assert.equal(shell('ls *a*a*c', border), null);
+  assert.match(shell('ls {*a*a*c,b}', border), /\nUse a narrower glob: /);
+  // 16 alternatives followed by `*` in 50,000 names are denied, with 5 they pass, and the
+  // globs of one `*` pass in that folder.
+  for (const command of ['ls {a..p}*', 'ls {a,b,c,d,e,g,h,i,j,k,l,m,n,o,p,f}*',
+    'ls {a..p}*.txt']) {
+    assert.match(shell(command, short), /\nUse a narrower glob: .*alternatives, more than the guard allows\.$/,
+      command);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, short, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command}`);
+        assert.equal(ran.denied, true, `${runtime}: ${command}`);
+      });
+    }
+  }
+  for (const command of ['ls {a,b,c,d,f}*', 'ls {f,g}*', 'ls *', 'ls .r*', 'ls */*.json', 'ls a*b*c',
+    'ls f*', 'ls a*c', 'ls *.txt', 'ls [a-f]*']) {
+    assert.equal(shell(command, short), null, command);
+  }
+  jobs.push(async () => {
+    const ran = await adapterAsync(home, 'copilot', 'shell', 'ls {f,g}*', short, 3000);
+    assert.equal(ran.denied, false);
+  });
+  await pooled(jobs);
+});
+
+test('braces that make `**` are denied before fs.globSync runs, and a / inside braces is scanned for each expansion', async () => {
+  const work = next('pass7');
+  const normal = path.join(work, 'normal');
+  const links = path.join(work, 'links');
+  const huge = path.join(work, 'huge');
+  for (const folder of [path.join(normal, 'src'), path.join(normal, 'lib'), path.join(work, 'art', '.reports'),
+    links, huge]) {
+    fs.mkdirSync(folder, { recursive: true });
+  }
+  fs.writeFileSync(path.join(normal, 'src', 'x.ts'), '');
+  fs.writeFileSync(path.join(normal, 'lib', 'x.ts'), '');
+  // In the copy of the guard that this check patches, one call of fs.globSync may cost 25 ms of
+  // the estimate where the guard allows 250 ms (MAX_WORK_NS). The guard then reads 8,334 names
+  // from one folder where it reads 83,334, and 9,000 empty files are more than that, as 90,000
+  // are in the guard as it is. Three links make three folders of that size.
+  for (let n = 0; n < 9000; n += 1) fs.writeFileSync(path.join(huge, `f${n}`), '');
+  for (const name of ['l1', 'l2', 'l3']) fs.symlinkSync(huge, path.join(links, name));
+  const home = patchedHome('const MAX_GLOB_MS = 600;', 'const MAX_GLOB_MS = 600000;',
+    'const MAX_WORK_NS = 250e6;', 'const MAX_WORK_NS = 25e6;');
+  const reports = require(path.join(home, 'hooks', 'reports-guard.cjs'));
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ inline: true, waitMs: 600000, kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 5000, `${ms} ms: ${command}`);
+    return reason;
+  };
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time. Each ends
+  // in under 2.5 s where a run alone ends in under 1 s, because they share the processors.
+  const jobs = [];
+  const wrappers = (command, cwd, denied, fragment) => {
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, cwd, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+        assert.ok(ran.ms < 2500, `${runtime}: ${command.slice(0, 60)}: ${ran.ms} ms`);
+        assert.equal(ran.denied, denied, `${runtime}: ${command.slice(0, 60)}`);
+        if (denied && runtime !== 'cursor') {
+          assert.ok(ran.reason.includes(fragment), `${runtime}: ${command.slice(0, 60)}: ${ran.reason}`);
+        }
+      });
+    }
+  };
+  // fs.globSync expands `*{*,}` to `**`, a globstar that walks the whole disk from `/`.
+  const meet = 'a brace that can put two * side by side';
+  for (const command of ['ls /*{*,}', 'ls *{*,}', 'ls /{*,}*', 'ls /*{,*}', 'ls /{*,*}{*,*}',
+    'ls /*{*,}{,}', 'ls {*,}*', 'ls *{,*}', 'ls x*{,}*',
+    'ls /*{*,}; echo x > art/.rep*/x.json']) {
+    wrappers(command, work, true, meet);
+  }
+  // The random pattern that hung the guard has backslashes, which fs.globSync reads as path
+  // separators: it is denied for them.
+  wrappers('ls /{*{,**},??*[[?,}/[a}\\/]]},?}a\\\\[\\a[[a?/[[}{?{,}/[', work, true,
+    'Remove the backslash before the glob character');
+  // Normal braces pass, also with a `*` next to a brace.
+  for (const command of ['ls {*.ts,*.js}', 'ls {src/,lib/}x.ts', 'cat {src/*,lib/*}', 'ls {a,b}*',
+    'ls {a,b}{*,}', 'ls x*{y,z}', 'ls {src/*a*a*c,lib}', 'ls {1..3}/*', 'ls *.{ts,js}']) {
+    assert.equal(shell(command, normal), null, command);
+    wrappers(command, normal, false);
+  }
+  // A / inside braces makes path parts that differ for each expansion: each expansion scans the
+  // folder that it reaches, so that links to one huge folder are not scanned as if they were not there.
+  const names = 'scans a folder of 8,334 names or more';
+  for (const command of ['ls {l1/,l2/,l3/}*', 'ls {l1/*,l2/*}', 'ls {l1/,l2/}x*', 'ls {../huge/,x}*']) {
+    wrappers(command, links, true, names);
+  }
+  wrappers('ls {huge/,x}*', work, true, names);
+  assert.match(shell('ls l1/*', links), new RegExp(names));
+  assert.match(shell('ls {l1/,l2/,l3/}*', links), new RegExp(names));
+  // The words of braces are read as minimatch reads them.
+  assert.equal(shell('ls {src,lib}/x.ts', normal), null);
+  assert.equal(shell('ls {,src/}x.ts', normal), null);
+  // Braces nested more than 32 deep are denied, and 10 deep pass.
+  assert.match(shell(`ls ${'{'.repeat(40)}a,b${'}'.repeat(40)}*`, normal),
+    /\nThe braces in the command are nested more than 32 deep/);
+  assert.equal(shell(`ls ${'{'.repeat(10)}a,b${'}'.repeat(10)}*`, normal), null);
+  // An expansion with no `*`, `?` or `[` is a path: this one is a file of .reports that is not there.
+  assert.match(shell('ls {art/.repo,y/}rts/x.json', work), /\nThe glob \{art\/\.repo,y\/\}rts\/x\.json matches art\/\.reports\/x\.json\./);
+  wrappers('ls {art/.repo,y/}rts/x.json', work, true, 'matches art/.reports/x.json');
+  await pooled(jobs);
 });
 
 // ---- The report of a reviewer ---------------------------------------------------------------
@@ -3075,4 +4403,698 @@ test('the report path matches in the case of the disk', () => {
     firstLine(guard(write(upper), env), ONLY);
   }
   assert.equal(guard(write(file), env), null);
+});
+
+test('a backslash in a glob, braces that count more than they seem, and braces that make .reports are denied before a call of fs.globSync', async () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('pass8');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'src'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(normal, 'src', 'a.ts'), '');
+  fs.writeFileSync(path.join(normal, 'a b.txt'), '');
+  const home = harnessHome();
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time. Each ends
+  // in under 2.5 s where a run alone ends in under 1 s, because they share the processors.
+  const jobs = [];
+  const wrappers = (command, cwd, denied, fragment) => {
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, cwd, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+        assert.ok(ran.ms < 2500, `${runtime}: ${command.slice(0, 60)}: ${ran.ms} ms`);
+        assert.equal(ran.denied, denied, `${runtime}: ${command.slice(0, 60)}`);
+        if (denied && runtime !== 'cursor') {
+          assert.ok(ran.reason.includes(fragment), `${runtime}: ${command.slice(0, 60)}: ${ran.reason}`);
+        }
+      });
+    }
+  };
+  // 1. fs.globSync reads a backslash as a path separator: `\\*` x 10 walks the whole disk, as
+  // `/` + `*` + ..., and a globstar after one never returns.
+  const back = 'Remove the backslash before the glob character';
+  for (const command of [`ls ${'\\\\*'.repeat(10)}`, 'ls \\\\*{*,}; echo x > art/.rep*/x.json',
+    'ls \\\\*{*,}', 'ls \\\\*{,}*', 'ls \\\\{*,}*',
+    'ls \\\\{,*}*', 'ls \\\\\\{*,}*', 'ls \\\\**', 'ls \\\\*/**', "ls a*'\\'{",
+    `ls ${'\\\\*'.repeat(10)}; echo x > art/.rep*/x.json`]) {
+    wrappers(command, work, true, back);
+  }
+  // A backslash in a word with no glob character is a file name, and a quoted or escaped glob
+  // character is no glob.
+  for (const command of ['ls a\\\\b', 'ls "a\\b"', 'ls \\*', "ls '*'"]) {
+    wrappers(command, normal, false);
+  }
+  // Every pattern of up to 6 characters of `\ { } , * a` that has a backslash and a `*` is denied
+  // before a call: 22,386 patterns, which include the 76 that hang fs.globSync. The 9,702 with a
+  // backslash and a `{` but no `*?[` are words of braces only, which never reach fs.globSync:
+  // the other rules decide them, with no hang.
+  const alphabet = ['\\', '{', '}', ',', '*', 'a'];
+  let seen = 0;
+  let braced = 0;
+  const begun = Date.now();
+  const walk = (pattern) => {
+    if (pattern !== '') {
+      if (pattern.includes('\\') && /[*?[]/.test(pattern)) {
+        const reason = reports.globsChild({ list: [{ raw: pattern, value: pattern }], cwd: normal, hooks: {} });
+        assert.equal(typeof reason, 'string', pattern);
+        assert.ok(reason.startsWith(back), `${pattern}: ${reason}`);
+        seen += 1;
+      } else if (pattern.includes('\\') && pattern.includes('{')) {
+        const reason = reports.globsChild({ list: [{ raw: pattern, value: pattern }], cwd: normal, hooks: {} });
+        assert.ok(reason === null || typeof reason === 'string', pattern);
+        assert.ok(reason === null || !reason.startsWith(back), `${pattern}: ${reason}`);
+        braced += 1;
+      }
+    }
+    if (pattern.length < 6) for (const ch of alphabet) walk(pattern + ch);
+  };
+  walk('');
+  assert.equal(seen, 22386);
+  assert.equal(braced, 9702);
+  assert.ok(Date.now() - begun < 60000, `${Date.now() - begun} ms for the walk`);
+  // A backslash before a brace is text in bash, and a word of braces only is no glob for fs.globSync.
+  const bash = childProcess.spawnSync('bash', ['-c', 'set -f; printf "%s\\n" a\\{b,c} .rep\\{orts,y}/x.json'],
+    { encoding: 'utf8' }).stdout.split('\n');
+  assert.deepEqual(bash.slice(0, 2), ['a{b,c}', '.rep{orts,y}/x.json']);
+  for (const command of ['echo a\\{b,c}', 'ls {x,y}\\', 'echo x > .rep\\{orts,y}/x.json']) {
+    assert.equal(reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: normal,
+      args: { command } }), null, command);
+    wrappers(command, normal, false);
+  }
+  // The same word without the backslash makes .reports, and the text rule denies it.
+  wrappers('echo x > .rep{orts,y}/x.json', normal, true, 'matches');
+  // 2. `{a}2,}` makes 2 words for fs.globSync and 1 for a count that skips the `2,}`.
+  const forge = '; echo x > .rep*/x.json';
+  const braces = 'The braces in the command make more than 4,096 patterns';
+  for (const repeats of [30, 26, 14]) {
+    wrappers(`false && ls ${'{a}2,}'.repeat(repeats)}*${forge}`, normal, repeats > 12, braces);
+  }
+  wrappers(`ls ${'{a}2,}'.repeat(30)}${forge}`, normal, true, braces);
+  // The count of the guard is at least the count of the braces of fs.globSync (minimatch), here
+  // from a table of its answers, also for the groups that it reads as text or as lists.
+  const minimatch = { '{a}2,}{a}2,}': 2, '{a}2,}{a}2,}{a}2,}{a}2,}{a}2,}': 16, '{}{a,}{a},}{': 4,
+    '{{a,b}..b}': 3, '{a{a,b}..b}': 2, '{{a,b}x}': 2, '{a}{a,}{a{a,}..b}b}': 6, '{a,b}{c,d}': 4,
+    '{1..4}': 4, '{a}': 1, '{a},b}': 2, 'x{a}2,}y*': 2, '{{1..3}a}': 1 };
+  for (const [pattern, real] of Object.entries(minimatch)) {
+    assert.ok(reports.braces(pattern) >= real, `${pattern}: ${reports.braces(pattern)} < ${real}`);
+  }
+  // 3. A word of braces that builds .reports is denied where no .reports is.
+  for (const command of ['mkdir -p .{rep,x}orts', 'echo x > .{rep,x}orts/x.json',
+    'echo x > {.reports,y}/x.json', 'touch .{reports,x}/y.json.lock', 'echo x > .r{e,x}ports/x.json',
+    'echo x > a/../.{rep,x}orts/z.json']) {
+    wrappers(command, normal, true, 'matches');
+  }
+  for (const command of ['mkdir -p .{rep,x}ort', 'echo x > .{rep,x}ort/x.json', 'cat src/{a,b}.ts',
+    'ls {a,b}.txt']) {
+    wrappers(command, normal, false);
+  }
+  // 4. An empty alternative before a / makes a relative path and an absolute one: the guard
+  // scans `/*/*/*/*` from `/`, as the shell does, and it decides in under 3 s.
+  // Its absolute word reaches the .reports of another folder.
+  const absolute = path.join(work, 'art').slice(1);
+  wrappers(`ls {,x}/${absolute}/.rep*`, normal, true, 'matches');
+  wrappers(`ls {,x}/${absolute}/.rep*`.replace('/.rep*', '/.rap*'), normal, false);
+  // Each such word is scanned for both its words, so that 9 of them pass the 4,096 units.
+  const empty = (count) => `ls ${Array.from({ length: count }, (_, at) => `{*,}/f${at}*`).join(' ')}`;
+  assert.equal(reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: normal,
+    args: { command: empty(8) } }), null);
+  assert.match(reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: normal,
+    args: { command: empty(9) } }), /braces in the command make more than 4,096/);
+  await pooled(jobs);
+  // These two run alone, one after the other, because they are limited to 3 s of one run.
+  for (const runtime of ['gemini', 'copilot']) {
+    const ran = adapter(home, runtime, 'shell', 'ls {*,}/*/*/*/*', normal, 5000);
+    assert.equal(ran.killed, false, runtime);
+    assert.ok(ran.ms < 3000, `${runtime}: ${ran.ms} ms`);
+  }
+});
+
+test('the fs.globSync calls of a command run in a child process that the guard stops, and a failure of the child denies the call', async () => {
+  const work = next('pass8-child');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(normal, { recursive: true });
+  fs.writeFileSync(path.join(normal, 'a.ts'), '');
+  const home = harnessHome();
+  // QORY_REPORTS_GUARD_TEST lowers the limit of the child, 2,500 ms in the guard, to 300 ms, so
+  // that a child that stalls is stopped sooner. The limit of 2,500 ms is in the checks of the
+  // failures of the child below, and in the check of the deadline of one hook process.
+  const finished = /did not finish in 300 ms/;
+  // A copy of the hooks whose decide has noCaps true: no adapter and no variable of the
+  // environment sets noCaps, so a copy that the check patches is the way through the real
+  // wrappers to the limit of the child alone.
+  const bare = patchedHome('inline = false, noCaps = false,', 'inline = false, noCaps = true,');
+  const left = () => childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((line) => (line.includes(home) || line.includes(bare))
+      && line.includes('max-old-space-size'));
+  // The checks of backslashes and braces are off, so that only the limit of the child decides:
+  // `\\*` x 10 stalls fs.globSync for more than 10 s. The first command goes through the copy.
+  const stalls = [[`ls ${'\\\\*'.repeat(10)}`, { globMs: 300 }, bare],
+    ['ls STALLME*', { globMs: 300, stall: 'STALLME' }, home]];
+  // The runs of the real adapters wait in jobs, and run a few at a time.
+  const jobs = [];
+  for (const [command, hooks, where] of stalls) {
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(where, runtime, 'shell', command, normal, 5000, hooks);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)} ran past 5 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)}`);
+        assert.ok(ran.ms > 250 && ran.ms < 3500, `${runtime}: ${command.slice(0, 40)}: ${ran.ms} ms`);
+        if (runtime !== 'cursor') {
+          assert.ok(ran.reason.startsWith('Leave .reports/ to checks.cjs'), ran.reason);
+          assert.match(ran.reason, finished);
+        }
+      });
+    }
+  }
+  // A child that exits with 3, prints no JSON, prints a deny that is no text, or prints 2 MiB: the call is denied.
+  for (const fail of ['exit', 'garbage', 'type', 'big']) {
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', 'ls *.ts', normal, 5000, { fail });
+      assert.equal(ran.denied, true, fail);
+      assert.match(ran.reason, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms, or could not run, and the guard blocks the call\.$/, fail);
+    });
+  }
+  await pooled(jobs);
+  assert.deepEqual(left(), [], 'no child is left');
+  // The same command through the real hooks is denied by the early check, in under 1 s.
+  const early = adapter(home, 'copilot', 'shell', `ls ${'\\\\*'.repeat(10)}`, normal, 5000, { globMs: 1500 });
+  assert.equal(early.denied, true);
+  assert.ok(early.ms < 1000, `${early.ms} ms`);
+  assert.match(early.reason, /Remove the backslash before the glob character/);
+  // decide with noCaps, in this process, is bounded by the child alone as well.
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const begun = Date.now();
+  const bound = withGuardTest({ globMs: 300 }, () => reports.decide({ kind: 'shell', env: RUN,
+    cwd: normal, noCaps: true, args: { command: `ls ${'\\\\*'.repeat(10)}` } }));
+  assert.match(bound, /Use a narrower glob: the globs of the command did not finish in 300 ms/);
+  assert.ok(Date.now() - begun < 4500, `${Date.now() - begun} ms`);
+  // With no hook, the child answers, in about 50 ms, and a command with only braces runs none.
+  for (const command of ['ls *.ts', 'cat {*.ts,*.js}']) {
+    const ran = adapter(home, 'copilot', 'shell', command, normal, 5000);
+    assert.equal(ran.denied, false, command);
+    assert.ok(ran.ms < 1000, `${command}: ${ran.ms} ms`);
+  }
+  assert.equal(adapter(home, 'copilot', 'shell', 'ls .r*', normal, 5000).denied, false);
+});
+
+test('no field of QORY_REPORTS_GUARD_TEST, and none that the environment can add, switches off a check of the guard', async () => {
+  const work = next('pass9');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(normal, { recursive: true });
+  const home = harnessHome();
+  const env = [{ noCaps: true }, { noCaps: true, caps: false, inline: true, unknown: 1 },
+    { noCaps: 'true', globMs: 'x', stall: 5, fail: true }];
+  const denied = ['echo x > .{rep,x}orts/new.json', 'echo x > {.reports,y}/x.json',
+    'touch .{reports,x}/n.json.lock', 'mkdir -p .{rep,x}orts', 'echo x > .r{e,x}ports/x.json',
+    'echo x > a/../.{rep,x}orts/z.json', `ls ${'\\\\*'.repeat(10)}`, 'ls \\\\*{*,}; echo x > art/.rep*/x.json'];
+  // Each field set and each command go through decide in this process, with the variable set,
+  // as each adapter calls it. Each adapter runs for real on one command of each field set,
+  // and the commands go round among them, so that each command runs through an adapter too.
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  for (const hooks of env) {
+    for (const command of denied) {
+      const reason = withGuardTest(hooks, () => reports.decide({ kind: 'shell', env: RUN,
+        cwd: normal, args: { command } }));
+      assert.equal(typeof reason, 'string', `${command.slice(0, 40)} with ${JSON.stringify(hooks)}`);
+    }
+  }
+  const jobs = [];
+  env.forEach((hooks, at) => {
+    ['gemini', 'cursor', 'copilot'].forEach((runtime, other) => {
+      const command = denied[(at * 3 + other) % denied.length];
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, normal, 3000, hooks);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)}`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)} with ${JSON.stringify(hooks)}`);
+      });
+    });
+  });
+  // The variable lowers a limit or denies, and a command that is allowed without it stays so.
+  jobs.push(async () => {
+    const ran = await adapterAsync(home, 'gemini', 'shell', 'cat src/{a,b}.ts', normal, 3000,
+      { noCaps: true });
+    assert.equal(ran.denied, false);
+  });
+  await pooled(jobs);
+});
+
+waiting('the children of one hook process share one deadline, and a child that cannot start denies the call', async () => {
+  const work = next('pass10');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(normal, { recursive: true });
+  for (let n = 0; n < 20; n += 1) fs.writeFileSync(path.join(normal, `f${n}.txt`), '');
+  const home = harnessHome();
+  const left = (where) => childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((line) => line.includes(where) && line.includes('max-old-space-size'));
+  // Copilot CLI types the text of each string argument of write_bash as a command: 250 fields,
+  // each a glob word, took 10.3 s with one child for each, and Copilot runs a call past 10 s.
+  const fields = {};
+  for (let n = 0; n < 250; n += 1) fields[`f${n}`] = 'ls *.txt';
+  const begun = Date.now();
+  const ran = await spawned(path.join(home, 'hooks', 'reports-guard-copilot.cjs'),
+    JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+    { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, undefined, 10000);
+  const ms = Date.now() - begun;
+  assert.equal(ran.error, undefined, `the hook ran past 10 s: ${ran.error}`);
+  assert.ok(ms < 6000, `${ms} ms`);
+  const reason = JSON.parse(ran.stdout).permissionDecisionReason;
+  assert.match(reason, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms/);
+  assert.deepEqual(left(home), [], 'no child is left');
+  // One command with 250 glob words is one child, and Gemini CLI and Cursor call the guard once.
+  // They run together, and with the runs of the hooks with a child that cannot start.
+  const words = Array.from({ length: 250 }, (_, n) => `f${n}*`).join(' ');
+  const broken = patchedHome('childProcess.spawnSync(process.execPath,',
+    "childProcess.spawnSync('/nonexistent/node',");
+  // spawnSync throws on an argument that is no path (a number): the call is denied as well.
+  const throwing = patchedHome('childProcess.spawnSync(process.execPath,', 'childProcess.spawnSync(42,');
+  const jobs = [];
+  for (const runtime of ['gemini', 'cursor']) {
+    jobs.push(async () => {
+      const one = await adapterAsync(home, runtime, 'shell', `ls ${words}`, normal, 10000);
+      assert.equal(one.killed, false, runtime);
+      assert.ok(one.ms < 6000, `${runtime}: ${one.ms} ms`);
+    });
+  }
+  // A child that cannot start (node at a path that is not there) denies the call.
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    jobs.push(async () => {
+      const ranBroken = await adapterAsync(broken, runtime, 'shell', 'ls *.txt', normal, 5000);
+      assert.equal(ranBroken.denied, true, runtime);
+      if (runtime !== 'cursor') {
+        const [first, second] = ranBroken.reason.split('\n');
+        assert.equal(`${first}\n`, 'Leave .reports/ to checks.cjs, and name other files with no `$`, backtick, eval or glob.\n');
+        assert.match(second, /^Use a narrower glob: .* or could not run, and the guard blocks the call\.$/);
+      }
+    });
+  }
+  for (const runtime of ['gemini', 'copilot']) {
+    jobs.push(async () => {
+      const ranThrowing = await adapterAsync(throwing, runtime, 'shell', 'ls *.txt', normal, 5000);
+      assert.equal(ranThrowing.denied, true, runtime);
+      assert.match(ranThrowing.reason, /\nUse a narrower glob: .* or could not run, and the guard blocks the call\.$/);
+    });
+  }
+  // A command with no glob and a word of braces only starts no child, so it passes there too.
+  jobs.push(async () => {
+    const braces = await adapterAsync(broken, 'copilot', 'shell', 'cat {a,b}.txt', normal, 5000);
+    assert.equal(braces.denied, false);
+  });
+  await pooled(jobs);
+  assert.deepEqual(left(home), [], 'no child is left');
+  // A call that begins after the deadline of its hook process starts no child and is denied.
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const late = reports.decide({ kind: 'shell', env: RUN, cwd: normal, args: { command: 'ls *.txt' },
+    deadline: require('node:perf_hooks').performance.now() - 5 });
+  assert.match(late, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms/);
+});
+
+test('a backslash at the end of a word is dropped by the shell, so `.reports\\` is .reports', async () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('pass11a');
+  fs.mkdirSync(work, { recursive: true });
+  const home = harnessHome();
+  const decided = (command) => reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: work,
+    args: { command } });
+  // The words that bash makes: with set -f, braces still expand, and the backslash at the end of
+  // the command is dropped.
+  const realWords = (word) => new Promise((resolve) => {
+    childProcess.execFile('bash', ['-c', `set -f; printf '%s\\n' ${word}`], { encoding: 'utf8' },
+      (error, stdout) => resolve(stdout.split('\n').filter((one) => one !== '')));
+  });
+  const stems = ['.reports', '{.reports,y}', '.rep{orts,y}', '.{rep,x}orts', 'x', 'art/.reports',
+    '{x,y}', 'a\\{b,c}', '{.reports,y,z}', '{a,.reports}', '.rep\\{orts,y}', '{.rep,x}orts', '.reportsx',
+    '.r{e,x}ports', '.reports/..'];
+  const heads = ['', 'a/', './', '../x/', 'art/'];
+  const verbs = ['mkdir -p', 'echo x >', 'touch', 'cat'];
+  // Bash makes the words of all the heads and stems first, a few runs at a time.
+  const wordList = heads.flatMap((head) => stems.map((stem) => `${head}${stem}\\`));
+  const reaching = await pooled(wordList.map((word) => async () => (await realWords(word))
+    .some((one) => /(^|\/)\.reports(\/|$)/.test(one))));
+  let words = 0;
+  for (const [at, word] of wordList.entries()) {
+    for (const verb of verbs) {
+      const command = `${verb} ${word}`;
+      const reason = decided(command);
+      words += 1;
+      if (reaching[at]) assert.equal(typeof reason, 'string', `bash reaches .reports: ${command}`);
+    }
+  }
+  assert.ok(words >= 300, `${words} words`);
+  // The named forms, through decide and the three wrappers.
+  const named = [['mkdir .reports\\', true], ['echo x > .reports\\', true], ['mkdir -p {.reports,y}\\', true],
+    ['echo x > .reports\\/x.json', true], ['ls {x,y}\\', false], ['echo a\\{b,c}', false],
+    ['echo x > .reportsx\\', false]];
+  const jobs = [];
+  for (const [command, denied] of named) {
+    assert.equal(decided(command) !== null, denied, command);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, work, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command}`);
+        assert.equal(ran.denied, denied, `${runtime}: ${command}`);
+      });
+    }
+  }
+  await pooled(jobs);
+});
+
+waiting('the guard denies a call when its hook process has used 8 s, also for the last of many arguments', async () => {
+  const work = next('pass11b');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  const run = async (where, fields, limit) => {
+    const begun = Date.now();
+    const ran = await spawned(path.join(where, 'hooks', 'reports-guard-copilot.cjs'),
+      JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+      { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, undefined, limit);
+    return { ran, ms: Date.now() - begun };
+  };
+  const heavy = 'ls {1..4096}.txt';
+  const last = 'echo x > art/.reports/x.json';
+  const many = (count) => {
+    const fields = {};
+    for (let n = 0; n < count; n += 1) fields[`f${n}`] = heavy;
+    fields.last = last;
+    return fields;
+  };
+  // The limit of the hook is 1.5 s in a copy of the hooks that the check patches; the real one is 8 s.
+  const quick = patchedHome('const HOOK_MS = 8000;', 'const HOOK_MS = 1500;');
+  const time = /^Send fewer or smaller arguments in one tool call\.\nThe guard of \.reports\/ used more than 8 seconds/;
+  // The real limit: 14,000 fields of 4,096 brace words and a deny field last. The run waits the
+  // 8 s of the limit, so it starts first and the other runs of this check go on beside it.
+  const realRun = run(home, many(14000), 10000);
+  const [small, few] = await Promise.all([run(quick, many(3000), 10000),
+    // A deny field in the last place is denied when the time has not run out, and when it has.
+    run(quick, many(3), 10000)]);
+  assert.equal(small.ran.error, undefined, 'the hook ran past 10 s');
+  assert.match(JSON.parse(small.ran.stdout).permissionDecisionReason, time);
+  assert.ok(small.ms < 9000, `${small.ms} ms`);
+  assert.match(JSON.parse(few.ran.stdout).permissionDecisionReason, /^Write to \.reports\/ only through checks\.cjs\./);
+  // A word of 1 MiB is decided in a fraction of a second.
+  const word = `ls ${'{a,b}'.repeat((1 << 20) / 5)}`;
+  const huge = await adapterAsync(home, 'copilot', 'shell', word, normal, 10000);
+  assert.equal(huge.killed, false);
+  assert.ok(huge.ms < 3000, `${huge.ms} ms`);
+  const real = await realRun;
+  assert.equal(real.ran.error, undefined, `the hook ran past 10 s: ${real.ms} ms`);
+  const reason = JSON.parse(real.ran.stdout).permissionDecisionReason;
+  assert.ok(typeof reason === 'string' && reason !== '', 'the call is denied');
+  assert.ok(real.ms < 9800, `${real.ms} ms`);
+});
+
+test('the deadlines and budgets of the reports guard use a monotonic clock', () => {
+  const text = fs.readFileSync(path.join(HOOKS, 'reports-guard.cjs'), 'utf8');
+  assert.doesNotMatch(text.replace(/\/\/.*$/gm, ''), /Date\.now\(/);
+  assert.match(text, /performance\.now\(\)/);
+});
+
+test('a hook process denies a call that takes its text past 8 MiB, whatever the text is', () => {
+  const work = next('pass12');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  const MIB = 1024 * 1024;
+  const line = /^Send fewer or smaller arguments in one tool call\.\nThe arguments of this call are more than 8 MiB of text/;
+  const copilot = (where, fields, limit = 10000) => {
+    const begun = Date.now();
+    const ran = childProcess.spawnSync(process.execPath, [path.join(where, 'hooks', 'reports-guard-copilot.cjs')], {
+      input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, encoding: 'utf8',
+      timeout: limit, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+    const reason = ran.error === undefined && ran.stdout !== '' ? JSON.parse(ran.stdout).permissionDecisionReason || '' : null;
+    return { ran, ms: Date.now() - begun, reason };
+  };
+  const left = () => childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((one) => one.includes(home) && one.includes('max-old-space-size'));
+  // Both edges, in copies of the hooks that the check patches with a small limit. The size of a
+  // call is its strings, the keys of its objects plus 16 for each entry, 8 for each item of an
+  // array, and its cwd; Copilot CLI calls the guard for each field with { command: <text> }, which
+  // is 7 + 16 characters of key and entry, and the cwd, again for each call.
+  const cwdLength = normal.length;
+  const limited = (extra) => patchedHome('const HOOK_CHARS = 8 * 1024 * 1024;',
+    `const HOOK_CHARS = ${extra + cwdLength};`);
+  const one1000 = limited(1000);
+  assert.equal(copilot(one1000, { a: 'x'.repeat(977) }).reason, '');
+  assert.match(copilot(one1000, { a: 'x'.repeat(978) }).reason, line);
+  const two1000 = limited(1000 + cwdLength);
+  assert.equal(copilot(two1000, { a: 'x'.repeat(377), b: 'y'.repeat(577) }).reason, '');
+  assert.match(copilot(two1000, { a: 'x'.repeat(377), b: 'y'.repeat(578) }).reason, line);
+  // The size of an argument of a write tool, in a separate process: a value that is no string
+  // costs nothing in an object but its key and the entry, an item of an array costs 8 whatever it is.
+  const sized = (home1, args) => childProcess.spawnSync(process.execPath, ['-e',
+    `const g = require(${JSON.stringify(path.join(home1, 'hooks', 'reports-guard.cjs'))});
+     process.stdout.write(String(g.safeDecide({ kind: 'write', args: ${JSON.stringify(args)}, cwd: ${JSON.stringify(normal)} })));`],
+  { encoding: 'utf8', env: { ...process.env, QORY_RUN_ID: 'run-1' } }).stdout;
+  const nested = (strings) => ({ a: 7, b: true, c: null, d: ['q'.repeat(500)], e: { f: 'q'.repeat(strings) } });
+  // 3 keys of 1 and 16 each (51), d: 17 + 8 + 500, e: 17 + the entry f: 17 + its string.
+  assert.equal(sized(one1000, nested(390)), 'null');
+  assert.match(sized(one1000, nested(391)), line);
+  // A key of 1,000 characters is 1,000 + 16.
+  const key = limited(1016);
+  assert.equal(sized(key, { ['k'.repeat(1000)]: '' }), 'null');
+  assert.match(sized(key, { ['k'.repeat(1001)]: '' }), line);
+  // The items of an array: 8 for each, empty strings, numbers, true and null alike; the key x is 17.
+  const items = limited(17 + 8 * 123);
+  for (const item of ['', 0, true, null]) {
+    assert.equal(sized(items, { x: Array(123).fill(item) }), 'null', String(item));
+    assert.match(sized(items, { x: Array(124).fill(item) }), line, String(item));
+  }
+  // A getter that throws, which JSON cannot make, denies the call in a run, and the hook goes on.
+  const throwing = childProcess.spawnSync(process.execPath, ['-e',
+    `const g = require(${JSON.stringify(path.join(one1000, 'hooks', 'reports-guard.cjs'))});
+     const args = {}; Object.defineProperty(args, 'x', { enumerable: true, get() { throw new Error('boom'); } });
+     process.stdout.write(String(g.safeDecide({ kind: 'write', args, cwd: ${JSON.stringify(normal)} })));`],
+  { encoding: 'utf8', env: { ...process.env, QORY_RUN_ID: 'run-1' } });
+  assert.equal(throwing.status, 0);
+  assert.match(throwing.stdout, /^Send a smaller call: the guard failed on this call and blocks it\./);
+  // The other runtimes: one call. The command is 'ls ' and 974 characters, with { command } 23 and the cwd.
+  const call = limited(1000);
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    assert.equal(adapter(call, runtime, 'shell', 'ls '.concat('a'.repeat(974)), normal, 5000).denied, false, runtime);
+    const over = adapter(call, runtime, 'shell', 'ls '.concat('a'.repeat(975)), normal, 5000);
+    assert.equal(over.denied, true, runtime);
+    if (runtime !== 'cursor') assert.match(over.reason, line);
+  }
+  // 9 fields of 1 MiB, then a deny field: denied by size, and not killed.
+  const nine = {};
+  for (let n = 0; n < 9; n += 1) nine[`f${n}`] = 'echo '.concat('a'.repeat(MIB - 5));
+  nine.last = 'echo x > art/.reports/x.json';
+  const sum = copilot(home, nine);
+  assert.equal(sum.ran.error, undefined, `the hook ran past 10 s: ${sum.ms} ms`);
+  assert.match(sum.reason, line);
+  assert.ok(sum.ms < 9000, `${sum.ms} ms`);
+  // 8 MiB of harmless text then a deny field last: the deny field is denied by its content.
+  const eight = {};
+  for (let n = 0; n < 7; n += 1) eight[`f${n}`] = 'echo '.concat('a'.repeat(MIB - 5));
+  eight.last = 'echo x > art/.reports/x.json';
+  const edge = copilot(home, eight);
+  assert.equal(edge.ran.error, undefined);
+  assert.match(edge.reason, /^Write to \.reports\/ only through checks\.cjs\./);
+  // One field of 9 MiB of harmless text, with the real limit, and one command of 9 MiB for each of
+  // Gemini CLI and Cursor.
+  const one = copilot(home, { a: 'echo '.concat('a'.repeat(9 * MIB)) });
+  assert.equal(one.ran.error, undefined);
+  assert.match(one.reason, line);
+  assert.ok(one.ms < 6000, `${one.ms} ms`);
+  for (const runtime of ['gemini', 'cursor']) {
+    const big = adapter(home, runtime, 'shell', 'echo '.concat('a'.repeat(9 * MIB)), normal, 10000);
+    assert.equal(big.killed, false, runtime);
+    assert.equal(big.denied, true, runtime);
+    assert.ok(big.ms < 6000, `${runtime}: ${big.ms} ms`);
+  }
+  assert.deepEqual(left(), [], 'no child is left');
+});
+
+test('the entries of an object and the items of an array count toward the 8 MiB of a hook process', () => {
+  const work = next('pass13');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  const line = /^Send fewer or smaller arguments in one tool call\.\nThe arguments of this call are more than 8 MiB of text/;
+  // 1,400,000 entries of `"<base36>":""` in the tool_input of write_file (14 MB, under the 16 MiB
+  // of the input, and 0 characters of text before the count of keys), with a file_path that is a
+  // ledger file last: denied by the 8 MiB count, well inside 10 s. 4,000,000 such entries (40 MiB,
+  // 9.4 s in the review) are over 16 MiB and get the deny of the input.
+  const entries = [];
+  for (let n = 0; n < 1400000; n += 1) entries.push(`"${n.toString(36)}":""`);
+  const body = `${entries.join(',')},"file_path":"art/.reports/x.json"`;
+  entries.length = 0;
+  const begun = Date.now();
+  const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', 'reports-guard-gemini.cjs')], {
+    input: `{"tool_name":"write_file","cwd":${JSON.stringify(normal)},"tool_input":{${body}}}`,
+    env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, encoding: 'utf8',
+    timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+  const ms = Date.now() - begun;
+  assert.equal(ran.error, undefined, `the hook ran past 10 s: ${ms} ms`);
+  assert.match(JSON.parse(ran.stdout).reason, line);
+  assert.ok(ms < 6000, `${ms} ms`);
+  // 300,000 fields of an empty string for Copilot CLI, with the deny field last, and a limit of
+  // 100,000 in a copy of the hooks (each call is 23 + the cwd): denied by size, after about 600 calls.
+  const small = patchedHome('const HOOK_CHARS = 8 * 1024 * 1024;', 'const HOOK_CHARS = 100000;');
+  const fields = {};
+  for (let n = 0; n < 300000; n += 1) fields[`k${n}`] = '';
+  fields.last = 'echo x > art/.reports/x.json';
+  const empty = childProcess.spawnSync(process.execPath, [path.join(small, 'hooks', 'reports-guard-copilot.cjs')], {
+    input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+    env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: small }, encoding: 'utf8',
+    timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+  assert.equal(empty.error, undefined, 'the hook ran past 10 s');
+  assert.match(JSON.parse(empty.stdout).permissionDecisionReason, line);
+});
+
+test('a guard hook denies an input over 16 MiB before it parses it, and an input it cannot read, in a run', () => {
+  const work = next('pass14');
+  const home = harnessHome();
+  const MIB = 1024 * 1024;
+  const size = /^Send fewer or smaller arguments in one tool call\.\nThe input of this call is more than 16 MiB, and the guard of \.reports\/ does not read that much in the 10 seconds of its hook, so it blocks the call\.$/;
+  const unreadable = /^Send the call again\.\nThe guard of \.reports\/ could not read the input of this call, and blocks it\.$/;
+  // For each runtime: the hook file, a valid input with a harmless command and a padding field
+  // that makes its length exactly bytes, and what the hook prints on a deny and on a pass.
+  const runtimes = {
+    gemini: {
+      file: 'reports-guard-gemini.cjs',
+      make: (pad) => `{"tool_name":"run_shell_command","tool_input":{"command":"echo x"},"cwd":${JSON.stringify(work)},"pad":"${pad}"}`,
+      deny: (out) => JSON.parse(out).reason, pass: (out) => out.trim() === '{}',
+    },
+    cursor: {
+      file: 'reports-guard-cursor.cjs',
+      make: (pad) => `{"hook_event_name":"beforeShellExecution","command":"echo x","cwd":${JSON.stringify(work)},"pad":"${pad}"}`,
+      deny: (out) => JSON.parse(out).agent_message, pass: (out) => out === '',
+    },
+    copilot: {
+      file: 'reports-guard-copilot.cjs',
+      make: (pad) => `{"toolName":"bash","toolArgs":"{\\"command\\":\\"echo x\\"}","cwd":${JSON.stringify(work)},"pad":"${pad}"}`,
+      deny: (out) => JSON.parse(out).permissionDecisionReason, pass: (out) => out.trim() === '{}',
+    },
+  };
+  const exact = (runtime, bytes) => {
+    const empty = runtime.make('');
+    return runtime.make('a'.repeat(bytes - Buffer.byteLength(empty)));
+  };
+  const hook = (runtime, input, run) => {
+    const env = { ...process.env, QORY_HARNESS_HOME: home };
+    delete env.QORY_RUN_ID;
+    if (run) env.QORY_RUN_ID = 'run-1';
+    const begun = Date.now();
+    const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', runtime.file)], {
+      input, env, encoding: 'utf8', timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+    return { ran, ms: Date.now() - begun, out: ran.stdout };
+  };
+  for (const [name, runtime] of Object.entries(runtimes)) {
+    // 16 MiB exactly passes in a run; one byte more is denied, whether or not it is JSON, and
+    // the check does not parse it (an input that is not JSON gets the size reason, not the other).
+    const edge = hook(runtime, exact(runtime, 16 * MIB), true);
+    assert.equal(edge.ran.error, undefined, name);
+    assert.ok(runtime.pass(edge.out), `${name}: ${edge.out.slice(0, 200)}`);
+    for (const [what, input] of [['valid JSON', exact(runtime, 16 * MIB + 1)], ['text', 'x'.repeat(17 * MIB)]]) {
+      const over = hook(runtime, input, true);
+      // The hook stops reading at the limit, so the write of the rest can end with EPIPE.
+      assert.ok(over.ran.error === undefined || over.ran.error.code === 'EPIPE', `${name} ${what}`);
+      assert.match(runtime.deny(over.out), size, `${name} ${what}`);
+      assert.ok(over.ms < 3000, `${name} ${what}: ${over.ms} ms`);
+    }
+    // Outside a run, the cap does not apply.
+    assert.ok(runtime.pass(hook(runtime, exact(runtime, 17 * MIB), false).out), `${name} outside a run`);
+    // An input that is not a JSON object is denied in a run, and passes as before outside it.
+    for (const input of ['not json', '{"a":', '', '[]', 'null', '7']) {
+      assert.match(runtime.deny(hook(runtime, input, true).out), unreadable, `${name} ${JSON.stringify(input)}`);
+      assert.ok(runtime.pass(hook(runtime, input, false).out), `${name} ${JSON.stringify(input)} outside a run`);
+    }
+  }
+  // The guard of Claude Code and Codex denies an input over 16 MiB in a run too.
+  for (const script of ['tool-guard-claude.cjs', 'tool-guard-codex.cjs']) {
+    for (const input of [`{"pad":"${'a'.repeat(17 * MIB)}"}`, 'x'.repeat(17 * MIB)]) {
+      const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', script)], {
+        input, env: { ...process.env, QORY_RUN_ID: 'run-1' }, encoding: 'utf8', timeout: 10000,
+        killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+      assert.ok(ran.error === undefined || ran.error.code === 'EPIPE', script);
+      assert.match(JSON.parse(ran.stdout).hookSpecificOutput.permissionDecisionReason, size, script);
+    }
+  }
+  const left = childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((one) => one.includes(home));
+  assert.deepEqual(left, []);
+});
+
+waiting('a guard hook in a run stops reading its input at 16 MiB and at the time limit, whatever the writer does', async () => {
+  const home = harnessHome();
+  const small = patchedHome('const HOOK_MS = 8000;', 'const HOOK_MS = 1500;');
+  const MIB = 1024 * 1024;
+  const size = /^Send fewer or smaller arguments in one tool call\.\nThe input of this call is more than 16 MiB, and the guard of \.reports\/ does not read that much in the 10 seconds of its hook, so it blocks the call\.$/;
+  const time = /^Send fewer or smaller arguments in one tool call\.\nThe guard of \.reports\/ used more than 8 seconds of the 10 seconds of its hook, and blocks the call\.$/;
+  const files = ['reports-guard-gemini.cjs', 'reports-guard-cursor.cjs', 'reports-guard-copilot.cjs',
+    'tool-guard-claude.cjs', 'tool-guard-codex.cjs'];
+  const reasonOf = (out) => {
+    const one = JSON.parse(out);
+    return one.reason || one.agent_message || one.permissionDecisionReason
+      || (one.hookSpecificOutput && one.hookSpecificOutput.permissionDecisionReason);
+  };
+  // drive runs a hook in a run with a stdin that feed writes to and that stays open: the hook
+  // has to end by itself, which the 10 s kill would show.
+  const drive = (where, file, feed) => new Promise((resolve) => {
+    const begun = Date.now();
+    const child = childProcess.spawn(process.execPath, [path.join(where, 'hooks', file)], {
+      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, stdio: ['pipe', 'pipe', 'ignore'] });
+    let out = '';
+    let ended = false;
+    child.stdout.on('data', (data) => { out += data; });
+    child.stdin.on('error', () => {});
+    const killer = setTimeout(() => child.kill('SIGKILL'), 10000);
+    child.on('exit', (code, signal) => {
+      ended = true;
+      clearTimeout(killer);
+      child.stdin.destroy();
+      resolve({ out, ms: Date.now() - begun, killed: signal === 'SIGKILL', code });
+    });
+    feed(child.stdin, () => ended);
+  });
+  // The 16 MiB and 1 byte after the first 4,096 pieces of 37 bytes: one buffer for all the files.
+  const PIECES = 4096;
+  const rest = Buffer.alloc(16 * MIB + 1 - PIECES * 37, 'x');
+  // The files run together, so that the waits of their stalled writers overlap.
+  await Promise.all(files.map(async (file) => {
+    // 16 MiB + 1 byte, the first 4,096 pieces of 37 bytes and then the rest in one write, and
+    // then the pipe stays open: the hook denies at the byte over the limit, and does not wait
+    // for the end of its input.
+    const slow = await drive(home, file, (stdin) => {
+      const piece = Buffer.alloc(37, 'x');
+      for (let sent = 0; sent < PIECES; sent += 1) stdin.write(piece);
+      stdin.write(rest);
+    });
+    assert.equal(slow.killed, false, `${file}: the hook waited for the end of its input`);
+    assert.match(reasonOf(slow.out), size, file);
+    // 1 KiB, then no more and no end of input: the hook denies at its time limit, which the
+    // copy of the hooks sets to 1.5 s, before the kill at 10 s.
+    const stalled = await drive(small, file, (stdin) => stdin.write(Buffer.alloc(1024, 'x')));
+    assert.equal(stalled.killed, false, `${file}: the hook waited for a stalled writer`);
+    assert.match(reasonOf(stalled.out), time, file);
+    assert.ok(stalled.ms < 8000, `${file}: ${stalled.ms} ms`);
+  }));
+  const left = childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((one) => one.includes(home) || one.includes(small));
+  assert.deepEqual(left, []);
+});
+
+test('the child that reads the input of a hook runs without NODE_OPTIONS', () => {
+  const work = next('pass16');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  // The file runs in each node process that NODE_OPTIONS reaches, and acts only in one that runs
+  // code from -e, as the child that reads stdin does: it writes {} as the input and exits 0.
+  const preload = path.join(work, 'preload.cjs');
+  fs.writeFileSync(preload, "if (process.execArgv.includes('-e')) { process.stdout.write('{}'); process.exit(0); }\n");
+  const write = { file_path: 'art/.reports/x.json', content: '{}' };
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    assert.equal(adapter(home, runtime, 'write', write, normal).denied, true, `${runtime} without NODE_OPTIONS`);
+    const hooked = adapter(home, runtime, 'write', write, normal, 5000, null,
+      { NODE_OPTIONS: `--require ${preload}` });
+    assert.equal(hooked.killed, false, runtime);
+    assert.equal(hooked.denied, true, `${runtime} with NODE_OPTIONS`);
+  }
+});
+
+test('the checks that wait for a clock of the guard', { concurrency: true }, async (t) => {
+  await Promise.all(waited.map(([name, fn]) => t.test(name, fn)));
 });
