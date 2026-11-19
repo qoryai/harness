@@ -94,8 +94,8 @@ module.exports = (lib) => {
         // The cause prints indented by two spaces, so it has at most 98 characters.
         const shown = secrets.shown(String(arg), secrets.secretValues(io.env));
         // The first line has at most 100 characters with freeze.
-        return { problem: `Give ${verb} deliverable:d-<N>, fix:f<N>, checks or --plan, then only ` +
-          '--base, --inputs, --artifacts.\n' +
+        return { problem: `Give ${verb} deliverable:d-<N>, fix:f<N>, checks or --plan, and only ` +
+          '--base, --inputs or --artifacts.\n' +
           `${fitted(shown, (name) => `${name} is none of them.`, 98)}` };
       }
     }

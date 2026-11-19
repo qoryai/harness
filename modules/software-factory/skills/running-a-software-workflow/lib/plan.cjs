@@ -184,13 +184,23 @@ module.exports = (lib) => {
   // fix, or checks, the step of write-acceptance-checks that writes the acceptance checks.
   const STEP = /^(?:deliverable:(d-[1-9][0-9]*)|fix:(f[1-9][0-9]*)|(checks))$/;
 
-  // NO_FILE is a Check cell that is no path of a test file: n/a, or the id of a scenario.
-  const NO_FILE = /^(?:n\/a|scenario-[1-9][0-9]*)$/;
+  // isPath reports whether cell, a Check cell without backticks, is a check path: a relative
+  // path of the work folder, with no space and no . or .. part, whose file name has an
+  // extension, as a test file has, such as tests/export.test.ts. n/a, none, N/A, -, TBD and the
+  // id of a scenario have none.
+  const isPath = (cell) => /^[^\s/][^\s]*$/.test(cell) && !/(?:^|\/)\.\.?(?:\/|$)/.test(cell) &&
+    /^[^/.][^/]*\.[A-Za-z0-9]+$/.test(cell.split('/').pop());
+
+  // checkScope returns the paths that a deliverable with a check path allows to the step
+  // checks: the check path, and each folder of its Files that contains it. The other paths of
+  // its Files, such as the code under test, are not in it.
+  const checkScope = (row) => [row.check,
+    ...row.paths.filter((one) => one.endsWith('/') && row.check.startsWith(one))];
 
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
   // the Files of every deliverable, because a finding of the review may be in any of them.
-  // For checks, it is the Files of each deliverable whose Check is the path of a test file,
-  // where planning-builds puts that path and the folder of its helpers.
+  // For checks, it is the checkScope of each deliverable whose Check is a check path: that path
+  // and the folder of its Files that holds it, where planning-builds puts the helpers.
   // With no step, for scope --plan, it is the Files of every deliverable too: a push has the
   // commits of every step, and a commit names no step. With no build plan, it is no path.
   // With through set and a deliverable step, it is the Files of that deliverable and of each
@@ -201,7 +211,7 @@ module.exports = (lib) => {
     const match = step ? STEP.exec(step) : [];
     let rows = match[1] ? plan.deliverables.filter((row) => row.id === match[1])
       : plan.deliverables;
-    if (match[3]) rows = rows.filter((row) => row.check && !NO_FILE.test(row.check));
+    if (match[3]) rows = rows.filter((row) => isPath(row.check));
     if (match[1] && !rows.length) {
       const id = match[1].length > 30 ? `${match[1].slice(0, 27)}...` : match[1];
       throw new Missing(`Give ${verb} a deliverable of the build plan: version ${plan.version} ` +
@@ -229,7 +239,7 @@ module.exports = (lib) => {
         `it.\nIn the Files of ${bad.id}, ${bad.problem}.`);
     }
     return {
-      paths: [...new Set(rows.flatMap((row) => row.paths))],
+      paths: [...new Set(rows.flatMap((row) => (match[3] ? checkScope(row) : row.paths)))],
       words: match[1] ? `the files of ${match[1]}`
         : match[3] ? 'the files of the acceptance checks'
           : step ? 'the files of the deliverables' : 'the files of the build plan',
@@ -247,5 +257,7 @@ module.exports = (lib) => {
     return work.changed.filter((file) => !(work.untracked.has(file) && results.has(file)));
   }
 
-  return { filesCell, covers, plainCell, appAddress, readPlan, writeScope, changesOf, STEP };
+  return {
+    filesCell, covers, plainCell, isPath, appAddress, readPlan, writeScope, changesOf, STEP,
+  };
 };
