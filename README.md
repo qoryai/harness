@@ -114,9 +114,10 @@ checkout in a workspace set up as a software factory extends it. The stack decla
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
-`access: write`, and the workflow `write-acceptance-checks`, with `tier: balanced` and
-`access: write`. The `software-factory` module ships the process template, eight workflows'
-skills, twenty other skills, seventeen agents and the settings for a run of those
+`access: write`, the workflow `write-acceptance-checks`, with `tier: balanced` and
+`access: write`, and the workflow `review-changes`, with `tier: thinking` and
+`access: write`. The `software-factory` module ships the process template, nine workflows'
+skills, twenty-three other skills, twenty agents and the settings for a run of those
 workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -322,6 +323,33 @@ workflows:
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
   `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
   as text. The session passes it the changed paths of the working folder.
+- `workflow-review-changes`: check a Build run before its review round. The session starts
+  no agent. With no build plan, it ends with a `run_again` point. While a planned change is
+  not built, or a locked file differs from the acceptance lock, it ends with
+  `qory run verdict changes-requested`. When every check passes, it ends ready: in a stage
+  that has reviewers, qory then runs the review round, and in a stage with none, the run
+  ends with `qory run verdict passed`.
+- `checking-code`: load it before you review the code of a change, after
+  `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
+  area it covers, the steps, what is blocking in that area, and the check list.
+- `checking-tests`: load it before you review the tests of a change, after
+  `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
+  area it covers, the steps, what is blocking in that area, and the check list.
+- `checking-acceptance`: load it before you review a change against its acceptance
+  criteria and build plan, after `reviewing-changes` and `judging-findings`. The skill
+  contains what the review reads, the area it covers, the steps, what is blocking in that
+  area, and the check list.
+- `code-reviewer`: an agent that reviews the code of a change, apart from its tests, by
+  `reviewing-changes`, `judging-findings` and `checking-code`, and writes one report file.
+  It also reports a security hole, data loss or a secret in a test. qory starts it in the
+  review round.
+- `test-reviewer`: an agent that reviews the tests of a change by `reviewing-changes`,
+  `judging-findings` and `checking-tests`, and writes one report file. qory starts it in the
+  review round.
+- `acceptance-reviewer`: an agent that reviews by `reviewing-changes`, `judging-findings`
+  and `checking-acceptance` whether a change meets each approved acceptance criterion and
+  builds each planned change, and writes one report file. qory starts it in the review
+  round.
 - `settings/claude/settings.json`: the run may load the skills of this module, start its
   agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the

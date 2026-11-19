@@ -4191,13 +4191,48 @@ test('report: the lists and words come from the agent file, and a missing agent 
   assert.equal(reviewer.status, 3, 'a reviewer with no agent file');
 });
 
+// A reviewer of a change, an agent whose file loads reviewing-changes, writes the JSON report
+// of a review round, which qory reads, and no text report. Its Expected output has a json
+// block that passes qory's report schema, with the agent's name as reviewer. The schema is
+// read as scripts/findings.test.js reads it: from the folder QORY_SOURCE, qory at the commit
+// that .github/workflows/check.yml pins as QORY_CONTRACTS_COMMIT.
+const REPORT_SCHEMA_PIN = /^\s*QORY_CONTRACTS_COMMIT: (\w+)$/m.exec(fs.readFileSync(
+  path.join(__dirname, '..', '.github', 'workflows', 'check.yml'), 'utf8'))[1];
+const REPORT_SCHEMA_PATH = 'contracts/harness/v1/review-report.schema.json';
+const REPORT_SCHEMA_FILE = path.join(process.env.QORY_SOURCE || '', REPORT_SCHEMA_PATH);
+
 test('report: each agent of the modules has a shape that the script reads', () => {
+  if (!process.env.QORY_SOURCE || !fs.existsSync(REPORT_SCHEMA_FILE)) {
+    throw new Error(`Set QORY_SOURCE to a folder with qory's contracts at ${REPORT_SCHEMA_PIN}.\n` +
+      `Run: git -C <qory checkout> archive ${REPORT_SCHEMA_PIN} contracts | tar -x -C <dir>\n` +
+      `The test reads ${REPORT_SCHEMA_PATH} from QORY_SOURCE, which is ` +
+      `${process.env.QORY_SOURCE || 'not set'}.`);
+  }
+  const schema = require(path.join(MODULES,
+    'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
+  const loaded = { file: REPORT_SCHEMA_FILE,
+    schema: JSON.parse(fs.readFileSync(REPORT_SCHEMA_FILE, 'utf8')) };
+  loaded.patterns = schema.compile(loaded.schema, REPORT_SCHEMA_FILE);
+  let reviewers = 0;
   for (const file of fs.readdirSync(path.join(PLUGIN, 'agents'))) {
     const agent = file.replace(/\.md$/, '');
+    const text = fs.readFileSync(path.join(PLUGIN, 'agents', file), 'utf8');
+    if (text.includes('${qory:skills/reviewing-changes}')) {
+      reviewers += 1;
+      const output = /^## Expected output\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text);
+      assert.ok(output, `${agent}: no ## Expected output`);
+      const block = /^```json\n([\s\S]*?)\n```$/m.exec(output[1]);
+      assert.ok(block, `${agent}: no json block in ## Expected output`);
+      const example = JSON.parse(block[1]);
+      assert.deepEqual(schema.errors(loaded, example, 'report.json'), [], agent);
+      assert.equal(example.reviewer, agent);
+      continue;
+    }
     const result = report('nothing\n', agent);
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
     assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
+  assert.equal(reviewers, 3, 'code-reviewer, test-reviewer and acceptance-reviewer');
 });
 
 // ---- Time and size ------------------------------------------------------------------------
