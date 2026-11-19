@@ -305,6 +305,8 @@ function reportsOnDisk(text, cwd, state) {
 const REPORTS = /\.reports(?:[/\s'"`;|&)]|\\?$)/iu;
 // The file .env in a shell command: .env as a whole path part, so that .env.example, .envrc,
 // .venv and process.env pass, and a * ? [ or { after it makes a glob, which is no .env.
+// shortcut: no glob, braces or variable that build the name .env are read, and tool-guard.cjs
+// matches no .env glob; replace this with the glob rules of .reports if a run needs them.
 const ENV_FILE = /(?<![\w.-])\.env(?![\w.*?[{-])/iu;
 // A part of a shell command that runs a second command or redirects one.
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
