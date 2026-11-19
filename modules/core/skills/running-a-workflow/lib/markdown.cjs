@@ -406,6 +406,9 @@ function brackets(text) {
 const LABEL = /\[((?:[^[\]\\]|\\.)*)\]/y;
 // A label of a link reference has at most 999 characters (CommonMark).
 const LABEL_LIMIT = 999;
+// ADDRESS_LIMIT is the length that a link address may have (artifact-text). imageAddresses finds
+// the end of a longer address, and returns its first ADDRESS_LIMIT + 1 characters.
+const ADDRESS_LIMIT = 2048;
 // CODE marks a code span in the text that imageAddresses reads: it is no white space, so that a
 // line with only a code span is no blank line.
 const CODE = '\u0001';
@@ -433,14 +436,24 @@ function finder(text, pattern) {
 // <>, and a reference image, ![alt][label], ![alt][] and ![alt], whose label has a definition in
 // defined (its address is the definition's). An inline image with no ")" and a reference whose
 // label has no definition are no image. Each end is found by a search in a list that one pass
-// made, so that a long line of "![a](" or of spaces takes linear time and an address has no
-// length limit.
+// made, so that a long line of "![a](" or of spaces takes linear time. An address has no length
+// limit, but the function returns at most its first ADDRESS_LIMIT + 1 characters.
 function imageAddresses(text, defined) {
   const found = [];
   for (const _tag of text.matchAll(/<img(?=[\s/>]|$)/gi)) found.push('<img>');
   const pairs = brackets(text);
   const nextBlank = finder(text, /(?=\n[ \t]*\n)/g);
   const nextStop = finder(text, /[\s)]/g);
+  const after = finder(text, /[^ \t]/g);
+  // nextText returns the index of the first character from index at that is no space or tab.
+  const nextText = (at) => {
+    const found = after(at);
+    return found === -1 ? text.length : found;
+  };
+  // clip returns the first ADDRESS_LIMIT + 1 characters of an address, with its code spans as
+  // backticks: a longer address is as wrong as that, and a report copies it once for each image.
+  const clip = (from, to) => text.slice(from, Math.min(to, from + ADDRESS_LIMIT + 1))
+    .replaceAll(CODE, '`');
   const nextAngle = finder(text, /[<>\n]/g);
   const nextDouble = finder(text, /"/g);
   const nextSingle = finder(text, /'/g);
@@ -453,12 +466,8 @@ function imageAddresses(text, defined) {
   // space returns the index after the white space at index at: spaces and tabs, a line feed
   // and spaces and tabs, but no second line feed.
   const space = (at) => {
-    let next = at;
-    while (text[next] === ' ' || text[next] === '\t') next += 1;
-    if (text[next] === '\n') {
-      next += 1;
-      while (text[next] === ' ' || text[next] === '\t') next += 1;
-    }
+    let next = nextText(at);
+    if (next !== text.length && text[next] === '\n') next = nextText(next + 1);
     return next;
   };
   // inline returns the address of the inline image whose "(" is at index open, or null.
@@ -486,7 +495,8 @@ function imageAddresses(text, defined) {
     } else {
       at = spaced;
     }
-    return text[at] === ')' ? text.slice(range[0], range[1]).replaceAll(CODE, '`') : null;
+    if (text[at] !== ')' || blank(open, at)) return null;
+    return clip(range[0], range[1]);
   };
   for (let start = text.indexOf('!['); start !== -1; start = text.indexOf('![', start + 2)) {
     const end = pairs.has(start + 1) ? pairs.get(start + 1) : -1;
@@ -506,7 +516,7 @@ function imageAddresses(text, defined) {
       if (named && named[1].trim() !== '' && named[1].length <= LABEL_LIMIT) key = label(named[1]);
     }
     if (key === '' && end - start - 2 <= LABEL_LIMIT) key = label(text.slice(start + 2, end));
-    if (defined.has(key)) found.push(defined.get(key));
+    if (defined.has(key)) found.push(defined.get(key).slice(0, ADDRESS_LIMIT + 1));
   }
   return found;
 }

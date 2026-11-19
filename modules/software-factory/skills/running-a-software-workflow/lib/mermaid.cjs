@@ -285,9 +285,8 @@ function edges(text) {
 }
 
 // FREE_CHARACTERS characters of each diagram are free, and each 6 after them cost one word of
-// the 450 of a record. The characters are those of source(), with each entity as the character
-// it stands for, that are no white space and not in SYMBOLS. The core word count is not used,
-// because it reads Markdown.
+// the 450 of a record. The characters are those of source() that are no white space and not in
+// SYMBOLS; the core word count reads Markdown, so it is not used.
 const FREE_CHARACTERS = 700;
 const CHARACTERS_PER_WORD = 6;
 const SYMBOLS = new Set([...'-=.<>|*()[]{}:;&~%"\'']);

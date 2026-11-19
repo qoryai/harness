@@ -1490,6 +1490,36 @@ test('decision record: text that only looks like an inline image is no image', (
   }
 });
 
+test('decision record: many image starts take linear time, and a blank line makes no image', () => {
+  const links = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs')).links;
+  const run = (text) => {
+    const findings = [];
+    const started = Date.now();
+    links({ did() {}, find: (finding) => findings.push(finding) }, 'f.md', '', text,
+      { images: () => false, everyImage: true });
+    return { findings, took: Date.now() - started };
+  };
+  // Each start finds the same run of spaces, or an address up to the same ")".
+  for (const [name, text, count] of [
+    ['starts and spaces', `${'![a]('.repeat(25000)}${' '.repeat(125000)}`, 0],
+    ['starts with an address and spaces', `${'![a](x'.repeat(25000)}${' '.repeat(125000)}`, 0],
+    ['starts that close at the end', `${'![a]('.repeat(30000)})`, 30000],
+  ]) {
+    const result = run(text);
+    assert.equal(result.findings.length, count, name);
+    assert.ok(result.took < 1000, `${name} took ${result.took} ms`);
+  }
+  // An address is cut to 2,049 characters in the finding, and its end is found without a bound.
+  const long = run(`![a](${'x'.repeat(5000)})`).findings[0];
+  assert.ok(long.length < 5000, 'the finding has the cut address');
+  // A blank line between "(" and ")" makes no image, as a blank line before the address does.
+  assert.equal(run('![a](\n\n)').findings.length, 0);
+  assert.equal(run('![a](\n \n)').findings.length, 0);
+  assert.equal(run('![a](x\n\n)').findings.length, 0);
+  assert.equal(run('![a](\n)').findings.length, 1);
+  assert.equal(run('![a]( )').findings.length, 1);
+});
+
 test('decision record: a code span is no white space, and an address has no length limit', () => {
   const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
   const image = /^Remove the image /;
