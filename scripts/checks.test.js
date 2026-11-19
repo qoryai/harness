@@ -3388,6 +3388,16 @@ test('panel: the group of the security, data and failure reviewers starts only f
     [['src/jobs/send_receipt.js'], ['failure-reviewer']],
     [['lib/retry.go'], ['failure-reviewer']],
     [['app/workers/export.py'], ['failure-reviewer']],
+    // The globs list the usual case of a name, so a name in PascalCase starts its reviewer too.
+    [['src/PasswordEncoder.java'], ['security-reviewer']],
+    [['src/Models/Order.cs'], ['data-reviewer']],
+    [['src/RetryPolicy.cs'], ['failure-reviewer']],
+    // shortcut: a glob has no form that leaves a file out, so a text file in a listed folder or
+    // with a listed name starts the reviewer of that glob. Replace the globs when this costs a
+    // review.
+    [['docs/api/guide.md'], ['security-reviewer']],
+    [['migrations/README.md'], ['data-reviewer']],
+    [['docs/errors.md'], ['failure-reviewer']],
     // A change in several areas starts each reviewer once, in the order of the group.
     [['src/auth/login.js', 'db/migrate/20261119120000_add_orders.rb', 'src/jobs/send_receipt.js', 'README.md'],
       GROUP],

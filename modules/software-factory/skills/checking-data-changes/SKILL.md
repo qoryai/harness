@@ -29,7 +29,7 @@ You run no migration and read no database. Your proof comes from the lines that 
 The run starts this review only when the change has a migration file, a schema file or a
 model file. The review covers each such file of the change, and the code of the change that
 reads or writes the table, column or field that they change. It reports data that a change
-loses, refuses or leaves wrong.
+loses, makes fail or leaves wrong.
 
 The review of the code also reports data loss, in step 5 of `checking-code`. Write each
 finding that you can prove, also when that review may write it as well: you read only the
@@ -69,12 +69,12 @@ them.
    change drops, renames or retypes. Code that still reads the old name, writes the old
    type, or leaves out a new required field is a bug of this area.
 6. Wide writes: a data migration or a backfill with no `where`, a `where` wider than its
-   rule, a delete that cascades to tables that the migration does not name, and an update
-   of every row in one statement on a table that the repository describes as large.
+   rule, a delete that cascades to tables outside the migration, and an update of every
+   row in one statement on a table that a file of the repository shows as large.
 7. Locks: an index made with no `CONCURRENTLY` where the database supports it, a column
    with a default added on a database version that rewrites the table, and a data step in
-   the same transaction as a change of structure. State the table size that the
-   repository gives; with none, the finding is `non-blocking`.
+   the same transaction as a change of structure. Give the table size that a
+   file of the repository shows; with none, the finding is `non-blocking`.
 8. The same defect in another migration of the change is a separate finding for each one.
 9. The suite: write no finding for a red suite, because the run writes it. You may cite the
    lines of `output_tail` of `suite_result` that show a check fail as the `failing check`
@@ -84,14 +84,13 @@ them.
 
 These lists sort the kinds of finding of this area under the definition of `blocking` in
 `judging-findings`, and add nothing to it. A break in this area is a state of the data that
-the migration refuses, loses or corrupts. Its proof names the row or the state, the lines
-that make it, the step of the migration that it meets, and the result.
+makes a migration fail, or that a migration loses or corrupts. Write its proof as the row or
+the state, the lines that make it, the step of the migration that it meets, and the result.
 
 - `blocking`, with a `failing input` traced through the quoted lines: a row that the earlier
-  migrations or the code can make, and that a migration of step 2 refuses or changes; a
-  step 3 that destroys data with no way back and no guard; code of step 5 that fails on the
-  new structure; a write of step 6 that reaches rows that its rule does not name; or a
-  `failing check`.
+  migrations or the code can make, and that makes a migration of step 2 fail or that it
+  changes; a step 3 that destroys data with no way back and no guard; code of step 5 that fails on the
+  new structure; a write of step 6 that reaches rows outside its rule; or a `failing check`.
 - `non-blocking`: a missing `down` for a step that loses no data; drift of step 4 that
   breaks nothing now; a lock of step 7 with no size to show; a break of a rule of the
   repository, such as a guide for migrations, with a `broken rule` proof that quotes the

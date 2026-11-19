@@ -18,10 +18,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `security-reviewer` for a change in authentication, authorisation, secrets, cryptography,
   input from outside, dependency or CI workflow files, `data-reviewer` for a change in
   migrations, schema files or models, and `failure-reviewer` for a change in error handling,
-  retries, timeouts, queues, jobs or workers. A change that touches only a text file starts
-  none of the three. `code-reviewer`, `test-reviewer` and `acceptance-reviewer` are no
-  members of the group. The `reviewers` key of Build, which makes qory start the group, is
-  not built yet.
+  retries, timeouts, queues, jobs or workers. The globs match path names and read no file,
+  and match case: a change that touches only `README.md` or `notes.txt` starts none of the
+  three, and a text file in a folder such as `docs/api/` or with a name such as `errors.md`
+  starts the reviewer of that word. `code-reviewer`, `test-reviewer` and
+  `acceptance-reviewer` are no members of the group. The `reviewers` key of Build, which
+  makes qory start the group, is not built yet.
 - The `review-changes` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-review-changes`, `checking-code`, `checking-tests`
   and `checking-acceptance`, and the agents `code-reviewer`, `test-reviewer` and
@@ -44,9 +46,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   acceptance criteria, the spec and the build plan from the folder of
   `qory.start_artifacts`, and stops with no report when it cannot read them. A `failing
   check` proof cites `output_tail` of the suite result. Each reviewer re-reads the earlier
-  findings and repeats those of its area that are still true. Not built yet in qory: the
-  `reviewers` key of Build; `qory.stage.reviewers`, which qory does not write yet, so the
-  session runs `qory run verdict passed` in every stage until it does; how qory takes `changes-requested` from the
+  findings and repeats those of its area that are still true. The `reviewers` key of Build
+  follows in a later change. Not built yet in qory:
+  `qory.stage.reviewers`, which qory does not write yet, so the session runs `qory run
+  verdict passed` in every stage until it does; how qory takes `changes-requested` from the
   session in a stage with reviewers; `qory.start_artifacts` in the input file of a
   reviewer, so `acceptance-reviewer` stops with no report until qory writes it;
   `output_tail` of the suite result; and the shape of the earlier findings.

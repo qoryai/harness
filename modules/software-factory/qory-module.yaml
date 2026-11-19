@@ -41,6 +41,9 @@ provides:
   agents:
     explorer: code-explorer
     spec-review: spec-reviewer
+    # shortcut: the paths of the three agents match path names and case, read no file and
+    # cannot leave one out, so a text file in a listed folder starts a reviewer; replace the
+    # globs when a change shows this costs a review.
     reviewers: [security-reviewer, data-reviewer, failure-reviewer]
 push_checks:
   - type: proposal

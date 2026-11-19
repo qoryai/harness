@@ -1,6 +1,6 @@
 ---
 name: data-reviewer
-description: Reviews a change to stored data in a review round, as the main agent of a session that qory starts. Starts only for a change in migration, schema or model files. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on data that a migration or a schema change loses, refuses or leaves wrong, each with a proof. Use only as a reviewer of a review round.
+description: Reviews a change to stored data in a review round, as the main agent of a session that qory starts. Starts only for a change in migration, schema or model files. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on data that a migration or a schema change loses, makes fail or leaves wrong, each with a proof. Use only as a reviewer of a review round.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 paths: [
@@ -25,9 +25,13 @@ paths: [
   "**/schemas/**",
   "**/schema/**",
   "**/models/**",
+  "**/Models/**",
+  "**/model/**",
   "**/entities/**",
   "**/entity/**",
   "**/models.py",
+  "**/*Model.*",
+  "**/*Entity.*",
   "**/*.model.ts",
   "**/*.model.js",
   "**/*.entity.ts",
@@ -81,8 +85,8 @@ Load each skill when its step comes, and no other:
   finding with its proof and severity, and the report file.
 - ${qory:skills/judging-findings}, next: the definition of `blocking`, the values of
   `qory.review` and how to read the result of the suite.
-- ${qory:skills/checking-data-changes}, next: what this review reads, its area, the steps and the check
-  list.
+- ${qory:skills/checking-data-changes},
+  next: what this review reads, its area, the steps and the check list.
 - ${qory:skills/reviewing-drafts}, before you write a finding: Quote, Problem, Fix and
   Point of a finding.
 - ${qory:skills/simple-communication}, before you write a finding: the sentence rules of
@@ -97,7 +101,7 @@ The check list of the skill, in short:
 - Existing rows: each dropped, narrowed or renamed column, each new constraint and each new
   NOT NULL works on the rows that the code has already written.
 - Way back: each migration has a down step that restores what the up step removed, or a
-  guard that says why it has none.
+  guard that the migration shows.
 - Order and drift: the migration follows the migrations before it, and the models, the
   schema dump and the code that reads the table match it.
 - Wide writes: each backfill, update or delete has a where clause no wider than its rule.
@@ -140,7 +144,7 @@ A report of this review with one finding looks like this:
       "quote": "ALTER TABLE orders ALTER COLUMN customer_email SET NOT NULL;",
       "problem": "The migration makes customer_email required, but the earlier migration creates it as nullable and the signup code stores orders with no email, so the migration fails on a database that has such a row.",
       "fix": "Fill the missing emails in a step before this one, or add the constraint as NOT VALID and validate it after the backfill.",
-      "proof": "failing input: a database with one order whose customer_email is NULL, created by the guest checkout at src/checkout.js:55, runs line 3 of db/migrate/20261119_require_email.sql, and PostgreSQL refuses it with a not-null violation; the migration is meant to finish on every database.",
+      "proof": "failing input: a database with one order whose customer_email is NULL, created by the guest checkout at src/checkout.js:55, runs line 3 of db/migrate/20261119_require_email.sql, and PostgreSQL fails the statement with a not-null violation; the migration is meant to finish on every database.",
       "point": "The migration fails on a database that has an order with no email, because the column was nullable before.",
       "file": "db/migrate/20261119_require_email.sql",
       "line": 3

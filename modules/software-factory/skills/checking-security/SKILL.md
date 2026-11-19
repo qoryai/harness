@@ -73,7 +73,7 @@ them.
 7. CI workflows: look for a step that runs a value that an outside person sets, such as a
    title, a branch name or a body of a pull request, in a shell line; a trigger that runs
    with secrets on a change from outside; a `permissions` setting wider than the job needs;
-   an action that a movable tag or branch names; and a step that prints a secret.
+   an action that the workflow references by a movable tag or branch; and a step that prints a secret.
 8. Settings that widen access: a listening address open to every host, a debug mode, a
    cross-origin rule that allows every origin together with credentials, and a cookie with
    no `HttpOnly`, `Secure` or `SameSite` setting.
@@ -85,9 +85,9 @@ them.
 ## Blocking in this area
 
 These lists sort the kinds of finding of this area under the definition of `blocking` in
-`judging-findings`, and add nothing to it. A hole is a break of what a person may do. Its
-proof names who sends what, the lines that the input passes, and what the person then reads,
-changes or runs.
+`judging-findings`, and add nothing to it. A hole is a break of what a person may do. Write
+its proof as who sends what, the lines that the input passes, and what the person then
+reads, changes or runs.
 
 - `blocking`, with a `failing input` traced through the quoted lines: an entry point of
   steps 3 or 4 that a person with no right reaches; an input of step 4 that reaches a sink;

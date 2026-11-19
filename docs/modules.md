@@ -2529,17 +2529,19 @@ review round. In a stage with none, such as when `inputs.json` has no
   - `data-reviewer`, with `checking-data-changes`, reads a change in a migration folder
     (`**/migrations/**`, `**/migrate/**`, `**/alembic/**`), in a file of SQL or of an ORM
     schema (`**/*.sql`, `**/*.prisma`, `**/schema.rb`, `**/schemas/**`) and in the model
-    files (`**/models/**`, `**/*.entity.ts`). It reports data that a migration refuses,
-    loses or leaves wrong, with the row and the step that meets it.
+    files (`**/models/**`, `**/*.entity.ts`). It reports data that a migration loses or
+    leaves wrong, or that makes it fail, with the row and the step that meets it.
   - `failure-reviewer`, with `checking-failure-handling`, reads a change in a file or a
     folder whose name is about errors, retries, timeouts, queues, jobs or workers
     (`**/errors/**`, `**/*retry*`, `**/*timeout*`, `**/jobs/**`, `**/*_worker.*`) and in
     clients of other systems (`**/clients/**`, `**/*_client.*`). It reports a failure that
     the change drops, repeats or leaves half done, with the failure and its wrong result.
 
-  The globs match names, and read no file. A change of a text file, such as `README.md`
-  or `notes.txt`, matches none of them and starts none of the three; a file whose name has
-  one of the words, such as `docs/password-reset.md`, starts the reviewer of that word.
+  The globs match path names, read no file and match case. A change of `README.md` or
+  `notes.txt` matches none of them and starts none of the three. A text file in a folder
+  or with a name that a glob lists, such as `docs/api/guide.md` or `docs/errors.md`, starts
+  the reviewer of that glob, because a glob has no form that leaves a file out. A name in
+  another case than the globs have, such as `Passwords.java`, starts none.
   Each of the three also reports what `code-reviewer` reports in its area, so a finding
   may be in two reports. `code-reviewer`, `test-reviewer` and `acceptance-reviewer` are
   no members of the group.
@@ -3535,6 +3537,10 @@ Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one b
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
 read the same file without it.
+
+The script also checks that the compose of the `software` stack writes `roles.json` with
+`security-reviewer`, `data-reviewer` and `failure-reviewer` as the members of
+`agents/reviewers`, each with `paths`.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,

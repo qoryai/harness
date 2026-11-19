@@ -22,13 +22,20 @@ paths: [
   "**/cron/**",
   "**/clients/**",
   "**/*error*",
+  "**/*Error*",
   "**/*exception*",
+  "**/*Exception*",
   "**/*retry*",
+  "**/*Retry*",
   "**/*retries*",
   "**/*backoff*",
+  "**/*Backoff*",
   "**/*timeout*",
+  "**/*Timeout*",
   "**/*queue*",
+  "**/*Queue*",
   "**/*consumer*",
+  "**/*Consumer*",
   "**/*_job.*",
   "**/*Job.*",
   "**/*_worker.*",
@@ -85,8 +92,8 @@ Load each skill when its step comes, and no other:
   finding with its proof and severity, and the report file.
 - ${qory:skills/judging-findings}, next: the definition of `blocking`, the values of
   `qory.review` and how to read the result of the suite.
-- ${qory:skills/checking-failure-handling}, next: what this review reads, its area, the steps and the check
-  list.
+- ${qory:skills/checking-failure-handling},
+  next: what this review reads, its area, the steps and the check list.
 - ${qory:skills/reviewing-drafts}, before you write a finding: Quote, Problem, Fix and
   Point of a finding.
 - ${qory:skills/simple-communication}, before you write a finding: the sentence rules of

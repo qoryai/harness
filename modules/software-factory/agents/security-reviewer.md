@@ -15,21 +15,32 @@ paths: [
   "**/policies/**",
   "**/secrets/**",
   "**/*auth.*",
+  "**/*Auth.*",
   "**/*password*",
+  "**/*Password*",
   "**/*passwd*",
   "**/*token*",
+  "**/*Token*",
   "**/*jwt*",
+  "**/*JWT*",
   "**/*oauth*",
+  "**/*OAuth*",
   "**/*session*",
+  "**/*Session*",
   "**/*login*",
+  "**/*Login*",
   "**/*permission*",
-  "**/*policy.*",
+  "**/*Permission*",
   "**/*csrf*",
   "**/*cors*",
   "**/*crypto*",
+  "**/*Crypto*",
   "**/*encrypt*",
+  "**/*Encrypt*",
   "**/*secret*",
+  "**/*Secret*",
   "**/*credential*",
+  "**/*Credential*",
   "**/*.pem",
   "**/*.key",
   "**/.env",
@@ -124,8 +135,8 @@ Load each skill when its step comes, and no other:
   finding with its proof and severity, and the report file.
 - ${qory:skills/judging-findings}, next: the definition of `blocking`, the values of
   `qory.review` and how to read the result of the suite.
-- ${qory:skills/checking-security}, next: what this review reads, its area, the steps and the check
-  list.
+- ${qory:skills/checking-security},
+  next: what this review reads, its area, the steps and the check list.
 - ${qory:skills/reviewing-drafts}, before you write a finding: Quote, Problem, Fix and
   Point of a finding.
 - ${qory:skills/simple-communication}, before you write a finding: the sentence rules of
@@ -144,7 +155,7 @@ The check list of the skill, in short:
 - Secrets and keys: no secret in code, a fixture, a log, an error or a URL, and no algorithm
   or setting that weakens a key, a hash or a connection.
 - Dependencies and workflows: each new or changed dependency is pinned and expected, and
-  each changed CI workflow gives an outside input no way to run code or read a secret.
+  each changed CI workflow lets no outside input run code or read a secret.
 
 ## Stop conditions
 

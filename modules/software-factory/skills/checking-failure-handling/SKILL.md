@@ -13,8 +13,8 @@ area falls under the definition of `blocking` in `judging-findings`.
 
 - `qory.review.diff`: the lines that the change adds and removes. Read all of it.
 - `qory.review.commit`: the read-only copy of the change. Search it with Grep and Glob, with
-  its path as the folder. Read the callers of each changed function: a caller decides what
-  an error or a timeout of the function does next.
+  its path as the folder. Read the callers of each changed function: the code of a caller
+  handles an error or a timeout of the function.
 - `qory.review.suite_result`: the result of the full suite. Its `output_tail`, the last
   lines of the output of the suite, is the source of a `failing check` proof. A red locked
   check is a finding that qory writes.
@@ -54,10 +54,10 @@ them.
    `_ = err`); an error that is logged and then treated as a success; a failure that
    returns a value that looks like a result, such as an empty list or `0`; a catch so wide
    that it hides a fault in the code; an error that is replaced by a new one that loses the
-   cause; and a state that says `done` before the work finished.
+   cause; and a state that is `done` before the work finished.
 3. Timeouts: for each call out of step 1, find its timeout. Look for a call with none, where
    the default waits for ever; a timeout longer than the timeout of the caller, so that the
-   caller gives up first and the call keeps running; and a lock or a wait with no limit.
+   caller times out first and the call keeps running; and a lock or a wait with no limit.
 4. Retries: look for a retry of an action that does harm twice (a payment, a message, an
    insert with no unique key) with no key that makes the second try a no-op; a retry with no
    limit or with no wait between tries; a retry of an error that cannot change, such as a
@@ -81,8 +81,8 @@ them.
 
 These lists sort the kinds of finding of this area under the definition of `blocking` in
 `judging-findings`, and add nothing to it. A break in this area is a failure that the code
-turns into a wrong result. Its proof names the failure, the line where it occurs, the lines
-that it then passes, and the wrong result that follows.
+turns into a wrong result. Write its proof as the failure, the line where it occurs, the
+lines that it then passes, and the wrong result that follows.
 
 - `blocking`, with a `failing input` traced through the quoted lines: an error of step 2
   that is dropped, so that the caller gets a result that is wrong; a retry of step 4 that
