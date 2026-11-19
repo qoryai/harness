@@ -210,7 +210,7 @@ module.exports = (lib) => {
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
   // the Files of every deliverable, because a finding of the review may be in any of them.
   // For checks, it is the checkScope of each deliverable whose Check is a check path: that path
-  // and the folder of its Files that holds it, where planning-builds puts the helpers.
+  // and each folder of its Files that `checkScope` allows.
   // With no step, for scope --plan, it is the Files of every deliverable too: a push has the
   // commits of every step, and a commit names no step. With no build plan, it is no path.
   // With through set and a deliverable step, it is the Files of that deliverable and of each
