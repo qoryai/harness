@@ -94,10 +94,13 @@ test('the schema fails a result word, an unknown member and each bad finding', (
 test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
   assert.match(REVIEWING, /Write one file, the report, to the path in `qory\.review\.report` of `inputs\.json`/);
   assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
-  assert.match(REVIEWING, /If your session has a shell, run only commands that read, with only\s+these options\./);
+  assert.match(REVIEWING, /If your session has a shell, run only commands that read, with only the options in this\s+list\./);
   assert.match(REVIEWING, /`cat`: `-n -b -s -A -E -T -v`/);
   assert.match(REVIEWING, /The guard allows Read, Grep, Glob, Skill, TodoWrite, update_plan/);
   assert.match(REVIEWING, /`mcp__qory_review__read_file`/);
+  assert.match(REVIEWING, /`'HEAD\^'`/);
+  assert.match(REVIEWING, /`\/dev\/null` too/);
+  assert.match(REVIEWING, /--before-context\s+--regexp`/);
   assert.match(REVIEWING, /Start no agent and use no network\./);
   assert.match(REVIEWING, /with\s+Write or, on Codex, with `apply_patch`/);
   // The report has no result word, no list of unverified claims and no closing of a finding.
@@ -492,6 +495,26 @@ test('findings open: each invisible character is removed from a file name and a 
     JSON.stringify({ ...FINDING }).replace('src/main.ts', 'src/a\\ud800b.ts') + ']}]}');
   assert.equal(call(['findings', 'open', lone]).lines[0],
     'Fix first: f3 (blocking, src/ab.ts:12): <what is wrong in the first finding>');
+});
+
+// The characters that findings open keeps, as code points: letters, a valid surrogate pair, a
+// combining sequence, and the code point on each side of each removed range.
+const KEPT = [0xE9, 0x4E2D, 0x1F600, 0x1D11E, 0x65, 0x301, 0x34E, 0x350, 0x115E, 0x1161, 0x17B3,
+  0x17B6, 0x3163, 0x3165, 0xFDFF, 0xFE10, 0xFF9F, 0xFFA1, 0xFFFD, 0x2070, 0x1D172, 0x1D17B,
+  0x1BC9F, 0x1BCA4, 0xE0080, 0xE00FF, 0xE01F0, 0xE000];
+
+test('findings open: a visible character stays, also next to a removed range', () => {
+  for (const point of KEPT) {
+    const char = String.fromCodePoint(point);
+    const hex = point.toString(16);
+    const missing = path.join(tmp, `k${char}k-${hex}.json`);
+    assert.equal(call(['findings', 'open', missing]).out,
+      `Checked nothing: "${tmp}/k${char}k-${hex}.json" does not exist, so no finding is open.\n`,
+      hex);
+    const named = put(many(1, () => ({ file: `src/k${char}k.ts` })));
+    assert.equal(call(['findings', 'open', named]).lines[0],
+      `Fix first: f1 (blocking, src/k${char}k.ts:12): Fix the point 1.`, hex);
+  }
 });
 
 test('findings open: a path with spaces at either end shows them inside the quotes', () => {

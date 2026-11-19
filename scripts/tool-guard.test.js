@@ -2484,16 +2484,30 @@ test('a reviewer shell refuses a diff operand that is no regular file or folder'
   fs.symlinkSync('/', path.join(dir, 'r'));
   fs.symlinkSync('/dev', path.join(dir, 'ld'));
   const fifo = childProcess.spawnSync('mkfifo', [path.join(dir, 'f')]);
+  // l/.. is sub, because the system applies .. to the real path of l, which is sub/y.
+  fs.mkdirSync(path.join(dir, 'sub', 'y'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'sub', 'fine'), 'fine');
+  fs.symlinkSync('sub/y', path.join(dir, 'l'));
+  const behind = childProcess.spawnSync('mkfifo', [path.join(dir, 'sub', 'ff')]);
   const run = (command, cwd = dir) => guard({ ...claude('Bash', { command }), cwd }, env);
   const refused = ['diff a /DEV/zero', 'diff a /Dev/zero', 'diff a /dev', 'diff a //dev//zero',
     'diff a z', 'diff a r', 'diff -r r d', 'diff -r ld d', 'diff a /', 'diff -r / .',
     'diff -r . /', 'diff a /proc/self/environ', 'diff a /sys/kernel'];
   if (fifo.status === 0) refused.push('diff a f');
+  if (behind.status === 0) refused.push('diff a l/../ff', 'diff a sub/y/../ff');
+  if (fs.existsSync('/dev/fd')) {
+    fs.symlinkSync('/dev/fd', path.join(dir, 'lfd'));
+    refused.push('diff a lfd/../zero');
+  }
+  if (fs.existsSync('/proc/self/fd')) {
+    fs.symlinkSync('/proc/self', path.join(dir, 'lps'));
+    refused.push('diff a lps/../kcore');
+  }
   const volumes = '/Volumes/Macintosh HD/dev/zero';
   if (fs.existsSync(volumes)) refused.push(`diff a "${volumes}"`);
   for (const command of refused) firstLine(run(command), READ_SHELL);
   for (const command of ['diff a b', 'diff -u a b', 'diff -r d d', 'diff a nofile', "diff a ''",
-    'diff -q a b | head -n 1']) {
+    'diff -q a b | head -n 1', 'diff a sub/../b', 'diff a l/../fine', 'diff -r sub sub/y/..']) {
     assert.equal(run(command), null, command);
   }
   // An empty operand is the working folder, which is refused when it is /dev.

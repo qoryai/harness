@@ -2575,15 +2575,17 @@ const REVIEW_DEVICES = /^\/(?:dev|proc|sys)(?:\/|$)/i;
 
 // reviewDiffRefused reports whether word, an operand of diff, is a file that diff does not
 // read: / itself, a path under /dev, /proc or /sys, in the text or through links, or a file
-// that is neither a regular file nor a folder. The file may change between this read and the
-// read of diff.
+// that is neither a regular file nor a folder. A .. part applies to the real path of the
+// folder before it, as walkPath reads it. The file may change between this read and the read
+// of diff.
 function reviewDiffRefused(folder, word) {
-  const full = path.resolve(folder, word);
-  if (REVIEW_DEVICES.test(full) || full === path.parse(full).root) return true;
-  const stat = disk.stat(full);
+  const target = real(joined(folder, word));
+  const bad = (full) => REVIEW_DEVICES.test(full) || full === path.parse(full).root;
+  if (bad(path.resolve(folder, word)) || bad(target)) return true;
+  const stat = disk.stat(target);
   if (stat && !stat.isFile() && !stat.isDirectory()) return true;
-  const real = disk.realpath(full);
-  return real !== null && (REVIEW_DEVICES.test(real) || real === path.parse(real).root);
+  const resolved = disk.realpath(target);
+  return resolved !== null && bad(resolved);
 }
 
 // reviewWords splits command into simple commands, each a list of words, as the shell does for
@@ -2593,7 +2595,8 @@ function reviewDiffRefused(folder, word) {
 // a backslash. Outside quotes it also refuses < > ( ) { } ! #, the characters * ? [ ^ that
 // the shell expands to file names (also to names that start with -), a word that starts with
 // =, and a ~ at the start of a word or after = or :, which the shell expands to a home path.
-// An empty quote does not start a word: word is the text of the word so far.
+// For the = and ~ rules, word is the text of the word so far, which an empty quote leaves
+// empty.
 function reviewWords(command) {
   const text = String(command);
   if (text.length > 20000) return 'a command of more than 20000 characters';
@@ -2773,7 +2776,8 @@ const reviewShellDeny = (git, refused) => 'Run only read commands: cat, head, ta
   `Refused: ${refused}.\n` +
   'A reviewer session writes only its report file, so each other command is denied, and so ' +
   'is an option that the command does not list, a redirect, $( ), a backtick, a variable and ' +
-  'a * ? [ ^ outside quotes, and a ~ that starts a word. The commands are cat, head, tail, ' +
+  'a * ? [ ^ outside quotes, and a ~ that starts a word or follows = or : outside quotes. The ' +
+  'commands are cat, head, tail, ' +
   `ls, wc, grep, rg, find, sort, cut, diff and pwd${git ? ', and git diff, show, log, ' +
   'status, blame, ls-files, rev-parse and grep' : ''}. For unique lines use sort -u.`;
 
