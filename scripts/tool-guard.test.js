@@ -5178,6 +5178,78 @@ test('a preload in NODE_OPTIONS loads in a registered hook command only without 
   }
 });
 
+// The tests of the guard of a file named .env: a write by a tool or a shell command.
+const ENV_START = 'Write no file named .env, such as .gemini/.env.';
+const ENV_SHELL_START = 'Name no .env file in the command, such as .gemini/.env.';
+
+test('the guard denies a write to .env and .gemini/.env, and lets .env.example and the like pass', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('envfile');
+  fs.mkdirSync(path.join(work, '.gemini'), { recursive: true });
+  fs.symlinkSync('.env', path.join(work, 'alias'));
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  const shell = (command) => reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd: work,
+    inline: true });
+  const at = (input) => ({ ...input, cwd: work });
+  for (const file of ['.env', '.gemini/.env', `${work}/.env`, './.ENV', 'a/../.env', 'src/.env',
+    'alias', 'x/../.gemini/.Env']) {
+    assert.equal(write({ file_path: file, content: 'A=1' }), reports.ENV_REASON, file);
+    assert.equal(write({ paths: ['notes.md', file] }), reports.ENV_REASON, file);
+    assert.equal(write(`*** Add File: ${file}\n+A=1\n`), reports.ENV_REASON, file);
+    assert.equal(guard(at(claude('Write', { file_path: file, content: 'A=1' }, 'implementer'))),
+      reports.ENV_REASON, file);
+    assert.equal(guard(at(codex('apply_patch', patch(file), 'default'))), reports.ENV_REASON, file);
+  }
+  firstLine(reports.ENV_REASON, ENV_START);
+  firstLine(reports.ENV_SHELL_REASON, ENV_SHELL_START);
+  // The text that a tool writes is no path.
+  assert.equal(write({ file_path: 'notes.md', content: '.env', new_string: '.gemini/.env' }), null);
+  for (const command of ['echo A=1 > .env', 'echo A=1>.gemini/.env', 'tee -a ./.ENV < a',
+    "cp a '.gemini/.env'", 'cp a .e"n"v', 'cp a .e\\nv', "cp a $'\\x2eenv'", 'X=.env', 'cp a .env;',
+    'cp a .env\\', 'cat a > "$PWD/.env"']) {
+    const reason = shell(command);
+    assert.ok(reason && reason.startsWith(reports.ENV_SHELL_REASON), `${command}: ${reason}`);
+  }
+  // The tool guard of Claude Code and Codex reads a shell command that writes a file, too.
+  for (const command of ['echo A=1 > .env', "cp a '.gemini/.env'", 'cp a .e"n"v']) {
+    for (const make of [claude, codex]) {
+      const reason = guard(at(make('Bash', { command }, 'implementer')));
+      assert.ok(reason && reason.startsWith(reports.ENV_SHELL_REASON), `${command}: ${reason}`);
+    }
+  }
+  // Near misses pass: another name, a name with .env inside, a glob, and a word of text.
+  for (const file of ['.env.example', '.envrc', '.venv', 'a.env', 'env', '.env/x', '.gemini/envs']) {
+    assert.equal(write({ file_path: file }), null, file);
+  }
+  for (const command of ['cat .env.example', 'ls .envrc .venv', 'echo process.env.HOME',
+    "grep a --exclude='.env*' -r .", 'cp a b/env', 'echo ".env.local"', 'git add -- env.d.ts']) {
+    assert.equal(shell(command), null, command);
+  }
+});
+
+test('the guard of each runtime that has a hook denies a write to .gemini/.env and a command with .env', () => {
+  const home = harnessHome();
+  const work = next('envadapter');
+  fs.mkdirSync(path.join(work, '.gemini'), { recursive: true });
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    const wrote = adapter(home, runtime, 'write', { file_path: '.gemini/.env', content: 'A=1' },
+      work);
+    assert.equal(wrote.denied, true, runtime);
+    if (runtime !== 'cursor') assert.ok(wrote.reason.startsWith(ENV_START), wrote.reason);
+    const ran = adapter(home, runtime, 'shell', 'echo A=1 > .env', work);
+    assert.equal(ran.denied, true, runtime);
+    if (runtime !== 'cursor') assert.ok(ran.reason.startsWith(ENV_SHELL_START), ran.reason);
+    assert.equal(adapter(home, runtime, 'shell', 'cat .env.example', work).denied, false, runtime);
+  }
+  // The matcher of the Cursor hook for a shell command passes a command with .env, in each case.
+  const cursor = JSON.parse(fs.readFileSync(path.join(MODULES,
+    'core/settings/cursor/hooks.json'), 'utf8')).hooks.beforeShellExecution[0].matcher;
+  for (const command of ['echo A=1 > .env', 'cp a .gemini/.ENV']) {
+    assert.ok(new RegExp(cursor).test(command), command);
+  }
+  assert.equal(new RegExp(cursor).test('ls -la'), false);
+});
+
 // geminiRun starts the real Gemini CLI 0.68.0 with a hook that the fragment of core registers for
 // AfterAgent, but for SessionStart, which fires at the start of a session before any model call.
 // The call that follows goes to a proxy at 127.0.0.1:9, where nothing listens, so the run

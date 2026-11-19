@@ -1548,7 +1548,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   CLI, Cursor and Copilot CLI. A shell reads `BASH_ENV` before `env` runs, so each hook of
   Gemini CLI also sets `env` to `{ "BASH_ENV": "", "ENV": "" }`, and `advanced.excludedEnvVars`
   of Gemini CLI lists the six names, `DEBUG` and `DEBUG_MODE`. Gemini CLI applies that list to a
-  project `.env` and not to `.gemini/.env`. `DYLD_INSERT_LIBRARIES` is not unset.
+  project `.env` and not to `.gemini/.env`, so the reports guard of all five runtimes also
+  denies a write to a file named `.env` and a shell command with the word `.env`. The Cursor
+  matcher of `beforeShellExecution` starts the guard for a command with `.env`.
+  `DYLD_INSERT_LIBRARIES` is not unset.
 - The reports guard reads the first word of a command, to find out whether it is a copy of
   `checks.cjs`, only when it is a regular file of the size of `checks.cjs`, and then at most
   that size and one byte. It read the whole file, so `/dev/zero` grew the hook to 44.8 GB, a

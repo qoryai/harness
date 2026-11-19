@@ -1326,8 +1326,8 @@ never prints `allow`, for the reason in the paragraph after the list of hooks. T
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
   It denies with `decision: deny` and `reason`.
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
-  hook for a command that the guard can deny: one with `.r`, `*`, `?`, `[`, `{`, `$`, a
-  backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
+  hook for a command that the guard can deny: one with `.r`, `.env`, `*`, `?`, `[`, `{`, `$`,
+  a backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
   `ls -la`, starts no hook. It denies with `permission: deny` and exit code 2.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
@@ -1375,6 +1375,14 @@ So `settings/gemini/settings.json` does two things:
   project. The list also has `DEBUG` and `DEBUG_MODE`, the default that a list replaces.
   Gemini CLI applies the list to `.env` only, not to `.gemini/.env`: with the list set and no
   `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before the hook.
+
+The guard denies a write to a file named `.env`, which includes `.gemini/.env`. It applies
+the rules of `.reports/` for the write tools, links, `..` and patch headers, and denies a shell
+command in which a word is `.env`, or becomes `.env` after the shell removes quotes and
+backslashes. `.env.example`, `.envrc` and `.venv` pass. A command still reaches `.env` past
+the guard through a glob or braces such as `.en?` and `.en{v,}`, a variable, a script that it
+writes and then runs, or `python -c`. In a run on Claude Code and Codex, a command of
+read-only programs is not read, as for `.reports/`, so `cat .env` passes there.
 
 In a run, a guard runs before each tool call: `tool-guard-claude.cjs` on Claude Code and
 `tool-guard-codex.cjs` on Codex, through `tool-guard.cjs`. The `PreToolUse` hooks of

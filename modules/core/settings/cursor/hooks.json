@@ -11,7 +11,7 @@
     "beforeShellExecution": [
       {
         "command": "env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.cjs\"",
-        "matcher": "[.][Rr]|[*?\\[{$`'\"\\\\~]|\\beval\\b",
+        "matcher": "[.][Rr]|[.][Ee][Nn][Vv]|[*?\\[{$`'\"\\\\~]|\\beval\\b",
         "timeout": 10
       }
     ],

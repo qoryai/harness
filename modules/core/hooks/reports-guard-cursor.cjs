@@ -1,8 +1,8 @@
 // The guard of .reports/*.json for Cursor, run by the preToolUse and beforeShellExecution
 // hooks of settings/cursor/hooks.json; see reports-guard.cjs. The matcher of preToolUse passes
 // only the tools Write and Delete. The matcher of beforeShellExecution passes each command
-// that the guard can deny: one with .r, a glob character, $, a backtick, a quote, a backslash,
-// ~ or eval. So an ordinary command such as ls -la never starts the hook. A glob in a
+// that the guard can deny: one with .r, .env, a glob character, $, a backtick, a quote, a
+// backslash, ~ or eval. So an ordinary command such as ls -la never starts the hook. A glob in a
 // command expands from cwd of the input, or else from the first of workspace_roots. On a deny,
 // the adapter prints permission "deny", with user_message for the user and agent_message for
 // the model, and exits 2, which blocks the call. On a pass, it prints nothing and exits 0, and

@@ -12,6 +12,12 @@
 //   and each link, and the path of each header line of a patch in it, read as Codex reads it
 //   (lines end at line feeds, the path keeps a space at its start) and with any line break and
 //   any white space cut off: `.reports/a b/../end.json` is denied, with or without the folder a b;
+// - a write, edit or delete of a file named .env, such as .gemini/.env, by the same path rules
+//   as above (links, `..`, patch headers), and a shell command in which a word is .env, or
+//   becomes .env when the shell removes quotes and backslashes. Gemini CLI loads .env into its
+//   environment, and a hook inherits it, so a variable in it such as BASH_ENV changes the hook.
+//   A command still reaches .env past this rule through a glob or braces, a variable, a script
+//   that it writes and runs, or any tool that builds the name; .env.example passes.
 // - a shell command that reaches .reports, unless it runs the harness's checks.cjs and
 //   nothing else: the first word, after node, is a path to checks.cjs, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
@@ -101,6 +107,18 @@ function pathJson(full) {
   return /\.json$/iu.test(name) || /\.json\.lock/iu.test(name);
 }
 
+// envName reports whether the path full ends in a part named .env. Gemini CLI loads that file,
+// in the project and in .gemini/, into its environment, and a hook inherits it.
+function envName(full) {
+  return /^\.env$/iu.test(full.slice(full.lastIndexOf('/') + 1));
+}
+
+// pathReason returns the deny for the resolved path full: a .json file under .reports, or .env.
+function pathReason(full) {
+  if (pathJson(full)) return WRITE_REASON;
+  return envName(full) ? ENV_REASON : null;
+}
+
 // reportsJson reports whether text has a path under a folder .reports that ends in .json, or
 // whose name has .json.lock, alone or inside a patch. It reads each word once, and returns
 // false for a value that is no string.
@@ -108,6 +126,16 @@ function reportsJson(text) {
   if (typeof text !== 'string') return false;
   for (const [word] of text.matchAll(WORD)) {
     if (pathJson(word)) return true;
+  }
+  return false;
+}
+
+// envWord reports whether a word of text is a path that ends in a part named .env, alone or
+// inside a patch. It returns false for a value that is no string.
+function envWord(text) {
+  if (typeof text !== 'string') return false;
+  for (const [word] of text.matchAll(WORD)) {
+    if (envName(word)) return true;
   }
   return false;
 }
@@ -253,14 +281,16 @@ function reportsOnDisk(text, cwd, state) {
         }
       }
       // No disk takes a path over PATH_MAX characters.
-      if (one.length <= PATH_MAX && pathJson(onDisk(one, state.start, state))) return WRITE_REASON;
+      const direct = one.length <= PATH_MAX ? pathReason(onDisk(one, state.start, state)) : null;
+      if (direct !== null) return direct;
       // A tool that cuts each `.` and `..` and each empty part out of the text first, or one that
       // takes a path over PATH_MAX that way, reads the text, not the kernel's folders.
       if (one.length <= PATH_MAX && !DOTTED.test(one)) continue;
       for (const base of one.startsWith('/') ? [''] : state.bases) {
         const cut = flat(one.startsWith('/') ? one : `${base}/${one}`);
-        if (pathJson(cut)) return WRITE_REASON;
-        if (cut.length <= PATH_MAX && pathJson(onDisk(cut, '/', state))) return WRITE_REASON;
+        const found = pathReason(cut) ||
+          (cut.length <= PATH_MAX ? pathReason(onDisk(cut, '/', state)) : null);
+        if (found !== null) return found;
       }
     }
   } catch (error) {
@@ -273,6 +303,9 @@ function reportsOnDisk(text, cwd, state) {
 // The folder .reports in a shell command.
 // A \ at the end of the command or word is dropped by the shell, so `.reports\` is .reports.
 const REPORTS = /\.reports(?:[/\s'"`;|&)]|\\?$)/iu;
+// The file .env in a shell command: .env as a whole path part, so that .env.example, .envrc,
+// .venv and process.env pass, and a * ? [ or { after it makes a glob, which is no .env.
+const ENV_FILE = /(?<![\w.-])\.env(?![\w.*?[{-])/iu;
 // A part of a shell command that runs a second command or redirects one.
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
 
@@ -280,6 +313,13 @@ const CONTROL = /[;&|<>`\n\r]|\$\(/;
 const WRITE_REASON = 'Write no file under .reports/ that ends in .json or has .json.lock in ' +
   'its name.\nOnly checks.cjs writes these files, which contain the report checks, the ' +
   'counts of the run and the locks of the counts.';
+// The deny of a write to .env, the file that Gemini CLI loads into the environment of its hooks.
+const ENV_REASON = 'Write no file named .env, such as .gemini/.env.\nGemini CLI loads .env into ' +
+  'the environment of its hooks, where a variable such as BASH_ENV changes what a hook runs.';
+// The deny of a shell command with the word .env; the second line contains the word.
+const ENV_SHELL_REASON = 'Name no .env file in the command, such as .gemini/.env.\nGemini CLI ' +
+  'loads .env into the environment of its hooks, where a variable such as BASH_ENV changes ' +
+  'what a hook runs.';
 // The first line of a deny for a command whose first word is a device, a pipe or a socket; the
 // second line contains that word.
 const SPECIAL_REASON = 'Start the command with a program or a script, not a device, pipe or socket.\n';
@@ -1379,7 +1419,8 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
     let reason = null;
     for (const [key, text] of strings(args)) {
       if (TEXT_KEYS.has(key)) continue;
-      reason = reportsJson(text) ? WRITE_REASON : reportsOnDisk(text, from, state);
+      if (reportsJson(text)) reason = WRITE_REASON;
+      else reason = envWord(text) ? ENV_REASON : reportsOnDisk(text, from, state);
       if (reason !== null) break;
     }
     return reason;
@@ -1389,6 +1430,11 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
     if (typeof command !== 'string') return null;
     if (runsChecks(command, env, script)) return null;
     if (REPORTS.test(command)) return SHELL_REASON;
+    if (ENV_FILE.test(command)) return ENV_SHELL_REASON;
+    const spelled = words(command).find(({ value }) => ENV_FILE.test(value));
+    if (spelled !== undefined) {
+      return `${ENV_SHELL_REASON}\nThe shell turns the word ${spelled.raw} into ${spelled.value}.`;
+    }
     const special = notProgram(command, env);
     if (special !== null) return SPECIAL_REASON + special;
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
@@ -1544,5 +1590,5 @@ function safeDecide(call) {
 }
 
 module.exports = { readStdin, readGuardInput, INPUT_REASON, decide, safeDecide, globsChild, braces, runsChecks, withoutRedirect, reportsJson, flat,
-  REPORTS, HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON,
+  REPORTS, HIDDEN_REASON, WRITE_REASON, ENV_REASON, ENV_SHELL_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON,
   SPECIAL_REASON };
