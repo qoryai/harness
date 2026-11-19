@@ -1,11 +1,12 @@
 ---
 name: workflow-review-changes
-description: Check a Build run before its review round: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, and end ready for the review round that qory runs. Use in a headless run of the workflow review-changes.
+description: Check a Build run: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, and end ready, for the review round when the stage has reviewers. Use in a headless run of the workflow review-changes.
 ---
 
 # Review changes
 
-This workflow requires subagents.
+This workflow requires subagents. The subagents are the three reviewers that qory starts
+after the session.
 
 This session starts no agent, so the case of "Failures" of `running-a-workflow` for a
 runtime with no tool that starts an agent does not apply to it: on such a runtime, go on.
@@ -56,8 +57,8 @@ row in the build ledger, and `step begin` of the next session exits with 1 on it
 ## The ledger check
 
 No command prints the planned deliverables that are not built, so read the build plan and
-the ledger as `run-artifacts` lists: with the file tool of your runtime, else with
-`grep -a -n -- '' <path>`.
+the ledger with the file tool of your runtime only. Read them with no `grep`: the guards of
+some runtimes deny it.
 
 1. The plan: the build plan that the run started with. `<start>` is the folder in
    `qory.start_artifacts` of the input file, or `<folder>` when the input file has no
@@ -66,9 +67,12 @@ the ledger as `run-artifacts` lists: with the file tool of your runtime, else wi
    largest `number` in `versions`, of those with no `cancelled` set to `true`, has
    `withdrawn` set to `true`. Take the entry left whose `name` is `main` or missing, else
    the one entry left. `<N>` is its `newest_version`, and `<name>` is its `name`, or `main`
-   when it has none. Read `<start>/build-plan/<name>/v<N>/build-plan.md`. A build plan that
-   an agent pushed during this run does not count. Take the Id and the Change cell of each
-   row of `## Deliverables`.
+   when it has none. When more than one entry is left and none has the name `main`, or when
+   `<name>` is no folder name, read no further and end as "Failures" lists for a build plan
+   that cannot be read. A folder name has only letters, digits, `.`, `_` and `-`, and is not
+   `.` or `..`. Otherwise read `<start>/build-plan/<name>/v<N>/build-plan.md`. A build plan
+   that an agent pushed during this run does not count. Take the Id and the Change cell of
+   each row of `## Deliverables`.
 2. The ledger: read `<folder>/.reports/build-ledger.json`. `resume` writes it from the
    version of `build-ledger` that counts, and removes it when no version exists. When the
    file does not exist, no step has a row yet.
@@ -78,7 +82,7 @@ the ledger as `run-artifacts` lists: with the file tool of your runtime, else wi
 
 Then decide, in this order, and go no further when a case ends the run:
 
-- When item 1 takes no entry, or the entry's `newest_version` is null, the work item has
+- When item 1 leaves no entry, or the entry's `newest_version` is null, the work item has
   no build plan. Start nothing and end as "Points" lists, with one `run_again` point. Its
   text is "The work item has no build plan, so the change was not reviewed." and its `fix`
   is "Plan the build, so that a run pushes the build plan."
@@ -103,10 +107,17 @@ When the command fails, end with the same line, and the run ends with no verdict
 
 ## The end
 
-When every check passed, run no verdict command and write no `points.json`. End with "The
-change is ready: each planned change is built." In a stage that has reviewers, qory runs
-the review round after the session ends. Run no `findings open`: the open findings of a
-round go to the next Build session, and the reviewers of the next round get them.
+When every check passed, write no `points.json` and run no `findings open`: the open
+findings of a round go to the next Build session, and the reviewers of the next round get
+them. Then:
+
+- In a stage that has reviewers, as "Open findings of a review" of `running-a-workflow`
+  lists, run no verdict command, so that qory runs the review round after the session ends.
+- In a stage with no reviewers, such as when the input file has no `qory.stage.reviewers`,
+  run `<qory> run verdict passed`, as "The end" of `running-a-workflow` lists. When the
+  command fails, the run ends with no verdict.
+
+In both cases, end with "The change is ready: each planned change is built."
 
 ## Failures
 

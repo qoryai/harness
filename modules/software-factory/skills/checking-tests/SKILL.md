@@ -24,23 +24,24 @@ falls under the definition of `blocking` in `judging-findings`.
 ## The area
 
 The review of the tests covers every test file that the change adds, changes or deletes,
-the test setup: a config of the test runner, a setup file, a helper or a fixture that other
-tests use, and the counts of the suite. It reports a test that the change hides, changed
-code with no test, and a test that shows nothing.
+and the test setup: a config of the test runner, a setup file, a helper or a fixture that
+other tests use. It reports a failing test that the change skips, deletes or loosens,
+changed code with no test, and a test that shows nothing.
 
 The review of the code covers every other file of the change, and also a security hole,
 data loss or a secret in a test file, a fixture or the test setup. The review of the
 acceptance covers the change against the acceptance criteria and the build plan. A finding
-in another area is left out: its reviewer writes it. When the change hides a failing test,
-write the test that the change hides: the review of the code writes the bug in the code
+in another area is left out: its reviewer writes it. When the change skips, deletes or
+loosens a failing test, write that test: the review of the code writes the bug in the code
 under that test. A failing test that the suite shows is the finding that the run writes.
 
 ## Earlier findings
 
 When `previous_findings` exists, re-read the lines of each finding in it, as
-`reviewing-changes` and `judging-findings` list. Repeat, with its id, each finding of the
-area of this review that is still true, and leave out the others. The shape of
-`previous_findings` is not in a contract of qory yet.
+`reviewing-changes` and `judging-findings` list. This skill narrows their rule to the
+findings of the area of this review: repeat, with its id, each such finding that is still
+true. Leave out the findings of each other area, because the reviewer of that area repeats
+them. The shape of `previous_findings` is not in a contract of qory yet.
 
 ## Review of the tests
 
@@ -48,11 +49,11 @@ area of this review that is still true, and leave out the others. The shape of
 2. A test that the change deletes, skips, marks to fail, limits with an "only" mark, or
    loosens: an assertion removed, an expected value changed to the new output, a longer
    timeout or more retries. Trace the old test against the new code in the copy. When it
-   fails there, the change hides a failing test.
+   fails there, the change skips, deletes or loosens a failing test.
 3. Changed code with no test: for each changed branch of code that is not a test, Grep the
    test files for a test that reaches it.
 4. A test that passes whatever the code does: no assertion, an assertion only on a mock, a
-   catch that hides the error, or an assertion on the test's input.
+   catch that drops the error, or an assertion on the test's input.
 5. A test whose result depends on outside factors: the time, randomness, the order of the
    tests, the network or a sleep.
 6. The test setup: a changed config of the test runner, setup file, helper or fixture.
@@ -71,10 +72,10 @@ These lists sort the kinds of finding of this area under the definition of `bloc
   of step 2 that fails on the new code, and a change to the setup of step 6 that turns a
   failing test green with no change to the code under test.
 - `non-blocking`: a test of step 2 that still passes on the new code, with the reason in the
-  finding; changed code with no test, step 3; a test that shows nothing, step 4, unless it
-  hides a failing test as in step 2; a test of step 5, unless a `failing input` shows it
-  failing on the change, such as in another time zone; and any other change to the setup,
-  step 6.
+  finding; changed code with no test, step 3; a test that shows nothing, step 4, unless the
+  change loosens it and it fails on the new code, as in step 2; a test of step 5, unless a
+  `failing input` shows it failing on the change, such as in another time zone; and any
+  other change to the setup, step 6.
 
 ## Check list
 
@@ -84,7 +85,7 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 - Each change to the test setup is traced through the tests that use it.
 - No finding is about code that is not a test, about the acceptance criteria, or about a
   security hole, data loss or a secret in a test.
-- A failing test that the change hides has a finding on the hiding, and none on the bug in
-  the code.
+- A failing test that the change skips, deletes or loosens has a finding on that test, and
+  none on the bug in the code.
 - No finding is for a red suite or a suite that did not run.
 - Each earlier finding of this area that is still true is in the report with its `id`.

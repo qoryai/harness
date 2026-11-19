@@ -3566,7 +3566,7 @@ test('report: the lists and words come from the agent file, and a missing agent 
 
 // A reviewer of a change, an agent whose file loads reviewing-changes, writes the JSON report
 // of a review round, which qory reads, and no text report. Its Expected output has a json
-// block that the fixture of qory's report schema accepts, with the agent's name as reviewer.
+// block that passes the fixture of qory's report schema, with the agent's name as reviewer.
 const REPORT_SCHEMA_FILE = path.join(__dirname, 'testdata', 'review-report.schema.json');
 
 test('report: each agent of the modules has a shape that the script reads', () => {

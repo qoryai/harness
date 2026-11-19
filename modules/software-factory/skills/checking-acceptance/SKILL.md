@@ -29,43 +29,45 @@ look for them there.
 ## The area
 
 The review of the acceptance covers the change measured against the acceptance criteria,
-the spec and the build plan: a criterion that the change does not meet, a planned change
-that it does not build or does not build as planned, and work that nobody asked for. It
-reads code only to trace a criterion.
+the spec and the build plan: a criterion that the change does not meet, a deliverable that
+it does not build or does not build as planned, and work that nobody asked for. It reads
+code only to trace a criterion.
 
 The review of the code covers bugs, security holes and data loss in the code, and security
-holes, data loss and secrets in the tests and the fixtures. The review of the tests covers
-the other findings of the tests, the test setup and the counts of the suite. A finding in
-another area is left out: its reviewer writes it. When a bug also breaks a criterion, write
+holes, data loss and secrets in the tests, the fixtures and the test setup. The review of
+the tests covers the other findings of the tests and the test setup. A finding in another
+area is left out: its reviewer writes it. When a bug also breaks a criterion, write
 the criterion that is not met: the review of the code writes the cause in the code.
 
 ## Earlier findings
 
 When `previous_findings` exists, re-read the lines of each finding in it, as
-`reviewing-changes` and `judging-findings` list. Repeat, with its id, each finding of the
-area of this review that is still true, and leave out the others. The shape of
-`previous_findings` is not in a contract of qory yet.
+`reviewing-changes` and `judging-findings` list. This skill narrows their rule to the
+findings of the area of this review: repeat, with its id, each such finding that is still
+true. Leave out the findings of each other area, because the reviewer of that area repeats
+them. The shape of `previous_findings` is not in a contract of qory yet.
 
 ## Review of the acceptance
 
 1. Take the live criteria: each entry of `criteria` with no `removed` member, in the
-   approved acceptance criteria that `qory.review` is to pass. That value is not built
-   yet, as "What the review reads" lists. The `check` of each is `Tests` or
+   approved acceptance criteria that qory is to pass in `qory.review`. That value is not
+   built yet, as "What the review reads" lists. The `check` of each is `Tests` or
    `Demo: <title>`.
 2. For each criterion, find the lines of the change that meet it. Trace one input that the
    words of the criterion describe through those lines to the result. A criterion that the
    change meets needs no finding.
 3. For each deliverable of the build plan, check that the diff changes its Files so that its
-   Change is done. The session before the round already ends on a deliverable with no `done`
-   row in the build ledger; in this step, you find one marked `done` that changed nothing.
+   Change is done. The session before the round already ends on a deliverable whose row
+   with the highest pass in the build ledger is not `done`, or that has no row; in this
+   step, you find one marked `done` that changed nothing.
 4. Work that nobody asked for: a behaviour that no rule of the spec requires, or one that
    breaks a `Stays:` point of the spec.
-5. A changed path that no Files cell of the build plan lists: a planned change that is not
-   as planned.
+5. A changed path that no Files cell of the build plan lists: a deliverable that is not
+   built as planned.
 6. The build report, when it exists: a claim in it that the diff does not show.
 7. A criterion whose `check` is `Demo: <title>`: check its code path only. The Verify stage
    runs the demo.
-8. A change that meets every criterion and builds every planned change gets an empty
+8. A change that meets every criterion and builds every deliverable gets an empty
    `findings` list. Write no finding to show that you reviewed.
 
 ## Blocking in this area
@@ -82,7 +84,7 @@ These lists sort the kinds of finding of this area under the definition of `bloc
   met; work of step 4, with a `broken rule` proof that quotes the spec, unless it also
   breaks a criterion; a path of step 5, with a `broken rule` proof that quotes the Files
   cells of the build plan, unless it also breaks a criterion; and a claim of step 6, unless
-  it hides a criterion that is not met.
+  it states that a criterion is met when the change does not meet it.
 
 ## Check list
 

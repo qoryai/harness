@@ -71,8 +71,8 @@ because your session ended with no report.
 - `commit`, `diff` or `report` is missing from `qory.review`, or the copy at `commit` or the
   file at `diff` cannot be read.
 - The write of the report is denied.
-- The approved acceptance criteria or the build plan cannot be read: without them, this
-  review has nothing to check the change against. qory writes no value for them in
+- The approved acceptance criteria, the spec or the build plan cannot be read: without them,
+  this review has nothing to check the change against. qory writes no value for them in
   `qory.review` yet, so until then this review stops here.
 
 These cases are no reason to stop:

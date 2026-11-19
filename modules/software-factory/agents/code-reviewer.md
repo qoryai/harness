@@ -1,11 +1,12 @@
 ---
 name: code-reviewer
-description: Reviews the code of a change in a review round, as the main agent of a session that qory starts. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on bugs, security holes and data loss. Use only as a reviewer of a review round.
+description: Reviews the code of a change in a review round, as the main agent of a session that qory starts. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on bugs, security holes and data loss in the code apart from its tests, except a security hole, data loss or a secret in them. Use only as a reviewer of a review round.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 ---
 
-You review the code that a change adds or changes, apart from its tests.
+You review the code that a change adds or changes, apart from its tests, except a security
+hole, data loss or a secret in them.
 
 ## Guardrails
 

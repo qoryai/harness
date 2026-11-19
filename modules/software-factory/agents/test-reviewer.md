@@ -5,8 +5,7 @@ tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 ---
 
-You review the tests that a change adds, changes or removes, and the result of the full
-suite.
+You review the tests that a change adds, changes or removes.
 
 ## Guardrails
 
@@ -99,8 +98,8 @@ A report of this review with one finding looks like this:
       "quote": "-  it('refuses an empty name', () => expect(() => save({ name: '' })).toThrow());",
       "problem": "The change deletes the test of an empty name, and the new code saves a record with an empty name, so the deleted test would fail.",
       "fix": "Keep the test, so that it fails while save stores a record with an empty name.",
-      "proof": "failing input: save({ name: '' }) reaches line 18 of src/save.js, where the new check accepts every name but a missing one, and returns the saved record; the deleted test asserts that save throws an error.",
-      "point": "The change deletes the test that fails on an empty name, and the new code accepts one.",
+      "proof": "failing input: save({ name: '' }) reaches line 18 of src/save.js, where the new check throws only for a missing name, and returns the saved record; the deleted test asserts that save throws an error.",
+      "point": "The change deletes the test that save throws an error on an empty name, and the new code saves a record with an empty name.",
       "file": "tests/save.test.js"
     }
   ]
