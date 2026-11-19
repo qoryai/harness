@@ -29,16 +29,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   strips each `click`, `link`, `callback` and `links` statement line and the front matter,
   and the check refuses neither. A line that starts with `|` counts toward the 450 words
   unless it forms a table with a delimiter row. Where the check cannot tell whether a table
-  starts, such as in a quote or a list item, the lines count. In every Markdown document, a
-  fence line inside a block of HTML opens no code block, as Qory Apiary does, so the text
-  after the block counts. A line of marks with text after it, such as `` ```wq ``, closes no
-  code block, and a code block in a list item or a quote ends with the item or quote, so the
-  words after it count, as in Qory Apiary. The decision record has no `![` or `<img`
-  anywhere, code blocks and diagrams included, and you write `\![` outside code for a
-  literal `![`: the
-  new option `everyImage` of `links` in `lib/markdown.cjs`, which no other type sets,
-  refuses each one. `checking-decisions` has the reviewer judge each diagram, and
-  `decision-writer` and `decision-reviewer` load `visuals` when the record has one.
+  starts, such as in a quote or a list item, the lines count. In a text with over 50,000
+  table cells (lines times the most `|` on a line plus 1) every such line counts, as Qory
+  Apiary shows that text as written. The check finds a Mermaid fence behind quote or list
+  marks in one pass over the line, where a long run of marks took quadratic time. In every
+  Markdown document, a fence line inside a block of HTML opens no code block, as Qory Apiary
+  does, so the text after the block counts. A line of 3 or more backticks or tildes with
+  text after them closes no code block, and a code block in a list item or a quote ends with
+  the item or quote, so the words after it count, as in Qory Apiary. The decision record has
+  no `![` or `<img` anywhere, code blocks and diagrams included, and you write `\![` outside
+  code for a literal `![`: the new option `everyImage` of `links` in `lib/markdown.cjs`,
+  which no other type sets, refuses each one. `checking-decisions` has the reviewer judge
+  each diagram, and `decision-writer` and `decision-reviewer` load `visuals` when the record
+  has one.
 - The agents `security-reviewer`, `data-reviewer` and `failure-reviewer`, and the skills
   `checking-security`, `checking-data-changes` and `checking-failure-handling`. Each agent
   loads `reviewing-changes`, `judging-findings` and its checking skill, writes one JSON

@@ -2287,25 +2287,30 @@ edges bound them.
 A line that starts with `|` counts toward the 450 words, unless it forms a table with a
 delimiter row: `counted` in `lib/markdown.cjs` takes the option `tables` for it, which only
 the decision record sets. A spec, a question and a review reply leave out every such line.
-The check cannot tell whether a table starts in a quote, in a list item or after an HTML block,
-so it counts those lines. It counts every such line in a text with over 50,000 table cells
-(lines times the most `|` on a line plus 1), which Qory Apiary shows as written.
+The check cannot tell whether a table starts in a quote, in a list item or after a block of
+HTML, so it counts those lines. It counts every such line in a text with over 50,000 table
+cells (lines times the most `|` on a line plus 1), which Qory Apiary shows as written.
 
 In every Markdown document that `lines` in `lib/markdown.cjs` reads, a fence line inside a
-block of HTML opens no code block, because Qory Apiary shows it as HTML. The block starts at
-a tag as CommonMark lists, also in a quote or a list item, and ends at a blank line (kinds 6
-and 7) or at its end mark (kinds 1 to 5). A tag alone on a line (kind 7) starts no block in
-a plain paragraph. A block in a quote ends at a line with no `>`. The check counts every line
-of a decision record where it cannot tell whether a table starts.
+block of HTML opens no code block, because Qory Apiary shows it as HTML. A block starts at a
+tag as CommonMark lists, also in a quote or a list item. A block that starts with a known
+block tag such as `<div>`, or with any other tag alone on its line, ends at a blank line. A
+block that starts with `<script>`, `<pre>`, `<style>`, `<textarea>`, `<!--`, `<?`, `<!` and
+a letter, or `<![CDATA[` in any case, ends at its end mark (`</script>`, `-->`, `?>`, `>`,
+`]]>`). A block in a quote ends at a line with no `>`. A block in a list item ends at a line
+that is not blank and starts left of the text of the item. The parsers differ on a tag alone
+on a line right after a line of text: the check then counts every line of the text. The
+check counts every line of a decision record where it cannot tell whether a table starts.
 
 A code block ends at a closing line: 3 or more marks of the same kind as the opening line,
 at least as many as it, and nothing after them but spaces and tabs. A line of marks with
 text after it, such as `` ```wq ``, closes nothing, so its words count. A code block in a
 list item or a quote also ends where the item or quote ends, as Qory Apiary closes it: at a
 line that is not blank and starts left of the text of the item, and the text after it
-counts. A fence that starts on the line of a list mark (`` - ```js ``) is read the same way.
-Where the check cannot tell whether a line ends the item, from that line no code block
-opens, and every line counts.
+counts. A fence that starts on the line of a list mark (`` - ```js ``) is read the same
+way, but a number other than 1 after a line of text starts no list, so no code block opens
+there. Where the check cannot tell whether a line ends the item, from that line no code
+block opens, and every line counts.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for

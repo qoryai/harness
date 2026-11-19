@@ -26,7 +26,7 @@ const HTML_ENDS = [
   [/^<(script|pre|style|textarea)(?=[ \t>]|$)/i, /<\/(script|pre|style|textarea)>/i],
   [/^<!--/, /-->/],
   [/^<\?/, /\?>/],
-  [/^<!\[CDATA\[/, /\]\]>/],
+  [/^<!\[CDATA\[/i, /\]\]>/],
   [/^<![A-Za-z]/, />/],
 ];
 // The start of a block of kind 6, a block-level tag, which ends at a blank line.
@@ -36,9 +36,26 @@ const HTML_BLOCK_TAG = new RegExp('^</?(address|article|aside|base|basefont|bloc
   'menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|' +
   'tfoot|th|thead|title|tr|track|ul)(?=[ \\t]|$|/?>)', 'i');
 // Kind 7: a line with only a tag, a superset of the tags of CommonMark, so no HTML block is missed.
-const HTML_TAG_LINE = /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t][^<>]*)?\/?>[ \t]*$/;
+// An attribute value may hold `<` and `>`, so the text between the name and the last `>` is free.
+const HTML_TAG_LINE = /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t\v\f].*)?\/?>[ \t\v\f]*$/;
 // The marks of a quote or a list item before the tag that starts a block in it.
 const CONTAINER = /^ {0,3}(?:(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$))[ \t]*)*/;
+
+// widthOf returns the width in columns of text, with tab stops at 4.
+function widthOf(text) {
+  let column = 0;
+  for (const char of text) column += char === '\t' ? 4 - (column % 4) : 1;
+  return column;
+}
+
+// prefixColumn returns the column where the text of a list item starts, for the marks and
+// spaces before a tag: the width of the prefix, or 1 column after the last mark when 5 or more
+// columns of space follow it. It is 2 at least, as an item that is wider keeps its block.
+function prefixColumn(prefix) {
+  const bare = widthOf(prefix.replace(/[ \t]+$/, ''));
+  const full = widthOf(prefix);
+  return Math.max(2, full - bare > 4 ? bare + 1 : full);
+}
 
 // htmlBlocks returns a reader of the lines outside code blocks, in order. step(text) returns
 // whether the line is in a block of HTML, which Qory Apiary shows as HTML: a fence line there
@@ -82,7 +99,10 @@ function htmlBlocks() {
       if (found) end = found[1].test(rest.slice(found[0].exec(rest)[0].length)) ? null : found[1];
       stays = null;
       if (prefix.includes('>')) stays = (one) => /^\s*>/.test(one);
-      else if (/\S/.test(prefix)) stays = (one) => /^[ \t]*$/.test(one) || indentOf(one) >= 2;
+      else if (/\S/.test(prefix)) {
+        const column = prefixColumn(prefix);
+        stays = (one) => /^[ \t]*$/.test(one) || indentOf(one) >= column;
+      }
       return true;
     },
   };
@@ -110,11 +130,15 @@ function itemColumn(text) {
 }
 
 // markerFence returns the fence that a list item opens on the line of its list mark, such as
-// "- ```js", or null.
-function markerFence(text) {
-  const found = /^[ \t]*(?:[-*+]|\d{1,9}[.)])([ \t]+)/.exec(text);
-  return found && indentOf(found[1]) <= 4 && !BREAK.test(text)
-    ? fence(text.slice(found[0].length)) : null;
+// "- ```js", or null. It has doubt: true when the mark is a number other than 1 after a line of
+// a paragraph, which no paragraph lets a list start with, so the line may be text, not an item.
+function markerFence(text, paragraph) {
+  const found = /^[ \t]*([-*+]|\d{1,9}[.)])([ \t]+)/.exec(text);
+  if (!found || indentOf(found[2]) > 4 || BREAK.test(text)) return null;
+  const opens = fence(text.slice(found[0].length));
+  if (!opens) return null;
+  return paragraph && /^\d/.test(found[1]) && parseInt(found[1], 10) !== 1
+    ? { ...opens, doubt: true } : opens;
 }
 
 // lines returns each line with whether it opens, closes or sits inside a code block, the first
@@ -158,7 +182,11 @@ function lines(text) {
     }
     const inHtml = html.step(line);
     if (html.doubtful()) uncertain = true;
-    open = !uncertain && !inHtml && !empty ? fence(line) || markerFence(line) : null;
+    open = !uncertain && !inHtml && !empty ? fence(line) || markerFence(line, paragraph) : null;
+    if (open && open.doubt) {
+      open = null;
+      uncertain = true;
+    }
     if (empty) {
       paragraph = false;
     } else {
@@ -379,7 +407,22 @@ function indentOf(text) {
 }
 
 // Qory Apiary trims a table cell of these 4 characters only, not of every white space.
-const trimCell = (cell) => cell.replace(/^[ \t\v\f]+|[ \t\v\f]+$/g, '');
+const SPACE = new Set([' ', '\t', '\v', '\f']);
+// trailing returns how many characters at the end of text are of those 4.
+function trailing(text) {
+  let count = 0;
+  while (count < text.length && SPACE.has(text[text.length - 1 - count])) count += 1;
+  return count;
+}
+// A regular expression with a trim of `[ \t]+$` takes quadratic time on a long run of spaces
+// that no other character ends, so the trim is a loop.
+function trimCell(cell) {
+  let from = 0;
+  let to = cell.length;
+  while (from < to && SPACE.has(cell[from])) from += 1;
+  while (to > from && SPACE.has(cell[to - 1])) to -= 1;
+  return cell.slice(from, to);
+}
 
 // tableCells returns the cells of a table line like cells, trimmed as Qory Apiary trims them. A
 // line with only a `|` has none.
@@ -394,7 +437,11 @@ function tableCells(text) {
 }
 
 // A line of cells made of dashes, with or without `|` at its ends: the shape of a delimiter row.
-const DELIMITER_SHAPE = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t\v\f]*$/;
+// The test runs on the text without its trailing spaces, as no star of spaces meets another.
+const DELIMITER_BODY = /^[ \t]*(?:\|[ \t]*)?:?-+:?(?:[ \t]*\|[ \t]*:?-+:?)*[ \t]*\|?$/;
+const DELIMITER_SHAPE = {
+  test: (text) => DELIMITER_BODY.test(text.slice(0, text.length - trailing(text))),
+};
 
 // tableLines returns, for each line of list, whether it is a row of a table as Qory Apiary shows
 // it. A table is a header line that starts with `|` and at most 3 spaces and has a cell, and

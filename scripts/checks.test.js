@@ -1692,7 +1692,8 @@ test('decision record: a line of a table that Qory Apiary shows as prose counts'
     'a line that continues the paragraph of a list item': ['* x\n\n  y\n| wq1 |\n|---|\n', 'wq1'],
     'a line that continues the paragraph of an item with a tab':
       ['-\tx\n\n\twq5\n| wq1 |\n|---|\n', 'wq1'],
-    'a delimiter-shaped line that opened no table': ['| wq0 | wq1 |\n|---|\n| wq2 |\n|---|\n', 'wq2'],
+    'a delimiter-shaped line that opened no table':
+      ['| wq0 | wq1 |\n|---|\n| wq2 |\n|---|\n', 'wq2'],
     'a delimiter-shaped line after a line that opened no table':
       ['| wq0 | wq1 |\n|---|\n|---|\n| wq2 |\n', 'wq2'],
   };
@@ -1704,9 +1705,10 @@ test('decision record: a line of a table that Qory Apiary shows as prose counts'
   assert.equal(kept('- x\n\n  | wq0 |\n  |---|\n  | wq1 |\n').includes('wq'), false);
 });
 
-test('decision record: every line that starts with "|" counts in a text with over 50,000 cells', () => {
+test('decision record: every line that starts with "|" counts in over 50,000 cells', () => {
   const { counted } = require(MARKDOWN);
-  const record = (rows) => `${'| a '.repeat(300)}|\n|${'---|'.repeat(300)}\n${'| wq9 |\n'.repeat(rows)}`;
+  const record = (rows) =>
+    `${'| a '.repeat(300)}|\n|${'---|'.repeat(300)}\n${'| wq9 |\n'.repeat(rows)}`;
   // Qory Apiary formats a text of lines x (most pipes on a line + 1) cells up to 50,000 and shows
   // a text with more as written: 100 rows have 102 x 301 = 30,702 cells, 200 have 61,102.
   assert.equal(counted(record(100), false, { tables: true }).includes('wq9'), false);
@@ -1750,13 +1752,13 @@ test('a fence line in a block of HTML opens no code block, so the text after it 
   }
 });
 
-test('a fence line in a block of HTML: a spec counts the text after it, and a record refuses it', () => {
+test('a fence line in a block of HTML: a spec counts the text after it, a record refuses', () => {
   const words = ['spec.md', /\n*$/, `\n\n<div>\n\`\`\`text\n\n${many(500)}\n`];
   fails(push(fixture(words), 'spec'), /^Cut spec.md to 450 words: it has \d+\./);
   // A Mermaid fence at the start of a line in a block of HTML is a block that Qory Apiary does
   // not draw as one, but the check counts the line and refuses it.
-  fails(push(fixture(['decision-record.md', COST, (item) =>
-    `${item}\n\n<div>\n\`\`\`mermaid\nflowchart LR\n  A --> B\n\`\`\``]), 'decision-record'), FENCE);
+  const html = (item) => `${item}\n\n<div>\n\`\`\`mermaid\nflowchart LR\n  A --> B\n\`\`\``;
+  fails(push(fixture(['decision-record.md', COST, html]), 'decision-record'), FENCE);
 });
 
 test('a fence line in a block of HTML: the reading takes linear time', () => {
@@ -1838,6 +1840,58 @@ test('a code block in a list item: the reading takes linear time', () => {
   }
 });
 
+// The word of each case follows a fence line that a block of HTML or a code block hides from the
+// reading, so a reading that is wrong loses the word and the 450 words do not count it.
+const keeps = (text, word) =>
+  require(MARKDOWN).counted(text, false, { tables: true }).includes(word);
+
+test('a block of HTML in a list item ends at the item column of its tab', () => {
+  assert.ok(keeps('-\t<p\n  ```\n```mermaid\nwq9', 'wq9'));
+});
+
+test('a block of HTML in a numbered list item ends at the item column', () => {
+  assert.ok(keeps('2. <y>\n  ~~~\n```mermaid\nwq6', 'wq6'));
+});
+
+test('a block of HTML after a space and a list mark ends at the item column', () => {
+  assert.ok(keeps(' - <!--\n  ```\n```mermaid\nwq9', 'wq9'));
+});
+
+test('a tag alone on a line with a quoted angle bracket starts a block of HTML', () => {
+  for (const tag of ["<a b='>'>", '<a b=">">', '<a b="<">', '<a\vb>', '<a/>']) {
+    assert.ok(keeps(`${tag}\n\`\`\`mermaid\n\nwq2`, 'wq2'), tag);
+  }
+});
+
+test('a lower case CDATA mark starts a block of HTML that ends at its end mark', () => {
+  assert.ok(keeps('<![cdata[\n```mermaid ]]>\nwq5', 'wq5'));
+});
+
+test('a number other than 1 after a line of text starts no list, so no code block opens', () => {
+  assert.ok(keeps('x\n2. ```mermaid\n    c\n\nwq1\n```\nwq2', 'wq2'));
+  const table = '|---|\n2. | wq0 |\n2. ~~~mermaid\n    | wq3 | wq4 |\n    |---|---|\n    | wq5 |';
+  assert.ok(keeps(table, 'wq5'));
+});
+
+test('a table in a code block of a list item counts its words', () => {
+  const text = '- ```\n\n  | wq0 |\n  |---|\n  | wq1 |\n';
+  assert.ok(keeps(text, 'wq0') && keeps(text, 'wq1'));
+});
+
+test('a long run of spaces is read in linear time, in a line and in a table cell', () => {
+  const { counted } = require(MARKDOWN);
+  for (const [name, text] of [
+    ['spaces and x', `${' '.repeat(1000000)}x`],
+    ['a cell', `| a${' '.repeat(1000000)}b |\n|---|\n`],
+    ['a delimiter row', `| a |\n|---${' '.repeat(1000000)}x\n`],
+    ['tabs', `${'\t'.repeat(1000000)}x`],
+  ]) {
+    const started = Date.now();
+    counted(text, false, { tables: true });
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
 test('decision record: the table scan takes linear time', () => {
   for (const [name, text] of [
     ['a long line', `|${'|'.repeat(250000)}`],
@@ -1894,7 +1948,8 @@ test('decision record: a line of 100,000 backticks or tildes takes linear time',
     for (const end of ['', 'x', ' &', ' mermaid']) {
       const line = `${mark.repeat(100000)}${end}`;
       const started = Date.now();
-      push(fixture(['decision-record.md', COST, (item) => `${item}\n\n${line}`]), 'decision-record');
+      push(fixture(['decision-record.md', COST, (item) => `${item}\n\n${line}`]),
+        'decision-record');
       assert.ok(Date.now() - started < 1500, `${mark}${end} took ${Date.now() - started} ms`);
     }
   }
