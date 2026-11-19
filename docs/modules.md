@@ -1159,6 +1159,12 @@ outlasts its timeout lets the call run on Cursor and Copilot CLI. Before the lim
 words of `***` took 70 s one expansion at a time. The second line of that deny is "The globs
 of the command pass what the guard expands: " and the limit that the command passed.
 
+The guard counts the patterns that the braces of a glob make before it calls `fs.globSync`,
+which cannot be stopped: `{a,b}` is 2, `{1..N}` is N, and nested or adjacent braces multiply.
+It denies a command whose braces make more than 4,096 patterns in all, where a pattern with
+`*`, `?` or `[` counts 256 (`f{1..16}*` is at the limit), and a glob with more than 5 parts
+that have a glob character, as `*/*/*/*/*/*`.
+
 To tell whether the first word of a command is a copy of `checks.cjs`, the guard reads that
 file only when it is a regular file of the size of `checks.cjs`, and then at most that size
 and one byte. `/dev/zero` as the first word made the hook grow to 44.8 GB, and a FIFO would

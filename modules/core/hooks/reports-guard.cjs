@@ -381,17 +381,67 @@ function words(command) {
   return out;
 }
 
-// The most fs.globSync calls, the most paths that they match in all, and the most milliseconds
-// that they take in all, for one command. Equal patterns share one call. Measured at load 19 in
-// a folder of 1,000 files, 256 different globs `a<n>*` take 0.36 s and 62,500 equal `***` take
-// 0.03 s; in a folder of 10,000 files, 256 take over 2 s. A command that passes a limit is
-// denied, because a hook that outlasts its timeout lets the call run on Cursor and Copilot CLI.
+// The most fs.globSync calls, paths that they match, milliseconds that they take, and units of
+// brace expansion, for one command. Equal patterns share one call. A pattern with braces counts
+// as one unit for each pattern that it expands to, 256 for each with a wildcard in it: one call
+// cannot be stopped, and `f{1..100}*` in a folder of 50,000 files took 3.5 s. A pattern has at
+// most MAX_GLOB_DEPTH parts with a glob character. The limits keep a command under the timeout
+// of the hook, which lets the call run on Cursor and Copilot CLI; see the commit for timings.
 const MAX_GLOB_CALLS = 256;
 const MAX_GLOB_MATCHES = 100000;
 const MAX_GLOB_MS = 600;
+const MAX_GLOB_UNITS = 4096;
+const WILDCARD_UNITS = 256;
+const MAX_GLOB_DEPTH = 5;
 
 // Over is the error that globbed throws when a command passes a limit of its budget.
 class Over extends Error {}
+
+// rangeCount returns how many words a brace `{from..to}` or `{from..to..step}` makes, or 0 when
+// text is no range.
+function rangeCount(text) {
+  const number = /^(-?\d+)\.\.(-?\d+)(?:\.\.(-?\d+))?$/.exec(text);
+  const letter = /^([A-Za-z])\.\.([A-Za-z])(?:\.\.(-?\d+))?$/.exec(text);
+  const found = number || letter;
+  if (found === null) return 0;
+  const [from, to] = number ? [Number(found[1]), Number(found[2])]
+    : [found[1].charCodeAt(0), found[2].charCodeAt(0)];
+  return Math.floor(Math.abs(to - from) / (Math.abs(Number(found[3])) || 1)) + 1;
+}
+
+// braces returns how many patterns pattern makes by brace expansion, without making them: the
+// sum of the alternatives of each {a,b}, the size of each range {1..9}, and the product of
+// the braces side by side or inside one another. It reads each character once, and clamps the
+// count at 1e12.
+function braces(pattern) {
+  const stack = [];
+  let count = 1;
+  for (let at = 0; at < pattern.length; at += 1) {
+    const ch = pattern[at];
+    if (ch === '\\') {
+      at += 1;
+    } else if (ch === '{') {
+      stack.push({ outer: count, sum: 0, comma: false, from: at + 1 });
+      count = 1;
+    } else if (ch === ',' && stack.length > 0) {
+      const top = stack[stack.length - 1];
+      top.sum = Math.min(top.sum + count, 1e12);
+      top.comma = true;
+      count = 1;
+    } else if (ch === '}' && stack.length > 0) {
+      const top = stack.pop();
+      const range = top.comma || at - top.from > 40 ? 0 : rangeCount(pattern.slice(top.from, at));
+      const made = top.comma ? top.sum + count : range || count;
+      count = Math.min(top.outer * made, 1e12);
+    }
+  }
+  // A { with no } is text, so only the braces that closed multiply the count.
+  while (stack.length > 0) {
+    const top = stack.pop();
+    count = Math.min(top.outer * Math.max(top.sum + count, 1), 1e12);
+  }
+  return count;
+}
 
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
 // pattern that has a glob character matches, so that a glob of a file that does not exist yet
@@ -401,6 +451,9 @@ class Over extends Error {}
 // globs of a command, has no call, match or time left.
 function globbed(pattern, cwd, budget) {
   const parts = pattern.replace(/\*{2,}/g, '*').split('/');
+  if (parts.filter((one) => GLOB.test(one)).length > MAX_GLOB_DEPTH) {
+    throw new Over(`more than ${MAX_GLOB_DEPTH} parts with a glob character in one glob`);
+  }
   const out = [];
   for (let n = parts.length; n >= 1; n -= 1) {
     const part = parts.slice(0, n).join('/');
@@ -410,6 +463,11 @@ function globbed(pattern, cwd, budget) {
       if (budget.calls >= MAX_GLOB_CALLS) throw new Over(`more than ${MAX_GLOB_CALLS} different globs`);
       if (Date.now() - budget.start > MAX_GLOB_MS) throw new Over(`more than ${MAX_GLOB_MS} ms`);
       budget.calls += 1;
+      const made = braces(part);
+      if (made > 1) budget.units += made * (/[*?[]/.test(part) ? WILDCARD_UNITS : 1);
+      if (budget.units > MAX_GLOB_UNITS) {
+        throw new Over(`more than ${MAX_GLOB_UNITS.toLocaleString('en-US')} patterns from braces`);
+      }
       found = fs.globSync(part, { cwd });
       budget.seen.set(part, found);
       budget.matches += found.length;
@@ -429,7 +487,7 @@ const short = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}…` : raw);
 // .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
 // ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob.
 function hidden(command, cwd, env, globs) {
-  const budget = { calls: 0, matches: 0, seen: new Map(), start: Date.now() };
+  const budget = { calls: 0, matches: 0, units: 0, seen: new Map(), start: Date.now() };
   // The globs that match nothing under .reports: a word that repeats one costs no more work.
   const clean = new Set();
   for (const { raw, value: text, glob, tilde } of words(command)) {

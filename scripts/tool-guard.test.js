@@ -2593,3 +2593,61 @@ test('a shared folder part of globs is expanded once for all the words that have
   const words = Array.from({ length: 200 }, (_, at) => `a*/f${at}`).join(' ');
   assert.equal(shell(`ls ${words}`), null);
 });
+
+test('a brace or a deep wildcard in one word is counted before fs.globSync runs, and a command over the limit is denied in under 1 second', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const home = harnessHome();
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  const work = next('braces');
+  fs.mkdirSync(work);
+  for (let at = 0; at < 200; at += 1) fs.writeFileSync(path.join(work, `f${at}.txt`), '');
+  fs.mkdirSync(path.join(work, ...Array(5).fill('d')), { recursive: true });
+  // The real adapters, killed after 3 s: each stall below took 12 s to 31 s without the count.
+  const hook = (runtime, command) => {
+    const input = runtime === 'gemini'
+      ? { tool_name: 'run_shell_command', cwd: work, tool_input: { command } }
+      : { toolName: 'bash', cwd: work, toolArgs: JSON.stringify({ command }) };
+    const begun = process.hrtime.bigint();
+    const ran = childProcess.spawnSync(process.execPath,
+      [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { env, cwd: work,
+        input: JSON.stringify(input), encoding: 'utf8', timeout: 3000, killSignal: 'SIGKILL' });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.equal(ran.error, undefined, `${command.slice(0, 40)}: ${ran.error} after ${ms} ms`);
+    assert.ok(ms < 1000, `${command.slice(0, 40)}: ${ms} ms at load average ` +
+      `${os.loadavg()[0].toFixed(1)}`);
+    const out = JSON.parse(ran.stdout);
+    return out.reason || out.permissionDecisionReason || null;
+  };
+  const over = (reason, fragment) => {
+    firstLine(reason, 'Leave .reports/ to checks.cjs, and name other files with no');
+    assert.ok(reason.split('\n')[1].includes(fragment), reason);
+  };
+  const braces = 'patterns from braces';
+  for (const [command, fragment] of [['ls f{1..100000}.txt', braces],
+    ['ls {1..9}{1..9}{1..9}{1..9}{1..9}', braces], [`ls ${'{a,b}'.repeat(16)}*`, braces],
+    ['ls f{1..4097}.txt', braces], ['ls f{1..17}*', braces],
+    ['ls f{1..3000}.txt g{1..3000}.txt', braces], ['ls {a..z}{a..z}{a..z}{a..z}{a..z}', braces],
+    ['ls */*/*/*/*/*/*', 'parts with a glob character'],
+    ['ls {a,b}/*/*/*/*/*/*', 'parts with a glob character']]) {
+    for (const runtime of ['gemini', 'copilot']) over(hook(runtime, command), fragment);
+  }
+  // The call of the report: the words after a stall are never reached.
+  over(hook('copilot', 'cat f{1..100000}.txt .r*/end.json.lock'), braces);
+  // A word at the limit is decided by the other rules, in under 1 second: it passes.
+  const shell = (command) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd: work });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000, command);
+    return reason;
+  };
+  for (const command of ['ls f{1..4096}.txt', 'ls f{1..16}*', 'ls */*/*/*/*', 'ls {a,b}/*/*/*/*',
+    `ls ${'{a,b}'.repeat(12)}`, 'ls f{1..2000}.txt g{1..2000}.txt', 'ls {x}* \\{a,b}*',
+    'cp a.md {x,y}/', 'ls f{1,2,3}.txt']) {
+    assert.equal(shell(command), null, command);
+  }
+  // A hit under .reports is still found when it comes before a word at the limit.
+  fs.mkdirSync(path.join(work, '.reports'));
+  fs.writeFileSync(path.join(work, '.reports', 'end.json'), '{}');
+  assert.match(shell('ls .rep*/end.json f{1..4096}.txt'),
+    /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
+});

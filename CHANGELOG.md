@@ -1371,7 +1371,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   all, or take more than 600 ms in all is denied with the first line "Leave .reports/ to
   checks.cjs, and name other files with no `$`, backtick, eval or glob." and the limit on the
   second line. A command of 256 different globs `a<n>*` in a folder of 1,000 files takes
-  0.36 s at load 19.
+  0.36 s at load 19. A brace is counted before `fs.globSync` runs, as the patterns that it
+  makes: `ls f{1..100000}.txt` took 31.6 s and `ls {1..9}{1..9}{1..9}{1..9}{1..9}` 12.1 s,
+  and the hook outlasted its timeout. A command is denied when its braces make more than
+  4,096 patterns in all, where a pattern with a wildcard counts 256 (`f{1..16}*` is at the
+  limit), or when one glob has more than 5 parts with a glob character, as `*/*/*/*/*/*`.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, the adapter exited 1, and the call ran. That
