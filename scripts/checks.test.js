@@ -1892,6 +1892,61 @@ test('a long run of spaces is read in linear time, in a line and in a table cell
   }
 });
 
+// Qory Apiary shows a text as plain text from 128 levels of nesting and for a byte that is no
+// UTF-8. The check of every Markdown text refuses 60 marks on a line, and U+FFFD.
+test('a line of 60 quote or list marks, and U+FFFD, are refused in every Markdown text', () => {
+  const nested = (mark, count) => `${mark.repeat(count)}wq`;
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  const record = (block) =>
+    fixture(['decision-record.md', COST, (item) => `${item}\n\n${block}`]);
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const finding = (fix, file, shown) => new RegExp(
+    `^${fix.replace('<file>', escaped(file))} Line \\d+ is "${escaped(shown)}"\\.$`);
+  const deep = (file, shown = '.*') => finding(
+    'Remove the deep nesting from <file>: Qory Apiary shows it as plain text\\.', file, shown);
+  const save = (file, shown = '.*') => finding(
+    'Save <file> as UTF-8: Qory Apiary shows it as plain text\\.', file, shown);
+  for (const mark of ['> ', '>', '- ', '1. ', '* ', '+ ', '1) ', '> - ']) {
+    const per = mark === '> - ' ? 2 : 1;
+    const under = nested(mark, Math.floor(59 / per));
+    const over = nested(mark, Math.ceil(60 / per));
+    passes(push(spec(under), 'spec'));
+    // A record has other findings for a text after its items, so only this one is looked for.
+    const short = push(record(under), 'decision-record');
+    assert.ok(!short.findings.some((line) => /deep nesting/.test(line)));
+    fails(push(spec(over), 'spec'), deep('spec.md', over.slice(0, 40).trim()));
+    fails(push(record(over), 'decision-record'), deep('decision-record.md', over.slice(0, 40).trim()));
+  }
+  // A line of 60 marks that is a thematic break is no nesting.
+  passes(push(spec('- '.repeat(60).trim()), 'spec'));
+  fails(push(spec('A word \uFFFD here.'), 'spec'), save('spec.md', 'A word \uFFFD here.'));
+  fails(push(record('A word \uFFFD here.'), 'decision-record'),
+    save('decision-record.md', 'A word \uFFFD here.'));
+});
+
+test('the check of how Qory Apiary shows a text takes linear time', () => {
+  const run = { did() {}, find() { throw new Error('refused'); } };
+  const { shownAsText } = require(MARKDOWN);
+  for (const [name, text, refused] of [
+    ['one line of 500,000 marks', '> '.repeat(500000), true],
+    ['one line of 1,000,000 characters', 'x'.repeat(1000000), false],
+    ['lines of 59 marks', `${'> '.repeat(59)}x\n`.repeat(8000), false],
+    ['spaces before a mark', `${' '.repeat(1000000)}>`, false],
+    ['lines of spaces and marks', `${' > '.repeat(25)}\n`.repeat(20000), false],
+    ['U+FFFD at the end', `${'x'.repeat(999999)}\uFFFD`, true],
+  ]) {
+    const started = Date.now();
+    let threw = false;
+    try {
+      shownAsText(run, 'spec.md', null, text);
+    } catch {
+      threw = true;
+    }
+    assert.equal(threw, refused, name);
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
 test('decision record: the table scan takes linear time', () => {
   for (const [name, text] of [
     ['a long line', `|${'|'.repeat(250000)}`],

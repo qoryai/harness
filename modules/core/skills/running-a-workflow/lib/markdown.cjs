@@ -718,6 +718,47 @@ function imageStarts(text) {
   return found;
 }
 
+// The most quote marks and list marks that a line may start with. From 128 levels of nesting,
+// Qory Apiary shows the whole text as plain text. The check refuses 60, to stay far from it.
+const MAX_MARKS = 60;
+const MARK = /[ \t]*(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$))/y;
+
+// marks returns how many quote marks and list marks, each with the spaces before it, a line
+// starts with, up to MAX_MARKS.
+function marks(line) {
+  MARK.lastIndex = 0;
+  let count = 0;
+  while (count < MAX_MARKS && MARK.test(line)) count += 1;
+  return count;
+}
+
+// shownAsText checks the text that is the member where of file, as every Markdown text needs
+// it: Qory Apiary shows a text as plain text when a line starts with 60 or more quote and list
+// marks, and when the text has U+FFFD, the character that stands for a byte that is no UTF-8.
+// shortcut: the nesting of inline marks, such as emphasis in emphasis or a link in a link, also
+// reaches the limit of 128 levels and is not counted. Count it when such a text is shown as
+// plain text.
+function shownAsText(run, file, where, text) {
+  const at = where ? `${where} of ${file}` : file;
+  // The first line of a finding stays within 100 characters, so a long place goes to a line
+  // after it.
+  const brief = short(at, 34);
+  const whole = brief === at ? '' : `\nThe text is in ${at}.`;
+  const rows = lineList(text);
+  const refuse = (fix, index) => {
+    const shown = [...rows[index].slice(0, 160)].slice(0, 40).join('');
+    run.find(`${fix}\nLine ${index + 1} is ${quote(shown)}.${whole}`);
+  };
+  const deep = rows.findIndex((line) => marks(line) >= MAX_MARKS && !BREAK.test(line));
+  if (deep !== -1) {
+    refuse(`Remove the deep nesting from ${brief}: Qory Apiary shows it as plain text.`, deep);
+  }
+  const broken = rows.findIndex((line) => line.includes('\uFFFD'));
+  if (broken !== -1) {
+    refuse(`Save ${brief} as UTF-8: Qory Apiary shows it as plain text.`, broken);
+  }
+}
+
 // links checks each link and image of Markdown text outside code. images(addr) returns
 // whether the skill for the artifact allows that image, and links whether it allows a link.
 // With everyImage, the check refuses each "![" and "<img", as imageStarts() finds them, and
@@ -730,6 +771,7 @@ function links(
   { images = () => false, allowLinks = true, everyImage = false } = {},
 ) {
   run.did('links');
+  shownAsText(run, file, where, text);
   const at = where ? `${where} of ${file}` : file;
   if (everyImage) {
     for (const start of imageStarts(text)) {
@@ -924,5 +966,5 @@ module.exports = {
   lineList, headingLevel, fence, lines, sections, blank, isRow, isPoint, cells, table, delimiter,
   firstFilled, same, headings, INLINE, plain, codeSpans, withoutCode, words, ABBREVIATIONS,
   sentences, sentenceParts, counted, MARKDOWN, characters, address, links,
-  machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId,
+  machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId, shownAsText,
 };

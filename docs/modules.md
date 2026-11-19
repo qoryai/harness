@@ -2312,6 +2312,18 @@ way, but a number other than 1 after a line of text starts no list, so no code b
 there. Where the check cannot tell whether a line ends the item, from that line no code
 block opens, and every line counts.
 
+Qory Apiary shows a Markdown text as plain text, not as Markdown, when a line starts with
+128 levels of quote marks and list marks, and when the text has a byte that is no UTF-8.
+`shownAsText` in `lib/markdown.cjs` refuses a line with 60 or more such marks, each `>` and
+each list mark (`-`, `*`, `+`, `1.`, `1)`) at the start of the line, with the spaces between
+them, and a text with U+FFFD, which stands for such a byte. A line of 60 marks that is a
+thematic break is no nesting. The findings are "Remove the deep nesting from <file>: Qory
+Apiary shows it as plain text." and "Save <file> as UTF-8: Qory Apiary shows it as plain
+text.", each with the line "Line N is \"...\".". `links` calls `shownAsText`, so each
+Markdown text that a type checks gets the check. The check does not count the nesting of
+inline marks, such as emphasis in emphasis or a link in a link, which also reaches the limit
+of 128 levels.
+
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
 that, on the text that Qory Apiary draws: without the invisible characters that
