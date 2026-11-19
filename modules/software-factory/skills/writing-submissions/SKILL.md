@@ -51,8 +51,10 @@ the filtered rows". Use the words of `## Summary` of the build plan.
 - `## Disclosed`: what the reader needs to know before they merge, as a list:
   - what the change left out: each item in the `report` of a row of
     `.reports/build-ledger.json`, and each planned change that has no `done` row. In a
-    `report`, the line `Left out:` starts a list of lines `- <item>: <risk>`, which ends at
-    the first line that is not such an item. `Left out: none` is an empty list;
+    `report`, the line `Left out:` starts a list of lines `- <item>: <risk>` or
+    `* <item>: <risk>`, each at the start of its line, which ends at the first line that is
+    not such an item. Blank lines after `Left out:` are skipped. `Left out: none` is an
+    empty list;
   - each known limit that a record states;
   - what did not run: each command of `## Commands` of the build plan that the records of
     the checks lack, and each check that a record shows as not run.

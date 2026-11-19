@@ -35,22 +35,39 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `## Tests`, `## Disclosed`) of the draft pull request to `.reports/submission.md`, then
   runs `checks.cjs report-build`. A runtime with no agent tool, a start that fails and a
   `blocked` report end the run as "Failures" of `running-a-workflow` lists. An exit 1 of
-  `report-build` starts the agent again, at most twice, and ends the run not ready with one
-  `run_again` point when it stays; so does an exit 1 of `check build-report`, with no
-  restart. Exits 2, 3 and 4 end as "Failures" lists.
+  `report-build` that is not about a list `Left out:` starts the agent again, at most
+  twice, and ends the run not ready with one `run_again` point when it stays; so does an
+  exit 1 of `check build-report`, with no restart. Exits 2, 3 and 4 end as "Failures"
+  lists.
 - The verb `checks.cjs report-build [--inputs <path>]` in `software-factory`. It writes
   `build-report.md` in the artifact folder, with the tables of the standard track rendered
   from the build ledger and the records of the checks. Only when `QORY_SUBMISSION_HANDOFF`
-  is set, it reads `.reports/submission.md` and writes the hand-off file at that path. It
-  writes the hand-off file first and `build-report.md` second, each through a temporary
-  file that it renames into place. On each non-zero exit it removes an earlier hand-off
-  file. When `.reports/submission.md` breaks a rule, it exits with 1 and writes no file;
-  when a write fails, it exits with 3. `checks.cjs check build-report` in a session renders
-  the tables again and compares the text of each section with the file byte for byte. With
-  `--inputs`, it also compares Summary, Review rounds and Counts, which need the rounds
-  that sit beside `inputs.json`; without it, the check prints that it did not compare them.
-  The session `review-changes` runs both at the end, then pushes `build-report` before the
-  verdict.
+  is set, it reads `.reports/submission.md` and writes the hand-off file at that path.
+  - The path is absolute, has no `..` part and leads to a folder inside the checkout: a
+    link that moves the folder outside it exits 3 and writes no file.
+  - It writes the hand-off file first and `build-report.md` second, each through a
+    temporary file that it renames into place. On each non-zero exit it removes an earlier
+    hand-off file. When `.reports/submission.md` breaks a rule, it exits with 1 and writes
+    no file; when a write fails, it exits with 3.
+  - A title with a character of the Unicode class Cf, U+2028 or U+2029 exits with 1,
+    because qory does not accept such a title and drops the whole text. A description with text
+    before `## Problem` exits with 1.
+  - A list `Left out:` in the `report` of a ledger row is the lines `- <item>: <risk>` or
+    `* <item>: <risk>` after the line `Left out:` or `**Left out:**` and its blank lines.
+    A list that the verb cannot read exits with 1 and the first line "Fix the list Left
+    out: of step <row id>.", before it reads `submission.md`: the session ends with one
+    `run_again` point and starts no writer.
+  - When the hand-off file would have more than 262144 bytes, it leaves out the oldest
+    commits of `steps` until the file fits; qory shows them as unreviewed.
+  - `report-build --drop` removes the hand-off file and writes nothing else. The session
+    runs it when `check build-report` exits with 1 and when the push of `build-report`
+    fails, so that qory's submit step reads no text of a change that is not ready.
+  - `checks.cjs check build-report` in a session renders the tables again and compares the
+    text of each section with the file byte for byte. With `--inputs`, it also compares
+    Summary, Review rounds and Counts, which need the rounds that sit beside
+    `inputs.json`; without it, the check prints that it did not compare them.
+  - The session `review-changes` runs both at the end, then pushes `build-report` before
+    the verdict.
 - `process.yaml` of `software-factory` has `submit: {type: submission, send:
   end_of_run}`.
 - The type `build-report` names its two forms by track: the standard track and the fast

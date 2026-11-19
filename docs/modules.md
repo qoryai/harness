@@ -1794,7 +1794,8 @@ it is "Copy the first sentence from AC-2 in the criteria." Beyond the schema, th
 find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
-  `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; the form of a
+  `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order, or with text
+  before `## Problem`; the form of a
   secret, such as a private key or an access token, in the title or the description; and,
   from its schema, a `base` with no `commit`; a `commits[]` entry with no
   `commit` or with a `step` of 0 or more than 128 characters; a `none` reason
@@ -2512,19 +2513,25 @@ in this order:
 2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
    in the artifact folder and writes the hand-off file at the value of
    `QORY_SUBMISSION_HANDOFF`, under `.qory/handoff/`. The ledger's edit check skips
-   `.qory/`. With exit 1, a rule of the text broke: the session starts `submission-writer`
-   again with the lines that `report-build` printed, at most twice. When exit 1 stays, the
-   run ends with one `run_again` point, "The change is not ready, because the description
-   of the change still breaks the rules for it." With exit 2, 3 or 4, the run ends as
-   "Failures" of `running-a-workflow` lists for the checks script.
+   `.qory/`. With exit 1 and a first line that starts with "Fix the list Left out: of
+   step", a step's `report` in the build ledger has a list `Left out:` that the verb cannot
+   read: the session starts no writer, and the run ends with one `run_again` point, "The
+   change is not ready, because the report of a step has a list Left out: that cannot be
+   read." With any other exit 1, a rule of the text broke: the session starts
+   `submission-writer` again with the lines that `report-build` printed, at most twice.
+   When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
+   because the description of the change still breaks the rules for it." With exit 2, 3 or
+   4, the run ends as "Failures" of `running-a-workflow` lists for the checks script.
 3. It runs `checks.cjs check build-report --inputs <input file>
    <folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The
    change is not ready, because the build report differs from the records of the run.",
    and starts no writer, because the tables are the script's, so a difference is a defect.
-   With exit 2, 3 or 4, the run ends as "Failures" lists for the checks script.
+   Before it ends, it runs `checks.cjs report-build --drop`, which removes the hand-off
+   file of step 2. With exit 2, 3 or 4, the run ends as "Failures" lists for the checks
+   script.
 4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
-   again and pushes again, at most twice more, and then ends with "The run could not push
-   its build report."
+   again and pushes again, at most twice more, and then runs `checks.cjs report-build
+   --drop` and ends with "The run could not push its build report."
 5. In a stage that has reviewers, it runs no verdict command, and qory then runs the review
    round. In a stage with none, such as when `inputs.json` has no `qory.stage.reviewers`,
    it runs `qory run verdict passed` first. It ends with "The change is ready: each planned
@@ -2998,10 +3005,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   contains the cause for the line that ends the run, as `running-checks` lists it; after a
   check that did not finish, the session ends the run. The session then checks the points
   with `check points` and ends: the end check sends them with the verdict `escalate`.
-- `report-build [--inputs <path>]`: writes `build-report.md` of the standard track to the
-  artifact folder, with every table rendered from records, so no agent types a result, and
-  writes the hand-off file that qory's submit step reads. A fast-track report is written
-  elsewhere. The sections come from these sources:
+- `report-build [--inputs <path>]` and `report-build --drop`: the first writes
+  `build-report.md` of the standard track to the artifact folder, with every table rendered
+  from records, so no agent types a result, and writes the hand-off file that qory's submit
+  step reads. A fast-track report is written elsewhere. The second removes a regular file
+  at the path of `QORY_SUBMISSION_HANDOFF` and nothing else, prints one line, and exits 0;
+  it exits 3 with a fix line when the file cannot be removed. The sections come from these
+  sources:
   - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
   - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
     the columns Step, Pass, Kind, State and Commit;
@@ -3022,7 +3032,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     blocking finding as the returns, and `unknown` for the tokens;
   - `## Not run`: each ledger row that is not `done`, with its state, or `None.`;
   - `## Left out`: each item of a list `Left out:` in the `report` of a ledger row, as
-    `- <row id>: <item>: <risk>`, or `none`. Each item loses its control, refused and
+    `- <row id>: <item>: <risk>`, or `none`. The list is the lines `- <item>: <risk>` or
+    `* <item>: <risk>` that start at the first column after the line `Left out:` or
+    `**Left out:**` and the blank lines after it, up to the first line that is no such
+    item. `Left out: none` is an empty list, and a row whose report has no such line has
+    no item. A list that the verb cannot read exits 1 with no file, before it reads
+    `submission.md`, and with the first line "Fix the list Left out: of step <row id>.":
+    an indented bullet, an item that continues on an indented line, items after `Left out:
+    none`, text after `Left out:` that is not `none`, and a line `Left out:` with no item.
+    Each item loses its control, refused and
     hidden characters and is cut to 500 characters, the length of a point of
     `open-findings.json`. An item that `check build-report` refuses, such as a path of
     the machine or a link that is not `https://`, becomes `an item that the report cannot
@@ -3033,19 +3051,29 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   The same records give the same bytes, and the file ends with one newline. Without a
   ledger, the verb exits 3.
 
-  When `QORY_SUBMISSION_HANDOFF` is set, an absolute path, the verb also writes JSON
-  `{"text": {"title", "description"}, "steps": {"<commit>": "<ledger row id>"}}` there and
-  creates its parent folder first. `text` is `.reports/submission.md` of the artifact
+  When `QORY_SUBMISSION_HANDOFF` is set, an absolute path with no `..` part, the verb also
+  writes the hand-off file there, as JSON with `text` and `steps`: `{"text": {"title",
+  "description"}, "steps": {"<commit>": "<ledger row id>"}}`. It creates the parent folder
+  first. A path with a `..` part exits 3. When the parent folder, or the nearest folder of
+  it that exists, resolves through a symbolic link to a place outside the top folder of the
+  checkout, the verb exits 3 with the fix "Set QORY_SUBMISSION_HANDOFF to a path inside the
+  checkout." and writes no file. `text` is `.reports/submission.md` of the artifact
   folder, which `submission-writer` writes: the first line is `# <title>`, and the rest is
   the description with `## Problem`, `## Change`, `## Tests` and `## Disclosed`. The title
   and the description pass the rules of `text` in `submission.schema.json` (the title is 1
   to 256 characters, with no control or invisible character, and is not only spaces; the
   description has at most 20,000 characters, no NUL and no marker line), the description
-  has the four parts of the type `submission`, and neither has the form of a secret. The
-  verb removes spaces after the title. `steps` maps each commit of `git rev-list
+  has the four parts of the type `submission` and no text before the first part, and
+  neither has the form of a secret. The title also has no character of the Unicode class
+  Cf, such as U+200D, U+0600 or U+E0041, and no U+2028 or U+2029, because qory does not
+  accept such a title and drops the whole text; the fix has its code point. The verb removes
+  spaces before and after the title. `steps` maps each commit of `git rev-list
   <base>..<commit>` of each `done` row to the id of the row, for the commits of `git
   rev-list <base of the first row>..HEAD`, and a commit in two rows goes to the later row.
-  A text that is missing or breaks a rule, a file of more than 262,144 bytes or a step of
+  When the hand-off file would have more than 262,144 bytes, the verb leaves out the oldest
+  commits of `steps` until it fits, and qory shows each of them as unreviewed; the result
+  line shows how many it left out. A text that is missing or breaks a rule, a
+  `submission.md` that is no regular file or has more than 262,144 bytes, or a step of
   more than 128 characters exits 1 with the fix, and the verb writes no file. A commit that
   git does not have is a lost row of a cancelled run and has no entry in `steps`; any other
   failure of git exits 3 with a fix line. On each non-zero exit, the verb removes a regular

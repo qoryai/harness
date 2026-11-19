@@ -39,7 +39,7 @@ these write are:
 - `.reports/submission.md` in `<folder>`, which the submission writer writes;
 - `build-report.md` in `<folder>`, which `report-build` writes;
 - the hand-off file at the value of `QORY_SUBMISSION_HANDOFF`, under `.qory/handoff/`,
-  which `report-build` writes.
+  which `report-build` writes, and which `report-build --drop` removes.
 
 Change no file of the working folder: a change there has no row in the build ledger,
 and `step begin` of the next session exits with 1 on it. The ledger's edit check skips
@@ -131,21 +131,31 @@ reviewers of the next round get them. Then, in this order:
 2. Run `<skill folder>/checks.cjs report-build --inputs <input file>`. It writes
    `build-report.md` in `<folder>` and the hand-off file at the value of
    `QORY_SUBMISSION_HANDOFF`. On each non-zero exit it removes an earlier hand-off file.
-   - With exit 1, a rule of the text broke. Start ${qory:agents/submission-writer} again
-     with each line that `report-build` printed quoted, at most twice, check its report as
-     step 1 lists, and run `report-build` again after each start. When it still exits with
-     1 after the second start, end as "Points" of `running-a-workflow` lists, with one
-     `run_again` point: "The change is not ready, because the description of the change
-     still breaks the rules for it." Print the first line of `report-build` in your output.
+   - With exit 1 and a first line that starts with "Fix the list Left out: of step", a
+     step's `report` in the build ledger has a list `Left out:` that `report-build` cannot
+     read. The cause is in the ledger, not in `submission.md`, so start no agent, and end
+     as "Points" of `running-a-workflow` lists, with one `run_again` point: "The change is
+     not ready, because the report of a step has a list Left out: that cannot be read."
+     Print the first line of `report-build` in your output.
+   - With any other exit 1, a rule of the text broke. Start
+     ${qory:agents/submission-writer} again with each line that `report-build` printed
+     quoted, at most twice, check its report as step 1 lists, and run `report-build` again
+     after each start. When it still exits with 1 after the second start, end as "Points"
+     of `running-a-workflow` lists, with one `run_again` point: "The change is not ready,
+     because the description of the change still breaks the rules for it." Print the first
+     line of `report-build` in your output.
    - With exit 2, 3 or 4, end as "Failures" lists for the checks script.
 3. Run `<skill folder>/checks.cjs check build-report --inputs <input file>
    <folder>/build-report.md`. It renders the tables of `build-report.md` again from the
-   records and compares each section with the file byte for byte. With exit 1, the tables
-   are the script's, so a difference is a defect: start no agent, and end as "Points" of
-   `running-a-workflow` lists, with one `run_again` point: "The change is not ready,
-   because the build report differs from the records of the run." Print the first line of
-   the check in your output. With exit 2, 3 or 4, end as "Failures" lists for the checks
-   script.
+   records and compares each section with the file byte for byte.
+   - With exit 1, the tables are the script's, so a difference is a defect: start no agent.
+     Run `<skill folder>/checks.cjs report-build --drop`, which removes the hand-off file
+     of step 2, so that qory's submit step reads no text of a change that is not ready.
+     Then end as "Points" of `running-a-workflow` lists, with one `run_again` point: "The
+     change is not ready, because the build report differs from the records of the run."
+     Print the first line of the check in your output. When `--drop` exits with 3, end as
+     "Failures" lists for the checks script instead.
+   - With exit 2, 3 or 4, end as "Failures" lists for the checks script.
 4. Push `build-report` as "Push only what changed" and "Check before each push" of
    `running-a-workflow` list, with step 3 as the `check`:
 
@@ -154,9 +164,12 @@ reviewers of the next round get them. Then, in this order:
    ```
 
    When the push exits with 4 or fails, run steps 2 and 3 again, then push again, at most
-   twice more. When the push is still refused after the third attempt, end with "The run
-   could not push its build report." as "Points" of `running-a-workflow` lists. No agent
-   wrote the file, so start no agent to fix it.
+   twice more. When the push is still refused after the third attempt, run
+   `<skill folder>/checks.cjs report-build --drop`, so that qory's submit step reads no
+   text of a change whose report was not pushed. Then end with "The run could not push its
+   build report." as "Points" of `running-a-workflow` lists. When `--drop` exits with 3,
+   end as "Failures" lists for the checks script instead. No agent wrote the file, so
+   start no agent to fix it.
 5. Handle the verdict:
    - In a stage that has reviewers, as "Open findings of a review" of `running-a-workflow`
      lists, run no verdict command, so that qory runs the review round after the session
