@@ -87,7 +87,7 @@ the lines are about, and repeat the lists of your newest report, changed for thi
 - If a test cannot check a criterion as it is written, or the start commit already meets it,
   so that no check of it fails there, report
   `Blocked: needs a change to criterion <ac-N>: <the change>`.
-- If a check needs a file that the Files of its row do not cover, report
+- If a check needs a file outside the check scope of its row, report
   `Blocked: the build plan lists no file for <path>, which the check of <ac-N> needs.`
 - If a check still does not fail with a failed test after 5 runs, report
   `Blocked: the check of <ac-N> does not fail with a failed test: <its last line>`.

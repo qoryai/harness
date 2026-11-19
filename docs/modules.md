@@ -2264,39 +2264,42 @@ to plan the build again.
   the checks, the draft and the records read-only by `reviewing-drafts` and
   `checking-acceptance-checks`. The reviewer gets no "Checks:", because the draft has no
   `sha256` before `lock`. It gets "Changed paths:" instead, the output of `git status
-  --porcelain` and of `git diff --name-only <start commit>`, which the session runs in the
-  working folder before each start, because the reviewer reads files only. After a review
-  with no finding left that fails a push, the session runs `freeze checks`, sets `commit` in
-  the draft to the commit that `freeze` printed, runs `checks.cjs lock`, and ends the step
-  as `done` with `--pushed acceptance-lock/main/<N>`.
+  --porcelain --untracked-files=all` and of `git diff --name-only <start commit>`, which the
+  session runs in the working folder before each start, with the files of each new folder,
+  because the reviewer reads files only. After a review with no finding left that fails a
+  push, the session runs `freeze checks`, sets `commit` in the draft to the commit that
+  `freeze` printed, runs `checks.cjs lock`, and ends the step as `done` with `--pushed
+  acceptance-lock/main/<N>`.
 - **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
   `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
-  criterion planned as `Tests` with no check; a check that did not fail on the start
-  commit with a failed test, by its record and log; a command that runs, or a check that
-  imports, a file of the repository whose only use is the tests, such as a helper, a
-  fixture, a setup file or a config of the test runner, that the draft lists neither as a
-  check nor under `support`; a check or a command that changes the setup of the tests; a
-  skip, xfail or only mark, or the runtime's equivalent; and each path of "Changed paths:"
-  that the writer's "Files:" does not list. Here `break` means that the run must not push
-  the lock while the finding is left. `reviewing-drafts` defines `break` as a break of the
-  person's words. The reviewer reads files: no script reads imports.
+  criterion planned as `Tests` with no check; a check that did not fail on the start commit
+  with a failed test, by its record and log; a command that runs, or a check that imports, a
+  file of the repository whose only use is the tests, such as a helper, a fixture, a setup
+  file or a config of the test runner, that the draft lists neither as a check nor under
+  `support`; a check or a command that changes the setup of the tests; a skip, xfail or only
+  mark, or the runtime's equivalent; and each path of "Changed paths:" that the writer's
+  "Files:" does not list. Here the mark `break` means that the run must not push the lock
+  while the finding is left, not what `reviewing-drafts` defines for it. The reviewer reads
+  files: no script reads imports.
 - **The run on the start commit.** After the lock, the session runs `checks.cjs preflight
   --inputs <path>` first when the plan has a `serve` row with a command and an `App
-  address:` line, and `index.json` lists a demo script. Then it runs `checks.cjs run locked
-  --inputs <path>`. When the plan starts the app and `index.json` lists no demo script, the
-  preflight would exit 3, so the session runs no preflight and runs the checks with no app
-  check. A point of the preflight ends the session with that point. An exit 3 of the
-  preflight ends it with "The run stopped at the app check, because <cause>.". A locked
-  check fails right only when its finding starts with "Fix the code until the
-  locked check of <criterion> passes.". A check that is green, or red for another reason,
-  runs once more with `run locked <criterion>`. When it is wrong again, the session pushes
-  one question per such check to a member, with `about` set to
-  `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context has
-  the path of the check, the criterion as `AC-<N>, "<first sentence>"` and what each run
-  printed for the check. The options are to upload the acceptance criteria as a new version,
-  so that the next round writes a new check (recommended), or to keep the locked check and
-  let the build go on. The run ends with `escalate` and one `answer` point per check. The
-  ledger step stays `done`, so a new criteria version starts a new pass of `checks`, and an
+  address:` line, and `index.json` lists a demo script, an artifact of type `demo-script`
+  with a name such as `scenario-1`. Then it runs `checks.cjs run locked --inputs <path>`.
+  When the plan starts the app and `index.json` lists no demo script, the preflight would
+  exit 3, so the session runs no preflight and runs the checks with no app check. A point of
+  the preflight ends the session with that point. An exit 3 of the preflight with the cause
+  "no demo script exists for the app", such as for a withdrawn demo script, goes on with no
+  app check. An exit 3 with another cause ends the session with "The run stopped at the app
+  check, because <cause>.". A locked check fails right only when its finding starts with
+  "Fix the code until the locked check of <criterion> passes.". A check that is green, or
+  red for another reason, runs once more with `run locked <criterion>`. When it is wrong
+  again, the session pushes one question per such check to a member, with `about` set to
+  `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context has the
+  path of the check, the criterion as `AC-<N>, "<first sentence>"` and what each run printed
+  for the check. The options are to upload the acceptance criteria as a new version, so that
+  the next round writes a new check (recommended), or to keep the locked check and let the
+  build go on. The run ends with `escalate` and one `answer` point per check. The ledger
+  step stays `done`, so a new criteria version starts a new pass of `checks`, and an
   unchanged one replays it.
 
 ## The high-level workflow, shape-a-ticket

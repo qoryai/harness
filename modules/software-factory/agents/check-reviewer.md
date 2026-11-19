@@ -53,10 +53,10 @@ Load each skill when its step comes, and no other:
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,
 the writer's newest report, unchanged, and "Changed paths:", the output of `git status
---porcelain` and of `git diff --name-only <start commit>` that the run ran in the working
-folder. You run neither command: use that list for the changes. The draft is
-`acceptance-lock.json` at the top of the artifact folder, and the checks are the files that
-its `checks` and `support` list, in the working folder. The records of the runs are in
+--porcelain --untracked-files=all` and of `git diff --name-only <start commit>` that the run
+ran in the working folder. You run neither command: use that list for the changes. The draft
+is `acceptance-lock.json` at the top of the artifact folder, and the checks are the files
+that its `checks` and `support` list, in the working folder. The records of the runs are in
 `.reports/runs/` of the artifact folder. The newest version of a type is the folder
 `<type>/main/v<N>/` with the largest `<N>`: read those of `acceptance-criteria` and
 `build-plan`. You fetch no web page. A refused tool call

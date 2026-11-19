@@ -85,7 +85,7 @@ test('the skill starts the writer, the reviewer and, for a wrong check, question
     /When the JSON has no live Tests criterion, do "No check to write", whatever the build plan/);
 });
 
-test('the skill reads the criteria, and ends with run_again for a Tests criterion with no path', () => {
+test('the skill reads the criteria, and ends with run_again for a Tests criterion, no path', () => {
   const order = oneLine(section(WORKFLOW, 'The order of the run'));
   says(order, 'The criteria: take `<M>`, the `newest_version` of `acceptance-criteria` in ' +
     '`index.json`, and read `<folder>/acceptance-criteria/main/v<M>/acceptance-criteria.json`');
@@ -155,11 +155,10 @@ test('the skill runs the preflight before run locked, only with an app and a dem
   says(section(WORKFLOW, 'The order of the run'), '`## Commands` has a `serve` row with a ' +
     'command, and `## Summary` has a line that starts with `App address:`');
   says(section(WORKFLOW, 'The order of the run'), 'whether a demo script exists: `index.json` ' +
-    'lists an artifact of type `demo-script`');
+    'lists an artifact of type `demo-script` with a name such as `scenario-1`');
   // With no demo script, the preflight exits 3: the skill runs none and runs the checks.
   says(text, 'found that the app starts and no demo script exists, run no `preflight`: it ' +
-    'exits 3 for the missing demo script and would end a run that has locked its checks. Go on ' +
-    'to the next item with no app check.');
+    'would exit 3 for the missing demo script. Go on to the next item with no app check.');
   // A point of the preflight ends the session with that point.
   assert.match(text, /run `check points` on `points\.json`, and end the run with those points/);
 });
@@ -837,7 +836,8 @@ test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay o
       'failed: it is outside the scope.', cell);
   }
   // A path with a file name that has an extension is a check path, with or without a folder.
-  const plan = PLAN.replace('| `docs/export.md` | n/a |', '| `docs/export.md` | `docs/export.md` |');
+  const plan = PLAN.replace('| `docs/export.md` | n/a |',
+    '| `docs/export.md` | `docs/export.md` |');
   const w = work({ plan });
   writeFile(w, 'docs/export.md', 'The export.\n');
   assert.equal(session(w)('scope', 'checks', '--inputs', w.inputs).status, 0);
@@ -851,23 +851,31 @@ test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay o
 
 test('check-reviewer gets the changed paths, stays read-only and marks each missing path', () => {
   const order = oneLine(section(WORKFLOW, 'The order of the run'));
-  says(order, 'Run these two commands in the working folder, each in a Bash call of its own: ' +
-    '`git status --porcelain`, and `git diff --name-only <start commit>`.');
+  says(order, 'Run these two commands in the working folder, each in a separate Bash call: ' +
+    '`git status --porcelain --untracked-files=all`, and `git diff --name-only <start commit>`.');
   says(order, 'Run them again before each later review.');
   says(order, 'the writer\'s newest report, unchanged, and the two outputs under "Changed ' +
     'paths:", unchanged');
   const reviewer = agent('check-reviewer');
   assert.match(reviewer, /\ntools: Read, Grep, Glob, Skill\n/);
-  says(reviewer, '"Changed paths:", the output of `git status --porcelain` and of `git diff ' +
-    '--name-only <start commit>`');
+  says(reviewer, '"Changed paths:", the output of `git status --porcelain ' +
+    '--untracked-files=all` and of `git diff --name-only <start commit>`');
   says(reviewer, 'You run neither command');
   const checking = oneLine(skill('checking-acceptance-checks'));
   says(checking, 'So is each path of "Changed paths:" that the writer\'s "Files:" does not ' +
     'list');
   says(checking, 'is a finding marked `writer`, `no direction` and `break`');
   // What break means in this review.
-  says(checking, 'In this review, every finding is marked `break`, and the mark means that ' +
-    'the run must not push the lock while the finding is left.');
+  says(checking, 'In this review, the mark `break` on every finding means that the run must ' +
+    'not push the lock while the finding is left, not what `reviewing-drafts` defines for it.');
+  // The two commands list each changed file, also one in a new folder.
+  const w = work();
+  writeFile(w, 'tests/new/deep/orders.check.cjs', CHECK_1);
+  writeFile(w, 'src/orders.cjs', `${ORDERS}// changed\n`);
+  const status = git(w.repo, w.env, 'status', '--porcelain', '--untracked-files=all');
+  assert.match(status, /^M src\/orders\.cjs$/m);
+  assert.match(status, /^\?\? tests\/new\/deep\/orders\.check\.cjs$/m);
+  assert.equal(git(w.repo, w.env, 'diff', '--name-only', w.start), 'src/orders.cjs');
 });
 
 // ---- The reports of the agents -------------------------------------------------------------
@@ -950,10 +958,13 @@ test('preflight before run locked: an app that does not start ends the session',
   const missing = none('preflight', '--inputs', bare.inputs);
   assert.equal(missing.status, 3, missing.out + missing.err);
   assert.match(missing.out + missing.err, /Cause: no demo script exists for the app\./);
-  assert.match(oneLine(section(WORKFLOW, 'The run on the start commit')),
-    /With 3, take the cause from the line that starts with `Cause:`, and end as "Points" lists/);
-  says(section(WORKFLOW, 'The run on the start commit'), 'run no `preflight`: it exits 3 for ' +
-    'the missing demo script');
+  // A demo script that preflight does not count, such as a withdrawn one, also exits 3 with
+  // that cause: the skill then goes on with no app check, and ends only for another cause.
+  says(section(WORKFLOW, 'The run on the start commit'), 'With 3, take the cause from the ' +
+    'line that starts with `Cause:`. When it is "no demo script exists for the app", go on ' +
+    'with no app check, as below. Otherwise end as "Points" lists');
+  says(section(WORKFLOW, 'The run on the start commit'), 'run no `preflight`: it would exit 3 ' +
+    'for the missing demo script');
   says(WORKFLOW, '"The run stopped at the app check, because <cause>."');
   // The docs say the same.
   says(read(ROOT, 'docs/modules.md'), 'the session runs no preflight and runs the checks with ' +

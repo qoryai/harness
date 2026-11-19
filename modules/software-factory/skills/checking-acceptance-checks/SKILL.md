@@ -22,13 +22,13 @@ script reads it before the review. This document is no Markdown document of
 `artifact-text`: skip the section "A Markdown document" of `reviewing-drafts`.
 
 The reviewer reads files only, so the run passes the real changes under "Changed paths:":
-the output of `git status --porcelain` and of `git diff --name-only <start commit>`, run in
-the working folder before each review. A path of a `git status --porcelain` line is the text
-after its two status characters and a space, and a rename lists both of its paths.
+the output of `git status --porcelain --untracked-files=all` and of `git diff --name-only
+<start commit>`, run in the working folder before each review. A path of a `git status
+--porcelain` line is the text after its two status characters and a space, and a rename
+lists both of its paths.
 
-`reviewing-drafts` defines the mark `break` as a break of the person's words. In this
-review, every finding is marked `break`, and the mark means that the run must not push the
-lock while the finding is left.
+In this review, the mark `break` on every finding means that the run must not push the lock
+while the finding is left, not what `reviewing-drafts` defines for it.
 
 ## Review of the checks
 
