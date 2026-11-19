@@ -2993,3 +2993,203 @@ test('scope and freeze print no line over 100 characters for a long argument, pa
   const label = `deliverable:d-${'9'.repeat(30)}`;
   assert.ok(`Froze no new commit for ${label.slice(0, 19)}...: no change; 500 commits since ${'a'.repeat(12)} passed.`.length <= 100);
 });
+
+// ---- report-build ----------------------------------------------------------------------
+
+const TEXT = ['# Add the sum helper', '', '## Problem', '', 'Adding two numbers needs a helper.', '',
+  '## Change', '', 'The helper is in src/b.js.', '', '## Tests', '', 'One test covers it.', '',
+  '## Disclosed', '', 'Nothing is left out.', ''].join('\n');
+const T0 = '2026-11-15T10:00:00Z';
+
+// buildRepo returns a locked checkout whose ledger has a change and two fixes, each done
+// with one commit, and a submission text. start is the head when the run started, and
+// commits the three commits of the rows.
+function buildRepo(report) {
+  const dir = lockedCheckout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  const commits = ['change', 'fix 1', 'fix 2'].map((message, at) =>
+    commitFiles(dir, message, { [`src/part${at}.js`]: `exports.n = ${at};\n` }));
+  const row = (id, kind, base, commit, extra = {}) => ({
+    id, pass: 1, kind, workflow: 'implement-changes', inputs: 'a'.repeat(64), state: 'done', base,
+    commit, attempts: [], replays: 0, started_at: T0, ended_at: T0, ...extra,
+  });
+  const ledger = { steps: [
+    row('deliverable:d-1', 'deliverable', start, commits[0], report ? { report } : {}),
+    row('fix:f1', 'fix', commits[0], commits[1]), row('fix:f2', 'fix', commits[1], commits[2]),
+  ], escalations: [] };
+  write(dir, '.qory/artifacts/.reports/build-ledger.json', JSON.stringify(ledger));
+  write(dir, '.qory/artifacts/.reports/submission.md', TEXT);
+  return { dir, start, commits, ledger };
+}
+
+const handoffPath = () => path.join(tmp, `handoff-${++count}`, 'deep', 'submission.json');
+const withHandoff = (file) => ({ env: { QORY_SUBMISSION_HANDOFF: file } });
+const reportOf = (dir) => fs.readFileSync(path.join(dir, '.qory/artifacts/build-report.md'), 'utf8');
+
+test('report-build: a change and two fixes write a hand-off whose steps map the three commits', () => {
+  const left = 'Built it.\n\nLeft out:\n- Export of dates: nobody reads them yet.\n- Retry: the call never fails.\n\nDone.';
+  const { dir, commits } = buildRepo(left);
+  const file = handoffPath();
+  const got = call(dir, ['report-build'], withHandoff(file));
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(got.lines.at(-1), 'Wrote build-report.md and the hand-off file.');
+  const handoff = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.deepEqual(Object.keys(handoff), ['text', 'steps']);
+  assert.deepEqual(handoff.text, { title: 'Add the sum helper', description: TEXT.split('\n').slice(2).join('\n').trim() });
+  assert.deepEqual(handoff.steps, { [commits[0]]: 'deliverable:d-1', [commits[1]]: 'fix:f1', [commits[2]]: 'fix:f2' });
+  const text = reportOf(dir);
+  assert.ok(text.endsWith('\n') && !text.endsWith('\n\n'));
+  assert.match(text, /^## Summary\n\nCommit: [0-9a-f]{40}\. Review rounds: 0\. Ready for review\.\n\n## Steps\n\n\| Step \| Pass \| Kind \| State \| Commit \|\n\|---\|---\|---\|---\|---\|\n\| deliverable:d-1 \| 1 \| deliverable \| done \| [0-9a-f]{40} \|\n/);
+  assert.match(text, /## Review rounds\n\nNone\.\n\nThe result of the last round is in the review in Qory Apiary, not in this report\.\n\n## Checks\n\n\| Check \| Start \| Head \|\n\|---\|---\|---\|\n\| ac-1: tests\/ac1\.test\.js \| red \| unknown \|\n\| ac-2: tests\/ac2\.test\.js \| red \| unknown \|\n\nFull suite: unknown\.\n\n## Counts\n\n\| Count \| Value \|\n\|---\|---\|\n\| Replayed steps \| 0 \|\n\| Review rounds \| 0 \|\n\| Returns \| 0 \|\n\| Tokens \| unknown \|\n\n## Not run\n\nNone\.\n\n/);
+  assert.ok(text.endsWith('## Left out\n\n- deliverable:d-1: Export of dates: nobody reads them yet.\n- deliverable:d-1: Retry: the call never fails.\n'));
+  // The same records give the same bytes.
+  assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
+  assert.equal(reportOf(dir), text);
+});
+
+test('report-build: Left out reads none when no row has an item', () => {
+  const { dir } = buildRepo('Built it.\n\nLeft out: none\n');
+  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.ok(reportOf(dir).endsWith('## Left out\n\nnone\n'));
+});
+
+test('report-build: a commit outside base..HEAD gets no entry, a commit in two ranges goes to the later row, and a commit in no done range gets none', () => {
+  const { dir, start, commits, ledger } = buildRepo();
+  const before = sh(dir, 'rev-parse', `${start}~1`);
+  const extra = commitFiles(dir, 'after', { 'src/after.js': 'exports.n = 9;\n' });
+  const row = { ...ledger.steps[1], id: 'fix:f3', base: before, commit: commits[2] };
+  const failed = { ...ledger.steps[1], id: 'fix:f4', state: 'failed', base: commits[2], commit: undefined,
+    ended_at: undefined };
+  write(dir, '.qory/artifacts/.reports/build-ledger.json',
+    JSON.stringify({ steps: [...ledger.steps, row, failed], escalations: [] }));
+  const file = handoffPath();
+  const got = call(dir, ['report-build'], withHandoff(file));
+  assert.equal(got.status, 0, got.out + got.err);
+  const { steps } = JSON.parse(fs.readFileSync(file, 'utf8'));
+  // start is before the first base..HEAD range, and the commit after the rows is in none.
+  assert.deepEqual(steps, { [commits[0]]: 'fix:f3', [commits[1]]: 'fix:f3', [commits[2]]: 'fix:f3' });
+  assert.equal(steps[start], undefined);
+  assert.equal(steps[extra], undefined);
+  assert.match(reportOf(dir), /\| fix:f4 \| 1 \| fix \| failed \| none \|/);
+  assert.match(reportOf(dir), /## Not run\n\n- fix:f4, pass 1: failed\n\n## Left out/);
+  // The commits of a cancelled run are on no branch: such a row has no entry, and a first
+  // row with such a base leaves no step.
+  const lost = { ...ledger.steps[1], id: 'fix:f5', base: 'c'.repeat(40), commit: 'b'.repeat(40) };
+  write(dir, '.qory/artifacts/.reports/build-ledger.json',
+    JSON.stringify({ steps: [...ledger.steps, lost], escalations: [] }));
+  assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
+  assert.deepEqual(Object.values(JSON.parse(fs.readFileSync(file, 'utf8')).steps),
+    ['deliverable:d-1', 'fix:f1', 'fix:f2']);
+  write(dir, '.qory/artifacts/.reports/build-ledger.json',
+    JSON.stringify({ steps: [{ ...lost, id: 'plan', kind: 'plan' }, ...ledger.steps], escalations: [] }));
+  assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).steps, {});
+});
+
+test('report-build: with QORY_SUBMISSION_HANDOFF unset, it writes no hand-off file and exits 0', () => {
+  const { dir } = buildRepo();
+  const got = call(dir, ['report-build']);
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(got.lines.length, 1);
+  assert.match(got.lines[0], /^Wrote build-report\.md\. QORY_SUBMISSION_HANDOFF is not set, so no hand-off file is written\.$/);
+  assert.equal(fs.existsSync(path.join(dir, '.qory/handoff')), false);
+  assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), true);
+});
+
+test('report-build: a title with a tab, a description with no ## Disclosed, a secret and a missing text write no file', () => {
+  const { dir } = buildRepo();
+  const file = handoffPath();
+  const text = path.join(dir, '.qory/artifacts/.reports/submission.md');
+  const refused = (body, first) => {
+    if (body === null) fs.rmSync(text); else fs.writeFileSync(text, body);
+    const got = call(dir, ['report-build'], withHandoff(file));
+    assert.equal(got.status, 1, got.out + got.err);
+    assert.match(got.lines[0], first);
+    assert.equal(fs.existsSync(file), false);
+    assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), false);
+    assert.match(got.lines.at(-1), /^Wrote no file: \d+ findings? on submission\.md\.$/);
+  };
+  refused(TEXT.replace('Add the sum', 'Add\tthe sum'), /^Write \/title of submission\.md so that it matches its pattern\./);
+  refused(TEXT.replace('## Disclosed', '## Notes'), /^Write the description of submission\.md in four parts, in their order\./);
+  refused(TEXT.replace('Nothing is left out.', `Key ghp_${'A1b2C3d4E5'.repeat(4)}.`), /^Remove the secret from the description of submission\.md: it has the form of an access token\.$/);
+  refused(TEXT.replace('# Add', 'Add'), /^Start submission\.md with the line # <title>\./);
+  refused(`${TEXT}<!-- qory:start -->\n`, /^Write \/description of submission\.md in another form\./);
+  refused(null, /^Run the agent submission-writer to write \.reports\/submission\.md\./);
+  assert.equal(call(dir, ['report-build'], { env: { QORY_SUBMISSION_HANDOFF: 'relative.json' } }).status, 3);
+});
+
+// putRound writes the inputs.json and the open-findings.json of a session in a new
+// folder, and returns the path of the inputs.json.
+function putRound(round) {
+  count += 1;
+  const folder = path.join(tmp, `in-${count}`);
+  write(folder, 'inputs.json', '{"qory":{}}');
+  write(folder, 'open-findings.json', JSON.stringify(round));
+  return path.join(folder, 'inputs.json');
+}
+
+// versionOf adds version 1 of the type with its file to the pulled artifacts of dir.
+function versionOf(dir, type, file, text) {
+  write(dir, `.qory/artifacts/${type}/main/v1/${file}`, text);
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  index.artifacts.push({ type, name: 'main', approved_version: null, newest_version: 1,
+    versions: [{ id: `ver_${type}`, number: 1, writer: { kind: 'run', run_id: 'run_1' }, files: [] }] });
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+}
+
+const ROUND = (round) => ({ round, reviewers: [{ reviewer: 'code-reviewer', findings: [
+  { id: 'f1', severity: 'blocking', point: 'A | in the point', proof: 'Line 1\nLine 2' },
+  { id: 'f2', severity: 'non-blocking', point: 'A second point' }] }, { reviewer: 'test-reviewer', findings: [] },
+  { reviewer: 'full-suite', findings: [{ id: 'f3', severity: 'blocking', point: 'The full suite failed.' }] }] });
+
+test('report-build: the latest round is rendered, and the earlier rounds are copied byte for byte from the previous version', () => {
+  const { dir } = buildRepo();
+  const earlier = '### Round 1\n\nFrozen commit: not rendered by us.\n\n| Finding | Reviewer | Blocking | Proof |\n|---|---|---|---|\n| f1: Old   point | code-reviewer | yes | x |';
+  versionOf(dir, 'build-report', 'build-report.md', `## Summary\n\nx\n\n## Review rounds\n\n${earlier}\n\n### Round 2\n\nOld round 2.\n\nThe result of the last round is in the review in Qory Apiary, not in this report.\n\n## Counts\n\nx\n`);
+  const inputs = putRound(ROUND(2));
+  const got = call(dir, ['report-build', '--inputs', inputs]);
+  assert.equal(got.status, 0, got.out + got.err);
+  const text = reportOf(dir);
+  const rounds = text.split('## Review rounds\n\n')[1].split('\n\n## Checks')[0];
+  assert.equal(rounds, `${earlier}\n\n### Round 2\n\nReviewers: code-reviewer, test-reviewer.\n\n| Finding | Reviewer | Blocking | Proof |\n|---|---|---|---|\n| f1: A \\| in the point | code-reviewer | yes | Line 1 Line 2 |\n| f2: A second point | code-reviewer | no | none |\n| f3: The full suite failed. | full-suite | yes | none |\n\nThe result of the last round is in the review in Qory Apiary, not in this report.`);
+  assert.match(text, /Review rounds: 2\. Ready/);
+  assert.match(text, /\| Returns \| 2 \|/);
+  // A later session with no open-findings.json keeps every round of the previous version.
+  const none = putRound(ROUND(2));
+  fs.rmSync(path.join(path.dirname(none), 'open-findings.json'));
+  assert.equal(call(dir, ['report-build', '--inputs', none]).status, 0);
+  assert.match(reportOf(dir), /### Round 2\n\nOld round 2\./);
+});
+
+test('check build-report: renders the tables again and refuses a table with one edited cell', () => {
+  const { dir } = buildRepo();
+  // The lock says that each check failed on the start commit, and `run locked` runs them
+  // green on the head.
+  assert.equal(call(dir, ['run', 'locked']).status, 0);
+  const inputs = putRound(ROUND(1));
+  assert.equal(call(dir, ['report-build', '--inputs', inputs]).status, 0);
+  const file = path.join(dir, '.qory/artifacts/build-report.md');
+  const text = reportOf(dir);
+  assert.match(text, /\| ac-1: tests\/ac1\.test\.js \| red \| green \|/);
+  const check = () => call(dir, ['check', 'build-report', '--inputs', inputs, file]);
+  const ok = check();
+  assert.equal(ok.status, 0, ok.out + ok.err);
+  assert.match(ok.err, /tables from the records/);
+  for (const [from, to, section] of [['| red | green |\n| ac-2', '| red | red |\n| ac-2', 'Checks'],
+    ['| deliverable:d-1 | 1 |', '| deliverable:d-1 | 2 |', 'Steps'], ['| f2: A second point |', '| f2: A third point |', 'Review rounds'],
+    ['Review rounds: 1.', 'Review rounds: 3.', 'Summary'], ['| Returns | 1 |', '| Returns | 0 |', 'Counts']]) {
+    assert.ok(text.includes(from), from);
+    fs.writeFileSync(file, text.replace(from, to));
+    const bad = check();
+    assert.equal(bad.status, 1, section + bad.out + bad.err);
+    assert.match(bad.lines[0], new RegExp(`^Run report-build to write ## ${section} of build-report\\.md again\\.$`));
+    assert.equal(bad.lines.length, 2, bad.out);
+  }
+  // Without --inputs, the sections with the rounds are not compared, and without the
+  // ledger nothing is.
+  fs.writeFileSync(file, text.replace('| f2: A second point |', '| f2: A third point |'));
+  assert.equal(call(dir, ['check', 'build-report', file]).status, 0);
+  fs.writeFileSync(file, text.replace('| Returns | 1 |', '| Returns | 0 |'));
+  fs.rmSync(path.join(dir, '.qory/artifacts/.reports/build-ledger.json'));
+  assert.equal(check().status, 0);
+});

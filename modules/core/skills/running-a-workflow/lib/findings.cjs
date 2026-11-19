@@ -21,9 +21,10 @@ const POINT_TEXT = 500;
 const REQUIRED = ['id', 'severity', 'point'];
 const OPTIONAL_TEXT = ['quote', 'problem', 'fix', 'proof', 'file'];
 
-// readOpen reads the parsed open-findings.json called name, and returns its round and all its
-// open findings, each { reviewer, id, severity, point, file, line }, or throws Missing with the
-// fix when the file is in another form.
+// readOpen reads the parsed open-findings.json called name, and returns its round and all
+// its open findings, each { reviewer, id, severity, point, proof, file, line }, or throws
+// Missing with the fix when the file is in another form. proof is the text of the proof of
+// the finding, or null.
 function readOpen(data, name) {
   const fix = 'Give findings open the open-findings.json that qory wrote.';
   const broken = (detail) => new Missing(`${fix}\n${short(plain(name), 60)} ${detail}.`);
@@ -60,6 +61,7 @@ function readOpen(data, name) {
       }
       found.push({ reviewer: one.reviewer, id: finding.id, severity: finding.severity,
         point: cut(plain(finding.point), POINT_TEXT),
+        proof: finding.proof === undefined ? null : plain(finding.proof),
         file: finding.file === undefined ? null : plain(finding.file),
         line: finding.line === undefined ? null : finding.line });
     });

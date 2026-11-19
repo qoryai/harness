@@ -644,6 +644,16 @@ test('ledger: after a cancelled run, the next session redoes a step whose commit
   assert.notEqual(row.base, lost);
 });
 
+test('ledger: the hand-off file under .qory/handoff is no edit of a step', () => {
+  const w = work();
+  const call = resumed(w);
+  assert.equal(begin(call, w, 'plan').status, 0);
+  fs.mkdirSync(path.join(w.repo, '.qory', 'handoff'), { recursive: true });
+  fs.writeFileSync(path.join(w.repo, '.qory', 'handoff', 'submission.json'), '{"steps":{}}');
+  assert.equal(call('step', 'end', 'plan', 'done').status, 0);
+  assert.equal(begin(call, w, 'checks').status, 0);
+});
+
 test('ledger: step end done needs a clean checkout and a head that follows the base', () => {
   const w = work();
   // An untracked file is an edit; a file under .qory is none, also from a subfolder.

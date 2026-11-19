@@ -177,7 +177,8 @@ function load(type) {
 // on its first line, the member as its JSON pointer, such as /steps/0/pass, and the cause on
 // the line after it. A pointer that brief cuts on the first line is whole on the last line.
 // A value that nests deeper than MAX_DEPTH gets one finding, before any step that recurses.
-function errors(loaded, value, file) {
+// With def, the name of an entry of $defs, value is checked against that entry alone.
+function errors(loaded, value, file, def) {
   const deep = depthLine(value);
   if (deep) return [`Cut the nesting of ${file} to ${MAX_DEPTH} levels.\n${deep}`];
   const { schema: root, patterns } = loaded;
@@ -290,7 +291,7 @@ function errors(loaded, value, file) {
       if (!test.length) add('Write', 'in another form', `The schema excludes ${shown(node)}`);
     }
   };
-  visit(root, value, '', out);
+  visit(def ? resolve(`#/$defs/${def}`) : root, value, '', out);
   return out;
 }
 

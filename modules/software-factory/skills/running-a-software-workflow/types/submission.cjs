@@ -3,22 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { checkTrack, jsonFile, lines, sections } = lib;
-
-  // The four parts of a description, as ## headings in this order: the problem, the change,
-  // how it was tested, and what is disclosed.
-  const PARTS = ['Problem', 'Change', 'Tests', 'Disclosed'];
-
-  // The forms of a secret that no text of a submission contains: a private key, and the
-  // tokens and keys of common services, by their fixed start.
-  const SECRETS = [
-    [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'a private key'],
-    [/\bAKIA[0-9A-Z]{16}\b/, 'an access key id'],
-    [/\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|glpat-[A-Za-z0-9_-]{20,})/,
-      'an access token'],
-    [/\bxox[abprs]-[A-Za-z0-9-]{10,}/, 'a chat token'],
-    [/\bsk-[A-Za-z0-9_-]{20,}/, 'an API key'],
-  ];
+  const { checkTrack, jsonFile, partFindings, secretFindings } = lib;
 
   function submission(run, files) {
     // On the fast track, the commits of the run must prove their kind (lib/proof.cjs).
@@ -31,20 +16,10 @@ module.exports = (lib) => {
         'description.');
     }
     if (!data.text) return;
-    const titles = sections(lines(data.text.description), 2).slice(1).map((part) => part.title);
-    if (titles.join('\n') !== PARTS.join('\n')) {
-      run.find('Write /text/description of submission.json in four parts, in their order.\n' +
-        `They are ${PARTS.map((part) => `## ${part}`).join(', ')}.\nIt has ` +
-        `${titles.map((title) => `## ${title}`).join(', ') || 'no ## heading'}.`);
-    }
+    const place = (member) => `/text/${member} of submission.json`;
+    partFindings(data.text.description, place('description')).forEach((line) => run.find(line));
     run.did('secrets');
-    for (const member of ['title', 'description']) {
-      const found = SECRETS.find(([form]) => form.test(data.text[member]));
-      if (found) {
-        run.find(`Remove the secret from /text/${member} of submission.json: it has the form ` +
-          `of ${found[1]}.`);
-      }
-    }
+    secretFindings(data.text, place).forEach((line) => run.find(line));
   }
 
   return {

@@ -1815,8 +1815,9 @@ find:
 - `build-report`: sections other than those of the standard track, `## Summary`,
   `## Steps`, `## Review rounds`, `## Checks`, `## Counts`, `## Not run` and `## Left out`,
   or those of the fast track, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Not run` and
-  `## Left out`, with `## Escalation` after them when the session escalated. The check
-  reads no line of `## Left out`, and `none` is a valid body;
+  `## Left out`, with `## Escalation` after them when the session escalated. In a session
+  with the build ledger, the check renders each section of the standard track from the
+  records again, as `report-build` lists, and `none` is a valid body of `## Left out`;
 - `build-ledger`: a file other than one line of compact JSON, the text that
   `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
   `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and
@@ -2913,6 +2914,55 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   contains the cause for the line that ends the run, as `running-checks` lists it; after a
   check that did not finish, the session ends the run. The session then checks the points
   with `check points` and ends: the end check sends them with the verdict `escalate`.
+- `report-build [--inputs <path>]`: writes `build-report.md` of the standard track to the
+  artifact folder, with every table rendered from records, so no agent types a result, and
+  writes the hand-off file that qory's submit step reads. A fast-track report is written
+  elsewhere. The sections come from these sources:
+  - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
+  - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
+    the columns Step, Pass, Kind, State and Commit;
+  - `## Review rounds`: the latest round from `open-findings.json`, in the folder of the
+    file of `--inputs`, as `### Round <N>`, a line with the frozen commit, when the file
+    has one, and the reviewers, and the table Finding, Reviewer, Blocking and Proof. The
+    earlier rounds are copied byte for byte from the newest version of `build-report`
+    that the session pulled, and a round of that version with the number of the latest
+    round or a higher one is dropped. With no round the section has `None.`. The section
+    ends with the line "The result of the last round is in the review in Qory Apiary, not
+    in this report."; the entry `full-suite` of the file is no reviewer of the line;
+  - `## Checks`: one row for each check of the newest acceptance lock, with its result,
+    `green`, `red` or `unknown`: Start is `red`, because the lock records that the check
+    failed on the start commit, and Head is the result in the newest record of `run locked`
+    on HEAD with no uncommitted change. The line `Full suite:` is `unknown`, because no
+    verb records the full suite;
+  - `## Counts`: the replays of the ledger rows, the review rounds, the rounds with a
+    blocking finding as the returns, and `unknown` for the tokens;
+  - `## Not run`: each ledger row that is not `done`, with its state, or `None.`;
+  - `## Left out`: each item of a list `Left out:` in the `report` of a ledger row, as
+    `- <row id>: <item>: <risk>`, or `none`.
+
+  A `|` in a cell is written `\|`, and a line break `<br>`. The same records give the same
+  bytes, and the file ends with one newline. Without a ledger, the verb exits 3.
+
+  When `QORY_SUBMISSION_HANDOFF` is set, an absolute path, the verb also writes JSON
+  `{"text": {"title", "description"}, "steps": {"<commit>": "<ledger row id>"}}` there and
+  creates its parent folder first. `text` is `.reports/submission.md` of the artifact
+  folder, which `submission-writer` writes: the first line is `# <title>`, and the rest
+  is the description with `## Problem`, `## Change`, `## Tests` and `## Disclosed`. The
+  title and the description pass the rules of `text` in `submission.schema.json`
+  (the title has no control character, the description at most 20,000 characters and no
+  marker line), the description has the four parts of the type `submission`, and neither
+  has the form of a secret. `steps` maps each commit of `git rev-list <base>..<commit>` of
+  each `done` row to the id of the row, for the commits of `git rev-list <base of the
+  first row>..HEAD`, and a commit in two rows goes to the later row. A text that is missing
+  or breaks a rule, a file of more than 262,144 bytes or a step of more than 128
+  characters exits 1 with the fix, and the verb writes no file. Without the variable, it
+  writes `build-report.md`, prints one line that it wrote no hand-off file and exits 0.
+  `check build-report`, in a session with the ledger in the artifact folder, renders the
+  sections again from the same records and exits 1 for each section that differs from the
+  file byte for byte, with the fix "Run report-build to write ## <section> of
+  build-report.md again." Without `--inputs`, it leaves out `## Summary`, `## Review
+  rounds` and `## Counts`, which need the rounds. `push` and `end --offline` check the
+  order of the sections alone.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
