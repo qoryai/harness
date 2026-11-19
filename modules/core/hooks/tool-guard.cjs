@@ -2855,10 +2855,11 @@ function artifactFolder(root, env, runFolder) {
   return path.join(real(path.dirname(dir)), path.basename(dir));
 }
 
-// readHookInput returns the hook's input from stdin, or null when it is not a JSON object.
-function readHookInput() {
+// readHookInput returns the hook's input from the text of stdin, or null when it is not a JSON
+// object.
+function readHookInput(text) {
   try {
-    const data = JSON.parse(fs.readFileSync(0, 'utf8'));
+    const data = JSON.parse(text);
     return data !== null && typeof data === 'object' && !Array.isArray(data) ? data : null;
   } catch {
     return null;
@@ -2878,8 +2879,14 @@ const deny = (reason) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse',
 // that throws on PreToolUse denies the call with the error, so a fault never opens the
 // lock. In a run, input that is not JSON denies the call too.
 function run({ runtime, before } = {}) {
-  const input = readHookInput();
   const env = process.env;
+  const stdin = reportsGuard.readStdin(env);
+  if (stdin.reason) {
+    process.stdout.write(`${JSON.stringify(deny(stdin.reason))}\n`);
+    process.exitCode = 0;
+    return;
+  }
+  const input = readHookInput(stdin.text);
   if (input === null) {
     if (env.QORY_RUN_ID) process.stdout.write(`${JSON.stringify(deny(NOT_JSON))}\n`);
     process.exitCode = 0;
