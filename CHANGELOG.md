@@ -8,6 +8,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
+  `access: write`: the skills `workflow-write-acceptance-checks`,
+  `writing-acceptance-checks` and `checking-acceptance-checks`, and the agents
+  `acceptance-check-writer` and `check-reviewer`. The agents start only when the build plan
+  has a check, a criterion planned as `Tests`; else the run ends `passed`. In the ledger
+  step `checks`, the writer writes each check at its Check path and its new helpers below
+  the Files of the same row, runs each with `checks.cjs run targeted` until it fails with a
+  failed test on the start commit, and drafts `acceptance-lock.json`. After the review, the
+  session runs `freeze checks`, sets `commit` to the commit of the checks, and runs
+  `checks.cjs lock`, which pushes `acceptance-lock`. Then it runs `checks.cjs preflight`,
+  when the plan starts the app, and `checks.cjs run locked`: a locked check that does not
+  fail with a failed test in two runs ends the run with one question per check, about the
+  criterion, with the check, the criterion and what both runs printed. `check-reviewer`
+  reports, with the mark `break`, a command or a check that runs or imports a file whose
+  only use is the tests and that the lock lists neither as a check nor under `support[]`, a
+  changed test setup, and a skip, xfail or only mark. `scope` and `freeze` take the step
+  `checks`, with the Files of each deliverable whose Check is the path of a test file.
+- `checks.cjs lock`, `check acceptance-lock` and its push check refuse a lock with no check
+  of a criterion that its criteria version plans as Tests, with the fix line "Add a check
+  of <id> to acceptance-lock.json, then lock again."
 - The `plan-the-build` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-plan-the-build`, `planning-builds` and
   `checking-build-plans`, and the agents `build-planner` and `plan-reviewer`. The session

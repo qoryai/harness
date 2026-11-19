@@ -1669,9 +1669,12 @@ find:
   one line "Ask a member to approve the acceptance criteria, then lock the checks: no
   version is approved.", also when a person stored a criteria version, because a person's
   upload adds to an approval and replaces none; any lock other than the newest lock again or
-  a new lock of the target; and a check of a criterion that the lock's criteria version does
-  not plan as Tests. A lock with the JSON value of the newest lock in `index.json`, in other
-  white space or another order of members, is that lock, and passes again. A new lock passes
+  a new lock of the target; a check of a criterion that the lock's criteria version does
+  not plan as Tests; and a lock with no check of a criterion that its criteria version plans
+  as Tests, with the line "Add a check of ac-2 to acceptance-lock.json, then lock again."
+  and the line "Criteria version 1 plans ac-2 as Tests, and no check of the lock has it.".
+  A lock with the JSON value of the newest lock in `index.json`, in other white space or
+  another order of members, is that lock, and passes again. A new lock passes
   only at the target, and only when the target is not older than the criteria version of a
   lock in `index.json`, and either the target is the approved version and no lock locks it,
   or a person stored the target after the newest lock. With no lock before, any upload of a
@@ -2229,6 +2232,55 @@ workflow with `tier: thinking` and `access: write`.
   `Blocked: needs a change to criterion <ac-N>: <the change>`, as in the other small
   workflows.
 
+`workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
+locks the acceptance checks of one ticket, after its build plan and before any step changes
+code. The stack lists the workflow with `tier: balanced` and `access: write`, and both
+agents run on the tier `thinking`. The session pulls, runs `checks.cjs resume`, and reads
+the newest build plan. Each Check cell that is a path, not `n/a` and not a scenario id, is a
+check, and the criteria of its row are planned as `Tests`. With no such path, the session
+runs no ledger step, starts no agent, pushes nothing and ends `passed`, with "No criterion
+is planned as Tests, so the run wrote no acceptance checks." With no build plan, it ends
+with a `run_again` point.
+
+- **The step `checks`.** The session starts the ledger step `checks` and then
+  `acceptance-check-writer`, which writes each check at its Check path, writes new helpers
+  and fixtures only below the Files of the same row, and runs each check with `checks.cjs
+  run targeted <path> --inputs <path>` until it fails with a failed test. The command of a
+  check is the `targeted` command of the plan, a space and the path. The writer drafts
+  `acceptance-lock.json`, with `failed_with` set to the `exit` of the record of the last
+  run, each support file under `support`, and no `sha256`. The session runs `scope checks`,
+  then starts `check-reviewer`, which reads the checks, the draft and the records read-only
+  by `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no "Checks:",
+  because the draft has no `sha256` before `lock`. After a review with no finding left that
+  fails a push, the session runs `freeze checks`, sets `commit` in the draft to the commit
+  that `freeze` printed, runs `checks.cjs lock`, and ends the step as `done` with
+  `--pushed acceptance-lock/main/<N>`.
+- **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
+  `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
+  criterion planned as `Tests` with no check; a check that did not fail on the start
+  commit with a failed test, by its record and log; a command that runs, or a check that
+  imports, a file of the repository whose only use is the tests, such as a helper, a
+  fixture, a setup file or a config of the test runner, that the draft lists neither as a
+  check nor under `support`; a check or a command that changes the setup of the tests; and
+  a skip, xfail or only mark, or the runtime's equivalent. The reviewer reads files: no
+  script reads imports.
+- **The run on the start commit.** After the lock, the session runs `checks.cjs preflight
+  --inputs <path>` first when the plan has a `serve` row with a command and an
+  `App address:` line, and then `checks.cjs run locked --inputs <path>`. A point of the
+  preflight ends the session with that point. An exit 3 of the preflight ends it with "The
+  run stopped at the app check, because <cause>.", such as "no demo script exists for the
+  app". A locked check fails right only when its finding starts with "Fix the code until the
+  locked check of <criterion> passes.". A check that is green, or red for another reason,
+  runs once more with `run locked <criterion>`. When it is wrong again, the session asks a
+  member one question per such check, with `about` set to
+  `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context gives
+  the path of the check, the criterion as `AC-<N>, "<first sentence>"` and what each run
+  printed for the check. The options are to upload the acceptance criteria as a new version,
+  so that the next round writes a new check (recommended), or to keep the locked check and
+  let the build go on. The run ends with `escalate` and one `answer` point per check. The
+  ledger step stays `done`, so a new criteria version starts a new pass of `checks`, and an
+  unchanged one replays it.
+
 ## The high-level workflow, shape-a-ticket
 
 `workflow-shape-a-ticket`, process entry `shape-a-ticket`, is Shape's one run. Its session
@@ -2408,8 +2460,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   only a change still on disk. The only guard against that in this repository is the stop
   at the end of each check: the script stops the process group of the command and, on
   Linux, each marked process, so a process left running by accident does not change a file
-  during a later check. No reviewer and no other check here looks at what code under test
-  does to a locked file.
+  during a later check. Before the lock, `check-reviewer` of `write-acceptance-checks`
+  reports a check whose command or files change the setup of the tests, and a command that
+  runs, or a check that imports, a file whose only use is the tests, such as a helper, that
+  the lock lists neither as a check nor under `support[]`. It reads the files before the
+  lock and watches no run, so no check here looks at what code under test does to a locked
+  file during a check.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
