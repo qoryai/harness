@@ -144,9 +144,9 @@ App address: \`http://localhost:3000/\`
 `;
 
 const section = (title) => `## ${title}\n\nNone.\n`;
-const REPORT_FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'Not run']
-  .map(section).join('\n');
-const REPORT_SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run']
+const REPORT_FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'Not run',
+  'Left out'].map(section).join('\n');
+const REPORT_SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run', 'Left out']
   .map(section).join('\n');
 
 // VERIFICATION is a verification of C2: ac-3 is not verified, each other criterion is met.
@@ -1080,7 +1080,7 @@ test('build-plan, verification and demo-script read the approved version', () =>
 
 // ---- build-report -------------------------------------------------------------------------
 
-test('build-report: the sections of the full path, or of a short session', () => {
+test('build-report: the sections of the standard track, or of the fast track', () => {
   passes(push(fixture(), 'build-report', ['build-report.md', REPORT_FULL]), 'build-report');
   passes(push(fixture(), 'build-report', ['build-report.md', REPORT_SHORT]), 'build-report');
   passes(check(fixture(), 'build-report',
@@ -1088,9 +1088,18 @@ test('build-report: the sections of the full path, or of a short session', () =>
   const swapped = REPORT_FULL.replace('## Steps', '## Counts x').replace('## Counts\n', '## Steps\n')
     .replace('## Counts x', '## Counts');
   fails(push(fixture(), 'build-report', ['build-report.md', swapped]),
-    /^Give build-report.md the sections of the full path or of a short session, in order\. It has ## Summary, ## Counts/);
+    /^Give build-report.md the sections of the standard track or of the fast track, in order\. It has ## Summary, ## Counts/);
   fails(push(fixture(), 'build-report',
     ['build-report.md', `${REPORT_FULL}\n${section('Escalation')}`]), /It has .*## Escalation\.$/);
+  // Left out is a section of each track, and a body of `none` is valid.
+  const without = (md) => md.replace('\n## Left out\n\nNone.\n', '');
+  const noLeftOut = /^Give build-report.md the sections of the standard track/;
+  const report = (md) => push(fixture(), 'build-report', ['build-report.md', md]);
+  fails(report(without(REPORT_FULL)), noLeftOut);
+  fails(report(without(REPORT_SHORT)), noLeftOut);
+  fails(report(`${without(REPORT_SHORT)}\n${section('Escalation')}`), noLeftOut);
+  passes(report(REPORT_FULL.replace('## Left out\n\nNone.', '## Left out\n\nnone')),
+    'build-report');
 });
 
 // The full test suite runs after the agent session, and the platform shows its result at the
