@@ -4072,6 +4072,109 @@ test('panel: a member starts only when its paths match a file of the change', ()
   assert.match(result.lines.at(-1), /^Checked the group reviewers: 3 members, 2 with a file of the change, 2 places;/);
 });
 
+// The reviewers of security, data and failures are members of the group role reviewers, each
+// with the paths of its agent file. qory writes those paths into roles.json; the tests read
+// them from the real files, so a change to a glob in a file changes these tests. The value of
+// paths is a list of JSON strings, which JSON.parse reads.
+const GROUP = ['security-reviewer', 'data-reviewer', 'failure-reviewer'];
+const groupPaths = (agent) => {
+  const text = fs.readFileSync(path.join(MODULES, 'software-factory', 'agents', `${agent}.md`), 'utf8');
+  const list = /^paths: (\[[^\]]*\n\])$/m.exec(text.split('\n---\n')[0]);
+  assert.ok(list, `${agent}: paths is a list of JSON strings in the front matter`);
+  return JSON.parse(list[1]);
+};
+const groupStarts = (files) => {
+  const { deps } = panelSetup({ members: GROUP.map((agent) => [agent, groupPaths(agent)]), files });
+  const result = panelCall(deps, GROUP);
+  assert.equal(result.status, 0, result.out);
+  return result.lines.filter((line) => line.startsWith('Start: '))
+    .map((line) => /^Start: ([a-z-]+),/.exec(line)[1]);
+};
+
+test('panel: the group of the security, data and failure reviewers starts only for its paths', () => {
+  for (const [files, started] of [
+    // A migration file starts the data reviewer, in the folders and formats that repositories use.
+    [['db/migrate/20261119120000_add_orders.rb'], ['data-reviewer']],
+    [['priv/repo/migrations/20261119120000_add_orders.exs'], ['data-reviewer']],
+    [['migrations/0002_add_orders.sql'], ['data-reviewer']],
+    [['app/models/order.rb'], ['data-reviewer']],
+    [['prisma/schema.prisma'], ['data-reviewer']],
+    // A text file starts none of the three.
+    [['README.md'], []],
+    [['notes.txt'], []],
+    [['docs/guide.md', 'CHANGELOG.md', 'LICENSE'], []],
+    // The security reviewer: authentication, input from outside, dependencies, CI workflows.
+    [['src/auth/login.js'], ['security-reviewer']],
+    [['config/secrets.yml'], ['security-reviewer']],
+    [['package-lock.json'], ['security-reviewer']],
+    [['.github/workflows/ci.yml'], ['security-reviewer']],
+    [['app/controllers/invoices_controller.rb'], ['security-reviewer']],
+    // The failure reviewer: errors, retries, timeouts, queues, jobs and workers.
+    [['src/jobs/send_receipt.js'], ['failure-reviewer']],
+    [['lib/retry.go'], ['failure-reviewer']],
+    [['app/workers/export.py'], ['failure-reviewer']],
+    // The globs list the usual case of a name, so a name in PascalCase starts its reviewer too.
+    [['src/PasswordEncoder.java'], ['security-reviewer']],
+    [['src/Models/Order.cs'], ['data-reviewer']],
+    [['src/RetryPolicy.cs'], ['failure-reviewer']],
+    // shortcut: a glob has no form that leaves a file out, so a text file in a listed folder or
+    // with a listed name starts the reviewer of that glob. Replace the globs when this costs a
+    // review.
+    [['docs/api/guide.md'], ['security-reviewer']],
+    [['migrations/README.md'], ['data-reviewer']],
+    [['docs/errors.md'], ['failure-reviewer']],
+    // Folders and names of the usual layouts: containers, infrastructure code, middleware.
+    [['Dockerfile'], ['security-reviewer']],
+    [['docker-compose.yml'], ['security-reviewer']],
+    [['terraform/main.tf'], ['security-reviewer']],
+    [['k8s/deploy.yaml'], ['security-reviewer']],
+    [['pkg/jwt/verify.go'], ['security-reviewer']],
+    [['src/middleware/guard.ts'], ['security-reviewer']],
+    [['internal/httpx/ratelimit.go'], ['security-reviewer']],
+    [['src/hash/hash.go'], ['security-reviewer']],
+    [['src/AuthService.ts'], ['security-reviewer']],
+    [['auth_service.py'], ['security-reviewer']],
+    [['db/changelog/001.xml'], ['data-reviewer']],
+    [['db/changelog/001.yaml'], ['data-reviewer']],
+    [['internal/store/schema.go'], ['data-reviewer']],
+    [['sqlc.yaml'], ['data-reviewer']],
+    [['src/models.ts'], ['data-reviewer']],
+    [['src/model.ts'], ['data-reviewer']],
+    [['src/worker.go'], ['failure-reviewer']],
+    [['src/jobs.rb'], ['failure-reviewer']],
+    [['src/consumer/handler.go'], ['failure-reviewer']],
+    [['app/tasks/send.py'], ['failure-reviewer']],
+    [['celery.py'], ['failure-reviewer']],
+    [['sidekiq.yml'], ['failure-reviewer']],
+    [['src/http/client.go'], ['failure-reviewer']],
+    [['httpclient.go'], ['failure-reviewer']],
+    // Names that look like the words and are no code of the area start none.
+    [['lexer/token.go'], []],
+    [['design/tokens.json', 'tokens.css'], []],
+    [['test/fixtures/session.json'], []],
+    [['error_page.html', 'sample_error.png'], []],
+    [['src/Client.tsx'], []],
+    [['SECURITY.md', 'CONTRIBUTING.md', 'robots.txt', 'db/seeds.rb', 'docs/migrations.md'], []],
+    // A change in several areas starts each reviewer once, in the order of the group.
+    [['src/auth/login.js', 'db/migrate/20261119120000_add_orders.rb', 'src/jobs/send_receipt.js', 'README.md'],
+      GROUP],
+  ]) assert.deepEqual(groupStarts(files), started, files.join(', '));
+});
+
+test('panel: a change of text files only starts none of the three reviewers', () => {
+  const { deps } = panelSetup({
+    members: GROUP.map((agent) => [agent, groupPaths(agent)]), files: ['README.md', 'notes.txt'],
+  });
+  const result = panelCall(deps, GROUP);
+  assert.equal(result.status, 0, result.out);
+  assert.deepEqual(result.lines, [
+    'Skip: security-reviewer: no file of the change matches its paths.',
+    'Skip: data-reviewer: no file of the change matches its paths.',
+    'Skip: failure-reviewer: no file of the change matches its paths.',
+    'Checked the group reviewers: 3 members, none with a file of the change.',
+  ]);
+});
+
 test('panel: a change with no file starts no member and reads no disk', () => {
   const { deps } = panelSetup({ members: [['a-reviewer'], ['b-reviewer', ['*.md']]], files: [] });
   deps.freeBytes = () => { throw new Error('the disk is read'); };
@@ -4330,7 +4433,8 @@ test('report: each agent of the modules has a shape that the script reads', () =
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
     assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
-  assert.equal(reviewers, 3, 'code-reviewer, test-reviewer and acceptance-reviewer');
+  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, security-reviewer, ' +
+    'data-reviewer and failure-reviewer');
 });
 
 // ---- Time and size ------------------------------------------------------------------------
