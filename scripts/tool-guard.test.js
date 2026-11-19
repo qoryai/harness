@@ -2884,7 +2884,7 @@ test('a glob that makes fs.globSync stall is denied before the call, in under 1 
     ['ls *a*a*c/*a*a*c/*a*a*c', 'has more than 8 * in all'],
     ['ls ?????????????????', 'has more than 16 * and ? in one path part'],
     ['ls ????????????????/????????????????/????????????????/?', 'has more than 32'],
-    ['ls {*a*,b/}*a*a*', 'Write each alternative as its own word, as `src/*a* lib/*b*`.'],
+    ['ls {*a*,b/}*a*a*', 'a brace that can put two * side by side'],
     // (c) a word of 65,530 slashes, and words that differ in `*` only.
     [`ls ${'/'.repeat(65530)}*`, 'more than 4,096 characters'],
     [`ls ${['*', '**', '***'].map((one) => `${'/'.repeat(30000)}${one}`).join(' ')}`,
@@ -3232,16 +3232,18 @@ test('`*` are counted for each alternative of a brace, and a part with alternati
   }
   // The largest alternative counts, with the text before and after the braces.
   const stars = /more than 3 \* in one path part/;
-  assert.match(shell('ls {*a,*a*a}*a*', normal), stars);
-  assert.match(shell('ls {*a*a,*a}*a*', normal), stars);
-  assert.match(shell('ls *{*a,*b}*{*c,*d}', normal), stars);
-  assert.equal(shell('ls *{*a,*b}*', normal), null);
-  assert.match(shell('ls {*a*,b/}*a*a*', normal), /Write each alternative as its own word/);
-  // A / inside braces with 2 or more `*` in a part cannot be placed on a folder.
-  for (const command of ['ls {src/*a*a*c,lib}', 'ls {x,y/}*a*c', 'ls {a/*a*,b}*', 'ls {src/*,lib/*}*']) {
-    const reason = shell(command, normal);
-    assert.equal(reason.split('\n')[1], 'Write each alternative as its own word, as `src/*a* lib/*b*`.',
-      command);
+  assert.match(shell('ls x{*a,*a*a}*a*', normal), stars);
+  assert.match(shell('ls x{*a*a,*a}*a*', normal), stars);
+  assert.match(shell('ls x{*a,*b}y{*c,*d}*e*', normal), stars);
+  assert.equal(shell('ls x{*a,*b}y{*c,*d}*', normal), null);
+  // Braces that can put two `*` side by side are denied, whatever the stars count.
+  const meet = /\nA glob of the command has a brace that can put two \* side by side/;
+  for (const command of ['ls *{*a,*b}*', 'ls {*a*,b/}*a*a*', 'ls {a/*a*,b}*', 'ls {src/*,lib/*}*']) {
+    assert.match(shell(command, normal), meet, command);
+  }
+  // A / inside braces is read for each expansion of the braces, in the folder of that expansion.
+  for (const command of ['ls {src/*a*a*c,lib}', 'ls {x,y/}*a*c']) {
+    assert.equal(shell(command, normal), null, command);
   }
   // The work is counted for the largest alternative, and for all of them.
   for (const command of ['ls {*a*a*c,b}', 'ls {b,c,*a*a*c}', 'ls *a*{a*c,b}']) {
@@ -3272,4 +3274,74 @@ test('`*` are counted for each alternative of a brace, and a part with alternati
     assert.equal(shell(command, short), null, command);
   }
   assert.equal(adapter(home, 'copilot', 'shell', 'ls {f,g}*', short, 3000).denied, false);
+});
+
+test('braces that make `**` are denied before fs.globSync runs, and a / inside braces is scanned for each expansion', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('pass7');
+  const normal = path.join(work, 'normal');
+  const links = path.join(work, 'links');
+  const huge = path.join(work, 'huge');
+  for (const folder of [path.join(normal, 'src'), path.join(normal, 'lib'), path.join(work, 'art', '.reports'),
+    links, huge]) {
+    fs.mkdirSync(folder, { recursive: true });
+  }
+  fs.writeFileSync(path.join(normal, 'src', 'x.ts'), '');
+  fs.writeFileSync(path.join(normal, 'lib', 'x.ts'), '');
+  // 90,000 empty files are more than the 83,334 names that the guard reads from one folder, and
+  // three links make three folders of that size.
+  for (let n = 0; n < 90000; n += 1) fs.writeFileSync(path.join(huge, `f${n}`), '');
+  for (const name of ['l1', 'l2', 'l3']) fs.symlinkSync(huge, path.join(links, name));
+  const home = harnessHome();
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 1000, `${ms} ms: ${command}`);
+    return reason;
+  };
+  const wrappers = (command, cwd, denied, fragment) => {
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      const ran = adapter(home, runtime, 'shell', command, cwd, 3000);
+      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+      assert.ok(ran.ms < 1000, `${runtime}: ${command.slice(0, 60)}: ${ran.ms} ms`);
+      assert.equal(ran.denied, denied, `${runtime}: ${command.slice(0, 60)}`);
+      if (denied && runtime !== 'cursor') {
+        assert.ok(ran.reason.includes(fragment), `${runtime}: ${command.slice(0, 60)}: ${ran.reason}`);
+      }
+    }
+  };
+  // fs.globSync expands `*{*,}` to `**`, a globstar that walks the whole disk from `/`.
+  const meet = 'a brace that can put two * side by side';
+  for (const command of ['ls /*{*,}', 'ls *{*,}', 'ls /{*,}*', 'ls /*{,*}', 'ls /{*,*}{*,*}',
+    'ls /*{*,}{,}', 'ls {*,}*', 'ls *{,*}', 'ls x*{,}*',
+    'ls /{*{,**},??*[[?,}/[a}\\/]]},?}a\\\\[\\a[[a?/[[}{?{,}/[',
+    'ls /*{*,}; echo x > art/.rep*/x.json']) {
+    wrappers(command, work, true, meet);
+  }
+  // Normal braces pass, also with a `*` next to a brace.
+  for (const command of ['ls {*.ts,*.js}', 'ls {src/,lib/}x.ts', 'cat {src/*,lib/*}', 'ls {a,b}*',
+    'ls {a,b}{*,}', 'ls x*{y,z}', 'ls {src/*a*a*c,lib}', 'ls {1..3}/*', 'ls *.{ts,js}']) {
+    assert.equal(shell(command, normal), null, command);
+    wrappers(command, normal, false);
+  }
+  // A / inside braces makes path parts that differ for each expansion: each expansion scans the
+  // folder that it reaches, so that links to one huge folder are not scanned as if they were not there.
+  const names = 'scans a folder of 83,334 names or more';
+  for (const command of ['ls {l1/,l2/,l3/}*', 'ls {l1/*,l2/*}', 'ls {l1/,l2/}x*', 'ls {../huge/,x}*']) {
+    wrappers(command, links, true, names);
+  }
+  wrappers('ls {huge/,x}*', work, true, names);
+  assert.match(shell('ls l1/*', links), new RegExp(names));
+  assert.match(shell('ls {l1/,l2/,l3/}*', links), new RegExp(names));
+  // The words of braces are read as minimatch reads them.
+  assert.equal(shell('ls {src,lib}/x.ts', normal), null);
+  assert.equal(shell('ls {,src/}x.ts', normal), null);
+  // Braces nested more than 32 deep are denied, and 10 deep pass.
+  assert.match(shell(`ls ${'{'.repeat(40)}a,b${'}'.repeat(40)}*`, normal),
+    /\nThe braces in the command are nested more than 32 deep/);
+  assert.equal(shell(`ls ${'{'.repeat(10)}a,b${'}'.repeat(10)}*`, normal), null);
+  // An expansion with no `*`, `?` or `[` is a path: this one is a file of .reports that is not there.
+  assert.match(shell('ls {art/.repo,y/}rts/x.json', work), /\nThe glob \{art\/\.repo,y\/\}rts\/x\.json matches art\/\.reports\/x\.json\./);
+  wrappers('ls {art/.repo,y/}rts/x.json', work, true, 'matches art/.reports/x.json');
 });
