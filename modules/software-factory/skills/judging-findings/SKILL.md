@@ -38,8 +38,8 @@ read with Read.
 
 - A suite that failed, did not run or did not start is one `blocking` finding that the run
   writes. Write none for it.
-- A `failing check` proof of yours cites one failing row of `suite_result`: the name of the
-  check and what its output shows.
+- A `failing check` proof of yours cites the lines of `output_tail` of `suite_result` that
+  show a check fail: the name of the check and what its output shows.
 - A green suite proves nothing about a problem that no check covers. Prove such a problem
   with a `failing input`.
 
