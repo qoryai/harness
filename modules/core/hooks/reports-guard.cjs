@@ -684,17 +684,39 @@ function namesOf(dir, budget) {
   return names;
 }
 
+// starsOf returns the number of `*` in the glob part text.
+const starsOf = (text) => text.split('*').length - 1;
+
+// narrow returns the Over error for the part last, which has stars `*`.
+const narrow = (last, stars, what) => new Over(`Use a narrower glob: the part ${short(last)} of ` +
+  `a glob of the command has ${stars} *, and ${what}.`);
+
+// foldersOf returns the full paths of the folders among matches, relative to cwd, all of them:
+// a part scans the folders that the part before it matches, and files that sort before the
+// folders must not hide them. It throws Over for more than MAX_SCAN_DIRS folders, and checks
+// the time as it goes. matches has at most MAX_GLOB_MATCHES paths.
+function foldersOf(matches, cwd, last, budget) {
+  const dirs = [];
+  for (let at = 0; at < matches.length; at += 1) {
+    if (at % 256 === 0) overTime(budget);
+    const full = path.resolve(cwd, matches[at]);
+    if (!isDirectory(full)) continue;
+    dirs.push(full);
+    if (dirs.length > MAX_SCAN_DIRS) {
+      throw narrow(last, starsOf(last), 'it scans more than ' +
+        `${MAX_SCAN_DIRS.toLocaleString('en-US')} folders`);
+    }
+  }
+  return dirs;
+}
+
 // scanWork throws Over when matching the path part last, against the names in the folders dirs,
 // would take more than the work that budget has left. A part with fewer than 2 `*` takes time in
 // the length of the names, as the read of the folder does, and is not counted.
 function scanWork(last, dirs, budget) {
-  const stars = last.split('*').length - 1;
+  const stars = starsOf(last);
   if (stars < 2) return;
-  const put = (what) => new Over(`Use a narrower glob: the part ${short(last)} of a glob of the ` +
-    `command has ${stars} *, and ${what}.`);
-  if (dirs.length > MAX_SCAN_DIRS) {
-    throw put(`it scans more than ${MAX_SCAN_DIRS.toLocaleString('en-US')} folders`);
-  }
+  const put = (what) => narrow(last, stars, what);
   const weight = NS_PER_UNIT[Math.min(stars, 3)];
   const times = Math.max(1, braces(last));
   let ns = 0;
@@ -765,10 +787,9 @@ function globbed(pattern, cwd, budget) {
         throw new Over(`The braces in the command make more than ${MAX_GLOB_UNITS.toLocaleString('en-US')} ` +
           `patterns, and the guard expands at most ${MAX_GLOB_UNITS.toLocaleString('en-US')}.`);
       }
-      if (last.includes('*')) {
+      if (starsOf(last) >= 2) {
         const dirs = before === null ? [path.resolve(cwd, text.slice(0, start) || '.')]
-          : before.slice(0, MAX_SCAN_DIRS + 1).map((one) => path.resolve(cwd, one))
-            .filter((one) => isDirectory(one));
+          : foldersOf(before, cwd, last, budget);
         scanWork(last, dirs, budget);
       }
       matched = fs.globSync(part, { cwd });

@@ -1183,7 +1183,8 @@ than 4,096 characters, and checks the time before each folder part of a word.
 Limits on the number of `*` cannot bound the time of a call that cannot be stopped, so the guard
 bounds it by its input. Before `fs.globSync` runs for a path part with 2 or more `*`, the guard
 reads the names of the folders that the part scans (the folder of the part for the first glob
-part, else the folders that the part before it matches, at most 2,000), and adds, for each name,
+part, else all the folders among the matches of the part before it, at most 2,000, found by a
+check of each match, which takes 0.26 s for 100,000 files), and adds, for each name,
 3 microseconds and `length^stars` times 0.5 ns for 2 `*` or 0.08 ns for 3 `*`. These constants are
 25 to 100 % more than the times measured at load 12. A command whose sum passes 250 ms, which took
 under 500 ms at load 30, is denied, and so is a part with 3 `*` whose folders have more than

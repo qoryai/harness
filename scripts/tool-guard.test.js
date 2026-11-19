@@ -3127,3 +3127,64 @@ test('a glob with 2 or more `*` is denied when the names it scans would take too
   // The global limit holds with a hit: .reports is found before a glob at the limits.
   assert.match(shell('ls .rep*/x.json', path.join(work, 'art')), /\nThe glob \.rep\*\/x\.json matches/);
 });
+
+test('a part scans the folders that the part before it matches, also when 2,100 files sort before them', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  // 2,100 empty files a00000 to a02099 and 100 folders z000 to z099, each with 120 files whose
+  // names have 254 characters: fs.globSync('*/*a*a*c') takes 15 s here, and the first 2,001
+  // matches of `*` are all files.
+  const hide = next('hide');
+  fs.mkdirSync(path.join(hide, 'art', '.reports'), { recursive: true });
+  for (let n = 0; n < 2100; n += 1) {
+    fs.writeFileSync(path.join(hide, `a${String(n).padStart(5, '0')}`), '');
+  }
+  for (let n = 0; n < 100; n += 1) {
+    const folder = path.join(hide, `z${String(n).padStart(3, '0')}`);
+    fs.mkdirSync(folder);
+    for (let at = 0; at < 120; at += 1) {
+      fs.writeFileSync(path.join(folder, `${'a'.repeat(249)}${String(1000 + at)}`), '');
+    }
+  }
+  const other = path.join(path.dirname(hide), `${path.basename(hide)}-other`);
+  fs.mkdirSync(other);
+  const home = harnessHome();
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 1000, `${ms} ms: ${command}`);
+    return reason;
+  };
+  const narrow = /\nUse a narrower glob: the part \S+ of a glob of the command has \d \*, and /;
+  const forge = (glob) => `ls ${glob}; echo forged > art/.rep*/x.json`;
+  for (const glob of ['*/*a*a*c', './*/*a*a*c', '?*/*a*a*c', '[a-z]*/*a*a*c', '*/*a*c', 'z*/*a*a*c']) {
+    const command = forge(glob);
+    assert.match(shell(command, hide), narrow, glob);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      const ran = adapter(home, runtime, 'shell', command, hide, 3000);
+      assert.equal(ran.killed, false, `${runtime}: ${glob} ran past 3 s`);
+      assert.equal(ran.denied, true, `${runtime}: ${glob}`);
+    }
+  }
+  // The folder may be reached from another working folder.
+  assert.match(shell(forge(`../${path.basename(hide)}/*/*a*a*c`), other), narrow);
+  // More than 2,000 folders under one part are denied, with the same text.
+  const wide = next('wide');
+  fs.mkdirSync(wide);
+  for (let n = 0; n < 2001; n += 1) fs.mkdirSync(path.join(wide, `d${String(n).padStart(4, '0')}`));
+  assert.match(shell('ls */*a*c', wide), /\nUse a narrower glob: .* it scans more than 2,000 folders\.$/);
+  // 2,100 files and a few small folders: the same globs pass.
+  const small = next('small');
+  fs.mkdirSync(small);
+  for (let n = 0; n < 2100; n += 1) fs.writeFileSync(path.join(small, `a${String(n).padStart(5, '0')}`), '');
+  for (const folder of ['z000', 'z001', 'z002']) {
+    fs.mkdirSync(path.join(small, folder));
+    for (const name of ['abc.txt', 'a-b-c.md', 'notes.md']) {
+      fs.writeFileSync(path.join(small, folder, name), '');
+    }
+  }
+  for (const glob of ['*/*a*c', '*/*a*a*c', 'z*/*a*c', './*/*a*c']) {
+    assert.equal(shell(`ls ${glob}`, small), null, glob);
+    assert.equal(adapter(home, 'copilot', 'shell', `ls ${glob}`, small, 3000).denied, false, glob);
+  }
+});

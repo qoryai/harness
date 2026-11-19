@@ -1401,7 +1401,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   for each name and, for each name, `length^stars` times 0.5 ns for 2 `*` or 0.08 ns for 3 `*`,
   which is 25 to 100 % more than the measured times. A command whose sum passes 250 ms is denied
   with "Use a narrower glob:" on the second line, and so is a part with 3 `*` in a folder of
-  more than 20,000 names. The deny of the 12,000 names takes 10 to 141 ms. A part with 1 `*`
+  more than 20,000 names. The deny of the 12,000 names takes 10 to 141 ms. The folders that a part scans are
+  all the folders among the matches of the part before it: the guard took the first 2,001 matches and then dropped the
+  files, so 2,100 files that sort before 100 folders (`a00000` to `a02099` and `z000` to `z099`,
+  each folder with 120 names of 254 characters) hid every folder, and `*/*a*a*c` took 15.4 s.
+  The check of each match costs 0.26 s for 100,000 files at load 25, and a part over 2,000
+  folders is denied with "Use a narrower glob:". A part with 1 `*`
   is not limited: `*`, `.r*`, `*/*.json` and `a*b*c` pass in 50,000 files, and `*`, `a*` and
   `*.json` in the 12,000 long names. A part with a `/` inside braces and 2 or more `*` is denied.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
