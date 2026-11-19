@@ -56,7 +56,7 @@ part of a version.
 
 ## Check list
 
-- Each screen that the newest spec names as `Mockup screen:` has at least one page, and
+- Each screen that the newest spec lists as `Mockup screen:` has at least one page, and
   each state that the spec states has a screen.
 - Each page lists the `ac-N` it shows in `data-criteria`, and each criterion that a person
   sees on a screen is on that screen.

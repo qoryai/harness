@@ -59,7 +59,8 @@ is in a frozen or pushed commit, report to a member: a reset drops the commit th
 ledger records, and a push that qory made makes the next push fail. A revert commit does not
 help, because the path stays in the commits since the base. An uncommitted one gets "Undo
 the change to "<path>"". `fix:f<N>` and `--plan` judge every path against the Files of every
-deliverable.
+deliverable. `checks` judges every path against the Files of each deliverable whose Check is
+the path of a test file.
 
 If the run started with no build plan, its folder lists none. Then `scope` and `freeze`
 count every changed path as outside, and exit 1 with "Push a build plan before you change
@@ -78,12 +79,13 @@ The script runs git with replace objects (`--no-replace-objects`), grafts
 (`GIT_GRAFT_FILE=/dev/null`) and the commit graph (`core.commitGraph=false`) off, so a
 replace ref, a graft or a commit graph file changes nothing that the verbs read.
 
-`<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>` or
-`fix:f<N>`. `<commit>` is a full commit id, 40 or 64 lower-case hexadecimal digits. Each
-verb prints each finding as a line with its fix, at times with a second line with the
-reason, then one line that states what it did. It exits with 0 when the check passed, with 1
-when it is red or found something, with 2 for wrong arguments, and with 3 when an input is
-missing, such as a build plan that the session did not pull. `probe` also exits with 4, in
+`<step>` is the id of a step of the build ledger that changes files: `deliverable:d-<N>`,
+`fix:f<N>` or `checks`, the step that writes the acceptance checks. `<commit>` is a full
+commit id, 40 or 64 lower-case hexadecimal digits. Each verb prints each finding as a line
+with its fix, at times with a second line with the reason, then one line that states what it
+did. It exits with 0 when the check passed, with 1 when it is red or found something, with 2
+for wrong arguments, and with 3 when an input is missing, such as a build plan that the
+session did not pull. `probe` also exits with 4, in
 the section "Diff and probe".
 
 ## When each check runs

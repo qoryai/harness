@@ -156,8 +156,35 @@ guard. When a report passes, `checks.cjs report` adds a mark to the agent's list
 record. The agent lists the name of each role note under `Role notes read:` in its report.
 `checks.cjs report` fails a report that lacks the name of a role note of any start of that
 agent in the run since its last passed report, or whose notes file of such a start changed,
-and so do `findings` and `end --offline`. So a start without `--files`, which has no role
+and so does `end --offline`. So a start without `--files`, which has no role
 note, takes no role note away from an earlier start. A blocked report needs no list.
+
+### The review of a change
+
+In a stage with reviewers, the writing session of the stage starts no reviewer. It records
+its change and ends, and qory runs the round of review afterwards: each reviewer is a
+separate session, with the tools Read, Grep, Glob, Skill and Write, no shell and no network.
+The values of the round are in the member `qory.review` of the `inputs.json` that qory
+writes: `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`,
+the path where the reviewer writes its report. The skill `reviewing-changes` of `core` lists
+the report: one JSON file with a `reviewer` and a list of findings, each with a `severity`
+of `blocking` or `non-blocking`, `quote`, `problem`, `fix`, `proof`, `point`, and `file`,
+`line` and `id` when they apply. The report has no result word and no list of unverified
+claims, and nobody closes a finding. The skill `judging-findings` of `software-factory`
+defines `blocking` and lists the values of `qory.review`: `core` cannot contain those words, as
+rule 11 of `scripts/check.sh` lists. A reviewer that cannot finish stops and writes no
+file. qory reads the report against its schema; the harness checks no report of a change
+with a verb. The test of the example report in `reviewing-changes` uses
+`scripts/testdata/review-report.schema.json`, the fixture of that schema. After a round with
+a `blocking` finding, the next session of the stage reads `open-findings.json`, which
+`checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
+workflows" lists. qory writes `qory.review`, `qory.stage` and `open-findings.json`; this
+harness only reads them. The tool guard denies a write to a report path below `.git` or
+`.claude` of the working folder. When the harness home is below the working folder, the deny
+of a write below the harness home applies to the report path too, so the report folder must
+be outside the home; when the home is outside the working folder, the report path may be in
+it. A Codex reviewer writes its report with an `apply_patch` that adds that one file, as the
+bullet "a write from the main session outside the artifact folder" lists.
 
 ## Agents
 
@@ -215,13 +242,22 @@ An agent that the table does not list sets no `model` key.
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
   `scenario-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
-  and WebSearch. A subagent keeps the session's `dontAsk` mode and allow rules:
-  `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and `dontAsk` denies
-  them elsewhere. Built-in read-only commands such as `ls` and `grep` still run in the main
-  session, so "only `qory` commands and the read forms" is a rule in the skill's text, not
-  an enforced limit. On Claude Code's native build, a `tools` key that lists Bash removes
-  Grep and Glob, so an exception for Bash also drops those two tools or states how the agent
-  searches. Copilot keeps the key, untested.
+  and WebSearch. A reviewer of a change, such as `code-reviewer`, which qory starts as the
+  main agent of a separate session, lists Write beside the four read tools and writes at one
+  path, its report: the body has the line `Tool exception: Write, because it writes the one
+  report file of a review round.` The tool guard denies each other write of that session,
+  and each write of an agent of that session. For an agent whose type ends in `-reviewer` it
+  denies the write tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `apply_patch`) in
+  any session. Outside a reviewer session the guard does not apply the read-only shell rule
+  of a reviewer session to that agent; its shell is limited only by the other rules of the
+  guard. The name in the front matter of an agent that lists Write equals its file name
+  without `.md`, because the guard reads that name. A subagent keeps the session's `dontAsk`
+  mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that
+  folder, and `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and
+  `grep` still run in the main session, so "only `qory` commands and the read forms" is a
+  rule in the skill's text, not an enforced limit. On Claude Code's native build, a `tools`
+  key that lists Bash removes Grep and Glob, so an exception for Bash also drops those two
+  tools or states how the agent searches. Copilot keeps the key, untested.
 - On Codex, the `tools` key only turns the shell off: at qory `0e02282`, the compose writes
   `name`, `description` and `developer_instructions` into an agent's file, and
   `shell_tool = false` under `[features]` when the key lists neither `Bash` nor `PowerShell`
@@ -242,11 +278,11 @@ An agent that the table does not list sets no `model` key.
   keep their exclusion.
 - `modules/core/settings/claude/settings.json` denies Edit of `.reports/**/*.json` under
   `/tmp/qory-artifacts` and `./.qory/artifacts`, and Edit of `.reports/*.json.lock*` there,
-  the locks of `checks.cjs findings` and `checks.cjs starts` and their `.break` files, so
-  that no agent makes a lock that makes `findings` or `starts` wait and exit 3. An Edit rule
+  the locks of `checks.cjs starts` and `checks.cjs report` and their `.break` files, so
+  that no agent makes a lock that makes `starts` or `report` wait and exit 3. An Edit rule
   covers the Write tool and shell redirects too, so an agent cannot change the counts of
-  `starts`, the results of `report`, the count of `end` or the findings of a change in
-  `findings.json`. `checks.cjs` writes them itself, which no Edit rule covers. The reports,
+  `starts`, the results of `report` or the count of `end`. `checks.cjs` writes them itself,
+  which no Edit rule covers. The reports,
   `.md`, and `points.json` stay writable.
 - The same file of `core` sets `disableAllHooks` to `false`, so that a user's settings file
   cannot switch off the hooks, the `Stop` hook of the end check among them.
@@ -725,8 +761,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `- spec.md`, do not count. A path item is `- ` and a path of 1 to 255 characters with no
   space. The first other line, a longer path item too, ends the list, and it and every line
   after it count. A longer report is a finding, a `blocked` report too, and the first line
-  of the finding states the limit in both units. `findings` and `end --offline` check
-  reports with the same rule. A report above 256 KB gets only the finding on its size. The
+  of the finding states the limit in both units. `end --offline` checks reports with the
+  same rule. A report above 256 KB gets only the finding on its size. The
   session passes the limit to each agent at each start.
   The script reads the words, lists and lines from `## Expected output` of
   `<plugin>/agents/<agent>.md`, or from the section of a skill that it names, such as "The
@@ -736,8 +772,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   module. A missing agent file exits 3. The script adds each result, with the report's
   SHA-256, to `.reports/results.json`, except a check of the same bytes as the same file's
   newest entry, as the same agent, so a check run again counts no fix. It reads and writes
-  the file under the lock `.reports/results.json.lock`, which it takes as `findings` takes
-  its lock, so that reports checked at once lose no entry. When the lock still exists after
+  the file under the lock `.reports/results.json.lock`, which it takes as `starts` takes its
+  lock, so that reports checked at once lose no entry. When the lock still exists after
   10 s, it exits 3, and the first line is the fix: report to a member. With a finding,
   its last line ends with "fix 1 of 2." or "fix 2 of 2.", and the session starts the agent
   again to fix only its report. That start does not count toward the agent's start limit.
@@ -750,10 +786,19 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `.reports/starts.json`, so no count carries over to the next run and a lost session in a
   run loses no start. It exits with 1 when the next start would pass the limit, and with 3
   when a count in the file is not a whole number of 0 or more. It reads and writes the file
-  under the lock `.reports/starts.json.lock`, which it takes as `findings` takes its lock,
-  so that starts at once in several processes count each start once. When the lock still
-  exists after 10 s, it exits 3, and the first line is the fix: report to a member. The
-  second line contains the path of the lock.
+  under the lock `.reports/starts.json.lock`, so that starts at once in several processes
+  count each start once. It makes the lock with the flag `wx` and writes its process id into
+  it before it reads the file, tries again every 20 ms for up to 10 s, and removes the lock
+  at the end. A stale lock is removed, and the call tries again: a lock whose process no
+  longer runs, as after a kill, or an empty lock older than 5 s, of a call that was killed
+  before it wrote its id. Only the call that made the file `starts.json.lock.break` with the
+  flag `wx` removes such a lock, after it reads the lock again and finds it still stale in
+  the same way: the same process id, or still empty with a file time older than 5 s. So no
+  call removes the new lock of another call, unless two calls both remove the break file of
+  a killed call. A break file older than 5 s counts as left by a killed call and is removed.
+  When a lock of a live process, a newer empty lock or a lock with other text still exists
+  after 10 s, it exits 3, and the first line is the fix: report to a member. The second line
+  contains the path of the lock.
 - `checks.cjs begin`: a session with no `run.id` runs it once, before its first `starts`.
   That is a session outside a run, or a run whose `qory work-item show` failed. It makes a
   new key from the time and 4 random bytes, such as `local-20261107093000-9f2c4e1a`,
@@ -762,12 +807,6 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   exists: `/tmp/qory-artifacts` in a run, else `.qory/artifacts`. `run.id` is the same on
   every run outside a run, and the session has no clock command, so the script makes the
   key. A lost session runs `begin` again, so its counts start from 0 again.
-- `checks.cjs starts <run> <reviewer> --subject <subject>`: the session runs it before each
-  start of a reviewer on a subject in a workflow's skill, such as `change`. It
-  allows 3 starts of one reviewer on one subject in a run, and counts them under
-  `<subject>/<agent>` in `.reports/starts.json`. `<reviewer>` may have the prefix of the
-  runtime, such as `harness:code-reviewer`; the count leaves it out, so `end` prints a
-  finding when `code-reviewer` has no report. It exits with 1 at the fourth start.
 - `checks.cjs panel --names <names> --files <file> [--group <group>] [--after <count>]`: the
   session runs it before it starts the members of a group role, `reviewers` when `--group`
   is left out. It reads the group's rows from `$QORY_HARNESS_HOME/roles.json`, which qory
@@ -785,7 +824,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `--after` is 0 or left out, the output also has a `Skip:` line for each member with no
   path of the change. It exits with 1 when the disk has room for no member, and its first
   line is the fix: start no member, and end the run as "Failures" of `running-a-workflow`
-  lists. It writes no file.
+  lists. It writes no file. No skill of the harness has a step that runs it.
 - `checks.cjs fixes`: the session of a run alone runs it once, after a `qory work-item show`
   that exited with 0. It runs `work-item show` again and reads `verdict`, the work item's
   newest verdict, which can come from an earlier run or stage. The verdict counts only when
@@ -802,62 +841,32 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   string or a `points` value other than a list or null gives exit 3. An absent `verdict`
   counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
-- `checks.cjs findings add <round> <agent> <file>`,
-  `checks.cjs findings close <agent> <file>` and `checks.cjs findings show`: the record of
-  the findings of the review of a change, in `.reports/findings.json` of the artifact
-  folder, where only `checks.cjs` writes. A reviewer of a change reports by
-  `reviewing-changes`: each finding has Quote, Problem, Fix and Point, as in
-  `reviewing-drafts`, and in place of Marks a `Proof:` line and a `Severity:` line,
-  `break` or `no break`. A proof is one line of at most 1,000 characters: its form, a
-  colon, whitespace, and steps with at least one letter or digit. The forms are
-  `failing check`, `planted fault` (a fault planted in a copy of the work, which the
-  checks miss), `failing input`, and, only for `no break`, `broken rule`. For an agent
-  whose report shape has a `Proof:` line, `report` refuses a finding with no proof, with a
-  proof of no form, with no severity or with a `Marks:` line, a break whose proof is a
-  broken rule, and the last word `changes-needed` with no finding and no earlier finding
-  that is open again. `add` runs on such a report of round `<round>`, 1 to 99, the newest
-  round of `findings.json` or the next. It gives each finding the next id, `f1`, `f2` and
-  on, and records its round, reviewer, proof, severity, `Point:` line, text and the state
-  `open`. It records nothing and exits 1 when `report` would find something, for a
-  judgement of a finding that is not closed, for a finding judged twice in the report, for
-  a round out of that range, for a second report of the agent in the round, and for a
-  report whose sha256 an entry of `reports` has under another file name or of another
-  agent, unless the report adds no finding and judges no closure: a clean copy changes
-  nothing, so `add` records it. The same report again, with the same file name, agent,
-  bytes and round, records nothing and exits 0, so that a call repeated after a crash
-  passes; for another round, `add` refuses it. `close` runs on the report of the agent
-  that fixed findings: each item `- <id>: <closing proof>` of its list "Closed:" closes an
-  open finding. The closing proof starts with the form that pairs with the proof's form:
-  `passing check`, `caught fault`, `passing input` or `kept rule`. A closed finding has
-  `closure` with that proof, its round and its agent, and `closure.held` set to null. With
-  an item that breaks a rule, `close` closes nothing and exits 1, and the same report
-  bytes recorded once close nothing. In a later round, each reviewer gets the path of
-  `findings.json`, with the earlier findings and their closures. Under "Earlier findings:"
-  it writes `- <id>: holds: <closing proof>` or `- <id>: open: <proof>` for each closed
-  finding that it made and that no review judged; `add` refuses its report when one is
-  missing. The closing proof of `holds` starts with the form that pairs with the finding's
-  proof. `holds` sets `closure.held` to the round, the reviewer and that closing proof.
-  For a break, only a `holds` of the reviewer that made the finding sets it; the `holds`
-  of another reviewer goes into `history` alone, and the last line of `add` counts it
-  apart from the closures that hold. `open` sets the state back to `open` with the new
-  proof, which for a break is no broken rule. `- <id>: open: break: <proof>` raises a
-  `no break` finding to `break`, and no item lowers a severity. Each event adds an entry
-  to the finding's `history`. `add` and `close` make `.reports/findings.json.lock` with
-  the flag `wx` and write their process id into it before they read the record, try again
-  every 20 ms for up to 10 s, and remove the lock at the end. A stale lock is removed, and
-  the call tries again: a lock whose process no longer runs, as after a kill, or an empty
-  lock older than 5 s, of a call that was killed before it wrote its id. Only the call that
-  made the file `findings.json.lock.break` with the flag `wx` removes such a lock, after it
-  reads the lock again and finds it still stale in the same way: the same process id, or
-  still empty with a file time older than 5 s. So no call removes the new lock of another
-  call, unless two calls both remove the break file of a killed call. A break file older
-  than 5 s counts as left by a killed call and is removed. When a lock of a live process, a
-  newer empty lock or a lock with other text still exists after 10 s, they exit 3, and the
-  first line is the fix: report to a member, with the path of the lock on line 2. `show`
-  prints "Start <agent> again to judge the closure of f1." for each reviewer with a closure
-  that no review judged. It exits 1 while a finding with the severity `break` is open, or
-  closed with `closure.held` set to null, else 0: only a break finding starts another
-  round. A `findings.json` in another form exits 3.
+- `checks.cjs findings open <file>`: the session of a stage with reviewers runs it at its
+  start, on `open-findings.json` in its inputs folder. qory writes that file, read-only,
+  from the findings of the latest round of review, `blocking` and `non-blocking`: `{"round":
+  <n>, "reviewers": [{"reviewer": "<name>", "findings": [...]}]}`. A finding has `id`,
+  `severity` (`blocking` or `non-blocking`) and `point`, and `quote`, `problem`, `fix`,
+  `proof`, `file` and `line` as the reviewer wrote them. The verb prints `Fix first: <id>
+  (<severity>[, <file>[:<line>]]): <point>` for each finding, the `blocking` ones first and
+  then in the order of the file, with the point cut at 500 characters and without control,
+  refused or hidden characters (the Unicode classes Default_Ignorable_Code_Point and Cf,
+  which include the tag characters, the joiners, the variation selectors, the Hangul
+  fillers, the soft hyphen and the format characters of several scripts, and also the object
+  replacement character and a lone surrogate), then one line on what it checked, and exits
+  with 1 while it prints a finding. With more than 200 findings it prints 200 and the line
+  `Fix first: <n> more findings in <file>`. It exits with 0 when the file has no finding,
+  and when the file does not exist, with the line `no open findings file at <path>` on
+  stderr, so that a mistyped path shows. It exits with 3 when the file is a link or a
+  folder, or has another form: a missing or non-integer `round`, a missing `reviewers` or
+  `findings` list, a reviewer name that is not lower-case letters, digits and hyphens, an
+  `id` that is not `f<number>`, another severity, a member that is not text, or a `line`
+  below 1. A regular file over 256 KB is read up to 256 KB, never whole: when its JSON ends
+  inside that part, the verb exits with 3 and the first line is the fix: open the file with
+  Read. It reads the file and writes nothing. It prints each path whole, without the
+  80-character cut of other messages, and the first line of a fault is plain text. The
+  report that a reviewer writes is a JSON file that qory's report schema checks, so no verb
+  of this script reads it, and `report`, `starts`, `end` and `findings` have no check for
+  the reviewers of a change.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -973,24 +982,31 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   and a passing check sets the count to 0. An `end.json` that cannot be read, or whose
   count is not a whole number of 0 or more, counts as the last check. At the third, it
   writes `points.json`, runs `run verdict escalate --points <folder>/points.json`, and
-  exits 0. It writes one point `run_again` for each kind of problem. Each point is one
-  sentence: what failed, why, and another round as the step, with each agent in plain
-  words and no step for the session,
-  such as "The draft of the spec breaks 2 format rules, which the output of the run on the
-  Run page lists, and another round starts the writer of the spec again to fix them." A
-  point on reports names each agent of its kind, the first 5 by name and the others counted,
-  such as "The decision reviewer and the questions reviewer returned no reports, so the run
-  has none of their work, and another round starts them again." When `points.json`
-  exists, `end` keeps each of its points that passes the check of a point, and adds its
-  points after them. With more than 20 in all, it keeps 19, the `answer` points first, each
-  group in its order, and adds one point with the count left out, such as "The run left out
-  2 more points, which its output on the Run page lists, and another round starts the
-  workflow again to fix them."
-  Its output starts with a finding per point left out: the line `Fix the problem of the
-  point on the next line, which points.json left out.`, then the text of the point, cut to
-  200 characters as each line. `end --offline` cuts its points the same way. These
-  commands use `/qory/qory`,
-  or `qory` from `PATH` when `/qory/qory` does not exist.
+  exits 0. In a stage with reviewers, `end` runs no `run verdict` command, at the third
+  check and for a `points.json` that ended the run, and keeps every status and file: qory
+  sends the verdict, and its push check fails a verdict command from inside the
+  container. The stage has reviewers when `qory.stage.reviewers`, in the `inputs.json` that
+  `--inputs` takes, is `true` or the name of a group role: lower-case letters, digits and
+  hyphens, and not `false`, `no`, `null`, `off`, `none` or `0`. The file must be a regular
+  file of at most 1 MB, the same test as the tool guard makes, and no link. The hook passes
+  the copy that qory writes at `$QORY_HARNESS_HOME/inputs.json`, not the `index.json` of the
+  artifact folder, which an agent can write. With no `--inputs`, a file that cannot be read
+  or another value, the stage has none and `end` runs the command. It writes one point `run_again` for each kind of problem. Each point is
+  one sentence: what failed, why, and another round as the step, with each agent in plain
+  words and no step for the session, such as "The draft of the spec breaks 2 format rules,
+  which the output of the run on the Run page lists, and another round starts the writer of
+  the spec again to fix them." A point on reports lists each agent of its kind, the first 5
+  by name and the others counted, such as "The decision reviewer and the questions reviewer
+  returned no reports, so the run has none of their work, and another round starts them
+  again." When `points.json` exists, `end` keeps each of its points that passes the check of
+  a point, and adds its points after them. With more than 20 in all, it keeps 19, the
+  `answer` points first, each group in its order, and adds one point with the count left
+  out, such as "The run left out 2 more points, which its output on the Run page lists, and
+  another round starts the workflow again to fix them." Its output starts with a finding per
+  point left out: the line `Fix the problem of the point on the next line, which points.json
+  left out.`, then the text of the point, cut to 200 characters as each line. `end
+  --offline` cuts its points the same way. These commands use `/qory/qory`, or `qory` from
+  `PATH` when `/qory/qory` does not exist.
 - `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
@@ -1101,29 +1117,27 @@ headless `opencode run` going, and Amp and Goose render no hooks, so these runti
 with no check.
 
 Only `checks.cjs` writes the `.json` files under `.reports/`, the locks
-`.reports/findings.json.lock`, `.reports/starts.json.lock` and `.reports/results.json.lock`,
-and their `.break` files. On Claude Code, the settings deny `Edit` of
-`//tmp/qory-artifacts/.reports/**/*.json`, `/.qory/artifacts/...` and
-`./.qory/artifacts/...`, and of `.reports/*.json.lock*` under the same three folders. A
-rule that starts with `/` is relative to its settings source: for the project's
-`.claude/settings.json` and for the settings that qory passes inline in a run, that is the
-folder where the session started; a `./` rule is relative to the current folder
+`.reports/starts.json.lock` and `.reports/results.json.lock`, and their `.break` files. On
+Claude Code, the settings deny `Edit` of `//tmp/qory-artifacts/.reports/**/*.json`,
+`/.qory/artifacts/...` and `./.qory/artifacts/...`, and of `.reports/*.json.lock*` under the
+same three folders. A rule that starts with `/` is relative to its settings source: for the
+project's `.claude/settings.json` and for the settings that qory passes inline in a run,
+that is the folder where the session started; a `./` rule is relative to the current folder
 ([permissions](https://code.claude.com/docs/en/permissions)). Those rules cover no shell
 command, so on Claude Code and on Codex the tool guard, `tool-guard.cjs`, runs
 `reports-guard.cjs` for each `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `apply_patch` and
 shell call, with the same rules and deny texts, except that a shell command whose simple
-commands are each a read-only command with the options of its list in `READ_ONLY`, and
-write no file, reads `.reports/` and passes, as in `ls .reports` or
-`tail .reports/runs/<n>.log`. It reads a shell command without the body
-of a here-document that it reads as text, as `cat > notes.md <<'EOF'`, and checks the
-files of a patch that the shell call runs, as `apply_patch <<'EOF'`, as those of
-`apply_patch`. On every runtime, `reports-guard.cjs` also reads each path of a write as the
-disk resolves it from the working folder of the call, with each `..` and each link: it denies
-`.reports/a b/../end.json` whether or not the folder `.reports/a b/` exists, and a path through
-more than 40 links or a link loop, with the first line "Remove the link loop from the path." It matches `.reports`,
-`.json` and `.lock` as a disk that ignores case does, so U+017F (long s) reads as `s` and
-U+212A (Kelvin sign) as `k`: `.reportſ/end.json` is `.reports/end.json`. The tool guard does
-not run `fs.globSync`,
+commands are each a read-only command with the options of its list in `READ_ONLY`, and write
+no file, reads `.reports/` and passes, as in `ls .reports` or `tail .reports/runs/<n>.log`.
+It reads a shell command without the body of a here-document that it reads as text, as `cat
+> notes.md <<'EOF'`, and checks the files of a patch that the shell call runs, as
+`apply_patch <<'EOF'`, as those of `apply_patch`. On every runtime, `reports-guard.cjs` also
+reads each path of a write as the disk resolves it from the working folder of the call, with
+each `..` and each link: it denies `.reports/a b/../end.json` whether or not the folder
+`.reports/a b/` exists, and a path through more than 40 links or a link loop, with the first
+line "Remove the link loop from the path." It matches `.reports`, `.json` and `.lock` as a disk
+that ignores case does, so U+017F (long s) reads as `s` and U+212A (Kelvin sign) as `k`:
+`.reportſ/end.json` is `.reports/end.json`. The tool guard does not run `fs.globSync`,
 which has no limit on its work: it reads a word after brace expansion, and a word with a
 wildcard reaches `.reports` when it can match the `.reports` folder of the artifact folder,
 or of `.qory/artifacts/`, or a path below it. On the other three runtimes,
@@ -1311,9 +1325,153 @@ tool's error. The first line of each reason starts with what to do. The guard de
   be read, the guard denies each write below the working folder, with the reason of the
   reader.
 - a write from the main session outside the artifact folder. On Claude Code and on Codex,
-  the input of a call from an agent has `agent_id` and `agent_type`, and the input of a
-  call from the main session has neither. The main session writes `points.json` and the
-  other files of the artifact folder.
+  the input of a call from an agent has `agent_id` and `agent_type`, and the input of a call
+  from the main session has neither. The main session writes `points.json` and the other
+  files of the artifact folder, except in a session of a reviewer of a change: when the
+  `inputs.json` that qory writes at `$QORY_HARNESS_HOME`, a regular file of at most 1 MB,
+  has the member `qory.review`, the main session writes at one path, `qory.review.report`,
+  with a `Write` or an `apply_patch` that adds that one file (the accepted forms follow),
+  and no other file, the artifact folder included. It may write that path again, which
+  overwrites the file. A `qory.review.report` that is no report path, so that the session
+  writes no file, is one that is not absolute, has a `.` or `..` part, a double or trailing
+  slash or a NUL, or has more than 4096 characters. The path also counts only when it is
+  read through the links of the folders above it with no `..` after a folder that does not
+  exist, when no link, folder or file with more than one link is at the path, and when it
+  lies neither below `.git` nor below `.claude` of the working folder. The compare ignores
+  case on a disk that ignores case. The guard denies the write tools (`Write`, `Edit`,
+  `MultiEdit`, `NotebookEdit` and `apply_patch`) of an agent, the report path included, when
+  its type ends in `-reviewer`, in any session, and when it runs in a session of a reviewer,
+  whatever its type: only the main session of a reviewer writes the report. Outside a
+  reviewer session the guard does not apply the read-only shell rule of a reviewer session
+  to a `-reviewer` agent; its shell is limited only by the other rules of the guard. An
+  agent of any other type in a session that is no reviewer's writes as it does outside a
+  review. The main session of a reviewer starts no agent (`Agent`, `Task` and `spawn_agent`,
+  also for an agent of that session). In a reviewer session, the main session and each agent
+  deny by default. They may use only: the tools `Read`, `Grep`, `Glob` and `Skill`; the
+  planning tools `TodoWrite` and `update_plan`, which change no file and run no program; the
+  one report write; on Codex, the three tools of the qory review server,
+  `mcp__qory_review__read_file`, `mcp__qory_review__list_directory` and
+  `mcp__qory_review__search_in_files`, by these exact names; and a shell that only reads.
+  The guard denies each other tool, such as `Edit`, `MultiEdit`, `NotebookEdit`, `WebFetch`,
+  `WebSearch`, `LS`, `NotebookRead`, `ExitPlanMode`, each other `mcp__*` name, each `mcp__*`
+  name on Claude Code, `exec_command`, `shell` and a tool name that it does not know. In a
+  session that is no reviewer's, the guard allows an unknown tool name and each `mcp__*`
+  name. The three names are the constants `REVIEW_MCP_PREFIX` and `REVIEW_MCP_TOOLS` in
+  `tool-guard.cjs`. They follow the source of Codex rust-v0.169.0, where `tool_name` is
+  `mcp__`, the server id and the tool name joined by `__`, with each character outside
+  `A-Za-z0-9_` replaced by `_`. They were not run against Codex 0.169.0. A deny is two or
+  more lines: the first is the fix, and for a shell command the second is `Refused: ` and
+  the word or command that the guard refused. The shell reaches the guard as `Bash`, also on
+  Codex. It is allowed when the command is plain words: commands that `|`, `||`, `&&`, `;`
+  or a line feed separate, each one from the options list in this paragraph, with only the
+  options that the list gives for it. A word that starts with `-` and is not in the list is
+  denied at any place: in a cluster such as `-nO`, after `--` and as the value of an option.
+  A command with no word, as an empty one, runs nothing and is allowed. The options, by
+  command (a letter is a short option; a long option with `=` takes a value after `=` or as
+  the next word): `cat` `-n -b -s -A -E -T -v`; `head` `-q -v`, `-<number>`, `-n <number>`
+  and `-c <number>`; `tail` the same, and a word that starts with `+` is denied, as are
+  `-f`, `-F`, `--follow`, `--pid` and `--retry`; `ls` `-l -a -A -1 -R -h -d -t -r -S -F -p`;
+  `wc` `-l -w -c -m`; `grep` `-n -i -v -w -x -F -E -r -R -l -L -c -o -H -h -s`, `-e`, `-A`,
+  `-B` and `-C` with a value, and `--include=` and `--exclude=`; `rg` `-i -n -N -S -s -F -w
+  -x -c -l -o -v -H -I -q`, `-e -g -t -T -m -A -B -C` with a value, the long options
+  `--files`, `--hidden`, `--no-ignore`, `--files-with-matches`, `--count`, `--line-number`,
+  `--no-line-number`, `--ignore-case`, `--smart-case`, `--case-sensitive`,
+  `--fixed-strings`, `--word-regexp`, `--invert-match`, `--only-matching`, `--no-heading`
+  and `--heading`, and with a value `--glob`, `--type`, `--type-not`, `--max-count`,
+  `--max-depth`, `--context`, `--after-context`, `--before-context` and `--regexp`; `rg`
+  denies `--pre`, `--pre-glob`, `--hostname-bin`, `-z`, `--search-zip`, `--config` and `-L`,
+  which in `rg` follows links (`-L` of `grep` is `--files-without-match`, which is allowed);
+  `find` only the primaries `-name -iname -path -ipath -type -maxdepth -mindepth -newer
+  -regex` with a value, `-size -mtime -mmin` with a number, and `-print -print0 -prune
+  -empty -not -o -a`, so `-exec`, `-execdir`, `-ok`, `-okdir`, `-delete`, `-fprint`,
+  `-fprint0`, `-fprintf`, `-fls`, `-rm`, `-exit`, `-quit`, `-limit` and `-files0-from` are
+  denied; `pwd` `-L -P`; `sort` `-u -r -n -f -k <value> -t <value>`, so `-o`, `--output`,
+  `-T`, `-S`, `-c`, `--compress-program`, `--random-source` and `--files0-from` are denied;
+  `cut` `-s -f -d -c -b`; `diff` `-u -r -q -w -b`, so `-l`, `--paginate`, `-D`, `-y`,
+  `--to-file`, `--from-file` and `-` are denied, and so is `/`, a path under `/dev`, `/proc`
+  or `/sys` (in any case, also through a link), and a file that is neither a regular file
+  nor a folder, such as a device or a pipe: BSD `diff` copies it to a temporary file without
+  a limit. The rule covers each operand and, when one operand is a folder and the other a
+  file, the file of that name inside the folder, which `diff` opens. `/dev/null` is among
+  these files, so a reviewer names the file itself and not `/dev/null`. The guard reads the
+  operand when it decides, and the file can change before `diff` opens it. An option as the
+  start of a long name, as `--out`, is denied. `uniq` is denied: use `sort -u`. `git` is
+  allowed only when the working folder, or a folder above it, has a `.git` folder or file
+  (the guard looks for the name and runs no `git`); in a folder with no `.git`, `git` is
+  denied like any unknown command, and the fixed text of the deny does not contain `git`.
+  The subcommand follows `git` with no option before it, and `git` takes these options: `git
+  diff` `-w -b -p`, `-U <number>`, `--stat`, `--name-only`, `--name-status`, `--shortstat`,
+  `--numstat`, `--no-color`, `--cached`, `--staged`, `--exit-code`, `--quiet` and
+  `--diff-filter=<value>`; `git show` `-w -s -p`, `-U <number>`, `--stat`, `--name-only`,
+  `--name-status`, `--shortstat`, `--numstat`, `--no-color`, `--oneline`, `--no-patch`,
+  `--format=<value>` and `--pretty=<value>`; `git log` `-p`, `-<number>`, `-n <number>`, `-U
+  <number>`, `--stat`, `--name-only`, `--name-status`, `--shortstat`, `--numstat`,
+  `--no-color`, `--oneline`, `--graph`, `--all`, `--no-merges`, `--merges`, `--follow`,
+  `--patch`, `--reverse`, `--max-count=`, `--since=`, `--until=`, `--author=`, `--grep=`,
+  `--diff-filter=`, `--format=`, `--pretty=` and `--skip=`; `git status` `-s -b --short
+  --porcelain`; `git blame` `-w -e` and `-L <range>`; `git ls-files` `-c -m -o -d --cached
+  --others --modified --deleted --exclude-standard`; `git rev-parse` `--show-toplevel
+  --abbrev-ref --is-inside-work-tree`; `git grep` `-n -i -v -w -F -E -c -l -L -o -H -h -q
+  -I`, and `-e -A -B -C` with a value. A `--format` or `--pretty` value that matches `%G`,
+  `%+G`, `%-G` or `% G` starts gpg and is denied. The guard denies each other option, such
+  as `--output`, `--ext-diff`, `--textconv`, `--no-index`, `-O`, `--open-files-in-pager`,
+  `--show-signature`, `--help` and `-h`. The guard also denies each command with a redirect
+  (`>`, `>>`, `<`, a heredoc), `$` or a backtick outside single quotes, `( )`, `{ }`, `!`,
+  `#`, a backslash, a background `&`, a `*`, `?`, `[` or `^` outside quotes (the shell
+  expands `*`, `?` and `[` to file names, also to names that start with `-`; zsh expands `^`
+  when its option `extendedglob` is set, so with a file named `-o`, `sort ^zzz` runs `sort
+  -o`, and the guard denies an unquoted `^` in every shell; a quoted one, as in `grep -n
+  '^foo' f`, is allowed), a `~` outside quotes at the start of a word or after `=` or `:`,
+  which the shell expands to a home path (a `~` inside a word, as in `HEAD~1`, stays text
+  and is allowed), a word that starts with `=` outside quotes or after an empty quote, a
+  variable setting before the command, a path in the command name, a control character, an
+  open quote or more than 20000 characters, and each other command, such as `cp`, `sed -i`,
+  `python3 -c`, `node -e`, `xargs`, `env`, `sh -c` and `eval`. Each option list in this
+  bullet is a constant in `tool-guard.cjs`: `REVIEW_OPTIONS`, `REVIEW_GIT` and the `FIND_*`
+  sets. Limits of the guard: it runs only on Claude Code and on Codex. On Cursor, Copilot
+  CLI and Gemini CLI only the `reports-guard` hooks exist, so the rule on the report path
+  does not run there, and a reviewer agent on those runtimes is not confined by it. The
+  rules of a reviewer session apply only when the runtime runs the core hooks and sets
+  `QORY_RUN_ID` and `QORY_HARNESS_HOME` in the session. (1) The git configuration of the
+  reviewed folder can start a program for a git command that is allowed: `core.fsmonitor`
+  runs on `git status`, `git diff`, `git blame`, `git ls-files` and `git grep`;
+  `diff.<driver>.textconv`, `diff.<driver>.command` and `diff.external` run for `git diff`,
+  `git log -p`, `git show` and `git blame`; a hook such as `post-index-change` runs on `git
+  status`; `core.pager` runs for `git log` when the output is a terminal. A nested `.git` at
+  a path that the index lists as a submodule can run `core.fsmonitor` from the configuration
+  of the submodule for `git status` and `git diff`. A partial clone fetches missing objects
+  over the network. `git status` writes the index file. The guard does not read the git
+  configuration. A reviewer session whose working folder is a copy with an empty git
+  configuration and no attributes file does not have these limits. (2) When `inputs.json`
+  cannot be read (it is missing, unreadable, over 1 MB, a link or not valid JSON,
+  `qory.review` is null, a list, a string or `true`, or `QORY_HARNESS_HOME` is unset or
+  relative), the guard treats the session as an ordinary session, and the rules of a
+  reviewer session do not apply. A `qory.review` of `{}` or with a bad `report` is a
+  reviewer session that writes no file. A runtime that removes the shell and network tools
+  of a reviewer from the start does not depend on the file: the guard is the second layer,
+  and it cannot add a tool that the runtime does not provide. (3) The `Skill` tool is
+  allowed, and the guard does not read the front matter of a skill, such as allowed tools
+  and hooks, or a command that a skill file contains and the session runs. The skills of
+  this harness have none. (4) Two servers whose ids give the same namespace after the
+  replacement of characters rename the tools of both, and the guard then denies them. In a
+  run with a wall, the hooks file is mounted read-only as `/etc/codex/hooks.json`, a managed
+  source that Codex registers without trust. In a run without a wall, the trusted hash of
+  the hooks file is written. `--dangerously-bypass-hook-trust` is refused. Whether MCP calls
+  made through the code mode of Codex reach the `PreToolUse` hook is not checked. (5) The
+  guard sets no run-time limit on an allowed command. A very large number as an option value
+  hangs BSD `cut` with `-b`, `-c` or `-f`, and BSD `grep` with `-B` or `-C`, until the tool
+  timeout (`cut -b 99999999999`); a pattern of `grep -E`, `find -regex` or `rg` can take
+  unbounded time; a command that reads an endless file, such as `cat /dev/zero`, runs until
+  the tool times out; a command that reads a named pipe, by its name or inside a folder that
+  it searches, waits until a writer opens the pipe (`cat pipe`, `git diff ../x/ff a.txt`,
+  which compares files as `diff` does when a path is outside the work tree, and a recursive
+  search of BSD `grep -r` or `-R`); and `sort` may write temporary files under the system
+  temporary folder for large input, which the guard allows. (6) The report schema limits
+  `file` of a finding to 500 characters, and `findings open` prints the `file` of a finding
+  whole, without a cut. The glob rule covers a word that the shell expands, not a pattern
+  that a command expands itself: `grep -e` and `find -name` take a pattern, so a quoted `*`
+  stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard denies
+  both.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
@@ -1761,9 +1919,12 @@ find:
   one line "Ask a member to approve the acceptance criteria, then lock the checks: no
   version is approved.", also when a person stored a criteria version, because a person's
   upload adds to an approval and replaces none; any lock other than the newest lock again or
-  a new lock of the target; and a check of a criterion that the lock's criteria version does
-  not plan as Tests. A lock with the JSON value of the newest lock in `index.json`, in other
-  white space or another order of members, is that lock, and passes again. A new lock passes
+  a new lock of the target; a check of a criterion that the lock's criteria version does
+  not plan as Tests; and a lock with no check of a criterion that its criteria version plans
+  as Tests, with the line "Add a check of ac-2 to acceptance-lock.json, then lock again."
+  and the line "Criteria version 1 plans ac-2 as Tests, and no check of the lock has it.".
+  A lock with the JSON value of the newest lock in `index.json`, in other white space or
+  another order of members, is that lock, and passes again. A new lock passes
   only at the target, and only when the target is not older than the criteria version of a
   lock in `index.json`, and either the target is the approved version and no lock locks it,
   or a person stored the target after the newest lock. With no lock before, any upload of a
@@ -2223,7 +2384,7 @@ pictures inside. The run pushes `screens.json` and the packed pages. A member se
 start screen in a frame on the version page of Qory Apiary. A click on a linked element
 opens its screen, and a list of screen titles beside the frame opens any screen. Each page
 lists the `ac-N` ids it shows in `data-criteria`, and the designer draws each screen that a
-part of the spec names as `Mockup screen:`. A spec that names no screen makes the run push
+part of the spec lists as `Mockup screen:`. A spec that names no screen makes the run push
 no mockup, and the run still handles its questions and replies.
 
 `designer` lists Bash for the two mockup scripts alone. On Claude Code 2.1.316 under
@@ -2321,6 +2482,84 @@ workflow with `tier: thinking` and `access: write`.
   `Blocked: needs a change to criterion <ac-N>: <the change>`, as in the other small
   workflows.
 
+`workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
+locks the acceptance checks of one ticket, after its build plan and before any step changes
+code. The stack lists the workflow with `tier: balanced` and `access: write`, and both
+agents run on the tier `thinking`. The session pulls, runs `checks.cjs resume`, and reads
+the newest build plan and the newest `acceptance-criteria.json`. A check path is a relative
+path with no space and no `.` or `..` part, whose file name has an extension, such as
+`tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are none. It is the
+`isPath` of `lib/plan.cjs`, which `types/build-plan.cjs` uses too. Each Check cell of the
+plan that is a check path is a check, and the criteria of its row are planned as `Tests`.
+The agents start only when the JSON has a live criterion whose `check` is `Tests`, one with
+no `removed` member set to `true`. With none, the session runs no ledger step, starts no
+agent, pushes nothing and ends `passed`, with "No criterion is planned as Tests, so the run
+wrote no acceptance checks." With no build plan, it ends with a `run_again` point whose fix
+is "Plan the build, so that a run pushes the build plan." With no acceptance criteria, the
+point's fix is "Move the work item back to Shape, so that a run there writes the acceptance
+criteria." When a live `Tests` criterion is in the Criteria cell of no row with a check
+path, the session starts no agent, pushes nothing and ends with one `run_again` point for
+each such criterion, not `passed`: "The build plan has no check path for AC-3, "<first
+sentence>", a criterion planned as Tests, so the run wrote no acceptance checks." Its fix is
+to plan the build again. While the text or the fix has more than 500 characters, the quote
+of the criterion is cut in both to its first 8 words and "...".
+
+- **The step `checks`.** The session starts the ledger step `checks` and then
+  `acceptance-check-writer`, which writes each check at its Check path, writes new helpers
+  and fixtures only below a folder of the check scope of the same row, and runs each check
+  with `checks.cjs run targeted <path> --inputs <path>` until it fails with a failed test.
+  The command of a check is the `targeted` command of the plan, a space and the path. The
+  writer drafts `acceptance-lock.json`, with `failed_with` set to the `exit` of the record
+  of the last run, each support file under `support`, and no `sha256`. The session runs
+  `scope checks`, which allows only the check scope of each row with a check path: its Check
+  path, and each folder of its Files that is the first folder of the Check path or lies
+  below it (`src/` and `src/test/resources/` for `src/test/java/x/FooTest.java`), unless the
+  folder contains a Files entry of any row that is a file and no Check path, such as `src/`
+  with `src/a.ts`; a Check path with no folder adds none. A code folder that contains its
+  check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
+  `check-reviewer` reports a write there to code under test. Its other Files are not in it,
+  and `check-reviewer` reports a write to code under test. Then the session starts
+  `check-reviewer`, which reads the checks, the draft and the records read-only by
+  `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no "Checks:",
+  because the draft has no `sha256` before `lock`. It gets "Changed paths:" instead, the
+  output of `git status --porcelain --untracked-files=all` and of `git diff --name-only
+  --no-renames <start commit>`, which the session runs in the working folder before each
+  start, with the files of each new folder, because the reviewer reads files only. After a
+  review with no finding left that fails a push, the session runs `freeze checks`, sets
+  `commit` in the draft to the commit that `freeze` printed, runs `checks.cjs lock`, and
+  ends the step as `done` with `--pushed acceptance-lock/main/<N>`.
+- **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
+  `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
+  criterion planned as `Tests` with no check; a check that did not fail on the start commit
+  with a failed test, by its record and log; a command that runs, or a check that imports, a
+  file of the repository whose only use is the tests, such as a helper, a fixture, a setup
+  file or a config of the test runner, that the draft lists neither as a check nor under
+  `support`; a check or a command that changes the setup of the tests; a skip, xfail or only
+  mark, or the runtime's equivalent; and each path of "Changed paths:" that the writer's
+  "Files:" does not list. Here the mark `break` means that the run must not push the lock
+  while the finding is left, not what `reviewing-drafts` defines for it. The reviewer reads
+  files: no script reads imports.
+- **The run on the start commit.** After the lock, the session runs `checks.cjs preflight
+  --inputs <path>` first when the plan has a `serve` row with a command and an `App
+  address:` line, and `index.json` lists a demo script, an artifact of type `demo-script`
+  with a name such as `scenario-1`. Then it runs `checks.cjs run locked --inputs <path>`.
+  When the plan starts the app and `index.json` lists no demo script, the preflight would
+  exit 3, so the session runs no preflight and runs the checks with no app check. A point of
+  the preflight ends the session with that point. An exit 3 of the preflight with the cause
+  "no demo script exists for the app", such as for a withdrawn demo script, goes on with no
+  app check. An exit 3 with another cause ends the session with "The run stopped at the app
+  check, because <cause>.". A locked check fails right only when its finding starts with
+  "Fix the code until the locked check of <criterion> passes.". A check that is green, or
+  red for another reason, runs once more with `run locked <criterion>`. When it is wrong
+  again, the session pushes one question per such check to a member, with `about` set to
+  `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context has the
+  path of the check, the criterion as `AC-<N>, "<first sentence>"` and what each run printed
+  for the check. The options are to upload the acceptance criteria as a new version, so that
+  the next round writes a new check (recommended), or to keep the locked check and let the
+  build go on. The run ends with `escalate` and one `answer` point per check. The ledger
+  step stays `done`, so a new criteria version starts a new pass of `checks`, and an
+  unchanged one replays it.
+
 ## The high-level workflow, shape-a-ticket
 
 `workflow-shape-a-ticket`, process entry `shape-a-ticket`, is Shape's one run. Its session
@@ -2345,14 +2584,17 @@ that the work needs drafts in one run, in the recommended direction, and an open
 stops no workflow. `workflow-shape-a-ticket` tells the run to decide every point that the
 rule "Decide or ask" of `writing-questions` allows, and to ask only what a person must
 answer by it, such as a change of scope or a split of the work item. A session follows only
-what the planner lists, so a word on one output reruns only what depends on that output.
+what the planner lists, so a word on one output reruns only what depends on that output. A
+word that asks for a screen that the spec lacks also depends on the spec.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
 under "Not run:" with the reason. Before a spec exists, the planner lists every workflow
 that the ticket and the proposal need. After a push of the spec or the criteria, the session
 starts it again, and it plans from the spec and the acceptance criteria. It also starts
-again after a small workflow's stop, and when the session lost the list.
+again after a small workflow's stop, after a follow of `write-specs` that pushed no spec
+while a later workflow of the pass is still listed or has a pending item, and when the
+session lost the list.
 
 - **A person's word.** The planner routes a review comment by its text, to each output it
   concerns. For a comment on one output, the planner reads the type in `on` only as a hint.
@@ -2366,6 +2608,26 @@ again after a small workflow's stop, and when the session lost the list.
   last reply declined, answered or asked about that part. For "rename the button, and use a
   queue instead of cron", `spec-writer` may decline the button, and `decision-writer` still
   applies the queue. When the words stay unclear, `write-specs` runs.
+- **A screen that the spec lacks.** `designer` draws only the screens that the spec lists
+  as `Mockup screen:`, and only the spec adds one. When a word asks for a screen that the
+  newest spec does not list, such as "draw a mockup of the export screen" in a comment on
+  the mockup, the planner lists `write-specs` and then `make-mockups`, each with a fact
+  that quotes the word. This is the rule of `checking-shape`: a word that needs the spec
+  to change goes to `write-specs`. `spec-writer` adds the part with its `Mockup screen:`
+  line, `check` runs on the spec, and the session starts the planner again after the push.
+  The newest spec now lists the screen, so `make-mockups` follows and `designer` draws it.
+  When the spec lists the screen and the newest mockup lacks it, only `make-mockups` runs.
+  After a follow of `write-specs` in the log after the word's `at`, the planner lists
+  `write-specs` no more for the word, also when the reply of the spec writer has outcome
+  `declined` or `asked`. It lists `make-mockups` when the newest spec lists the screen and
+  the newest mockup lacks it. Otherwise, when the spec does not list the screen and no
+  other word or change needs `make-mockups`, it lists it under "Not run", with that reason.
+  A declined or asked word leaves the spec unchanged, so the session starts the planner
+  again after a follow of `write-specs` that pushed no spec, while a later workflow of the
+  same pass is still listed or has a pending item. `shape-reviewer` sends no finding to
+  `write-specs` for a word on the spec whose last reply has outcome `declined`, `answered`
+  or `asked`, by `checking-shape`. So the run does not start `write-specs` again for the
+  same word.
 - **Older versions.** A pull writes one folder per type, and only
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.
@@ -2374,12 +2636,14 @@ again after a small workflow's stop, and when the session lost the list.
   of a criterion reruns the demo scenarios.
 - **A small workflow's stop.** A stop that needs a change to a criterion, a new criterion or
   a change to the spec runs `write-specs`, then the stopped workflow, and one that needs a
-  type runs the workflow that writes it. A later follow of the stopped workflow settles a
-  stop, so it is not routed again, and a later push by the listed workflow settles that part
-  of the route. A stop with no person's word behind it, and every other stop, reaches the
-  planner's "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word,
-  also from a comment on another type, and `spec-writer` and `spec-reviewer` count that
-  quote as one.
+  type runs the workflow that writes it. The end "The spec states no screen change, so the
+  run pushed no mockup." is such a stop when a word asks for a screen that the spec lacks
+  and the log has no follow of `write-specs` after the word's `at`.
+  A later follow of the stopped workflow settles a stop, so it is not routed again, and a
+  later push by the listed workflow settles that part of the route. A stop with no person's
+  word behind it, and every other stop, reaches the planner's "Stop:" line, and the run
+  ends with `escalate`. The fact quotes a person's word, also from a comment on another
+  type, and `spec-writer` and `spec-reviewer` count that quote as one.
 - **Settled words.** A word counts for a workflow until a later version of its type, a later
   version of a Shape output that the passed run wrote, or a follow of that workflow in the
   log settles it. The passed run is the run that recorded the work item's newest verdict,
@@ -2500,43 +2764,54 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   only a change still on disk. The only guard against that in this repository is the stop
   at the end of each check: the script stops the process group of the command and, on
   Linux, each marked process, so a process left running by accident does not change a file
-  during a later check. No reviewer and no other check here looks at what code under test
-  does to a locked file.
+  during a later check. Before the lock, `check-reviewer` of `write-acceptance-checks`
+  reports a check whose command or files change the setup of the tests, and a command that
+  runs, or a check that imports, a file whose only use is the tests, such as a helper, that
+  the lock lists neither as a check nor under `support[]`. It reads the files before the
+  lock and watches no run, so no check here looks at what code under test does to a locked
+  file during a check.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
-  for `fix:f<N>` and for `--plan`. Exactly one of `<step>` and `--plan` is given. No file
-  has a separate rule: `qory.yaml`, a hook program and a module count as any path. A path
-  under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
-  untracked result file. A path that the index marks skip-worktree or assume-unchanged
-  counts when its file differs. A path under `.qory` in a commit since `--base` is outside
-  the scope, as qory pushes the commit as it is. With the base from `--inputs`, a
-  `deliverable:d-<N>` step judges a path of a commit since the base against the Files of
-  that deliverable and of each deliverable before it in the order of the build plan, such as
-  "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed now,
-  against the Files of the step. Without `--inputs`, the step judges every changed path,
-  committed or not, against the Files of the step. A committed path outside its scope gets
-  the line "Take "<path>" out of the commits since the base: it is outside the files of d-1
-  and d-2."; an uncommitted one gets "Undo the change to "<path>"". With a committed path
-  outside, the last finding on a committed path has, indented after it, "For example: git
-  reset --soft <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).", where
-  `git restore` brings the path back as it was at `<c>`, or removes it when it was not
-  there, and "If the path is in a frozen or pushed commit, report to a member.", as a reset
-  drops the commit that the build ledger records and a push that qory made cannot be redone.
-  The lines of the scope of the commits come after them, also indented. The last finding on
-  an uncommitted path has the lines of the scope of the step, indented. A passing `scope`
-  prints one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no
-  key."
-  No line of `scope` has more than 100 characters: a long name is cut, a long list of
-  Files goes on a second line, and the scan result is the line before "Checked ...". git
-  runs with full stat checks, no untracked cache, no global excludes file, no global or
-  system git config (git 2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and
-  a pattern in `.git/info/exclude` is red. An ignored path is no change, but an untracked
-  `.gitignore` file is one, also when it ignores itself; one inside an ignored folder is
-  none. git compares change times by the second, so a tracked file whose times or size
-  differ from its index entry by a nanosecond or a byte is hashed, and counts when its
-  content differs. Stat data that an agent writes into the index file is not checked. With
-  a base, it also scans each commit since the base for keys, as `freeze` does.
+  for `fix:f<N>` and for `--plan`. For `checks`, the step of `write-acceptance-checks`, they
+  count against the check scope of each deliverable whose Check is a check path: that path,
+  and each folder of its Files that is the first folder of the Check path or lies below it
+  (`src/` and `src/test/resources/` for `src/test/java/x/FooTest.java`), unless the folder
+  contains a Files entry of any row that is a file and no Check path, such as `src/` with
+  `src/a.ts`; a Check path with no folder adds none. A code folder that contains its check,
+  such as `src/export/` for `src/export/export.test.ts`, is in scope, and `check-reviewer`
+  reports a write there to code under test. A Check cell such as `n/a`, `none` or a scenario
+  id is no check path. Exactly one of `<step>` and `--plan` is given. No file has a separate
+  rule: `qory.yaml`, a hook program and a module count as any path. A path under `.qory`
+  counts as none, as qory leaves `.qory` out of every commit, and so does an untracked
+  result file. A path that the index marks skip-worktree or assume-unchanged counts when its
+  file differs. A path under `.qory` in a commit since `--base` is outside the scope, as
+  qory pushes the commit as it is. With the base from `--inputs`, a `deliverable:d-<N>` step
+  judges a path of a commit since the base against the Files of that deliverable and of each
+  deliverable before it in the order of the build plan, such as "the files of d-1 and d-2",
+  and an uncommitted path, or a path that is also changed now, against the Files of the
+  step. Without `--inputs`, the step judges every changed path, committed or not, against
+  the Files of the step. A committed path outside its scope gets the line "Take "<path>" out
+  of the commits since the base: it is outside the files of d-1 and d-2."; an uncommitted
+  one gets "Undo the change to "<path>"". With a committed path outside, the last finding on
+  a committed path has, indented after it, "For example: git reset --soft <c>, git restore
+  -s <c> -SW -- <path>, commit (<c>: before the path).", where `git restore` brings the path
+  back as it was at `<c>`, or removes it when it was not there, and "If the path is in a
+  frozen or pushed commit, report to a member.", as a reset drops the commit that the build
+  ledger records and a push that qory made cannot be redone. The lines of the scope of the
+  commits come after them, also indented. The last finding on an uncommitted path has the
+  lines of the scope of the step, indented. A passing `scope` prints one line, such as
+  "Passed: 2 changed paths in the files of d-2, 1 commit with no key." No line of `scope`
+  has more than 100 characters: a long name is cut, a long list of Files goes on a second
+  line, and the scan result is the line before "Checked ...". git runs with full stat
+  checks, no untracked cache, no global excludes file, no global or system git config (git
+  2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in
+  `.git/info/exclude` is red. An ignored path is no change, but an untracked `.gitignore`
+  file is one, also when it ignores itself; one inside an ignored folder is none. git
+  compares change times by the second, so a tracked file whose times or size differ from its
+  index entry by a nanosecond or a byte is hashed, and counts when its content differs. Stat
+  data that an agent writes into the index file is not checked. With a base, it also scans
+  each commit since the base for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
   `scope`, stages the change in a temporary index, checks every path of the tree to commit
   against the scope, scans the names and added lines of the change and of the commits that
@@ -3142,7 +3417,10 @@ the rule passes on that file.
    line in the agent's body outside a code fence: `Tool exception: Bash, because <reason>`.
    No agent lists `Agent`, `NotebookEdit` or `MultiEdit`, with or without an exception. A
    `*-reviewer` agent, `code-explorer` or `shape-planner` lists only Read, Grep, Glob and
-   Skill.
+   Skill. A `*-reviewer` agent also lists Write when the body has the line `Tool exception:
+   Write, because it writes the one report file of a review round.`, exactly, outside a
+   code fence, and no other tool. An agent that lists Write has a `name` in its front matter
+   that equals its file name without `.md`.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `pack-mockups.cjs` and `render-mockups.cjs`, and
@@ -3241,6 +3519,9 @@ the rule passes on that file.
     method of a regular expression in JavaScript, does not count, and nor does `.git`, the
     folder name, with the dot directly before it. `test`, `commit` and `deploy` have plain
     senses too, and core uses a plain word, such as check, record or send, in their place.
+    The one file `modules/core/hooks/tool-guard.cjs` may contain `git` and `diff`, because
+    it lists the read commands that a reviewer session may run; no other word of the list
+    and no other file passes.
     Words that core needs in a sense outside software work stay off the list: `code`,
     `merge`, `database`, `API`, `wireframe`, `mockup`, `ticket` and `build`.
     `checkout` and `bug` stay off too, because customer care uses them for a shop's checkout

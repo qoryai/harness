@@ -61,9 +61,10 @@ Load each skill when its step comes, and no other:
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,
 and any fact or finding from a higher workflow. A person's word that such a fact or finding
-quotes counts as a person's word on the spec. Read what the pull wrote, never the memory of
-an earlier session. A refused tool call stays refused. Read through no link, and fetch no
-web page.
+quotes counts as a person's word on the spec. When that word asks for a screen, add it as
+`writing-specs` lists under "A screen that a person asks for", with a `Mockup screen:`
+line. Read what the pull wrote, never the memory of an earlier session. A refused tool call
+stays refused. Read through no link, and fetch no web page.
 
 When you start again, change the drafts for the findings, and repeat the lists of your
 newest report, changed for this start. For a finding marked `person`, list the question.

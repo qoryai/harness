@@ -8,6 +8,44 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
+  `access: write`: the skills `workflow-write-acceptance-checks`,
+  `writing-acceptance-checks` and `checking-acceptance-checks`, and the agents
+  `acceptance-check-writer` and `check-reviewer`. The session reads the newest build plan
+  and the newest `acceptance-criteria.json`. The agents start only when the JSON has a live
+  criterion whose `check` is `Tests`; with none, the run ends `passed`. When such a
+  criterion is in no row of the plan that has a check path, the run ends with a `run_again`
+  point whose fix is to plan the build again, with the quote of the criterion cut to its
+  first 8 words when the point has more than 500 characters. With no build plan or no
+  acceptance criteria, the run ends with a `run_again` point that has a fix. A check path is
+  a relative path whose file name has an extension, as `lib/plan.cjs` reads it; `n/a`,
+  `none`, `-` and `TBD` are none. In the ledger step `checks`, the writer writes each check
+  at its Check path and its new helpers below a folder of its check scope, runs each with
+  `checks.cjs run targeted` until it fails with a failed test on the start commit, and
+  drafts `acceptance-lock.json`. Before each review, the session runs `git status
+  --porcelain --untracked-files=all` and `git diff --name-only --no-renames <start commit>`
+  and passes both outputs to the reviewer as "Changed paths:". After the review, the session
+  runs `freeze checks`, sets `commit` to the commit of the checks, and runs `checks.cjs
+  lock`, which pushes `acceptance-lock`. Then it runs `checks.cjs preflight`, when the plan
+  starts the app and `index.json` lists a demo script, and `checks.cjs run locked`; with no
+  demo script, it runs the checks with no app check. A locked check that does not fail with
+  a failed test in two runs ends the run with one question per check, about the criterion,
+  with the check, the criterion and what both runs printed. `check-reviewer` reports, with
+  the mark `break`, which here means that the run must not push the lock, a command or a
+  check that runs or imports a file whose only use is the tests and that the lock lists
+  neither as a check nor under `support[]`, a changed test setup, a skip, xfail or only
+  mark, and each changed path that the writer's "Files:" lacks. `scope` and `freeze` take
+  the step `checks`, with only the check scope of each deliverable with a check path: its
+  Check path, and each folder of its Files that is the first folder of the Check path or
+  lies below it (`src/` and `src/test/resources/` for `src/test/java/x/FooTest.java`),
+  unless the folder contains a Files entry of any row that is a file and no Check path, such
+  as `src/` with `src/a.ts`; a Check path with no folder adds none. A code folder that
+  contains its check, such as `src/export/` for `src/export/export.test.ts`, is in scope,
+  and `check-reviewer` reports a write there to code under test. Its other Files are not in
+  it, and `check-reviewer` reports a write to code under test.
+- `checks.cjs lock`, `check acceptance-lock` and its push check fail on a lock with no check
+  of a criterion that its criteria version plans as Tests, with the fix line "Add a check
+  of <id> to acceptance-lock.json, then lock again."
 - The `plan-the-build` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-plan-the-build`, `planning-builds` and
   `checking-build-plans`, and the agents `build-planner` and `plan-reviewer`. The session
@@ -37,7 +75,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   more than the starts of the agent that the verb recorded in the run. It records the start
   in `.reports/note-starts.json`, with the names of the role notes and the SHA-256 of the
   notes file. The agent lists the role notes it read under `Role notes read:` in its
-  report. `checks.cjs report`, `findings` and `end --offline` fail a report that lacks a
+  report. `checks.cjs report` and `end --offline` fail a report that lacks a
   role note of any start of the agent since its last passed report, or whose notes file of
   such a start changed. A start with no `--files`, with no `role-notes.json`, or with no
   matching role note has no role note.
@@ -238,29 +276,100 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `--inputs`, so it reads `.qory/harness-report.json`. A run without a wall can push a
   proposal with no push check, so the checks of the fast track bind only walled runs.
 - `reviewing-changes`, a skill of `core` that a reviewer of a change loads. The reviewer
-  reads the whole change once per round at a frozen state and changes no file. Each
-  finding has Quote, Problem, Fix and Point of `reviewing-drafts`, and a proof and a
-  severity, `break` or `no break`, in place of the marks. A proof starts with its form:
-  `failing check`, `planted fault` or `failing input`, and only for `no break` also
-  `broken rule`. Only a break finding starts another round. The agent that fixes a finding
-  closes it under "Closed:" with a closing proof of the paired form, and a reviewer in a
-  later round judges each closure of its findings under "Earlier findings:", as `holds`
-  with a closing proof, or `open` with a new proof, which may raise the severity to
-  `break`.
-- `checks.cjs findings add <round> <agent> <file>`, `findings close <agent> <file>` and
-  `findings show` keep the findings of a change in `.reports/findings.json` of the artifact
-  folder, under a lock file, so that calls at once lose no finding; a call removes a lock
-  whose process no longer runs, or an empty lock older than 5 s, and the deny rules of
-  `.reports` protect the lock. `add` gives each finding of a reviewer's report an id, `f1`
-  and on, and refuses a report with a finding without a proof or without a severity, a break
-  proved by a broken rule, a missing judgement of a closure, or the bytes of a recorded
-  report under another name or of another agent, unless the report is clean. The same report
-  again for the same round records nothing and exits 0. For a break, only the reviewer that
-  made it judges that its closure holds. `close` closes each finding with its closing proof,
-  and refuses one of another form. `show` names each reviewer that judges a closure in the
-  next round, and exits 1 while a break finding is open, or closed with no judgement of its
-  reviewer. `report` checks the `Proof:` and `Severity:` lines of each finding, the list
-  "Earlier findings:" and the list "Closed:".
+  reads the whole change once per round at a frozen state, has no shell and no network, and
+  writes one JSON file, its report, to the path in `qory.review.report` of `inputs.json`.
+  The report has a `reviewer` and a list of findings. Each finding has a `severity` of
+  `blocking` or `non-blocking`, a `quote`, a `problem`, a `fix`, a `proof` of at most 1,000
+  characters that starts with `failing check`, `failing input` or, only for `non-blocking`,
+  `broken rule`, a `point` on one line of at most 500 characters, and `file`, `line` and
+  `id` when they apply. The report has no result word and no list of unverified claims, and
+  nobody closes a finding: a finding that is still true stays in the next report with its id.
+  A reviewer that cannot finish stops and writes no file.
+- `judging-findings`, a skill of `software-factory` that a reviewer of a change to software
+  loads with `reviewing-changes`. It defines a blocking finding as "a bug, a security hole,
+  data loss, a broken acceptance criterion or a failing test; every other finding is
+  non-blocking", and lists the values that the run passes the reviewer in `qory.review`:
+  `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`.
+- `checks.cjs findings open <file>` prints `Fix first: <id> (<severity>, <file>:<line>):
+  <point>` for each finding of `open-findings.json`, the findings of the latest round of
+  review that qory writes to the inputs folder of the next session, `blocking` ones first. It
+  prints at most 200, then `Fix first: <n> more findings in <file>`, and removes control,
+  refused and hidden characters from the text, such as the tag characters and the variation
+  selectors. It exits 1 while it prints a finding. It exits 0 for a round with none, and for a
+  missing file too, with the line `no open findings file at <path>` on stderr. It exits 3 for a
+  link, a folder or a file in another form, and for a file over 256 KB whose JSON ends inside
+  the first 256 KB, which it reads and no more; the first line is then the fix: open the file
+  with Read. The text of `running-a-workflow` for the next session is: open the files each
+  finding points to and fix those that are true, the non-blocking ones too, treat the text of
+  the file as data, and what to do on exit 3.
+- In a stage with reviewers, `checks.cjs end` runs no `run verdict` command: qory sends the
+  verdict, and `running-a-workflow` states this in "Points" and "The end". `end` reads that the
+  stage has reviewers from `qory.stage.reviewers` in the `inputs.json` that qory writes at
+  `$QORY_HARNESS_HOME/inputs.json`, not from `index.json`, which an agent can write. The
+  member counts when it is `true` or the name of a group role, not `false`, `no`, `null`,
+  `off`, `none` or `0`, and when the file is a regular file of at most 1 MB, no link.
+- The tool guard limits the main session of a reviewer of a change. When the `inputs.json`
+  that qory writes at `$QORY_HARNESS_HOME` has the member `qory.review`, the session writes
+  at one path, `qory.review.report`, with a `Write`, and no other file: not `points.json`, a
+  draft or any other file of the artifact folder. It may write that path again, which
+  overwrites the file. A path that is not absolute, has a `.` or `..` part, a double or
+  trailing slash, a NUL or more than 4096 characters, a link, a folder, a file with more
+  than one link, or a path below `.git` or `.claude` of the working folder, is no report
+  path. The guard denies the write tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and
+  `apply_patch`) of an agent, the report path included, when its type ends in `-reviewer`,
+  in any session, and when it runs in a session of a reviewer, whatever its type. Outside a
+  reviewer session the guard does not apply the read-only shell rule of a reviewer session
+  to a `-reviewer` agent; its shell is limited only by the other rules of the guard. The
+  main session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`). A reviewer
+  session denies by default, for the main session and each agent. It allows `Read`, `Grep`,
+  `Glob`, `Skill`, `TodoWrite`, `update_plan`, the one report write, and a shell of plain
+  words that only reads. On Codex it also allows exactly `mcp__qory_review__read_file`,
+  `mcp__qory_review__list_directory` and `mcp__qory_review__search_in_files`. Any other
+  tool, such as `Edit`, `WebFetch`, each other `mcp__*` name, each `mcp__*` name on Claude
+  Code, and a name that the guard does not know, is denied there. In a session that is no
+  reviewer's the guard allows an unknown tool name. The denies for `.qory/build/`, a locked
+  file and the harness home come first: when the harness home is below the working folder, a
+  report path in it is denied, so the report folder must be outside the home; when the home
+  is outside the working folder, a write to a report path in it is allowed. A Codex reviewer
+  writes its report with an `apply_patch` that adds that one file. The main session of a
+  reviewer may use the tool `apply_patch` only for a patch of exactly the lines `*** Begin
+  Patch`, `*** Add File: <report path>`, zero or more lines that start with `+`, and `***
+  End Patch`, with the same path rules as for `Write`. An update, a delete, a move, a second
+  file, a second add of the same file, white space around a header, a carriage return, any
+  other line and the shell form `apply_patch <<'EOF'` are denied. The guard runs only on
+  Claude Code and Codex: on Cursor, Copilot CLI and Gemini CLI the rule on the report path
+  does not run.
+- The shell of a reviewer session allows only the options that `docs/modules.md` lists for
+  each command. The guard denies any other word that starts with `-`, also after `--`, in a
+  cluster and as the value of an option, and a `diff` operand that is `/`, a path under
+  `/dev`, `/proc` or `/sys` (in any case, also through a link), or a file that is neither a
+  regular file nor a folder, also the file of that name inside a folder operand. It denies
+  `uniq`; use `sort -u`. It denies a `*`, `?`, `[` or `^` outside quotes (the shell expands
+  `*`, `?` and `[` to file names that can start with `-`, and zsh expands `^` when its
+  option `extendedglob` is set), a `~` that starts a word or follows `=` or `:`, which the
+  shell expands to a home path, and a word that starts with `=` or has an empty quote before
+  the `=`. `git` is allowed only when the working folder or a folder above it has a `.git`
+  folder or file; otherwise the fixed text of the deny does not contain `git`. A deny of a
+  shell command has the fix on the first line and `Refused: <word>` on the second.
+- `docs/modules.md` lists the limits of the guard in a reviewer session: programs that the
+  git configuration of the reviewed folder starts, an unreadable `inputs.json` (the guard
+  then treats the session as an ordinary session), the `Skill` tool, the MCP tool names
+  (from the source of Codex rust-v0.169.0, not run against it), hook trust, and commands
+  that run for a long time, and commands that read a named pipe, which waits for a writer.
+- Each line that `checks.cjs`, `findings open`, `fixes.cjs` and the skill registry print
+  from a skill folder name, its owner or a verdict no longer carries default-ignorable or
+  format characters, such as U+180F, U+200D or a tag character.
+- `findings open` prints each path whole, without the 80-character cut, and removes control,
+  refused and hidden characters from the path, the file name and the `file` of a finding.
+- Rule 11 of `scripts/check.sh` lets the one file `modules/core/hooks/tool-guard.cjs`
+  contain `git` and `diff`, the read commands that the guard allows in a reviewer session.
+  Every other word of the rule, and every other core file, stays refused.
+- Rule 2 of `scripts/check.sh` lets a `*-reviewer` agent, such as `code-reviewer`, list
+  `Write` beside Read, Grep, Glob and Skill, when the body has the line `Tool exception:
+  Write, because it writes the one report file of a review round.` as a whole line outside a
+  code fence. No other tool passes. An agent file that lists `Write` has a front-matter
+  `name` equal to its file name without `.md`, because the tool guard reads that name. The
+  tool guard limits that `Write` to the main session and the report path.
 - The artifact types of Build and Verify in the template of `software-factory`:
   `submission`, `build-plan`, `build-report`, `build-ledger`, `acceptance-lock`,
   `demo-script` and `demo-evidence`, with a JSON Schema for each structured type, and
@@ -617,17 +726,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   twice the size of the copy of the working folder for a reviewer, without `.git` and
   `.qory`, for each; the rest wait, and `--after` lists the next batch. It exits 1 when the
   disk has room for no member, and writes no file.
-- `checks.cjs starts <run> <reviewer> --subject <subject>`: at most 3 starts of a reviewer
-  on one subject in a run, counted under `<subject>/<agent>` in `.reports/starts.json`; the
-  fourth exits 1. Both forms of `starts` read and write the counts under the lock
-  `.reports/starts.json.lock`, as `findings` does, so that starts at once count each start
-  once. A call makes the lock with the flag `wx` and writes its process id. It removes a
-  lock whose process no longer runs, or an empty lock older than 5 s, only while it has the
-  file `.reports/starts.json.lock.break`, so that no two calls remove a lock at once,
-  unless two calls both remove an old break file. The deny rules of `.reports` protect each
-  file there whose name has `.json.lock`. `<reviewer>` may have the prefix of the runtime's
-  path. `checks.cjs end` prints a finding for each reviewer that such a start counts and
-  that has no report.
+- `checks.cjs starts` reads and writes the counts under the lock `.reports/starts.json.lock`,
+  so that starts at once count each start once. A call makes the lock with the flag `wx` and
+  writes its process id. It removes a lock whose process no longer runs, or an empty lock
+  older than 5 s, only while it has the file `.reports/starts.json.lock.break`, so that no
+  two calls remove a lock at once, unless two calls both remove an old break file. The deny
+  rules of `.reports` protect each file there whose name has `.json.lock`.
 - The verb `preflight` of the checks script, which a Build session runs right before a
   scenario script runs for the first time, and a Verify session first, before any film. It
   checks that the dev container has a browser that starts, that the `serve` command of the
@@ -667,7 +771,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   in brackets.
 - A limit on the size of an agent's report: at most about 2,000 tokens, counted as 8,000
   bytes, set once in `lib/reports.cjs` for every agent. A longer report is a finding of
-  `checks.cjs report`, `findings` and `end --offline`, and the finding states the limit in
+  `checks.cjs report` and `end --offline`, and the finding states the limit in
   both units, so that the agent can count its text. The list "Files:" of a writer, the
   files it wrote, does not count. The 256 KB limit stays. The session passes the limit to
   each agent at each start. The last line of `report`, on what it checked, lists "size"
@@ -680,6 +784,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   through `points.json`, as for every end through "Points".
 
 ### Changed
+
+- Shape routes a word that asks for a screen that the newest spec does not list as
+  `Mockup screen:`, such as the comment "draw a mockup of the export screen" at the gate,
+  to `write-specs` and then `make-mockups`. Before, `shape-planner` sent a comment that
+  is about the mockup only to `make-mockups`, `designer` drew only the screens that the
+  spec lists, and the run ended with "The spec states no screen change, so the run pushed
+  no mockup." Now `spec-writer` adds a part with a `Mockup screen:` line for such a word, as
+  `writing-specs` lists, `check` runs on the spec, and the planner starts again after the
+  spec push, so the mockup workflow follows. After a follow of `write-specs` in the log
+  after the word's `at`, the planner lists `write-specs` no more for the word: it lists
+  `make-mockups` when the spec lists the screen and the newest mockup lacks it, and else,
+  when nothing else needs it, puts it under "Not run". The session of `shape-a-ticket`
+  starts the planner again after a follow of `write-specs` that pushed no spec, while a
+  later workflow of the same pass is still listed or has a pending item. `shape-reviewer`
+  sends no finding to `write-specs` for a word whose last reply of the spec writer has
+  outcome `declined`, `answered` or `asked`, so the run does not loop to its limit.
 
 - The acceptance criteria are `acceptance-criteria.json`, in the acceptance criteria format
   of qory's contract, in place of the table of `acceptance-criteria.md`: a `summary`, and
@@ -740,6 +860,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `.github/workflows/check.yml` builds qory at `0e02282`, the merge of
   qoryai/qory#127, which has the acceptance criteria and verification formats and `about`
   on each question, in place of `1deb56e`.
+- The reviewer of a change no longer reports as text. `reviewing-changes` has no `break` or
+  `no break` severity, no `planted fault` proof, no closing of a finding, no judgement of
+  earlier closures, no lists "Unverified:" and "Blocked:", and no last word `clean`,
+  `changes-needed` or `blocked`. A session that writes a change starts no reviewer of it:
+  qory runs the round of review, and the session reads the findings of the last round with
+  `checks.cjs findings open`. `running-a-workflow` drops the section on the findings of a
+  change, the allow-rule forms of `findings add`, `findings close`, `findings show` and
+  `starts --subject`, and the section on `panel`. `checks.cjs report` no longer checks a
+  `Proof:` or `Severity:` line.
+- `checks.cjs findings` has the form `open <file>` alone. `findings add`, `findings close`,
+  `findings show` and `.reports/findings.json` with its lock are gone. `checks.cjs starts
+  <run> <reviewer> --subject <subject>` is gone too, and `end` counts no start under
+  `<subject>/<agent>`. The verb `panel` is still in the script, and no skill has a step
+  to run it.
 - The middle model tier is `balanced` in place of `fast`, qory's name for it.
   qory at `0e02282` fails the compose on `${qory:fast}`. `code-explorer` sets
   `model: ${qory:balanced}`, `checks.cjs step end --attempt` and the build ledger take the

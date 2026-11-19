@@ -50,10 +50,6 @@ const PLACES = 4;
 // has no .git and no .qory.
 const DISK_FACTOR = 2;
 
-// A reviewer starts at most this many times on one subject in a run: the first review and
-// two more after fixes.
-const STARTS_PER_SUBJECT = 3;
-
 // Missing exits 3 with message, the line that starts with the fix, and the lines of more
 // after it, such as the value that the fix rests on. With listed true, each entry of more is
 // a finding, which a count of the findings includes, not a line after the first one.
@@ -105,9 +101,11 @@ function short(text, size = SHORT) {
   return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
 }
 
-// plainLine removes control and refused characters, and cuts the line to LINE characters.
+// plainLine removes control, refused and hidden characters, and cuts the line to LINE
+// characters.
 function plainLine(text) {
-  return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trimEnd(), LINE);
+  return cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '')
+    .replace(HIDDEN, '').trimEnd(), LINE);
 }
 
 // findingLines returns the lines of a finding, each made plain by plainLine. A finding has
@@ -120,6 +118,24 @@ function findingLines(text) {
 // quote returns text from a draft, cut to QUOTE characters, in double quotes.
 function quote(text) {
   return `"${cut(String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '').trim(), QUOTE)}"`;
+}
+
+// The characters that show nothing and that the text of another session may hide an
+// instruction in, beside REFUSED_ALL: the Unicode classes Default_Ignorable_Code_Point (the
+// tag characters, the joiners, the variation selectors, the Hangul fillers and others) and Cf
+// (format characters), the object replacement character, and a lone surrogate.
+const HIDDEN = /[\p{Default_Ignorable_Code_Point}\p{Cf}\uFFFC\uD800-\uDFFF]/gu;
+
+// plain returns text for a line: no control, refused or hidden character.
+const plain = (text) => text.replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '')
+  .replace(HIDDEN, '').trim();
+
+// fullQuote returns text, such as a path, in double quotes with no cut. It replaces each
+// control character by a space and removes each refused and hidden character, and keeps the
+// spaces at both ends, which the quotes show.
+function fullQuote(text) {
+  return `"${String(text).replace(CONTROL_ALL, ' ').replace(REFUSED_ALL, '')
+    .replace(HIDDEN, '')}"`;
 }
 
 // plural returns the count and the noun, with the plural form for any count but 1.
@@ -417,8 +433,8 @@ function artifactFolder(deps) {
 
 module.exports = {
   ARTIFACTS, NAME, RUN, STARTED, LIMIT, LINE, QUOTE, SHORT, MAX_BYTES, MAX_FINDINGS, LOCAL, PLACES,
-  MAX_FINDING_LINES, DISK_FACTOR, STARTS_PER_SUBJECT, Missing, REFUSED, REFUSED_ALL,
-  CONTROL, CONTROL_ALL, hex, cut, short, given, plainLine, findingLines, quote, plural, inside,
+  MAX_FINDING_LINES, DISK_FACTOR, Missing, REFUSED, REFUSED_ALL,
+  CONTROL, CONTROL_ALL, HIDDEN, plain, hex, cut, short, given, plainLine, findingLines, quote, fullQuote, plural, inside,
   lexists,
   readFile, parseJson, writeJson, sha256, isObject, jsonKind, valueText, ID, label, entries,
   characterCount, sized, Run, qoryPath, folderOf, artifactFolder, withLock,
