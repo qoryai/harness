@@ -1345,7 +1345,12 @@ test('decision record: how a closing fence ends a Mermaid block', () => {
 // drawn returns the edit that adds one closed Mermaid block with the body text, after the Cost
 // item of decision-1. open is its opening fence line.
 const drawn = (body, open = '```mermaid') => ['decision-record.md', COST,
-  (item) => `${item}\n\n${open}\n${body}\n${/^\s*([`~]+)/.exec(open)[1]}`];
+  (item) => {
+    // The lines after an indented fence keep its indent, or the item that holds the fence ends.
+    const indent = /^ */.exec(open)[0];
+    const inside = body.split('\n').map((line) => indent + line).join('\n');
+    return `${item}\n\n${open}\n${inside}\n${/^\s*[`~]+/.exec(open)[0]}`;
+  }];
 
 test('decision record: the fence is lower case mermaid at the line start, with no other word', () => {
   const body = 'flowchart LR\n  A --> B';
@@ -1734,8 +1739,10 @@ test('a fence line in a block of HTML opens no code block, so the text after it 
     'an end mark of a comment': '<!--\nx\n-->\n```mermaid\nwq2\n```\nwq3',
     'a blank line after a tag': '<span>\n\n```mermaid\nwq2\n```\nwq3',
     'a quote that ends after a tag': '> <div>\n```mermaid\nwq2\n```\nwq3',
-    'a tag that cannot start a block in a paragraph': 'text\n<span>\n```mermaid\nwq2\n```\nwq3',
   };
+  // After a line of text, the parsers differ on a tag alone on a line: the words count.
+  assert.ok(kept('text\n<span>\n```mermaid\nwq2\n```\nwq3').includes('wq2'));
+  assert.ok(kept('| a |\n|---|\n<span>\n```mermaid\nwq2\n```\nwq3').includes('wq2'));
   for (const [name, text] of Object.entries(closed)) {
     assert.equal(kept(text).includes('wq2'), false, name);
     assert.ok(kept(text).includes('wq3'), name);
@@ -1761,6 +1768,69 @@ test('a fence line in a block of HTML: the reading takes linear time', () => {
     ['blank lines in a comment', `<!--\n${'\n'.repeat(120000)}-->`],
     ['quote marks', `${'> '.repeat(120000)}<div>`],
     ['fences', '<div>\n```\n\n'.repeat(20000)],
+  ]) {
+    const started = Date.now();
+    lines(text);
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
+// A code block ends at its closing line: marks at least as long as the opening, then spaces and
+// tabs only. A code block in a list item ends where the item ends. The words after that count.
+test('a line of marks with text is no closing line, and a code block ends with its item', () => {
+  const { lines, counted } = require(MARKDOWN);
+  const kept = (text) => counted(text, false);
+  const fenced = (text) => lines(text)
+    .map((line) => (line.edge ? line.edge[0] : line.fenced ? 'f' : '.')).join('');
+  // A closing line with spaces after it, and a longer closing run, close the block.
+  assert.equal(fenced('```js\nx\n```  \nwq1'), 'ofc.');
+  assert.equal(fenced('```js\nx\n`````\nwq1'), 'ofc.');
+  // A shorter run, another mark and a run with text after it do not close it.
+  assert.equal(fenced('````js\nx\n```\nwq1'), 'offf');
+  assert.equal(fenced('```js\nx\n~~~\nwq1'), 'offf');
+  assert.equal(fenced('```js\nx\n```wq1\nwq2'), 'offf');
+  assert.ok(kept('```js\nx\n```wq1\nwq2\n```').includes('```wq1'));
+  // A list item ends a code block in it, and a line that may continue its paragraph does not.
+  assert.equal(fenced('- x\n  ```js\n  c\n\n  d\nwq1'), '.offf.');
+  assert.equal(fenced('-\n  ```mermaid\n  c\n\nwq1'), '.off.');
+  assert.equal(fenced('- x\n  ```js\n  c\n  ```\n  wq1'), '.ofc.');
+  assert.equal(fenced('- x\nlazy\n  ```js\n  c\n\nwq1'), '..off.');
+  assert.equal(fenced('1. a\n   ```js\n   c\n  d'), '.of.');
+  assert.ok(kept('-\n  ```mermaid\n  c\n\nwq1').includes('wq1'));
+  assert.equal(kept('-\n  ```mermaid\n  c\n\n  wq2').includes('wq2'), false);
+  // A fence line in a quote opens no code block, so the words after the quote count.
+  assert.ok(kept('> ```mermaid\n> c\n\nwq1').includes('wq1'));
+});
+
+test('a code block that a line of marks or a list item ends: the full check counts words', () => {
+  const words = many(600);
+  const refused = /^Cut (decision-record|spec)\.md to 450 words: it has \d+\./;
+  const record = (block) => fixture(['decision-record.md', COST, (item) => `${item}${block}`]);
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  const look = (info) => `\`\`\`${info}\nx\n\`\`\`wq ${words}\n\`\`\``;
+  fails(push(record(`\n${look('js')}`), 'decision-record'), refused);
+  fails(push(record(`\n\n${look('js')}`), 'decision-record'), refused);
+  fails(push(spec(look('js')), 'spec'), refused);
+  fails(push(spec(`-\n  \`\`\`mermaid\n  x\n\n${words}`), 'spec'), refused);
+  fails(push(spec(`-\n  \`\`\`js\n  x\n\n${words}`), 'spec'), refused);
+  fails(push(record(`\n\n-\n  \`\`\`js\n  x\n\n${words}`), 'decision-record'), refused);
+  // Words in the block, and a closing line with spaces after it, are as before.
+  fails(push(spec(`\`\`\`js\n${words}\n\`\`\``), 'spec'), refused);
+  passes(push(spec('```js\nx\n```  \n'), 'spec'));
+  // A proposal counts the words of the line too.
+  const proposal = (block) =>
+    total(push(fixture(beforeSources(`${parts(5)}### Code\n\n${block}\n\n`)), 'proposal'));
+  assert.ok(proposal(look('js')) - proposal('```js\nx\n```') >= 600);
+});
+
+test('a code block in a list item: the reading takes linear time', () => {
+  const { lines } = require(MARKDOWN);
+  for (const [name, text] of [
+    ['items', '- a\n'.repeat(60000)],
+    ['nested items', Array.from({ length: 400 }, (_, at) => `${' '.repeat(at)}- a`).join('\n')],
+    ['code blocks in items', '- a\n  ```js\n  c\n\nb\n'.repeat(15000)],
+    ['lines of marks', `\`\`\`js\n${'```wq\n'.repeat(50000)}`],
+    ['one long line', `- a\n  \`\`\`js\n${'`'.repeat(250000)}`],
   ]) {
     const started = Date.now();
     lines(text);

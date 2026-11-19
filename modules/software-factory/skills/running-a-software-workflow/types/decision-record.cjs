@@ -50,13 +50,15 @@ module.exports = (lib) => {
         part.lines.forEach((line, index) => {
           if (line.fenced && (line.info === 'mermaid' || line.amp)) {
             const mark = /^ {0,3}(`{3,}|~{3,})/.exec(line.text);
-            if (!block) {
+            // The opening line may start with a list mark, as in "- ```mermaid".
+            const run = /(`{3,}|~{3,})/.exec(line.text);
+            if (!block && run) {
               block = {
-                char: mark[1][0], size: mark[1].length, start: index, end: null,
+                char: run[1][0], size: run[1].length, start: index, end: null,
                 items: items.length, open: line.text,
               };
               blocks.push(block);
-            } else if (mark && mark[1][0] === block.char && mark[1].length >= block.size &&
+            } else if (block && mark && mark[1][0] === block.char && mark[1].length >= block.size &&
               /^ {0,3}(`{3,}|~{3,})\s*$/.test(line.text)) {
               block.end = index;
               block.text = part.lines.slice(block.start + 1, index).map((one) => one.text)

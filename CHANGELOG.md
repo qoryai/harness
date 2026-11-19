@@ -31,8 +31,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   unless it forms a table with a delimiter row. Where the check cannot tell whether a table
   starts, such as in a quote or a list item, the lines count. In every Markdown document, a
   fence line inside a block of HTML opens no code block, as Qory Apiary does, so the text
-  after the block counts. The decision record has no `![` or `<img` anywhere, code
-  blocks and diagrams included, and you write `\![` outside code for a literal `![`: the
+  after the block counts. A line of marks with text after it, such as `` ```wq ``, closes no
+  code block, and a code block in a list item or a quote ends with the item or quote, so the
+  words after it count, as in Qory Apiary. The decision record has no `![` or `<img`
+  anywhere, code blocks and diagrams included, and you write `\![` outside code for a
+  literal `![`: the
   new option `everyImage` of `links` in `lib/markdown.cjs`, which no other type sets,
   refuses each one. `checking-decisions` has the reviewer judge each diagram, and
   `decision-writer` and `decision-reviewer` load `visuals` when the record has one.

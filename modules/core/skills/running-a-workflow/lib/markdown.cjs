@@ -46,96 +46,141 @@ const CONTAINER = /^ {0,3}(?:(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$))[ \t]*)*/;
 // too, and the lines of kinds 6 and 7 go on up to a blank line, those of kinds 1 to 5 up to their
 // end mark. A block in a quote ends at a line with no `>`, and one in a list item at a line
 // that is not blank and not indented 2 columns (the item may be wider, so such a line may still
-// be in the block). Kind 7 starts in no plain paragraph, but in a quote or a list item it does,
-// as Qory Apiary shows it (checked on 2026-11-19). After a code block, call reset().
-// doubtful() tells whether a kind 7 block started right after a line of text, where the parsers
-// may differ.
+// be in the block). Kind 7 starts a block after a line of text too, where CommonMark continues
+// the paragraph: the parsers differ there, so doubtful() then returns true. After a code block,
+// call reset().
 function htmlBlocks() {
   let end = null;
   let stays = null;
-  let paragraph = false;
-  let marked = false;
-  let item = false;
-  let gap = false;
-  let follows = false;
+  let text = false;
   let doubt = false;
-  const clear = () => {
-    paragraph = false;
-    marked = false;
-    follows = false;
-  };
   return {
     reset() {
-      clear();
-      gap = false;
+      text = false;
     },
     doubtful: () => doubt,
-    step(text) {
-      const empty = /^[ \t]*$/.test(text);
-      if (end && stays && !stays(text)) end = null;
+    step(line) {
+      const empty = /^[ \t]*$/.test(line);
+      const before = text;
+      text = !empty;
+      if (end && stays && !stays(line)) end = null;
       if (end === 'blank') {
         if (!empty) return true;
         end = null;
       } else if (end) {
-        if (end.test(text)) end = null;
-        clear();
+        if (end.test(line)) end = null;
         return true;
       }
-      if (empty) {
-        clear();
-        gap = true;
-        return false;
-      }
-      const prefix = CONTAINER.exec(text)[0];
-      const rest = text.slice(prefix.length);
-      const marker = /^\s*([-*+]|\d+[.)])(\s|$)/.test(text);
-      if (item && gap && indentOf(text) < 2 && !marker) item = false;
-      gap = false;
-      if (marker) item = true;
+      if (empty) return false;
+      const prefix = CONTAINER.exec(line)[0];
+      const rest = line.slice(prefix.length);
       const found = HTML_ENDS.find(([start]) => start.test(rest));
-      const block = HTML_BLOCK_TAG.test(rest);
-      const seven = !found && !block && HTML_TAG_LINE.test(rest);
-      if (found || block || (seven && !paragraph)) {
-        if (seven && follows) doubt = true;
-        end = 'blank';
-        if (found) end = found[1].test(rest.slice(found[0].exec(rest)[0].length)) ? null : found[1];
-        stays = null;
-        if (prefix.includes('>')) stays = (line) => /^\s*>/.test(line);
-        else if (/\S/.test(prefix)) stays = (line) => /^[ \t]*$/.test(line) || indentOf(line) >= 2;
-        clear();
-        return true;
-      }
-      const code = !paragraph && /^( {4}|\t)/.test(text);
-      marked = marked || /\S/.test(prefix);
-      paragraph = !code && !marked && !item && /\S/.test(rest) && headingLevel(text) === 0 &&
-        !/^ {0,3}([-*_])( *\1){2,} *$/.test(text);
-      follows = true;
-      return false;
+      const seven = !found && !HTML_BLOCK_TAG.test(rest) && HTML_TAG_LINE.test(rest);
+      if (!found && !seven && !HTML_BLOCK_TAG.test(rest)) return false;
+      if (seven && before) doubt = true;
+      end = 'blank';
+      if (found) end = found[1].test(rest.slice(found[0].exec(rest)[0].length)) ? null : found[1];
+      stays = null;
+      if (prefix.includes('>')) stays = (one) => /^\s*>/.test(one);
+      else if (/\S/.test(prefix)) stays = (one) => /^[ \t]*$/.test(one) || indentOf(one) >= 2;
+      return true;
     },
   };
 }
 
+// A thematic break, such as `***` or `- - -`.
+const BREAK = /^ {0,3}([-*_])( *\1){2,} *$/;
+// A line that starts a quote, a heading, a break or a list item, which no paragraph continues.
+const BLOCK_START =
+  /^ {0,3}(?:>|#{1,6}(?:\s|$)|(?:[-*+]|\d{1,9}[.)])(?:\s|$))|^ {0,3}([-*_])( *\1){2,} *$/;
+// A list mark with nothing after it.
+const MARK_ONLY = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]*$/;
+// The start of an HTML tag or comment at the start of a line.
+const TAG_START = /^[ \t]*<[!?/A-Za-z]/;
+
+// itemColumn returns the column where the text of a list item starts, for a line that starts
+// with its list mark, or 0 for any other line. A mark with no text after it, or with 5 or more
+// spaces after it, has its text 1 column after the mark.
+function itemColumn(text) {
+  const found = /^([ \t]*)([-*+]|\d{1,9}[.)])(?=[ \t]|$)([ \t]*)/.exec(text);
+  if (!found || BREAK.test(text)) return 0;
+  const start = indentOf(found[1]) + found[2].length;
+  const gap = indentOf(found[3]);
+  return found[0].length === text.length || gap >= 5 ? start + 1 : start + gap;
+}
+
+// markerFence returns the fence that a list item opens on the line of its list mark, such as
+// "- ```js", or null.
+function markerFence(text) {
+  const found = /^[ \t]*(?:[-*+]|\d{1,9}[.)])([ \t]+)/.exec(text);
+  return found && indentOf(found[1]) <= 4 && !BREAK.test(text)
+    ? fence(text.slice(found[0].length)) : null;
+}
+
 // lines returns each line with whether it opens, closes or sits inside a code block, the first
-// word of that block, and whether its info string has an "&". A line in a block of HTML opens
-// no code block.
+// word of that block, whether its info string has an "&", and edge, "open" or "close", for the
+// line that opens or closes the block. A line in a block of HTML opens no code block. A code
+// block in a list item ends at the first line that is not blank and starts left of the text of
+// the item, as the item ends there. A closing line has at least as many marks as the opening
+// line and nothing after them but spaces and tabs.
+// Where the parsers may differ, from the line that shows it, no code block opens and each line
+// has uncertain: true, so that the words count. The parsers may differ where a code block in a
+// list item ends with the item (the list marks that a paragraph lets by are not all known) and
+// where a tag alone on a line follows a line of text.
 function lines(text) {
   const out = [];
   const html = htmlBlocks();
+  const items = [];
   let open = null;
+  let uncertain = false;
+  let paragraph = false;
   for (const line of lineList(text)) {
+    const empty = /^[ \t]*$/.test(line);
     if (open) {
-      const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
-      out.push({ text: line, fenced: true, info: open.info, amp: open.amp });
-      if (close && close[1][0] === open.mark && close[1].length >= open.size) open = null;
-      continue;
+      if (empty || indentOf(line) >= open.column) {
+        const close = /^([ \t]*)(`{3,}|~{3,})\s*$/.exec(line);
+        const ends = close && indentOf(close[1]) <= open.column + 3 &&
+          close[2][0] === open.mark && close[2].length >= open.size;
+        out.push({
+          text: line,
+          fenced: true,
+          info: open.info,
+          amp: open.amp,
+          ...(ends ? { edge: 'close' } : {}),
+        });
+        if (ends) open = null;
+        paragraph = false;
+        html.reset();
+        continue;
+      }
+      open = null;
+      uncertain = true;
     }
-    open = html.step(line) ? null : fence(line);
-    if (open) html.reset();
+    const inHtml = html.step(line);
+    if (html.doubtful()) uncertain = true;
+    open = !uncertain && !inHtml && !empty ? fence(line) || markerFence(line) : null;
+    if (empty) {
+      paragraph = false;
+    } else {
+      // A line that follows a paragraph line and starts no block may continue the paragraph
+      // of a list item, where it starts left of the item and leaves it.
+      const lazy = paragraph && !open && !BLOCK_START.test(line) && !TAG_START.test(line);
+      while (!lazy && items.length && indentOf(line) < items[items.length - 1]) items.pop();
+      const column = itemColumn(line);
+      if (column) items.push(column);
+      paragraph = !open && headingLevel(line) === 0 && !BREAK.test(line) && !MARK_ONLY.test(line);
+    }
+    if (open) {
+      html.reset();
+      open.column = items.length ? items[items.length - 1] : 0;
+    }
     out.push({
       text: line,
       fenced: Boolean(open),
       info: open ? open.info : '',
       amp: Boolean(open && open.amp),
+      ...(open ? { edge: 'open' } : {}),
+      ...(uncertain ? { uncertain: true } : {}),
     });
   }
   return out;
@@ -321,9 +366,6 @@ function sentenceParts(text, { abbreviations = ABBREVIATIONS, unlessCapital = ne
 
 const sentences = (text, options) => sentenceParts(text, options).length;
 
-// fenceLine reports whether a line of a code block opens or closes it.
-const fenceLine = (text) => Boolean(fence(text)) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(text);
-
 // The columns that the white space at the start of a line takes, with a tab as far as the next
 // multiple of 4.
 function indentOf(text) {
@@ -362,9 +404,10 @@ const DELIMITER_SHAPE = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[
 // The check cannot tell whether a table starts in a quote, in a list item, after an HTML block,
 // after a delimiter-shaped line that opened no table, or in the paragraph of a list item, so it
 // starts none there until the next blank line, and the lines count. The lines of an HTML block
-// count too, and so do all lines of a text where the parsers may differ on a block of HTML.
+// count too, and so do all lines of a text where lines() is uncertain.
 function tableLines(list) {
   const rows = new Array(list.length).fill(false);
+  if (list.some((line) => line.uncertain)) return rows;
   const pipe = (line) => !line.fenced && /^ {0,3}\|/.test(line.text);
   // A blank line has only spaces and tabs, as in CommonMark: trim also drops \v and \f.
   const empty = (line) => /^[ \t]*$/.test(line.text);
@@ -393,7 +436,6 @@ function tableLines(list) {
       blocked = true;
       inTable = false;
       follow(line.text);
-      if (html.doubtful()) return new Array(list.length).fill(false);
     } else if (empty(line)) {
       inTable = false;
       poisoned = false;
@@ -478,7 +520,7 @@ function counted(text, background, options = {}) {
       paragraph = 'before';
     }
     if (line.fenced) {
-      if (line.info !== 'mermaid' && !fenceLine(line.text)) kept.push(line.text);
+      if (line.info !== 'mermaid' && !line.edge) kept.push(line.text);
       continue;
     }
     if (background && section === 'background' && headingLevel(line.text) !== 2) {
@@ -836,6 +878,6 @@ function points(run, file, list, title) {
 module.exports = {
   lineList, headingLevel, fence, lines, sections, blank, isRow, isPoint, cells, table, delimiter,
   firstFilled, same, headings, INLINE, plain, codeSpans, withoutCode, words, ABBREVIATIONS,
-  sentences, sentenceParts, fenceLine, counted, MARKDOWN, characters, address, links,
+  sentences, sentenceParts, counted, MARKDOWN, characters, address, links,
   machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId,
 };

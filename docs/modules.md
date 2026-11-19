@@ -2298,6 +2298,15 @@ and 7) or at its end mark (kinds 1 to 5). A tag alone on a line (kind 7) starts 
 a plain paragraph. A block in a quote ends at a line with no `>`. The check counts every line
 of a decision record where it cannot tell whether a table starts.
 
+A code block ends at a closing line: 3 or more marks of the same kind as the opening line,
+at least as many as it, and nothing after them but spaces and tabs. A line of marks with
+text after it, such as `` ```wq ``, closes nothing, so its words count. A code block in a
+list item or a quote also ends where the item or quote ends, as Qory Apiary closes it: at a
+line that is not blank and starts left of the text of the item, and the text after it
+counts. A fence that starts on the line of a list mark (`` - ```js ``) is read the same way.
+Where the check cannot tell whether a line ends the item, from that line no code block
+opens, and every line counts.
+
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
 that, on the text that Qory Apiary draws: without the invisible characters that
