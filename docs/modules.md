@@ -1163,7 +1163,18 @@ The guard counts the patterns that the braces of a glob make before it calls `fs
 which cannot be stopped: `{a,b}` is 2, `{1..N}` is N, and nested or adjacent braces multiply.
 It denies a command whose braces make more than 4,096 patterns in all, where a pattern with
 `*`, `?` or `[` counts 256 (`f{1..16}*` is at the limit), and a glob with more than 5 parts
-that have a glob character, as `*/*/*/*/*/*`.
+that have a glob character, as `*/*/*/*/*/*`. The count of a range `{1..N}` is the difference
+of its numbers, as numbers: zeros before them change nothing, and a step of 0 counts as 1,
+so `{000000000000000000000000000000001..0000000000000000000000000000100000}` is 100,000.
+
+`fs.globSync` matches a path part with a regular expression that takes time in the power of
+the number of `*` in it: on a file name of 254 `a` followed by `!`, `*a*a*c` takes 0.01 s,
+`*aa*aa*aa*c` 0.4 s and `*a*a*a*a*c` more than 20 s. The guard denies a glob with more than
+3 `*` in one path part, more than 8 in all, more than 16 `*` and `?` in one path part, or more
+than 32 in all, and a glob with a `(` after `*`, `?`, `+`, `@` or `!`, an extended glob, which
+bash reads from a quoted `(` as text and `fs.globSync` reads as a group. A path part ends at a
+`/` outside braces, because a brace may hold a `/`. It denies a glob word of more than 4,096
+characters, and checks the time before each folder part of a word.
 
 To tell whether the first word of a command is a copy of `checks.cjs`, the guard reads that
 file only when it is a regular file of the size of `checks.cjs`, and then at most that size

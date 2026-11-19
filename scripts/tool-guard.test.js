@@ -2842,3 +2842,74 @@ test('flat cuts each `..` out of a path as path.posix.normalize does, in linear 
     assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000, `${text.length} characters`);
   }
 });
+
+test('a glob that makes fs.globSync stall is denied before the call, in under 1 second, on each adapter', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  // A folder with a file name of 254 `a` and `!`, the worst name for a glob with `*`, and 5,000
+  // files; the guard was measured to 50,000 files too (CHANGELOG).
+  const work = next('stall');
+  fs.mkdirSync(path.join(work, 'many'), { recursive: true });
+  fs.writeFileSync(path.join(work, `${'a'.repeat(254)}!`), '');
+  fs.writeFileSync(path.join(work, 'b.json'), '');
+  for (let n = 0; n < 5000; n += 1) fs.writeFileSync(path.join(work, 'many', `f${n}.txt`), '');
+  const shell = (command) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd: work });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 1000, `${ms} ms: ${command.slice(0, 60)}`);
+    return reason;
+  };
+  const denied = (command, fragment) => {
+    const reason = shell(command);
+    assert.ok(reason && reason.startsWith(reports.HIDDEN_REASON), `${command.slice(0, 60)}: ${reason}`);
+    assert.ok(reason.includes(fragment), `${fragment}: ${reason}`);
+  };
+  const stars = 'has more than 3 * in one path part';
+  const wide = (count) => `0${'0'.repeat(30)}1..${'0'.repeat(count)}100000`;
+  const home = harnessHome();
+  const stalls = [
+    // (a) a brace range with zeros before its numbers, in each form of range.
+    [`ls {${wide(28)}}`, 'make more than 4,096 patterns'],
+    [`ls {${wide(28)}..0}`, 'make more than 4,096 patterns'],
+    ['ls f{100000..00000000000000000000000000000000001}', 'make more than 4,096 patterns'],
+    ['ls f{-100000..5}', 'make more than 4,096 patterns'],
+    ['ls f{5..-100000..-3}', 'make more than 4,096 patterns'],
+    ['ls f{1..9999999999999999999999999999999999999999}', 'make more than 4,096 patterns'],
+    ['ls f{a..Z..0}{1..99}{1..99}', 'make more than 4,096 patterns'],
+    // (b) `*` that a regular expression matches in the power of their number, and an extended glob.
+    ['ls *a*a*a*a*c', stars], ['ls *aa*aa*aa*c', stars], ['ls *?*?*?*c', stars],
+    ['ls *"(a|aa)"*"(a|aa)"*"(a|aa)"b', 'an extended glob'],
+    ['ls +\\(a\\|aa\\)+\\(a\\|aa\\)b*', 'an extended glob'],
+    ['ls @"(a|aa)"*', 'an extended glob'], ['ls !"(a)"*', 'an extended glob'],
+    ['ls *a*a*c/*a*a*c/*a*a*c', 'has more than 8 * in all'],
+    ['ls ?????????????????', 'has more than 16 * and ? in one path part'],
+    ['ls ????????????????/????????????????/????????????????/?', 'has more than 32'],
+    ['ls {*a*,b/}*a*a*', stars],
+    // (c) a word of 65,530 slashes, and words that differ in `*` only.
+    [`ls ${'/'.repeat(65530)}*`, 'more than 4,096 characters'],
+    [`ls ${['*', '**', '***'].map((one) => `${'/'.repeat(30000)}${one}`).join(' ')}`,
+      'more than 4,096 characters'],
+    [`ls ${'a/'.repeat(2048)}*`, 'more than 4,096 characters'],
+  ];
+  for (const [command, fragment] of stalls) {
+    denied(command, fragment);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      const ran = adapter(home, runtime, 'shell', command, work, 3000);
+      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+      assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 60)}`);
+    }
+  }
+  // Words at a limit pass, and so do ordinary globs, also in the folder with the worst name.
+  for (const command of ['ls *a*a*c', 'ls *?*?*', 'ls ????????????????', 'ls *', 'ls .r*',
+    'ls */*.json', 'ls a*b*c', 'ls [a-z]*', 'ls *a*a*c/*a*a*c/*a*', 'ls many/f{0001..4096}.txt',
+    'ls many/f{4096..1}.txt', 'ls f{-5..5}.txt', 'ls f{1..100..0}.txt', `ls ${'a/'.repeat(2046)}*`,
+    'ls {a,b}/*/*/*/*', 'ls *.{js,ts,json}']) {
+    assert.equal(shell(command), null, command);
+    assert.equal(adapter(home, 'copilot', 'shell', command, work, 3000).denied, false, command);
+  }
+  // A hit under .reports is still found when it comes before a word at a limit.
+  fs.mkdirSync(path.join(work, '.reports'));
+  fs.writeFileSync(path.join(work, '.reports', 'end.json'), '{}');
+  assert.match(shell('ls .rep*/end.json *a*a*c'),
+    /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
+});

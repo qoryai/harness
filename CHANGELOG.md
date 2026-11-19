@@ -1376,6 +1376,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and the hook outlasted its timeout. A command is denied when its braces make more than
   4,096 patterns in all, where a pattern with a wildcard counts 256 (`f{1..16}*` is at the
   limit), or when one glob has more than 5 parts with a glob character, as `*/*/*/*/*/*`.
+  Four more words of a command stalled the guard, and the call ran on Cursor and Copilot CLI:
+  `ls {000000000000000000000000000000001..0000000000000000000000000000100000}` counted 1 and
+  `fs.globSync` took 84 s and 303 MB, because the count skipped a range of more than 40
+  characters; `ls *a*a*a*a*c` took more than 20 s in a folder with a file name of 254 `a`, as
+  `fs.globSync` matches a part with a regular expression that takes time in the power of its
+  `*`; `ls *"(a|aa)"*"(a|aa)"*"(a|aa)"b` took 12.5 s, because the quotes that bash removes
+  leave an extended glob; and a word of 65,530 `/` and `*` took 9.1 s, in a loop that built
+  each prefix of the word again. The count reads the numbers of a range as numbers. A glob is
+  denied with more than 3 `*` in one path part, more than 8 in all, more than 16 `*` and `?`
+  in a part, more than 32 in all, a `(` after `*`, `?`, `+`, `@` or `!`, or more than 4,096
+  characters, and the loop checks the time before each folder part. Measured with a file name
+  of 254 `a` and `!` and a folder of 50,001 files, at load 30: a word at the limits, such as
+  `*a*a*c` or `*a*a*c/*a*a*c/*a*`, takes 10 ms and 0.2 s, and a denied word 1 ms.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

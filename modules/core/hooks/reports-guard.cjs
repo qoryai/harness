@@ -25,6 +25,8 @@
 //   ** counts as *, as in bash without globstar. decide denies a word with a glob when
 //   fs.globSync throws on it, when the word starts with another ~name, and on Node before
 //   22, which has no fs.globSync. It denies a word that starts with ~- when OLDPWD is unset.
+// It denies a glob of more than 4,096 characters, with an extended glob, or with more than 3 *
+// in a path part, 8 in all, 16 * and ? in a part, or 32 in all: fs.globSync cannot be stopped.
 // decide splits the command into words in Node and runs no shell. A command still reaches
 // .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
@@ -419,27 +421,69 @@ function words(command) {
 
 // The limits of one command: fs.globSync calls, matched paths, milliseconds, units of brace
 // expansion (1 for each pattern, 256 for each with a wildcard), and parts of a glob with a
-// glob character. One call cannot be stopped, so the limits hold before it.
+// glob character. One call cannot be stopped, so the limits hold before it. A glob word has at
+// most MAX_GLOB_LENGTH characters, 3 `*` in a path part and 8 in all, and 16 `*` or `?` in a
+// path part and 32 in all: fs.globSync matches a part with a regular expression that takes
+// time in the power of its `*`, as 0.4 s for `*aa*aa*aa*c` (4) and over 20 s for
+// `*a*a*a*a*c` (5) on a file name of 254 `a`, and 0.01 s for `*a*a*c` (3).
 const MAX_GLOB_CALLS = 256;
 const MAX_GLOB_MATCHES = 100000;
 const MAX_GLOB_MS = 600;
 const MAX_GLOB_UNITS = 4096;
 const WILDCARD_UNITS = 256;
 const MAX_GLOB_DEPTH = 5;
+const MAX_GLOB_LENGTH = PATH_MAX;
+const MAX_STARS_PART = 3;
+const MAX_STARS = 8;
+const MAX_WILD_PART = 16;
+const MAX_WILD = 32;
+// An extended glob such as +(a|aa) or !(a): fs.globSync reads it where bash reads a quoted or
+// escaped ( as text, and its regular expression takes exponential time.
+const EXTGLOB = /[*?+@!]\(/;
 
 // Over is the error that globbed throws when a command passes a limit of its budget.
 class Over extends Error {}
 
-// rangeCount returns how many words a brace `{from..to}` or `{from..to..step}` makes, or 0 when
-// text is no range.
-function rangeCount(text) {
-  const number = /^(-?\d+)\.\.(-?\d+)(?:\.\.(-?\d+))?$/.exec(text);
-  const letter = /^([A-Za-z])\.\.([A-Za-z])(?:\.\.(-?\d+))?$/.exec(text);
-  const found = number || letter;
+// The largest count of words that a brace makes, and the longest number of a range that is read
+// in full: a longer one makes that many words.
+const HUGE = 1e12;
+const DIGITS = 20;
+
+// bigOf returns the number in text, a minus sign and digits with or without zeros before them,
+// as a BigInt, or null for one of more than DIGITS digits.
+function bigOf(text) {
+  const negative = text.startsWith('-');
+  const digits = text.slice(negative ? 1 : 0).replace(/^0+(?=\d)/, '');
+  if (digits.length > DIGITS) return null;
+  return BigInt(negative ? `-${digits}` : digits);
+}
+
+// The text of a range in a brace, which the sticky flag reads at one place.
+const NUMBER_RANGE = /(-?\d+)\.\.(-?\d+)(?:\.\.(-?\d+))?/y;
+const LETTER_RANGE = /([A-Za-z])\.\.([A-Za-z])(?:\.\.(-?\d+))?/y;
+
+// rangeCount returns how many words the brace `{from..to}` or `{from..to..step}` makes when its
+// text is pattern from start to end, or 0 when that text is no range. Zeros before a number
+// make no difference to its value, a step of 0 counts as 1, and the count has at most HUGE.
+function rangeCount(pattern, start, end) {
+  let found = null;
+  for (const re of [NUMBER_RANGE, LETTER_RANGE]) {
+    re.lastIndex = start;
+    const one = re.exec(pattern);
+    if (one !== null && start + one[0].length === end) found = [re === NUMBER_RANGE, one];
+  }
   if (found === null) return 0;
-  const [from, to] = number ? [Number(found[1]), Number(found[2])]
-    : [found[1].charCodeAt(0), found[2].charCodeAt(0)];
-  return Math.floor(Math.abs(to - from) / (Math.abs(Number(found[3])) || 1)) + 1;
+  const [numbers, [, from, to, by]] = found;
+  const ends = numbers ? [bigOf(from), bigOf(to)]
+    : [BigInt(from.charCodeAt(0)), BigInt(to.charCodeAt(0))];
+  if (ends.includes(null)) return HUGE;
+  let step = by === undefined ? 1n : bigOf(by);
+  if (step === null) step = 10n ** BigInt(DIGITS + 1);
+  if (step < 0n) step = -step;
+  if (step === 0n) step = 1n;
+  const gap = ends[1] > ends[0] ? ends[1] - ends[0] : ends[0] - ends[1];
+  const count = gap / step + 1n;
+  return count > BigInt(HUGE) ? HUGE : Number(count);
 }
 
 // braces returns how many patterns pattern makes by brace expansion, without making them: the
@@ -462,7 +506,7 @@ function braces(pattern) {
       count = 1;
     } else if (ch === '}' && stack.length > 0) {
       const top = stack.pop();
-      const range = top.comma || at - top.from > 40 ? 0 : rangeCount(pattern.slice(top.from, at));
+      const range = top.comma ? 0 : rangeCount(pattern, top.from, at);
       const made = top.comma ? top.sum + count : range || count;
       count = Math.min(top.outer * made, 1e12);
     }
@@ -475,31 +519,95 @@ function braces(pattern) {
   return count;
 }
 
+// checkGlob throws Over for a glob pattern that has an extended glob, or has more `*` and `?`
+// than the limits allow. A path part is the text between two / outside braces, because a brace
+// may hold a / and expand to more than one part. It reads each character once.
+function checkGlob(pattern) {
+  if (EXTGLOB.test(pattern)) {
+    throw new Over('A glob of the command has a ( after *, ?, +, @ or !, which is an extended ' +
+      'glob, and the guard expands none.');
+  }
+  let depth = 0;
+  const part = { stars: 0, wild: 0 };
+  const all = { stars: 0, wild: 0 };
+  for (let at = 0; at < pattern.length; at += 1) {
+    const ch = pattern[at];
+    if (ch === '\\') {
+      at += 1;
+    } else if (ch === '{') {
+      depth += 1;
+    } else if (ch === '}' && depth > 0) {
+      depth -= 1;
+    } else if (ch === '/' && depth === 0) {
+      part.stars = 0;
+      part.wild = 0;
+    } else if (ch === '*' || ch === '?') {
+      for (const count of [part, all]) {
+        count.wild += 1;
+        if (ch === '*') count.stars += 1;
+      }
+      const limits = [[part.stars, MAX_STARS_PART, '*', 'in one path part'],
+        [all.stars, MAX_STARS, '*', 'in all'],
+        [part.wild, MAX_WILD_PART, '* and ?', 'in one path part'],
+        [all.wild, MAX_WILD, '* and ?', 'in all']];
+      for (const [count, most, what, where] of limits) {
+        if (count > most) {
+          throw new Over(`A glob of the command has more than ${most} ${what} ${where}, and the ` +
+            `guard expands at most ${most}.`);
+        }
+      }
+    }
+  }
+}
+
+// overTime throws Over when the globs of a command have taken more than MAX_GLOB_MS.
+function overTime(budget) {
+  if (Date.now() - budget.start > MAX_GLOB_MS) {
+    throw new Over(`The globs of the command take more than ${MAX_GLOB_MS} ms, and the guard ` +
+      `waits at most ${MAX_GLOB_MS} ms.`);
+  }
+}
+
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
 // pattern that has a glob character matches, so that a glob of a file that does not exist yet
 // matches its folder. Each ** counts as *, as in bash without globstar, so that no pattern
 // walks a whole tree. It throws the error of fs.globSync, such as "pattern is too long" for a
-// pattern that bash still expands, and Over when budget, which counts the work of all the
-// globs of a command, has no call, match or time left.
+// pattern that bash still expands, and Over when pattern passes a limit before any scan, or
+// when budget, which counts the work of all the globs of a command, has no call, match or time
+// left. It checks the time before each folder part, so a long pattern ends at the limit.
 function globbed(pattern, cwd, budget) {
-  const parts = pattern.replace(/\*{2,}/g, '*').split('/');
+  overTime(budget);
+  if (pattern.length > MAX_GLOB_LENGTH) {
+    const most = MAX_GLOB_LENGTH.toLocaleString('en-US');
+    throw new Over(`A glob of the command has more than ${most} characters, and the guard ` +
+      `expands at most ${most}.`);
+  }
+  const text = pattern.replace(/\*{2,}/g, '*');
+  const parts = text.split('/');
   if (parts.filter((one) => GLOB.test(one)).length > MAX_GLOB_DEPTH) {
     throw new Over(`A glob of the command has more than ${MAX_GLOB_DEPTH} parts with a glob character, ` +
       `and the guard expands at most ${MAX_GLOB_DEPTH}.`);
   }
+  checkGlob(text);
+  // The end of each folder part, from the first with a glob character on: no prefix is made
+  // and tested again.
+  const ends = [];
+  let end = -1;
+  let wild = false;
+  for (const one of parts) {
+    end += one.length + 1;
+    wild = wild || GLOB.test(one);
+    if (wild) ends.push(end);
+  }
   const out = [];
-  for (let n = parts.length; n >= 1; n -= 1) {
-    const part = parts.slice(0, n).join('/');
-    if (!GLOB.test(part)) continue;
+  for (let n = ends.length - 1; n >= 0; n -= 1) {
+    overTime(budget);
+    const part = text.slice(0, ends[n]);
     let found = budget.seen.get(part);
     if (found === undefined) {
       if (budget.calls >= MAX_GLOB_CALLS) {
         throw new Over(`The command has more than ${MAX_GLOB_CALLS} different globs, and the guard ` +
           `expands at most ${MAX_GLOB_CALLS}.`);
-      }
-      if (Date.now() - budget.start > MAX_GLOB_MS) {
-        throw new Over(`The globs of the command take more than ${MAX_GLOB_MS} ms, and the guard ` +
-          `waits at most ${MAX_GLOB_MS} ms.`);
       }
       budget.calls += 1;
       const made = braces(part);
