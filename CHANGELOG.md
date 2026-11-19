@@ -1390,9 +1390,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   each prefix of the word again. The count reads the numbers of a range as numbers. A glob is
   denied with more than 3 `*` in one path part, more than 8 in all, more than 16 `*` and `?`
   in a part, more than 32 in all, a `(` after `*`, `?`, `+`, `@` or `!`, or more than 4,096
-  characters, and the loop checks the time before each folder part. Measured with a file name
-  of 254 `a` and `!` and a folder of 50,001 files, at load 30: a word at the limits, such as
-  `*a*a*c` or `*a*a*c/*a*a*c/*a*`, takes 10 ms and 0.2 s, and a denied word 1 ms.
+  characters, and the loop checks the time before each folder part. A cap on the
+  number of `*` does not bound a call that cannot be stopped, because the time of `*a*a*c` is
+  about 1 ms for each name of 254 characters in the folder that it scans: 12,000 files with
+  names of 254 characters (240 `a`, 5 digits and `!`) took 13.6 s, 1,000 took 1.15 s, at load
+  12, and `case x in *a*a*c) :;; esac; echo forged > <folder>/.rep*/x.json` outlasted the
+  10 s timeout of the hook, which lets the call run on Cursor and Copilot CLI. Before
+  `fs.globSync` runs for a part with 2 or more `*`, the guard reads the names of the folders
+  that the part scans (at most 83,334 of one folder, and 2,000 folders) and adds 3 microseconds
+  for each name and, for each name, `length^stars` times 0.5 ns for 2 `*` or 0.08 ns for 3 `*`,
+  which is 25 to 100 % more than the measured times. A command whose sum passes 250 ms is denied
+  with "Use a narrower glob:" on the second line, and so is a part with 3 `*` in a folder of
+  more than 20,000 names. The deny of the 12,000 names takes 10 to 141 ms. A part with 1 `*`
+  is not limited: `*`, `.r*`, `*/*.json` and `a*b*c` pass in 50,000 files, and `*`, `a*` and
+  `*.json` in the 12,000 long names. A part with a `/` inside braces and 2 or more `*` is denied.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

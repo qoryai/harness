@@ -477,8 +477,9 @@ function words(command) {
 // glob character. One call cannot be stopped, so the limits hold before it. A glob word has at
 // most MAX_GLOB_LENGTH characters, 3 `*` in a path part and 8 in all, and 16 `*` or `?` in a
 // path part and 32 in all: fs.globSync matches a part with a regular expression that takes
-// time in the power of its `*`, as 0.4 s for `*aa*aa*aa*c` (4) and over 20 s for
-// `*a*a*a*a*c` (5) on a file name of 254 `a`, and 0.01 s for `*a*a*c` (3).
+// time in the power of its `*`, for each name of each folder that it scans: 1 ms per name of
+// 254 characters for `*a*a*c` (3), and over 20 s for `*a*a*a*a*c` (5). scanWork bounds the work
+// by the names that a part scans.
 const MAX_GLOB_CALLS = 256;
 const MAX_GLOB_MATCHES = 100000;
 const MAX_GLOB_MS = 600;
@@ -490,6 +491,19 @@ const MAX_STARS_PART = 3;
 const MAX_STARS = 8;
 const MAX_WILD_PART = 16;
 const MAX_WILD = 32;
+// The work of one fs.globSync call is bounded by its input, because the call cannot be stopped.
+// A part with 2 or more `*` costs about len(name)^stars per name of a folder that it scans, as
+// 1.0 ms for `*a*a*c` on a name of 254 `a` and 0.06 ms on 100 (measured at load 12), and each name
+// costs a base for the read. The constants are 25 to 100 % more than the measured times, and the
+// budget of a command is 250 ms of this estimate, which took under 500 ms at load 30.
+const BASE_NS = 3000;
+const NS_PER_UNIT = { 2: 0.5, 3: 0.08 };
+const MAX_WORK_NS = 250e6;
+// A folder with more names than this costs too much to read, and one with more than
+// MAX_STAR_ENTRIES makes a part with 3 `*` too slow; a glob scans at most MAX_SCAN_DIRS folders.
+const MAX_READ = Math.floor(MAX_WORK_NS / BASE_NS) + 1;
+const MAX_STAR_ENTRIES = 20000;
+const MAX_SCAN_DIRS = 2000;
 // An extended glob such as +(a|aa) or !(a): fs.globSync reads it where bash reads a quoted or
 // escaped ( as text, and its regular expression takes exponential time.
 const EXTGLOB = /[*?+@!]\(/;
@@ -581,8 +595,14 @@ function checkGlob(pattern) {
       'glob, and the guard expands none.');
   }
   let depth = 0;
-  const part = { stars: 0, wild: 0 };
+  const part = { stars: 0, wild: 0, slash: false };
   const all = { stars: 0, wild: 0 };
+  const glued = () => {
+    if (part.slash && part.stars >= 2) {
+      throw new Over('A glob of the command has a / inside braces in a path part with 2 or more ' +
+        '*, and the guard expands none.');
+    }
+  };
   for (let at = 0; at < pattern.length; at += 1) {
     const ch = pattern[at];
     if (ch === '\\') {
@@ -594,6 +614,10 @@ function checkGlob(pattern) {
     } else if (ch === '/' && depth === 0) {
       part.stars = 0;
       part.wild = 0;
+      part.slash = false;
+    } else if (ch === '/') {
+      part.slash = true;
+      glued();
     } else if (ch === '*' || ch === '?') {
       for (const count of [part, all]) {
         count.wild += 1;
@@ -609,6 +633,7 @@ function checkGlob(pattern) {
             `guard expands at most ${most}.`);
         }
       }
+      glued();
     }
   }
 }
@@ -619,6 +644,72 @@ function overTime(budget) {
     throw new Over(`The globs of the command take more than ${MAX_GLOB_MS} ms, and the guard ` +
       `waits at most ${MAX_GLOB_MS} ms.`);
   }
+}
+
+// isDirectory reports whether file is a folder, or a link to one.
+function isDirectory(file) {
+  try {
+    return fs.statSync(file).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+// namesOf returns the names in the folder dir, at most MAX_READ of them, without reading more.
+function namesOf(dir, budget) {
+  let names = budget.names.get(dir);
+  if (names !== undefined) return names;
+  names = [];
+  let handle = null;
+  try {
+    handle = fs.opendirSync(dir);
+    for (let one = handle.readSync(); one !== null && names.length < MAX_READ;
+      one = handle.readSync()) {
+      names.push(one.name);
+    }
+  } catch {
+    // A folder that is not there, or cannot be read, has no names to match.
+  } finally {
+    if (handle !== null) {
+      try {
+        handle.closeSync();
+      } catch {
+        // The folder is closed or never opened.
+      }
+    }
+  }
+  budget.names.set(dir, names);
+  return names;
+}
+
+// scanWork throws Over when matching the path part last, against the names in the folders dirs,
+// would take more than the work that budget has left. A part with fewer than 2 `*` takes time in
+// the length of the names, as the read of the folder does, and is not counted.
+function scanWork(last, dirs, budget) {
+  const stars = last.split('*').length - 1;
+  if (stars < 2) return;
+  const put = (what) => new Over(`Use a narrower glob: the part ${short(last)} of a glob of the ` +
+    `command has ${stars} *, and ${what}.`);
+  if (dirs.length > MAX_SCAN_DIRS) {
+    throw put(`it scans more than ${MAX_SCAN_DIRS.toLocaleString('en-US')} folders`);
+  }
+  const weight = NS_PER_UNIT[Math.min(stars, 3)];
+  const times = Math.max(1, braces(last));
+  let ns = 0;
+  let count = 0;
+  for (const dir of dirs) {
+    const names = namesOf(dir, budget);
+    count += names.length;
+    if (stars >= 3 && count > MAX_STAR_ENTRIES) {
+      throw put(`its folder has more than ${MAX_STAR_ENTRIES.toLocaleString('en-US')} names`);
+    }
+    for (const name of names) ns += BASE_NS + weight * name.length ** stars;
+    if (budget.work + ns * times > MAX_WORK_NS) {
+      throw put(`it scans ${count.toLocaleString('en-US')} names or more, more than the guard ` +
+        'allows for this many *');
+    }
+  }
+  budget.work += ns * times;
 }
 
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
@@ -642,22 +733,25 @@ function globbed(pattern, cwd, budget) {
       `and the guard expands at most ${MAX_GLOB_DEPTH}.`);
   }
   checkGlob(text);
-  // The end of each folder part, from the first with a glob character on: each prefix is cut
-  // from the text once, and read for a glob character once.
-  const ends = [];
+  // The start and end of each folder part, from the first with a glob character on: each prefix
+  // is cut from the text once, and read for a glob character once.
+  const spans = [];
   let end = -1;
   let wild = false;
   for (const one of parts) {
     end += one.length + 1;
     wild = wild || GLOB.test(one);
-    if (wild) ends.push(end);
+    if (wild) spans.push([end - one.length, end, one]);
   }
-  const out = [];
-  for (let n = ends.length - 1; n >= 0; n -= 1) {
+  // The prefixes run from the shortest, so that the folders that a part scans are the matches of
+  // the prefix before it.
+  const found = [];
+  let before = null;
+  for (const [start, stop, last] of spans) {
     overTime(budget);
-    const part = text.slice(0, ends[n]);
-    let found = budget.seen.get(part);
-    if (found === undefined) {
+    const part = text.slice(0, stop);
+    let matched = budget.seen.get(part);
+    if (matched === undefined) {
       if (budget.calls >= MAX_GLOB_CALLS) {
         throw new Over(`The command has more than ${MAX_GLOB_CALLS} different globs, and the guard ` +
           `expands at most ${MAX_GLOB_CALLS}.`);
@@ -669,18 +763,26 @@ function globbed(pattern, cwd, budget) {
         throw new Over(`The braces in the command make more than ${MAX_GLOB_UNITS.toLocaleString('en-US')} ` +
           `patterns, and the guard expands at most ${MAX_GLOB_UNITS.toLocaleString('en-US')}.`);
       }
-      found = fs.globSync(part, { cwd });
-      budget.seen.set(part, found);
-      budget.matches += found.length;
+      if (last.includes('*')) {
+        const dirs = before === null ? [path.resolve(cwd, text.slice(0, start) || '.')]
+          : before.slice(0, MAX_SCAN_DIRS + 1).map((one) => path.resolve(cwd, one))
+            .filter((one) => isDirectory(one));
+        scanWork(last, dirs, budget);
+      }
+      matched = fs.globSync(part, { cwd });
+      budget.seen.set(part, matched);
+      budget.matches += matched.length;
       if (budget.matches > MAX_GLOB_MATCHES) {
         throw new Over(`The globs of the command match more than ` +
           `${MAX_GLOB_MATCHES.toLocaleString('en-US')} paths, and the guard reads at most ` +
           `${MAX_GLOB_MATCHES.toLocaleString('en-US')}.`);
       }
     }
-    out.push(...found);
+    found.push(matched);
+    before = matched;
   }
-  return out;
+  // The longest prefix first: its matches name the file that the glob reaches.
+  return found.reverse().flat();
 }
 
 // short returns raw, cut to 60 characters, for a line of a deny.
@@ -690,7 +792,8 @@ const short = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}…` : raw);
 // .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
 // ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob.
 function hidden(command, cwd, env, globs) {
-  const budget = { calls: 0, matches: 0, units: 0, seen: new Map(), start: Date.now() };
+  const budget = { calls: 0, matches: 0, units: 0, work: 0, names: new Map(), seen: new Map(),
+    start: Date.now() };
   // The globs that match nothing under .reports: a word that repeats one costs no more work.
   const clean = new Set();
   for (const { raw, value: text, glob, tilde } of words(command)) {

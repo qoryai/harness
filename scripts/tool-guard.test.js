@@ -2884,7 +2884,7 @@ test('a glob that makes fs.globSync stall is denied before the call, in under 1 
     ['ls *a*a*c/*a*a*c/*a*a*c', 'has more than 8 * in all'],
     ['ls ?????????????????', 'has more than 16 * and ? in one path part'],
     ['ls ????????????????/????????????????/????????????????/?', 'has more than 32'],
-    ['ls {*a*,b/}*a*a*', stars],
+    ['ls {*a*,b/}*a*a*', 'a / inside braces in a path part with 2 or more *'],
     // (c) a word of 65,530 slashes, and words that differ in `*` only.
     [`ls ${'/'.repeat(65530)}*`, 'more than 4,096 characters'],
     [`ls ${['*', '**', '***'].map((one) => `${'/'.repeat(30000)}${one}`).join(' ')}`,
@@ -3053,4 +3053,77 @@ test('a path over 4,096 characters, or with a `.` or empty part, is also read as
   assert.equal(write('y/../../l4/x.json', linked), reports.WRITE_REASON);
   assert.equal(write('y/../../l4/notes.md', linked), null);
   assert.equal(write('y/../../l4/x.json', path.join(work, 'deep')), null);
+});
+
+test('a glob with 2 or more `*` is denied when the names it scans would take too long, before fs.globSync runs', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  // 12,000 files with names of 254 characters (240 `a`, 5 digits and `!`): fs.globSync takes
+  // about 1 ms for each name with `*a*a*c`, so 12 s, and the hook outlasts its timeout. The
+  // second folder has 50,000 short names, and the third a few files with ordinary names.
+  const work = next('scan');
+  const many = path.join(work, 'many');
+  const short = path.join(work, 'short');
+  const small = path.join(work, 'small');
+  for (const folder of [many, short, small, path.join(work, 'art', '.reports')]) {
+    fs.mkdirSync(folder, { recursive: true });
+  }
+  for (let n = 0; n < 12000; n += 1) {
+    fs.writeFileSync(path.join(many, `${'a'.repeat(240)}${String(n).padStart(5, '0')}!`), '');
+  }
+  for (let n = 0; n < 50000; n += 1) fs.writeFileSync(path.join(short, `f${n}.txt`), '');
+  for (const name of ['a.md', 'b.json', 'abc.txt', 'notes-1-2.md']) {
+    fs.writeFileSync(path.join(small, name), '');
+  }
+  const home = harnessHome();
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 1000, `${ms} ms: ${command.slice(0, 60)}`);
+    return reason;
+  };
+  const narrow = (reason, command) => {
+    assert.ok(reason && reason.startsWith(reports.HIDDEN_REASON), `${command}: ${reason}`);
+    assert.match(reason, /\nUse a narrower glob: the part \S+ of a glob of the command has \d \*, and /,
+      command);
+  };
+  // The call that forges a report file, through the real adapters, which are killed after 3 s:
+  // the glob in the case arm is read, and the guard denies before the 12,000 names are matched.
+  const forge = `case x in *a*a*c) :;; esac; echo forged > ${work}/art/.rep*/x.json`;
+  for (const command of [forge, 'ls *a*a*c', 'ls *a?*a?*c', 'ls *a*a*0', 'ls a*b*c', 'ls *a*c']) {
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      const ran = adapter(home, runtime, 'shell', command, many, 3000);
+      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)} ran past 3 s`);
+      assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)}`);
+      assert.match(ran.reason, /\nUse a narrower glob: /, `${runtime}: ${command.slice(0, 40)}`);
+    }
+  }
+  // A part of a longer glob scans the folders that the part before it matches.
+  const root = adapter(home, 'copilot', 'shell', 'ls m*/*a*a*c', work, 3000);
+  assert.equal(root.killed, false);
+  assert.equal(root.denied, true);
+  for (const command of ['ls many/*a*a*c', 'ls m*/*a*a*c', 'ls {many,none}/*a*a*c',
+    'ls ./many/*a*a*0', 'ls */*a*a*c']) {
+    narrow(shell(command, work), command);
+  }
+  // The same patterns in a folder of ordinary names pass.
+  for (const command of ['ls *a*a*c', 'ls *a?*a?*c', 'ls a*b*c', 'ls *a*c', 'ls *-*-*.md',
+    forge.replace(`${work}/art`, 'x').replace('x/.rep', '/nope/.rep')]) {
+    assert.equal(shell(command, small), null, command);
+  }
+  // A glob with 1 `*` takes time in the length of the names, so no folder size stops it, and
+  // none of these is denied in the folder of 50,000 names or the one of 12,000 long names.
+  for (const command of ['ls *', 'ls f1*', 'ls *.txt', 'ls */*.json', 'ls a*b*c', 'ls f*0*.txt',
+    'ls f*1*.txt']) {
+    assert.equal(shell(command, short), null, command);
+    assert.equal(adapter(home, 'copilot', 'shell', command, short, 3000).denied, false, command);
+  }
+  for (const command of ['ls *', 'ls a*', 'ls *!', 'ls *.json', 'ls */*.json']) {
+    assert.equal(shell(command, many), null, command);
+  }
+  // A folder of more than 20,000 names makes a part with 3 `*` too slow, whatever the names.
+  narrow(shell('ls f*1*2*.txt', short), 'ls f*1*2*.txt');
+  assert.match(shell('ls f*1*2*.txt', short), /its folder has more than 20,000 names/);
+  // The global limit holds with a hit: .reports is found before a glob at the limits.
+  assert.match(shell('ls .rep*/x.json', path.join(work, 'art')), /\nThe glob \.rep\*\/x\.json matches/);
 });
