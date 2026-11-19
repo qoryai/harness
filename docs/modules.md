@@ -1260,14 +1260,19 @@ costs 37 to 40 ms to start at load 41: `ls *.ts` takes 40 ms with the child and 
 without it, and `a*b*c`, `*.txt` and `*` in a folder of 50,000 names take 177, 209 and 196 ms with
 it, and 140, 134 and 148 ms without it. The child needs a POSIX system.
 
-The tests set `QORY_REPORTS_GUARD_TEST`, a JSON object with `globMs` (a lower limit for the
-child), `stall` (a text in a word that makes the child never return), `fail` (a child that
-exits, prints bad JSON, a deny that is no text, or 2 MiB) and `noCaps` (turns off the checks
-of backslashes and braces, so that only the limit of the child decides). The guard reads the
-variable from the environment of the hook process. A shell command of the agent runs in
-another process, and the runtime starts the hook with its own environment, so the command
-cannot set the variable for it; `noCaps` is the one hook that lets a call pass that the
-guard denies without it, and the child limit still applies.
+The environment variable `QORY_REPORTS_GUARD_TEST` is a JSON object for the checks of the
+guard, with 3 fields: `globMs` (a lower limit for the child), `stall` (a text in a word that makes
+the child never return) and `fail` (a child that exits, prints bad JSON, a deny that is no text,
+or 2 MiB). Each field can only lower the limit or deny a call, and the guard reads no other
+field. A file of the workspace can reach the environment of a hook (Gemini CLI 0.68.0 loads
+`.env` into its environment, and the guard does not deny a write to it), so no field turns off a
+check: `{"noCaps":true}` and any other field change nothing. The options `noCaps` (no early deny
+of backslashes and braces, so that only the limit of the child decides), `waitMs` (a limit for
+the time between two calls instead of 600 ms) and `inline` (no child) belong to `decide`, and the
+adapters build their call from fixed fields, so no adapter sets them. The checks reach the
+wrappers with these options through a copy of the hooks that the check patches. The 600 ms
+limit counts from the start of the child's work, so the 40 ms to start the child do not count;
+it is wall time, which a loaded machine can pass for a folder of 50,000 names.
 
 To tell whether the first word of a command is a copy of `checks.cjs`, the guard reads that
 file only when it is a regular file of the size of `checks.cjs`, and then at most that size
@@ -1290,7 +1295,9 @@ tool, although `checks.cjs` loads files next to it, so a copy of the whole folde
 edited file runs. A shell command that writes through an existing link to `.reports` is not
 followed to the target: the write tools follow links, the shell kind does not. A path with
 backslash separators is read as POSIX, so `art\.reports\x.json` is one name, which a tool of
-Windows reads as a path under `.reports`. Each hook has
+Windows reads as a path under `.reports`. The guard reads a `}2,}` after a group of braces
+differently from bash in about 1 % of 5,000 random strings; the words that bash makes there are
+`.reports/` followed by text that does not end in `.json` or contain `.json.lock`. Each hook has
 a timeout of 10 seconds. A hook that runs past its timeout
 lets the call run on Cursor and on Copilot CLI ([Cursor](https://cursor.com/docs/agent/hooks),
 [Copilot CLI](https://docs.github.com/en/copilot/reference/hooks-reference)). Of a hook that

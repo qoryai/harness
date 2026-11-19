@@ -1593,6 +1593,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   The first line of the deny of a backslash is "Leave .reports/ to checks.cjs, and name other
   files with no `$`, backtick, eval or glob."; the second starts with "Remove the backslash
   before the glob character".
+  The variable `QORY_REPORTS_GUARD_TEST` has 3 fields, `globMs`, `stall` and `fail`, which can
+  only lower the limit of the child or deny a call. No field turns off a check, because Gemini
+  CLI 0.68.0 loads the `.env` of the workspace into the environment of a hook, and the guard
+  does not deny a write to `.env`; the options `noCaps` and `waitMs` belong to `decide`, which
+  the adapters call with fixed fields.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

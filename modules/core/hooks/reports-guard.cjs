@@ -42,6 +42,10 @@
 // kill, a failure of the child and bad output of the child deny the call. A hook has 10 s: the
 // checks before the child and the child's 2.5 s bound it. The checks inside the child, 250 ms
 // for each call and 600 ms between the calls, stay.
+// QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
+// a call: a file of the workspace can reach the environment of a hook, so no field turns off a
+// check, and the options noCaps and waitMs belong to decide, which the adapters call with fixed
+// fields.
 // decide splits the command into words in Node and runs no shell. A command still reaches
 // .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
@@ -684,11 +688,13 @@ function checkGlob(pattern) {
   });
 }
 
-// overTime throws Over when the globs of a command have taken more than MAX_GLOB_MS.
+// overTime throws Over when the globs of a command have taken more than MAX_GLOB_MS, or
+// budget.hooks.waitMs, an option of decide for checks of the guard that no adapter sets.
 function overTime(budget) {
-  if (Date.now() - budget.start > MAX_GLOB_MS) {
-    throw new Over(`The globs of the command take more than ${MAX_GLOB_MS} ms, and the guard ` +
-      `waits at most ${MAX_GLOB_MS} ms.`);
+  const limit = budget.hooks.waitMs > 0 ? budget.hooks.waitMs : MAX_GLOB_MS;
+  if (Date.now() - budget.start > limit) {
+    throw new Over(`The globs of the command take more than ${limit} ms, and the guard ` +
+      `waits at most ${limit} ms.`);
   }
 }
 
@@ -1130,8 +1136,8 @@ function startsEmpty(pattern) {
 // braces of it. A pattern with no `*`, `?` or `[` is not scanned. It throws the error of
 // fs.globSync, and Over when pattern passes a limit before any scan, or when budget, which counts
 // the calls, matches and time of all the globs of a command, has none left. It checks the time
-// before each folder part, so a long pattern ends at the limit. budget.hooks.noCaps, a hook for checks of the guard,
-// turns off the checks of backslashes and braces, so that the limit of the child process decides.
+// before each folder part, so a long pattern ends at the limit. budget.hooks.noCaps, an option of decide that no adapter sets and no
+// environment variable or file can set, turns off the checks of backslashes and braces, so that the limit of the child process decides.
 function globbed(pattern, cwd, budget) {
   overTime(budget);
   if (pattern.length > MAX_GLOB_LENGTH) {
@@ -1187,20 +1193,25 @@ const CHILD = 'const g = require(process.argv[1]);' +
   "const input = JSON.parse(require('fs').readFileSync(0, 'utf8'));" +
   'process.stdout.write(JSON.stringify({ deny: g.globsChild(input) }));';
 
-// guardHooks returns the hooks for checks of the guard, from QORY_REPORTS_GUARD_TEST, a JSON object that the
-// runtime sets for a hook that it starts, and that a shell command of the agent cannot set
-// there: globMs, a limit for the child lower than GLOB_CHILD_MS; stall, a text that makes the
-// child of a command with it in a glob never return; fail, which makes the child exit with 3,
-// print text that is no JSON, print a deny that is no text, or print 2 MiB; and noCaps, which turns off the checks of
-// backslashes and braces (see globbed), so that only the limit of the child decides. None of
-// them lets a call pass that the guard denies without them, but noCaps.
+// guardHooks returns the hooks for checks of the guard, from QORY_REPORTS_GUARD_TEST, a JSON
+// object. A file of the workspace can reach the environment of a hook (Gemini CLI loads .env),
+// so each field can only lower the limit or deny a call, and no other field is read:
+// globMs, a limit for the child lower than GLOB_CHILD_MS; stall, a text that makes the child of
+// a command with it in a glob never return; and fail, which makes the child exit with 3, print
+// text that is no JSON, print a deny that is no text, or print 2 MiB.
 function guardHooks() {
+  let read = {};
   try {
-    const hooks = JSON.parse(process.env.QORY_REPORTS_GUARD_TEST || '{}');
-    return hooks !== null && typeof hooks === 'object' ? hooks : {};
+    read = JSON.parse(process.env.QORY_REPORTS_GUARD_TEST || '{}');
   } catch {
     return {};
   }
+  if (read === null || typeof read !== 'object') return {};
+  const hooks = {};
+  if (typeof read.globMs === 'number') hooks.globMs = read.globMs;
+  if (typeof read.stall === 'string') hooks.stall = read.stall;
+  if (typeof read.fail === 'string') hooks.fail = read.fail;
+  return hooks;
 }
 
 // globsHidden returns the second line of the deny for the first of the glob words in list, each
@@ -1253,8 +1264,8 @@ function globsChild({ list, cwd, hooks }) {
 // globsInChild runs globsHidden for list in a child process, which spawnSync kills after
 // GLOB_CHILD_MS: a call of fs.globSync that does not return, a crash, and an output that is not
 // { deny: string or null } of at most 1 MiB each deny the call.
-function globsInChild(list, cwd) {
-  const hooks = guardHooks();
+function globsInChild(list, cwd, noCaps, waitMs) {
+  const hooks = { ...guardHooks(), noCaps, waitMs };
   const limit = Math.min(GLOB_CHILD_MS, hooks.globMs > 0 ? hooks.globMs : GLOB_CHILD_MS);
   const failed = `Use a narrower glob: the globs of the command did not finish in ` +
     `${limit.toLocaleString('en-US')} ms, or could not run, and the guard blocks the call.`;
@@ -1283,9 +1294,12 @@ function globsInChild(list, cwd) {
 // hidden returns the part of command that reaches .reports though its text does not contain
 // .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
 // ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob. A glob word with a `*`, `?`
-// or `[` is expanded by fs.globSync in a child process, unless inline is true, which the checks of the guard set;
-// one with only braces is read as text, in this process.
-function hidden(command, cwd, env, globs, inline) {
+// or `[` is expanded by fs.globSync in a child process, unless inline is true; one with only
+// braces is read as text, in this process. inline and noCaps (no early deny of backslashes and
+// braces, so that only the limit of the child decides) and waitMs (the 600 ms between calls) are
+// options of decide for checks of the guard: the adapters build their call from fixed fields and
+// set none of them.
+function hidden(command, cwd, env, globs, inline, noCaps, waitMs) {
   const pending = [];
   const textual = [];
   for (const { raw, value: text, glob, tilde } of words(command)) {
@@ -1307,7 +1321,7 @@ function hidden(command, cwd, env, globs, inline) {
     }
     (/[*?[]/.test(value) ? pending : textual).push({ raw, value });
   }
-  const text = globsHidden(textual, cwd, guardHooks());
+  const text = globsHidden(textual, cwd, { ...guardHooks(), noCaps, waitMs });
   if (text !== null) return text;
   const built = BUILT.exec(command);
   if (built !== null && DOT_R.test(command)) {
@@ -1315,7 +1329,7 @@ function hidden(command, cwd, env, globs, inline) {
     return `The command has ${sign} and .r, which can build the name .reports.`;
   }
   if (pending.length === 0) return null;
-  return inline ? globsHidden(pending, cwd, guardHooks()) : globsInChild(pending, cwd);
+  return inline ? globsHidden(pending, cwd, { ...guardHooks(), noCaps, waitMs }) : globsInChild(pending, cwd, noCaps, waitMs);
 }
 
 // decide returns the reason to deny a call, or null to let it run. kind is 'write' for a tool
@@ -1326,7 +1340,7 @@ function hidden(command, cwd, env, globs, inline) {
 // With globs false, decide expands no glob: fs.globSync has no limit on its work, so
 // tool-guard.cjs, which bounds the work of each call, matches globs itself.
 function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
-  globs = true, inline = false }) {
+  globs = true, inline = false, noCaps = false, waitMs = 0 }) {
   if (!env.QORY_RUN_ID) return null;
   if (kind === 'write') {
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
@@ -1347,7 +1361,7 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
     const special = notProgram(command, env);
     if (special !== null) return SPECIAL_REASON + special;
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
-    const part = hidden(command, from, env, globs, inline);
+    const part = hidden(command, from, env, globs, inline, noCaps, waitMs);
     return part === null ? null : HIDDEN_REASON + part;
   }
   return null;
