@@ -1406,9 +1406,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   files, so 2,100 files that sort before 100 folders (`a00000` to `a02099` and `z000` to `z099`,
   each folder with 120 names of 254 characters) hid every folder, and `*/*a*a*c` took 15.4 s.
   The check of each match costs 0.26 s for 100,000 files at load 25, and a part over 2,000
-  folders is denied with "Use a narrower glob:". A part with 1 `*`
-  is not limited: `*`, `.r*`, `*/*.json` and `a*b*c` pass in 50,000 files, and `*`, `a*` and
-  `*.json` in the 12,000 long names. A part with a `/` inside braces and 2 or more `*` is denied.
+  folders is denied with "Use a narrower glob:". A part with 1 `*`, as `a*c` or `f*`, costs
+  2.2 microseconds for each name and is limited only by the names it reads (see the next
+  entry): `*`, `.r*`, `*/*.json`, `a*c` and `a*b*c` pass in 50,000 files, and `*`, `a*` and
+  `*.json` in the 12,000 long names.
+- The guard counts the `*` of a glob for each alternative of its braces, and bounds every glob
+  part by the names it scans. `cat {src/*,lib/*}` and `ls {*.ts,*.js,*.md,*.json}` were denied
+  (the stars were added across the alternatives and not reset at `/`); each pair of braces now
+  counts as its largest alternative, counted from the text before the braces, so `*{*a,*b}*`
+  has 3 `*` and `{*a*a*c,b}` is limited by the work estimate, which multiplies by the number of
+  alternatives. A part that follows a `/` inside braces and has 2 or more `*` is still denied,
+  with the second line "Write each alternative as its own word, as `src/*a* lib/*b*`." A part
+  with fewer than 2 `*` read no names and had no limit: `ls {a..p}*` (16 alternatives) took
+  0.67 s on 50,000 names, over the 600 ms that the guard allows. Every part with a `*`, `?`
+  or `[` now costs 2.2 microseconds for each name and 0.6 microseconds for each alternative
+  after the first, within the same 250 ms of one call: `ls {a..p}*` is denied in 0.04 s,
+  while `{a,b,c,d,f}*`, `*`, `.r*`, `*/*.json`, `a*c`, `f*` and `a*b*c` pass in the same
+  folder. A folder of 83,334 names or more is denied for a part with a `*`.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

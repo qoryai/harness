@@ -1176,23 +1176,30 @@ than 25 s, and the hook outlasts its timeout of 10 seconds, which lets the call 
 Copilot CLI. The guard denies a glob with more than 3 `*` in one path part, more than 8 in all,
 more than 16 `*` and `?` in one path part, or more than 32 in all, and a glob with a `(` after `*`,
 `?`, `+`, `@` or `!`, an extended glob, which bash reads from a quoted `(` as text and
-`fs.globSync` reads as a group. A path part ends at a `/` outside braces, because a brace may hold
-a `/`; a part with a `/` inside braces and 2 or more `*` is denied. It denies a glob word of more
-than 4,096 characters, and checks the time before each folder part of a word.
+`fs.globSync` reads as a group. It counts each pair of braces as its largest alternative, with
+each alternative counted from the text before the braces: `{src/*,lib/*}` and
+`{*.ts,*.js,*.md,*.json}` have 1 `*`, and `*{*a,*b}*` has 3. A `/` inside an alternative starts a
+new path part. A part that follows a `/` inside braces and has 2 or more `*` is denied with the
+second line "Write each alternative as its own word, as `src/*a* lib/*b*`.", because the guard
+cannot tell which folder the part scans. It denies a glob word of more than 4,096 characters,
+and checks the time before each folder part of a word.
 
 Limits on the number of `*` cannot bound the time of a call that cannot be stopped, so the guard
-bounds it by its input. Before `fs.globSync` runs for a path part with 2 or more `*`, the guard
-reads the names of the folders that the part scans (the folder of the part for the first glob
-part, else all the folders among the matches of the part before it, at most 2,000, found by a
-check of each match, which takes 0.26 s for 100,000 files), and adds, for each name,
-3 microseconds and `length^stars` times 0.5 ns for 2 `*` or 0.08 ns for 3 `*`. These constants are
-25 to 100 % more than the times measured at load 12. A command whose sum passes 250 ms, which took
-under 500 ms at load 30, is denied, and so is a part with 3 `*` whose folders have more than
-20,000 names. The second line of the deny starts with "Use a narrower glob:". A part with 1 `*`
-takes time in the length of the names, as the read of the folder does, and is not limited: `*`,
-`.r*` and `a*b*c` pass in a folder of 50,000 short names, and `*` in 12,000 names of 254
-characters. A folder with more than 83,334 names is read up to that count and denied for a part
-with 2 or more `*`.
+bounds it by its input. Before `fs.globSync` runs for a path part with a `*`, `?` or `[`, the
+guard reads the names of the folders that the part scans (the folder of the part for the first
+glob part, else all the folders among the matches of the part before it, at most 2,000, found by
+a check of each match, which takes 0.26 s for 100,000 files), and adds up the work of the call.
+For a part with 2 or more `*` (the most that any alternative has), each name costs 3
+microseconds and `length^stars` times 0.5 ns for 2 `*` or 0.08 ns for 3 `*`, for each
+alternative of the braces of the part. For a part with fewer, each name costs 2.2 microseconds
+and 0.6 microseconds for each alternative after the first. The constants are 5 to 100 % more
+than the times measured at load 12 (`*` in 50,000 names 107 ms, 17 alternatives followed by `*`
+520 ms). A call whose sum passes 250 ms, which took under 500 ms at load 30, is denied, so is a
+part with 3 `*` whose folders have more than 20,000 names, and so is a folder of 83,334 names or
+more. The second line of the deny starts with "Use a narrower glob:". The calls of one command
+are bounded by their time, 600 ms, which the guard checks between the calls. `ls {a..p}*` in
+50,000 names took 0.67 s and is denied in 0.04 s; `*`, `.r*`, `*/*.json`, `a*c`, `f*` and
+`a*b*c` pass in a folder of 50,000 short names, and `*` in 12,000 names of 254 characters.
 
 To tell whether the first word of a command is a copy of `checks.cjs`, the guard reads that
 file only when it is a regular file of the size of `checks.cjs`, and then at most that size

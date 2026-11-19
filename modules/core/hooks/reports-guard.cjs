@@ -27,7 +27,10 @@
 //   fs.globSync throws on it, when the word starts with another ~name, and on Node before
 //   22, which has no fs.globSync. It denies a word that starts with ~- when OLDPWD is unset.
 // It denies a glob of more than 4,096 characters, with an extended glob, or with more than 3 *
-// in a path part, 8 in all, 16 * and ? in a part, or 32 in all: fs.globSync cannot be stopped.
+// in a path part, 8 in all, 16 * and ? in a part, or 32 in all, each pair of braces counted as
+// its largest alternative: fs.globSync cannot be stopped. A part after a / inside braces with 2
+// or more * is denied, and every part with a * ? or [ is bounded by the names that it scans,
+// times its alternatives (250 ms of estimate for one call, 83,334 names read at most).
 // decide splits the command into words in Node and runs no shell. A command still reaches
 // .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
@@ -496,13 +499,18 @@ const MAX_WILD = 32;
 // The work of one fs.globSync call is bounded by its input, because the call cannot be stopped.
 // A part with 2 or more `*` costs about len(name)^stars per name of a folder that it scans, as
 // 1.0 ms for `*a*a*c` on a name of 254 `a` and 0.06 ms on 100 (measured at load 12), and each name
-// costs a base for the read. The constants are 25 to 100 % more than the measured times, and the
-// budget of a command is 250 ms of this estimate, which took under 500 ms at load 30.
+// costs a base for the read. A part with fewer costs 2.1 us per name and 0.54 us more for each
+// alternative of its braces after the first, as 107 ms for `*` and 520 ms for 17 alternatives
+// followed by `*`, on 50,000 names. The constants are 5 to 100 % more than the measured times,
+// and one call may cost 250 ms of this estimate, which took under 500 ms at load 30. The time
+// of all the calls of a command is bounded by MAX_GLOB_MS, between the calls.
 const BASE_NS = 3000;
 const NS_PER_UNIT = { 2: 0.5, 3: 0.08 };
+const ONE_NS = 2200;
+const ALT_NS = 600;
 const MAX_WORK_NS = 250e6;
-// A folder with more names than this costs too much to read, and one with more than
-// MAX_STAR_ENTRIES makes a part with 3 `*` too slow; a glob scans at most MAX_SCAN_DIRS folders.
+// A folder with this many names or more is not read, and one with more than MAX_STAR_ENTRIES
+// makes a part with 3 `*` too slow; a glob scans at most MAX_SCAN_DIRS folders.
 const MAX_READ = Math.floor(MAX_WORK_NS / BASE_NS) + 1;
 const MAX_STAR_ENTRIES = 20000;
 const MAX_SCAN_DIRS = 2000;
@@ -588,56 +596,81 @@ function braces(pattern) {
   return count;
 }
 
-// checkGlob throws Over for a glob pattern that has an extended glob, or has more `*` and `?`
-// than the limits allow. A path part is the text between two / outside braces, because a brace
-// may hold a / and expand to more than one part. It reads each character once.
-function checkGlob(pattern) {
-  if (EXTGLOB.test(pattern)) {
-    throw new Over('A glob of the command has a ( after *, ?, +, @ or !, which is an extended ' +
-      'glob, and the guard expands none.');
+// GLUED is the second line of the deny for a glob part that has a / inside braces and 2 or more
+// `*` in a path part: the guard cannot tell which folder the part scans.
+const GLUED = 'Write each alternative as its own word, as `src/*a* lib/*b*`.';
+
+// countStars reads the glob pattern and returns the most `*` that any path part has in any
+// expansion of its braces, calling check(part, all, glued) after each `*`, `?` and `/`: part has
+// the stars and wild (`*` and `?`) of the path part so far, all those of the pattern, and glued is
+// true when the part follows a / inside braces. Each alternative of a pair of braces is counted
+// from the text before the braces, and the pair counts as its largest alternative: `{*a,*b}*` has
+// 2 `*` in a part, not 3. A { with no } is text. A / inside an alternative starts a path part.
+function countStars(pattern, check) {
+  const ends = new Map();
+  const open = [];
+  for (let at = 0; at < pattern.length; at += 1) {
+    if (pattern[at] === '\\') at += 1;
+    else if (pattern[at] === '{') open.push(at);
+    else if (pattern[at] === '}' && open.length > 0) ends.set(open.pop(), at);
   }
-  let depth = 0;
-  const part = { stars: 0, wild: 0, slash: false };
-  const all = { stars: 0, wild: 0 };
-  const glued = () => {
-    if (part.slash && part.stars >= 2) {
-      throw new Over('A glob of the command has a / inside braces in a path part with 2 or more ' +
-        '*, and the guard expands none.');
-    }
+  const most = (one, two) => ({ stars: Math.max(one.stars, two.stars),
+    wild: Math.max(one.wild, two.wild), allStars: Math.max(one.allStars, two.allStars),
+    allWild: Math.max(one.allWild, two.allWild), glued: one.glued || two.glued });
+  let now = { stars: 0, wild: 0, allStars: 0, allWild: 0, glued: false };
+  let peak = 0;
+  const frames = [];
+  const see = () => {
+    peak = Math.max(peak, now.stars);
+    check(now);
   };
   for (let at = 0; at < pattern.length; at += 1) {
     const ch = pattern[at];
     if (ch === '\\') {
       at += 1;
-    } else if (ch === '{') {
-      depth += 1;
-    } else if (ch === '}' && depth > 0) {
-      depth -= 1;
-    } else if (ch === '/' && depth === 0) {
-      part.stars = 0;
-      part.wild = 0;
-      part.slash = false;
+    } else if (ch === '{' && ends.has(at)) {
+      frames.push({ end: ends.get(at), start: now, best: null });
+    } else if (ch === ',' && frames.length > 0) {
+      const top = frames[frames.length - 1];
+      top.best = top.best === null ? now : most(top.best, now);
+      now = top.start;
+    } else if (ch === '}' && frames.length > 0 && frames[frames.length - 1].end === at) {
+      const top = frames.pop();
+      now = top.best === null ? now : most(top.best, now);
+      see();
     } else if (ch === '/') {
-      part.slash = true;
-      glued();
+      now = { ...now, stars: 0, wild: 0, glued: frames.length > 0 };
+      see();
     } else if (ch === '*' || ch === '?') {
-      for (const count of [part, all]) {
-        count.wild += 1;
-        if (ch === '*') count.stars += 1;
-      }
-      const limits = [[part.stars, MAX_STARS_PART, '*', 'in one path part'],
-        [all.stars, MAX_STARS, '*', 'in all'],
-        [part.wild, MAX_WILD_PART, '* and ?', 'in one path part'],
-        [all.wild, MAX_WILD, '* and ?', 'in all']];
-      for (const [count, most, what, where] of limits) {
-        if (count > most) {
-          throw new Over(`A glob of the command has more than ${most} ${what} ${where}, and the ` +
-            `guard expands at most ${most}.`);
-        }
-      }
-      glued();
+      now = { ...now, wild: now.wild + 1, allWild: now.allWild + 1,
+        stars: now.stars + (ch === '*' ? 1 : 0), allStars: now.allStars + (ch === '*' ? 1 : 0) };
+      see();
     }
   }
+  return peak;
+}
+
+// checkGlob throws Over for a glob pattern that has an extended glob, or has more `*` and `?`
+// than the limits allow, counted for each expansion of its braces, or has a part with a / inside
+// braces and 2 or more `*`, which the work estimate cannot place. It reads each character once.
+function checkGlob(pattern) {
+  if (EXTGLOB.test(pattern)) {
+    throw new Over('A glob of the command has a ( after *, ?, +, @ or !, which is an extended ' +
+      'glob, and the guard expands none.');
+  }
+  countStars(pattern, (now) => {
+    const limits = [[now.stars, MAX_STARS_PART, '*', 'in one path part'],
+      [now.allStars, MAX_STARS, '*', 'in all'],
+      [now.wild, MAX_WILD_PART, '* and ?', 'in one path part'],
+      [now.allWild, MAX_WILD, '* and ?', 'in all']];
+    for (const [count, most, what, where] of limits) {
+      if (count > most) {
+        throw new Over(`A glob of the command has more than ${most} ${what} ${where}, and the ` +
+          `guard expands at most ${most}.`);
+      }
+    }
+    if (now.glued && now.stars >= 2) throw new Over(GLUED);
+  });
 }
 
 // overTime throws Over when the globs of a command have taken more than MAX_GLOB_MS.
@@ -684,12 +717,12 @@ function namesOf(dir, budget) {
   return names;
 }
 
-// starsOf returns the number of `*` in the glob part text.
-const starsOf = (text) => text.split('*').length - 1;
+// partStars returns the most `*` that the glob part text has in any expansion of its braces.
+const partStars = (text) => countStars(text, () => {});
 
-// narrow returns the Over error for the part last, which has stars `*`.
-const narrow = (last, stars, what) => new Over(`Use a narrower glob: the part ${short(last)} of ` +
-  `a glob of the command has ${stars} *, and ${what}.`);
+// narrow returns the Over error for the part last: what is what the part does.
+const narrow = (last, what) => new Over(`Use a narrower glob: the part ${short(last)} of a glob ` +
+  `of the command ${what}.`);
 
 // foldersOf returns the full paths of the folders among matches, relative to cwd, all of them:
 // a part scans the folders that the part before it matches, and files that sort before the
@@ -703,37 +736,44 @@ function foldersOf(matches, cwd, last, budget) {
     if (!isDirectory(full)) continue;
     dirs.push(full);
     if (dirs.length > MAX_SCAN_DIRS) {
-      throw narrow(last, starsOf(last), 'it scans more than ' +
-        `${MAX_SCAN_DIRS.toLocaleString('en-US')} folders`);
+      throw narrow(last, `scans more than ${MAX_SCAN_DIRS.toLocaleString('en-US')} folders`);
     }
   }
   return dirs;
 }
 
 // scanWork throws Over when matching the path part last, against the names in the folders dirs,
-// would take more than the work that budget has left. A part with fewer than 2 `*` takes time in
-// the length of the names, as the read of the folder does, and is not counted.
+// would take more than MAX_WORK_NS in one fs.globSync call. A part with fewer than 2 `*` costs
+// ONE_NS for each name and ALT_NS for each alternative of its braces after the first; a part with
+// more costs BASE_NS and a power of the length of the name, for each alternative.
 function scanWork(last, dirs, budget) {
-  const stars = starsOf(last);
-  if (stars < 2) return;
-  const put = (what) => narrow(last, stars, what);
+  const stars = partStars(last);
+  const alternatives = Math.max(1, braces(last));
   const weight = NS_PER_UNIT[Math.min(stars, 3)];
-  const times = Math.max(1, braces(last));
   let ns = 0;
   let count = 0;
   for (const dir of dirs) {
     const names = namesOf(dir, budget);
     count += names.length;
-    if (stars >= 3 && count > MAX_STAR_ENTRIES) {
-      throw put(`its folder has more than ${MAX_STAR_ENTRIES.toLocaleString('en-US')} names`);
+    if (names.length >= MAX_READ) {
+      throw narrow(last, `scans a folder of ${MAX_READ.toLocaleString('en-US')} names or more`);
     }
-    for (const name of names) ns += BASE_NS + weight * name.length ** stars;
-    if (budget.work + ns * times > MAX_WORK_NS) {
-      throw put(`it scans ${count.toLocaleString('en-US')} names or more, more than the guard ` +
-        'allows for this many *');
+    if (stars >= 3 && count > MAX_STAR_ENTRIES) {
+      throw narrow(last, `has ${stars} * and a folder of more than ` +
+        `${MAX_STAR_ENTRIES.toLocaleString('en-US')} names`);
+    }
+    if (stars < 2) {
+      ns += names.length * (ONE_NS + ALT_NS * (alternatives - 1));
+    } else {
+      let sum = 0;
+      for (const name of names) sum += BASE_NS + weight * name.length ** stars;
+      ns += sum * alternatives;
+    }
+    if (ns > MAX_WORK_NS) {
+      throw narrow(last, `scans ${count.toLocaleString('en-US')} names or more with ${stars} * ` +
+        `and ${alternatives.toLocaleString('en-US')} alternatives, more than the guard allows`);
     }
   }
-  budget.work += ns * times;
 }
 
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
@@ -787,7 +827,7 @@ function globbed(pattern, cwd, budget) {
         throw new Over(`The braces in the command make more than ${MAX_GLOB_UNITS.toLocaleString('en-US')} ` +
           `patterns, and the guard expands at most ${MAX_GLOB_UNITS.toLocaleString('en-US')}.`);
       }
-      if (starsOf(last) >= 2) {
+      if (/[*?[]/.test(last)) {
         const dirs = before === null ? [path.resolve(cwd, text.slice(0, start) || '.')]
           : foldersOf(before, cwd, last, budget);
         scanWork(last, dirs, budget);
@@ -815,7 +855,7 @@ const short = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}…` : raw);
 // .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
 // ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob.
 function hidden(command, cwd, env, globs) {
-  const budget = { calls: 0, matches: 0, units: 0, work: 0, names: new Map(), seen: new Map(),
+  const budget = { calls: 0, matches: 0, units: 0, names: new Map(), seen: new Map(),
     start: Date.now() };
   // The globs that match nothing under .reports: a word that repeats one costs no more work.
   const clean = new Set();

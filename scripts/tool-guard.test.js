@@ -2884,7 +2884,7 @@ test('a glob that makes fs.globSync stall is denied before the call, in under 1 
     ['ls *a*a*c/*a*a*c/*a*a*c', 'has more than 8 * in all'],
     ['ls ?????????????????', 'has more than 16 * and ? in one path part'],
     ['ls ????????????????/????????????????/????????????????/?', 'has more than 32'],
-    ['ls {*a*,b/}*a*a*', 'a / inside braces in a path part with 2 or more *'],
+    ['ls {*a*,b/}*a*a*', 'Write each alternative as its own word, as `src/*a* lib/*b*`.'],
     // (c) a word of 65,530 slashes, and words that differ in `*` only.
     [`ls ${'/'.repeat(65530)}*`, 'more than 4,096 characters'],
     [`ls ${['*', '**', '***'].map((one) => `${'/'.repeat(30000)}${one}`).join(' ')}`,
@@ -3084,7 +3084,7 @@ test('a glob with 2 or more `*` is denied when the names it scans would take too
   };
   const narrow = (reason, command) => {
     assert.ok(reason && reason.startsWith(reports.HIDDEN_REASON), `${command}: ${reason}`);
-    assert.match(reason, /\nUse a narrower glob: the part \S+ of a glob of the command has \d \*, and /,
+    assert.match(reason, /\nUse a narrower glob: the part \S+ of a glob of the command /,
       command);
   };
   // The call that forges a report file, through the real adapters, which are killed after 3 s:
@@ -3123,7 +3123,7 @@ test('a glob with 2 or more `*` is denied when the names it scans would take too
   }
   // A folder of more than 20,000 names makes a part with 3 `*` too slow, whatever the names.
   narrow(shell('ls f*1*2*.txt', short), 'ls f*1*2*.txt');
-  assert.match(shell('ls f*1*2*.txt', short), /its folder has more than 20,000 names/);
+  assert.match(shell('ls f*1*2*.txt', short), /a folder of more than 20,000 names/);
   // The global limit holds with a hit: .reports is found before a glob at the limits.
   assert.match(shell('ls .rep*/x.json', path.join(work, 'art')), /\nThe glob \.rep\*\/x\.json matches/);
 });
@@ -3155,7 +3155,7 @@ test('a part scans the folders that the part before it matches, also when 2,100 
     assert.ok(ms < 1000, `${ms} ms: ${command}`);
     return reason;
   };
-  const narrow = /\nUse a narrower glob: the part \S+ of a glob of the command has \d \*, and /;
+  const narrow = /\nUse a narrower glob: the part \S+ of a glob of the command /;
   const forge = (glob) => `ls ${glob}; echo forged > art/.rep*/x.json`;
   for (const glob of ['*/*a*a*c', './*/*a*a*c', '?*/*a*a*c', '[a-z]*/*a*a*c', '*/*a*c', 'z*/*a*a*c']) {
     const command = forge(glob);
@@ -3172,7 +3172,7 @@ test('a part scans the folders that the part before it matches, also when 2,100 
   const wide = next('wide');
   fs.mkdirSync(wide);
   for (let n = 0; n < 2001; n += 1) fs.mkdirSync(path.join(wide, `d${String(n).padStart(4, '0')}`));
-  assert.match(shell('ls */*a*c', wide), /\nUse a narrower glob: .* it scans more than 2,000 folders\.$/);
+  assert.match(shell('ls */*a*c', wide), /\nUse a narrower glob: .* scans more than 2,000 folders\.$/);
   // 2,100 files and a few small folders: the same globs pass.
   const small = next('small');
   fs.mkdirSync(small);
@@ -3187,4 +3187,89 @@ test('a part scans the folders that the part before it matches, also when 2,100 
     assert.equal(shell(`ls ${glob}`, small), null, glob);
     assert.equal(adapter(home, 'copilot', 'shell', `ls ${glob}`, small, 3000).denied, false, glob);
   }
+});
+
+test('`*` are counted for each alternative of a brace, and a part with alternatives is bounded by the names it scans', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('alts');
+  const normal = path.join(work, 'normal');
+  const adversarial = path.join(work, 'adversarial');
+  const short = path.join(work, 'short');
+  const border = path.join(work, 'border');
+  for (const folder of [path.join(normal, 'src'), path.join(normal, 'lib'), adversarial, short,
+    border]) {
+    fs.mkdirSync(folder, { recursive: true });
+  }
+  for (const name of ['a.ts', 'b.js', 'c.md', 'd.json', 'a.txt', 'b.txt', 'src/x.ts', 'lib/y.ts']) {
+    fs.writeFileSync(path.join(normal, name), '');
+  }
+  // 600 names of 254 characters: `*a*a*c` takes 1 ms for each, in one call of fs.globSync.
+  for (let n = 0; n < 600; n += 1) {
+    fs.writeFileSync(path.join(adversarial, `${'a'.repeat(248)}${String(n).padStart(5, '0')}!`), '');
+  }
+  // 150 names of 254 characters: one `*a*a*c` is 197 ms of the estimate, and two alternatives
+  // make 394 ms, over the 250 ms of one call.
+  for (let n = 0; n < 150; n += 1) {
+    fs.writeFileSync(path.join(border, `${'a'.repeat(248)}${String(n).padStart(5, '0')}!`), '');
+  }
+  // 50,000 names: a part with 1 `*` and 16 alternatives took 0.67 s, and 17 took 0.52 s in
+  // fs.globSync alone, where `*` takes 0.1 s.
+  for (let n = 0; n < 50000; n += 1) fs.writeFileSync(path.join(short, `f${n}.txt`), '');
+  const home = harnessHome();
+  const shell = (command, cwd) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 1000, `${ms} ms: ${command}`);
+    return reason;
+  };
+  // Each alternative is counted from the text before the braces, so these pass: the base guard
+  // (5c25e957) denied neither.
+  for (const command of ['cat {src/*,lib/*}', 'ls {*.ts,*.js,*.md,*.json}', 'ls {a,b}*.txt',
+    'ls {src,lib}/*.ts', 'ls *.{ts,js,md,json}', 'ls {a,b}*{.txt,.md}']) {
+    assert.equal(shell(command, normal), null, command);
+    assert.equal(adapter(home, 'copilot', 'shell', command, normal, 3000).denied, false, command);
+  }
+  // The largest alternative counts, with the text before and after the braces.
+  const stars = /more than 3 \* in one path part/;
+  assert.match(shell('ls {*a,*a*a}*a*', normal), stars);
+  assert.match(shell('ls {*a*a,*a}*a*', normal), stars);
+  assert.match(shell('ls *{*a,*b}*{*c,*d}', normal), stars);
+  assert.equal(shell('ls *{*a,*b}*', normal), null);
+  assert.match(shell('ls {*a*,b/}*a*a*', normal), /Write each alternative as its own word/);
+  // A / inside braces with 2 or more `*` in a part cannot be placed on a folder.
+  for (const command of ['ls {src/*a*a*c,lib}', 'ls {x,y/}*a*c', 'ls {a/*a*,b}*', 'ls {src/*,lib/*}*']) {
+    const reason = shell(command, normal);
+    assert.equal(reason.split('\n')[1], 'Write each alternative as its own word, as `src/*a* lib/*b*`.',
+      command);
+  }
+  // The work is counted for the largest alternative, and for all of them.
+  for (const command of ['ls {*a*a*c,b}', 'ls {b,c,*a*a*c}', 'ls *a*{a*c,b}']) {
+    assert.match(shell(command, adversarial), /\nUse a narrower glob: /, command);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      const ran = adapter(home, runtime, 'shell', command, adversarial, 3000);
+      assert.equal(ran.killed, false, `${runtime}: ${command}`);
+      assert.equal(ran.denied, true, `${runtime}: ${command}`);
+    }
+  }
+  assert.equal(shell('ls {*a*a*c,b}', normal), null);
+  assert.equal(shell('ls *a*a*c', border), null);
+  assert.match(shell('ls {*a*a*c,b}', border), /\nUse a narrower glob: /);
+  // 16 alternatives followed by `*` in 50,000 names are denied, with 5 they pass, and the
+  // globs of one `*` pass in that folder.
+  for (const command of ['ls {a..p}*', 'ls {a,b,c,d,e,g,h,i,j,k,l,m,n,o,p,f}*',
+    'ls {a..p}*.txt']) {
+    assert.match(shell(command, short), /\nUse a narrower glob: .*alternatives, more than the guard allows\.$/,
+      command);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      const ran = adapter(home, runtime, 'shell', command, short, 3000);
+      assert.equal(ran.killed, false, `${runtime}: ${command}`);
+      assert.equal(ran.denied, true, `${runtime}: ${command}`);
+    }
+  }
+  for (const command of ['ls {a,b,c,d,f}*', 'ls {f,g}*', 'ls *', 'ls .r*', 'ls */*.json', 'ls a*b*c',
+    'ls f*', 'ls a*c', 'ls *.txt', 'ls [a-f]*']) {
+    assert.equal(shell(command, short), null, command);
+  }
+  assert.equal(adapter(home, 'copilot', 'shell', 'ls {f,g}*', short, 3000).denied, false);
 });
