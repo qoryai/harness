@@ -2470,22 +2470,22 @@ of the criterion is cut in both to its first 8 words and "...".
   unchanged one replays it.
 
 `workflow-review-changes`, process entry `review-changes`, checks a Build run before its
-review round. The session starts no agent and runs no ledger step. It pulls, runs
-`checks.cjs resume`, and reads `qory.stage.reviewers` of `inputs.json`. In a stage with no
-reviewers, qory runs no round, so the session ends with the `run_again` point "The Build
-stage has no reviewers, so the change was not reviewed." Then it reads the build plan of
-the run's start, the newest version in the folder of `qory.start_artifacts`, and the
-newest `build-ledger.json`. A deliverable is built when the ledger row of
-`deliverable:<id>` with the highest `pass` has the `state` `done`. With no build plan, the
-session ends with a `run_again` point whose fix is "Plan the build, so that a run pushes
-the build plan." While a deliverable is not built, it runs `qory run verdict
-changes-requested` and ends with "<k> of <n> planned changes are not built: d-2, "<Change
-cell>".", cut to 500 characters. It writes no `points.json` then, because qory sends
-`escalate` or `answer` from that file. Otherwise, in a run, it runs `checks.cjs lock
---verify`, and ends the same way with the paths of the locked files that differ. Outside a
-run it skips the verify, because the verify would read the local artifact folder. With
-every check passed, it runs no verdict command and ends with "The change is ready for its
-review round."
+review round. The stack lists the workflow with `tier: thinking` and `access: write`. The
+session starts no agent and runs no ledger step. It pulls, runs `checks.cjs resume`, and
+reads `qory.stage.reviewers` of `inputs.json`. In a stage with no reviewers, qory runs no
+round, so the session ends with the `run_again` point "The Build stage has no reviewers,
+so the change was not reviewed." Then it reads the build plan of the run's start, the
+newest version in the folder of `qory.start_artifacts`, and the newest
+`build-ledger.json`. A deliverable is built when the ledger row of `deliverable:<id>` with
+the highest `pass` has the `state` `done`. With no build plan, the session ends with a
+`run_again` point whose fix is "Plan the build, so that a run pushes the build plan."
+While a deliverable is not built, it runs `qory run verdict changes-requested` and ends
+with "<k> of <n> planned changes are not built: d-2, "<Change cell>".", cut to 500
+characters. It writes no `points.json` then, because qory sends `escalate` or `answer`
+from that file. Otherwise, in a run, it runs `checks.cjs lock --verify`, and ends the same
+way with the paths of the locked files that differ. Outside a run it skips the verify,
+because the verify would read the local artifact folder. With every check passed, it runs
+no verdict command and ends with "The change is ready for its review round."
 
 - **The reviewers.** qory starts `code-reviewer`, `test-reviewer` and
   `acceptance-reviewer`, each as a separate session, as "The review of a change" lists.
