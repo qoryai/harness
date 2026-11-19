@@ -8,6 +8,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `checks.cjs step end <id> done --report <file>` exits 1, and records nothing, when the
+  report has a list `Left out:` that `report-build` cannot read. The first line is "Fix the
+  list Left out: of your report.", and a line for each cause follows. `step end failed` is
+  not checked.
 - The agents `security-reviewer`, `data-reviewer` and `failure-reviewer`, and the skills
   `checking-security`, `checking-data-changes` and `checking-failure-handling`. Each agent
   loads `reviewing-changes`, `judging-findings` and its checking skill, writes one JSON

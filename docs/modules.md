@@ -2060,7 +2060,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
   `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
   `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is a
-  finding of `done`. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
+  finding of `done`, and so is a list `Left out:` in the report that `report-build` cannot
+  read, which `done` refuses with "Fix the list Left out: of your report." and the cause of
+  each such list. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
   `step end failed` always records the row: a report that is too long or cannot be read is
   left out, with a line that says why, and the verb exits 0.
 

@@ -157,13 +157,17 @@ module.exports = (lib) => {
       `${brief(top)} has a change that no step of this session made.`], members: {} };
   }
 
-  // finish returns the commit of a done row, or the findings of edits made outside the step. A
-  // failed row gets no commit and no finding.
-  function finish(io, { ledger, place, state }) {
+  // finish returns the commit of a done row, or the findings of edits made outside the step and
+  // of a list `Left out:` in the report that leftOut cannot read. A failed row gets no commit
+  // and no finding.
+  function finish(io, { ledger, place, state, report }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
     const top = head(io);
     const findings = [];
+    const { problems } = typeof report === 'string' ? lib.leftOut(report) : { problems: [] };
+    if (problems.length) findings.push(['Fix the list Left out: of your report.', ...problems]
+      .join('\n'));
     const files = changed(io);
     if (files.length) {
       const differ = files.length === 1 ? 'file of the checkout differs'

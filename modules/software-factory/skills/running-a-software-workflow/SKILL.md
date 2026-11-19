@@ -91,6 +91,9 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    `--attempt <agent>,<role>,<tier>,<model>` per agent start, one
    `--pushed <type>/<name>/<version>` per version the step stored, and, for a step
    `script:`, `--script-sha256 <sha256>`. When `step end done` exits with 1, the step made
-   an edit that no commit of the step has: end as "Failures" lists. `step end failed`
+   an edit that no commit of the step has, or the report has a list `Left out:` that
+   `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
+   with the writer of the report, then run `step end done` again. Else end as "Failures"
+   lists. `step end failed`
    records the row and exits 0, also when it prints a line that it left the report out:
    go on to the next step.
