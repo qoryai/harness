@@ -1503,15 +1503,16 @@ test('decision record: many image starts take linear time, and a blank line make
   for (const [name, text, count] of [
     ['starts and spaces', `${'![a]('.repeat(25000)}${' '.repeat(125000)}`, 0],
     ['starts with an address and spaces', `${'![a](x'.repeat(25000)}${' '.repeat(125000)}`, 0],
-    ['starts that close at the end', `${'![a]('.repeat(30000)})`, 30000],
+    // Only the last start has a ")" that its address does not nest past 32 levels before.
+    ['quote marks before a label', `${'> '.repeat(100000)}[a`, 0],
+    ['list marks before a label', `${'- > '.repeat(60000)}[a]: x`, 0],
+    ['nested alt text starts', `${'![a'.repeat(80000)}${']'.repeat(80000)}`, 0],
+    ['starts that close at the end', `${'![a]('.repeat(30000)})`, 1],
   ]) {
     const result = run(text);
     assert.equal(result.findings.length, count, name);
     assert.ok(result.took < 1000, `${name} took ${result.took} ms`);
   }
-  // An address is cut to 2,049 characters in the finding, and its end is found without a bound.
-  const long = run(`![a](${'x'.repeat(5000)})`).findings[0];
-  assert.ok(long.length < 5000, 'the finding has the cut address');
   // A blank line between "(" and ")" makes no image, as a blank line before the address does.
   assert.equal(run('![a](\n\n)').findings.length, 0);
   assert.equal(run('![a](\n \n)').findings.length, 0);
@@ -1520,7 +1521,7 @@ test('decision record: many image starts take linear time, and a blank line make
   assert.equal(run('![a]( )').findings.length, 1);
 });
 
-test('decision record: a code span is no white space, and an address has no length limit', () => {
+test('decision record: a code span is no white space, and a finding cuts an address at 2,049 characters', () => {
   const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
   const image = /^Remove the image /;
   const found = (text) => push(fixture(why(`${text} `)), 'decision-record').findings
@@ -1539,6 +1540,61 @@ test('decision record: a code span is no white space, and an address has no leng
   assert.equal(found(`![a](<${long}>)`), true);
   assert.equal(found(`![a](${long} "title")`), true);
   assert.equal(found(`![a](x "${'t'.repeat(3000)}")`), true);
+  // The check reads at most the first 2,049 characters of an address, whether it is inline, in
+  // <>, or in a definition, and cuts no pair of a surrogate in half.
+  const links = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs')).links;
+  const read = (text) => {
+    const seen = [];
+    links({ did() {}, find() {} }, 'f.md', '', text,
+      { images: (addr) => seen.push(addr) && true, everyImage: true });
+    return seen;
+  };
+  const x = 'x'.repeat(5000);
+  assert.deepEqual(read(`![a](${x})`).map((addr) => addr.length), [2049]);
+  assert.deepEqual(read(`![a](<${x}>)`).map((addr) => addr.length), [2049]);
+  assert.deepEqual(read(`![a][r]\n\n[r]: ${x}`).map((addr) => addr.length), [2049]);
+  assert.deepEqual(read(`![a][r]\n\n[r]: <${x}>`).map((addr) => addr.length), [2049]);
+  assert.deepEqual(read(`![a](${'x'.repeat(2048)})`).map((addr) => addr.length), [2048]);
+  const pair = '\u{1F600}';
+  for (const addr of read(`![a](${'x'.repeat(2048)}${pair}${x})`)) {
+    assert.equal(addr.length, 2048, 'the cut leaves no half of a pair');
+    assert.equal(addr, 'x'.repeat(2048));
+  }
+});
+
+test('decision record: an image is read as CommonMark reads it', () => {
+  const links = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs')).links;
+  const read = (text) => {
+    const seen = [];
+    links({ did() {}, find() {} }, 'f.md', '', text,
+      { images: (addr) => seen.push(addr) && true, everyImage: true });
+    return seen;
+  };
+  const nbsp = '\u00a0';
+  const images = [
+    // A backslash escapes a delimiter of an address or a title.
+    ['![a](<a\\>b>)', 'a\\>b'],
+    ['![a](x "t\\"u")', 'x'],
+    ["![a](x 't\\'u')", 'x'],
+    ['![a](x (t\\)u))', 'x'],
+    // Only an ASCII space or a control character ends an address.
+    [`![a](x${nbsp}"t")`, `x${nbsp}"t"`],
+    ['![a](x\u2003)', 'x\u2003'],
+    ['![a](x\u2028)', 'x\u2028'],
+    // A backtick in an address is no code span, and a span in the alt text before "]" hides nothing.
+    ['![a](https://x.example/a`b) and c`', 'https://x.example/a`b'],
+    ['![a\n`x`\nb](u)', 'u'],
+    // Parentheses in an address are in pairs.
+    ['![a](a(b))', 'a(b)'],
+  ];
+  for (const [text, addr] of images) assert.deepEqual(read(text), [addr], JSON.stringify(text));
+  const none = [
+    '\\![a](x)', '![a](a(b)', '![a](a(b) c)', '![a](x\\)', '![a](<x\\>)',
+    '![a][ ]\n\n[a]: y', '[a]: ![a]:', '![a`](x)`', '![a](x y)',
+  ];
+  for (const text of none) assert.deepEqual(read(text), [], JSON.stringify(text));
+  // A reference image whose "(" has no ")" is an image, as CommonMark reads it (markdown-it does not).
+  assert.deepEqual(read('![a](x\n\n[a]: y'), ['y']);
 });
 
 test('decision record: a reference image is found with brackets in its alt text and in any definition', () => {

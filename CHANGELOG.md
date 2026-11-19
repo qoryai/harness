@@ -27,7 +27,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   over 700 cost one word per 6. The decision record also refuses an HTML `<img>` and a
   reference image next to an inline image, by the new option `everyImage` of `links` in
   `lib/markdown.cjs`, which no other type sets. An inline image needs its closing `)`, and a
-  blank line in its alt text or before its address makes it no image. `checking-decisions`
+  blank line in its alt text or before its address makes it no image. The scan reads a
+  backslash, a code span, an address in `<>`, parentheses in pairs and a title as CommonMark
+  does, and a finding shows at most the first 2,049 characters of an address.
+  `checking-decisions`
   has the reviewer judge each diagram, and `decision-writer` and `decision-reviewer` load
   `visuals` when the record has one.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and

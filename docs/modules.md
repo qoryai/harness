@@ -2252,7 +2252,8 @@ an address in `<>`, a reference image with brackets in its alt text, and a defin
 start of a line, in a list item or in a quote, with its label over 2 lines or its address on
 the next line. An inline image needs its closing `)`, and a blank line in its alt text or
 before its address makes it no image, so `![a](x y)` and `Use ![a](x` are no image. A
-reference with no definition is no image.
+reference with no definition is no image. A finding shows at most the first 2,049 characters
+of an address.
 
 `checks.cjs` refuses, each with a fix line that starts with the fix:
 
