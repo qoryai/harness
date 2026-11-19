@@ -4798,9 +4798,10 @@ waiting('the guard denies a call when its hook process has used 8 s, also for th
   assert.ok(huge.ms < 3000, `${huge.ms} ms`);
   const real = await realRun;
   assert.equal(real.ran.error, undefined, `the hook ran past 10 s: ${real.ms} ms`);
-  const reason = JSON.parse(real.ran.stdout).permissionDecisionReason;
-  assert.ok(typeof reason === 'string' && reason !== '', 'the call is denied');
-  assert.ok(real.ms < 9800, `${real.ms} ms`);
+  // The deny is the one of the clock, from 8 s after the start of the process: a limit of 4 s
+  // denies at 4 s, and one of 20 s lets the hook run into the kill at 10 s above.
+  assert.match(JSON.parse(real.ran.stdout).permissionDecisionReason, time);
+  assert.ok(real.ms >= 7900 && real.ms < 9800, `${real.ms} ms`);
 });
 
 test('the deadlines and budgets of the reports guard use a monotonic clock', () => {
