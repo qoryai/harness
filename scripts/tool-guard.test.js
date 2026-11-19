@@ -2393,7 +2393,16 @@ test('the first word of a command is read only as a file of the size of checks.c
   const fifo = path.join(dir, 'pipe');
   childProcess.execFileSync('mkfifo', [fifo]);
   const socket = path.join(dir, 's.sock');
-  const server = net.createServer().listen(socket);
+  // The path of a unix socket has at most 103 characters, so it is bound by its name from its
+  // folder, in the same turn.
+  const server = net.createServer();
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    server.listen('s.sock');
+  } finally {
+    process.chdir(cwd);
+  }
   await new Promise((resolve) => server.once('listening', resolve));
   try {
     // The real hook, killed after 2 s: it printed a deny in under 1 s, or it was still reading.
@@ -2408,12 +2417,14 @@ test('the first word of a command is read only as a file of the size of checks.c
       assert.ok(ms < 1000, `${command}: ${ms} ms at load average ${os.loadavg()[0].toFixed(1)}`);
       return JSON.parse(ran.stdout);
     };
+    // The deny cuts a word of over 60 characters to 59 and an ellipsis, as short does.
+    const shortWord = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}\u2026` : raw);
     for (const word of ['/dev/zero', '/dev/urandom', fifo, socket]) {
       for (const command of [`${word} x`, `node ${word}`, `"${word}" 2>&1`]) {
         const out = hook(command);
         assert.equal(out.decision, 'deny', command);
         firstLine(out.reason, 'Start the command with a program or a script, not a device');
-        assert.ok(out.reason.split('\n')[1].includes(word), command);
+        assert.ok(out.reason.split('\n')[1].includes(shortWord(word)), command);
       }
     }
     // A file, a folder and a path that is not there are decided as before: they pass.
