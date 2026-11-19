@@ -178,9 +178,11 @@ reviewer that cannot finish stops and writes no file. qory reads the report agai
 schema; the harness checks no report of a change with a verb. The test of the example report
 in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
 commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
-`QORY_SOURCE`. After a round with a `blocking` finding, the next session of the stage reads
-`open-findings.json`, which `checks.cjs findings open` prints as lines to fix first, as its
-bullet in the section "Small workflows" lists. qory writes `qory.review`, `qory.stage` and
+`QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
+example reports of `code-reviewer`, `test-reviewer` and `acceptance-reviewer`. After a round
+with a `blocking` finding, the next session of the stage reads `open-findings.json`, which
+`checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
+workflows" lists. qory writes `qory.review`, `qory.stage` and
 `open-findings.json`; this harness only reads them. The tool guard denies a write to a
 report path below `.git` or `.claude` of the working folder. When the harness home is below
 the working folder, the deny of a write below the harness home applies to the report path

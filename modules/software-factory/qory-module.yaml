@@ -27,8 +27,11 @@ description: >-
   judging-findings, which defines a blocking finding of a change; the agents build-planner and
   plan-reviewer; the workflow-write-acceptance-checks skill, which orchestrates one ticket's
   acceptance checks and their lock; the skills writing-acceptance-checks and
-  checking-acceptance-checks; the agents acceptance-check-writer and check-reviewer; and live
-  web search off on Codex.
+  checking-acceptance-checks; the agents acceptance-check-writer and check-reviewer; the
+  workflow-review-changes skill, which checks one ticket's Build run before its review round;
+  the skills checking-code, checking-tests and checking-acceptance; the agents code-reviewer,
+  test-reviewer and acceptance-reviewer, the reviewers of that round; and live web search off
+  on Codex.
 provides:
   agents:
     explorer: code-explorer
