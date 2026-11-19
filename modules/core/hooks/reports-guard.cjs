@@ -43,9 +43,11 @@ const { readInput } = require('./end-gate.cjs');
 // The keys of a write tool's arguments that contain the text it writes, not a path.
 const TEXT_KEYS = new Set(['content', 'contents', 'file_text', 'new_string', 'old_string',
   'new_str', 'old_str', 'instruction', 'description']);
+// The u flag with i folds letters as a disk that ignores case does: U+017F (long s) is s and
+// U+212A (Kelvin sign) is k, so .reportſ/ is .reports/ and .json.locK is .json.lock.
 // The start of a path under a folder .reports, in a word of a text: at its start or after /, =
 // or :.
-const REPORTS_START = /(?:^|[/=:])\.reports\//i;
+const REPORTS_START = /(?:^|[/=:])\.reports\//iu;
 // A word of a text: a run of characters that are no white space, ' or ".
 const WORD = /[^\s'"]+/g;
 
@@ -54,7 +56,7 @@ const WORD = /[^\s'"]+/g;
 function pathJson(full) {
   if (!REPORTS_START.test(full)) return false;
   const name = full.slice(full.lastIndexOf('/') + 1);
-  return /\.json$/i.test(name) || /\.json\.lock/i.test(name);
+  return /\.json$/iu.test(name) || /\.json\.lock/iu.test(name);
 }
 
 // reportsJson reports whether text has a path under a folder .reports that ends in .json, or
@@ -128,7 +130,7 @@ function reportsOnDisk(text, cwd, budget) {
 }
 
 // The folder .reports in a shell command.
-const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/i;
+const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/iu;
 // A part of a shell command that runs a second command or redirects one.
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
 

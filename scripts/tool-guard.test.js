@@ -2250,3 +2250,27 @@ test('a path is read as the disk resolves it: a `..` after a folder with a space
   firstLine(guard(at(codex('apply_patch', { command: long(9) }, 'implementer'))),
     'Write fewer files in one call');
 });
+
+test('a disk that ignores case reads U+017F as s and U+212A as k: the guard does too', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const write = (file_path) => reports.decide({ kind: 'write', args: { file_path }, env: RUN,
+    cwd: WORK });
+  // .reportſ is .reports, .jſon is .json and .json.locK is .json.lock on such a disk.
+  for (const file of ['.reports/end.json', '.reportſ/end.json', '.REPORTſ/end.json',
+    '.reports/end.jſon', '.reports/end.JSON', '.reports/end.json.locK',
+    '/w/.reportſ/sub/starts.jſon.locK', '=.reportſ/end.json']) {
+    assert.equal(write(file), reports.WRITE_REASON, file);
+    assert.equal(guard(claude('Write', { file_path: file, content: '{}' }, 'implementer')),
+      reports.WRITE_REASON, file);
+  }
+  const shell = (command) => reports.decide({ kind: 'shell', args: { command }, env: RUN,
+    cwd: WORK });
+  for (const command of ['rm .reportſ/end.json', 'cat ".reportſ"', 'cd x/.REPORTſ']) {
+    assert.ok(shell(command).startsWith('Write to .reports/ only through checks.cjs.'), command);
+  }
+  // Near misses stay open: another letter, and the folder without its slash.
+  for (const file of ['.reportſ', '.reportz/end.json', '.reports/end.jsonſ',
+    '.reports/end.jsok', '.reports/end.lock']) {
+    assert.equal(write(file), null, file);
+  }
+});

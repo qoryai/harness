@@ -1355,6 +1355,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The reports guard denies a write to `.reportſ/end.json` and `.reports/end.json.locK`, and a
+  shell command that names `.reportſ/`. On a disk that ignores case, as the default disk of
+  macOS does, U+017F (long s) is `s` and U+212A (Kelvin sign) is `k`, so these are the paths
+  of the report files. The expressions that match `.reports`, `.json` and `.json.lock` had
+  the `i` flag and no `u` flag, which folds neither letter. They have both flags.
 - The reports guard denies a write to `.reports/a b/../report.json` when the folder
   `.reports/a b/` exists, and a write through a link to a `.reports` folder or to a file in
   it. The guard split the path at the space and never resolved `..` or links, so it saw no
