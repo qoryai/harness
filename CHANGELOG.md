@@ -1611,6 +1611,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   a word is dropped by the shell, so `mkdir .reports\`, `echo x > .reports\` and
   `mkdir -p {.reports,y}\` make `.reports`; the guard denies them, and `ls {x,y}\` and
   `echo a\{b,c}` pass.
+- The reports guard of Gemini CLI, Cursor and Copilot CLI denies a hook process that has more
+  than 8 MiB of text in its arguments, whatever the text is, writes included. The check of 8 s
+  read the clock once for each call, so one call of 80 MB on Cursor, or a field of 40 MB before a
+  field that writes `.reports/x.json` on Copilot CLI, ran past the 10 s of the hook, which kills
+  it, and a hook with no answer lets the call run. The guard sums the lengths of the strings of
+  all its calls and denies the call that crosses 8 * 1024 * 1024 characters, before it reads
+  the text, with the first line "Send fewer or smaller arguments in one tool call."
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

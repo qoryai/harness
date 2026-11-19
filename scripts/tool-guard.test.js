@@ -4593,3 +4593,73 @@ test('the deadlines and budgets of the reports guard use a monotonic clock', () 
   assert.doesNotMatch(text.replace(/\/\/.*$/gm, ''), /Date\.now\(/);
   assert.match(text, /performance\.now\(\)/);
 });
+
+test('a hook process denies a call that takes its text past 8 MiB, whatever the text is', () => {
+  const work = next('pass12');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  const MIB = 1024 * 1024;
+  const line = /^Send fewer or smaller arguments in one tool call\.\nThe arguments of this call are more than 8 MiB of text/;
+  const copilot = (where, fields, limit = 10000) => {
+    const begun = Date.now();
+    const ran = childProcess.spawnSync(process.execPath, [path.join(where, 'hooks', 'reports-guard-copilot.cjs')], {
+      input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, encoding: 'utf8',
+      timeout: limit, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+    const reason = ran.error === undefined && ran.stdout !== '' ? JSON.parse(ran.stdout).permissionDecisionReason || '' : null;
+    return { ran, ms: Date.now() - begun, reason };
+  };
+  const left = () => childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((one) => one.includes(home) && one.includes('max-old-space-size'));
+  // Both edges, with a limit of 1,000 characters in a copy of the hooks that the check patches:
+  // the text of the call does not matter, only its length, summed over the fields of the process.
+  const small = patchedHome('const HOOK_CHARS = 8 * 1024 * 1024;', 'const HOOK_CHARS = 1000;');
+  assert.equal(copilot(small, { a: 'x'.repeat(1000) }).reason, '');
+  assert.match(copilot(small, { a: 'x'.repeat(1001) }).reason, line);
+  assert.equal(copilot(small, { a: 'x'.repeat(400), b: 'y'.repeat(600) }).reason, '');
+  assert.match(copilot(small, { a: 'x'.repeat(400), b: 'y'.repeat(601) }).reason, line);
+  // A value that is no string counts 0, and the strings in nested arrays and objects count: a
+  // call of safeDecide with a write tool, in a process of its own.
+  const nested = (args) => childProcess.spawnSync(process.execPath, ['-e',
+    `const g = require(${JSON.stringify(path.join(small, 'hooks', 'reports-guard.cjs'))});
+     process.stdout.write(String(g.safeDecide({ kind: 'write', args: ${JSON.stringify(args)}, cwd: ${JSON.stringify(normal)} })));`],
+  { encoding: 'utf8', env: { ...process.env, QORY_RUN_ID: 'run-1' } }).stdout;
+  assert.equal(nested({ a: 7, b: true, c: null, d: ['q'.repeat(500)], e: { f: 'q'.repeat(500) } }), 'null');
+  assert.match(nested({ a: 7, d: ['q'.repeat(500)], e: { f: 'q'.repeat(501) } }), line);
+  // The other runtimes: one call, and one tool_input with several strings.
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    assert.equal(adapter(small, runtime, 'shell', 'ls '.concat('a'.repeat(997)), normal, 5000).denied, false, runtime);
+    const over = adapter(small, runtime, 'shell', 'ls '.concat('a'.repeat(998)), normal, 5000);
+    assert.equal(over.denied, true, runtime);
+    if (runtime !== 'cursor') assert.match(over.reason, line);
+  }
+  // 9 fields of 1 MiB, then a deny field: denied by size, and not killed.
+  const nine = {};
+  for (let n = 0; n < 9; n += 1) nine[`f${n}`] = 'echo '.concat('a'.repeat(MIB - 5));
+  nine.last = 'echo x > art/.reports/x.json';
+  const sum = copilot(home, nine);
+  assert.equal(sum.ran.error, undefined, `the hook ran past 10 s: ${sum.ms} ms`);
+  assert.match(sum.reason, line);
+  assert.ok(sum.ms < 9000, `${sum.ms} ms`);
+  // 8 MiB of harmless text then a deny field last: the deny field is denied by its content.
+  const eight = {};
+  for (let n = 0; n < 7; n += 1) eight[`f${n}`] = 'echo '.concat('a'.repeat(MIB - 5));
+  eight.last = 'echo x > art/.reports/x.json';
+  const edge = copilot(home, eight);
+  assert.equal(edge.ran.error, undefined);
+  assert.match(edge.reason, /^Write to \.reports\/ only through checks\.cjs\./);
+  // One field of 9 MiB of harmless text, with the real limit, and one command of 9 MiB for each of
+  // Gemini CLI and Cursor.
+  const one = copilot(home, { a: 'echo '.concat('a'.repeat(9 * MIB)) });
+  assert.equal(one.ran.error, undefined);
+  assert.match(one.reason, line);
+  assert.ok(one.ms < 6000, `${one.ms} ms`);
+  for (const runtime of ['gemini', 'cursor']) {
+    const big = adapter(home, runtime, 'shell', 'echo '.concat('a'.repeat(9 * MIB)), normal, 10000);
+    assert.equal(big.killed, false, runtime);
+    assert.equal(big.denied, true, runtime);
+    assert.ok(big.ms < 6000, `${runtime}: ${big.ms} ms`);
+  }
+  assert.deepEqual(left(), [], 'no child is left');
+});

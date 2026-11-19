@@ -46,7 +46,9 @@
 // child, as do 250 ms of estimate for each call and 600 ms in all, checked between the calls.
 // From 8 s after the start of the hook process, safeDecide denies each call without reading it,
 // so that in-process work for many arguments ends before the 10 s of the hook. Deadlines and
-// budgets use performance.now(), which a step of the system clock does not change. A backslash
+// budgets use performance.now(), which a step of the system clock does not change. A hook
+// process also denies the call that takes the characters of all its strings past 8 MiB, from
+// their lengths, before it reads any text: the clock is read once for each call. A backslash
 // at the end of a word or command is dropped by the shell: .reports\ is .reports.
 // QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
 // a call: a file of the workspace can reach the environment of a hook, so no field turns off a
@@ -1396,12 +1398,40 @@ const FAILED_REASON = 'Send a smaller call: the guard failed on this call and bl
 // before it reads it: the hook has 10 s, and the adapter of Copilot CLI calls safeDecide once
 // for each string argument of a typing tool, with in-process work for each that no child bounds.
 const HOOK_MS = 8000;
-const TIME_REASON = 'Send fewer or smaller arguments in one tool call.\nThe guard of .reports/ ' +
-  'used more than 8 seconds of the 10 seconds of its hook, and blocks the call.';
+// HOOK_CHARS is the number of characters of text, in all the strings of all the calls of one hook
+// process, over which safeDecide denies the call that crosses it: one call of 55 MB or more ran
+// past the 10 s of the hook although the time was read before the call.
+const HOOK_CHARS = 8 * 1024 * 1024;
+const SEND_LESS = 'Send fewer or smaller arguments in one tool call.\n';
+const TIME_REASON = `${SEND_LESS}The guard of .reports/ used more than 8 seconds of the 10 seconds ` +
+  'of its hook, and blocks the call.';
+const SIZE_REASON = `${SEND_LESS}The arguments of this call are more than 8 MiB of text, and the ` +
+  'guard of .reports/ does not read that much in the 10 seconds of its hook, so it blocks the call.';
+let hookChars = 0;
+
+// textChars returns the number of characters in the strings of value, from their lengths and
+// with no scan of their text. A value that is no string, array or object (a number, true, null)
+// counts 0: it is at most a few characters, and the guard reads no text from it.
+function textChars(value) {
+  let chars = 0;
+  const stack = [value];
+  while (stack.length > 0) {
+    const one = stack.pop();
+    if (typeof one === 'string') chars += one.length;
+    else if (Array.isArray(one)) for (const item of one) stack.push(item);
+    else if (one !== null && typeof one === 'object') for (const item of Object.values(one)) stack.push(item);
+  }
+  return chars;
+}
+
 let hookEnd;
 function safeDecide(call) {
   const env = call.env || process.env;
-  if (env.QORY_RUN_ID && clock() > HOOK_MS) return TIME_REASON;
+  if (env.QORY_RUN_ID) {
+    if (clock() > HOOK_MS) return TIME_REASON;
+    hookChars += textChars(call.args);
+    if (hookChars > HOOK_CHARS) return SIZE_REASON;
+  }
   // An adapter may call safeDecide for each text of one tool call: all the children of that
   // hook process share the deadline of the first call, GLOB_CHILD_MS after it.
   if (hookEnd === undefined) hookEnd = clock() + GLOB_CHILD_MS;
