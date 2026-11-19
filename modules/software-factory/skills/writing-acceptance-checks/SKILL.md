@@ -23,7 +23,7 @@ Criteria cell of that row.
 
 - Write the check at its Check path, and nowhere else.
 - Write a new helper or fixture of the check only below a path of the Files of the same row.
-  The scope check of the run refuses each other changed path.
+  The scope check of the run fails on each other changed path.
 - When the Check path already exists, as after an earlier round, edit it in place.
 - Change no other file. Code under test, a file of another row and a file that sets up the
   tests, such as a config of the test runner or a global setup file, stay as they are.
@@ -49,7 +49,7 @@ Criteria cell of that row.
 
 The command of a check is the `targeted` command of the build plan, a space, and the Check
 path, such as `npm test -- tests/corrected-reply.test.ts` for the command `npm test --`.
-Add no flag, no variable and no other path. A row with two criteria gives two entries under
+Add no flag, no variable and no other path. A row with two criteria has two entries under
 `checks`, each with the same path and command.
 
 ## The run on the start commit
@@ -67,9 +67,9 @@ Give each such Bash call the timeout 3600000 ms, and run no other command in the
 - A check fails right when the run prints the line "Fix the code or the test of each failed
   test, then run targeted again." with a count of failed tests after it, and the output in
   the log shows that an assertion of the check failed because the outcome of the criterion
-  is missing. The last line of the run names the record, "The output and the record are in
-  .reports/runs/, as <id>.": read `.reports/runs/<id>.json` of the artifact folder, and its
-  `exit` is the value of `failed_with`.
+  is missing. The last line of the run has the id of the record, "The output and the record
+  are in .reports/runs/, as <id>.": read `.reports/runs/<id>.json` of the artifact folder,
+  and its `exit` is the value of `failed_with`.
 - Every other result is wrong: a green run, a missing tool, zero tests, a skipped test, no
   result file, a time-out, or a failure that an error of the check causes, such as a syntax
   error or a wrong import of a helper. Fix the check, and run it again.
@@ -115,8 +115,8 @@ Write `acceptance-lock.json` at the top of the artifact folder, as JSON in this 
 - `support`: each support file. Leave `support` out when there is none.
 - Write no `sha256` and no `repository`: the lock fills each `sha256`.
 
-When the run gives you a line of `scope` or `lock`, change only what the line names. A line
-that sets `/criteria/version` gives the version to write.
+When you get a line of `scope` or `lock`, change only the file or the field that the line is
+about. A line that sets `/criteria/version` contains the version to write.
 
 ## Notes and review comments
 

@@ -67,15 +67,15 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
 7. Run `<skill folder>/checks.cjs freeze checks --inputs <inputs>`. It commits the checks
    and prints a line that starts with "Froze checks as commit <commit>:". Set `commit` in
    `<folder>/acceptance-lock.json` to that `<commit>`, and change nothing else in the file:
-   it is the one draft of an agent that you change. When `freeze` makes no new commit,
-   because no check changed since the last `freeze`, keep `commit` as it is. When `freeze`
-   exits with 1, end as "Failures" lists.
+   it is the one draft of an agent that you change. When `freeze` prints a line that starts
+   with "Froze no new commit for checks", keep `commit` as it is: no check changed since the
+   last `freeze`. When `freeze` exits with 1, end as "Failures" lists.
 8. Run `<skill folder>/checks.cjs lock <folder>/acceptance-lock.json` from the working
-   folder, as "Locked files" of `running-a-workflow` lists. Its last line names the version
-   that the push stored. When it exits with 1, do as "Locked files" lists: give the writer
-   every line that does not start with "Ask a member", at most twice, then do steps 5 to 8
-   again. A line such as "Add a check of ac-3 to acceptance-lock.json, then lock again."
-   names a criterion planned as `Tests` that the draft has no check of.
+   folder, as "Locked files" of `running-a-workflow` lists. Its last line has the number of
+   the version that the push stored. When it exits with 1, do as "Locked files" lists: give
+   the writer every line that does not start with "Ask a member", at most twice, then do
+   steps 5 to 8 again. A line such as "Add a check of ac-3 to acceptance-lock.json, then
+   lock again." is about a criterion planned as `Tests` with no check in the draft.
 9. Run `step end checks done`, as "The build ledger" lists, with the writer's last report,
    one `--attempt` per agent start, and `--pushed acceptance-lock/main/<N>`, with the
    version `<N>` that `lock` stored. The checks are committed and locked, so the step is
@@ -102,9 +102,9 @@ checks added. This section runs only after a `lock` of this run stored the lock.
    passes.": the check ran, and a test of it failed. Every other result is wrong: a check
    that is green, and a check with any other finding, such as a missing tool or zero tests.
    When the last line starts with "Ran no locked check", no check ran, such as for a locked
-   file that differs from the lock: end as "Failures" lists, as for an exit with 3. The same
-   holds for a line "Run locked again: <N> checks did not run, because a locked file changed
-   during the call."
+   file that differs from the lock: end as "Failures" lists, as for an exit with 3. End the
+   same way after a line "Run locked again: <N> checks did not run, because a locked file
+   changed during the call."
 3. With no wrong check, go to "The end". Otherwise run
    `<skill folder>/checks.cjs run locked <criterion>... --inputs <inputs>` once more, with
    the criterion of each wrong check. A check that is wrong in this second run too was
@@ -125,7 +125,7 @@ criteria opens a new lock.
    About: {"type": "acceptance-criteria", "name": "main", "item": "<id>"}
    Context: The locked check `<path>` of <criterion> must fail before the build changes
    code, and in two runs it did not fail with a failed test. The first run: <run 1>. The
-   second run: <run 2>. Build waits until you pick.
+   second run: <run 2>. Build does not start until you pick.
    Option 1 (recommended): Upload the acceptance criteria you accept as a new version, so
    that the next round writes a new check for this criterion. Explanation: Only your upload
    of the criteria opens a new lock. A check that does not fail before the change cannot

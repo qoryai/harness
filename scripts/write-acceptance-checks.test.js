@@ -526,8 +526,23 @@ test('lock refuses a lock with no check of a criterion planned as Tests, and nam
   assert.equal(locked.lines[1], '  Criteria version 1 plans ac-2 as Tests, and no check of the ' +
     'lock has it.');
   assert.ok(!logOf(w).some((line) => line.startsWith('artifact push acceptance-lock')), logOf(w));
+  // A second freeze with no changed check makes no new commit, so the draft keeps its commit.
+  const first = JSON.parse(fs.readFileSync(path.join(w.artifacts, 'acceptance-lock.json'), 'utf8'))
+    .commit;
+  const same = call('freeze', 'checks', '--inputs', w.inputs);
+  assert.equal(same.status, 0, same.out);
+  assert.match(same.lines.at(-1), /^Froze no new commit for checks: no change; /);
+  says(WORKFLOW, 'When `freeze` prints a line that starts with "Froze no new commit for ' +
+    'checks", keep `commit` as it is');
+  // The writer adds the check of ac-2, and steps 5 to 8 run again: the new freeze commits it
+  // on the first commit of the checks, and the lock passes with the new commit.
+  writeChecks(w, call);
+  const retried = lockChecks(w, call);
+  assert.equal(retried.locked.status, 0, retried.locked.out);
+  assert.equal(git(w.repo, w.env, 'rev-parse', `${retried.commit}^`), first);
+  assert.equal(newest(w, 'acceptance-lock', 'acceptance-lock.json').commit, retried.commit);
   // The skill gives the line to the writer, and the writer's skill sends it the criterion.
-  says(WORKFLOW, '"Add a check of ac-3 to acceptance-lock.json, then lock again." names a ' +
+  says(WORKFLOW, '"Add a check of ac-3 to acceptance-lock.json, then lock again." is about a ' +
     'criterion planned as `Tests`');
   // A criterion that is not planned as Tests needs no check: with ac-2 a demo, the lock passes.
   const demo = work({ criteria: criteriaJson([CRITERIA[0],
@@ -597,8 +612,7 @@ test('a check judged wrong 2 times goes to a member, with the check, criterion a
   assert.equal(question.context, 'The locked check `tests/header.check.cjs` of AC-2, "The export ' +
     'starts with a header line" must fail before the build changes code, and in two runs it did ' +
     'not fail with a failed test. The first run: it passed. The second run: it passed. ' +
-    'Build waits ' +
-    'until you pick.');
+    'Build does not start until you pick.');
   assert.equal(question.options[0].title, 'Upload the acceptance criteria you accept as a new ' +
     'version, so that the next round writes a new check for this criterion.');
   assert.equal(question.options[1].title,

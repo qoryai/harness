@@ -25,7 +25,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   only use is the tests and that the lock lists neither as a check nor under `support[]`, a
   changed test setup, and a skip, xfail or only mark. `scope` and `freeze` take the step
   `checks`, with the Files of each deliverable whose Check is the path of a test file.
-- `checks.cjs lock`, `check acceptance-lock` and its push check refuse a lock with no check
+- `checks.cjs lock`, `check acceptance-lock` and its push check fail on a lock with no check
   of a criterion that its criteria version plans as Tests, with the fix line "Add a check
   of <id> to acceptance-lock.json, then lock again."
 - The `plan-the-build` workflow in the `software` stack, with `tier: thinking` and

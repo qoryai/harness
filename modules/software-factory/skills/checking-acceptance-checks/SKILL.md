@@ -13,9 +13,9 @@ criteria, the build plan and the records of their runs.
 
 The work is the draft `acceptance-lock.json` at the top of the artifact folder, the file of
 each entry of its `checks` and `support` in the working folder, and the writer's report,
-with one item per check under "Checks:". Each item names the record of the last run of that
-check, `.reports/runs/<id>.json` of the artifact folder, and the output of its command is in
-the file of the record's `logs`. Only the checks script writes those records.
+with one item per check under "Checks:". Each item has the id of the record of the last run
+of that check, `.reports/runs/<id>.json` of the artifact folder, and the output of its
+command is in the file of the record's `logs`. Only the checks script writes those records.
 
 The run passes no "Checks:": the draft has no `sha256` until `lock` fills it, so no checks
 script reads it before the review. This document is no Markdown document of
@@ -23,7 +23,7 @@ script reads it before the review. This document is no Markdown document of
 
 ## Review of the checks
 
-1. Before you read the checks, list what the person's words ask: the ticket, the notes, a
+1. Before you read the checks, list what a person asked for in the ticket, the notes, a
    person's answer to a question about a criterion, and the newest approved acceptance
    criteria. A quote that differs from its source is a finding.
 2. Each criterion that is not removed and whose `check` is `Tests` has an entry under

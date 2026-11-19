@@ -2271,9 +2271,9 @@ with a `run_again` point.
   run stopped at the app check, because <cause>.", such as "no demo script exists for the
   app". A locked check fails right only when its finding starts with "Fix the code until the
   locked check of <criterion> passes.". A check that is green, or red for another reason,
-  runs once more with `run locked <criterion>`. When it is wrong again, the session asks a
-  member one question per such check, with `about` set to
-  `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context gives
+  runs once more with `run locked <criterion>`. When it is wrong again, the session pushes
+  one question per such check to a member, with `about` set to
+  `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context has
   the path of the check, the criterion as `AC-<N>, "<first sentence>"` and what each run
   printed for the check. The options are to upload the acceptance criteria as a new version,
   so that the next round writes a new check (recommended), or to keep the locked check and

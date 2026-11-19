@@ -12,7 +12,7 @@ criterion.
 Tool exception: Bash, because you run only `checks.cjs run targeted` on the checks you
 write, and you list, search and read files with the read forms of `run-artifacts`.
 Tool exception: Write, because you write the checks, their support files and the lock draft.
-Tool exception: Edit, because you change a check that a finding or a line of a check names.
+Tool exception: Edit, because you change a check that a finding or a line is about.
 
 ## Guardrails
 
@@ -71,7 +71,7 @@ line of a check to fix. Read what the pull wrote, never the memory of an earlier
 refused tool call stays refused. Read through no link, and fetch no web page.
 
 When you start again, change only the checks and the lines of the draft that the findings or
-the lines name, and repeat the lists of your newest report, changed for this start.
+the lines are about, and repeat the lists of your newest report, changed for this start.
 
 ## Stop conditions
 
