@@ -13,19 +13,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   which writes the title and the four-part description (`## Problem`, `## Change`,
   `## Tests`, `## Disclosed`) of the draft pull request to `.reports/submission.md`, then
   runs `checks.cjs report-build`. A runtime with no agent tool, a start that fails and a
-  `blocked` report end the run as "Failures" of `running-a-workflow` lists, and an exit of
-  `report-build` other than 0 ends it not ready.
-  `acceptance-reviewer` also reads `.qory/handoff/submission.json` in the copy of the
-  change.
+  `blocked` report end the run as "Failures" of `running-a-workflow` lists. An exit 1 of
+  `report-build` starts the agent again, at most twice, and ends the run not ready with one
+  `run_again` point when it stays; so does an exit 1 of `check build-report`, with no
+  restart. Exits 2, 3 and 4 end as "Failures" lists.
 - The verb `checks.cjs report-build [--inputs <path>]` in `software-factory`. It writes
   `build-report.md` in the artifact folder, with the tables of the standard track rendered
-  from the build ledger and the records of the checks, and writes the hand-off file at the
-  value of `QORY_SUBMISSION_HANDOFF`. When `.reports/submission.md` breaks a rule, it
-  exits with 1 and writes no file. `checks.cjs check build-report` in a session renders
-  the tables again and compares each section with the file byte for byte. With
+  from the build ledger and the records of the checks. Only when `QORY_SUBMISSION_HANDOFF`
+  is set, it reads `.reports/submission.md` and writes the hand-off file at that path. It
+  writes the hand-off file first and `build-report.md` second, each through a temporary
+  file that it renames into place. On each non-zero exit it removes an earlier hand-off
+  file. When `.reports/submission.md` breaks a rule, it exits with 1 and writes no file;
+  when a write fails, it exits with 3. `checks.cjs check build-report` in a session renders
+  the tables again and compares the text of each section with the file byte for byte. With
   `--inputs`, it also compares Summary, Review rounds and Counts, which need the rounds
-  that sit beside `inputs.json`. The session `review-changes` runs both at the end, then
-  pushes `build-report` before the verdict.
+  that sit beside `inputs.json`; without it, the check prints that it did not compare them.
+  The session `review-changes` runs both at the end, then pushes `build-report` before the
+  verdict.
 - `process.yaml` of `software-factory` has `submit: {type: submission, send:
   end_of_run}`.
 - The type `build-report` names its two forms by track: the standard track and the fast
@@ -41,7 +45,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     `login-needed` with `exit` 3;
   - a title of 1 to 256 characters that has no control character, such as a tab or a
     newline, and no invisible character, and that is not only spaces, as the change feed
-    requires. Before, the title only had no newline, so a title with a tab now fails;
+    requires, so a title with a tab fails;
   - a description of at most 20000 characters with no `<!-- qory:start -->` or
     `<!-- qory:end -->` marker line.
 - The `review-changes` workflow in the `software` stack, with `tier: thinking` and

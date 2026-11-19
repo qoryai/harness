@@ -33,10 +33,11 @@ ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull print
 
 Run only `<qory>` commands, the checks script and the read forms of `run-artifacts`. The
 session writes the files that "What you do" of `running-a-workflow` lists, such as
-`points.json`, and these:
+`points.json`. It starts the submission writer and runs `report-build`, and the files that
+these write are:
 
-- `build-report.md` in `<folder>`, which `report-build` writes;
 - `.reports/submission.md` in `<folder>`, which the submission writer writes;
+- `build-report.md` in `<folder>`, which `report-build` writes;
 - the hand-off file at the value of `QORY_SUBMISSION_HANDOFF`, under `.qory/handoff/`,
   which `report-build` writes.
 
@@ -129,14 +130,22 @@ reviewers of the next round get them. Then, in this order:
    "Failures" of `running-a-workflow` lists.
 2. Run `<skill folder>/checks.cjs report-build --inputs <input file>`. It writes
    `build-report.md` in `<folder>` and the hand-off file at the value of
-   `QORY_SUBMISSION_HANDOFF`. With exit 2, 3 or 4, end as "Failures" lists for the checks
-   script. With exit 1, or any other status, end with "The change is not ready, because
-   `report-build` failed: <the first line it printed>."
+   `QORY_SUBMISSION_HANDOFF`. On each non-zero exit it removes an earlier hand-off file.
+   - With exit 1, a rule of the text broke. Start ${qory:agents/submission-writer} again
+     with each line that `report-build` printed quoted, at most twice, check its report as
+     step 1 lists, and run `report-build` again after each start. When it still exits with
+     1 after the second start, end as "Points" of `running-a-workflow` lists, with one
+     `run_again` point: "The change is not ready, because the description of the change
+     still breaks the rules for it." Print the first line of `report-build` in your output.
+   - With exit 2, 3 or 4, end as "Failures" lists for the checks script.
 3. Run `<skill folder>/checks.cjs check build-report --inputs <input file>
    <folder>/build-report.md`. It renders the tables of `build-report.md` again from the
-   records and compares them byte for byte. With exit 2, 3 or 4, end as "Failures" lists
-   for the checks script. With exit 1, or any other status, end with "The change is not
-   ready, because `build-report.md` failed its check: <the first line it printed>."
+   records and compares each section with the file byte for byte. With exit 1, the tables
+   are the script's, so a difference is a defect: start no agent, and end as "Points" of
+   `running-a-workflow` lists, with one `run_again` point: "The change is not ready,
+   because the build report differs from the records of the run." Print the first line of
+   the check in your output. With exit 2, 3 or 4, end as "Failures" lists for the checks
+   script.
 4. Push `build-report` as "Push only what changed" and "Check before each push" of
    `running-a-workflow` list, with step 3 as the `check`:
 
@@ -144,9 +153,10 @@ reviewers of the next round get them. Then, in this order:
    <qory> artifact push build-report <folder>/build-report.md
    ```
 
-   When the push exits with 4 or fails, push again, at most twice more. When the push is
-   still refused after the third attempt, end with "The run could not push its build
-   report." No agent wrote the file, so start no agent to fix it.
+   When the push exits with 4 or fails, run steps 2 and 3 again, then push again, at most
+   twice more. When the push is still refused after the third attempt, end with "The run
+   could not push its build report." as "Points" of `running-a-workflow` lists. No agent
+   wrote the file, so start no agent to fix it.
 5. Handle the verdict:
    - In a stage that has reviewers, as "Open findings of a review" of `running-a-workflow`
      lists, run no verdict command, so that qory runs the review round after the session
@@ -156,6 +166,9 @@ reviewers of the next round get them. Then, in this order:
      `running-a-workflow` lists. When the command fails, the run ends with no verdict.
 
    In both cases, end with "The change is ready: each planned change is built."
+
+The ends of steps 1 to 4 run no `<qory> run verdict passed`, whether or not the stage has
+reviewers.
 
 ## Failures
 

@@ -10,16 +10,19 @@ description that a reviewer reads first, so state only what a record of the run 
 
 ## The file
 
-Write `.reports/submission.md` in the artifact folder, once. The script `report-build`
-reads it and renders the result tables, so you type no result: no count, no pass or fail
-and no time. The first line is `# <title>`. After it come exactly four parts, as `##`
-headings, in this order: `## Problem`, `## Change`, `## Tests` and `## Disclosed`. No other
-heading, no table of results.
+Write `.reports/submission.md` in the artifact folder, once. The verb `report-build` of
+the checks script reads it and renders the result tables, so you type no result: no count,
+no pass or fail and no time. The first line is `# <title>`. After it come exactly four
+parts, as `##` headings, in this order: `## Problem`, `## Change`, `## Tests` and
+`## Disclosed`. No other heading, no table of results.
 
 ## The limits
 
 - The title is one line of at most 256 characters, with no tab and no control character.
-- The description, from `## Problem` to the end, has at most 20000 characters.
+  It is not only spaces, and it has no invisible character, such as U+200B, U+202E or
+  U+FEFF.
+- The description, from `## Problem` to the end, has at most 20000 characters and no NUL.
+  No line of it starts with `<!-- qory:start -->` or `<!-- qory:end -->`.
 - No secret, key or token in either. Write where it is.
 
 ## The sources
@@ -58,7 +61,7 @@ the filtered rows". Use the words of `## Summary` of the build plan.
 
 ## Check list
 
-- The first line is `# <title>`, one line of at most 256 characters.
+- The first line is `# <title>`, one line that meets "The limits".
 - The four parts are there, in the order of the list above, and no other heading.
 - Each fact is in the build plan, the ledger or a record of a check.
 - No result is typed: no count, no pass or fail, no time.

@@ -326,9 +326,20 @@ workflows:
 - `workflow-review-changes`: check a Build run before its review round. With no build plan,
   it ends with a `run_again` point. While a planned change is not built, or a locked file
   differs from the acceptance lock, it ends with `qory run verdict changes-requested`. When
-  every check passes, it starts `submission-writer`, runs `checks.cjs report-build`, and
-  ends ready: in a stage that has reviewers, qory then runs the review round, and in a
-  stage with none, the run ends with `qory run verdict passed`.
+  every check passes, it does five steps, in this order:
+  1. It starts `submission-writer`; a start that fails, a report that fails its check
+     after two fixes and a `blocked` report end the run as Failures.
+  2. It runs `checks.cjs report-build`. With exit 1, it starts `submission-writer` again,
+     at most twice, then ends with one `run_again` point; with exit 2, 3 or 4, it ends as
+     Failures.
+  3. It runs `checks.cjs check build-report`. With exit 1, it ends with one `run_again`
+     point and starts no writer; with exit 2, 3 or 4, it ends as Failures.
+  4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
+     again and pushes again, at most twice more.
+  5. It ends ready: in a stage that has reviewers, qory then runs the review round, and in
+     a stage with none, the run ends with `qory run verdict passed`.
+
+  The ends of steps 1 to 4 run no `qory run verdict passed`.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.
