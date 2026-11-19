@@ -166,7 +166,9 @@ its change and ends, and qory runs the round of review afterwards: each reviewer
 separate session, with the tools Read, Grep, Glob, Skill and Write, no shell and no network.
 The values of the round are in the member `qory.review` of the `inputs.json` that qory
 writes: `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`,
-the path where the reviewer writes its report. The skill `reviewing-changes` of `core` lists
+the path where the reviewer writes its report. The reviewers of Build in `software-factory`
+are `code-reviewer`, `test-reviewer` and `acceptance-reviewer`. The skill
+`reviewing-changes` of `core` lists
 the report: one JSON file with a `reviewer` and a list of findings, each with a `severity`
 of `blocking` or `non-blocking`, `quote`, `problem`, `fix`, `proof`, `point`, and `file`,
 `line` and `id` when they apply. The report has no result word and no list of unverified
@@ -2466,6 +2468,46 @@ of the criterion is cut in both to its first 8 words and "...".
   build go on. The run ends with `escalate` and one `answer` point per check. The ledger
   step stays `done`, so a new criteria version starts a new pass of `checks`, and an
   unchanged one replays it.
+
+`workflow-review-changes`, process entry `review-changes`, checks a Build run before its
+review round. The session starts no agent and runs no ledger step. It pulls, runs
+`checks.cjs resume`, and reads `qory.stage.reviewers` of `inputs.json`. In a stage with no
+reviewers, qory runs no round, so the session ends with the `run_again` point "The Build
+stage has no reviewers, so the change was not reviewed." Then it reads the build plan of
+the run's start, the newest version in the folder of `qory.start_artifacts`, and the
+newest `build-ledger.json`. A deliverable is built when the ledger row of
+`deliverable:<id>` with the highest `pass` has the `state` `done`. With no build plan, the
+session ends with a `run_again` point whose fix is "Plan the build, so that a run pushes
+the build plan." While a deliverable is not built, it runs `qory run verdict
+changes-requested` and ends with "<k> of <n> planned changes are not built: d-2, "<Change
+cell>".", cut to 500 characters. It writes no `points.json` then, because qory sends
+`escalate` or `answer` from that file. Otherwise, in a run, it runs `checks.cjs lock
+--verify`, and ends the same way with the paths of the locked files that differ. Outside a
+run it skips the verify, because the verify would read the local artifact folder. With
+every check passed, it runs no verdict command and ends with "The change is ready for its
+review round."
+
+- **The reviewers.** qory starts `code-reviewer`, `test-reviewer` and
+  `acceptance-reviewer`, each as a separate session, as "The review of a change" lists.
+  Each loads `reviewing-changes`, `judging-findings` and its checking skill,
+  `checking-code`, `checking-tests` or `checking-acceptance`. A finding in another area is
+  left out: its reviewer writes it. Only `code-reviewer` reports bugs, security holes and
+  data loss, in each file that is not a test. Only `test-reviewer` reports a failing test
+  that the change hides by deleting, skipping or loosening it, with the old test traced
+  through the new code; it also reports code with no test and tests that show nothing.
+  Only `acceptance-reviewer` reports a criterion that the change does not meet; it also
+  reports a planned change that the diff lacks and work that no rule of the spec asks
+  for. A bug
+  that also breaks a criterion gets two findings: the cause from `code-reviewer`, and the
+  criterion from `acceptance-reviewer`. A red suite is the finding that qory writes.
+- **Earlier findings.** Each reviewer reads only the entry of `previous_findings` under
+  its name, and leaves out each finding with no `quote`, which qory wrote. So two
+  reviewers do not repeat one finding, which would give it two ids.
+- **Not built yet.** How qory takes `changes-requested` from this session in a stage with
+  reviewers waits on a change to qory. `qory.review` has no value for the acceptance
+  criteria, the spec and the build plan, so `acceptance-reviewer` stops with no report,
+  and `suite_result` has counts and no failing rows. The group role `reviewers` and the
+  `reviewers` key of Build follow in a later change.
 
 ## The high-level workflow, shape-a-ticket
 
