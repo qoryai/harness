@@ -4803,6 +4803,9 @@ waiting('the guard denies a call when its hook process has used 8 s, also for th
   assert.ok(huge.ms < 3000, `${huge.ms} ms`);
   const real = await realRun;
   assert.equal(real.ran.error, undefined, `the hook ran past 10 s: ${real.ms} ms`);
+  // The text of the deny says 8 seconds: the limit of the real guard is the constant of 8,000 ms.
+  assert.match(fs.readFileSync(path.join(HOOKS, 'reports-guard.cjs'), 'utf8'),
+    /^const HOOK_MS = 8000;$/m);
   // The deny is the one of the clock, from 8 s after the start of the process: a limit of 4 s
   // denies at 4 s, and one of 20 s lets the hook run into the kill at 10 s above.
   assert.match(JSON.parse(real.ran.stdout).permissionDecisionReason, time);
@@ -5208,6 +5211,10 @@ test('the guard denies a write to .env and .gemini/.env, and lets .env.example a
   }
   firstLine(reports.ENV_REASON, ENV_START);
   firstLine(reports.ENV_SHELL_REASON, ENV_SHELL_START);
+  // A text with more than one path, where the last part of the whole text is no .env.
+  for (const text of ['notes.md .env', '.env notes.md', "notes.md '.gemini/.env'"]) {
+    assert.equal(write({ paths: text }), reports.ENV_REASON, text);
+  }
   // The text that a tool writes is no path.
   assert.equal(write({ file_path: 'notes.md', content: '.env', new_string: '.gemini/.env' }), null);
   for (const command of ['echo A=1 > .env', 'echo A=1>.gemini/.env', 'tee -a ./.ENV < a',
@@ -5228,7 +5235,8 @@ test('the guard denies a write to .env and .gemini/.env, and lets .env.example a
     assert.equal(write({ file_path: file }), null, file);
   }
   for (const command of ['cat .env.example', 'ls .envrc .venv', 'echo process.env.HOME',
-    "grep a --exclude='.env*' -r .", 'cp a b/env', 'echo ".env.local"', 'git add -- env.d.ts']) {
+    "grep a --exclude='.env*' -r .", 'cp a b/env', 'echo ".env.local"', 'git add -- env.d.ts',
+    "cat 'x'.env"]) {
     assert.equal(shell(command), null, command);
   }
 });

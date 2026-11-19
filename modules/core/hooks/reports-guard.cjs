@@ -303,7 +303,7 @@ function reportsOnDisk(text, cwd, state) {
 // The folder .reports in a shell command.
 // A \ at the end of the command or word is dropped by the shell, so `.reports\` is .reports.
 const REPORTS = /\.reports(?:[/\s'"`;|&)]|\\?$)/iu;
-// The file .env in a shell command: .env as a whole path part, so that .env.example, .envrc,
+// The file .env in a word of a shell command: .env as a whole path part, so that .env.example, .envrc,
 // .venv and process.env pass, and a * ? [ or { after it makes a glob, which is no .env.
 // shortcut: no glob, braces or variable that build the name .env are read, and tool-guard.cjs
 // matches no .env glob; replace this with the glob rules of .reports if a run needs them.
@@ -1432,7 +1432,6 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
     if (typeof command !== 'string') return null;
     if (runsChecks(command, env, script)) return null;
     if (REPORTS.test(command)) return SHELL_REASON;
-    if (ENV_FILE.test(command)) return ENV_SHELL_REASON;
     const spelled = words(command).find(({ value }) => ENV_FILE.test(value));
     if (spelled !== undefined) {
       return `${ENV_SHELL_REASON}\nThe shell turns the word ${spelled.raw} into ${spelled.value}.`;
