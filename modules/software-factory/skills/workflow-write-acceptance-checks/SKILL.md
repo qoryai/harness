@@ -59,8 +59,8 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
      end as "Points" lists, with "The work item has no build plan, so the run wrote no
      acceptance checks."
    - When `index.json` lists no version of `acceptance-criteria`, start no agent, push
-     nothing, and end the same way, with "The work item has no acceptance criteria, so the
-     run wrote no acceptance checks."
+     nothing, and end the same way, with "Write the acceptance criteria in Shape: the work
+     item has none, so the run wrote no acceptance checks."
    - When the JSON has no live Tests criterion, do "No check to write", whatever the build
      plan lists.
    - When a live Tests criterion is in the Criteria cell of no row with a check path, start
