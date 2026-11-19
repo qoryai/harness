@@ -41,10 +41,24 @@ const { readInput } = require('./end-gate.cjs');
 // The keys of a write tool's arguments that contain the text it writes, not a path.
 const TEXT_KEYS = new Set(['content', 'contents', 'file_text', 'new_string', 'old_string',
   'new_str', 'old_str', 'instruction', 'description']);
-// A path under a folder .reports that ends in .json, or whose name has .json.lock, alone or
-// inside a patch.
-const REPORTS_JSON =
-  /(?:^|[/\s'"=:])\.reports\/(?:[^\s'"]*\/)?[^\s'"/]*\.json(?:\.lock[^\s'"/]*)?(?=$|[\s'"])/im;
+// The start of a path under a folder .reports, in a word of a text: at its start or after /, =
+// or :.
+const REPORTS_START = /(?:^|[/=:])\.reports\//i;
+// A word of a text: a run of characters that are no white space, ' or ".
+const WORD = /[^\s'"]+/g;
+
+// reportsJson reports whether text has a path under a folder .reports that ends in .json, or
+// whose name has .json.lock, alone or inside a patch. It reads each word once: the regular
+// expression that it replaced took time in the square of a text of repeated `.reports/`.
+function reportsJson(text) {
+  for (const [word] of text.matchAll(WORD)) {
+    if (!REPORTS_START.test(word)) continue;
+    const name = word.slice(word.lastIndexOf('/') + 1);
+    if (/\.json$/i.test(name) || /\.json\.lock/i.test(name)) return true;
+  }
+  return false;
+}
+
 // The folder .reports in a shell command.
 const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/i;
 // A part of a shell command that runs a second command or redirects one.
@@ -88,9 +102,20 @@ const realPath = (file) => {
   }
 };
 
+// withoutRedirect returns command without its white space at both ends and without a ` 2>&1`
+// at its end, with the white space before it. The regular expression that it replaced took time
+// in the square of a run of white space.
+function withoutRedirect(command) {
+  const text = command.trim();
+  if (!text.endsWith('2>&1')) return text;
+  let end = text.length - '2>&1'.length;
+  while (end > 0 && /\s/.test(text[end - 1])) end--;
+  return end < text.length - '2>&1'.length ? text.slice(0, end) : text;
+}
+
 // runsChecks reports whether command runs the checks.cjs next to script and nothing else.
 function runsChecks(command, env, script) {
-  const rest = command.trim().replace(/\s+2>&1$/, '');
+  const rest = withoutRedirect(command);
   if (CONTROL.test(rest)) return false;
   const words = rest.split(/\s+/);
   if (words[0] === 'node') words.shift();
@@ -276,8 +301,7 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
   globs = true }) {
   if (!env.QORY_RUN_ID) return null;
   if (kind === 'write') {
-    const hit = strings(args).some(([key, text]) => !TEXT_KEYS.has(key) &&
-      REPORTS_JSON.test(text));
+    const hit = strings(args).some(([key, text]) => !TEXT_KEYS.has(key) && reportsJson(text));
     return hit ? WRITE_REASON : null;
   }
   if (kind === 'shell') {
@@ -292,5 +316,5 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
   return null;
 }
 
-module.exports = { readInput, decide, runsChecks, REPORTS, HIDDEN_REASON, WRITE_REASON,
-  SHELL_REASON };
+module.exports = { readInput, decide, runsChecks, withoutRedirect, reportsJson, REPORTS,
+  HIDDEN_REASON, WRITE_REASON, SHELL_REASON };
