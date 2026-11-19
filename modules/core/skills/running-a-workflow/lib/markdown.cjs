@@ -437,11 +437,9 @@ function tableCells(text) {
 }
 
 // A line of cells made of dashes, with or without `|` at its ends: the shape of a delimiter row.
-// The test runs on the text without its trailing spaces, as no star of spaces meets another.
+// The match runs on the text without its trailing spaces, as no star of spaces meets another.
 const DELIMITER_BODY = /^[ \t]*(?:\|[ \t]*)?:?-+:?(?:[ \t]*\|[ \t]*:?-+:?)*[ \t]*\|?$/;
-const DELIMITER_SHAPE = {
-  test: (text) => DELIMITER_BODY.test(text.slice(0, text.length - trailing(text))),
-};
+const delimiterShaped = (text) => DELIMITER_BODY.test(text.slice(0, text.length - trailing(text)));
 
 // tableLines returns, for each line of list, whether it is a row of a table as Qory Apiary shows
 // it. A table is a header line that starts with `|` and at most 3 spaces and has a cell, and
@@ -504,7 +502,7 @@ function tableLines(list) {
         // The line that ends a table is read as any other line.
         inTable = false;
         let opened = false;
-        const shaped = DELIMITER_SHAPE.test(line.text);
+        const shaped = delimiterShaped(line.text);
         // A delimiter-shaped line in a paragraph that opened no table with the line before it.
         if (shaped && at > 0 && !empty(list[at - 1]) && !list[at - 1].fenced) poisoned = true;
         if (!poisoned && pipe(line) && at + 1 < list.length && pipe(list[at + 1])) {
