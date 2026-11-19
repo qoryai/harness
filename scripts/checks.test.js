@@ -1548,23 +1548,69 @@ test('decision record: the words of a comment line and of a line with no diagram
   fails(push(fixture(cost(exact - 10), some(11)), 'decision-record'), count);
 });
 
-test('decision record: a diagram that has lines with no diagram syntax counts those words', () => {
+// CLASS_40 is a class diagram of 40 members, in a body and as "Name : member" lines.
+const CLASS_40 = [
+  'classDiagram',
+  '  class Reply {',
+  ...Array.from({ length: 20 }, (_, at) => `    +List~Hour~ hours${at} PK`),
+  '    +get() int',
+  '    -List~T~ items',
+  '  }',
+  ...Array.from({ length: 18 }, (_, at) => `  Reply : +int field${at}`),
+  '  Reply --> Hours',
+].join('\n');
+
+test('decision record: a member, an attribute, a state text and a lone node id add no word', () => {
   const mermaid = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs'));
   const { words: countWords } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs'));
   const words = (text) => countWords(mermaid.prose(text));
   assert.equal(words(DIAGRAM_40), 0);
-  // The lines of the other types that hold no link, shape or keyword count: a class member, an
-  // attribute of an entity, a state text, and a node id alone.
-  assert.equal(words('classDiagram\n  class Reply {\n    +int age\n  }\n  Reply --> Hours'), 2);
-  assert.equal(words('erDiagram\n  REPLY {\n    string name PK\n  }\n  REPLY ||--o{ HOURS : has'), 3);
-  assert.equal(words('stateDiagram-v2\n  Open : waits for the answer\n  [*] --> Open'), 5);
-  assert.equal(words('flowchart LR\n  A\n  B[x]'), 1);
-  // A keyword line counts its words after the 6th, and a text with a link token counts none.
+  // One test for each form, in its own diagram type.
+  assert.equal(words('classDiagram\n  class Reply {\n    +int age\n    -List~T~ items\n    +get() int\n  }'), 0);
+  assert.equal(words('classDiagram\n  Reply : +int age\n  Reply : +get() int'), 0);
+  assert.equal(words('erDiagram\n  REPLY {\n    string name PK\n    int id\n  }\n  REPLY ||--o{ HOURS : has'), 0);
+  assert.equal(words('stateDiagram-v2\n  Open : waits for the answer\n  [*] --> Open'), 0);
+  assert.equal(words('stateDiagram\n  Open\n  Closed;'), 0);
+  assert.equal(words('flowchart LR\n  A\n  B[x]'), 0);
+  assert.equal(words(CLASS_40), 0);
+  // The words of such a line after the first 6 count: a member line of 30 words adds 24.
+  const long = many(30);
+  assert.equal(words(`classDiagram\n  class Reply {\n    ${long}\n  }`), 24);
+  assert.equal(words(`classDiagram\n  Reply: ${many(29)}`), 24);
+  assert.equal(words(`erDiagram\n  REPLY {\n    ${long}\n  }`), 24);
+  assert.equal(words(`stateDiagram-v2\n  Open: ${many(29)}`), 24);
+  // A form is recognised only in its diagram type, so prose elsewhere counts in full.
+  assert.equal(words(`flowchart LR\n  Open : ${many(29)}`), 30);
+  assert.equal(words(`sequenceDiagram\n  Open : ${many(29)}`), 30);
+  assert.equal(words(`classDiagram\n  A lone line of prose that is not a member`), 10);
+  assert.equal(words(`classDiagram\n  A\n  Open`), 2);
+  assert.equal(words(`erDiagram\n  Reply : ${many(29)}`), 30);
+  assert.equal(words(`stateDiagram\n  class Reply {\n    ${long}\n  }`), 30);
+  // A keyword line counts its words after the first 6, a text with a link token none.
   assert.equal(words('sequenceDiagram\n  participant Customer as Support Agent\n  A->>B: Ask a long question here'), 0);
   assert.equal(words('flowchart LR\n  Note that the retry waits for a reply from support.'), 4);
   // A %% comment counts its words, a directive none.
   assert.equal(words('flowchart LR\n%% one two three\n%%{init: {"a": "b c d"}}%%\n  A --> B'), 3);
   assert.equal(words('flowchart LR\n%%one two\n  A --> B'), 2);
+});
+
+test('decision record: a class diagram of 40 members adds no word to a record of 450 words', () => {
+  const count = /^Cut decision-record.md to 450 words: it has (\d+)\./;
+  const cost = (words) => ['decision-record.md', COST, `- Cost: ${many(words)}.`];
+  const found = count.exec(push(fixture(cost(440)), 'decision-record').out);
+  assert.ok(found);
+  const exact = 440 + 450 - Number(found[1]);
+  passes(push(fixture(cost(exact), drawn(CLASS_40)), 'decision-record'));
+  fails(push(fixture(cost(exact + 1), drawn(CLASS_40)), 'decision-record'), count);
+  // A member line of 30 words adds 24, and prose lines in the diagram count in full.
+  const long = `classDiagram\n  class Reply {\n    ${many(30)}\n  }\n  Reply --> Hours`;
+  passes(push(fixture(cost(exact - 24), drawn(long)), 'decision-record'));
+  fails(push(fixture(cost(exact - 23), drawn(long)), 'decision-record'), count);
+  // An entity diagram and a state diagram of usual size add nothing.
+  const er = 'erDiagram\n  REPLY {\n    string name PK\n    int hours\n  }\n  REPLY ||--o{ HOURS : has';
+  const state = 'stateDiagram-v2\n  [*] --> Open\n  Open : waits for the answer\n  Open --> Closed\n  Closed';
+  passes(push(fixture(cost(exact), drawn(er)), 'decision-record'));
+  passes(push(fixture(cost(exact), drawn(state)), 'decision-record'));
 });
 
 // ---- Limits -------------------------------------------------------------------------------

@@ -134,8 +134,9 @@ which leave out the syntax of a diagram.
   or `@import`, no node with `img`, and no `properties` or `details` line. Qory Apiary shows
   a block of another type, or with one of these, as text, and a block over a limit as an
   error diagram with its source in `<details>`. The check refuses each of them.
-- The 450 words count each `%%` comment line of a diagram (not a `%%{` line) and each line
-  with no link, no node shape and no keyword, and leave out the rest of the diagram.
+- The 450 words count each `%%` comment line of a diagram (not a `%%{` line), each line
+  with no diagram syntax, and the words after the first 6 of a keyword line, a class member,
+  an entity attribute, a state text or a lone node id.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw

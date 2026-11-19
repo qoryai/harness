@@ -199,7 +199,7 @@ module.exports = (lib) => {
       .filter((block) => block.end !== null)
       .map((block) => mermaid.prose(block.text)).join('\n'));
     wordLimit(run, 'decision-record.md', md, false, diagramWords);
-    // writing-decisions (SKILL.md:142: "a third diagram in the record fail"): the Mermaid
+    // writing-decisions (SKILL.md:143: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
       0);

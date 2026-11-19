@@ -23,9 +23,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Mermaid measures them, and a flowchart with more than 200 edges. `lib/mermaid.cjs` reads
   the text as Qory Apiary draws it, without the characters that Qory Apiary strips, and
   counts every link token of a flowchart, because Qory Apiary sets the limit but has no
-  edge count. The 450 words count each `%%` comment line of a diagram (not a `%%{` line) and
-  each line with no link token, no node shape and no keyword, and leave out the rest of
-  the diagram. The decision record also refuses an HTML `<img>` and a reference image next
+  edge count. The 450 words count each `%%` comment line of a diagram (not a `%%{` line), each
+  line with no diagram syntax, and the words after the first 6 of a keyword line, a class
+  member, an entity attribute, a state text or a lone node id. The decision record also refuses an HTML `<img>` and a reference image next
   to an inline image, by the new option `everyImage` of `links` in `lib/markdown.cjs`,
   which no other type sets. `checking-decisions` has the reviewer judge each diagram, and
   `decision-writer` and `decision-reviewer` load `visuals` when the record has one.

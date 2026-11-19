@@ -2107,11 +2107,17 @@ is no image.
 - a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
   a removed decision's diagram is not in that count.
 
-The 450 words count each `%%` comment line of a diagram (not a `%%{` line) and each line
-with no link token, no node shape and no keyword, and leave out the rest of the diagram.
-`lib/mermaid.cjs` defines those three, and it counts the words after the first 6 words of a
-keyword line. The lines of a class member, an entity attribute, a state text and a node id
-alone have none of the three, so their words count.
+The 450 words count each `%%` comment line of a diagram (not a `%%{` line), each line with
+no diagram syntax, and the words after the first 6 of a keyword line, a class member, an
+entity attribute, a state text or a lone node id.
+
+`lib/mermaid.cjs` defines the diagram syntax of a line: a link token, a node id with a
+shape that ends the line, a line of at most 3 words that ends with `{`, or a `subgraph`
+line that ends with a bracket. It recognises the five forms in their diagram type: a
+keyword line in any type; a member or an attribute between `{` and `}` in a class or an
+entity diagram; a `Name : text` line in a class or a state diagram; and a node id alone in
+a flowchart, a graph or a state diagram. A line of another shape, or of a form in another
+type, counts in full.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for

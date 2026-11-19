@@ -76,9 +76,9 @@ When you review, the run gives you the lines of its checks script under "Checks:
 `## Decisions`, the line "The spec leaves no technical choice open." or at least one decision,
 the heading of each decision, each id once, the items of each decision in order, the form
 of a removed or open decision, and the limit of 450 words, which counts each `%%` comment
-line of a diagram (not a `%%{` line) and each line with no link, no node shape and no
-keyword, and leaves out the rest of the diagram. It checks each Mermaid block: that it is
-closed, that it is the last text of its decision, after a blank line, that its fence is
+line of a diagram (not a `%%{` line), each line with no diagram syntax, and the words after
+the first 6 of a keyword line, a class member, an entity attribute, a state text or a lone
+node id. It checks each Mermaid block: that it is closed, that it is the last text of its decision, after a blank line, that its fence is
 lower case `mermaid` at the start of the line with no other word, that its first word is a
 type that Qory Apiary draws, that it has no syntax that loads an address, and that it has
 at most 20,000 characters, counted as Mermaid counts them, and, in a flowchart, at most 200

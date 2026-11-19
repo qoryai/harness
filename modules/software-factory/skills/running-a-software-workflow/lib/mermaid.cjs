@@ -205,11 +205,15 @@ function edges(text) {
 // prose returns the lines of a block whose words count toward a word limit. A line is diagram
 // syntax, and its words do not count, when it has a link token, starts with a node id and a
 // shape that ends the line, opens a block with "{" after at most 3 words, or is a subgraph
-// line that ends with a bracket (its title is a label). A line that starts with a keyword
-// counts only the words after its first 6. A %% comment line counts its words, and a line
-// with a directive (%%{), which Qory Apiary does not draw, counts none.
+// line that ends with a bracket (its title is a label). Some lines are syntax only in their
+// own diagram type, and count their words after the first 6, as a line that starts with a
+// keyword does: a member or an attribute inside "{" and "}" of a class or entity diagram, a
+// "Name : text" line of a class or state diagram, and a lone node id of a flowchart or state
+// diagram. A %% comment line counts its words, and a line with a directive (%%{), which Qory
+// Apiary does not draw, counts none.
 const LINK_TOKEN = /-{2,}|={2,}|~{3,}|-\.|\.-|->|<\||\|\||\*-|\.\.[>|]/;
-const NODE_SHAPE = /^[\w.-]+(?:\[|\(|\{|>|@\{).*[\])}](?::::[\w-]+)?;?$|^\S+(?:\s+\S+){0,2}\s*\{$/;
+const NODE_SHAPE = /^[\w.-]+(?:\[|\(|\{|>|@\{).*[\])}](?::::[\w-]+)?;?$/;
+const OPENS_BLOCK = /^\S+(?:\s+\S+){0,2}\s*\{$/;
 const KEYWORDS = new Set([
   'flowchart', 'graph', 'sequenceDiagram', 'stateDiagram', 'stateDiagram-v2', 'classDiagram',
   'classDiagram-v2', 'erDiagram', 'subgraph', 'end', 'direction', 'style', 'classDef', 'class',
@@ -218,21 +222,40 @@ const KEYWORDS = new Set([
   'title', 'state', 'namespace', 'box', 'link', 'links', 'callback', 'accTitle', 'accDescr',
   'create', 'destroy', 'interface',
 ]);
-const KEYWORD_ARGUMENTS = 6;
+const BLOCK_TYPES = ['classDiagram', 'classDiagram-v2', 'erDiagram'];
+const NAMED_TYPES = ['classDiagram', 'classDiagram-v2', 'stateDiagram', 'stateDiagram-v2'];
+const ID_TYPES = ['flowchart', 'graph', 'stateDiagram', 'stateDiagram-v2'];
+const NAMED_TEXT = /^[^\s:]+\s*:\s*\S/;
+const LONE_ID = /^[\w.-]+;?$/;
+const FREE_WORDS = 6;
 
 function prose(text) {
   const kept = [];
+  const type = typeOf(source(text));
+  // bounded keeps the words of a line after its first FREE_WORDS words.
+  const bounded = (line) => kept.push(line.split(/\s+/).slice(FREE_WORDS).join(' '));
+  let inBlock = false;
   for (const line of shown(text).split(/\r\n|\r|\n/)) {
     const trimmed = line.trim();
     if (trimmed.includes('%%{')) continue;
     if (trimmed.startsWith('%%')) {
       kept.push(trimmed.slice(2));
-    } else if (LINK_TOKEN.test(trimmed) || NODE_SHAPE.test(trimmed)) {
+    } else if (BLOCK_TYPES.includes(type) && inBlock && trimmed !== '}') {
+      bounded(trimmed);
+    } else if (BLOCK_TYPES.includes(type) && OPENS_BLOCK.test(trimmed)) {
+      inBlock = true;
+    } else if (trimmed === '}') {
+      inBlock = false;
+    } else if (LINK_TOKEN.test(trimmed) || NODE_SHAPE.test(trimmed) || OPENS_BLOCK.test(trimmed)) {
       continue;
     } else if (/^subgraph\s.*[\])}]$/.test(trimmed)) {
       continue;
     } else if (KEYWORDS.has(trimmed.split(/[\s:;]/)[0])) {
-      kept.push(trimmed.split(/\s+/).slice(KEYWORD_ARGUMENTS).join(' '));
+      bounded(trimmed);
+    } else if (NAMED_TYPES.includes(type) && NAMED_TEXT.test(trimmed)) {
+      bounded(trimmed);
+    } else if (ID_TYPES.includes(type) && LONE_ID.test(trimmed)) {
+      continue;
     } else {
       kept.push(trimmed);
     }
