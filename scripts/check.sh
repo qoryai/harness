@@ -5,6 +5,9 @@
 #
 # Usage: scripts/check.sh
 # Set `QORY` to the qory binary to run; the default is `qory`.
+# Set `QORY_SOURCE` to a folder with qory's contracts at the commit `QORY_CONTRACTS_COMMIT`
+# of .github/workflows/check.yml: the findings tests read the review report schema from it.
+# Make the folder with: git -C <qory checkout> archive <commit> contracts | tar -x -C <dir>
 #
 # Every compose runs with --dry-run, except the ones that write the settings and hook files
 # of the core and software stacks into temporary checkouts. So the script writes only to a
@@ -2576,7 +2579,7 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 # The tests of the types of Build and Verify: their JSON Schemas against process.yaml and the
 # 40 samples, and each rule of each type in check and push.
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
-# The tests of the review of a change: the example report against the draft schema, the open
+# The tests of the review of a change: the example report against qory's schema, the open
 # findings verb, and the removed forms.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list

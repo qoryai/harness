@@ -176,8 +176,9 @@ result word and no list of unverified claims, and nobody closes a finding. The s
 `qory.review`: `core` cannot contain those words, as rule 11 of `scripts/check.sh` lists. A
 reviewer that cannot finish stops and writes no file. qory reads the report against its
 schema; the harness checks no report of a change with a verb. The test of the example report
-in `reviewing-changes` uses `scripts/testdata/review-report.schema.json`, the fixture of
-that schema. After a round with a `blocking` finding, the next session of the stage reads
+in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
+commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
+`QORY_SOURCE`. After a round with a `blocking` finding, the next session of the stage reads
 `open-findings.json`, which `checks.cjs findings open` prints as lines to fix first, as its
 bullet in the section "Small workflows" lists. qory writes `qory.review`, `qory.stage` and
 `open-findings.json`; this harness only reads them. The tool guard denies a write to a
