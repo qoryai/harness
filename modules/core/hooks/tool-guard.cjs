@@ -21,7 +21,8 @@
 //   are all it allows, and it starts no agent. The guard denies the write tools (Write, Edit,
 //   MultiEdit, NotebookEdit and apply_patch) to each agent of that session, whatever its type,
 //   and to each agent whose type ends in -reviewer in any session, the report path included.
-//   Outside a reviewer session it does not run reviewShell for such an agent.
+//   Outside a reviewer session it does not run reviewShell for such an agent; the other
+//   rules of the guard limit its shell.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -2015,7 +2016,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (agent) {
     // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
     // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
-    // writes. The shell of the first kind is not limited here.
+    // writes. The first kind has no reviewShell here, only the other rules for a shell.
     return /-reviewer$/.test(String(input.agent_type)) || reviewReport(env) ? reviewDeny({
       call, input, paths, env, root, nocase, agent: true }) : null;
   }

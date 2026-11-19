@@ -2252,7 +2252,7 @@ test('a reviewer writes exactly the path in qory.review.report, and the guard de
   firstLine(guard(claude('Write', { content: '{}' }), env), ONLY);
 });
 
-test('a reviewer session writes no file of the artifact folder; a reviewer type has no write tool', () => {
+test('a reviewer session writes no file of the artifact folder; a reviewer type is denied the write tools', () => {
   const { env, file } = reviewSetup();
   const folder = path.join(WORK, '.qory', 'artifacts');
   const points = path.join(folder, 'points.json');
@@ -2277,12 +2277,29 @@ test('a reviewer session writes no file of the artifact folder; a reviewer type 
     firstLine(guard(sub(file, type), RUN), NOT);
     firstLine(guard(sub(file, type), env), NOT);
   }
+  // The other write tools are denied to such an agent outside a review too.
+  const other = {
+    Edit: { file_path: points, old_string: 'a', new_string: 'b' },
+    MultiEdit: { file_path: points, edits: [{ old_string: 'a', new_string: 'b' }] },
+    NotebookEdit: { notebook_path: path.join(folder, 'n.ipynb'), new_source: 'x' },
+  };
+  for (const type of ['spec-reviewer', 'code-reviewer']) {
+    for (const [tool, args] of Object.entries(other)) {
+      firstLine(guard(claude(tool, args, type), RUN), NOT);
+    }
+    // Its shell is not the read-only shell of a reviewer session: only the other rules apply.
+    for (const command of ['touch x', 'echo hi > out.txt']) {
+      assert.equal(guard(claude('Bash', { command }, type), RUN), null, `${type}: ${command}`);
+    }
+    assert.equal(typeof guard(claude('Bash', { command: 'echo x > .reports/x.json' }, type),
+      RUN), 'string', type);
+  }
   // Another agent writes in a session that is no reviewer's.
   assert.equal(guard(sub(points, 'implementer'), RUN), null);
   assert.equal(guard(sub(points, 'reviewer-notes'), RUN), null);
 });
 
-test('in a reviewer session each agent, of any type, has no write tool and starts no agent', () => {
+test('in a reviewer session each agent, of any type, is denied the write tools and starts no agent', () => {
   const { env, file } = reviewSetup();
   const victim = path.join(WORK, 'src', 'victim.ts');
   const folder = path.join(WORK, '.qory', 'artifacts');

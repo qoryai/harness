@@ -248,8 +248,9 @@ An agent that the table does not list sets no `model` key.
   report file of a review round.` The tool guard denies each other write of that session,
   and each write of an agent of that session. For an agent whose type ends in `-reviewer` it
   denies the write tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `apply_patch`) in
-  any session; it does not limit the shell commands of that agent outside a reviewer
-  session. The name in the front matter of an agent that lists Write equals its file name
+  any session. Outside a reviewer session the guard does not apply the read-only shell rule
+  of a reviewer session to that agent; its shell is limited only by the other rules of the
+  guard. The name in the front matter of an agent that lists Write equals its file name
   without `.md`, because the guard reads that name. A subagent keeps the session's `dontAsk`
   mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that
   folder, and `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and
@@ -1248,7 +1249,8 @@ tool's error. The first line of each reason starts with what to do. The guard de
   `MultiEdit`, `NotebookEdit` and `apply_patch`) of an agent, the report path included, when
   its type ends in `-reviewer`, in any session, and when it runs in a session of a reviewer,
   whatever its type: only the main session of a reviewer writes the report. Outside a
-  reviewer session the guard does not limit the shell commands of a `-reviewer` agent. An
+  reviewer session the guard does not apply the read-only shell rule of a reviewer session
+  to a `-reviewer` agent; its shell is limited only by the other rules of the guard. An
   agent of any other type in a session that is no reviewer's writes as it does outside a
   review. The main session of a reviewer starts no agent (`Agent`, `Task` and `spawn_agent`,
   also for an agent of that session). In a reviewer session, the main session and each agent

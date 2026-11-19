@@ -249,8 +249,8 @@ REVIEWER_EXCEPTION='Tool exception: Write, because it writes the one report file
 # agent lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
 # code-explorer or shape-planner lists only Read, Grep, Glob and Skill. A reviewer also lists
 # Write when its body has the line REVIEWER_EXCEPTION, exactly, and no other tool. The tool
-# guard limits that Write to the path of the report, and denies a Write by an agent of a
-# session whose type ends in -reviewer.
+# guard limits that Write to the path of the report, and denies a Write by an agent whose
+# type ends in -reviewer.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do

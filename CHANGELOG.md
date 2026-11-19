@@ -318,11 +318,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   path. The guard denies the write tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and
   `apply_patch`) of an agent, the report path included, when its type ends in `-reviewer`,
   in any session, and when it runs in a session of a reviewer, whatever its type. Outside a
-  reviewer session it does not limit the shell commands of a `-reviewer` agent. The main
-  session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`). A reviewer session
-  denies by default, for the main session and each agent. It allows `Read`, `Grep`, `Glob`,
-  `Skill`, `TodoWrite`, `update_plan`, the one report write, and a shell of plain words that
-  only reads. On Codex it also allows exactly `mcp__qory_review__read_file`,
+  reviewer session the guard does not apply the read-only shell rule of a reviewer session
+  to a `-reviewer` agent; its shell is limited only by the other rules of the guard. The
+  main session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`). A reviewer
+  session denies by default, for the main session and each agent. It allows `Read`, `Grep`,
+  `Glob`, `Skill`, `TodoWrite`, `update_plan`, the one report write, and a shell of plain
+  words that only reads. On Codex it also allows exactly `mcp__qory_review__read_file`,
   `mcp__qory_review__list_directory` and `mcp__qory_review__search_in_files`. Any other
   tool, such as `Edit`, `WebFetch`, each other `mcp__*` name, each `mcp__*` name on Claude
   Code, and a name that the guard does not know, is denied there. In a session that is no
