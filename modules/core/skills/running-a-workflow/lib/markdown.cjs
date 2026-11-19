@@ -140,12 +140,12 @@ function codeSpans(text) {
   return spans;
 }
 
-// withoutCode replaces each code span of text with a space.
-function withoutCode(text) {
+// withoutCode replaces each code span of text with mark, a space unless the caller gives another.
+function withoutCode(text, mark = ' ') {
   let out = '';
   let from = 0;
   for (const span of codeSpans(text)) {
-    out += `${text.slice(from, span.start)} `;
+    out += `${text.slice(from, span.start)}${mark}`;
     from = span.end;
   }
   return out + text.slice(from);
@@ -404,49 +404,98 @@ function brackets(text) {
 }
 
 const LABEL = /\[((?:[^[\]\\]|\\.)*)\]/y;
-// The destination of an inline image: "(", a destination in <> or of at most 2048 characters
-// with no space, an optional title, and ")". Each white space is at most one line break, never a
-// blank line, and each part has a bound, so that a long line of "![a](" takes linear time.
-const SPACE = '[ \\t]*(?:\\n[ \\t]*)?';
-const DESTINATION = new RegExp(
-  `\\(${SPACE}(?:<([^<>\\n]{0,2048})>|([^\\s<)][^\\s)]{0,2047})?)` +
-    `(?:\\s${SPACE}(?:"[^"]{0,1024}"|'[^']{0,1024}'|\\([^()]{0,1024}\\)))?${SPACE}\\)`,
-  'y',
-);
 // A label of a link reference has at most 999 characters (CommonMark).
 const LABEL_LIMIT = 999;
+// CODE marks a code span in the text that imageAddresses reads: it is no white space, so that a
+// line with only a code span is no blank line.
+const CODE = '\u0001';
 
-// imageAddresses returns the address of each image of text, in any form, with a text that has
-// no code: an HTML <img>, an inline image ![alt](address) whose alt text or destination may run
-// over two lines, never over a blank line, or have the destination in <>, and a reference
-// image, ![alt][label], ![alt][] and ![alt], whose label has a definition in defined (its address
-// is the definition's). An inline image with no ")" and a reference whose label has no
-// definition are no image. Each part has a bound, so that a long line of "![" takes linear time.
+// finder returns a function from an index to the first index of text from there, at which
+// pattern (a global pattern of one character) matches, or -1. It finds the matches once, so
+// that each call takes the time of a binary search, however long the run before it is.
+function finder(text, pattern) {
+  const at = Array.from(text.matchAll(pattern), (found) => found.index);
+  return (from) => {
+    let low = 0;
+    let high = at.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (at[middle] < from) low = middle + 1;
+      else high = middle;
+    }
+    return low < at.length ? at[low] : -1;
+  };
+}
+
+// imageAddresses returns the address of each image of text, in any form, with a text whose code
+// spans are each one CODE character: an HTML <img>, an inline image ![alt](address "title") whose
+// alt text or address may run over two lines, never over a blank line, or have the address in
+// <>, and a reference image, ![alt][label], ![alt][] and ![alt], whose label has a definition in
+// defined (its address is the definition's). An inline image with no ")" and a reference whose
+// label has no definition are no image. Each end is found by a search in a list that one pass
+// made, so that a long line of "![a](" or of spaces takes linear time and an address has no
+// length limit.
 function imageAddresses(text, defined) {
   const found = [];
   for (const _tag of text.matchAll(/<img(?=[\s/>]|$)/gi)) found.push('<img>');
   const pairs = brackets(text);
-  const blanks = Array.from(text.matchAll(/(?=\n[ \t]*\n)/g), (blank) => blank.index);
+  const nextBlank = finder(text, /(?=\n[ \t]*\n)/g);
+  const nextStop = finder(text, /[\s)]/g);
+  const nextAngle = finder(text, /[<>\n]/g);
+  const nextDouble = finder(text, /"/g);
+  const nextSingle = finder(text, /'/g);
+  const nextParen = finder(text, /[()]/g);
   // blank reports whether text from index from to index to has a blank line.
   const blank = (from, to) => {
-    let low = 0;
-    let high = blanks.length;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      if (blanks[middle] < from) low = middle + 1;
-      else high = middle;
+    const at = nextBlank(from);
+    return at !== -1 && at < to;
+  };
+  // space returns the index after the white space at index at: spaces and tabs, a line feed
+  // and spaces and tabs, but no second line feed.
+  const space = (at) => {
+    let next = at;
+    while (text[next] === ' ' || text[next] === '\t') next += 1;
+    if (text[next] === '\n') {
+      next += 1;
+      while (text[next] === ' ' || text[next] === '\t') next += 1;
     }
-    return low < blanks.length && blanks[low] < to;
+    return next;
+  };
+  // inline returns the address of the inline image whose "(" is at index open, or null.
+  const inline = (open) => {
+    let at = space(open + 1);
+    let range;
+    if (text[at] === '<') {
+      const close = nextAngle(at + 1);
+      if (close === -1 || text[close] !== '>') return null;
+      range = [at + 1, close];
+      at = close + 1;
+    } else {
+      const stop = nextStop(at);
+      range = [at, stop === -1 ? text.length : stop];
+      at = range[1];
+    }
+    const spaced = space(at);
+    if (spaced > at && '"\'('.includes(text[spaced] || '-')) {
+      const close = { '"': nextDouble, "'": nextSingle, '(': nextParen }[text[spaced]](spaced + 1);
+      if (close !== -1 && (text[spaced] !== '(' || text[close] === ')') && !blank(spaced, close)) {
+        at = space(close + 1);
+      } else {
+        return null;
+      }
+    } else {
+      at = spaced;
+    }
+    return text[at] === ')' ? text.slice(range[0], range[1]).replaceAll(CODE, '`') : null;
   };
   for (let start = text.indexOf('!['); start !== -1; start = text.indexOf('![', start + 2)) {
     const end = pairs.has(start + 1) ? pairs.get(start + 1) : -1;
     if (end === -1 || blank(start + 2, end)) continue;
     const next = text[end + 1];
     if (next === '(') {
-      DESTINATION.lastIndex = end + 1;
-      const destination = DESTINATION.exec(text);
-      if (destination) {
-        found.push(destination[1] !== undefined ? destination[1] : destination[2] || '');
+      const address = inline(end + 1);
+      if (address !== null) {
+        found.push(address);
         continue;
       }
     }
@@ -485,7 +534,7 @@ function links(
       `${quote(addr)} in ${at}.`);
   };
   if (everyImage) {
-    const joined = list.map((line) => (line.fenced ? '' : withoutCode(line.text))).join('\n');
+    const joined = list.map((line) => (line.fenced ? '' : withoutCode(line.text, CODE))).join('\n');
     imageAddresses(joined, definitions(list)).forEach(report);
   }
   for (const line of list) {

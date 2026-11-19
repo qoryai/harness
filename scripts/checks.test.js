@@ -1490,6 +1490,27 @@ test('decision record: text that only looks like an inline image is no image', (
   }
 });
 
+test('decision record: a code span is no white space, and an address has no length limit', () => {
+  const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
+  const image = /^Remove the image /;
+  const found = (text) => push(fixture(why(`${text} `)), 'decision-record').findings
+    .some((line) => image.test(line));
+  // A line with only a code span is no blank line: the alt text is one image text.
+  assert.equal(found('![a\n`x`\nb](https://e.example/i.png)'), true);
+  assert.equal(found('![a\n\nb](https://e.example/i.png)'), false);
+  // The same holds before the address, where the code span is a word like any other: the text
+  // is no image, as "![a](\nx\nu)" is none, and "![a](\n`x`)" is one.
+  assert.equal(found('![a](\n`x`\nhttps://e.example/i.png)'), false);
+  assert.equal(found('![a](\nx\nhttps://e.example/i.png)'), false);
+  assert.equal(found('![a](\n`x`)'), true);
+  // An address of 3,000 characters is an image, in <> or not, with or without a title.
+  const long = `https://e.example/${'a'.repeat(3000)}`;
+  assert.equal(found(`![a](${long})`), true);
+  assert.equal(found(`![a](<${long}>)`), true);
+  assert.equal(found(`![a](${long} "title")`), true);
+  assert.equal(found(`![a](x "${'t'.repeat(3000)}")`), true);
+});
+
 test('decision record: a reference image is found with brackets in its alt text and in any definition', () => {
   const image = /^Remove the image "https:\/\/example\.com\/flow\.svg" from decision-record\.md\./;
   const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
@@ -1746,7 +1767,7 @@ test('decision record: the first 200 tokens of each diagram are free, and each t
   const emoji = `flowchart LR\n  A["${Array(247).fill('\u{1F600}').join(' ')}"] --> B`;
   assert.equal(mermaid.tokens(emoji), 250);
   assert.equal(totalWords(cost(exact), drawn(emoji)), 450 + 50);
-  // 5 texts that the earlier rules counted by form are charged in full beyond the 200 free tokens.
+  // Each of these 5 diagrams has more than 200 tokens, and each token after the 200 counts.
   const ids = Array.from({ length: 1000 }, (_, at) => `w${at}`);
   const label30 = (at) => `  N${at}["${Array.from({ length: 30 }, (_, word) => `l${word}`).join('\n')}"]`;
   const cases = {
@@ -1826,18 +1847,41 @@ test('decision record: a time limit for text that made a pattern slow', () => {
   timed('blank lines before a properties line', drawn(`sequenceDiagram\n${' \n'.repeat(75000)}properties A`));
   timed('nested image starts', ['decision-record.md', '- Why: ', `- Why: ${'![x'.repeat(30000)}${']'.repeat(30000)} `]);
   timed('tokens', drawn(`flowchart LR\n${'a '.repeat(9400)}`));
+  timed('spaces after an image start', ['decision-record.md', '- Why: ', `- Why: ![a](${' '.repeat(250000)}x `]);
   timed('image destinations that do not close', ['decision-record.md', '- Why: ', `- Why: ${'![a]('.repeat(15000)} `]);
   timed('image starts with a long alt', ['decision-record.md', '- Why: ', `- Why: ${'![a b '.repeat(20000)} `]);
 });
 
-test('decision record: the checks of a diagram take linear time on nested brackets', () => {
+test('decision record: the checks of a diagram take linear time on long runs', () => {
   const mermaid = require(MERMAID);
-  const started = Date.now();
-  assert.equal(mermaid.edges(`flowchart LR\n  A${'[('.repeat(100000)}${')]'.repeat(100000)} --> B`), 1);
-  assert.equal(mermaid.edges(`flowchart LR\n  A${'['.repeat(200000)}${']'.repeat(200000)} --> B`), 1);
-  assert.equal(mermaid.loads(`sequenceDiagram\n${'\n'.repeat(200000)}properties A`), true);
-  assert.equal(mermaid.tokens(`flowchart LR\n${'a '.repeat(500000)}`), 500002);
-  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  const timed = (name, run) => {
+    const started = Date.now();
+    run();
+    assert.ok(Date.now() - started < 2000, `${name} took ${Date.now() - started} ms`);
+  };
+  timed('nested brackets', () => {
+    assert.equal(mermaid.edges(`flowchart LR\n  A${'[('.repeat(100000)}${')]'.repeat(100000)} --> B`), 1);
+    assert.equal(mermaid.edges(`flowchart LR\n  A${'['.repeat(200000)}${']'.repeat(200000)} --> B`), 1);
+  });
+  timed('blank lines', () => {
+    assert.equal(mermaid.loads(`sequenceDiagram\n${'\n'.repeat(200000)}properties A`), true);
+  });
+  timed('tokens', () => {
+    assert.equal(mermaid.tokens(`flowchart LR\n${'a '.repeat(500000)}`), 500002);
+  });
+  timed('comments with no end', () => {
+    assert.equal(mermaid.loads(`flowchart LR\n${'/*a'.repeat(150000)}`), false);
+  });
+  timed('lines of front matter', () => {
+    assert.equal(mermaid.source(`${'---\n'.repeat(400000)}flowchart LR`), 'flowchart LR');
+  });
+  timed('lines that end in a link', () => {
+    assert.equal(mermaid.edges(`flowchart LR\n${'A -->\n'.repeat(150000)}`), 150000);
+    assert.equal(mermaid.edges(`flowchart LR\n${'A -->;'.repeat(150000)}`), 150000);
+  });
+  timed('a run of dots', () => {
+    assert.equal(mermaid.edges(`flowchart LR\nA -->${'.'.repeat(300000)}`), 1);
+  });
 });
 
 test('decision record: a class diagram of 40 members adds no token to a record of 450 words', () => {

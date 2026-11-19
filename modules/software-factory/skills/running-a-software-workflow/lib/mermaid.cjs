@@ -21,14 +21,15 @@ const fence = (line) => /^\s*-{3}\s*$/.test(line);
 // withoutFrontMatter drops the leading front matter blocks (--- to ---, after blank lines);
 // an opening --- with no closing one drops the rest (mermaid.js:172-178).
 function withoutFrontMatter(lines) {
-  let list = lines;
+  let from = 0;
   for (;;) {
-    let start = 0;
-    while (start < list.length && list[start].trim() === '') start += 1;
-    if (start === list.length || !fence(list[start])) return list;
-    const end = list.findIndex((line, at) => at > start && fence(line));
-    if (end === -1) return [];
-    list = list.slice(end + 1);
+    let start = from;
+    while (start < lines.length && lines[start].trim() === '') start += 1;
+    if (start === lines.length || !fence(lines[start])) return lines.slice(from);
+    let end = start + 1;
+    while (end < lines.length && !fence(lines[end])) end += 1;
+    if (end === lines.length) return [];
+    from = end + 1;
   }
 }
 
@@ -101,9 +102,22 @@ const typeOf = (text) => firstLine(text).split(/[\s;]/)[0];
 // dropped and its escapes read (mermaid.js:207-216).
 const CSS_ADDRESSES = ['url(', 'image-set(', '@import'];
 
+// withoutComments drops each /* ... */ of text. A /* with no */ after it stays. It looks for each
+// end with indexOf: a pattern with a lazy part is quadratic on many /* with no end.
+function withoutComments(text) {
+  let out = '';
+  let from = 0;
+  for (let open = text.indexOf('/*'); open !== -1; open = text.indexOf('/*', from)) {
+    const close = text.indexOf('*/', open + 2);
+    if (close === -1) break;
+    out += text.slice(from, open);
+    from = close + 2;
+  }
+  return out + text.slice(from);
+}
+
 function unescaped(text) {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, '')
+  return withoutComments(text)
     .replace(/\\([0-9a-f]{1,6})[ \t\n\f\r]?|\\([\s\S])/gi, (_, code, char) => {
       if (code === undefined) return char === '\n' ? '' : char;
       const point = parseInt(code, 16);
@@ -174,15 +188,36 @@ const NOT_LINKS = new RegExp(
 );
 
 // A link of a flowchart has two ends. A link with a text in two parts, "A -- text --> B" or
-// "A--text-->B", loses its first part, so that the second part is its only token.
+// "A--text-->B", loses its first part, so that the second arrow is its only link.
 const CLOSER = '(?=-{2,}|={2,}|-?\\.+-)';
 const TEXT_LINK = new RegExp(
   '(?<![-=.<])(?:--|==|-\\.)(?:[ \\t]+(?:(?!--|==|-\\.)[^\\n;])+?[ \\t]+' +
     `|(?![-=.>xo\\s])(?:(?!--|==|-\\.)[^\\n;])*?)${CLOSER}`,
   'g',
 );
-const LINK = /(?:[<ox](?=--|==|-\.))?(?:-{2,}|={2,}|-\.+-?|\.+-|~{3,})[>ox]?/g;
-const ENDS_IN_LINK = new RegExp(`${LINK.source}\\s*$`);
+// \.+- starts only at the start of a run of dots, so that a long run takes linear time.
+const LINK = /(?:[<ox](?=--|==|-\.))?(?:-{2,}|={2,}|-\.+-?|(?<!\.)\.+-|~{3,})[>ox]?/g;
+
+// endsInLink reports whether text ends in a LINK and white space. It reads back from the end: a
+// pattern for it takes quadratic time on a long run of "." or of lines that end in a link.
+function endsInLink(text) {
+  let end = text.length;
+  while (end > 0 && /\s/.test(text[end - 1])) end -= 1;
+  const behind = (at, chars) => at >= 0 && chars.includes(text[at]);
+  for (const stop of [end, end - 1]) {
+    if (stop < end && !behind(stop, '>ox')) continue;
+    const last = stop - 1;
+    if (behind(last, '-') && behind(last - 1, '-')) return true;
+    if (behind(last, '=') && behind(last - 1, '=')) return true;
+    if (behind(last, '~') && behind(last - 1, '~') && behind(last - 2, '~')) return true;
+    if (behind(last, '-') && behind(last - 1, '.')) return true;
+    let dots = behind(last, '-') ? last - 1 : last;
+    if (!behind(dots, '.')) continue;
+    while (behind(dots, '.')) dots -= 1;
+    if (behind(dots, '-')) return true;
+  }
+  return false;
+}
 const STARTS_WITH_LINK = new RegExp(`^\\s*${LINK.source}`);
 
 // nodes returns the number of nodes that one side of a link has: names joined by "&", and at
@@ -231,21 +266,22 @@ function withoutBrackets(text) {
   return out.join('');
 }
 
-// edges returns at least the edges that Mermaid adds, never fewer: each link token adds one edge
+// edges returns at least the edges that Mermaid adds, never fewer: each link adds one edge
 // for each pair of nodes of its two sides (& groups), a link at the end or start of a line joins
-// the next or previous line, and a text link "A -- t --> B" is one token.
+// the next or previous line, and a text link "A -- t --> B" is one link.
 function edges(text) {
   const joined = [];
   for (const part of readable(text).split(/[;\n]/)) {
     if (part.trim() === '') continue;
     const last = joined.length - 1;
-    if (last >= 0 && (ENDS_IN_LINK.test(joined[last]) || STARTS_WITH_LINK.test(part))) {
-      joined[last] += ` ${part}`;
+    if (last >= 0 && (endsInLink(joined[last][joined[last].length - 1]) ||
+      STARTS_WITH_LINK.test(part))) {
+      joined[last].push(part);
     } else {
-      joined.push(part);
+      joined.push([part]);
     }
   }
-  return joined.reduce((sum, statement) => sum + statementEdges(statement), 0);
+  return joined.reduce((sum, parts) => sum + statementEdges(parts.join(' ')), 0);
 }
 
 // FREE_TOKENS tokens of each diagram are free: each token after them counts toward the 450 words

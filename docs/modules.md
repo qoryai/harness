@@ -2240,17 +2240,19 @@ that, so the writer lists a question that quotes it, and reports
 `workflow-write-technical-decisions`, as an `answer` point: a question asks whether the
 spec changes.
 
-The record keeps its list of decisions and may add pictures. `writing-decisions` follows
-the section "Markdown documents" of `artifact-text` for them. A decision whose chosen way
+The record keeps its list of decisions and may add pictures. `writing-decisions` follows the
+section "Markdown documents" of `artifact-text` for them. A decision whose chosen way
 changes how two parts call each other, or a flow of states, may end with one Mermaid
 diagram, drawn by `visuals`. The record has no wireframe, table or image of any form:
 `checks.cjs` also refuses a reference image, such as `![alt][label]`, and an `<img>`. It
 reads them through the option `everyImage` of `links` in `lib/markdown.cjs`, which only the
-decision record sets, so no other type changes. With it the check reads each image over
-the whole text, not line by line: an inline image whose alt text or address runs over 2
-lines, an address in `<>`, a reference image with brackets in its alt text, and a
-definition at the start of a line, in a list item or in a quote, with its label over 2
-lines or its address on the next line. A reference with no definition is no image.
+decision record sets, so no other type changes. With it the check reads each image over the
+whole text, not line by line: an inline image whose alt text or address runs over 2 lines,
+an address in `<>`, a reference image with brackets in its alt text, and a definition at the
+start of a line, in a list item or in a quote, with its label over 2 lines or its address on
+the next line. An inline image needs its closing `)`, and a blank line in its alt text or
+before its address makes it no image, so `![a](x y)` and `Use ![a](x` are no image. A
+reference with no definition is no image.
 
 `checks.cjs` refuses, each with a fix line that starts with the fix:
 
@@ -2265,10 +2267,9 @@ lines or its address on the next line. A reference with no definition is no imag
 - a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
   a removed decision's diagram is not in that count.
 
-The 450 words also count the tokens of each diagram after its first 200 tokens, node ids and
-keywords included. `tokens` in `lib/mermaid.cjs` counts a token as a run of characters with
-no white space, in the text that `source()` returns. A token of only the characters
-``- = . < > | * ( ) [ ] { } : ; & ~ % " '`` is syntax and counts 0. It does not read
+The 450 words also count the tokens of each diagram after its first 200, node ids and
+keywords included. A token is as `writing-decisions` defines it. `tokens` in
+`lib/mermaid.cjs` counts the tokens of the text that `source()` returns. It does not read
 Markdown, so `![...](u)` in a comment hides no token, and a `%%` comment counts as any other
 text. `source()` strips each `click` line, so it counts no token.
 
@@ -2300,7 +2301,7 @@ and without front matter (`mermaid.js:195-202`). It refuses:
   Apiary strips before it draws.
 
 `mermaid.js` sets both limits (`:158-159`), but only Mermaid counts edges, and it stops a
-flowchart at the 201st edge. `lib/mermaid.cjs` counts every link token, one edge for each
+flowchart at the 201st edge. `lib/mermaid.cjs` counts every link, one edge for each
 pair of nodes of its two sides, and joins a link that ends or starts a line with the next or
 previous line. It can count more edges than Mermaid for an unusual line, and it counts none
 fewer in the tests of `scripts/checks.test.js`.
