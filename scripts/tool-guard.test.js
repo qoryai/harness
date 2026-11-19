@@ -2681,7 +2681,7 @@ test('a brace or a deep wildcard in one word is counted before fs.globSync runs,
 // adapter starts the real adapter of runtime (gemini, cursor or copilot) from harness home on a
 // write or shell call that runs in cwd, and kills it after limit ms. It returns whether the
 // call is denied, how many ms the adapter took, and whether it was killed.
-function adapter(home, runtime, kind, args, cwd, limit = 5000, hooks = null) {
+function adapter(home, runtime, kind, args, cwd, limit = 5000, hooks = null, extraEnv = {}) {
   const shell = kind === 'shell';
   const input = {
     gemini: { tool_name: shell ? 'run_shell_command' : 'write_file', tool_input: shell
@@ -2691,7 +2691,7 @@ function adapter(home, runtime, kind, args, cwd, limit = 5000, hooks = null) {
     copilot: { toolName: shell ? 'bash' : 'edit', cwd, toolArgs: typeof args === 'string' && !shell
       ? args : JSON.stringify(shell ? { command: args } : args) },
   }[runtime];
-  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, ...extraEnv };
   if (hooks !== null) env.QORY_REPORTS_GUARD_TEST = JSON.stringify(hooks);
   const begun = process.hrtime.bigint();
   const ran = childProcess.spawnSync(process.execPath,
@@ -4863,4 +4863,23 @@ test('a guard hook in a run stops reading its input at 16 MiB and at the time li
   const left = childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
     .stdout.split('\n').filter((one) => one.includes(home) || one.includes(small));
   assert.deepEqual(left, []);
+});
+
+test('the child that reads the input of a hook runs without NODE_OPTIONS', () => {
+  const work = next('pass16');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  // The file runs in each node process that NODE_OPTIONS reaches, and acts only in one that runs
+  // code from -e, as the child that reads stdin does: it writes {} as the input and exits 0.
+  const preload = path.join(work, 'preload.cjs');
+  fs.writeFileSync(preload, "if (process.execArgv.includes('-e')) { process.stdout.write('{}'); process.exit(0); }\n");
+  const write = { file_path: 'art/.reports/x.json', content: '{}' };
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    assert.equal(adapter(home, runtime, 'write', write, normal).denied, true, `${runtime} without NODE_OPTIONS`);
+    const hooked = adapter(home, runtime, 'write', write, normal, 5000, null,
+      { NODE_OPTIONS: `--require ${preload}` });
+    assert.equal(hooked.killed, false, runtime);
+    assert.equal(hooked.denied, true, `${runtime} with NODE_OPTIONS`);
+  }
 });

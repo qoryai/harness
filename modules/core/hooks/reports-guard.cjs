@@ -50,11 +50,11 @@
 // process also denies the call that takes its size past 8 MiB, before it reads any text: the
 // size is the length of each string, the length of each key plus 16 for each entry of an object,
 // 8 for each item of an array, and the length of cwd, a measure of the work and not an exact
-// count. In a run, a child process reads stdin and stops at 16 MiB + 1 byte, so the adapters deny
-// an input of more than 16 MiB before they parse it, with its own text, and an input that does not
-// end by 8 s with the 8 s deny, and an input that is not a JSON object. The clock is read once for
-// each call. A backslash at
-// the end of a word or command is dropped by the shell: .reports\ is .reports.
+// count. In a run, a child process, with no NODE_OPTIONS in its environment, reads stdin and
+// stops at 16 MiB + 1 byte, so the adapters deny an input of more than 16 MiB before they parse
+// it, with a separate text, an input that does not end by 8 s with the 8 s deny, and an input
+// that is not a JSON object. The clock is read once for each call. A backslash at the end of a
+// word or command is dropped by the shell: .reports\ is .reports.
 // QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
 // a call: a file of the workspace can reach the environment of a hook, so no field turns off a
 // check, and the options noCaps and waitMs belong to decide, which the adapters call with fixed
@@ -1280,6 +1280,14 @@ function globsChild({ list, cwd, hooks }) {
   return globsHidden(list, cwd, hooks);
 }
 
+// childEnv returns the environment for a child process of the guard: that of the hook without
+// NODE_OPTIONS, which a file of the workspace can reach and which would load code in the child.
+function childEnv() {
+  const env = { ...process.env };
+  delete env.NODE_OPTIONS;
+  return env;
+}
+
 // globsInChild runs globsHidden for list in a child process, which spawnSync kills after
 // GLOB_CHILD_MS: a call of fs.globSync that does not return, a crash, and an output that is not
 // { deny: string or null } of at most 1 MiB each deny the call.
@@ -1293,8 +1301,7 @@ function globsInChild(list, cwd, noCaps, waitMs, deadline) {
   const left = deadline === undefined ? total : Math.min(total, deadline - clock());
   if (!(left >= 1)) return failed;
   const limit = Math.ceil(left);
-  const env = { ...process.env };
-  delete env.NODE_OPTIONS;
+  const env = childEnv();
   let ran;
   try {
     ran = childProcess.spawnSync(process.execPath, ['--max-old-space-size=256', '-e', CHILD,
@@ -1452,8 +1459,8 @@ function readStdin(env = process.env) {
   const left = HOOK_MS - clock();
   if (!(left >= 1)) return { text: '', reason: TIME_REASON };
   const read = childProcess.spawnSync(process.execPath, ['-e', READER, String(INPUT_BYTES)], {
-    stdio: ['inherit', 'pipe', 'ignore'], timeout: Math.ceil(left), killSignal: 'SIGKILL',
-    maxBuffer: INPUT_BYTES + 1 });
+    stdio: ['inherit', 'pipe', 'ignore'], env: childEnv(), timeout: Math.ceil(left),
+    killSignal: 'SIGKILL', maxBuffer: INPUT_BYTES + 1 });
   if (read.error && read.error.code === 'ETIMEDOUT') return { text: '', reason: TIME_REASON };
   if (read.error || read.status === null || read.signal) return { text: '', reason: null };
   if (read.status === 3) return { text: '', reason: INPUT_REASON };

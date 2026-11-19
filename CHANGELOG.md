@@ -1625,9 +1625,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - In a run, the reports guards of Gemini CLI, Cursor and Copilot CLI and the tool guard of Claude
   Code and Codex deny an input of more than 16 MiB on stdin before they parse it, with the first
   line "Send fewer or smaller arguments in one tool call." and the second line "The input of this
-  call is more than 16 MiB, ...". A child process reads stdin and stops at 16 MiB + 1 byte, so the
-  memory stays near 16 MiB, and an input that does not end by 8 s after the start of the hook gets
-  the 8 s deny, not the kill of the runtime at 10 s. Before, the hook read and parsed such an input
+  call is more than 16 MiB, ...". A child process, without NODE_OPTIONS in its environment, reads
+  stdin and stops at 16 MiB + 1 byte, so the memory stays near 16 MiB, and an input that does not
+  end by 8 s after the start of the hook gets the 8 s deny, not the kill of the runtime at 10 s. Before, the hook read and parsed such an input
   in full. The reports guards also deny an input that is not a JSON object (text, an empty input,
   an array), with the first line "Send the call again."; before, it was read as no call and the
   call ran. Outside a run, nothing changes.
