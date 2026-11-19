@@ -1355,6 +1355,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The reports guard of Gemini CLI, Cursor and Copilot CLI decides a command with 62,500 words
+  of `***` in 30 ms, where it took 70 s with the working folder at `/tmp`. It expanded each
+  glob word with a separate `fs.globSync` call, and the hook outlasted its timeout of 10 s,
+  which lets the call run on Cursor and Copilot CLI. Equal globs share one call, and a
+  command whose globs need more than 256 different calls, match more than 100,000 paths in
+  all, or take more than 600 ms in all is denied with the first line "Leave .reports/ to
+  checks.cjs, and name other files with no `$`, backtick, eval or glob." and the limit on the
+  second line. A command of 256 different globs `a<n>*` in a folder of 1,000 files takes
+  0.36 s at load 19.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, the adapter exited 1, and the call ran. That

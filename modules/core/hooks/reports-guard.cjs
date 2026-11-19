@@ -317,18 +317,43 @@ function words(command) {
   return out;
 }
 
+// The most fs.globSync calls, the most paths that they match in all, and the most milliseconds
+// that they take in all, for one command. Equal patterns share one call. Measured at load 19 in
+// a folder of 1,000 files, 256 different globs `a<n>*` take 0.36 s and 62,500 equal `***` take
+// 0.03 s; in a folder of 10,000 files, 256 take over 2 s. A command that passes a limit is
+// denied, because a hook that outlasts its timeout lets the call run on Cursor and Copilot CLI.
+const MAX_GLOB_CALLS = 256;
+const MAX_GLOB_MATCHES = 100000;
+const MAX_GLOB_MS = 600;
+
+// Over is the error that globbed throws when a command passes a limit of its budget.
+class Over extends Error {}
+
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
 // pattern that has a glob character matches, so that a glob of a file that does not exist yet
 // matches its folder. Each ** counts as *, as in bash without globstar, so that no pattern
 // walks a whole tree. It throws the error of fs.globSync, such as "pattern is too long" for a
-// pattern that bash still expands.
-function globbed(pattern, cwd) {
+// pattern that bash still expands, and Over when budget, which counts the work of all the
+// globs of a command, has no call, match or time left.
+function globbed(pattern, cwd, budget) {
   const parts = pattern.replace(/\*{2,}/g, '*').split('/');
   const out = [];
   for (let n = parts.length; n >= 1; n -= 1) {
     const part = parts.slice(0, n).join('/');
     if (!GLOB.test(part)) continue;
-    out.push(...fs.globSync(part, { cwd }));
+    let found = budget.seen.get(part);
+    if (found === undefined) {
+      if (budget.calls >= MAX_GLOB_CALLS) throw new Over(`more than ${MAX_GLOB_CALLS} different globs`);
+      if (Date.now() - budget.start > MAX_GLOB_MS) throw new Over(`more than ${MAX_GLOB_MS} ms`);
+      budget.calls += 1;
+      found = fs.globSync(part, { cwd });
+      budget.seen.set(part, found);
+      budget.matches += found.length;
+      if (budget.matches > MAX_GLOB_MATCHES) {
+        throw new Over(`more than ${MAX_GLOB_MATCHES.toLocaleString('en-US')} matching paths`);
+      }
+    }
+    out.push(...found);
   }
   return out;
 }
@@ -340,6 +365,9 @@ const short = (raw) => (raw.length > 60 ? `${raw.slice(0, 59)}…` : raw);
 // .reports, as the second line of a deny, or null. A ~ at the start of a word reads as HOME,
 // ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob.
 function hidden(command, cwd, env, globs) {
+  const budget = { calls: 0, matches: 0, seen: new Map(), start: Date.now() };
+  // The globs that match nothing under .reports: a word that repeats one costs no more work.
+  const clean = new Set();
   for (const { raw, value: text, glob, tilde } of words(command)) {
     let value = text;
     const name = tilde ? /^~([^/]*)/.exec(text)[1] : null;
@@ -357,14 +385,19 @@ function hidden(command, cwd, env, globs) {
       return `The guard needs Node 22 or later to expand the glob ${raw}; this is Node ` +
         `${process.versions.node}.`;
     }
+    if (clean.has(value)) continue;
     let matches;
     try {
-      matches = globbed(value, cwd);
+      matches = globbed(value, cwd, budget);
     } catch (error) {
+      if (error instanceof Over) {
+        return `The globs of the command pass what the guard expands: ${error.message}.`;
+      }
       return `fs.globSync could not expand the glob ${short(raw)}: ${error.message}.`;
     }
     const match = matches.find((one) => REPORTS.test(one));
     if (match !== undefined) return `The glob ${raw} matches ${match}.`;
+    clean.add(value);
   }
   const built = BUILT.exec(command);
   if (built !== null && DOT_R.test(command)) {

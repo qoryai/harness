@@ -2334,3 +2334,50 @@ test('a call nested 3,000 levels deep is read by each adapter of reports-guard, 
     assert.equal(reportsJson(value), false, String(value));
   }
 });
+
+test('a command with many globs is decided in under 1 second, and one over the limits is denied', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('globs');
+  fs.mkdirSync(work);
+  for (let at = 0; at < 200; at += 1) fs.writeFileSync(path.join(work, `f${at}.txt`), '');
+  const shell = (command) => {
+    const start = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd: work });
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    assert.ok(ms < 1000, `${command.slice(0, 20)}: ${ms} ms at load average ` +
+      `${os.loadavg()[0].toFixed(1)}`);
+    return reason;
+  };
+  const different = (count) => `ls ${Array.from({ length: count }, (_, at) => `a${at}*`).join(' ')}`;
+  // 62,500 equal globs, which took 70 s one expansion at a time, cost one expansion.
+  assert.equal(shell(`ls ${'*** '.repeat(62500)}`), null);
+  // 256 different globs are at the limit and pass; 257 are over it.
+  assert.equal(shell(different(256)), null);
+  for (const count of [257, 62500]) {
+    const reason = firstLine(shell(different(count)), 'Leave .reports/ to checks.cjs, and name');
+    assert.equal(reason.split('\n')[1],
+      'The globs of the command pass what the guard expands: more than 256 different globs.');
+  }
+  // A glob that matches under .reports is found past equal words before it.
+  fs.mkdirSync(path.join(work, '.reports'));
+  fs.writeFileSync(path.join(work, '.reports', 'end.json'), '{}');
+  assert.match(shell(`ls ${'*** '.repeat(1000)}.rep*/end.json`),
+    /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
+  // The paths that the globs match, and the time that they take, have limits too.
+  const { globSync } = fs;
+  const { now } = Date;
+  try {
+    fs.globSync = () => Array.from({ length: 60000 }, (_, at) => `f${at}`);
+    assert.equal(shell('ls a* b*').split('\n')[1],
+      'The globs of the command pass what the guard expands: more than 100,000 matching paths.');
+    assert.equal(shell('ls a*'), null);
+    let clock = 0;
+    Date.now = () => (clock += 400);
+    fs.globSync = () => [];
+    assert.equal(shell('ls a* b* c*').split('\n')[1],
+      'The globs of the command pass what the guard expands: more than 600 ms.');
+  } finally {
+    fs.globSync = globSync;
+    Date.now = now;
+  }
+});

@@ -1151,7 +1151,12 @@ as in bash without `globstar`, so no glob walks a whole tree. The guard denies a
 a glob when `fs.globSync` throws on it, such as "pattern is too long", which bash still
 expands, and when the word starts with another `~name`, such as `~alex`. It denies a word
 that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
-older Node, the guard denies each word with a glob.
+older Node, the guard denies each word with a glob. Equal globs share one expansion. The
+guard denies a command whose globs need more than 256 different `fs.globSync` calls, match
+more than 100,000 paths in all, or take more than 600 ms in all, because a hook that
+outlasts its timeout lets the call run on Cursor and Copilot CLI. Before the limits, 62,500
+words of `***` took 70 s one expansion at a time. The second line of that deny is "The globs
+of the command pass what the guard expands: " and the limit that the command passed.
 
 The first line of a deny for the last three cases is "Leave .reports/ to checks.cjs, and
 name other files with no `$`, backtick, eval or glob." The second line contains the part of
