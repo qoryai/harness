@@ -47,9 +47,11 @@
 // From 8 s after the start of the hook process, safeDecide denies each call without reading it,
 // so that in-process work for many arguments ends before the 10 s of the hook. Deadlines and
 // budgets use performance.now(), which a step of the system clock does not change. A hook
-// process also denies the call that takes the characters of all its strings past 8 MiB, from
-// their lengths, before it reads any text: the clock is read once for each call. A backslash
-// at the end of a word or command is dropped by the shell: .reports\ is .reports.
+// process also denies the call that takes its size past 8 MiB, before it reads any text: the
+// size is the length of each string, the length of each key plus 16 for each entry of an object,
+// 8 for each item of an array, and the length of cwd, a measure of the work and not an exact
+// count. The clock is read once for each call. A backslash at the end of a word or command is
+// dropped by the shell: .reports\ is .reports.
 // QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
 // a call: a file of the workspace can reach the environment of a hook, so no field turns off a
 // check, and the options noCaps and waitMs belong to decide, which the adapters call with fixed
@@ -1409,17 +1411,37 @@ const SIZE_REASON = `${SEND_LESS}The arguments of this call are more than 8 MiB 
   'guard of .reports/ does not read that much in the 10 seconds of its hook, so it blocks the call.';
 let hookChars = 0;
 
-// textChars returns the number of characters in the strings of value, from their lengths and
-// with no scan of their text. A value that is no string, array or object (a number, true, null)
-// counts 0: it is at most a few characters, and the guard reads no text from it.
+// textChars returns the size of value for the limit HOOK_CHARS, from lengths only, with no scan
+// of any text: the length of each string, the length of each key of an object plus 16 for the
+// entry, and 8 for each item of an array, whatever the item is (the guard walks the keys and
+// the items too, and 4,000,000 entries of `"<base36>":""` took 9.4 s). It walks arrays and
+// objects in a loop, with no recursion, so no depth overflows the stack. The sum is a measure of
+// the work, not an exact count of characters.
+// shortcut: the costs 16 and 8 come from timings on one machine (4,000,000 entries took 9.4 s), not
+// from a model of the walk; replace them with a measured time for each entry if the limit moves.
+const ENTRY_COST = 16;
+const ITEM_COST = 8;
 function textChars(value) {
   let chars = 0;
   const stack = [value];
   while (stack.length > 0) {
     const one = stack.pop();
-    if (typeof one === 'string') chars += one.length;
-    else if (Array.isArray(one)) for (const item of one) stack.push(item);
-    else if (one !== null && typeof one === 'object') for (const item of Object.values(one)) stack.push(item);
+    if (typeof one === 'string') {
+      chars += one.length;
+    } else if (Array.isArray(one)) {
+      chars += ITEM_COST * one.length;
+      for (const item of one) {
+        if (typeof item === 'string') chars += item.length;
+        else if (item !== null && typeof item === 'object') stack.push(item);
+      }
+    } else if (one !== null && typeof one === 'object') {
+      for (const key of Object.keys(one)) {
+        chars += key.length + ENTRY_COST;
+        const item = one[key];
+        if (typeof item === 'string') chars += item.length;
+        else if (item !== null && typeof item === 'object') stack.push(item);
+      }
+    }
   }
   return chars;
 }
@@ -1427,18 +1449,20 @@ function textChars(value) {
 let hookEnd;
 function safeDecide(call) {
   const env = call.env || process.env;
-  if (env.QORY_RUN_ID) {
-    if (clock() > HOOK_MS) return TIME_REASON;
-    hookChars += textChars(call.args);
-    if (hookChars > HOOK_CHARS) return SIZE_REASON;
-  }
-  // An adapter may call safeDecide for each text of one tool call: all the children of that
-  // hook process share the deadline of the first call, GLOB_CHILD_MS after it.
-  if (hookEnd === undefined) hookEnd = clock() + GLOB_CHILD_MS;
+  const run = Boolean(env.QORY_RUN_ID);
   try {
+    if (run) {
+      if (clock() > HOOK_MS) return TIME_REASON;
+      // cwd counts too: the guard reads it as a path. A throw here denies the call.
+      hookChars += textChars(call.args) + textChars(call.cwd);
+      if (hookChars > HOOK_CHARS) return SIZE_REASON;
+    }
+    // An adapter may call safeDecide for each text of one tool call: all the children of that
+    // hook process share the deadline of the first call, GLOB_CHILD_MS after it.
+    if (hookEnd === undefined) hookEnd = clock() + GLOB_CHILD_MS;
     return decide({ ...call, deadline: hookEnd });
   } catch (error) {
-    return env.QORY_RUN_ID
+    return run
       ? `${FAILED_REASON}The guard of .reports/ stopped on this call: ${String(error).slice(0, 200)}`
       : null;
   }

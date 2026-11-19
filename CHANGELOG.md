@@ -1616,8 +1616,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   read the clock once for each call, so one call of 80 MB on Cursor, or a field of 40 MB before a
   field that writes `.reports/x.json` on Copilot CLI, ran past the 10 s of the hook, which kills
   it, and a hook with no answer lets the call run. The guard sums the lengths of the strings of
-  all its calls and denies the call that crosses 8 * 1024 * 1024 characters, before it reads
-  the text, with the first line "Send fewer or smaller arguments in one tool call."
+  all its calls, plus the length of each key and 16 for each entry of an object, 8 for each item
+  of an array and the length of the working folder (a measure of the work, not an exact count:
+  4,000,000 entries of `"<base36>":""` took 9.4 s), and denies the call that crosses
+  8 * 1024 * 1024, before it reads the text, with the first line
+  "Send fewer or smaller arguments in one tool call." A call that makes the count throw is
+  denied in a run too.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

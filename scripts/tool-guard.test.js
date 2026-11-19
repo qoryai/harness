@@ -4612,25 +4612,52 @@ test('a hook process denies a call that takes its text past 8 MiB, whatever the 
   };
   const left = () => childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
     .stdout.split('\n').filter((one) => one.includes(home) && one.includes('max-old-space-size'));
-  // Both edges, with a limit of 1,000 characters in a copy of the hooks that the check patches:
-  // the text of the call does not matter, only its length, summed over the fields of the process.
-  const small = patchedHome('const HOOK_CHARS = 8 * 1024 * 1024;', 'const HOOK_CHARS = 1000;');
-  assert.equal(copilot(small, { a: 'x'.repeat(1000) }).reason, '');
-  assert.match(copilot(small, { a: 'x'.repeat(1001) }).reason, line);
-  assert.equal(copilot(small, { a: 'x'.repeat(400), b: 'y'.repeat(600) }).reason, '');
-  assert.match(copilot(small, { a: 'x'.repeat(400), b: 'y'.repeat(601) }).reason, line);
-  // A value that is no string counts 0, and the strings in nested arrays and objects count: a
-  // call of safeDecide with a write tool, in a process of its own.
-  const nested = (args) => childProcess.spawnSync(process.execPath, ['-e',
-    `const g = require(${JSON.stringify(path.join(small, 'hooks', 'reports-guard.cjs'))});
+  // Both edges, in copies of the hooks that the check patches with a small limit. The size of a
+  // call is its strings, the keys of its objects plus 16 for each entry, 8 for each item of an
+  // array, and its cwd; Copilot CLI calls the guard for each field with { command: <text> }, which
+  // is 7 + 16 characters of key and entry, and the cwd, again for each call.
+  const cwdLength = normal.length;
+  const limited = (extra) => patchedHome('const HOOK_CHARS = 8 * 1024 * 1024;',
+    `const HOOK_CHARS = ${extra + cwdLength};`);
+  const one1000 = limited(1000);
+  assert.equal(copilot(one1000, { a: 'x'.repeat(977) }).reason, '');
+  assert.match(copilot(one1000, { a: 'x'.repeat(978) }).reason, line);
+  const two1000 = limited(1000 + cwdLength);
+  assert.equal(copilot(two1000, { a: 'x'.repeat(377), b: 'y'.repeat(577) }).reason, '');
+  assert.match(copilot(two1000, { a: 'x'.repeat(377), b: 'y'.repeat(578) }).reason, line);
+  // The size of an argument of a write tool, in a separate process: a value that is no string
+  // costs nothing in an object but its key and the entry, an item of an array costs 8 whatever it is.
+  const sized = (home1, args) => childProcess.spawnSync(process.execPath, ['-e',
+    `const g = require(${JSON.stringify(path.join(home1, 'hooks', 'reports-guard.cjs'))});
      process.stdout.write(String(g.safeDecide({ kind: 'write', args: ${JSON.stringify(args)}, cwd: ${JSON.stringify(normal)} })));`],
   { encoding: 'utf8', env: { ...process.env, QORY_RUN_ID: 'run-1' } }).stdout;
-  assert.equal(nested({ a: 7, b: true, c: null, d: ['q'.repeat(500)], e: { f: 'q'.repeat(500) } }), 'null');
-  assert.match(nested({ a: 7, d: ['q'.repeat(500)], e: { f: 'q'.repeat(501) } }), line);
-  // The other runtimes: one call, and one tool_input with several strings.
+  const nested = (strings) => ({ a: 7, b: true, c: null, d: ['q'.repeat(500)], e: { f: 'q'.repeat(strings) } });
+  // 3 keys of 1 and 16 each (51), d: 17 + 8 + 500, e: 17 + the entry f: 17 + its string.
+  assert.equal(sized(one1000, nested(390)), 'null');
+  assert.match(sized(one1000, nested(391)), line);
+  // A key of 1,000 characters is 1,000 + 16.
+  const key = limited(1016);
+  assert.equal(sized(key, { ['k'.repeat(1000)]: '' }), 'null');
+  assert.match(sized(key, { ['k'.repeat(1001)]: '' }), line);
+  // The items of an array: 8 for each, empty strings, numbers, true and null alike; the key x is 17.
+  const items = limited(17 + 8 * 123);
+  for (const item of ['', 0, true, null]) {
+    assert.equal(sized(items, { x: Array(123).fill(item) }), 'null', String(item));
+    assert.match(sized(items, { x: Array(124).fill(item) }), line, String(item));
+  }
+  // A getter that throws, which JSON cannot make, denies the call in a run, and the hook goes on.
+  const throwing = childProcess.spawnSync(process.execPath, ['-e',
+    `const g = require(${JSON.stringify(path.join(one1000, 'hooks', 'reports-guard.cjs'))});
+     const args = {}; Object.defineProperty(args, 'x', { enumerable: true, get() { throw new Error('boom'); } });
+     process.stdout.write(String(g.safeDecide({ kind: 'write', args, cwd: ${JSON.stringify(normal)} })));`],
+  { encoding: 'utf8', env: { ...process.env, QORY_RUN_ID: 'run-1' } });
+  assert.equal(throwing.status, 0);
+  assert.match(throwing.stdout, /^Send a smaller call: the guard failed on this call and blocks it\./);
+  // The other runtimes: one call. The command is 'ls ' and 974 characters, with { command } 23 and the cwd.
+  const call = limited(1000);
   for (const runtime of ['gemini', 'cursor', 'copilot']) {
-    assert.equal(adapter(small, runtime, 'shell', 'ls '.concat('a'.repeat(997)), normal, 5000).denied, false, runtime);
-    const over = adapter(small, runtime, 'shell', 'ls '.concat('a'.repeat(998)), normal, 5000);
+    assert.equal(adapter(call, runtime, 'shell', 'ls '.concat('a'.repeat(974)), normal, 5000).denied, false, runtime);
+    const over = adapter(call, runtime, 'shell', 'ls '.concat('a'.repeat(975)), normal, 5000);
     assert.equal(over.denied, true, runtime);
     if (runtime !== 'cursor') assert.match(over.reason, line);
   }
@@ -4662,4 +4689,39 @@ test('a hook process denies a call that takes its text past 8 MiB, whatever the 
     assert.ok(big.ms < 6000, `${runtime}: ${big.ms} ms`);
   }
   assert.deepEqual(left(), [], 'no child is left');
+});
+
+test('the entries of an object and the items of an array count toward the 8 MiB of a hook process', () => {
+  const work = next('pass13');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  const line = /^Send fewer or smaller arguments in one tool call\.\nThe arguments of this call are more than 8 MiB of text/;
+  // 4,000,000 entries of `"<base36>":""` in the tool_input of write_file (40 MiB, 9.4 s in the
+  // review), with a file_path that is a ledger file last: denied by size, well inside 10 s.
+  const entries = [];
+  for (let n = 0; n < 4000000; n += 1) entries.push(`"${n.toString(36)}":""`);
+  const body = `${entries.join(',')},"file_path":"art/.reports/x.json"`;
+  entries.length = 0;
+  const begun = Date.now();
+  const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', 'reports-guard-gemini.cjs')], {
+    input: `{"tool_name":"write_file","cwd":${JSON.stringify(normal)},"tool_input":{${body}}}`,
+    env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, encoding: 'utf8',
+    timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+  const ms = Date.now() - begun;
+  assert.equal(ran.error, undefined, `the hook ran past 10 s: ${ms} ms`);
+  assert.match(JSON.parse(ran.stdout).reason, line);
+  assert.ok(ms < 6000, `${ms} ms`);
+  // 1,000,000 fields of an empty string for Copilot CLI, with the deny field last, and a limit of
+  // 100,000 in a copy of the hooks (each call is 23 + the cwd): denied by size, after about 600 calls.
+  const small = patchedHome('const HOOK_CHARS = 8 * 1024 * 1024;', 'const HOOK_CHARS = 100000;');
+  const fields = {};
+  for (let n = 0; n < 1000000; n += 1) fields[`k${n}`] = '';
+  fields.last = 'echo x > art/.reports/x.json';
+  const empty = childProcess.spawnSync(process.execPath, [path.join(small, 'hooks', 'reports-guard-copilot.cjs')], {
+    input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+    env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: small }, encoding: 'utf8',
+    timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+  assert.equal(empty.error, undefined, 'the hook ran past 10 s');
+  assert.match(JSON.parse(empty.stdout).permissionDecisionReason, line);
 });
