@@ -2969,3 +2969,41 @@ test('the first word is opened without blocking and read by its type on the open
   // O_NONBLOCK.
   assert.deepEqual(JSON.parse(ran.stdout), [false, true, [['fifo', true], ['copy', true]], 0]);
 });
+
+test('a header path of a raw patch is read as Codex reads it: a line break or a space in a link name counts', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('names');
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  const patch = (header, file) => `*** Begin Patch\n*** ${header}: ${file}\n+a\n*** End Patch\n`;
+  const home = harnessHome();
+  // Codex splits a patch at line feeds only, so the path of `*** Add File: lk\rX/x.json` is
+  // `lk\rX/x.json`, a path under the link named `lk\rX`.
+  for (const name of ['lk\rX', 'lk X', 'lk X', 'lk\u0085X', 'lk\vX', 'lk\fX']) {
+    fs.symlinkSync('art/.reports', path.join(work, name));
+    for (const header of ['Add File', 'Update File', 'Delete File', 'Move to']) {
+      const text = patch(header, `${name}/x.json`);
+      assert.equal(write(text), reports.WRITE_REASON, JSON.stringify(text));
+    }
+    const text = patch('Add File', `${name}/x.json`);
+    assert.equal(adapter(home, 'copilot', 'write', text, work).denied, true, JSON.stringify(name));
+    // The same name in an ordinary file that is no report file passes.
+    assert.equal(write(patch('Add File', `${name}/notes.md`)), null, JSON.stringify(name));
+  }
+  // Codex strips only the exact start of the line, so a space, a tab or U+3000 after it is a
+  // part of the path: `*** Add File:  lk/x.json` writes under the link named ` lk`.
+  for (const space of [' ', '\t', '　']) {
+    fs.symlinkSync('art/.reports', path.join(work, `${space}lk`));
+    const text = patch('Add File', `${space}lk/x.json`);
+    assert.equal(write(text), reports.WRITE_REASON, JSON.stringify(text));
+    assert.equal(write(patch('Update File', ` ${space}lk/x.json`)), null, JSON.stringify(text));
+    assert.equal(adapter(home, 'copilot', 'write', text, work).denied, true, JSON.stringify(space));
+  }
+  // A tool that ends the line at U+0085 reads the same name, with its space.
+  assert.equal(write('*** Begin Patch\u0085*** Add File:  lk/x.json\u0085+a'), reports.WRITE_REASON);
+  // A link with no space in its name is still reached through the header, and so is one that
+  // a tool reads with the white space cut off.
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  assert.equal(write(patch('Add File', ' l1/x.json')), reports.WRITE_REASON);
+  assert.equal(write('\u0085*** Add File: l1/x.json\u0085'), reports.WRITE_REASON);
+});

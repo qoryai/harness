@@ -1416,10 +1416,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   denies. The guard reads the whole text of an argument as one path too, so a line break in
   it is part of a folder name, also when a line of the text is a patch header such as
   `*** Add File: ok`; the text `*** Add File: ok`, a line break and `/../l1/x.json` reached
-  `l1/x.json` through a link to `.reports` and passed. A patch header is read as Codex reads
-  it, with the white space of Unicode's White_Space around it and each of its line breaks
-  ending the line: U+0085 (NEL) before `*** Add File: l1/x.json` passed, because the `\s` of
-  JavaScript lacks it. The guard reads each path two ways: as the kernel opens it, with each `..`
+  `l1/x.json` through a link to `.reports` and passed. The header lines of a patch are read two
+  ways, and a deny by either counts. Codex splits the patch at line feeds only, trims the
+  white space of Unicode's White_Space from both ends of the line, and takes the rest after
+  the exact start `*** Add File: ` as the path, so a path may have a carriage return inside
+  or a space at its start. The broader reading ends a line at each line break of that set
+  (U+0085, U+2028, U+2029, `\v`, `\f`, `\r`) and also drops the white space at the left of the
+  path. A link named `lk` and a carriage return and `X` to `.reports`, and the patch
+  `*** Add File: lk` and a carriage return and `X/x.json`, passed when the guard read only the
+  broader line; so did a link named with a leading space and `*** Add File:  lk/x.json`.
+  U+0085 (NEL) before `*** Add File: l1/x.json` passed when the guard used the `\s` of
+  JavaScript, which lacks it. The guard reads each path two ways: as the kernel opens it, with each `..`
   applied to the folder that the part before it resolves to, and as a tool that cuts each `..`
   out of the text before it opens the file; the second reading joins the path to the working
   folder and follows each link of the result. A deny by either reading counts. With

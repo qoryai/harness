@@ -9,8 +9,9 @@
 //   .json, or whose name has .json.lock: the locks of checks.cjs findings, starts and report
 //   and their .break files; in any argument of the tool except the text that it writes.
 //   decide also reads an argument as one path that the disk resolves from cwd, with each `..`
-//   and each link, and the path of each header line of a patch in it: `.reports/a b/../end.json`
-//   is denied, with or without the folder a b;
+//   and each link, and the path of each header line of a patch in it, read as Codex reads it
+//   (lines end at line feeds, the path keeps a space at its start) and with any line break and
+//   any white space cut off: `.reports/a b/../end.json` is denied, with or without the folder a b;
 // - a shell command that reaches .reports, unless it runs the harness's checks.cjs and
 //   nothing else: the first word, after node, is a path to checks.cjs, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
@@ -85,13 +86,16 @@ const MAX_LINKS = 40;
 // The most parts, `.` and empty ones too, that onDisk takes from all the paths of one call.
 const MAX_STEPS = 16384;
 // The white space that Codex trims from a line of a patch, as Rust's trim does: the characters of
-// Unicode's White_Space. JavaScript's \s lacks U+0085. PATCH_BREAK is each line break of that
-// set, so a header ends at U+0085 and U+2028 as at a line feed.
+// Unicode's White_Space. JavaScript's \s lacks U+0085.
 const PATCH_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f' +
   '\\u3000';
 const PATCH_SPACE_CHAR = new RegExp(`[${PATCH_SPACE}]`);
+// Each line break of that set. Codex splits a patch at line feeds only, but a tool may split at
+// each of them, so the guard reads a patch both ways.
 const PATCH_BREAK = /[\n\v\f\r\u0085\u2028\u2029]/;
-// A line of a patch that adds, changes, deletes or moves to a file, up to its path.
+// The start of a line of a patch that adds, changes, deletes or moves to a file, as Codex reads
+// it: the exact text, with one space after the colon. The broad form takes the space as optional.
+const PATCH_EXACT = /^\*\*\* (?:Add File|Update File|Delete File|Move to): /;
 const PATCH_LINE = new RegExp(`^[${PATCH_SPACE}]*\\*\\*\\* (?:Add File|Update File|Delete File|` +
   'Move to): ?');
 
@@ -154,6 +158,40 @@ function flat(file) {
   return file.endsWith('/') && !out.endsWith('/') ? `${out}/` : out;
 }
 
+// headerPaths returns the paths of the header lines of a patch text, read the way Codex reads
+// them and the way that any line break and any white space is read, with and without the white
+// space at the left of the path: Codex strips only the exact start of the line, so a name with a
+// space at its start is a different name. A path that both readings give is listed once.
+function headerPaths(text) {
+  // forms returns right, a path with no white space at its right end, and the same without any at
+  // its left end when that differs.
+  const forms = (right) => {
+    const both = trimmed(right);
+    return both === right ? [right] : [right, both];
+  };
+  const codex = [];
+  for (const line of text.split('\n')) {
+    const whole = trimmed(line);
+    const header = PATCH_EXACT.exec(whole);
+    if (header !== null) codex.push(...forms(whole.slice(header[0].length)));
+  }
+  const left = new Map();
+  for (const one of codex) left.set(one, (left.get(one) || 0) + 1);
+  const out = [...codex];
+  for (const line of text.split(PATCH_BREAK)) {
+    const header = PATCH_LINE.exec(line);
+    if (header === null) continue;
+    const rest = line.slice(header[0].length);
+    let end = rest.length;
+    while (end > 0 && PATCH_SPACE_CHAR.test(rest[end - 1])) end -= 1;
+    for (const one of forms(rest.slice(0, end))) {
+      if (left.get(one) > 0) left.set(one, left.get(one) - 1);
+      else out.push(one);
+    }
+  }
+  return out;
+}
+
 // reportsOnDisk returns the deny for a text whose path the disk resolves to a file .reports/*.json,
 // as one with a space before a `..` or one through a link, or null. It reads the whole text as one
 // path, and also the path of each header line of a patch in it; a line break in a path is part
@@ -162,11 +200,7 @@ function flat(file) {
 // text before it opens the file; a deny by either way counts. state has the budget of the call, the
 // resolved folder cwd and its text.
 function reportsOnDisk(text, cwd, state) {
-  const paths = [text];
-  for (const line of text.split(PATCH_BREAK)) {
-    const header = PATCH_LINE.exec(line);
-    if (header !== null) paths.push(trimmed(line.slice(header[0].length)));
-  }
+  const paths = [text, ...headerPaths(text)];
   try {
     for (const one of paths) {
       if (one === '' || one.includes('\0')) continue;
