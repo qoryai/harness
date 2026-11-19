@@ -817,7 +817,7 @@ test('submission: the description may be empty, has at most 20000 characters, no
 
 test('submission: the reasons for no draft, and the exit that goes with each', () => {
   const none = (draft) => submissionErrors((d) => { d.repositories[0].draft = draft; });
-  assert.deepEqual(none({ none: 'program-failed', exit: 2 }), []);
+  for (const exit of [0, 1, 2]) assert.deepEqual(none({ none: 'program-failed', exit }), []);
   assert.deepEqual(none({ none: 'login-needed', exit: 3 }), []);
   for (const reason of ['not-passed', 'no-text', 'escalated', 'no-program', 'program-timeout']) {
     assert.deepEqual(none({ none: reason }), [], reason);

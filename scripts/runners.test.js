@@ -3096,11 +3096,16 @@ test('report-build: with QORY_SUBMISSION_HANDOFF unset, it writes no hand-off fi
   assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), true);
 });
 
-test('report-build: a title with a tab, a description with no ## Disclosed, a secret and a missing text write no file', () => {
+test('report-build: a title with a tab, a description with no ## Disclosed, a secret and a missing text write no file, and remove an earlier hand-off', () => {
   const { dir } = buildRepo();
   const file = handoffPath();
   const text = path.join(dir, '.qory/artifacts/.reports/submission.md');
   const refused = (body, first) => {
+    // A valid text writes the hand-off file; the text that breaks a rule must remove it.
+    fs.writeFileSync(text, TEXT);
+    assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
+    assert.equal(fs.existsSync(file), true);
+    fs.rmSync(path.join(dir, '.qory/artifacts/build-report.md'));
     if (body === null) fs.rmSync(text); else fs.writeFileSync(text, body);
     const got = call(dir, ['report-build'], withHandoff(file));
     assert.equal(got.status, 1, got.out + got.err);
@@ -3116,6 +3121,55 @@ test('report-build: a title with a tab, a description with no ## Disclosed, a se
   refused(`${TEXT}<!-- qory:start -->\n`, /^Write \/description of submission\.md in another form\./);
   refused(null, /^Run the agent submission-writer to write \.reports\/submission\.md\./);
   assert.equal(call(dir, ['report-build'], { env: { QORY_SUBMISSION_HANDOFF: 'relative.json' } }).status, 3);
+});
+
+test('report-build: a failure of any exit status, such as a missing ledger or a bad argument, removes an earlier hand-off', () => {
+  const { dir } = buildRepo();
+  const file = handoffPath();
+  assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
+  assert.equal(call(dir, ['report-build', '--bad'], withHandoff(file)).status, 2);
+  assert.equal(fs.existsSync(file), false);
+  assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
+  fs.rmSync(path.join(dir, '.qory/artifacts/.reports/build-ledger.json'));
+  assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 3);
+  assert.equal(fs.existsSync(file), false);
+});
+
+test('report-build: a hand-off path that is a directory exits 3 with a fix line, and writes no build-report.md and no temporary file', () => {
+  const { dir } = buildRepo();
+  const file = handoffPath();
+  fs.mkdirSync(file, { recursive: true });
+  const got = call(dir, ['report-build'], withHandoff(file));
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.match(got.lines[0], /^Make .* a file that you can write, then run report-build again\.$/);
+  assert.doesNotMatch(got.err + got.out, /\n\s+at /);
+  assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), false);
+  assert.deepEqual(fs.readdirSync(file), []);
+  assert.deepEqual(fs.readdirSync(path.dirname(file)), ['submission.json']);
+  assert.deepEqual(fs.readdirSync(path.join(dir, '.qory/artifacts')).filter((name) => name.endsWith('.tmp')), []);
+});
+
+test('report-build: a title with spaces after it is trimmed', () => {
+  const { dir } = buildRepo();
+  const file = handoffPath();
+  write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('helper\n', 'helper  \t \n'));
+  const got = call(dir, ['report-build'], withHandoff(file));
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).text.title, 'Add the sum helper');
+});
+
+test('report-build: a commit that git has but cannot walk exits 3 with a fix line, and a commit that git lacks is a lost row', () => {
+  const { dir, commits } = buildRepo();
+  const file = handoffPath();
+  // A middle commit with no object: rev-list of start..HEAD fails.
+  const object = path.join(dir, '.git/objects', commits[1].slice(0, 2), commits[1].slice(2));
+  fs.chmodSync(object, 0o644);
+  fs.rmSync(object);
+  const got = call(dir, ['report-build'], withHandoff(file));
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.match(got.lines[0], /^Run report-build in a checkout that git can read\.$/);
+  assert.match(got.lines[1], /git rev-list failed/);
+  assert.equal(fs.existsSync(file), false);
 });
 
 // putRound writes the inputs.json and the open-findings.json of a session in a new
@@ -3175,6 +3229,7 @@ test('check build-report: renders the tables again and refuses a table with one 
   const ok = check();
   assert.equal(ok.status, 0, ok.out + ok.err);
   assert.match(ok.err, /tables from the records/);
+  assert.doesNotMatch(ok.err, /were not checked/);
   for (const [from, to, section] of [['| red | green |\n| ac-2', '| red | red |\n| ac-2', 'Checks'],
     ['| deliverable:d-1 | 1 |', '| deliverable:d-1 | 2 |', 'Steps'], ['| f2: A second point |', '| f2: A third point |', 'Review rounds'],
     ['Review rounds: 1.', 'Review rounds: 3.', 'Summary'], ['| Returns | 1 |', '| Returns | 0 |', 'Counts']]) {
@@ -3188,8 +3243,108 @@ test('check build-report: renders the tables again and refuses a table with one 
   // Without --inputs, the sections with the rounds are not compared, and without the
   // ledger nothing is.
   fs.writeFileSync(file, text.replace('| f2: A second point |', '| f2: A third point |'));
-  assert.equal(call(dir, ['check', 'build-report', file]).status, 0);
+  const noInputs = call(dir, ['check', 'build-report', file]);
+  assert.equal(noInputs.status, 0);
+  assert.match(noInputs.err, /^Summary, Review rounds and Counts were not checked: pass --inputs with the inputs\.json of the session\.$/m);
+  assert.doesNotMatch(noInputs.err, /tables from the records/);
   fs.writeFileSync(file, text.replace('| Returns | 1 |', '| Returns | 0 |'));
   fs.rmSync(path.join(dir, '.qory/artifacts/.reports/build-ledger.json'));
+  const noLedger = check();
+  assert.equal(noLedger.status, 0);
+  assert.match(noLedger.err, /^The tables of the report were not checked: the artifact folder has no build-ledger\.json\.$/m);
+});
+
+test('check build-report: compares the raw text, so a CRLF copy, a trailing space, an extra blank line and a changed heading fail', () => {
+  const { dir } = buildRepo();
+  const inputs = putRound(ROUND(1));
+  assert.equal(call(dir, ['report-build', '--inputs', inputs]).status, 0);
+  const file = path.join(dir, '.qory/artifacts/build-report.md');
+  const text = reportOf(dir);
+  const check = () => call(dir, ['check', 'build-report', '--inputs', inputs, file]);
   assert.equal(check().status, 0);
+  for (const [name, changed] of [['CRLF', text.replace(/\n/g, '\r\n')],
+    ['trailing space', text.replace('| Step | Pass | Kind | State | Commit |\n', '| Step | Pass | Kind | State | Commit | \n')],
+    ['extra blank line', text.replace('\n\n## Steps', '\n\n\n## Steps')],
+    ['no final newline', text.slice(0, -1)],
+    ['heading spacing', text.replace('## Summary', '##   Summary')]]) {
+    assert.notEqual(changed, text, name);
+    fs.writeFileSync(file, changed);
+    const bad = check();
+    assert.equal(bad.status, 1, name + bad.out + bad.err);
+    assert.match(bad.lines[0], /^Run report-build to write ## [A-Za-z ]+ of build-report\.md again\.$/, name);
+  }
+});
+
+// reportFor runs report-build on a repository with a round of findings and returns the text.
+function reportFor(round, left) {
+  const { dir } = buildRepo(left);
+  const inputs = putRound(round);
+  const got = call(dir, ['report-build', '--inputs', inputs]);
+  assert.equal(got.status, 0, got.out + got.err);
+  return { dir, inputs, text: reportOf(dir) };
+}
+
+test('report-build: a backslash before a pipe is escaped, an empty proof is none, and a long proof is cut like a point', () => {
+  const round = { round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: [
+    { id: 'f1', severity: 'blocking', point: 'a\\|b', proof: '   ' },
+    { id: 'f2', severity: 'blocking', point: 'Second', proof: '' },
+    { id: 'f3', severity: 'blocking', point: 'Third', proof: 'x'.repeat(600) }] }] };
+  const { text } = reportFor(round);
+  assert.ok(text.includes('| f1: a\\\\\\|b | code-reviewer | yes | none |'), text);
+  assert.ok(text.includes('| f2: Second | code-reviewer | yes | none |'));
+  assert.ok(text.includes(`| f3: Third | code-reviewer | yes | ${'x'.repeat(497)}... |`));
+});
+
+test('report-build: a round with a commit shows the frozen commit, and a round with no finding shows None.', () => {
+  const frozen = 'ab'.repeat(20);
+  const { text } = reportFor({ round: 1, commit: frozen,
+    reviewers: [{ reviewer: 'code-reviewer', findings: [] }] });
+  assert.ok(text.includes(`### Round 1\n\nFrozen commit: ${frozen}. Reviewers: code-reviewer.\n\nNone.\n\nThe result`), text);
+});
+
+test('report-build: the closing line of an earlier version is left out of the earlier rounds', () => {
+  const { dir } = buildRepo();
+  const closing = 'The result of the last round is in the review in Qory Apiary, not in this report.';
+  versionOf(dir, 'build-report', 'build-report.md', `## Summary\n\nx\n\n## Review rounds\n\n### Round 1\n\nOld round 1.\n\n${closing}\n\n## Counts\n\nx\n`);
+  const inputs = putRound({ round: 2, reviewers: [{ reviewer: 'code-reviewer', findings: [] }] });
+  assert.equal(call(dir, ['report-build', '--inputs', inputs]).status, 0);
+  const text = reportOf(dir);
+  assert.equal(text.split(closing).length, 2);
+  assert.ok(text.includes(`### Round 1\n\nOld round 1.\n\n### Round 2\n\nReviewers: code-reviewer.\n\nNone.\n\n${closing}\n\n## Checks`), text);
+});
+
+test('report-build: a left-out item loses hidden characters and is cut like a point, so that check build-report passes', () => {
+  const left = `Built it.\n\nLeft out:\n- Export \u202edates: nobody reads them.\n- ${'Long item '.repeat(60)}\n- \u202e\n`;
+  const { dir } = buildRepo(left);
+  assert.equal(call(dir, ['report-build']).status, 0);
+  const text = reportOf(dir);
+  assert.ok(!text.includes('\u202e'));
+  const items = text.split('## Left out\n\n')[1].trimEnd().split('\n');
+  assert.equal(items.length, 2);
+  assert.equal(items[0], '- deliverable:d-1: Export dates: nobody reads them.');
+  assert.equal([...items[1].slice('- deliverable:d-1: '.length)].length, 500);
+  assert.ok(items[1].endsWith('...'));
+  const file = path.join(dir, '.qory/artifacts/build-report.md');
+  const got = call(dir, ['check', 'build-report', file]);
+  assert.equal(got.status, 0, got.out + got.err);
+});
+
+test('report-build: the checks column reads the newest clean record of the head, and the counts sum the replays', () => {
+  const { dir, ledger } = buildRepo();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const folder = '.qory/artifacts/.reports/runs';
+  const record = (name, commit, clean, state) => write(dir, `${folder}/${name}.json`,
+    JSON.stringify({ verb: 'run', kind: 'locked', commit, clean,
+      checks: [{ criterion: 'ac-1', path: 'tests/ac1.test.js', state }] }));
+  record('a-1', head, true, 'green');
+  record('a-2', head, false, 'red');
+  record('a-3', 'd'.repeat(40), true, 'red');
+  ledger.steps[0].replays = 1;
+  ledger.steps[2].replays = 2;
+  write(dir, '.qory/artifacts/.reports/build-ledger.json', JSON.stringify(ledger));
+  assert.equal(call(dir, ['report-build']).status, 0);
+  const text = reportOf(dir);
+  assert.ok(text.includes('| ac-1: tests/ac1.test.js | red | green |'), text);
+  assert.ok(text.includes('| ac-2: tests/ac2.test.js | red | unknown |'), text);
+  assert.ok(text.includes('| Replayed steps | 3 |'), text);
 });

@@ -21,11 +21,15 @@ const FILE = 'build-report.md';
 const CLOSING = 'The result of the last round is in the review in Qory Apiary, not in this report.';
 
 module.exports = (lib) => {
-  const { MAX_BYTES, Missing, cells, isObject, lines, parseJson, readFile, readOpen, sections } = lib;
+  const {
+    MAX_BYTES, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson, plainText, readFile,
+    readOpen, sections,
+  } = lib;
   const LEDGER = schema.load('build-ledger');
 
-  // esc returns text as the content of a table cell: a | is \| and a line break is <br>.
-  const esc = (text) => String(text).replace(/\|/g, '\\|').replace(/\r\n|\r|\n/g, '<br>');
+  // esc returns text as the content of a table cell: a | is \|, and each backslash
+  // before it is doubled, so that the backslash in the text is not an escape.
+  const esc = (text) => String(text).replace(/(\\*)\|/g, '$1$1\\|');
 
   // table returns the lines of a table with the header head and one row for each of rows.
   const table = (head, rows) => [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`,
@@ -105,7 +109,7 @@ module.exports = (lib) => {
     } else {
       out.push(...table(['Finding', 'Reviewer', 'Blocking', 'Proof'], round.findings.map((one) =>
         [`${one.id}: ${one.point}`, one.reviewer, one.severity === 'blocking' ? 'yes' : 'no',
-          one.proof === null ? 'none' : one.proof])));
+          one.proof === null || one.proof === '' ? 'none' : cut(one.proof, POINT_TEXT)])));
     }
     return out.join('\n');
   }
@@ -216,18 +220,27 @@ module.exports = (lib) => {
     const open = rows.filter((row) => row.state !== 'done');
     out.push(['Not run', open.length
       ? open.map((row) => `- ${row.id}, pass ${row.pass}: ${row.state}`) : ['None.']]);
+    // An item goes through plainText and the cut of a point, so that the check of the report
+    // never refuses the text of a writer.
     const left = rows.flatMap((row) => leftOut(row.report || '')
+      .map((item) => cut(plainText(item), POINT_TEXT)).filter(Boolean)
       .map((item) => `- ${row.id}: ${item}`));
     out.push(['Left out', left.length ? left : ['none']]);
     return `${out.map(([title, body]) => `## ${title}\n\n${body.join('\n')}`).join('\n\n')}\n`;
   }
 
-  // split returns each section of the text of a report by its title, as the text between
-  // its ## line and the next, a map from the title to its lines joined by line breaks.
+  // split returns each section of the text of a report by its title, as the raw text from
+  // its ## line up to the next, line breaks and spaces as they are: a map from the title to
+  // that text.
   function split(text) {
+    const starts = [0];
+    for (const end of text.matchAll(/\r\n?|\n/g)) starts.push(end.index + end[0].length);
     const out = new Map();
+    let at = 0;
     for (const part of sections(lines(text), 2)) {
-      if (part.title !== null) out.set(part.title, part.lines.map((line) => line.text).join('\n'));
+      const first = at;
+      at += part.lines.length + (part.title === null ? 0 : 1);
+      if (part.title !== null) out.set(part.title, text.slice(starts[first], starts[at]));
     }
     return out;
   }

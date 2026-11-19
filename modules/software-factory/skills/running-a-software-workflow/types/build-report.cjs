@@ -19,19 +19,29 @@ module.exports = (lib) => {
   // A fast-track session that escalated adds this section at the end.
   const ESCALATION = 'Escalation';
 
-  // rendered finds each section of the standard track that differs from the render of the
-  // records. The rounds come from open-findings.json beside the inputs.json, so without
-  // --inputs, the sections with the number of rounds, Summary, Review rounds and Counts,
-  // are left out.
-  function rendered(run, md) {
+  // rendered finds each section of the standard track whose raw text, as the file has it,
+  // differs from the render of the records: a CRLF line break, a trailing space, an extra
+  // blank line or a changed heading counts. The rounds come from open-findings.json beside the inputs.json, so
+  // without --inputs, the sections with the number of rounds, Summary, Review rounds and
+  // Counts, are left out, and the check says so.
+  function rendered(run) {
     const { context } = run;
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;
     const data = gatherReport({ context, cwd: context.workingFolder, env: process.env,
       inputs: context.inputs });
-    if (!data) return;
-    run.did('tables from the records');
+    if (!data) {
+      run.tell('The tables of the report were not checked: the artifact folder has no ' +
+        'build-ledger.json.');
+      return;
+    }
+    if (context.inputs) {
+      run.did('tables from the records');
+    } else {
+      run.tell('Summary, Review rounds and Counts were not checked: pass --inputs with the ' +
+        'inputs.json of the session.');
+    }
     const want = splitReport(renderReport(data));
-    const have = splitReport(md);
+    const have = splitReport(run.raw.get(FILE));
     const rounds = ['Summary', 'Review rounds', 'Counts'];
     for (const title of FULL.filter((one) => context.inputs || !rounds.includes(one))) {
       if (have.get(title) === want.get(title)) continue;
@@ -53,7 +63,7 @@ module.exports = (lib) => {
       run.find(`Give ${FILE} the sections of the standard track or of the fast track, in order.` +
         `\nIt has ${cut(headings(titles), 120)}.`);
     }
-    if (same(titles, FULL)) rendered(run, md);
+    if (same(titles, FULL)) rendered(run);
     markdownText(run, FILE, md);
   }
 
