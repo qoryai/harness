@@ -38,10 +38,10 @@ Read `<start>/index.json`. Then, for each of the types `acceptance-criteria`, `s
 - Read `<start>/<type>/<name>/v<N>/<file>`, where `<file>` is `acceptance-criteria.json`,
   `spec.md` or `build-plan.md`.
 
-The file of a type cannot be read when `<start>/index.json` or the file at that path does
-not exist or cannot be read, when no entry is left, when the entry's `newest_version` is
-null, when more than one entry is left and none has the name `main`, or when `<name>` is no
-folder name. A folder name has only letters, digits, `.`, `_` and `-`, and is not `.` or
+The file of a type cannot be read when `<start>/index.json` or
+`<start>/<type>/<name>/v<N>/<file>` does not exist or cannot be read, when no entry is
+left, when the entry's `newest_version` is null, when more than one entry is left and none
+has the name `main`, or when `<name>` is no folder name. A folder name has only letters, digits, `.`, `_` and `-`, and is not `.` or
 `..`. When `qory.start_artifacts` is missing, or one of the three files cannot be read,
 stop and write no file.
 
@@ -95,9 +95,9 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 
 - `blocking`: a criterion that the change does not meet, or meets for only part of its
   cases, step 2. The proof is a `failing input` from the words of the criterion, or a
-  `failing check` when `output_tail` of `suite_result` shows the locked check of the
-  criterion fail. Also a deliverable of step 3 whose change is missing, when a criterion of
-  its Criteria cell is not met.
+  `failing check` when `output_tail` of `suite_result` shows a test of the criterion fail.
+  A red locked check needs no finding, because qory writes it. Also a deliverable of step 3
+  whose change is missing, when a criterion of its Criteria cell is not met.
 - `non-blocking`: a deliverable of step 3 whose change is missing while its criteria are
   met; work of step 4, with a `broken rule` proof that quotes the spec, unless it also
   breaks a criterion; a path of step 5, with a `broken rule` proof that quotes the Files
