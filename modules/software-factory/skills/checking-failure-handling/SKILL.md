@@ -24,8 +24,9 @@ area falls under the definition of `blocking` in `judging-findings`.
 
 ## The area
 
-The run starts this review only when the change has a file of error handling, retries,
-timeouts, queues, jobs or background workers. The review covers the whole change for a
+The `paths` of `failure-reviewer` are the files of error handling, retries, timeouts,
+queues, jobs, background workers and clients of other systems, so a panel step starts this
+review for a change in them. The review covers the whole change for a
 failure that the change drops, repeats or leaves half done: an error, a timeout, a message
 that is lost or delivered twice, and a worker that stops.
 

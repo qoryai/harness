@@ -2520,28 +2520,39 @@ review round. In a stage with none, such as when `inputs.json` has no
   matches one of its globs, so the reviewers start as follows:
   - `security-reviewer`, with `checking-security`, reads a change in a folder or a file
     whose name is about authentication, authorisation, sessions, tokens, passwords,
-    cryptography or secrets (`**/auth/**`, `**/*token*`, `**/*secret*`, `**/.env.*`); in
-    the routes, controllers and handlers that take input from outside (`**/routes/**`,
-    `**/*_controller.*`); in the manifests and lockfiles of the usual package managers
-    (`**/package.json`, `**/go.sum`, `**/Gemfile.lock`, `**/requirements*.txt`); and in the
-    CI workflows (`.github/workflows/**`, `.gitlab-ci.yml`, `.circleci/**`). It reports a
-    hole that a person can use, with who sends what and what they then reach.
+    cryptography or secrets (`**/auth/**`, `**/*auth*`, `**/jwt/**`, `**/middleware/**`,
+    `**/*secret*`, `**/*access_token*`, `**/.env.*`); in the routes, controllers and
+    handlers that take input from outside (`**/routes/**`, `**/*_controller.*`); in the
+    manifests and lockfiles of the usual package managers (`**/package.json`,
+    `**/go.sum`, `**/Gemfile.lock`, `**/requirements*.txt`); in Dockerfiles, compose files
+    and infrastructure code (`**/Dockerfile`, `**/*.tf`, `**/k8s/**`, `**/helm/**`); and in
+    the CI workflows (`.github/workflows/**`, `.gitlab-ci.yml`, `.circleci/**`). It reports
+    a hole that a person can use, with who sends what and what they then reach. A name
+    with a bare `token` or `session`, such as `lexer/token.go` or `session.json`, is not in
+    its paths.
   - `data-reviewer`, with `checking-data-changes`, reads a change in a migration folder
-    (`**/migrations/**`, `**/migrate/**`, `**/alembic/**`), in a file of SQL or of an ORM
-    schema (`**/*.sql`, `**/*.prisma`, `**/schema.rb`, `**/schemas/**`) and in the model
-    files (`**/models/**`, `**/*.entity.ts`). It reports data that a migration loses or
-    leaves wrong, or that makes it fail, with the row and the step that meets it.
+    (`**/migrations/**`, `**/migrate/**`, `**/alembic/**`, `**/changelog/**`), in a file of
+    SQL or of an ORM schema (`**/*.sql`, `**/*.prisma`, `**/schema.rb`, `**/schema.go`,
+    `**/sqlc.yaml`, `**/schemas/**`) and in the model files (`**/models/**`,
+    `**/models.ts`, `**/*.entity.ts`). It reports data that a migration loses or leaves
+    wrong, or that makes it fail, and a column that the code of the release before still
+    uses and that the change drops or renames, with the row or request and the step that
+    meets it.
   - `failure-reviewer`, with `checking-failure-handling`, reads a change in a file or a
     folder whose name is about errors, retries, timeouts, queues, jobs or workers
-    (`**/errors/**`, `**/*retry*`, `**/*timeout*`, `**/jobs/**`, `**/*_worker.*`) and in
-    clients of other systems (`**/clients/**`, `**/*_client.*`). It reports a failure that
-    the change drops, repeats or leaves half done, with the failure and its wrong result.
+    (`**/errors/**`, `**/error.*`, `**/*retry*`, `**/*timeout*`, `**/jobs/**`,
+    `**/tasks/**`, `**/consumer/**`, `**/worker.*`, `**/*_worker.*`) and in clients of
+    other systems (`**/clients/**`, `**/*_client.*`, `**/http/client.*`). It reports a
+    failure that the change drops, repeats or leaves half done, with the failure and its
+    wrong result. A name with a bare `error`, such as `error_page.html`, or `Client.tsx` is
+    not in its paths.
 
   The globs match path names, read no file and match case. A change of `README.md` or
   `notes.txt` matches none of them and starts none of the three. A text file in a folder
   or with a name that a glob lists, such as `docs/api/guide.md` or `docs/errors.md`, starts
-  the reviewer of that glob, because a glob has no form that leaves a file out. A name in
-  another case than the globs have, such as `Passwords.java`, starts none.
+  the reviewer of that glob, because a glob has no form that leaves a file out; `**/api/**`
+  and `**/*auth*`, which also lists `Author.java`, stay in the list of `security-reviewer`.
+  A name in another case than the globs have, such as `Passwords.java`, starts none.
   Each of the three also reports what `code-reviewer` reports in its area, so a finding
   may be in two reports. `code-reviewer`, `test-reviewer` and `acceptance-reviewer` are
   no members of the group.

@@ -16,9 +16,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `software-factory` declares the group role `reviewers` and lists the three agents under
   `provides.agents.reviewers`; each agent file sets `paths`, so `checks.cjs panel` starts
   `security-reviewer` for a change in authentication, authorisation, secrets, cryptography,
-  input from outside, dependency or CI workflow files, `data-reviewer` for a change in
-  migrations, schema files or models, and `failure-reviewer` for a change in error handling,
-  retries, timeouts, queues, jobs or workers. The globs match path names and read no file,
+  input from outside, dependency, container, infrastructure code or CI workflow files,
+  `data-reviewer` for a change in migrations, schema files or models, and `failure-reviewer`
+  for a change in error handling, retries, timeouts, queues, jobs, workers or clients of
+  other systems. `data-reviewer` also checks that the code of the release before still runs
+  against a changed schema. The globs match path names and read no file,
   and match case: a change that touches only `README.md` or `notes.txt` starts none of the
   three, and a text file in a folder such as `docs/api/` or with a name such as `errors.md`
   starts the reviewer of that word. `code-reviewer`, `test-reviewer` and

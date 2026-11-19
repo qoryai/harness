@@ -1,6 +1,6 @@
 ---
 name: failure-reviewer
-description: Reviews how a change handles failure in a review round, as the main agent of a session that qory starts. Starts only for a change in files of error handling, retries, timeouts, queues, jobs or background workers. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on a failure that the change drops, repeats or leaves half done, each with a proof. Use only as a reviewer of a review round.
+description: Reviews how a change handles failure in a review round, as the main agent of a session that qory starts. Its paths are the files of error handling, retries, timeouts, queues, jobs, background workers and clients of other systems. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on a failure that the change drops, repeats or leaves half done, each with a proof. Use only as a reviewer of a review round.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 paths: [
@@ -15,14 +15,29 @@ paths: [
   "**/worker/**",
   "**/queues/**",
   "**/queue/**",
+  "**/tasks/**",
+  "**/task/**",
   "**/consumers/**",
+  "**/consumer/**",
   "**/listeners/**",
+  "**/subscribers/**",
   "**/background/**",
   "**/scheduler/**",
   "**/cron/**",
   "**/clients/**",
-  "**/*error*",
-  "**/*Error*",
+  "**/error.*",
+  "**/errors.*",
+  "**/*Error.*",
+  "**/*Errors.*",
+  "**/*ErrorHandler*",
+  "**/*error_handler*",
+  "**/*_error.go",
+  "**/*_error.py",
+  "**/*_error.rb",
+  "**/*_error.ex",
+  "**/*_error.rs",
+  "**/*_error.js",
+  "**/*_error.ts",
   "**/*exception*",
   "**/*Exception*",
   "**/*retry*",
@@ -36,14 +51,26 @@ paths: [
   "**/*Queue*",
   "**/*consumer*",
   "**/*Consumer*",
+  "**/worker.*",
+  "**/workers.*",
+  "**/Worker.*",
+  "**/job.*",
+  "**/jobs.*",
+  "**/Job.*",
   "**/*_job.*",
   "**/*Job.*",
   "**/*_worker.*",
   "**/*Worker.*",
   "**/*.worker.ts",
   "**/*.worker.js",
-  "**/*_client.*",
-  "**/*Client.*"
+  "**/celery*",
+  "**/sidekiq*",
+  "**/http/client.*",
+  "**/*httpclient*",
+  "**/*HttpClient*",
+  "**/*HTTPClient*",
+  "**/http_client*",
+  "**/*_client.*"
 ]
 ---
 

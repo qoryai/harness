@@ -363,11 +363,12 @@ workflows:
   `checking-data-changes` or `checking-failure-handling`, and write one report file each.
   They are the members of the group role `reviewers`, which `software-factory` declares,
   and each sets `paths`, so `checks.cjs panel` starts one only for a change in its paths:
-  authentication, input from outside, secrets, dependencies and CI workflows for
-  `security-reviewer`; migrations, schema files and models for `data-reviewer`; errors,
-  retries, timeouts, queues and jobs for `failure-reviewer`. The globs match path names, so
-  a change of `README.md` starts none of them, and a text file with a listed folder or name,
-  such as `docs/api/guide.md`, starts the reviewer of that glob.
+  authentication, input from outside, secrets, dependencies, containers, infrastructure code
+  and CI workflows for `security-reviewer`; migrations, schema files and models for
+  `data-reviewer`; errors, retries, timeouts, queues, jobs and clients of other systems for
+  `failure-reviewer`. The globs match path names, so a change of
+  `README.md` starts none of them, and a text file with a listed folder or name, such as
+  `docs/api/guide.md`, starts the reviewer of that glob.
 - `settings/claude/settings.json`: the run may load the skills of this module, start its
   agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the

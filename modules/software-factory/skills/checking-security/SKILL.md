@@ -24,9 +24,9 @@ under the definition of `blocking` in `judging-findings`.
 
 ## The area
 
-The run starts this review only when the change has a file of authentication,
-authorisation, secrets, cryptography, input from outside, dependencies or CI workflows.
-The review covers the whole change for a security hole that the change adds: a way for a
+The `paths` of `security-reviewer` are the files of authentication, authorisation, secrets,
+cryptography, input from outside, dependencies, containers, infrastructure code and CI
+workflows, so a panel step starts this review for a change in them. The review covers the whole change for a security hole that the change adds: a way for a
 person or a program to read, change or run what they may not.
 
 The review of the code reports security holes too, in step 4 of `checking-code`. Write each
@@ -73,10 +73,14 @@ them.
 7. CI workflows: look for a step that runs a value that an outside person sets, such as a
    title, a branch name or a body of a pull request, in a shell line; a trigger that runs
    with secrets on a change from outside; a `permissions` setting wider than the job needs;
-   an action that the workflow references by a movable tag or branch; and a step that prints a secret.
+   an action that the workflow references by a movable tag or branch; and a step that
+   prints a secret.
 8. Settings that widen access: a listening address open to every host, a debug mode, a
    cross-origin rule that allows every origin together with credentials, and a cookie with
-   no `HttpOnly`, `Secure` or `SameSite` setting.
+   no `HttpOnly`, `Secure` or `SameSite` setting. In a Dockerfile, a compose file or
+   infrastructure code: a container that runs as root or privileged, a secret in an `ENV`
+   line or a build argument, a base image with the tag `latest`, a network rule that is open
+   to every address, and a storage bucket that is public.
 9. The same defect in another place of the change is a separate finding for each place.
 10. The suite: write no finding for a red suite, because the run writes it. You may cite the
     lines of `output_tail` of `suite_result` that show a check fail as the `failing check`

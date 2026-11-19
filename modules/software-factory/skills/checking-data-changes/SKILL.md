@@ -26,8 +26,8 @@ You run no migration and read no database. Your proof comes from the lines that 
 
 ## The area
 
-The run starts this review only when the change has a migration file, a schema file or a
-model file. The review covers each such file of the change, and the code of the change that
+The `paths` of `data-reviewer` are the migration, schema and model files, so a panel step
+starts this review for a change in them. The review covers each such file of the change, and the code of the change that
 reads or writes the table, column or field that they change. It reports data that a change
 loses, makes fail or leaves wrong.
 
@@ -68,15 +68,23 @@ them.
 5. The code that reads and writes: Grep the copy for each column, table or field that the
    change drops, renames or retypes. Code that still reads the old name, writes the old
    type, or leaves out a new required field is a bug of this area.
-6. Wide writes: a data migration or a backfill with no `where`, a `where` wider than its
+6. Old code on the new schema: while a release goes out, the code of the release before runs
+   against the new schema, and the new code may run against the old one. Look for a
+   migration that drops or renames a column or table, or adds a required column with no
+   default, in the same change as the code that stops using it, so the old code fails
+   until it is replaced. The safe order is to add first, move the code, and drop in a later
+   change. Find the old code in the removed lines of the diff and in the code that the
+   change leaves as it is. Check a file of the repository, such as a rolling deploy or a
+   migration that runs before the new code starts, to see whether the two releases overlap.
+7. Wide writes: a data migration or a backfill with no `where`, a `where` wider than its
    rule, a delete that cascades to tables outside the migration, and an update of every
    row in one statement on a table that a file of the repository shows as large.
-7. Locks: an index made with no `CONCURRENTLY` where the database supports it, a column
+8. Locks: an index made with no `CONCURRENTLY` where the database supports it, a column
    with a default added on a database version that rewrites the table, and a data step in
    the same transaction as a change of structure. Give the table size that a
    file of the repository shows; with none, the finding is `non-blocking`.
-8. The same defect in another migration of the change is a separate finding for each one.
-9. The suite: write no finding for a red suite, because the run writes it. You may cite the
+9. The same defect in another migration of the change is a separate finding for each one.
+10. The suite: write no finding for a red suite, because the run writes it. You may cite the
    lines of `output_tail` of `suite_result` that show a check fail as the `failing check`
    of a defect that you name. Prove the other defects with a `failing input`.
 
@@ -89,10 +97,13 @@ the state, the lines that make it, the step of the migration that it meets, and 
 
 - `blocking`, with a `failing input` traced through the quoted lines: a row that the earlier
   migrations or the code can make, and that makes a migration of step 2 fail or that it
-  changes; a step 3 that destroys data with no way back and no guard; code of step 5 that fails on the
-  new structure; a write of step 6 that reaches rows outside its rule; or a `failing check`.
+  changes; a step 3 that destroys data with no way back and no
+  guard; code of step 5 that fails on the new structure; old code of step 6 that fails during the deploy, when a file of the
+  repository shows that the two releases overlap, with the request that the old code
+  handles, its line, the dropped or renamed column and the error; a write of step 7 that
+  reaches rows outside its rule; or a `failing check`.
 - `non-blocking`: a missing `down` for a step that loses no data; drift of step 4 that
-  breaks nothing now; a lock of step 7 with no size to show; a break of a rule of the
+  breaks nothing now; old code of step 6 with no file that shows an overlap; a lock of step 8 with no size to show; a break of a rule of the
   repository, such as a guide for migrations, with a `broken rule` proof that quotes the
   file and the line of the rule.
 - A loss that you cannot prove by reading is `non-blocking`, or you leave it out.
@@ -106,6 +117,8 @@ the state, the lines that make it, the step of the migration that it meets, and 
 - Each step that cannot be undone has a guard or a finding.
 - Each dropped, renamed or retyped column, table or field has its readers and writers
   checked with Grep.
+- Each dropped, renamed or newly required column is checked against the code of the release
+  before.
 - Each data write has a `where` no wider than its rule.
 - Each defect is a separate finding, with a proof that repeats it.
 - No finding is for code that touches no stored data, for a failing test, for a

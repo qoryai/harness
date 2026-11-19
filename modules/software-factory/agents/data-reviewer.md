@@ -1,6 +1,6 @@
 ---
 name: data-reviewer
-description: Reviews a change to stored data in a review round, as the main agent of a session that qory starts. Starts only for a change in migration, schema or model files. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on data that a migration or a schema change loses, makes fail or leaves wrong, each with a proof. Use only as a reviewer of a review round.
+description: Reviews a change to stored data in a review round, as the main agent of a session that qory starts. Its paths are the migration, schema and model files. Reads the read-only copy, the diff and the suite result, and writes one report file with findings on data that a migration or a schema change loses, makes fail or leaves wrong, each with a proof. Use only as a reviewer of a review round.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 paths: [
@@ -11,17 +11,27 @@ paths: [
   "**/alembic/**",
   "**/flyway/**",
   "**/liquibase/**",
+  "**/changelog/**",
+  "**/db.changelog*",
   "**/prisma/**",
   "**/V*__*.sql",
   "**/*.sql",
   "**/*.ddl",
   "**/*.dbml",
   "**/*.prisma",
+  "**/sqlc.yaml",
+  "**/sqlc.yml",
+  "**/sqlc.json",
   "**/schema.rb",
   "**/structure.sql",
   "**/schema.py",
   "**/schema.ts",
   "**/schema.js",
+  "**/schema.go",
+  "**/schema.rs",
+  "**/schema.ex",
+  "**/schema.java",
+  "**/schema.kt",
   "**/schemas/**",
   "**/schema/**",
   "**/models/**",
@@ -30,6 +40,13 @@ paths: [
   "**/entities/**",
   "**/entity/**",
   "**/models.py",
+  "**/models.ts",
+  "**/models.js",
+  "**/models.go",
+  "**/model.py",
+  "**/model.ts",
+  "**/model.js",
+  "**/model.go",
   "**/*Model.*",
   "**/*Entity.*",
   "**/*.model.ts",
@@ -104,6 +121,8 @@ The check list of the skill, in short:
   guard that the migration shows.
 - Order and drift: the migration follows the migrations before it, and the models, the
   schema dump and the code that reads the table match it.
+- Release overlap: a column that the code of the release before still uses is not dropped,
+  renamed or made required in the same change.
 - Wide writes: each backfill, update or delete has a where clause no wider than its rule.
 
 ## Stop conditions
