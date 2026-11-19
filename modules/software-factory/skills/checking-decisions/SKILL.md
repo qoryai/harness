@@ -91,8 +91,8 @@ that the decision needs. The push form reads only the newest questions version, 
 not have this run's new questions yet, so it does not report a "Question:" id that is
 missing there; the check before your start reports it. It checks that the ids keep the
 newest version's ids and numbers, and it checks the characters, each link,
-`.qory/repositories`, each path of the machine the run is on, and each `![` and `<img`
-outside a fenced code block. Judge the rest of the check list.
+`.qory/repositories`, each path of the machine the run is on, and each `![` and `<img`,
+code blocks and diagrams included. Judge the rest of the check list.
 
 - The text "The spec leaves no technical choice open." stands only when the spec's
   `## Changes` parts leave no technical choice open, no further choice exists, and no

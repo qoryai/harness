@@ -413,8 +413,16 @@ function links(
     if (line.fenced) continue;
     let rest = withoutCode(line.text);
     const found = [];
-    rest = rest.replace(INLINE, (all, bang, _text, _space, addr) => {
-      if (!everyImage || bang !== '!') found.push({ image: bang === '!', addr });
+    rest = rest.replace(INLINE, (all, bang, _text, _space, addr, ...tail) => {
+      // With everyImage, imageStarts() refuses each "![" that an odd number of backslashes does
+      // not escape. A match whose "!" is escaped is a link and gets the checks of a link.
+      let slashes = 0;
+      const offset = tail[tail.length - 2];
+      while (bang && everyImage && offset - slashes > 0 && rest[offset - slashes - 1] === '\\') {
+        slashes += 1;
+      }
+      const image = bang === '!' && !(everyImage && slashes % 2 === 1);
+      if (!everyImage || !image) found.push({ image, addr });
       return ' ';
     });
     rest = rest.replace(/<([a-z][a-z0-9+.-]*:[^<>\s]*)>/gi, (all, addr) => {

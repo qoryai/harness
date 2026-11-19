@@ -1490,7 +1490,14 @@ test('decision record: each "![" and "<img" is refused, in code too', () => {
     /^Remove the image from decision-record\.md, or write `\\!\[` outside code for a literal `!\[`\. Line /);
   fails(push(fixture(why('<img src="flow.svg"> ')), 'decision-record'),
     /^Remove the image from decision-record\.md: the record has no `<img`\. Line /);
-  passes(push(fixture(why('\\![Flow](flow.svg) ')), 'decision-record'));
+  passes(push(fixture(why('\\![Flow](https://x.example/a.png) ')), 'decision-record'));
+  // A literal "![" with a link after it is a link: it has the checks of a link.
+  for (const address of ['http://x.com/a.png', 'javascript:alert(1)', 'ftp://u:p@h/a.png', 'flow.svg']) {
+    fails(push(fixture(why(`\\![a](${address}) `)), 'decision-record'),
+      /^Fix the link "[^"]+": write /);
+  }
+  fails(push(fixture(why('\\![a](http://x.com/a.png) ')), 'decision-record'),
+    /^Fix the link "http:\/\/x\.com\/a\.png": write it as https:\/\/, never http:\/\/\./);
   passes(push(fixture(diagram(1)), 'decision-record'));
 });
 
