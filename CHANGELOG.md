@@ -1388,7 +1388,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   it. The guard split the path at the space and never resolved `..` or links, so it saw no
   `.reports/` path. The guard also reads each path of a write, and each header line of a
   patch, as the disk resolves it from the working folder of the call; a line break in a path
-  is part of a folder name, unless the text is a patch with header lines. A call whose paths
+  is part of a folder name, unless the text is a patch with header lines. A path of more
+  than 4,096 characters is read with each `..` cut out as text, because a tool may cut them
+  out before it writes: `x/../` 1,000 times and then `.reports/a b/../report.json` is
+  denied. A call whose paths
   need more than 16,384 steps of that is denied with "Write fewer files in one call, each
   with a short path and no link."
 - The tool guard and the reports guard read a line of 250,000 spaces in under 5 ms (0.2 ms

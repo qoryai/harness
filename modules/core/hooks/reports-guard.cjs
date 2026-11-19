@@ -127,8 +127,14 @@ function reportsOnDisk(text, cwd, budget) {
   }
   // A text with no patch header is one path, and a line break in it is part of a part's name.
   if (paths.length === 0) paths.push(text);
-  for (const one of paths) {
-    if (one === '' || one.length > PATH_MAX || one.includes('\0')) continue;
+  for (let one of paths) {
+    if (one === '' || one.includes('\0')) continue;
+    // No disk takes a path this long, but a tool may cut each `..` out of it as text first.
+    if (one.length > PATH_MAX) {
+      one = path.posix.normalize(one);
+      if (pathJson(one)) return WRITE_REASON;
+      if (one.length > PATH_MAX) continue;
+    }
     const full = onDisk(one, cwd, budget);
     if (full === null) return PATH_REASON;
     if (pathJson(full)) return WRITE_REASON;

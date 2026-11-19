@@ -2478,3 +2478,38 @@ test('a line break in a path is part of a folder name, and a patch has one path 
   assert.equal(write('*** Update File: a\nb/../x.json\n@@\n'), null);
   assert.equal(write({ file_path: '.reports/a\nb/../note.md' }), null);
 });
+
+test('a path over 4,096 characters is read with each `..` cut out as text, and one under it as the disk reads it', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('long');
+  fs.mkdirSync(path.join(work, '.reports', 'a b'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'src'));
+  fs.symlinkSync('../.reports', path.join(work, 'src', 'link'));
+  const write = (args) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+    return reason;
+  };
+  const cut = 'x/../'.repeat(1000);
+  for (const tail of ['.reports/a b/../report.json', '.reports/report.json', 'src/link/report.json',
+    'src/link/a b/../end.json.lock']) {
+    const file = cut + tail;
+    assert.ok(file.length > 4096, `${file.length} characters`);
+    assert.equal(write({ file_path: file }), reports.WRITE_REASON, tail);
+    assert.equal(write({ file_path: `${work}/${file}` }), reports.WRITE_REASON, tail);
+    assert.equal(write('*** Add File: ' + file + '\n'), reports.WRITE_REASON, tail);
+  }
+  assert.equal(cut.length + '.reports/a b/../report.json'.length, 5027);
+  // A path over the limit that reaches no report file passes, and so does one at the limit.
+  assert.equal(write({ file_path: cut + 'notes.md' }), null);
+  const legit = 'a/'.repeat(2046) + 'n.md';
+  assert.equal(legit.length, 4096);
+  assert.equal(write({ file_path: legit }), null);
+  assert.equal(write({ file_path: `${legit}x` }), null);
+  // At the limit, the disk's reading of `..` applies.
+  const tail = '.reports/a b/../x.json';
+  const edge = 'a/'.repeat((4096 - tail.length) / 2) + tail;
+  assert.equal(edge.length, 4096);
+  assert.equal(write({ file_path: edge }), reports.WRITE_REASON);
+});
