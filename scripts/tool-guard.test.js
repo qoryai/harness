@@ -1663,8 +1663,9 @@ test('the first line of each deny has at most 100 characters and says what to do
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const texts = { ...guardModule.REASONS, WRITE_REASON: reports.WRITE_REASON,
     SHELL_REASON: reports.SHELL_REASON, HIDDEN_REASON: reports.HIDDEN_REASON,
+    PATH_REASON: reports.PATH_REASON,
     STEPS: steps.REASON, UNWRITABLE: steps.UNWRITABLE };
-  assert.ok(Object.keys(texts).length >= 19, Object.keys(texts).join(' '));
+  assert.ok(Object.keys(texts).length >= 20, Object.keys(texts).join(' '));
   for (const [name, text] of Object.entries(texts)) {
     const [first, ...rest] = text.split('\n');
     assert.ok(first.length <= 100, `${name}: ${first.length} characters: ${first}`);
@@ -2199,4 +2200,53 @@ test('the body of a here-document with a quoted end is text only for cat or tee'
     `mkdir -p docs && cat > docs/a.md <<'EOF'\nrm ${CHECK_PATH}\nEOF`]) {
     assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
   }
+});
+
+test('a path is read as the disk resolves it: a `..` after a folder with a space, and a link', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('dots');
+  fs.mkdirSync(path.join(work, '.reports', 'a b'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'src'));
+  fs.symlinkSync('.reports', path.join(work, 'src', 'link'));
+  fs.symlinkSync('../.reports/new.json', path.join(work, 'src', 'dangling'));
+  const at = (input) => ({ ...input, cwd: work });
+  const denied = (reason) => firstLine(reason, 'Write no file under .reports/');
+  // The folder exists, so the disk reads `a b/..` as `.reports`.
+  for (const file of ['.reports/a b/../report.json', `${work}/.reports/a b/../report.json`,
+    '.reports/a b/./../report.json', '.reports/a b/../a b/../x.json.lock',
+    'src/link/report.json', 'src/link/a b/../report.json', 'src/dangling', 'src/../src/dangling']) {
+    for (const make of [claude, codex]) {
+      denied(guard(at(make(make === claude ? 'Write' : 'apply_patch', make === claude
+        ? { file_path: file, content: '{}' } : patch(file), 'implementer')), RUN));
+    }
+    // The shell reads the redirect with .reports/ in its text; a link or `..` is a path.
+    assert.equal(reports.decide({ kind: 'write', args: { file_path: file }, env: RUN, cwd: work }),
+      reports.WRITE_REASON, file);
+  }
+  // A path with a space in a patch of a shell call, and a raw patch text of Copilot CLI.
+  for (const make of [claude, codex]) {
+    denied(guard(at(make('Bash', { command: `apply_patch <<'EOF'\n*** Begin Patch\n` +
+      `*** Add File: .reports/a b/../report.json\n+{}\n*** End Patch\nEOF` }, 'implementer'))));
+  }
+  assert.equal(reports.decide({ kind: 'write', env: RUN, cwd: work,
+    args: '*** Update File: .reports/a b/../report.json\n@@\n-1\n+0\n' }), reports.WRITE_REASON);
+  const shell = reports.decide({ kind: 'shell', env: RUN, cwd: work,
+    args: { command: "echo '{}' > '.reports/a b/../report.json'" } });
+  assert.ok(shell.startsWith('Write to .reports/ only through checks.cjs.'), shell);
+  // Paths that end up outside .reports/, or in a file that is no .json, pass.
+  for (const file of ['a b/../report.json', 'src/link/note.md', '.reports/a b/../../report.json',
+    '.reports/missing/../note.md', 'src/dangling.txt']) {
+    assert.equal(reports.decide({ kind: 'write', args: { file_path: file }, env: RUN, cwd: work }),
+      null, file);
+  }
+  // Each part of a path costs one of 16,384 steps for all the paths of a call: 4 paths of 2,000
+  // parts pass, 9 are denied with PATH_REASON, in under 1 second.
+  const long = (count) => `*** Begin Patch\n${`*** Add File: ${'a/'.repeat(2000)}x.md\n`.repeat(count)}`;
+  assert.equal(reports.decide({ kind: 'write', env: RUN, cwd: work, args: long(4) }), null);
+  const begun = process.hrtime.bigint();
+  const over = reports.decide({ kind: 'write', env: RUN, cwd: work, args: long(9) });
+  assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+  assert.equal(over, reports.PATH_REASON);
+  firstLine(guard(at(codex('apply_patch', { command: long(9) }, 'implementer'))),
+    'Write fewer files in one call');
 });

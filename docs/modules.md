@@ -1117,7 +1117,9 @@ write no file, reads `.reports/` and passes, as in `ls .reports` or
 `tail .reports/runs/<n>.log`. It reads a shell command without the body
 of a here-document that it reads as text, as `cat > notes.md <<'EOF'`, and checks the
 files of a patch that the shell call runs, as `apply_patch <<'EOF'`, as those of
-`apply_patch`. The tool guard does
+`apply_patch`. On every runtime, `reports-guard.cjs` also reads each path of a write as the
+disk resolves it from the working folder of the call, with each `..` and each link: it denies
+`.reports/a b/../end.json` when the folder `.reports/a b/` exists. The tool guard does
 not run `fs.globSync`,
 which has no limit on its work: it reads a word after brace expansion, and a word with a
 wildcard reaches `.reports` when it can match the `.reports` folder of the artifact folder,

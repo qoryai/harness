@@ -7,7 +7,9 @@
 // In a run, when QORY_RUN_ID is set, decide denies:
 // - a write, edit or delete of a file whose path is under a folder .reports and ends in
 //   .json, or whose name has .json.lock: the locks of checks.cjs findings, starts and report
-//   and their .break files; in any argument of the tool except the text that it writes;
+//   and their .break files; in any argument of the tool except the text that it writes.
+//   decide also reads an argument as one path that the disk resolves from cwd, with each `..`
+//   and each link: `.reports/a b/../end.json` is denied once `.reports/a b/` exists;
 // - a shell command that reaches .reports, unless it runs the harness's checks.cjs and
 //   nothing else: the first word, after node, is a path to checks.cjs, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
@@ -47,16 +49,82 @@ const REPORTS_START = /(?:^|[/=:])\.reports\//i;
 // A word of a text: a run of characters that are no white space, ' or ".
 const WORD = /[^\s'"]+/g;
 
+// pathJson reports whether the path full is under a folder .reports and ends in .json, or has
+// .json.lock in its name. It reads full as one path, so a space in it splits nothing.
+function pathJson(full) {
+  if (!REPORTS_START.test(full)) return false;
+  const name = full.slice(full.lastIndexOf('/') + 1);
+  return /\.json$/i.test(name) || /\.json\.lock/i.test(name);
+}
+
 // reportsJson reports whether text has a path under a folder .reports that ends in .json, or
 // whose name has .json.lock, alone or inside a patch. It reads each word once: the regular
 // expression that it replaced took time in the square of a text of repeated `.reports/`.
 function reportsJson(text) {
   for (const [word] of text.matchAll(WORD)) {
-    if (!REPORTS_START.test(word)) continue;
-    const name = word.slice(word.lastIndexOf('/') + 1);
-    if (/\.json$/i.test(name) || /\.json\.lock/i.test(name)) return true;
+    if (pathJson(word)) return true;
   }
   return false;
+}
+
+// A path can have at most this many characters on the disks that the guard knows.
+const PATH_MAX = 4096;
+// The most readlink calls that onDisk makes for all the paths of one call, which also ends a
+// loop of links. About 3 microseconds each, so a call that spends them all takes 50 ms.
+const MAX_STEPS = 16384;
+// A line of a patch that adds, changes, deletes or moves to a file, up to its path.
+const PATCH_LINE = /^\s*\*\*\* (?:Add File|Update File|Delete File|Move to): ?/;
+
+// onDisk returns file, read from cwd, as the disk resolves it: a `..` goes to the parent of the
+// folder that the parts before it reach, with each link followed, also one to a file that does
+// not exist yet. A part that does not exist is kept, and a `..` after it is read as text. Each
+// part costs one step of budget.steps; onDisk returns null when none is left.
+function onDisk(file, cwd, budget) {
+  const todo = (path.isAbsolute(file) ? file : `${cwd}/${file}`).split('/').reverse();
+  let real = '/';
+  while (todo.length > 0) {
+    const part = todo.pop();
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      real = path.dirname(real);
+      continue;
+    }
+    if (budget.steps <= 0) return null;
+    budget.steps -= 1;
+    const at = path.join(real, part);
+    let link = null;
+    try {
+      link = fs.readlinkSync(at);
+    } catch {
+      // Not a link, or not there: the part stays as it is.
+    }
+    if (link === null) {
+      real = at;
+    } else {
+      if (path.isAbsolute(link)) real = '/';
+      todo.push(...link.split('/').reverse());
+    }
+  }
+  return real;
+}
+
+// reportsOnDisk returns the reason to deny a write of text, which reading the words misses, or
+// null: a path that is a file .reports/*.json once the disk resolves it from cwd, as one with
+// a space before a `..` or one through a link. It reads text as one path, and each header line
+// of a patch as one. budget is the one of onDisk, for all the strings of a call.
+function reportsOnDisk(text, cwd, budget) {
+  const paths = text.includes('\n') ? [] : [text];
+  for (const line of text.split('\n')) {
+    const header = PATCH_LINE.exec(line);
+    if (header !== null) paths.push(line.slice(header[0].length).trim());
+  }
+  for (const one of paths) {
+    if (one === '' || one.length > PATH_MAX || one.includes('\0')) continue;
+    const full = onDisk(one, cwd, budget);
+    if (full === null) return PATH_REASON;
+    if (pathJson(full)) return WRITE_REASON;
+  }
+  return null;
 }
 
 // The folder .reports in a shell command.
@@ -71,6 +139,9 @@ const WRITE_REASON = 'Write no file under .reports/ that ends in .json or has .j
 const SHELL_REASON = 'Write to .reports/ only through checks.cjs.\nOnly ' +
   'checks.cjs writes the .json files there, which contain the report checks, the counts and ' +
   'the findings of a change.';
+// The deny of a call whose paths cost more than MAX_STEPS readlink calls to resolve.
+const PATH_REASON = 'Write fewer files in one call, each with a short path and no link.\n' +
+  'The guard follows each `..` and each link of a path, and stopped after 16,384 steps.';
 // The first line of a deny for a command that reaches .reports in a way its text does not
 // show; the second line contains the part of the command that does.
 const HIDDEN_REASON = 'Leave .reports/ to checks.cjs, and name other files with no `$`, ' +
@@ -302,8 +373,15 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
   globs = true }) {
   if (!env.QORY_RUN_ID) return null;
   if (kind === 'write') {
-    const hit = strings(args).some(([key, text]) => !TEXT_KEYS.has(key) && reportsJson(text));
-    return hit ? WRITE_REASON : null;
+    const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
+    const budget = { steps: MAX_STEPS };
+    let reason = null;
+    for (const [key, text] of strings(args)) {
+      if (TEXT_KEYS.has(key)) continue;
+      reason = reportsJson(text) ? WRITE_REASON : reportsOnDisk(text, from, budget);
+      if (reason !== null) break;
+    }
+    return reason;
   }
   if (kind === 'shell') {
     const command = args !== null && typeof args === 'object' ? args.command : undefined;
@@ -318,4 +396,4 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
 }
 
 module.exports = { readInput, decide, runsChecks, withoutRedirect, reportsJson, REPORTS,
-  HIDDEN_REASON, WRITE_REASON, SHELL_REASON };
+  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON };

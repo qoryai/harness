@@ -1355,6 +1355,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The reports guard denies a write to `.reports/a b/../report.json` when the folder
+  `.reports/a b/` exists, and a write through a link to a `.reports` folder or to a file in
+  it. The guard split the path at the space and never resolved `..` or links, so it saw no
+  `.reports/` path. The guard also reads each path of a write, and each header line of a
+  patch, as the disk resolves it from the working folder of the call. A call whose paths
+  need more than 16,384 steps of that is denied with "Write fewer files in one call, each
+  with a short path and no link."
 - The tool guard and the reports guard read a line of 250,000 spaces in under 5 ms (0.2 ms
   for the patch line and 4 ms for the shell command, measured). Three regular expressions
   took time in the square of the length of such a line or path. The one that reads the header
