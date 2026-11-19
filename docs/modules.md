@@ -2374,9 +2374,10 @@ session lost the list.
   other word or change needs `make-mockups`, it lists it under "Not run", with that reason.
   A declined or asked word leaves the spec unchanged, so the session starts the planner
   again after a follow of `write-specs` that pushed no spec, while a later workflow of the
-  same pass is still listed or has a pending item. `shape-reviewer` sends no finding to `write-specs` for a word on the spec
-  whose last reply has outcome `declined`, `answered` or `asked`, by `checking-shape`. So
-  the run does not start `write-specs` again for the same word.
+  same pass is still listed or has a pending item. `shape-reviewer` sends no finding to
+  `write-specs` for a word on the spec whose last reply has outcome `declined`, `answered`
+  or `asked`, by `checking-shape`. So the run does not start `write-specs` again for the
+  same word.
 - **Older versions.** A pull writes one folder per type, and only
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.
