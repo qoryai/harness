@@ -47,7 +47,7 @@ const CONTAINER = /^ {0,3}(?:(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$))[ \t]*)*/;
 // end mark. A block in a quote ends at a line with no `>`, and one in a list item at a line
 // that is not blank and not indented 2 columns (the item may be wider, so such a line may still
 // be in the block). Kind 7 starts in no plain paragraph, but in a quote or a list item it does,
-// as in the parser of Qory Apiary (tested on 2026-11-19). After a code block, call reset().
+// as Qory Apiary shows it (checked on 2026-11-19). After a code block, call reset().
 // doubtful() tells whether a kind 7 block started right after a line of text, where the parsers
 // may differ.
 function htmlBlocks() {
