@@ -1,4 +1,4 @@
-// The check of the standard type explainer: explainer.md, with ## Summary, a section per
+// The check of the standard type walkthrough: walkthrough.md, with ## Summary, a section per
 // criterion and ## Risk on merge, each claim with its source, and the verified commit.
 'use strict';
 
@@ -10,7 +10,7 @@ module.exports = (lib) => {
     sectionTitles, short, verifiedCommit, wrongWords,
   } = lib;
 
-  const FILE = 'explainer.md';
+  const FILE = 'walkthrough.md';
   // The heading of a criterion section: the id, in any case, then the criterion's text in
   // quotes, such as AC-1, "Export saves a CSV file".
   const CRITERION = new RegExp(`^ac-(${NUMBER}), +"(.+)"$`, 'i');
@@ -84,11 +84,11 @@ module.exports = (lib) => {
     }
   }
 
-  // explainer reads the criteria first: a finding of that read is the one finding, so that
+  // walkthrough reads the criteria first: a finding of that read is the one finding, so that
   // the line for a member comes before any finding of the format.
-  function explainer(run, files) {
+  function walkthrough(run, files) {
     const md = files.get(FILE);
-    const criteria = liveCriteria(run, 'the explainer');
+    const criteria = liveCriteria(run, 'the walkthrough');
     if (!criteria) return;
     const parts = sectionTitles(run, FILE, md);
     sections(run, parts.map((part) => part.title), criteria);
@@ -117,7 +117,7 @@ module.exports = (lib) => {
         run.find(`Start a line of ## Summary of ${FILE} with "Commit: " and the verified ` +
           'commit\'s full id.');
       } else if (!verified) {
-        run.find('Push the verification before the explainer.\nThe artifacts have no ' +
+        run.find('Push the verification before the walkthrough.\nThe artifacts have no ' +
           'verification version.');
       } else if (!verified.commit || !COMMIT.test(verified.commit)) {
         // With no full verified commit, the check has no commit to compare: a finding.
@@ -132,10 +132,10 @@ module.exports = (lib) => {
   }
 
   return {
-    type: 'explainer',
+    type: 'walkthrough',
     main: FILE,
-    words: 'explainer',
+    words: 'walkthrough',
     reviewer: null,
-    check: explainer,
+    check: walkthrough,
   };
 };

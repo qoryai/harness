@@ -235,7 +235,7 @@ module.exports = (lib) => {
     'again.');
 
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
-  // build-plan, verification and explainer read: the approved version, or the newest version
+  // build-plan, verification and walkthrough read: the approved version, or the newest version
   // that a person stored after it. It returns null with no index.json or no approved version.
   // A run's version never counts, nor a version that a cancelled run wrote, as in countedOf.
   // A `decision` of a version counts neither, because index.json has no time of a decision
@@ -305,7 +305,7 @@ module.exports = (lib) => {
     `v${number}/acceptance-criteria.json.`;
 
   // criteriaText returns the number and the text of the target of criteriaTarget, which
-  // build-plan, verification and explainer read in a check and in a push, or null after one
+  // build-plan, verification and walkthrough read in a check and in a push, or null after one
   // finding. Each of the three checks calls it before any other finding, so that the line
   // for a member comes in the first check. With no index.json, or two criteria versions of
   // one number, the check exits 3 with the line of pullAgain. With no approved version, the
@@ -363,7 +363,7 @@ module.exports = (lib) => {
   // spaces as one space, and with no space at either end.
   const flat = (text) => text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
 
-  // criterionWords returns the words of criterion that a Criteria cell and an explainer
+  // criterionWords returns the words of criterion that a Criteria cell and a walkthrough
   // heading have in quotes: its first sentence, as the check of the criteria
   // counts its sentences, so after e.g. it goes on, with no full stop at the end.
   function criterionWords(criterion) {
