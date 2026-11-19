@@ -130,12 +130,22 @@ function reportsJson(text) {
   return false;
 }
 
-// envWord reports whether a word of text is a path that ends in a part named .env, alone or
-// inside a patch. It returns false for a value that is no string.
+// envWord reports whether text names a path that ends in a part named .env, and returns false
+// for a value that is no string. A text with one line is read by its words, as a list of paths.
+// A text with more lines is a patch: only its header lines name paths, so that a line `.env` of
+// a patch of .gitignore passes. The headers of Codex (`*** Add File: <path>`) are read by
+// reportsOnDisk; this reads the `--- a/<path>` and `+++ b/<path>` headers of a unified diff.
 function envWord(text) {
   if (typeof text !== 'string') return false;
-  for (const [word] of text.matchAll(WORD)) {
-    if (envName(word)) return true;
+  if (!PATCH_BREAK.test(text.trim())) {
+    for (const [word] of text.matchAll(WORD)) {
+      if (envName(word)) return true;
+    }
+    return false;
+  }
+  for (const line of text.split(PATCH_BREAK)) {
+    const header = /^(?:\+\+\+|---) (.*)$/.exec(line);
+    if (header !== null && envName(header[1].trim().split('\t')[0])) return true;
   }
   return false;
 }

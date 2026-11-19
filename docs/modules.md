@@ -1391,7 +1391,10 @@ a run on Claude Code and Codex, a command of read-only programs is not read, as 
 `.reports/`, so `cat .env` passes there.
 
 By design, as for `.reports/`, the shell rule on all five runtimes also denies a command with
-the word `.env` as text, such as a commit message. It also denies a folder named `.env`. The test of the real Gemini CLI runs only where `gemini --version` prints 0.68.0,
+the word `.env` as text, such as a commit message. It also denies a folder named `.env`.
+So `echo .env >> .gitignore` and `printf '.env\n' >> .gitignore` are denied. A patch or a
+write tool adds the line `.env` to `.gitignore`: the guard reads only the file headers of a
+patch, and the text that a write tool writes is no path. The test of the real Gemini CLI runs only where `gemini --version` prints 0.68.0,
 and CI does not run it.
 
 In a run, a guard runs before each tool call: `tool-guard-claude.cjs` on Claude Code and

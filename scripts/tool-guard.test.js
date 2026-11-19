@@ -5241,6 +5241,59 @@ test('the guard denies a write to .env and .gemini/.env, and lets .env.example a
   }
 });
 
+test('a write that names .env as text passes, and a patch that writes the file .env is denied', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('gitignore');
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  const at = (input) => ({ ...input, cwd: work });
+  // A patch in the form of Codex, and one as a unified diff, that put .env in .gitignore: the
+  // line is added, kept as context and removed.
+  const ignore = (line) => [
+    `*** Begin Patch\n*** Update File: .gitignore\n@@\n node_modules\n${line}\n*** End Patch\n`,
+    `--- a/.gitignore\n+++ b/.gitignore\n@@ -1,2 +1,2 @@\n node_modules\n${line}\n`];
+  for (const line of ['+.env', ' .env', '-.env', '+.gemini/.env', '+ .env']) {
+    for (const text of ignore(line)) {
+      assert.equal(write(text), null, JSON.stringify(text));
+      assert.equal(write({ input: text }), null, JSON.stringify(text));
+    }
+    assert.equal(guard(at(codex('apply_patch', { command: ignore(line)[0] }, 'default'))), null, line);
+  }
+  // The text of a write tool of each runtime: Claude Code, Gemini CLI, Cursor, Copilot CLI.
+  for (const args of [{ file_path: '.gitignore', content: 'node_modules\n.env\n' },
+    { file_path: '.gitignore', old_string: 'node_modules', new_string: 'node_modules\n.env',
+      instruction: 'Ignore .env' },
+    { file_path: '.gitignore', contents: '.env\n' }, { path: '.gitignore', file_text: '.env\n' },
+    { path: '.gitignore', old_str: 'a', new_str: '.env' }]) {
+    assert.equal(write(args), null, JSON.stringify(args));
+  }
+  for (const make of [claude, codex]) {
+    assert.equal(guard(at(make('Write', { file_path: '.gitignore', content: '.env\n' },
+      'implementer'))), null);
+  }
+  assert.equal(guard(at(claude('Edit', { file_path: '.gitignore', old_string: 'a',
+    new_string: '.env' }, 'implementer'))), null);
+  // By design, as for .reports, a shell command with the word .env is denied, also when it only
+  // adds the line to .gitignore; a patch or a write tool of .gitignore is the way to do that.
+  for (const command of ['echo .env >> .gitignore', "printf '.env\\n' >> .gitignore",
+    'git commit -m "ignore .env"']) {
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd: work });
+    assert.equal(reason && reason.split('\n')[0], ENV_SHELL_START, command);
+  }
+  // A patch with a header for the file .env, or .gemini/.env, is denied, in each header.
+  for (const file of ['.env', '.gemini/.env', 'a/.env']) {
+    for (const header of ['Add File', 'Update File', 'Delete File', 'Move to']) {
+      const text = `*** Begin Patch\n*** ${header}: ${file}\n+A=1\n*** End Patch\n`;
+      assert.equal(write(text), reports.ENV_REASON, JSON.stringify(text));
+      assert.equal(guard(at(codex('apply_patch', { command: text }, 'default'))),
+        reports.ENV_REASON, JSON.stringify(text));
+    }
+    for (const text of [`--- /dev/null\n+++ b/${file}\n@@ -0,0 +1 @@\n+A=1\n`,
+      `--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-A=1\n+A=2\n`]) {
+      assert.equal(write(text), reports.ENV_REASON, JSON.stringify(text));
+    }
+  }
+});
+
 test('the guard of each runtime that has a hook denies a write to .gemini/.env and a command with .env', () => {
   const home = harnessHome();
   const work = next('envadapter');
@@ -5254,7 +5307,17 @@ test('the guard of each runtime that has a hook denies a write to .gemini/.env a
     assert.equal(ran.denied, true, runtime);
     if (runtime !== 'cursor') assert.ok(ran.reason.startsWith(ENV_SHELL_START), ran.reason);
     assert.equal(adapter(home, runtime, 'shell', 'cat .env.example', work).denied, false, runtime);
+    // A write of .gitignore with the line .env passes.
+    const ignore = adapter(home, runtime, 'write', { file_path: '.gitignore',
+      content: 'node_modules\n.env\n', contents: '.env\n', file_text: '.env\n' }, work);
+    assert.equal(ignore.denied, false, runtime);
   }
+  // Copilot CLI sends a patch as text: a context line .env of a patch of .gitignore passes.
+  const patchText = '*** Begin Patch\n*** Update File: .gitignore\n@@\n node_modules\n .env\n' +
+    '*** End Patch\n';
+  assert.equal(adapter(home, 'copilot', 'write', patchText, work).denied, false);
+  assert.equal(adapter(home, 'copilot', 'write', patchText.replace('.gitignore', '.env'), work)
+    .denied, true);
   // The matcher of the Cursor hook for a shell command passes a command with .env, in each case.
   const cursor = JSON.parse(fs.readFileSync(path.join(MODULES,
     'core/settings/cursor/hooks.json'), 'utf8')).hooks.beforeShellExecution[0].matcher;
