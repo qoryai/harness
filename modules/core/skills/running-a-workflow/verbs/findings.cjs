@@ -8,16 +8,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, MAX_FINDING_LINES, Missing, fullQuote, parseJson, plainLine, plural, short,
+  MAX_BYTES, MAX_FINDING_LINES, Missing, fullQuote, parseJson, plain, plainLine, plural, short,
 } = require('../lib/base.cjs');
 const { readOpen } = require('../lib/findings.cjs');
 
 // Each line that open prints for a finding starts with this.
 const FIX_FIRST = 'Fix first: ';
 
-// A fault of the file's path, which the verb prints itself: checks.cjs cuts each line of a
-// Missing at 200 characters, and a path is printed whole, as fullQuote makes it, on the line
-// after the fix. lines is the fix and then the lines of the cause.
+// A fault of the file's path. The verb prints it, because checks.cjs cuts each line of a
+// Missing at 200 characters and the path is printed whole. lines: the fix, then the cause.
 class Printed extends Error {
   constructor(lines) {
     super(lines[0]);
@@ -49,7 +48,7 @@ function readLimited(full, name, size) {
 // JSON ends inside the part that was read.
 function open(io, file) {
   const full = path.resolve(io.cwd, file);
-  const name = short(path.basename(full), 40);
+  const name = short(plain(path.basename(full)), 40);
   let stat;
   try {
     stat = fs.lstatSync(full);
@@ -110,7 +109,7 @@ module.exports = {
         } catch (error) {
           if (!(error instanceof Printed)) throw error;
           const [fix, ...cause] = error.lines;
-          io.out.write(`${[fix, ...cause.map((line) => `  ${line}`),
+          io.out.write(`${[plainLine(fix), ...cause.map((line) => `  ${line}`),
             'Checked nothing: the findings could not read its input.'].join('\n')}\n`);
           return 3;
         }

@@ -15,9 +15,12 @@ const SKILLS = path.join(MODULES, 'core', 'skills');
 const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.cjs');
 const { main } = require(CHECKS);
 const { watch } = require('./first-line.js');
-const { fullQuote } = require(path.join(__dirname, '../modules/core/skills/running-a-workflow/lib/base.cjs'));
 const schema = require(path.join(MODULES,
   'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
+
+// A path as the verb prints it: in double quotes, with no cut. The test writes the expected
+// text by hand and does not call the function of the module.
+const quoted = (text) => `"${text}"`;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'findings-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -207,8 +210,8 @@ test('findings open: a missing file or a round with no finding exits 0', () => {
   assert.equal(missing.status, 0);
   const absent = path.join(tmp, 'absent.json');
   assert.equal(missing.out,
-    `Checked nothing: ${fullQuote(absent)} does not exist, so no finding is open.\n`);
-  assert.equal(missing.err, `no open findings file at ${fullQuote(absent)}\n`);
+    `Checked nothing: ${quoted(absent)} does not exist, so no finding is open.\n`);
+  assert.equal(missing.err, `no open findings file at ${quoted(absent)}\n`);
   const empty = call(['findings', 'open', put({ round: 3, reviewers: [] })]);
   assert.equal(empty.status, 0);
   assert.match(empty.out, /^Checked open-\d+\.json: round 3 has no open finding\.\n$/);
@@ -285,7 +288,7 @@ test('findings open: 201 findings print 200, blocking first, and one line that c
   assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/main\.ts:12\): Fix the point 201\./);
   assert.match(result.lines[1], /^Fix first: f1 \(non-blocking/);
   assert.match(result.lines[199], /^Fix first: f199 /);
-  assert.equal(result.lines[200], `Fix first: 1 more findings in ${fullQuote(file)}`);
+  assert.equal(result.lines[200], `Fix first: 1 more findings in ${quoted(file)}`);
   assert.match(result.lines[201], /^Checked open-\d+\.json: round 1 has 201 open findings, 1 blocking and 200 non-blocking\./);
   assert.equal(result.lines.filter((line) => line.includes('Fix the point 200.')).length, 0);
 });
@@ -311,19 +314,19 @@ test('findings open: a path of 81, 120, 201 and 400 characters is printed whole 
     const absent = path.join(path.dirname(real), 'absent.json');
     const result = call(['findings', 'open', absent]);
     assert.equal(result.status, 0);
-    assert.equal(result.err, `no open findings file at ${fullQuote(absent)}\n`);
+    assert.equal(result.err, `no open findings file at ${quoted(absent)}\n`);
     assert.equal(result.out,
-      `Checked nothing: ${fullQuote(absent)} does not exist, so no finding is open.\n`);
+      `Checked nothing: ${quoted(absent)} does not exist, so no finding is open.\n`);
     // A link and a folder at a long path.
     const folder = call(['findings', 'open', path.dirname(real)]);
     assert.equal(folder.status, 3);
-    assert.ok((folder.err + folder.out).includes(`${fullQuote(path.dirname(real))} is not a regular file.`),
+    assert.ok((folder.err + folder.out).includes(`${quoted(path.dirname(real))} is not a regular file.`),
       folder.err + folder.out);
     // More than 200 findings at a long path: the count line has the whole path.
     const many201 = path.join(path.dirname(real), 'many.json');
     fs.writeFileSync(many201, JSON.stringify(many(201)));
     const counted = call(['findings', 'open', many201]);
-    assert.equal(counted.lines[200], `Fix first: 1 more findings in ${fullQuote(many201)}`);
+    assert.equal(counted.lines[200], `Fix first: 1 more findings in ${quoted(many201)}`);
   }
 });
 
@@ -356,7 +359,7 @@ test('findings open: each message prints the whole escaped path, of 81 to 400 ch
       const result = call(['findings', 'open', target]);
       const text = `${result.out}${result.err}`;
       assert.equal(result.status, status, `${kind}: ${text}`);
-      assert.ok(text.includes(fullQuote(target)), `${kind}, ${size} characters: ${text}`);
+      assert.ok(text.includes(quoted(target)), `${kind}, ${size} characters: ${text}`);
       assert.ok(!text.includes('...'), `${kind}: ${text}`);
     }
     // The file of a finding, in the line of the finding.
@@ -400,6 +403,66 @@ test('findings open: a regular file over 256 KB is read up to 256 KB', () => {
   // A file over the limit is never read whole.
   const source = fs.readFileSync(path.join(SKILLS, 'running-a-workflow', 'verbs', 'findings.cjs'), 'utf8');
   assert.ok(!/readFileSync|readFile\(/.test(source));
+});
+
+// A file name with ESC, CSI and OSC sequences, BEL, U+202E, U+2028, a tag character, a zero
+// width joiner and a line feed. Each control character prints as a space, and each refused and
+// hidden character is removed.
+const HOSTILE = 'x\u001b[31m\u001b]0;t\u0007\u202e\u2028\u{E0041}\u200dY\nz';
+const BAD = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2028\u2029\u200D\u{E0000}-\u{E007F}]/u;
+
+test('findings open: a file name with control, refused and hidden characters prints plain', () => {
+  // The path line, for a file that is missing, a folder and a path through a file.
+  const missing = path.join(tmp, `${HOSTILE}-missing.json`);
+  const absent = call(['findings', 'open', missing]);
+  assert.equal(absent.status, 0);
+  assert.equal(absent.out, `Checked nothing: "${tmp}/x [31m ]0;t Y z-missing.json" does not ` +
+    'exist, so no finding is open.\n');
+  assert.equal(absent.err, `no open findings file at "${tmp}/x [31m ]0;t Y z-missing.json"\n`);
+  const folder = path.join(tmp, `${HOSTILE}-folder`);
+  fs.mkdirSync(folder);
+  const asFolder = call(['findings', 'open', folder]);
+  assert.equal(asFolder.status, 3);
+  assert.ok(asFolder.out.includes(`  "${tmp}/x [31m ]0;t Y z-folder" is not a regular file.`),
+    asFolder.out);
+  // The fix line of a file over the limit has the base name, plain.
+  const big = path.join(tmp, `${HOSTILE}.json`);
+  fs.writeFileSync(big, JSON.stringify(many(40, () => ({ problem: 'x'.repeat(8000) }))));
+  const tooBig = call(['findings', 'open', big]);
+  assert.equal(tooBig.status, 3);
+  assert.equal(tooBig.out.split('\n')[0],
+    'Open x [31m ]0;t Y z.json with Read and fix each finding in it.');
+  // The line of a file that is no object, from the checks of the file.
+  const list = path.join(tmp, `${HOSTILE}-list.json`);
+  fs.writeFileSync(list, '[]');
+  const broken = call(['findings', 'open', list]);
+  assert.equal(broken.status, 3);
+  assert.ok(broken.out.includes('x [31m ]0;t Y z-list.json is a list, not an object.'),
+    broken.out);
+  // The file of a finding.
+  const named = put(many(1, () => ({ file: HOSTILE })));
+  const finding = call(['findings', 'open', named]);
+  assert.equal(finding.lines[0], 'Fix first: f1 (blocking, x [31m ]0;t Y z:12): Fix the point 1.');
+  for (const result of [absent, asFolder, tooBig, broken, finding]) {
+    assert.ok(!BAD.test(result.out + result.err), JSON.stringify(result.out + result.err));
+  }
+});
+
+test('readOpen: the name of the file in a fault line has no control or hidden character', () => {
+  const { readOpen } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'findings.cjs'));
+  assert.throws(() => readOpen([], HOSTILE), (error) => {
+    assert.equal(error.message.split('\n')[1], 'x [31m ]0;t Y z is a list, not an object.');
+    return true;
+  });
+});
+
+test('findings open: a path with spaces at either end shows them inside the quotes', () => {
+  const lead = path.join(tmp, ' lead', 'absent.json');
+  assert.equal(call(['findings', 'open', lead]).out,
+    `Checked nothing: "${tmp}/ lead/absent.json" does not exist, so no finding is open.\n`);
+  const trail = path.join(tmp, 'absent.json  ');
+  assert.equal(call(['findings', 'open', trail]).out,
+    `Checked nothing: "${tmp}/absent.json  " does not exist, so no finding is open.\n`);
 });
 
 test('findings open: hidden characters are removed from the printed text', () => {

@@ -2053,7 +2053,7 @@ test('a reviewer session writes no file of the artifact folder, a subagent of a 
   const points = path.join(folder, 'points.json');
   const draft = path.join(folder, 'drafts', 'reply.md');
   const run = path.join(folder, 'index.json');
-  // Without qory.review the main session writes in the artifact folder, as before.
+  // Without qory.review the main session writes in the artifact folder.
   assert.equal(guard(write(points), RUN), null);
   assert.equal(guard(write(draft), RUN), null);
   for (const target of [points, draft, run, path.join(folder, 'new.md')]) {
@@ -2072,7 +2072,7 @@ test('a reviewer session writes no file of the artifact folder, a subagent of a 
     firstLine(guard(sub(file, type), RUN), NOT);
     firstLine(guard(sub(file, type), env), NOT);
   }
-  // Another agent writes as before in a session that is no reviewer's.
+  // Another agent writes in a session that is no reviewer's.
   assert.equal(guard(sub(points, 'implementer'), RUN), null);
   assert.equal(guard(sub(points, 'reviewer-notes'), RUN), null);
 });
@@ -2129,19 +2129,20 @@ const SHELL_ALLOWED = ['cat f', 'cat -n file', 'head -5 f', 'head -n 5 f', 'tail
   'tail -n20 f', 'tail -20 f', 'ls', 'ls -la src', 'wc -l file', 'grep -n x f',
   'grep -rn "a b" src', "grep -n 'a>b' file", "grep -n 'a*' f", 'grep -n x -- file',
   'grep -e x -A 2 f', 'grep -n --include=x f', 'rg x src', 'rg -n --files-with-matches x',
-  'rg -e x -g y', 'pwd', 'sort f', 'sort -u f', 'sort -k2 -t, f', 'sort -u -k 2 f',
+  'rg -e x -g y', 'rg -l x', 'pwd', 'sort f', 'sort -u f', 'sort -k2 -t, f', 'sort -u -k 2 f',
   'cut -d, -f1 file', 'diff a b', 'diff -u a b', "find . -name '*.js' -type f",
   'find src -type f -newer a', 'find . -mtime -1 -print', 'find . -size +1 -name x -o -name y',
+  "grep -n '^foo' f", "grep -n 'a~b' f", '', '   ', ';',
   'cat a; cat b', 'cat a && cat b', 'cat a || cat b', 'cat a\ncat b', "cat 'a b'", 'cat "a b"',
   'sort f | head -n 5'];
-const SHELL_GIT_ALLOWED = ['git diff HEAD~1', 'git diff --stat', 'git diff -U3 HEAD~1',
+const SHELL_GIT_ALLOWED = ["git diff 'HEAD~1'", 'git diff --stat', "git diff -U3 'HEAD~1'",
   'git diff -U 3', 'git diff --name-only', 'git diff --cached --name-status',
-  'git diff HEAD~1 -- src/a.ts', 'git log --oneline -5', 'git log --oneline -n 5',
+  "git diff 'HEAD~1' -- src/a.ts", 'git log --oneline -5', 'git log --oneline -n 5',
   'git log -p -n 1', 'git log --stat -3', 'git log --since=2.days --author=x --oneline',
   "git log --format='%h %s'", 'git show HEAD', 'git show HEAD:path', 'git show --stat HEAD',
   'git status', 'git status -s', 'git blame -L 1,5 f', 'git blame -w f', 'git ls-files',
   'git rev-parse HEAD', 'git rev-parse --show-toplevel', 'git grep -n x',
-  'git diff HEAD~1 | head -n 50', 'git log --oneline | grep fix'];
+  "git diff 'HEAD~1' | head -n 50", "git log --format='%x25GG'", 'git log --oneline | grep fix'];
 // The commands that may write, run a program, follow a file or expand to files, in any folder.
 const SHELL_DENIED = [
   `echo x > victim`, 'echo x >f', 'tee victim', 'echo x | tee victim', 'sed -i s/a/b/ victim',
@@ -2173,6 +2174,14 @@ const SHELL_DENIED = [
   'grep --help', 'ls --help', 'cat --help', 'cat -- -x', 'cat a -- -x', 'cut --output-delimiter=x f',
   'cat -', 'git', 'git --version', 'git help',
   'cat *.log', 'sort *', 'find *', 'rg PRE *', 'cat a?', 'cat [ab]', 'cat ~/x', 'cat ~', 'cat =ls',
+  'sort ^zzz', 'cat ^zzz', 'find ^zzz', 'rg ^x', 'ls a~b', 'cat a^b', 'grep -n ^foo f',
+  'git diff HEAD~1', 'cat -- -n f', 'grep -- -x f', 'sort -- -u f', 'cat -- -',
+  'rg --pre-glob=x x', 'rg --pre-glob x x', 'rg --files=x', 'rg -L x', 'wc --files0-from f',
+  'wc --files0-from=f', 'find . -exec touch {} ;', "find . -exec touch '{}' ';'",
+  "find . -execdir touch '{}' +", 'find . -size -delete', 'find . -mtime -exec',
+  'constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', 'prototype x',
+  'diff /dev/zero a', 'diff a /dev/stdin', 'diff /dev/stdin a', 'diff /proc/self/environ a',
+  'diff -r /dev a', 'diff -r /sys a', 'diff //dev/zero a', 'diff -u -- /dev/zero a',
   'ls *.md', 'cat a*b', 'echo *', 'git commit -am x', 'git checkout -- .', 'git reset --hard'];
 // The commands that git denies in a folder with git: a subcommand that writes or an option
 // that runs a program, a pager, an editor, a help page or gpg.
@@ -2195,10 +2204,14 @@ const SHELL_GIT_DENIED = [
   'git ls-files -z', 'git grep --no-index x', 'git log --all -- -x', 'git show --stat -- --x',
   'git log *', 'git diff -- *', 'git log --pretty=format:%G', 'git status -z', 'git rev-parse --git-dir x',
   'git log --max=3', 'git log --form=%h', 'git diff --diff=A', 'git diff --sta', 'git log --one',
+  'git blame -S x f', 'git constructor', 'git toString', 'git __proto__ x',
+  "git log --format='%+GG'", "git log --format='%-GG'", "git log --format='% GG'",
+  "git log --pretty='%+G?'", "git show --format='%-GS'", "git log --format='%+G'",
+  "git log --format='%%GG'", "git log --format='%h %+GK'", 'git log --format=%+GG',
   'git worktree add x', 'git submodule update', 'git gc', 'git log -S x', 'git log -G x'];
 
 test("a reviewer session's shell, of the main session and of each agent, may only read", () => {
-  const { env, file } = reviewSetup();
+  const { env } = reviewSetup();
   const { plain, repo, tree } = shellFolders();
   const run = (command, dir, agent) => ({ ...claude('Bash', { command }, agent), cwd: dir });
   const who = [undefined, 'worker', 'code-reviewer'];
@@ -2236,29 +2249,70 @@ test("a reviewer session's shell, of the main session and of each agent, may onl
   // A folder below a folder with git has git too.
   const below = path.join(repo, 'a', 'b');
   fs.mkdirSync(below, { recursive: true });
-  assert.equal(guard(run('git diff HEAD~1', below), env), null);
+  assert.equal(guard(run('git diff --stat', below), env), null);
   // The same on Codex, where the shell tool arrives as Bash.
   firstLine(guard({ ...codex('Bash', { command: 'echo x > victim' }), cwd: repo }, env), READ_SHELL);
-  assert.equal(guard({ ...codex('Bash', { command: 'git diff HEAD~1' }), cwd: repo }, env), null);
-  assert.equal(file.length > 0, true);
-  // Outside a reviewer session a shell command is allowed as before.
+  assert.equal(guard({ ...codex('Bash', { command: 'git diff --stat' }), cwd: repo }, env), null);
+    // Outside a reviewer session a shell command is allowed.
   for (const command of ['touch f', 'echo x > victim', 'npm run build', 'uniq a b', 'cat *.log']) {
     assert.equal(guard(claude('Bash', { command }), RUN), null, command);
   }
   // A file named like an option does not change the words of the command: the glob is refused.
   const odd = next('shell-odd');
   fs.mkdirSync(odd);
-  for (const name of ['-opwn.txt', '--pre=sh', '-delete', '--output=x']) {
+  for (const name of ['-opwn.txt', '--pre=sh', '-delete', '--output=x', '-o']) {
     fs.writeFileSync(path.join(odd, name), '');
   }
-  for (const command of ['sort *', 'find *', 'rg PRE *', 'cat *', 'cat -*', 'git log *']) {
+  for (const command of ['sort *', 'find *', 'rg PRE *', 'cat *', 'cat -*', 'git log *',
+    'sort ^zzz', 'cat ^zzz', 'find ^zzz', 'rg ^x', 'ls a~b']) {
     firstLine(guard(run(command, odd), env), READ_SHELL);
   }
 });
 
+test('the deny of a reviewer shell names the word that it refused', () => {
+  const { env } = reviewSetup();
+  const { plain, repo } = shellFolders();
+  const second = (command, dir = repo) => {
+    const lines = guard({ ...claude('Bash', { command }), cwd: dir }, env).split('\n');
+    assert.ok(lines[0].startsWith('Run only read commands: cat, head'), lines[0]);
+    assert.ok(lines[0].length <= 100, lines[0]);
+    return lines[1];
+  };
+  assert.equal(second('touch f'), 'Refused: the command touch.');
+  assert.equal(second('cat -x f'), 'Refused: the option -x of cat.');
+  assert.equal(second('cat a | tail +1f f'), 'Refused: the option +1f of tail.');
+  assert.equal(second('git diff --output=x'), 'Refused: the option --output=x of git diff.');
+  assert.equal(second('git push'), 'Refused: the git subcommand push.');
+  assert.equal(second('git'), 'Refused: git with no subcommand.');
+  assert.equal(second('git -C . log'), 'Refused: the git subcommand -C.');
+  assert.equal(second('find . -delete'), 'Refused: the word -delete of find.');
+  assert.equal(second('echo $HOME'), 'Refused: the character $ outside quotes.');
+  assert.equal(second('cat ^x'), 'Refused: the character ^ outside quotes.');
+  assert.equal(second('cat a~b'), 'Refused: the character ~ outside quotes.');
+  assert.equal(second('cat =x'), 'Refused: a word that starts with = outside quotes.');
+  assert.equal(second('cat "$x"'), 'Refused: the character $ in double quotes.');
+  assert.equal(second('cat a &'), 'Refused: a background &.');
+  assert.equal(second('cat "a'), 'Refused: an open quote.');
+  assert.equal(second('cat a\u0001'), 'Refused: a control character.');
+  assert.equal(second(`cat ${'a'.repeat(20001)}`),
+    'Refused: a command of more than 20000 characters.');
+  assert.equal(second('diff /dev/zero a'), 'Refused: the file /dev/zero of diff.');
+  // A word with a control or non-ASCII character is shown with ? and at most 60 characters.
+  assert.equal(second('é f'), 'Refused: the command ?.');
+  assert.equal(second(`${'x'.repeat(100)}`), `Refused: the command ${'x'.repeat(60)}.`);
+  // In a folder with no git, git is a command that is refused, and the fixed text of the deny
+  // has no git.
+  const text = guard({ ...claude('Bash', { command: 'git diff' }), cwd: plain }, env);
+  assert.equal(text.split('\n')[1], 'Refused: the command git.');
+  assert.ok(!text.split('\n').filter((_, at) => at !== 1).join('\n').includes('git'), text);
+  // A path to a file of the working folder that resolves to a device file is refused too.
+  const up = path.relative(plain, '/dev/zero');
+  assert.equal(second(`diff ${up} a`, plain), `Refused: the file ${up} of diff.`);
+});
+
 test('a reviewer session allows only the read tools, the report write and a read shell', () => {
   const { env, file } = reviewSetup();
-  const ONLY = 'A reviewer session allows only Read, Grep, Glob, Skill, a read shell and the report Write.';
+  const ONLY = 'Use Read, Grep, Glob, a read shell or the report Write, not ';
   const refused = [
     ['mcp__fs__write_file', { path: '/x', content: 'y' }], ['mcp__github__create_issue', {}],
     ['mcp__anything', {}], ['exec_command', { cmd: 'touch f' }], ['shell', { command: ['touch', 'f'] }],
@@ -2283,7 +2337,7 @@ test('a reviewer session allows only the read tools, the report write and a read
   // A tool name of 500 characters is cut in the reason, and the first line stays short.
   const long = guard(claude(`mcp__${'x'.repeat(500)}`, {}), env);
   assert.ok(long.length < 400 && long.split('\n')[0].length <= 100, long);
-  // The write forms still go as before: the report with Write, any other file denied.
+  // The report is written with Write, and any other file is denied.
   assert.equal(guard(claude('Write', { file_path: file, content: '{}' }), env), null);
   assert.equal(typeof guard(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' }), env), 'string');
   assert.equal(typeof guard(claude('NotebookEdit', { notebook_path: file }), env), 'string');
@@ -2315,7 +2369,7 @@ test('a reviewer session allows three MCP tools of qory on Codex, by their exact
     'mcp__qory_review__', 'mcp__qory_review', 'mcp__qory_reviewer__read_file',
     'mcp__fs__read_file', 'MCP__qory_review__read_file', 'qory_review__read_file',
     'mcp__qory_review__read_file ', 'mcp__qory_review__READ_FILE', 'xmcp__qory_review__read_file'];
-  const ONLY = 'A reviewer session allows only Read, Grep, Glob, Skill, a read shell and the report Write.';
+  const ONLY = 'Use Read, Grep, Glob, a read shell or the report Write, not ';
   for (const tool of allowed) {
     for (const agent of [undefined, 'worker']) {
       assert.equal(onCodex(codex(tool, { path: 'src/a.ts' }, agent)), null, `${agent}: ${tool}`);
@@ -2337,6 +2391,54 @@ test('a reviewer session allows three MCP tools of qory on Codex, by their exact
   // The deny names the three tools on Codex only.
   assert.ok(onCodex(codex('mcp__fs__read_file', {})).includes(allowed.join(', ')));
   assert.ok(!onClaude(claude('mcp__fs__read_file', {})).includes('qory_review'));
+});
+
+test('the adapters of Codex and Claude Code allow the qory review tools on Codex only', () => {
+  const reviewHome = (withReview) => {
+    const home = harnessHome();
+    const report = path.join(next('adapter-reports'), 'report.json');
+    if (withReview) {
+      fs.writeFileSync(path.join(home, 'inputs.json'),
+        JSON.stringify({ qory: { review: { report } } }));
+    }
+    return { ...fakeQory(server()), QORY_HARNESS_HOME: home, CLAUDE_PROJECT_DIR: WORK, home };
+  };
+  const run = (runtime, input, env) => {
+    const ran = childProcess.spawnSync(process.execPath,
+      [path.join(env.home, 'hooks', `tool-guard-${runtime}.cjs`)],
+      { input: JSON.stringify(input), env, cwd: WORK, encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stderr);
+    return ran.stdout === '' ? null : JSON.parse(ran.stdout).hookSpecificOutput
+      .permissionDecisionReason;
+  };
+  const review = reviewHome(true);
+  const plain = reviewHome(false);
+  const names = ['mcp__qory_review__read_file', 'mcp__qory_review__list_directory',
+    'mcp__qory_review__search_in_files'];
+  const refused = ['mcp__fs__x', 'mcp__qory_review__write_file', 'mcp__qory_review__read_file ',
+    'mcp__qory_review__read_file2', 'mcp__qory_review__', 'mcp__qory_review',
+    'MCP__qory_review__read_file', 'mcp__QORY_REVIEW__read_file', 'mcp__qory_reviewer__read_file',
+    'mcp__qory_review__read_fi1e', 'mcp__qory_review__read\u0430file', 'qory_review__read_file'];
+  for (const name of names) {
+    for (const agent of [undefined, 'worker']) {
+      assert.equal(run('codex', codex(name, { path: 'a.ts' }, agent), review), null,
+        `codex ${agent}: ${name}`);
+      firstLine(run('claude', claude(name, { path: 'a.ts' }, agent), review),
+        'Use Read, Grep, Glob, a read shell or the report Write, not ');
+    }
+    // Without qory.review in inputs.json the session is no reviewer's, and nothing changes.
+    assert.equal(run('codex', codex(name, {}), plain), null);
+    assert.equal(run('claude', claude(name, {}), plain), null);
+  }
+  for (const name of refused) {
+    for (const agent of [undefined, 'worker']) {
+      firstLine(run('codex', codex(name, {}, agent), review),
+        'Use Read, Grep, Glob, a read shell or the report Write, not ');
+      firstLine(run('claude', claude(name, {}, agent), review),
+        'Use Read, Grep, Glob, a read shell or the report Write, not ');
+    }
+    assert.equal(run('codex', codex(name, {}), plain), null);
+  }
 });
 
 test('a link, a folder or a bad path at qory.review.report allows no write', () => {
@@ -2508,13 +2610,13 @@ test('a reviewer writes its report with apply_patch only as a patch that adds ex
   for (const type of ['code-reviewer', 'spec-reviewer']) {
     assert.equal(typeof guard(codex('apply_patch', { command: add(file) }, type), env), 'string', type);
   }
-  // An agent of another type patches as before in a session that is no reviewer's, and not in a
+  // An agent of another type patches in a session that is no reviewer's, and not in a
   // reviewer's.
   assert.equal(guard(codex('apply_patch', { command: add(file) }, 'implementer'), RUN), null);
   assert.equal(typeof guard(codex('apply_patch', { command: add(file) }, 'implementer'), env),
     'string');
   firstLine(guard(patchOf(add(file)), RUN), 'Start an agent to change');
-  // A Write of the same path is allowed as before.
+  // A Write of the same path is allowed.
   assert.equal(guard(write(file), env), null);
 });
 

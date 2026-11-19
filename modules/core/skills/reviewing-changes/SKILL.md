@@ -19,8 +19,19 @@ ${qory:skills/simple-communication} before you write a finding.
   Write or, on Codex, with `apply_patch` that adds that one file. A write to any other path
   is denied.
 - If your session has a shell, run only commands that read: `cat`, `head`, `tail`, `ls`,
-  `wc`, `grep`, `rg`, `find` (no `-exec` or `-delete`), and the commands of the version
-  control tool that show a change and its history, with no redirect, `$( )` or backtick.
+  `wc`, `grep`, `rg`, `find`, `pwd`, `sort`, `cut`, the tool that compares two files, and
+  the version control tool in a folder under version control. Each command takes only the
+  options that the guard lists for it. The second line of a deny is `Refused:` and the
+  word that the guard refused. Chain commands with `|`, `&&` or `;`. The guard denies:
+  - a redirect (`>`, `<`), `$`, a backtick, parentheses and braces;
+  - a `*`, `?`, `[`, `^` or `~` outside quotes, because the shell expands it to file
+    names, among them names that start with `-`. Quote the pattern: `find . -name '*.js'`,
+    `grep -n '^start' file`;
+  - `uniq`, `sed`, `awk`, `echo` and `cd`, and the options `-C` and `--no-pager` of the
+    version control tool. Use `sort -u` for the unique lines of a file;
+  - a version control command in a folder with no version control. To see a change between
+    two revisions, write them with two dots between them, as in `A..B`, and quote a revision
+    that has a `~` or `^`.
   The guard denies each other command and each tool but Read, Grep, Glob, Skill and the
   report write.
 - Start no agent and use no network. Your report is the only output of your review.
