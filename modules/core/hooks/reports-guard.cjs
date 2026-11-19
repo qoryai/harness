@@ -9,7 +9,8 @@
 //   .json, or whose name has .json.lock: the locks of checks.cjs findings, starts and report
 //   and their .break files; in any argument of the tool except the text that it writes.
 //   decide also reads an argument as one path that the disk resolves from cwd, with each `..`
-//   and each link: `.reports/a b/../end.json` is denied, with or without the folder a b;
+//   and each link, and the path of each header line of a patch in it: `.reports/a b/../end.json`
+//   is denied, with or without the folder a b;
 // - a shell command that reaches .reports, unless it runs the harness's checks.cjs and
 //   nothing else: the first word, after node, is a path to checks.cjs, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
@@ -116,16 +117,15 @@ function onDisk(file, start, budget) {
 }
 
 // reportsOnDisk returns the deny for a text whose path the disk resolves to a file .reports/*.json,
-// as one with a space before a `..` or one through a link, or null. A text is one path, or the
-// header lines of a patch; state has the budget of the call and the resolved folder cwd.
+// as one with a space before a `..` or one through a link, or null. It reads the whole text as one
+// path, and also the path of each header line of a patch in it; a line break in a path is part
+// of a part's name. state has the budget of the call and the resolved folder cwd.
 function reportsOnDisk(text, cwd, state) {
-  const paths = [];
+  const paths = [text];
   for (const line of text.split('\n')) {
     const header = PATCH_LINE.exec(line);
     if (header !== null) paths.push(line.slice(header[0].length).trim());
   }
-  // A text with no patch header line is one path, and a line break in it is part of a part's name.
-  if (paths.length === 0) paths.push(text);
   try {
     for (let one of paths) {
       if (one === '' || one.includes('\0')) continue;

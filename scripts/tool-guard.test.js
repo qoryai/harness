@@ -2662,3 +2662,66 @@ test('a brace or a deep wildcard in one word is counted before fs.globSync runs,
   assert.match(shell('ls .rep*/end.json f{1..4096}.txt'),
     /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
 });
+
+// adapter starts the real adapter of runtime (gemini, cursor or copilot) from harness home on a
+// write or shell call that runs in cwd, and kills it after limit ms. It returns whether the
+// call is denied, how many ms the adapter took, and whether it was killed.
+function adapter(home, runtime, kind, args, cwd, limit = 5000) {
+  const shell = kind === 'shell';
+  const input = {
+    gemini: { tool_name: shell ? 'run_shell_command' : 'write_file', tool_input: shell
+      ? { command: args } : args, cwd },
+    cursor: shell ? { hook_event_name: 'beforeShellExecution', command: args, cwd }
+      : { hook_event_name: 'preToolUse', tool_name: 'Write', tool_input: args, cwd },
+    copilot: { toolName: shell ? 'bash' : 'edit', cwd, toolArgs: typeof args === 'string' && !shell
+      ? args : JSON.stringify(shell ? { command: args } : args) },
+  }[runtime];
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  const begun = process.hrtime.bigint();
+  const ran = childProcess.spawnSync(process.execPath,
+    [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { input: JSON.stringify(input),
+      env, cwd: WORK, encoding: 'utf8', timeout: limit, killSignal: 'SIGKILL',
+      maxBuffer: 1 << 24 });
+  const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+  if (ran.error !== undefined) return { denied: false, ms, killed: true, reason: '' };
+  const out = ran.stdout === '' ? {} : JSON.parse(ran.stdout);
+  const reason = out.reason || out.agent_message || out.permissionDecisionReason || '';
+  return { denied: runtime === 'cursor' ? ran.status === 2 : reason !== '', ms, killed: false,
+    reason };
+}
+
+test('the whole text is read as one path, also when a line of it is a patch header', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('whole');
+  fs.mkdirSync(path.join(work, '*** Add File: ok\n'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'art', '.reports', 'a b'), { recursive: true });
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  // The folder `*** Add File: ok\n` is in work, and the text goes up from it.
+  const inWork = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  for (const file of ['*** Add File: ok\n/../art/.reports/a b/../x.json',
+    '*** Add File: ok\n/../l1/x.json', '*** Update File: ok\n/../l1/x.json.lock']) {
+    assert.equal(inWork({ file_path: file }), reports.WRITE_REASON, JSON.stringify(file));
+    assert.equal(inWork(file), reports.WRITE_REASON, JSON.stringify(file));
+    assert.equal(guard({ ...claude('Write', { file_path: file, content: '{}' }, 'implementer'),
+      cwd: work }), reports.WRITE_REASON, JSON.stringify(file));
+  }
+  // The header lines of a patch still count, and a patch that reaches no report file passes.
+  assert.equal(inWork('*** Add File: l1/x.json\n+{}\n'), reports.WRITE_REASON);
+  assert.equal(inWork('*** Add File: ok\n/../art/notes.md'), null);
+  assert.equal(inWork({ file_path: '*** Add File: ok\n/../l1/notes.md' }), null);
+  // The adapters of the three runtimes deny the same calls.
+  const home = harnessHome();
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    for (const file of ['*** Add File: ok\n/../art/.reports/a b/../x.json',
+      '*** Add File: ok\n/../l1/x.json']) {
+      const hit = adapter(home, runtime, 'write', { file_path: file }, work);
+      assert.equal(hit.denied, true, `${runtime}: ${JSON.stringify(file)}`);
+      firstLine(hit.reason || reports.WRITE_REASON, 'Write no file under .reports/');
+    }
+    assert.equal(adapter(home, runtime, 'write', { file_path: 'art/notes.md' }, work).denied,
+      false, runtime);
+  }
+  // Copilot CLI passes a raw patch text as toolArgs.
+  assert.equal(adapter(home, 'copilot', 'write', '*** Add File: ok\n/../l1/x.json', work).denied,
+    true);
+});
