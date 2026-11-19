@@ -303,18 +303,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   cluster and as the value of an option, and a `diff` operand that is `/`, a path under
   `/dev`, `/proc` or `/sys` (in any case, also through a link), or a file that is neither a
   regular file nor a folder, also the file of that name inside a folder operand. It denies
-  `uniq`; use `sort -u`. It denies a `*`, `?`, `[` or `^` outside quotes, which zsh expands
-  to file names that can start with `-`, a `~` that starts a word or follows `=` or `:`,
-  which the shell expands to a home path, and a word that starts with `=` or has an empty
-  quote before the `=`. `git` is allowed only when the working folder or a folder above it
-  has a `.git` folder or file; otherwise the fixed text of the deny does not contain `git`.
-  A deny of a shell command has the fix on the first line and `Refused: <word>` on the
-  second.
+  `uniq`; use `sort -u`. It denies a `*`, `?`, `[` or `^` outside quotes (the shell expands
+  `*`, `?` and `[` to file names that can start with `-`, and zsh expands `^` when its
+  option `extendedglob` is set), a `~` that starts a word or follows `=` or `:`, which the
+  shell expands to a home path, and a word that starts with `=` or has an empty quote before
+  the `=`. `git` is allowed only when the working folder or a folder above it has a `.git`
+  folder or file; otherwise the fixed text of the deny does not contain `git`. A deny of a
+  shell command has the fix on the first line and `Refused: <word>` on the second.
 - `docs/modules.md` lists the limits of the guard in a reviewer session: programs that the
   git configuration of the reviewed folder starts, an unreadable `inputs.json` (the guard
   then treats the session as an ordinary session), the `Skill` tool, the MCP tool names
   (from the source of Codex rust-v0.169.0, not run against it), hook trust, and commands
-  that run for a long time or block on a named pipe.
+  that run for a long time, and commands that read a named pipe, which waits for a writer.
+- Each line that `checks.cjs`, `findings open`, `fixes.cjs` and the skill registry print
+  from a skill folder name, its owner or a verdict no longer carries default-ignorable or
+  format characters, such as U+180F, U+200D or a tag character.
 - `findings open` prints each path whole, without the 80-character cut, and removes control,
   refused and hidden characters from the path, the file name and the `file` of a finding.
 - Rule 11 of `scripts/check.sh` lets the one file `modules/core/hooks/tool-guard.cjs`

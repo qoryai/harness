@@ -44,22 +44,24 @@ ${qory:skills/simple-communication} before you write a finding.
     subcommand. These are the options of each subcommand. The one that compares revisions,
     which has the name of the tool that compares two files: `-w -b -p`, `-U <number>`,
     `--stat --name-only --name-status --shortstat --numstat --no-color --cached --staged
-    --exit-code --quiet`, and a filter by kind of change, `--`, the name of that tool and
-    `-filter=<value>`. `show`: `-w -s -p`, `-U <number>`, `--stat --name-only --name-status
-    --shortstat --numstat --no-color --oneline --no-patch`, `--format=<value>`,
-    `--pretty=<value>`. `log`: `-p`, `-<number>`, `-n <number>`, `-U <number>`, `--stat
-    --name-only --name-status --shortstat --numstat --no-color --oneline --graph --all
-    --no-merges --merges --follow --patch --reverse`, `--max-count= --since= --until=
-    --author= --grep= --format= --pretty= --skip=`, and the same filter by kind of change.
-    `status`: `-s -b --short --porcelain`. `blame`: `-w -e`, `-L <range>`. `ls-files`:
-    `-c -m -o -d --cached --others --modified --deleted --exclude-standard`. `rev-parse`:
-    `--show-toplevel --abbrev-ref --is-inside-work-tree`. `grep`:
-    `-n -i -v -w -F -E -c -l -L -o -H -h -q -I`, `-e -A -B -C <value>`. A `--format` or
-    `--pretty` value with `%G`, `%+G`, `%-G` or `% G` is denied.
+    --exit-code --quiet`, and the filter by kind of change: two hyphens, the name of that
+    tool, a hyphen and `filter=<value>`. `show`: `-w -s -p`, `-U <number>`, `--stat
+    --name-only --name-status --shortstat --numstat --no-color --oneline --no-patch`,
+    `--format=<value>`, `--pretty=<value>`. `log`: `-p`, `-<number>`, `-n <number>`,
+    `-U <number>`, `--stat --name-only --name-status --shortstat --numstat --no-color
+    --oneline --graph --all --no-merges --merges --follow --patch --reverse`,
+    `--max-count= --since= --until= --author= --grep= --format= --pretty= --skip=`, and the
+    same filter by kind of change. `status`: `-s -b --short --porcelain`. `blame`: `-w
+    -e`, `-L <range>`. `ls-files`: `-c -m -o -d --cached --others --modified --deleted
+    --exclude-standard`. `rev-parse`: `--show-toplevel --abbrev-ref --is-inside-work-tree`.
+    `grep`: `-n -i -v -w -F -E -c -l -L -o -H -h -q -I`, `-e -A -B -C <value>`. A `--format`
+    or `--pretty` value with `%G`, `%+G`, `%-G` or `% G` is denied. Each command also takes
+    `--`, which ends the options.
   Chain commands with `|`, `&&` or `;`. The guard denies:
   - a redirect (`>`, `<`), `$`, a backtick, parentheses and braces;
-  - a `*`, `?`, `[` or `^` outside quotes, because the shell expands it to file names,
-    among them names that start with `-`. Quote the pattern: `find . -name '*.js'`,
+  - a `*`, `?`, `[` or `^` outside quotes: the shell expands `*`, `?` and `[` to file names,
+    among them names that start with `-`, and zsh expands `^` when its option `extendedglob`
+    is set. Quote the pattern: `find . -name '*.js'`,
     `grep -n '^start' file`, a revision as in `'HEAD^'`. A `~` that starts a word or
     follows `=` or `:` is denied too; `HEAD~1` is allowed;
   - `uniq`, `sed`, `awk`, `echo` and `cd`, and the options `-C` and `--no-pager` of the

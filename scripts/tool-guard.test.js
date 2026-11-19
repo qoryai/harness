@@ -2493,6 +2493,11 @@ test('a reviewer shell refuses a diff operand that is no regular file or folder'
   fs.writeFileSync(path.join(dir, 'okd', 'name'), 'hi');
   fs.symlinkSync('/dev/zero', path.join(dir, 'trees', 'dirA', 'z'));
   fs.writeFileSync(path.join(dir, 'trees', 'dirB', 'z'), 'z');
+  // Two folders: diff reads no file of that name inside one of them, so a link to /dev/zero
+  // under the name of the other folder is no refusal.
+  fs.mkdirSync(path.join(dir, 'ta'));
+  fs.mkdirSync(path.join(dir, 'tb'));
+  fs.symlinkSync('/dev/zero', path.join(dir, 'ta', 'tb'));
   const pipeIn = childProcess.spawnSync('mkfifo', [path.join(dir, 'pd', 'n')]);
   fs.writeFileSync(path.join(dir, 'n'), 't');
   // l/.. is sub, because the system applies .. to the real path of l, which is sub/y.
@@ -2519,13 +2524,22 @@ test('a reviewer shell refuses a diff operand that is no regular file or folder'
   }
   const volumes = '/Volumes/Macintosh HD/dev/zero';
   if (fs.existsSync(volumes)) refused.push(`diff a "${volumes}"`);
-  for (const command of refused) firstLine(run(command), READ_SHELL);
+  for (const command of refused) {
+    const reason = run(command);
+    assert.equal(typeof reason, 'string', command);
+    firstLine(reason, READ_SHELL);
+  }
   for (const command of ['diff a b', 'diff -u a b', 'diff -r d d', 'diff a nofile', "diff a ''",
     'diff -q a b | head -n 1', 'diff a sub/../b', 'diff a l/../fine', 'diff -r sub sub/y/..', 'diff okd name',
-    'diff name okd', 'diff -r trees/dirA trees/dirB', 'diff -u okd name', 'diff d name']) {
+    'diff name okd', 'diff -r trees/dirA trees/dirB', 'diff -u okd name', 'diff d name',
+    'diff -r ta tb', 'diff -r tb ta',
+    // diff fails on three operands, so the guard reads only each one.
+    'diff zd name a']) {
     assert.equal(run(command), null, command);
   }
   // An empty operand is the working folder, which is refused when it is /dev.
+  // The refused file of a folder that ends in a slash is shown with one slash.
+  assert.ok(run('diff zd/ name').includes('Refused: the file zd/name'), run('diff zd/ name'));
   firstLine(run("diff a ''", '/dev'), READ_SHELL);
   firstLine(run("diff -r '' ''", '/dev'), READ_SHELL);
   // A path under /dev, /proc or /sys is refused by its text in any case, also when it is absent.

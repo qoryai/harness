@@ -2573,10 +2573,9 @@ const FIND_NUMBER = new Set(['size', 'mtime', 'mmin']);
 // file to a temporary file without a limit. The compare ignores case, as macOS reads a path.
 const REVIEW_DEVICES = /^\/(?:dev|proc|sys)(?:\/|$)/i;
 
-// reviewDiffPath reports whether diff may not read the path that text and joinedPath give, as
-// text and for walkPath: / itself, a path under /dev, /proc or /sys, in the text or through
-// links, or a file that is neither a regular file nor a folder. A .. part applies to the real
-// path of the folder before it, as walkPath reads it.
+// reviewDiffPath returns true when diff would open a device, a pipe, / or a path under
+// /dev, /proc or /sys. text is the operand as typed; joinedPath is the operand for walkPath,
+// which applies a .. part to the real path of the folder before it.
 function reviewDiffPath(text, joinedPath) {
   const target = real(joinedPath);
   const bad = (full) => REVIEW_DEVICES.test(full) || full === path.parse(full).root;
@@ -2600,7 +2599,8 @@ function reviewDiffRefused(folder, operands) {
   for (let at = 0; at < 2; at += 1) {
     const [inside, other] = [stats[at], stats[1 - at]];
     if (!inside || !inside.isDirectory() || !other || other.isDirectory()) continue;
-    const within = `${operands[at]}${path.sep}${path.basename(operands[1 - at])}`;
+    const sep = operands[at].endsWith(path.sep) ? '' : path.sep;
+    const within = `${operands[at]}${sep}${path.basename(operands[1 - at])}`;
     if (reviewDiffPath(path.resolve(folder, within), joined(folder, within))) return within;
   }
   return undefined;
@@ -2610,9 +2610,10 @@ function reviewDiffRefused(folder, operands) {
 // a command of plain words. Commands are separated by |, ||, &&, ; and line feeds. It returns
 // the reason, as text, for a command with anything else: a control character, an open quote,
 // more than 20000 characters, a background &, a |&, or outside single quotes a $, a backtick or
-// a backslash. Outside quotes it also refuses < > ( ) { } ! #, the characters * ? [ ^ that
-// the shell expands to file names (also to names that start with -), a word that starts with
-// =, and a ~ at the start of a word or after = or :, which the shell expands to a home path.
+// a backslash. Outside quotes it also refuses < > ( ) { } ! #, the characters * ? [ that the
+// shell expands to file names (also to names that start with -), a ^ that zsh expands when
+// its option extendedglob is set, a word that starts with =, and a ~ at the start of a word
+// or after = or :, which the shell expands to a home path.
 // For the = and ~ rules, word is the text of the word so far, which an empty quote leaves
 // empty.
 function reviewWords(command) {

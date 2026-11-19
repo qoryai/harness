@@ -847,8 +847,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   (<severity>[, <file>[:<line>]]): <point>` for each finding, the `blocking` ones first and
   then in the order of the file, with the point cut at 500 characters and without control,
   refused or hidden characters (the Unicode classes Default_Ignorable_Code_Point and Cf,
-  which hold the tag characters, the joiners, the variation selectors, the Hangul fillers,
-  the soft hyphen and the format characters of several scripts, and also the object
+  which include the tag characters, the joiners, the variation selectors, the Hangul
+  fillers, the soft hyphen and the format characters of several scripts, and also the object
   replacement character and a lone surrogate), then one line on what it checked, and exits
   with 1 while it prints a finding. With more than 200 findings it prints 200 and the line
   `Fix first: <n> more findings in <file>`. It exits with 0 when the file has no finding,
@@ -1321,57 +1321,58 @@ tool's error. The first line of each reason starts with what to do. The guard de
   `#`, a backslash, a background `&`, a `*`, `?`, `[` or `^` outside quotes (the shell
   expands `*`, `?` and `[` to file names, also to names that start with `-`; zsh expands `^`
   when its option `extendedglob` is set, so with a file named `-o`, `sort ^zzz` runs `sort
-  -o`, and the guard denies `^` in every case; a quoted one, as in `grep -n '^foo' f`, is
-  allowed), a `~` outside quotes at the start of a word or after `=` or `:`, which the shell
-  expands to a home path (a `~` inside a word, as in `HEAD~1`, stays text and is allowed), a
-  word that starts with `=` outside quotes or after an empty quote, a variable setting
-  before the command, a path in the command name, a control character, an open quote or more
-  than 20000 characters, and each other command, such as `cp`, `sed -i`, `python3 -c`, `node
-  -e`, `xargs`, `env`, `sh -c` and `eval`. Each option list in this bullet is a constant in
-  `tool-guard.cjs`: `REVIEW_OPTIONS`, `REVIEW_GIT` and the `FIND_*` sets. Limits of the
-  guard: it runs only on Claude Code and on Codex. On Cursor, Copilot CLI and Gemini CLI
-  only the `reports-guard` hooks exist, so the rule on the report path does not run there,
-  and a reviewer agent on those runtimes is not confined by it. The rules of a reviewer
-  session apply only when the runtime runs the core hooks and sets `QORY_RUN_ID` and
-  `QORY_HARNESS_HOME` in the session. (1) The git configuration of the reviewed folder can
-  start a program for a git command that is allowed: `core.fsmonitor` runs on `git status`,
-  `git diff`, `git blame`, `git ls-files` and `git grep`; `diff.<driver>.textconv`,
-  `diff.<driver>.command` and `diff.external` run for `git diff`, `git log -p`, `git show`
-  and `git blame`; a hook such as `post-index-change` runs on `git status`; `core.pager`
-  runs for `git log` when the output is a terminal. A nested `.git` at a path that the index
-  lists as a submodule can run `core.fsmonitor` from the configuration of the submodule for
-  `git status` and `git diff`. A partial clone fetches missing objects over the network.
-  `git status` writes the index file. The guard does not read the git configuration. A
-  reviewer session whose working folder is a copy with an empty git configuration and no
-  attributes file does not have these limits. (2) When `inputs.json` cannot be read (it is
-  missing, unreadable, over 1 MB, a link or not valid JSON, `qory.review` is null, a list, a
-  string or `true`, or `QORY_HARNESS_HOME` is unset or relative), the guard treats the
-  session as an ordinary session, and the rules of a reviewer session do not apply. A
-  `qory.review` of `{}` or with a bad `report` is a reviewer session that writes no file. A
-  runtime that removes the shell and network tools of a reviewer from the start does not
-  depend on the file: the guard is the second layer, and it cannot add a tool that the
-  runtime does not provide. (3) The `Skill` tool is allowed, and the guard does not read the
-  front matter of a skill, such as allowed tools and hooks, or a command that a skill file
-  contains and the session runs. The skills of this harness have none. (4) Two servers whose
-  ids give the same namespace after the replacement of characters rename the tools of both,
-  and the guard then denies them. In a run with a wall, the hooks file is mounted read-only
-  as `/etc/codex/hooks.json`, a managed source that Codex registers without trust. In a run
-  without a wall, the trusted hash of the hooks file is written.
-  `--dangerously-bypass-hook-trust` is refused. Whether MCP calls made through the code mode
-  of Codex reach the `PreToolUse` hook is not checked. (5) The guard sets no run-time limit
-  on an allowed command. A very large number as an option value hangs BSD `cut` with `-b`,
-  `-c` or `-f`, and BSD `grep` with `-B` or `-C`, until the tool timeout (`cut -b
-  99999999999`); a pattern of `grep -E`, `find -regex` or `rg` can take unbounded time; a
-  command that reads an endless file, such as `cat /dev/zero`, runs until the tool times
-  out; `git diff` with a path outside the work tree compares files as `diff` does, and a
-  named pipe among the paths blocks it (`git diff ../x/ff a.txt`); a recursive search of BSD
-  `grep -r` or `-R` blocks on a named pipe in the tree; and `sort` may write temporary files
-  under the system temporary folder for large input, which the guard allows. (6) The report
-  schema limits `file` of a finding to 500 characters, and `findings open` prints the `file`
-  of a finding whole, without a cut. The glob rule covers a word that the shell expands, not
-  a pattern that a command expands itself: `grep -e` and `find -name` take a pattern, so a
-  quoted `*` stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard
-  denies both.
+  -o`, and the guard denies an unquoted `^` in every shell; a quoted one, as in `grep -n
+  '^foo' f`, is allowed), a `~` outside quotes at the start of a word or after `=` or `:`,
+  which the shell expands to a home path (a `~` inside a word, as in `HEAD~1`, stays text
+  and is allowed), a word that starts with `=` outside quotes or after an empty quote, a
+  variable setting before the command, a path in the command name, a control character, an
+  open quote or more than 20000 characters, and each other command, such as `cp`, `sed -i`,
+  `python3 -c`, `node -e`, `xargs`, `env`, `sh -c` and `eval`. Each option list in this
+  bullet is a constant in `tool-guard.cjs`: `REVIEW_OPTIONS`, `REVIEW_GIT` and the `FIND_*`
+  sets. Limits of the guard: it runs only on Claude Code and on Codex. On Cursor, Copilot
+  CLI and Gemini CLI only the `reports-guard` hooks exist, so the rule on the report path
+  does not run there, and a reviewer agent on those runtimes is not confined by it. The
+  rules of a reviewer session apply only when the runtime runs the core hooks and sets
+  `QORY_RUN_ID` and `QORY_HARNESS_HOME` in the session. (1) The git configuration of the
+  reviewed folder can start a program for a git command that is allowed: `core.fsmonitor`
+  runs on `git status`, `git diff`, `git blame`, `git ls-files` and `git grep`;
+  `diff.<driver>.textconv`, `diff.<driver>.command` and `diff.external` run for `git diff`,
+  `git log -p`, `git show` and `git blame`; a hook such as `post-index-change` runs on `git
+  status`; `core.pager` runs for `git log` when the output is a terminal. A nested `.git` at
+  a path that the index lists as a submodule can run `core.fsmonitor` from the configuration
+  of the submodule for `git status` and `git diff`. A partial clone fetches missing objects
+  over the network. `git status` writes the index file. The guard does not read the git
+  configuration. A reviewer session whose working folder is a copy with an empty git
+  configuration and no attributes file does not have these limits. (2) When `inputs.json`
+  cannot be read (it is missing, unreadable, over 1 MB, a link or not valid JSON,
+  `qory.review` is null, a list, a string or `true`, or `QORY_HARNESS_HOME` is unset or
+  relative), the guard treats the session as an ordinary session, and the rules of a
+  reviewer session do not apply. A `qory.review` of `{}` or with a bad `report` is a
+  reviewer session that writes no file. A runtime that removes the shell and network tools
+  of a reviewer from the start does not depend on the file: the guard is the second layer,
+  and it cannot add a tool that the runtime does not provide. (3) The `Skill` tool is
+  allowed, and the guard does not read the front matter of a skill, such as allowed tools
+  and hooks, or a command that a skill file contains and the session runs. The skills of
+  this harness have none. (4) Two servers whose ids give the same namespace after the
+  replacement of characters rename the tools of both, and the guard then denies them. In a
+  run with a wall, the hooks file is mounted read-only as `/etc/codex/hooks.json`, a managed
+  source that Codex registers without trust. In a run without a wall, the trusted hash of
+  the hooks file is written. `--dangerously-bypass-hook-trust` is refused. Whether MCP calls
+  made through the code mode of Codex reach the `PreToolUse` hook is not checked. (5) The
+  guard sets no run-time limit on an allowed command. A very large number as an option value
+  hangs BSD `cut` with `-b`, `-c` or `-f`, and BSD `grep` with `-B` or `-C`, until the tool
+  timeout (`cut -b 99999999999`); a pattern of `grep -E`, `find -regex` or `rg` can take
+  unbounded time; a command that reads an endless file, such as `cat /dev/zero`, runs until
+  the tool times out; a command that reads a named pipe, by its name or inside a folder that
+  it searches, waits until a writer opens the pipe (`cat pipe`, `git diff ../x/ff a.txt`,
+  which compares files as `diff` does when a path is outside the work tree, and a recursive
+  search of BSD `grep -r` or `-R`); and `sort` may write temporary files under the system
+  temporary folder for large input, which the guard allows. (6) The report schema limits
+  `file` of a finding to 500 characters, and `findings open` prints the `file` of a finding
+  whole, without a cut. The glob rule covers a word that the shell expands, not a pattern
+  that a command expands itself: `grep -e` and `find -name` take a pattern, so a quoted `*`
+  stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard denies
+  both.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
