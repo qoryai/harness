@@ -19,7 +19,7 @@ heading, no table of results.
 ## The limits
 
 - The title is one line of at most 256 characters, with no tab and no control character.
-- The description, from `## Problem` to the end, has at most 16384 characters.
+- The description, from `## Problem` to the end, has at most 20000 characters.
 - No secret, key or token in either. Write where it is.
 
 ## The sources
@@ -27,7 +27,8 @@ heading, no table of results.
 State a fact only when one of these records shows it:
 
 - `build-plan.md`: `## Summary`, and the Change and Files cells of `## Deliverables`.
-- `.reports/build-ledger.json` of the artifact folder: which deliverable rows are `done`.
+- `.reports/build-ledger.json` of the artifact folder: which deliverable rows are `done`,
+  and the `Left out:` list in the `report` of each row.
 - The records of the checks under `.reports/runs/` of the artifact folder: which checks
   ran.
 
@@ -45,8 +46,10 @@ the filtered rows". Use the words of `## Summary` of the build plan.
 - `## Tests`: the checks that the records show ran, by name or command, and the files of
   the checks that the plan lists. Write no result: the build report has the results.
 - `## Disclosed`: what the reader needs to know before they merge, as a list:
-  - what the change left out: each item under a `## Left out` heading in a record of the
-    run, and each planned change that has no `done` row;
+  - what the change left out: each item in the `report` of a row of
+    `.reports/build-ledger.json`, and each planned change that has no `done` row. In a
+    `report`, the line `Left out:` starts a list of lines `- <item>: <risk>`, which ends at
+    the first line that is not such an item. `Left out: none` is an empty list;
   - each known limit that a record states;
   - what did not run: each command of `## Commands` of the build plan that the records of
     the checks lack, and each check that a record shows as not run.

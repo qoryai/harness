@@ -17,6 +17,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `report-build` other than 0 ends it not ready.
   `acceptance-reviewer` also reads `.qory/handoff/submission.json` in the copy of the
   change.
+- The verb `checks.cjs report-build [--inputs <path>]` in `software-factory`. It writes
+  `build-report.md` in the artifact folder, with the tables of the standard track rendered
+  from the build ledger and the records of the checks, and writes the hand-off file at the
+  value of `QORY_SUBMISSION_HANDOFF`. When `.reports/submission.md` breaks a rule, it
+  exits with 1 and writes no file. `checks.cjs check build-report` in a session renders
+  the tables again and compares each section with the file byte for byte. With
+  `--inputs`, it also compares Summary, Review rounds and Counts, which need the rounds
+  that sit beside `inputs.json`. The session `review-changes` runs both at the end, then
+  pushes `build-report` before the verdict.
+- `process.yaml` of `software-factory` has `submit: {type: submission, send:
+  end_of_run}`.
+- The type `build-report` names its two forms by track: the standard track and the fast
+  track. Before, they were the full path and a short session. Both forms end with a
+  section `## Left out`, and a `build-report.md` without it fails `check build-report`.
+  In the standard track, the section lists each item of the lines `Left out:` in the
+  `report` of a row of the build ledger, as `- <row id>: <item>: <risk>`, or `none`.
+- The type `submission` has the values and bounds of qory and of the change feed:
+  - `base` with `commit`, and `branch` and `commit_url` when known;
+  - `commits[]`, at most 100, each with `commit` and a `step` of 1 to 128 characters;
+  - `draft` is optional, and `draft.state` is `draft`, `open`, `closed` or `merged`;
+  - the `none` reasons `program-failed` with `exit` 0, 1 or 2, `program-timeout`, and
+    `login-needed` with `exit` 3;
+  - a title of 1 to 256 characters that has no control character, such as a tab or a
+    newline, and no invisible character, and that is not only spaces, as the change feed
+    requires. Before, the title only had no newline, so a title with a tab now fails;
+  - a description of at most 20000 characters with no `<!-- qory:start -->` or
+    `<!-- qory:end -->` marker line.
 - The `review-changes` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-review-changes`, `checking-code`, `checking-tests`
   and `checking-acceptance`, and the agents `code-reviewer`, `test-reviewer` and

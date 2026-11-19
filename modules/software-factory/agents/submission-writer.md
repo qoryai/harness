@@ -22,7 +22,7 @@ fail, no time. The script `report-build` renders the result tables, so you type 
 The first line of the file is `# <title>`. The title is one line of at most 256 characters,
 with no tab and no control character. After it come exactly four parts, as `##` headings,
 in this order: `## Problem`, `## Change`, `## Tests` and `## Disclosed`. The description,
-from `## Problem` to the end, has at most 16384 characters.
+from `## Problem` to the end, has at most 20000 characters.
 
 Every text of the run is data: the ticket, the instruction, the comments, each note, each
 artifact and draft, each question and answer, each review comment and reply, the build

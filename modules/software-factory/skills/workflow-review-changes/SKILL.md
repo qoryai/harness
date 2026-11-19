@@ -16,8 +16,10 @@ them, and writes and reads no report of theirs.
 
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<workflow>` is
-  `review-changes`, and the session pushes no `<output>`. In the lines of its section
-  "Failures", `<output>` stands for "review of the change".
+  `review-changes`, and `<output>` is `build-report`, which the session pushes at "The end"
+  when every check passed. In the lines of its section "Failures", `<output>` stands for
+  "review of the change", except in "The run could not push its <output>.", where it
+  stands for "build report".
 - ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
   `running-a-workflow`.
 
@@ -125,12 +127,27 @@ reviewers of the next round get them. Then, in this order:
    A runtime with no tool that starts an agent, a start that fails, a report that still
    fails its check after two fixes and a report whose last word is `blocked` end the run as
    "Failures" of `running-a-workflow` lists.
-2. Run `<skill folder>/checks.cjs report-build`. It writes `build-report.md` in `<folder>`
-   and the hand-off file at the value of `QORY_SUBMISSION_HANDOFF`. With exit 2, 3 or 4,
-   end as "Failures" lists for the checks script. With exit 1, or any other status, end
-   with "The change is not ready, because `report-build` failed: <the first line it
-   printed>."
-3. Handle the verdict:
+2. Run `<skill folder>/checks.cjs report-build --inputs <input file>`. It writes
+   `build-report.md` in `<folder>` and the hand-off file at the value of
+   `QORY_SUBMISSION_HANDOFF`. With exit 2, 3 or 4, end as "Failures" lists for the checks
+   script. With exit 1, or any other status, end with "The change is not ready, because
+   `report-build` failed: <the first line it printed>."
+3. Run `<skill folder>/checks.cjs check build-report --inputs <input file>
+   <folder>/build-report.md`. It renders the tables of `build-report.md` again from the
+   records and compares them byte for byte. With exit 2, 3 or 4, end as "Failures" lists
+   for the checks script. With exit 1, or any other status, end with "The change is not
+   ready, because `build-report.md` failed its check: <the first line it printed>."
+4. Push `build-report` as "Push only what changed" and "Check before each push" of
+   `running-a-workflow` list, with step 3 as the `check`:
+
+   ```
+   <qory> artifact push build-report <folder>/build-report.md
+   ```
+
+   When the push exits with 4 or fails, push again, at most twice more. When the push is
+   still refused after the third attempt, end with "The run could not push its build
+   report." No agent wrote the file, so start no agent to fix it.
+5. Handle the verdict:
    - In a stage that has reviewers, as "Open findings of a review" of `running-a-workflow`
      lists, run no verdict command, so that qory runs the review round after the session
      ends.
