@@ -1663,10 +1663,10 @@ test('the first line of each deny has at most 100 characters and says what to do
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const texts = { ...guardModule.REASONS, WRITE_REASON: reports.WRITE_REASON,
     SHELL_REASON: reports.SHELL_REASON, HIDDEN_REASON: reports.HIDDEN_REASON,
-    PATH_REASON: reports.PATH_REASON, LOOP_REASON: reports.LOOP_REASON,
+    PATH_REASON: reports.PATH_REASON, LOOP_REASON: reports.LOOP_REASON, FAILED_REASON: reports.FAILED_REASON,
     SPECIAL_REASON: reports.SPECIAL_REASON,
     STEPS: steps.REASON, UNWRITABLE: steps.UNWRITABLE };
-  assert.ok(Object.keys(texts).length >= 22, Object.keys(texts).join(' '));
+  assert.ok(Object.keys(texts).length >= 23, Object.keys(texts).join(' '));
   for (const [name, text] of Object.entries(texts)) {
     const [first, ...rest] = text.split('\n');
     assert.ok(first.length <= 100, `${name}: ${first.length} characters: ${first}`);
@@ -2276,7 +2276,7 @@ test('a disk that ignores case reads U+017F as s and U+212A as k: the guard does
   }
 });
 
-test('a call nested 3,000 levels deep is read by each adapter of reports-guard, and a throw denies', () => {
+test('a call nested 3,000 levels deep is decided like any other call, and denied when it hides a .reports JSON path, on each of the three adapters; a throw of decide blocks the call', () => {
   const home = harnessHome();
   const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
   // run starts the real adapter as a process, and kills it after 5 s.
@@ -2322,7 +2322,7 @@ test('a call nested 3,000 levels deep is read by each adapter of reports-guard, 
     const thrown = run(runtime, inputs[runtime]);
     assert.ok(thrown.out && denied(runtime, thrown.out), runtime);
     const reason = thrown.out.reason || thrown.out.agent_message || thrown.out.permissionDecisionReason;
-    firstLine(reason, 'Make the call smaller or simpler, and send it again.');
+    firstLine(reason, 'The guard failed on this call and blocks it: send a smaller call.');
     assert.match(reason, /\nThe guard of \.reports\/ stopped on this call: Error: boom$/, runtime);
     assert.equal(thrown.status, runtime === 'cursor' ? 2 : 0, runtime);
   }
@@ -2357,7 +2357,7 @@ test('a command with many globs is decided in under 1 second, and one over the l
   for (const count of [257, 62500]) {
     const reason = firstLine(shell(different(count)), 'Leave .reports/ to checks.cjs, and name');
     assert.equal(reason.split('\n')[1],
-      'The globs of the command pass what the guard expands: more than 256 different globs.');
+      'The command has more than 256 different globs, and the guard expands at most 256.');
   }
   // A glob that matches under .reports is found past equal words before it.
   fs.mkdirSync(path.join(work, '.reports'));
@@ -2370,13 +2370,13 @@ test('a command with many globs is decided in under 1 second, and one over the l
   try {
     fs.globSync = () => Array.from({ length: 60000 }, (_, at) => `f${at}`);
     assert.equal(shell('ls a* b*').split('\n')[1],
-      'The globs of the command pass what the guard expands: more than 100,000 matching paths.');
+      'The globs of the command match more than 100,000 paths, and the guard reads at most 100,000.');
     assert.equal(shell('ls a*'), null);
     let clock = 0;
     Date.now = () => (clock += 400);
     fs.globSync = () => [];
     assert.equal(shell('ls a* b* c*').split('\n')[1],
-      'The globs of the command pass what the guard expands: more than 600 ms.');
+      'The globs of the command take more than 600 ms, and the guard waits at most 600 ms.');
   } finally {
     fs.globSync = globSync;
     Date.now = now;
@@ -2427,7 +2427,7 @@ test('the first word of a command is read only as a file of the size of checks.c
         assert.ok(out.reason.split('\n')[1].includes(shortWord(word)), command);
       }
     }
-    // A file, a folder and a path that is not there are decided as before: they pass.
+    // A file, a folder and a path that is not there pass.
     for (const word of [process.execPath, dir, path.join(dir, 'missing'), '/dev/null/x']) {
       assert.deepEqual(hook(`${word} x`), {}, word);
     }
@@ -2552,7 +2552,7 @@ test('each part of a path costs a step, also `.` and an empty part, and a call o
   assert.equal(timed({ paths: Array(10).fill(dots) }), reports.PATH_REASON);
 });
 
-test('the working folder is read once per call, and a link loop is denied with its own text', () => {
+test('the working folder is read once per call, and a link loop is denied with LOOP_REASON', () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const base = next('loops');
   const deep = path.join(base, ...Array(108).fill('d'));
@@ -2563,7 +2563,7 @@ test('the working folder is read once per call, and a link loop is denied with i
     assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
     return reason;
   };
-  // The folder has 108 parts. 400 relative paths of 1 part pass: each costs its own part, and
+  // The folder has 108 parts. 400 relative paths of 1 part pass: each costs one part, and
   // the folder costs its parts once. Read for each path they would need 43,000 steps.
   const names = Array.from({ length: 400 }, (_, at) => `f${at}.md`);
   assert.equal(timed({ paths: names }), null);
@@ -2600,7 +2600,7 @@ test('a shared folder part of globs is expanded once for all the words that have
   const shell = (command) => reports.decide({ kind: 'shell', args: { command }, env: RUN,
     cwd: work });
   // 200 words a*/f<n> need 201 different expansions, as the folder part `a*` is shared, and
-  // the limit is 256. Each expanded for its own word, they need 400.
+  // the limit is 256. Expanded separately for each word, they need 400.
   const words = Array.from({ length: 200 }, (_, at) => `a*/f${at}`).join(' ');
   assert.equal(shell(`ls ${words}`), null);
 });
@@ -2631,15 +2631,15 @@ test('a brace or a deep wildcard in one word is counted before fs.globSync runs,
   };
   const over = (reason, fragment) => {
     firstLine(reason, 'Leave .reports/ to checks.cjs, and name other files with no');
-    assert.ok(reason.split('\n')[1].includes(fragment), reason);
+    assert.equal(reason.split('\n')[1].endsWith(fragment), true, reason);
   };
-  const braces = 'patterns from braces';
+  const braces = 'The braces in the command make more than 4,096 patterns, and the guard expands at most 4,096.';
   for (const [command, fragment] of [['ls f{1..100000}.txt', braces],
     ['ls {1..9}{1..9}{1..9}{1..9}{1..9}', braces], [`ls ${'{a,b}'.repeat(16)}*`, braces],
     ['ls f{1..4097}.txt', braces], ['ls f{1..17}*', braces],
     ['ls f{1..3000}.txt g{1..3000}.txt', braces], ['ls {a..z}{a..z}{a..z}{a..z}{a..z}', braces],
-    ['ls */*/*/*/*/*/*', 'parts with a glob character'],
-    ['ls {a,b}/*/*/*/*/*/*', 'parts with a glob character']]) {
+    ['ls */*/*/*/*/*/*', 'has more than 5 parts with a glob character, and the guard expands at most 5.'],
+    ['ls {a,b}/*/*/*/*/*/*', 'has more than 5 parts with a glob character, and the guard expands at most 5.']]) {
     for (const runtime of ['gemini', 'copilot']) over(hook(runtime, command), fragment);
   }
   // The call of the report: the words after a stall are never reached.

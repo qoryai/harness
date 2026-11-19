@@ -1155,9 +1155,9 @@ that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 2
 older Node, the guard denies each word with a glob. Equal globs share one expansion. The
 guard denies a command whose globs need more than 256 different `fs.globSync` calls, match
 more than 100,000 paths in all, or take more than 600 ms in all, because a hook that
-outlasts its timeout lets the call run on Cursor and Copilot CLI. Before the limits, 62,500
-words of `***` took 70 s one expansion at a time. The second line of that deny is "The globs
-of the command pass what the guard expands: " and the limit that the command passed.
+outlasts its timeout lets the call run on Cursor and Copilot CLI. At commit 5c25e957, 62,500
+words of `***` took 70 s, one expansion at a time. The second line of the deny names the limit,
+as "The command has more than 256 different globs, and the guard expands at most 256."
 
 The guard counts the patterns that the braces of a glob make before it calls `fs.globSync`,
 which cannot be stopped: `{a,b}` is 2, `{1..N}` is N, and nested or adjacent braces multiply.

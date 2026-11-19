@@ -15,10 +15,9 @@
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
 //   end. decide reads that file only if it has the size of checks.cjs, and denies a first
 //   word that is a device, a pipe or a socket. A command reaches .reports when its text
-//   contains .reports; when one of its words,
-//   as the shell reads it, contains .reports; when a word with an unquoted * ? [ or {, or a
-//   folder part of that word, matches a path under .reports, as fs.globSync expands it from
-//   the working folder of the command; or when the command has $, a backtick or eval and
+//   contains .reports; when one of its words, as the shell reads it, contains .reports; when
+//   a word with an unquoted * ? [ or {, or a folder part of that word, matches a path under
+//   .reports, as fs.globSync expands it from the working folder of the command; or when the command has $, a backtick or eval and
 //   also a .r with no letter, digit or _ before it. The shell's reading removes quotes and
 //   backslashes, drops each backslash with the line break after it, decodes $'...', and
 //   reads a ~ at the start of a word as HOME, ~+ as the working folder and ~- as OLDPWD. A
@@ -63,9 +62,8 @@ function pathJson(full) {
 }
 
 // reportsJson reports whether text has a path under a folder .reports that ends in .json, or
-// whose name has .json.lock, alone or inside a patch. It returns false for a value that is no
-// string. It reads each word once: the regular expression that it replaced took time in the
-// square of a text of repeated `.reports/`.
+// whose name has .json.lock, alone or inside a patch. It reads each word once, and returns
+// false for a value that is no string.
 function reportsJson(text) {
   if (typeof text !== 'string') return false;
   for (const [word] of text.matchAll(WORD)) {
@@ -78,8 +76,7 @@ function reportsJson(text) {
 // at most this many links in one path.
 const PATH_MAX = 4096;
 const MAX_LINKS = 40;
-// The most parts, `.` and empty ones too, that onDisk takes from all the paths of one call: 16,384
-// parts of 8 paths of 2,000 names took 0.32 s at load average 44 on macOS.
+// The most parts, `.` and empty ones too, that onDisk takes from all the paths of one call.
 const MAX_STEPS = 16384;
 // A line of a patch that adds, changes, deletes or moves to a file, up to its path.
 const PATCH_LINE = /^\s*\*\*\* (?:Add File|Update File|Delete File|Move to): ?/;
@@ -118,10 +115,9 @@ function onDisk(file, start, budget) {
   return real;
 }
 
-// reportsOnDisk returns the reason to deny a write of text, which reading the words misses, or
-// null: a path that is a file .reports/*.json once the disk resolves it from the folder cwd, as
-// one with a space before a `..` or one through a link. A text is one path, or the header lines
-// of a patch. state has the budget of the call, and cwd as the disk resolves it.
+// reportsOnDisk returns the deny for a text whose path the disk resolves to a file .reports/*.json,
+// as one with a space before a `..` or one through a link, or null. A text is one path, or the
+// header lines of a patch; state has the budget of the call and the resolved folder cwd.
 function reportsOnDisk(text, cwd, state) {
   const paths = [];
   for (const line of text.split('\n')) {
@@ -235,9 +231,8 @@ function checksWord(command, env) {
 }
 
 // sameFile reports whether the file real has the bytes of the file checks. It reads real only
-// when it is a regular file of the size of checks, and then at most that size and one byte
-// more: a device such as /dev/zero has no end, a FIFO blocks the read, and a big file takes
-// time and memory.
+// if it is a regular file of the size of checks, and then at most one byte more than that:
+// /dev/zero has no end, and a FIFO blocks the read.
 function sameFile(real, checks) {
   const want = fs.statSync(checks);
   const have = fs.statSync(real);
@@ -270,7 +265,7 @@ function runsChecks(command, env, script) {
 }
 
 // notProgram returns the second line of a deny when the first word of command is a path to a
-// device, a pipe or a socket, or null. A file, a folder and a path that is not there give null.
+// device, a pipe or a socket. For a file, a folder and a path that is not there, it returns null.
 function notProgram(command, env) {
   const first = checksWord(command, env);
   if (first === null) return null;
@@ -381,12 +376,9 @@ function words(command) {
   return out;
 }
 
-// The most fs.globSync calls, paths that they match, milliseconds that they take, and units of
-// brace expansion, for one command. Equal patterns share one call. A pattern with braces counts
-// as one unit for each pattern that it expands to, 256 for each with a wildcard in it: one call
-// cannot be stopped, and `f{1..100}*` in a folder of 50,000 files took 3.5 s. A pattern has at
-// most MAX_GLOB_DEPTH parts with a glob character. The limits keep a command under the timeout
-// of the hook, which lets the call run on Cursor and Copilot CLI; see the commit for timings.
+// The limits of one command: fs.globSync calls, matched paths, milliseconds, units of brace
+// expansion (1 for each pattern, 256 for each with a wildcard), and parts of a glob with a
+// glob character. One call cannot be stopped, so the limits hold before it.
 const MAX_GLOB_CALLS = 256;
 const MAX_GLOB_MATCHES = 100000;
 const MAX_GLOB_MS = 600;
@@ -411,8 +403,7 @@ function rangeCount(text) {
 
 // braces returns how many patterns pattern makes by brace expansion, without making them: the
 // sum of the alternatives of each {a,b}, the size of each range {1..9}, and the product of
-// the braces side by side or inside one another. It reads each character once, and clamps the
-// count at 1e12.
+// braces side by side or inside one another, clamped at 1e12. It reads each character once.
 function braces(pattern) {
   const stack = [];
   let count = 1;
@@ -452,7 +443,8 @@ function braces(pattern) {
 function globbed(pattern, cwd, budget) {
   const parts = pattern.replace(/\*{2,}/g, '*').split('/');
   if (parts.filter((one) => GLOB.test(one)).length > MAX_GLOB_DEPTH) {
-    throw new Over(`more than ${MAX_GLOB_DEPTH} parts with a glob character in one glob`);
+    throw new Over(`A glob of the command has more than ${MAX_GLOB_DEPTH} parts with a glob character, ` +
+      `and the guard expands at most ${MAX_GLOB_DEPTH}.`);
   }
   const out = [];
   for (let n = parts.length; n >= 1; n -= 1) {
@@ -460,19 +452,28 @@ function globbed(pattern, cwd, budget) {
     if (!GLOB.test(part)) continue;
     let found = budget.seen.get(part);
     if (found === undefined) {
-      if (budget.calls >= MAX_GLOB_CALLS) throw new Over(`more than ${MAX_GLOB_CALLS} different globs`);
-      if (Date.now() - budget.start > MAX_GLOB_MS) throw new Over(`more than ${MAX_GLOB_MS} ms`);
+      if (budget.calls >= MAX_GLOB_CALLS) {
+        throw new Over(`The command has more than ${MAX_GLOB_CALLS} different globs, and the guard ` +
+          `expands at most ${MAX_GLOB_CALLS}.`);
+      }
+      if (Date.now() - budget.start > MAX_GLOB_MS) {
+        throw new Over(`The globs of the command take more than ${MAX_GLOB_MS} ms, and the guard ` +
+          `waits at most ${MAX_GLOB_MS} ms.`);
+      }
       budget.calls += 1;
       const made = braces(part);
       if (made > 1) budget.units += made * (/[*?[]/.test(part) ? WILDCARD_UNITS : 1);
       if (budget.units > MAX_GLOB_UNITS) {
-        throw new Over(`more than ${MAX_GLOB_UNITS.toLocaleString('en-US')} patterns from braces`);
+        throw new Over(`The braces in the command make more than ${MAX_GLOB_UNITS.toLocaleString('en-US')} ` +
+          `patterns, and the guard expands at most ${MAX_GLOB_UNITS.toLocaleString('en-US')}.`);
       }
       found = fs.globSync(part, { cwd });
       budget.seen.set(part, found);
       budget.matches += found.length;
       if (budget.matches > MAX_GLOB_MATCHES) {
-        throw new Over(`more than ${MAX_GLOB_MATCHES.toLocaleString('en-US')} matching paths`);
+        throw new Over(`The globs of the command match more than ` +
+          `${MAX_GLOB_MATCHES.toLocaleString('en-US')} paths, and the guard reads at most ` +
+          `${MAX_GLOB_MATCHES.toLocaleString('en-US')}.`);
       }
     }
     out.push(...found);
@@ -513,7 +514,7 @@ function hidden(command, cwd, env, globs) {
       matches = globbed(value, cwd, budget);
     } catch (error) {
       if (error instanceof Over) {
-        return `The globs of the command pass what the guard expands: ${error.message}.`;
+        return error.message;
       }
       return `fs.globSync could not expand the glob ${short(raw)}: ${error.message}.`;
     }
@@ -565,11 +566,11 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
 }
 
 // The deny of a call that made decide throw. The second line has the error.
-const FAILED_REASON = 'Make the call smaller or simpler, and send it again.\n';
+const FAILED_REASON = 'The guard failed on this call and blocks it: send a smaller call.\n';
 
 // safeDecide returns what decide returns for call, or, when decide throws in a run, a deny with
-// FAILED_REASON and the error: the adapters of Cursor and Copilot CLI let a call run when a hook
-// exits with an error, so a call that the guard cannot read is denied.
+// FAILED_REASON and the error. The adapters call it, so that a call that the guard cannot read
+// is blocked.
 function safeDecide(call) {
   try {
     return decide(call);
