@@ -27,7 +27,9 @@ that the run no longer has what came before it.
 Before a spec exists, judge by the ticket and the proposal, and after that by the newest
 spec and acceptance criteria. A workflow runs when a word concerns its output, and also:
 
-- `write-specs`: when no spec exists, or when "A stop in the log" routes a stop to it.
+- `write-specs`: when no spec exists, when a person's word asks for a screen that the newest
+  spec does not list as `Mockup screen:` (rule 4 of "Which workflow a person's word
+  concerns"), or when "A stop in the log" routes a stop to it.
 - `write-technical-decisions`: when the work leaves open a choice of how to build that the
   newest record does not decide, or a criterion on a decision's "Rests on:" line changed.
 - `make-mockups`: when the work changes a screen that the newest mockup lacks, or a
@@ -37,7 +39,9 @@ spec and acceptance criteria. A workflow runs when a word concerns its output, a
   criterion in a `Shows:` line or its check changed.
 
 The reason for a workflow that does not run names the missing case. A word on one output
-reruns only what depends on that output.
+reruns only what depends on that output. A word that asks for a screen that the newest spec
+does not list as `Mockup screen:` depends on the spec too: it reruns `write-specs`, then
+`make-mockups`.
 
 ## Which workflow a person's word concerns
 
@@ -55,11 +59,18 @@ A word counts when it is an open review comment, or when none of these settled i
    `{"run": N}`, can concern every output of the stage: when it names one output, route it
    to the workflow of that output, and otherwise to each workflow whose output it fits. An
    output comment only on a type that no workflow of this run writes, such as `proposal`,
-   stays open and concerns no workflow.
+   stays open and concerns no workflow. Rule 4 adds `write-specs` to a comment that asks
+   for a screen, also when the comment names only the mockup.
 2. Map a note and each line that starts with "Fix first:" by its words. A note with an
    `artifact_version_id` also concerns the type of that `id` in `index.json`.
 3. An answer or a changed decision concerns each output that its question is about.
-4. List each type that a word concerns, with a fact that quotes the word. When the words
+4. A word that asks for a screen, such as "draw a mockup of the export screen", needs the
+   spec to change when the newest spec does not list that screen as
+   `Mockup screen: <screen id>`, because `designer` draws only the screens that the spec
+   lists. List `write-specs`, then `make-mockups`, each with a fact that quotes the word.
+   `checking-shape` routes a word that needs the spec to change the same way. When the
+   newest spec lists the screen and the newest mockup lacks it, list `make-mockups` alone.
+5. List each type that a word concerns, with a fact that quotes the word. When the words
    stay unclear, list `write-specs`.
 
 ## What changed
@@ -77,10 +88,14 @@ A small workflow's stop reaches you as its line. These are normal ends and no st
 spec states no screen change, so the run pushed no mockup.", "No acceptance criterion is
 shown in a demo, so the run pushed no demo scenarios.", and an output with no new version
 because no file changed. A later follow of the stopped workflow settles the stop, and a
-later push by a workflow that a route lists settles that part. Route only these:
+later push by a workflow that a route lists settles that part. The line about no mockup is
+a stop when a person's word asks for a screen that the newest spec does not list as
+`Mockup screen:`: the spec needs a change, and the first item below routes it. Route only
+these:
 
-- The spec needs a change, and a person's word asks for it: list `write-specs`, with a fact
-  that quotes that word, then the stopped workflow.
+- The spec needs a change, and a person's word asks for it, such as a screen that the newest
+  spec does not list as `Mockup screen:`: list `write-specs`, with a fact that quotes that
+  word, then the stopped workflow.
 - The run needs a `<type>`: list the workflow that writes it, then the stopped workflow.
 
 Write any other stop, and a stop with no person's word behind it, after "Stop:", and list no
