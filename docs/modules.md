@@ -2282,8 +2282,8 @@ letter or a digit. It does not read Markdown, so `![...](u)` in a comment hides 
   `actor` count the words after `as`.
 - A `style`, `classDef`, `class`, `linkStyle` or `cssClass` line, and a `:::name` class
   shorthand on a node, are syntax: they hold node ids, class names and CSS properties. In
-  a class diagram, `class` counts its label. A `click` line counts its quoted tooltip, which
-  shows as text, and the target and the call are syntax.
+  a class diagram, `class` counts its label. `source()` strips each `click` line, as Qory
+  Apiary does, so Qory Apiary draws no tooltip and a `click` line counts no word.
 - Between a line of at most 3 words that ends with `{` and a line `}`, in a class or an
   entity diagram, each line counts: a member or an attribute.
 - A node id alone on a line of a flowchart, a graph or a state diagram is syntax.

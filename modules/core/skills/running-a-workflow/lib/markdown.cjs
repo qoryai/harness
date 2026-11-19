@@ -404,29 +404,51 @@ function brackets(text) {
 }
 
 const LABEL = /\[((?:[^[\]\\]|\\.)*)\]/y;
-const DESTINATION = /\(\s*(?:<([^<>\n]*)>|([^\s)]*))/y;
+// The destination of an inline image: "(", a destination in <> or of at most 2048 characters
+// with no space, an optional title, and ")". Each white space is at most one line break, never a
+// blank line, and each part has a bound, so that a long line of "![a](" takes linear time.
+const SPACE = '[ \\t]*(?:\\n[ \\t]*)?';
+const DESTINATION = new RegExp(
+  `\\(${SPACE}(?:<([^<>\\n]{0,2048})>|([^\\s<)][^\\s)]{0,2047})?)` +
+    `(?:\\s${SPACE}(?:"[^"]{0,1024}"|'[^']{0,1024}'|\\([^()]{0,1024}\\)))?${SPACE}\\)`,
+  'y',
+);
 // A label of a link reference has at most 999 characters (CommonMark).
 const LABEL_LIMIT = 999;
 
 // imageAddresses returns the address of each image of text, in any form, with a text that has
 // no code: an HTML <img>, an inline image ![alt](address) whose alt text or destination may run
-// over two lines or have the destination in <>, and a reference image, ![alt][label], ![alt][]
-// and ![alt], whose label has a definition in defined (its address is the definition's).
-// A reference whose label has no definition is no image. Each pass reads a character once, so
-// that a long line of "![" takes linear time: the label is read only when it can match.
+// over two lines, never over a blank line, or have the destination in <>, and a reference
+// image, ![alt][label], ![alt][] and ![alt], whose label has a definition in defined (its address
+// is the definition's). An inline image with no ")" and a reference whose label has no
+// definition are no image. Each part has a bound, so that a long line of "![" takes linear time.
 function imageAddresses(text, defined) {
   const found = [];
-  found.push(...Array.from(text.matchAll(/<img(?=[\s/>]|$)/gi), () => '<img>'));
+  for (const _tag of text.matchAll(/<img(?=[\s/>]|$)/gi)) found.push('<img>');
   const pairs = brackets(text);
+  const blanks = Array.from(text.matchAll(/(?=\n[ \t]*\n)/g), (blank) => blank.index);
+  // blank reports whether text from index from to index to has a blank line.
+  const blank = (from, to) => {
+    let low = 0;
+    let high = blanks.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (blanks[middle] < from) low = middle + 1;
+      else high = middle;
+    }
+    return low < blanks.length && blanks[low] < to;
+  };
   for (let start = text.indexOf('!['); start !== -1; start = text.indexOf('![', start + 2)) {
     const end = pairs.has(start + 1) ? pairs.get(start + 1) : -1;
-    if (end === -1) continue;
+    if (end === -1 || blank(start + 2, end)) continue;
     const next = text[end + 1];
     if (next === '(') {
       DESTINATION.lastIndex = end + 1;
       const destination = DESTINATION.exec(text);
-      found.push(destination[1] === undefined ? destination[2] : destination[1]);
-      continue;
+      if (destination) {
+        found.push(destination[1] !== undefined ? destination[1] : destination[2] || '');
+        continue;
+      }
     }
     let key = '';
     if (next === '[') {

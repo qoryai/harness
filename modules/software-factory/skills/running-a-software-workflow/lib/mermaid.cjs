@@ -63,10 +63,9 @@ function source(text) {
   ).join('\n');
 }
 
-// size returns the length that Mermaid compares with maxTextSize, of the text of a code block
-// (which ends with a line feed): without its %% comment lines (not %%{), the blank lines before
-// each of them, and the white space at its start. One pass; a pattern with "^\\s*" is quadratic
-// on blank lines.
+// size returns the length that Mermaid compares with maxTextSize: the text with a line feed at
+// its end, without its %% comment lines (not %%{), the blank lines before each, and the white
+// space at its start. One pass: a pattern with "^\\s*" is quadratic on blank lines.
 function size(text) {
   const kept = [];
   let blank = [];
@@ -76,11 +75,12 @@ function size(text) {
     } else if (/^\s*$/.test(line)) {
       blank.push(line);
     } else {
-      kept.push(...blank, line);
+      for (const empty of blank) kept.push(empty);
+      kept.push(line);
       blank = [];
     }
   }
-  return `${[...kept, ...blank].join('\n')}\n`.trimStart().length;
+  return `${kept.concat(blank).join('\n')}\n`.trimStart().length;
 }
 
 // directive reports whether text has a line with a directive (%%{), as Qory Apiary reads it.
@@ -152,7 +152,18 @@ function loads(text) {
   const read = unescaped(text).toLowerCase();
   if (CSS_ADDRESSES.some((css) => written.includes(css) || read.includes(css))) return true;
   if (dataBlocks(text).some((block) => /\bimg\b/i.test(block) || block.includes('\\'))) return true;
-  return /(^|;)\s*(properties|details)(\s|$)/im.test(text);
+  return propertiesLine(text);
+}
+
+// propertiesLine reports what /(^|;)\s*(properties|details)(\s|$)/im reports (mermaid.js:295), in
+// one pass: that pattern takes quadratic time on a long run of blank lines.
+function propertiesLine(text) {
+  for (const found of text.matchAll(/(?:properties|details)(?=\s|$)/gi)) {
+    let at = found.index;
+    while (at > 0 && !/[;\n\r\u2028\u2029]/.test(text[at - 1]) && /\s/.test(text[at - 1])) at--;
+    if (at === 0 || /[;\n\r\u2028\u2029]/.test(text[at - 1])) return true;
+  }
+  return false;
 }
 
 // The statements of a flowchart that add no link. A node may be called direction, so only
@@ -198,11 +209,26 @@ function readable(text) {
   let rest = text.split('\n').filter((line) => !line.trim().startsWith('%%')).join('\n')
     .replace(/^(\s*)(?:flowchart|graph)(?:[ \t]+(?:TB|TD|BT|RL|LR))?(?=[\s;]|$)/, '$1')
     .replace(/"[^"]*"/g, '""').replace(/\|[^|\n]*\|/g, '');
-  for (let before = ''; before !== rest;) {
-    before = rest;
-    rest = rest.replace(/\[[^[\]]*\]|\([^()]*\)|\{[^{}]*\}/g, '');
+  return withoutBrackets(rest).replace(/[ \t]+/g, ' ');
+}
+
+// withoutBrackets removes each [...], (...) and {...} group, the innermost first, in one pass.
+// A closer that does not match the opener before it stays in the text, so that the result has
+// at least the text of a removal that ignores the order of the kinds.
+function withoutBrackets(text) {
+  const closer = { '[': ']', '(': ')', '{': '}' };
+  const out = [];
+  const open = [];
+  for (const char of text) {
+    if (closer[char]) {
+      open.push({ char, at: out.length });
+    } else if (open.length > 0 && closer[open[open.length - 1].char] === char) {
+      out.length = open.pop().at;
+      continue;
+    }
+    out.push(char);
   }
-  return rest.replace(/[ \t]+/g, ' ');
+  return out.join('');
 }
 
 // edges returns at least the edges that Mermaid adds, never fewer: each link token adds one edge

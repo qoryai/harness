@@ -1475,6 +1475,21 @@ test('decision record: an inline image is found with its alt text, its address o
   passes(push(fixture(why('[a](https://example.com/x) ')), 'decision-record'));
 });
 
+test('decision record: text that only looks like an inline image is no image', () => {
+  const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
+  const image = /^Remove the image /;
+  // No ")" to close it, a space in the address, or a blank line in the alt text or before the address.
+  for (const text of ['Use ![a](x without a close', '![a](x y)', '![a\n\nb](x)', '![a](\n\nx)']) {
+    const result = push(fixture(why(`${text} `)), 'decision-record');
+    assert.ok(!result.findings.some((line) => image.test(line)), `${JSON.stringify(text)}: ${result.out}`);
+  }
+  // A line break in the alt text or before the address, and an address in <> with a space, are images.
+  for (const text of ['![a\nb](x)', '![a](<x y>)', '![a](\nx)', '![a [b] c](x)', '![a \\] c](x)']) {
+    const result = push(fixture(why(`${text} `)), 'decision-record');
+    assert.ok(result.findings.some((line) => image.test(line)), `${JSON.stringify(text)}: ${result.out}`);
+  }
+});
+
 test('decision record: a reference image is found with brackets in its alt text and in any definition', () => {
   const image = /^Remove the image "https:\/\/example\.com\/flow\.svg" from decision-record\.md\./;
   const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
@@ -1674,8 +1689,21 @@ test('decision record: a time limit for text that made a pattern slow', () => {
   timed('blank lines', drawn(`flowchart LR\n${'\n'.repeat(19000)}  A --> B`));
   timed('blank lines with a comment', drawn(`flowchart LR\n${' \n'.repeat(9000)}%% a\n  A --> B`));
   timed('nested brackets', drawn(`flowchart LR\n  A${'['.repeat(9000)}${']'.repeat(9000)} --> B`));
+  timed('nested brackets of 2 kinds', drawn(`flowchart LR\n  A${'[('.repeat(9500)}${')]'.repeat(9500)} --> B`));
+  timed('blank lines in a sequence diagram', drawn(`sequenceDiagram\n${'\n'.repeat(150000)}  A->>B: x`));
+  timed('blank lines before a properties line', drawn(`sequenceDiagram\n${' \n'.repeat(75000)}properties A`));
   timed('nested image starts', ['decision-record.md', '- Why: ', `- Why: ${'![x'.repeat(30000)}${']'.repeat(30000)} `]);
+  timed('image destinations that do not close', ['decision-record.md', '- Why: ', `- Why: ${'![a]('.repeat(15000)} `]);
   timed('image starts with a long alt', ['decision-record.md', '- Why: ', `- Why: ${'![a b '.repeat(20000)} `]);
+});
+
+test('decision record: the checks of a diagram take linear time on nested brackets', () => {
+  const mermaid = require(MERMAID);
+  const started = Date.now();
+  assert.equal(mermaid.edges(`flowchart LR\n  A${'[('.repeat(100000)}${')]'.repeat(100000)} --> B`), 1);
+  assert.equal(mermaid.edges(`flowchart LR\n  A${'['.repeat(200000)}${']'.repeat(200000)} --> B`), 1);
+  assert.equal(mermaid.loads(`sequenceDiagram\n${'\n'.repeat(200000)}properties A`), true);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
 });
 
 test('decision record: a class diagram of 40 members adds no word to a record of 450 words', () => {

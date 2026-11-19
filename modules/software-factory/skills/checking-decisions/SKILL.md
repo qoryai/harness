@@ -72,11 +72,11 @@ Load ${qory:skills/visuals} when the record has a diagram.
 ## Check list
 
 When you review, the run gives you the lines of its checks script under "Checks:", as
-`reviewing-drafts` lists. In `decision-record.md`, the script checks the one section `##
-Decisions`, the line "The spec leaves no technical choice open." or at least one decision,
-the heading of each decision, each id once, the items of each decision in order, the form of
-a removed or open decision, and the limit of 450 words, which counts the text of each
-diagram after its first 150 words: each word that is no node id, link token, keyword or
+`reviewing-drafts` lists. In `decision-record.md`, the script checks the one section
+`## Decisions`, the line "The spec leaves no technical choice open." or at least one
+decision, the heading of each decision, each id once, the items of each decision in order,
+the form of a removed or open decision, and the limit of 450 words, which counts the text of
+each diagram after its first 150 words: each word that is no node id, link token, keyword or
 shape bracket. It checks each Mermaid block: that it is closed, that it is the last text of
 its decision, after a blank line, that its fence is lower case `mermaid` at the start of the
 line with no other word, that its first word is a type that Qory Apiary draws, that it has

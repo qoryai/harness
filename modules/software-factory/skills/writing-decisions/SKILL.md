@@ -131,8 +131,9 @@ which count the text of a diagram after its first 150 words.
   characters: the text of a code block ends with a line feed, and Mermaid leaves out its
   `%%` comment lines, the blank lines before them and the white space at the start. Keep a
   flowchart to 200 edges: a link between two `&` groups adds one edge for each pair of
-  nodes. Write no `url(`, `image-set(` or `@import`, no node with `img`, no `properties` or
-  `details` line, and no `%%{` line, which Qory Apiary strips before it draws.
+  nodes. Write no `url(`, `image-set(` or `@import`, no node with `img`, and no `properties`
+  or `details` line.
+- Write no `%%{` line. Qory Apiary strips it before it draws, so the check refuses it.
 - Qory Apiary shows a block of another type, with one of those syntaxes, or over 200 edges
   as text, under a line that says why it failed. It shows a block over 20,000 characters as
   the size-error diagram of Mermaid, with its source in `<details>`. The check refuses each
