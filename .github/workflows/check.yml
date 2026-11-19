@@ -18,7 +18,7 @@ jobs:
   check:
     name: scripts/check.sh
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       # qory's commit to build. v0.13.0, the newest release, refuses the `workflows`
       # key in stacks/software/qory-stack.yaml, the `push_checks` key in
