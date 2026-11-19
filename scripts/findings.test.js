@@ -36,8 +36,10 @@ const PIN = /^\s*QORY_CONTRACTS_COMMIT: (\w+)$/m.exec(fs.readFileSync(
 const SCHEMA_PATH = 'contracts/harness/v1/review-report.schema.json';
 const SCHEMA_FILE = path.join(process.env.QORY_SOURCE || '', SCHEMA_PATH);
 if (!process.env.QORY_SOURCE || !fs.existsSync(SCHEMA_FILE)) {
-  throw new Error(`Check out qory at ${PIN} and set QORY_SOURCE to its folder. The tests ` +
-    `read ${SCHEMA_PATH} from it, and QORY_SOURCE is ${process.env.QORY_SOURCE || 'not set'}.`);
+  throw new Error(`Set QORY_SOURCE to a folder with qory's contracts at ${PIN}.\n` +
+    `Run: git -C <qory checkout> archive ${PIN} contracts | tar -x -C <dir>\n` +
+    `The tests read ${SCHEMA_PATH} from QORY_SOURCE, which is ` +
+    `${process.env.QORY_SOURCE || 'not set'}.`);
 }
 const loaded = {
   file: SCHEMA_FILE,

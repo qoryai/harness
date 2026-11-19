@@ -59,8 +59,16 @@ jobs:
 
       - name: Fetch qory's contracts
         run: |
-          dir=$(go mod download -json "github.com/qoryai/qory@$QORY_CONTRACTS_COMMIT" |
-            node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).Dir')
+          go mod download -json "github.com/qoryai/qory@$QORY_CONTRACTS_COMMIT" \
+            > "$RUNNER_TEMP/qory-contracts.json"
+          dir=$(node -e '
+            const got = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            if (!got.Dir) {
+              console.error(got.Error || "go mod download printed no Dir");
+              process.exit(1);
+            }
+            console.log(got.Dir);
+          ' "$RUNNER_TEMP/qory-contracts.json")
           echo "QORY_SOURCE=$dir" >> "$GITHUB_ENV"
 
       - name: Check

@@ -215,8 +215,7 @@ a model id. An agent sets the tier that this table lists for its name:
 | Tier | Agents |
 |---|---|
 | `thinking` | `build-planner`, `software-developer`, `software-debugger`, `acceptance-check-writer`, `feedback-triager`, and every `*-reviewer` except `demo-reviewer` |
-| `balanced` | `code-explorer`, `browser-demo-author`, `submission-writer`, |
-| `balanced` | `walkthrough-writer` and `demo-reviewer` |
+| `balanced` | `code-explorer`, `browser-demo-author`, `submission-writer`, `walkthrough-writer` and `demo-reviewer` |
 
 An agent that the table does not list sets no `model` key.
 
