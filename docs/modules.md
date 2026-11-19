@@ -174,17 +174,19 @@ claims, and nobody closes a finding. The skill `judging-findings` of `software-f
 defines `blocking` and lists the values of `qory.review`: `core` cannot contain those words, as
 rule 11 of `scripts/check.sh` lists. A reviewer that cannot finish stops and writes no
 file. qory reads the report against its schema; the harness checks no report of a change
-with a verb. The test of the example report in `reviewing-changes` uses
-`scripts/testdata/review-report.schema.json`, the fixture of that schema. After a round with
-a `blocking` finding, the next session of the stage reads `open-findings.json`, which
-`checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
-workflows" lists. qory writes `qory.review`, `qory.stage` and `open-findings.json`; this
-harness only reads them. The tool guard denies a write to a report path below `.git` or
-`.claude` of the working folder. When the harness home is below the working folder, the deny
-of a write below the harness home applies to the report path too, so the report folder must
-be outside the home; when the home is outside the working folder, the report path may be in
-it. A Codex reviewer writes its report with an `apply_patch` that adds that one file, as the
-bullet "a write from the main session outside the artifact folder" lists.
+with a verb. The test of the example report in `reviewing-changes` reads
+`contracts/harness/v1/review-report.schema.json` of qory at the commit
+`QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder `QORY_SOURCE`.
+After a round with a `blocking` finding, the next session of the stage reads
+`open-findings.json`, which `checks.cjs findings open` prints as lines to fix first, as its
+bullet in the section "Small workflows" lists. qory writes `qory.review`, `qory.stage` and
+`open-findings.json`; this harness only reads them. The tool guard denies a write to a
+report path below `.git` or `.claude` of the working folder. When the harness home is below
+the working folder, the deny of a write below the harness home applies to the report path
+too, so the report folder must be outside the home; when the home is outside the working
+folder, the report path may be in it. A Codex reviewer writes its report with an
+`apply_patch` that adds that one file, as the bullet "a write from the main session outside
+the artifact folder" lists.
 
 ## Agents
 
