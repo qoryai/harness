@@ -748,6 +748,96 @@ test('submission: no secret in the title or the description', () => {
   fails(push(fixture(), 'submission', ['submission.json', doc]), /^Remove the secret from \/text\/title/);
 });
 
+// The schema of submission takes qory's format and the bounds of the change feed of the
+// integration contract: base, commits, more draft states, the reasons with exit, the title
+// rule of a draft, and a description that may be empty and has no marker line.
+const submissionErrors = (change) => {
+  const doc = clone(SUBMISSION);
+  change(doc);
+  return schema.errors(schema.load('submission'), doc, 'submission.json');
+};
+
+test('submission: a repository with base and commits, and one with no draft, is valid', () => {
+  assert.deepEqual(submissionErrors((d) => {
+    Object.assign(d.repositories[0], {
+      base: { commit: C2, branch: 'main', commit_url: 'https://example.com/example/shop/commit/1' },
+      commits: [{ commit: C2, step: 'deliverable:d-1' },
+        { commit: C1, step: 'fix:f1', commit_url: 'https://example.com/example/shop/commit/2' }],
+    });
+  }), []);
+  assert.deepEqual(submissionErrors((d) => { delete d.repositories[0].draft; }), []);
+  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { branch: 'main' }; }), []);
+  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { commit: C1, x: 1 }; }),
+    []);
+  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { commit: C1,
+    branch: 'a..b' }; }), []);
+  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].commits = [{ commit: C1 }]; }),
+    []);
+});
+
+test('submission: a step has 1 to 128 characters, and at most 100 commits', () => {
+  const step = (value) => submissionErrors((d) => {
+    d.repositories[0].commits = [{ commit: C1, step: value }];
+  });
+  assert.deepEqual(step('x'.repeat(128)), []);
+  assert.deepEqual(step('x'.repeat(129)), ['Cut /repositories...mmits/0/step of ' +
+    'submission.json to at most 128 characters.\nIt has 129.\nThe whole JSON pointer is ' +
+    '/repositories/0/commits/0/step.']);
+  assert.notDeepEqual(step(''), []);
+  assert.notDeepEqual(step('a\u0000b'), []);
+  const commits = (count) => submissionErrors((d) => {
+    d.repositories[0].commits = Array.from({ length: count }, () => ({ commit: C1, step: 's' }));
+  });
+  assert.deepEqual(commits(100), []);
+  assert.notDeepEqual(commits(101), []);
+});
+
+test('submission: the title is one line, with no control, bidi or invisible character', () => {
+  const title = (value) => submissionErrors((d) => { d.text.title = value; });
+  assert.deepEqual(title('Add export to CSV'), []);
+  for (const bad of ['Add\texport', 'Add\u0085export', 'Add\u202eexport', 'Add\u2028export',
+    'Add\u200bexport', 'Add\u007fexport', '', '   ', '\u00a0\u3000']) {
+    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+  }
+});
+
+test('submission: the description may be empty, has at most 20000 characters, no marker line', () => {
+  const description = (value) => submissionErrors((d) => { d.text.description = value; });
+  assert.deepEqual(description(''), []);
+  assert.deepEqual(description('x'.repeat(20000)), []);
+  assert.deepEqual(description('See <!-- qory:start --> in a line.'), []);
+  assert.deepEqual(description('x'.repeat(20001)), ['Cut /text/description of ' +
+    'submission.json to at most 20000 characters.\nIt has 20001.']);
+  for (const marker of ['<!-- qory:start -->', '<!-- qory:end -->']) {
+    for (const bad of [marker, `## Problem\n${marker}\n## Change`, `${marker} \r\nx`]) {
+      assert.notDeepEqual(description(bad), [], JSON.stringify(bad));
+    }
+  }
+});
+
+test('submission: the reasons for no draft, and the exit that goes with each', () => {
+  const none = (draft) => submissionErrors((d) => { d.repositories[0].draft = draft; });
+  assert.deepEqual(none({ none: 'program-failed', exit: 2 }), []);
+  assert.deepEqual(none({ none: 'login-needed', exit: 3 }), []);
+  for (const reason of ['not-passed', 'no-text', 'escalated', 'no-program', 'program-timeout']) {
+    assert.deepEqual(none({ none: reason }), [], reason);
+    assert.notDeepEqual(none({ none: reason, exit: 1 }), [], reason);
+  }
+  assert.notDeepEqual(none({ none: 'program-failed' }), []);
+  assert.notDeepEqual(none({ none: 'program-failed', exit: 3 }), []);
+  assert.notDeepEqual(none({ none: 'login-needed' }), []);
+  assert.notDeepEqual(none({ none: 'login-needed', exit: 2 }), []);
+  assert.notDeepEqual(none({ none: 'other' }), []);
+  for (const state of ['closed', 'merged']) {
+    assert.deepEqual(submissionErrors((d) => { d.repositories[0].draft.state = state; }), []);
+  }
+});
+
+test('process.yaml declares the submit step: the type submission, sent at the end of a run', () => {
+  assert.ok(fs.readFileSync(PROCESS, 'utf8').split('\n').includes(
+    'submit: {type: submission, send: end_of_run}'));
+});
+
 // ---- build-plan ---------------------------------------------------------------------------
 
 const planFile = (md) => ['build-plan.md', md];

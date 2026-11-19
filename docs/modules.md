@@ -3290,6 +3290,10 @@ template that a software-factory workspace starts with. The file sets these keys
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
   hide, and every other standard type is hidden.
+- `submit: {type: submission, send: end_of_run}`, the submit step of a run. `type` is the
+  custom type `submission`, which has `base_view: structured`, and `send: end_of_run`
+  sends the submission at the end of the run. `qory config` checks that `artifact_types`
+  has the type.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
