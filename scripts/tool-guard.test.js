@@ -5389,10 +5389,18 @@ async function geminiRun({ plain, advanced, envFile }) {
 test('Gemini CLI 0.68.0 runs a registered hook with no preload and no BASH_ENV from a .env file', async (t) => {
   const version = childProcess.spawnSync('gemini', ['--version'], { encoding: 'utf8',
     timeout: 60000 });
-  if (version.stdout === undefined || version.stdout.trim() !== '0.68.0') {
-    t.skip('Gemini CLI 0.68.0 is not on PATH');
+  if (version.error !== undefined && version.error.code === 'ENOENT') {
+    t.skip('no gemini on PATH');
     return;
   }
+  // The field env of a hook is not in the hooks reference of Gemini CLI: it was read from the
+  // source of 0.68.0 (executeCommandHook spreads hookConfig.env after the sanitised environment).
+  // Nothing in this repository pins the version, so another version fails here, not skips.
+  const found = version.error !== undefined ? String(version.error) : version.stdout.trim();
+  assert.equal(found, '0.68.0', `gemini --version prints ${found}, not 0.68.0. Read ` +
+    'executeCommandHook in the bundle of that version of Gemini CLI to see that the field env ' +
+    'of a hook still reaches the hook, then run this test with that version and change 0.68.0 ' +
+    'here and in docs/modules.md.');
   const [bare, both, project, projectBoth] = await pooled([
     // The hook as registered, with the variables in .gemini/.env, which excludedEnvVars skips.
     () => geminiRun({ advanced: true, envFile: '.gemini/.env' }),

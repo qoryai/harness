@@ -1394,8 +1394,11 @@ By design, as for `.reports/`, the shell rule on all five runtimes also denies a
 the word `.env` as text, such as a commit message. It also denies a folder named `.env`.
 So `echo .env >> .gitignore` and `printf '.env\n' >> .gitignore` are denied. A patch or a
 write tool adds the line `.env` to `.gitignore`: the guard reads only the file headers of a
-patch, and the text that a write tool writes is no path. The test of the real Gemini CLI runs only where `gemini --version` prints 0.68.0,
-and CI does not run it.
+patch, and the text that a write tool writes is no path.
+
+The test of the real Gemini CLI runs when `gemini` is on `PATH`, and fails when its version
+is not 0.68.0, because the field `env` is read from the source of that version. CI has no
+`gemini`, so it skips that test.
 
 In a run, a guard runs before each tool call: `tool-guard-claude.cjs` on Claude Code and
 `tool-guard-codex.cjs` on Codex, through `tool-guard.cjs`. The `PreToolUse` hooks of
