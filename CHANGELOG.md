@@ -1413,16 +1413,33 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The guard counts the `*` of a glob for each alternative of its braces, and bounds every glob
   part by the names it scans. `cat {src/*,lib/*}` and `ls {*.ts,*.js,*.md,*.json}` were denied
   (the stars were added across the alternatives and not reset at `/`); each pair of braces
-  counts as its largest alternative, counted from the text before the braces, so `*{*a,*b}*`
-  has 3 `*` and `{*a*a*c,b}` is limited by the work estimate, which multiplies by the number of
-  alternatives. A part that follows a `/` inside braces and has 2 or more `*` is still denied,
-  with the second line "Write each alternative as its own word, as `src/*a* lib/*b*`." A part
-  with fewer than 2 `*` read no names and had no limit: `ls {a..p}*` (16 alternatives) took
+  counts as its largest alternative, counted from the text before the braces, so
+  `x{*a,*b}y{*c,*d}*e*` has 4 `*` and `{*a*a*c,b}` is limited by the work estimate, which
+  multiplies by the number of alternatives. A part with fewer than 2 `*` read no names and had no limit: `ls {a..p}*` (16 alternatives) took
   0.67 s on 50,000 names, over the 600 ms that the guard allows. Every part with a `*`, `?`
   or `[` costs 2.2 microseconds for each name and 0.6 microseconds for each alternative
   after the first, within the same 250 ms of one call: `ls {a..p}*` is denied in 0.04 s,
   while `{a,b,c,d,f}*`, `*`, `.r*`, `*/*.json`, `a*c`, `f*` and `a*b*c` pass in the same
   folder. A folder of 83,334 names or more is denied for a part with a `*`.
+- A brace that puts two `*` side by side, and a `/` inside braces, no longer let a glob stall.
+  The guard reads `**` as `*` before it expands braces, and `fs.globSync` expands them itself:
+  `*{*,}` has no `**` in its text, and `fs.globSync` read its `**` as a globstar. `ls /*{*,}`
+  walked the whole disk and never returned, so on Cursor and Copilot CLI the call, and a
+  `; echo x > art/.rep*/x.json` after it, ran at the timeout of the hook (10 s); the 50
+  characters `/{*{,**},??*[[?,}/[a}\/]]},?}a\\[\a[[a?/[[}{?{,}/[` hung it too. A glob is
+  denied, before any call, when an expansion of its braces can have two `*` side by side:
+  `*{*,}`, `{*,}*`, `*{,*}`, `*{,}*`, `{*,*}{*,*}`, `{src/*,lib/*}*` and `x*{,}*`. `{a,b}*`,
+  `*.{ts,js}`, `{*.ts,*.js}` and `{a,b}{*,}` pass. In a pass over 40,000 random patterns of
+  `*`, `{`, `}`, `,` and `a`, no pattern that the guard let through made `fs.globSync` read a
+  globstar. A part after a `/` inside braces skipped the estimate: the first glob part was the
+  text after the brace, a folder that is not there with 0 names, so `ls {l01/,...,l15/}*`, with
+  15 links to one folder of 200,000 files, took 14.9 s (and `ls {real/,x}*` passed without the
+  limit of 83,334 names). The guard expands such a word itself (at most 16 words with a
+  glob character, 4,096 without, braces nested at most 32 deep) and scans each word in the
+  folders that the word reaches, so that the same pattern is denied in 0.05 s, as `ls l01/*`
+  is. This replaces the
+  denial of a part with 2 or more `*` after a `/` inside braces: `{src/*a*a*c,lib}` and
+  `{x,y/}*a*c` pass in a normal folder.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

@@ -1178,11 +1178,25 @@ more than 16 `*` and `?` in one path part, or more than 32 in all, and a glob wi
 `?`, `+`, `@` or `!`, an extended glob, which bash reads from a quoted `(` as text and
 `fs.globSync` reads as a group. It counts each pair of braces as its largest alternative, with
 each alternative counted from the text before the braces: `{src/*,lib/*}` and
-`{*.ts,*.js,*.md,*.json}` have 1 `*`, and `*{*a,*b}*` has 3. A `/` inside an alternative starts a
-new path part. A part that follows a `/` inside braces and has 2 or more `*` is denied with the
-second line "Write each alternative as its own word, as `src/*a* lib/*b*`.", because the guard
-cannot tell which folder the part scans. It denies a glob word of more than 4,096 characters,
-and checks the time before each folder part of a word.
+`{*.ts,*.js,*.md,*.json}` have 1 `*`, and `x{*a,*b}y{*c,*d}*e*` has 4. A `/` inside an
+alternative starts a new path part. It denies braces that can put two `*` side by side in one
+expansion, as `*{*,}` (`**` and `*`), `{*,}*`, `*{,}*` and `{*,*}{*,*}` do, with the second line
+"A glob of the command has a brace that can put two * side by side, ...": the guard reads `**`
+as `*`, as bash does without globstar, but `fs.globSync` expands the braces itself and reads a
+path part `**` as a globstar. `ls /*{*,}` made it walk the whole disk, and the hook timeout of
+10 s lets the call run on Cursor and Copilot CLI. A `*` next to a brace with no `*` at its edge
+(`{a,b}*`, `*.{ts,js}`, `{*.ts,*.js}`) is not denied. The guard reads the braces as minimatch
+does, with a `,` and a `}` after `{}` making its `}` text, and denies braces nested more than
+32 deep and more than 4,096 expansions. It denies a glob word of more than 4,096 characters, and
+checks the time before each folder part of a word.
+
+A glob word with a `/` inside braces, as `{src/*,lib/*}` or `{l1/,l2/}*`, has path parts that
+differ between its expansions. The guard expands its braces (at most 16 words for a word with a
+`*`, `?` or `[`, and 4,096 for one with none), and scans each word as a glob, in the
+folders that the word reaches, so that `fs.globSync` expands no braces of it. A word with no `*`, `?`
+or `[` is a path, and the guard tests its text for `.reports`. `ls {l1/,l2/,...,l15/}*`, with 15
+links to one folder of 200,000 files, took 14.9 s before the guard denied it, and is denied in
+0.05 s as a folder of 83,334 names or more.
 
 Limits on the number of `*` cannot bound the time of a call that cannot be stopped, so the guard
 bounds it by its input. Before `fs.globSync` runs for a path part with a `*`, `?` or `[`, the
@@ -1197,7 +1211,8 @@ than the times measured at load 12 (`*` in 50,000 names 107 ms, 17 alternatives 
 520 ms). A call whose sum passes 250 ms, which took under 500 ms at load 30, is denied, so is a
 part with 3 `*` whose folders have more than 20,000 names, and so is a folder of 83,334 names or
 more. The second line of the deny starts with "Use a narrower glob:". The calls of one command
-are bounded by their time, 600 ms, which the guard checks between the calls. `ls {a..p}*` in
+are bounded by their time, 600 ms, which the guard checks between the calls, so that each word of
+a `/` inside braces is one call. `ls {a..p}*` in
 50,000 names took 0.67 s and is denied in 0.04 s; `*`, `.r*`, `*/*.json`, `a*c`, `f*` and
 `a*b*c` pass in a folder of 50,000 short names, and `*` in 12,000 names of 254 characters.
 
