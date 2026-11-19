@@ -1432,10 +1432,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   folder and follows each link of the result. A deny by either reading counts. With
   `lnk -> deep/d1/d2` and `l2 -> art/.reports`, the kernel opens `lnk/../l2/x.json` as
   `deep/d1/l2/x.json`, which is not there, and a tool that cuts `lnk/..` first writes
-  `l2/x.json`, in `.reports`: the guard denies it. A path of more than 4,096 characters, which
-  no disk opens, gets the second reading only: `x/../` 1,000 times and then
+  `l2/x.json`, in `.reports`: the guard denies it. The second reading runs for each path that has a
+  `.` or `..` part or an empty part, and for each path of more than 4,096 characters, which
+  no disk opens, with or without `..`: `x/../` 1,000 times and then
   `.reports/a b/../report.json` is denied, and so is `../` 1,400 times, the working folder
-  without its first `/`, and `/l1/x.json`. The cut runs in one pass; `path.posix.normalize`
+  without its first `/`, and `/l1/x.json`; so is `./` 2,100 times and then `l1/x.json`, and
+  `/` 4,100 times and then the working folder and `/l1/x.json`, which passed. A relative
+  path is joined to the text of the working folder, to the folder that its links lead to, and
+  to what `fs.realpathSync` returns for it, because a tool may resolve against any of them:
+  with the working folder `lnk -> deep/d1/d2`, `d2/y -> other/inner` and
+  `deep/d1/l4 -> .reports`, `y/../../l4/x.json` is `l4/x.json` next to `lnk` for the kernel
+  and the text, and `deep/d1/l4/x.json` against the folder that the link leads to. The cut runs in one pass; `path.posix.normalize`
   took 26 s on 990 KB of `../`. The paths of one call share 16,384 steps, one for
   each part of a path, `.` and `..` too; a call that needs more is denied with "Write fewer
   files in one call, each with a short path and no link." A path through more than 40 links,

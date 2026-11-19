@@ -192,6 +192,9 @@ function headerPaths(text) {
   return out;
 }
 
+// A path with a `.` or `..` part, or an empty part inside it.
+const DOTTED = /(?:^|\/)\.\.?(?:\/|$)|\/\//;
+
 // reportsOnDisk returns the deny for a text whose path the disk resolves to a file .reports/*.json,
 // as one with a space before a `..` or one through a link, or null. It reads the whole text as one
 // path, and also the path of each header line of a patch in it; a line break in a path is part
@@ -207,13 +210,25 @@ function reportsOnDisk(text, cwd, state) {
       if (state.start === undefined) {
         state.text = path.resolve(cwd);
         state.start = onDisk(state.text, '/', state);
+        // The folders that a tool may resolve a relative path against: the text of the working
+        // folder, the folder that its links lead to, and what fs.realpathSync returns for it.
+        state.bases = new Set([state.text, state.start]);
+        try {
+          state.bases.add(fs.realpathSync(state.text));
+        } catch {
+          // The working folder is not there: the other two readings stay.
+        }
       }
       // No disk takes a path over PATH_MAX characters.
       if (one.length <= PATH_MAX && pathJson(onDisk(one, state.start, state))) return WRITE_REASON;
-      if (!one.includes('..')) continue;
-      const cut = flat(one.startsWith('/') ? one : `${state.text}/${one}`);
-      if (pathJson(cut)) return WRITE_REASON;
-      if (cut.length <= PATH_MAX && pathJson(onDisk(cut, '/', state))) return WRITE_REASON;
+      // A tool that cuts each `.` and `..` and each empty part out of the text first, or one that
+      // takes a path over PATH_MAX that way, reads the text, not the kernel's folders.
+      if (one.length <= PATH_MAX && !DOTTED.test(one)) continue;
+      for (const base of one.startsWith('/') ? [''] : state.bases) {
+        const cut = flat(one.startsWith('/') ? one : `${base}/${one}`);
+        if (pathJson(cut)) return WRITE_REASON;
+        if (cut.length <= PATH_MAX && pathJson(onDisk(cut, '/', state))) return WRITE_REASON;
+      }
     }
   } catch (error) {
     if (error instanceof Stop) return error.message;

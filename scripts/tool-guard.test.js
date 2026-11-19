@@ -3007,3 +3007,50 @@ test('a header path of a raw patch is read as Codex reads it: a line break or a 
   assert.equal(write(patch('Add File', ' l1/x.json')), reports.WRITE_REASON);
   assert.equal(write('\u0085*** Add File: l1/x.json\u0085'), reports.WRITE_REASON);
 });
+
+test('a path over 4,096 characters, or with a `.` or empty part, is also read as text, against each working folder', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('over');
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  const write = (file, cwd = work) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args: { file_path: file }, env: RUN, cwd });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000, `${file.length} characters`);
+    return reason;
+  };
+  // A path over 4,096 characters with no `..`: a tool that cuts each `.` and empty part out
+  // of the text first writes l1/x.json, a link to .reports.
+  for (const file of ['./'.repeat(2100) + 'l1/x.json', '/'.repeat(4100) + work + '/l1/x.json',
+    `${work}/${'./'.repeat(2100)}l1/x.json`, './'.repeat(2100) + 'l1/x.json.lock']) {
+    assert.ok(file.length > 4096, `${file.length} characters`);
+    assert.equal(write(file), reports.WRITE_REASON, file.slice(0, 30));
+    assert.equal(write(`*** Add File: ${file}\n`), reports.WRITE_REASON, file.slice(0, 30));
+  }
+  // An absolute path of 4,096 characters is read by the kernel, and one of 4,097 as text.
+  const tail = `${work}/l1/x.json`;
+  for (const length of [4095, 4096, 4097, 4098]) {
+    const file = '/'.repeat(length - tail.length) + tail;
+    assert.equal(file.length, length);
+    assert.equal(write(file), reports.WRITE_REASON, `${length} characters`);
+  }
+  // A path with a `.` or empty part that reaches no report file passes, over the limit too.
+  assert.equal(write('./'.repeat(2100) + 'l1/notes.md'), null);
+  assert.equal(write('a//b/./c.txt'), null);
+  assert.equal(write('/'.repeat(4100) + work + '/art/notes.md'), null);
+
+  // The working folder may be a link: a tool may resolve a relative path against the folder
+  // that the link leads to, and the kernel against that folder too, but with `..` of the link.
+  const real = path.join(work, 'deep', 'd1', 'd2');
+  fs.mkdirSync(real, { recursive: true });
+  fs.mkdirSync(path.join(work, 'other', 'inner'), { recursive: true });
+  fs.symlinkSync('../../../other/inner', path.join(real, 'y'));
+  fs.symlinkSync('../../art/.reports', path.join(work, 'deep', 'd1', 'l4'));
+  fs.symlinkSync('deep/d1/d2', path.join(work, 'lnk'));
+  const linked = path.join(work, 'lnk');
+  // The kernel reads y/../../l4 as l4 in the working folder, the text of the folder as l4 next
+  // to lnk, and a tool that resolves against the real folder as deep/d1/l4: a link to .reports.
+  assert.equal(write('y/../../l4/x.json', linked), reports.WRITE_REASON);
+  assert.equal(write('y/../../l4/notes.md', linked), null);
+  assert.equal(write('y/../../l4/x.json', path.join(work, 'deep')), null);
+});
