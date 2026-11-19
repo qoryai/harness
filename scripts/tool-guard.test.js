@@ -4274,23 +4274,45 @@ test('a backslash in a glob, braces that count more than they seem, and braces t
   for (const command of ['ls a\\\\b', 'ls "a\\b"', 'ls \\*', "ls '*'"]) {
     wrappers(command, normal, false);
   }
-  // Every pattern of up to 6 characters of `\ { } , * a` that has a backslash and a glob
-  // character is denied before a call: 32,088 patterns, which include the 76 that hang fs.globSync.
+  // Every pattern of up to 6 characters of `\ { } , * a` that has a backslash and a `*` is denied
+  // before a call: 22,386 patterns, which include the 76 that hang fs.globSync. The 9,702 with a
+  // backslash and a `{` but no `*?[` are words of braces only, which never reach fs.globSync:
+  // the other rules decide them, with no hang.
   const alphabet = ['\\', '{', '}', ',', '*', 'a'];
   let seen = 0;
+  let braced = 0;
+  const begun = Date.now();
   const walk = (pattern) => {
     if (pattern !== '') {
-      if (pattern.includes('\\') && /[*?[{]/.test(pattern)) {
+      if (pattern.includes('\\') && /[*?[]/.test(pattern)) {
         const reason = reports.globsChild({ list: [{ raw: pattern, value: pattern }], cwd: normal, hooks: {} });
         assert.equal(typeof reason, 'string', pattern);
         assert.ok(reason.startsWith(back), `${pattern}: ${reason}`);
         seen += 1;
+      } else if (pattern.includes('\\') && pattern.includes('{')) {
+        const reason = reports.globsChild({ list: [{ raw: pattern, value: pattern }], cwd: normal, hooks: {} });
+        assert.ok(reason === null || typeof reason === 'string', pattern);
+        assert.ok(reason === null || !reason.startsWith(back), `${pattern}: ${reason}`);
+        braced += 1;
       }
     }
     if (pattern.length < 6) for (const ch of alphabet) walk(pattern + ch);
   };
   walk('');
-  assert.equal(seen, 32088);
+  assert.equal(seen, 22386);
+  assert.equal(braced, 9702);
+  assert.ok(Date.now() - begun < 60000, `${Date.now() - begun} ms for the walk`);
+  // A backslash before a brace is text in bash, and a word of braces only is no glob for fs.globSync.
+  const bash = childProcess.spawnSync('bash', ['-c', 'set -f; printf "%s\\n" a\\{b,c} .rep\\{orts,y}/x.json'],
+    { encoding: 'utf8' }).stdout.split('\n');
+  assert.deepEqual(bash.slice(0, 2), ['a{b,c}', '.rep{orts,y}/x.json']);
+  for (const command of ['echo a\\{b,c}', 'ls {x,y}\\', 'echo x > .rep\\{orts,y}/x.json']) {
+    assert.equal(reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: normal,
+      args: { command } }), null, command);
+    wrappers(command, normal, false);
+  }
+  // The same word without the backslash makes .reports, and the text rule denies it.
+  wrappers('echo x > .rep{orts,y}/x.json', normal, true, 'matches');
   // 2. `{a}2,}` makes 2 words for fs.globSync and 1 for a count that skips the `2,}`.
   const forge = '; echo x > .rep*/x.json';
   const braces = 'The braces in the command make more than 4,096 patterns';
@@ -4414,4 +4436,63 @@ test('no field of QORY_REPORTS_GUARD_TEST, and none that the environment can add
   }
   // The variable lowers a limit or denies, and a command that is allowed without it stays so.
   assert.equal(adapter(home, 'gemini', 'shell', 'cat src/{a,b}.ts', normal, 3000, { noCaps: true }).denied, false);
+});
+
+test('the children of one hook process share one deadline, and a child that cannot start denies the call', () => {
+  const work = next('pass10');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(normal, { recursive: true });
+  for (let n = 0; n < 20; n += 1) fs.writeFileSync(path.join(normal, `f${n}.txt`), '');
+  const home = harnessHome();
+  const left = (where) => childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((line) => line.includes(where) && line.includes('max-old-space-size'));
+  // Copilot CLI types the text of each string argument of write_bash as a command: 250 fields,
+  // each a glob word, took 10.3 s with one child for each, and Copilot runs a call past 10 s.
+  const fields = {};
+  for (let n = 0; n < 250; n += 1) fields[`f${n}`] = 'ls *.txt';
+  const begun = Date.now();
+  const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', 'reports-guard-copilot.cjs')], {
+    input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+    env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, encoding: 'utf8',
+    timeout: 10000, killSignal: 'SIGKILL' });
+  const ms = Date.now() - begun;
+  assert.equal(ran.error, undefined, `the hook ran past 10 s: ${ran.error}`);
+  assert.ok(ms < 6000, `${ms} ms`);
+  const reason = JSON.parse(ran.stdout).permissionDecisionReason;
+  assert.match(reason, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms/);
+  assert.deepEqual(left(home), [], 'no child is left');
+  // One command with 250 glob words is one child, and Gemini CLI and Cursor call the guard once.
+  const words = Array.from({ length: 250 }, (_, n) => `f${n}*`).join(' ');
+  for (const runtime of ['gemini', 'cursor']) {
+    const one = adapter(home, runtime, 'shell', `ls ${words}`, normal, 10000);
+    assert.equal(one.killed, false, runtime);
+    assert.ok(one.ms < 6000, `${runtime}: ${one.ms} ms`);
+  }
+  assert.deepEqual(left(home), [], 'no child is left');
+  // A child that cannot start (node at a path that is not there) denies the call.
+  const broken = patchedHome('childProcess.spawnSync(process.execPath,',
+    "childProcess.spawnSync('/nonexistent/node',");
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    const ranBroken = adapter(broken, runtime, 'shell', 'ls *.txt', normal, 5000);
+    assert.equal(ranBroken.denied, true, runtime);
+    if (runtime !== 'cursor') {
+      const [first, second] = ranBroken.reason.split('\n');
+      assert.equal(`${first}\n`, 'Leave .reports/ to checks.cjs, and name other files with no `$`, backtick, eval or glob.\n');
+      assert.match(second, /^Use a narrower glob: .* or could not run, and the guard blocks the call\.$/);
+    }
+  }
+  // spawnSync throws on an argument that is no path (a number): the call is denied as well.
+  const throwing = patchedHome('childProcess.spawnSync(process.execPath,', 'childProcess.spawnSync(42,');
+  for (const runtime of ['gemini', 'copilot']) {
+    const ranThrowing = adapter(throwing, runtime, 'shell', 'ls *.txt', normal, 5000);
+    assert.equal(ranThrowing.denied, true, runtime);
+    assert.match(ranThrowing.reason, /\nUse a narrower glob: .* or could not run, and the guard blocks the call\.$/);
+  }
+  // A call that begins after the deadline of its hook process starts no child and is denied.
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const late = reports.decide({ kind: 'shell', env: RUN, cwd: normal, args: { command: 'ls *.txt' },
+    deadline: Date.now() - 5 });
+  assert.match(late, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms/);
+  // A command with no glob and a word of braces only starts no child, so it passes there too.
+  assert.equal(adapter(broken, 'copilot', 'shell', 'cat {a,b}.txt', normal, 5000).denied, false);
 });

@@ -34,14 +34,16 @@
 // with braces that can put two * side by side (`*{*,}`) is denied, because fs.globSync expands
 // the braces and reads the ** as a globstar; a glob with a / inside braces is expanded by the
 // guard, and each word is scanned in the folders that it reaches. A glob with a backslash and a
-// glob character is denied: fs.globSync reads a backslash as a path separator, and a globstar
+// * ? or [ is denied (a word of braces only never reaches fs.globSync): fs.globSync reads a
+// backslash as a path separator, and a globstar
 // after it walks the whole disk. The count of braces is the larger of two readings, as
 // minimatch reads them, and every word that braces make is matched against .reports.
 // The calls of fs.globSync of one command, for the words with a * ? or [ that pass these
 // checks, run in a child process that spawnSync kills with SIGKILL after 2.5 s in all. The
 // kill, a failure of the child and bad output of the child deny the call. A hook has 10 s: the
-// checks before the child and the child's 2.5 s bound it. The checks inside the child, 250 ms
-// for each call and 600 ms between the calls, stay.
+// children of one hook process share one deadline of 2.5 s (Copilot CLI calls the guard for
+// each string argument of a typing tool). The checks of a word with a wildcard run inside the
+// child, as do 250 ms of estimate for each call and 600 ms in all, checked between the calls.
 // QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
 // a call: a file of the workspace can reach the environment of a hook, so no field turns off a
 // check, and the options noCaps and waitMs belong to decide, which the adapters call with fixed
@@ -1146,7 +1148,7 @@ function globbed(pattern, cwd, budget) {
       `expands at most ${most}.`);
   }
   const caps = budget.hooks.noCaps !== true;
-  if (caps && pattern.includes('\\') && /[*?[{]/.test(pattern)) {
+  if (caps && pattern.includes('\\') && /[*?[]/.test(pattern)) {
     throw new Over(`Remove the backslash before the glob character, or write the path without a ` +
       `glob: the glob ${short(pattern)} has a backslash, which fs.globSync reads as a path separator.`);
   }
@@ -1264,11 +1266,16 @@ function globsChild({ list, cwd, hooks }) {
 // globsInChild runs globsHidden for list in a child process, which spawnSync kills after
 // GLOB_CHILD_MS: a call of fs.globSync that does not return, a crash, and an output that is not
 // { deny: string or null } of at most 1 MiB each deny the call.
-function globsInChild(list, cwd, noCaps, waitMs) {
+function globsInChild(list, cwd, noCaps, waitMs, deadline) {
   const hooks = { ...guardHooks(), noCaps, waitMs };
-  const limit = Math.min(GLOB_CHILD_MS, hooks.globMs > 0 ? hooks.globMs : GLOB_CHILD_MS);
+  const total = Math.min(GLOB_CHILD_MS, hooks.globMs > 0 ? hooks.globMs : GLOB_CHILD_MS);
   const failed = `Use a narrower glob: the globs of the command did not finish in ` +
-    `${limit.toLocaleString('en-US')} ms, or could not run, and the guard blocks the call.`;
+    `${total.toLocaleString('en-US')} ms, or could not run, and the guard blocks the call.`;
+  // The children of all the calls of one hook process share one deadline: each has the time
+  // that is left, and none starts when there is none.
+  const left = deadline === undefined ? total : Math.min(total, deadline - Date.now());
+  if (!(left >= 1)) return failed;
+  const limit = Math.ceil(left);
   const env = { ...process.env };
   delete env.NODE_OPTIONS;
   let ran;
@@ -1296,10 +1303,10 @@ function globsInChild(list, cwd, noCaps, waitMs) {
 // ~+ as cwd and ~- as OLDPWD. With globs false, it expands no glob. A glob word with a `*`, `?`
 // or `[` is expanded by fs.globSync in a child process, unless inline is true; one with only
 // braces is read as text, in this process. inline and noCaps (no early deny of backslashes and
-// braces, so that only the limit of the child decides) and waitMs (the 600 ms between calls) are
+// braces, so that only the limit of the child decides) and waitMs (the 600 ms in all) are
 // options of decide for checks of the guard: the adapters build their call from fixed fields and
 // set none of them.
-function hidden(command, cwd, env, globs, inline, noCaps, waitMs) {
+function hidden(command, cwd, env, globs, inline, noCaps, waitMs, deadline) {
   const pending = [];
   const textual = [];
   for (const { raw, value: text, glob, tilde } of words(command)) {
@@ -1329,7 +1336,7 @@ function hidden(command, cwd, env, globs, inline, noCaps, waitMs) {
     return `The command has ${sign} and .r, which can build the name .reports.`;
   }
   if (pending.length === 0) return null;
-  return inline ? globsHidden(pending, cwd, { ...guardHooks(), noCaps, waitMs }) : globsInChild(pending, cwd, noCaps, waitMs);
+  return inline ? globsHidden(pending, cwd, { ...guardHooks(), noCaps, waitMs }) : globsInChild(pending, cwd, noCaps, waitMs, deadline);
 }
 
 // decide returns the reason to deny a call, or null to let it run. kind is 'write' for a tool
@@ -1340,7 +1347,7 @@ function hidden(command, cwd, env, globs, inline, noCaps, waitMs) {
 // With globs false, decide expands no glob: fs.globSync has no limit on its work, so
 // tool-guard.cjs, which bounds the work of each call, matches globs itself.
 function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
-  globs = true, inline = false, noCaps = false, waitMs = 0 }) {
+  globs = true, inline = false, noCaps = false, waitMs = 0, deadline }) {
   if (!env.QORY_RUN_ID) return null;
   if (kind === 'write') {
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
@@ -1361,7 +1368,7 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
     const special = notProgram(command, env);
     if (special !== null) return SPECIAL_REASON + special;
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
-    const part = hidden(command, from, env, globs, inline, noCaps, waitMs);
+    const part = hidden(command, from, env, globs, inline, noCaps, waitMs, deadline);
     return part === null ? null : HIDDEN_REASON + part;
   }
   return null;
@@ -1373,9 +1380,13 @@ const FAILED_REASON = 'Send a smaller call: the guard failed on this call and bl
 // safeDecide returns what decide returns for call, or, when decide throws in a run, a deny with
 // FAILED_REASON and the error. The adapters call it, so that a call that the guard cannot read
 // is blocked.
+let hookEnd;
 function safeDecide(call) {
+  // An adapter may call safeDecide for each text of one tool call: all the children of that
+  // hook process share the deadline of the first call, GLOB_CHILD_MS after it.
+  if (hookEnd === undefined) hookEnd = Date.now() + GLOB_CHILD_MS;
   try {
-    return decide(call);
+    return decide({ ...call, deadline: hookEnd });
   } catch (error) {
     const env = call.env || process.env;
     return env.QORY_RUN_ID

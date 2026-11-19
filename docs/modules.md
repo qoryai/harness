@@ -1167,7 +1167,7 @@ a glob when `fs.globSync` throws on it, and when the word starts with another `~
 that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
 older Node, the guard denies each word with a glob. Equal globs share one expansion. The
 guard denies a command whose globs need more than 256 different `fs.globSync` calls, match
-more than 100,000 paths in all, or take more than 600 ms between two calls, because a hook
+more than 100,000 paths in all, or take more than 600 ms in all, checked between the calls, because a hook
 that outlasts its timeout lets the call run on Cursor and Copilot CLI. At commit 5c25e957, 62,500
 words of `***` took 70 s, one expansion at a time. The second line of the deny names the limit,
 as "The command has more than 256 different globs, and the guard expands at most 256."
@@ -1225,18 +1225,18 @@ than the times measured at load 12 (`*` in 50,000 names 107 ms, 17 alternatives 
 520 ms). A call whose sum passes 250 ms, which took under 500 ms at load 30, is denied, so is a
 part with 3 `*` whose folders have more than 20,000 names, and so is a folder of 83,334 names or
 more. The second line of the deny starts with "Use a narrower glob:". The guard checks
-the time of the calls of one command, 600 ms, between the calls, so that each word of a `/`
-inside braces is one call; a call that runs on is stopped by the limit of the child process
-(below). `ls {a..p}*` in
+the time of all the calls of one command, 600 ms in all, between the calls, so that each word of
+a `/` inside braces is one call; a call that runs on is stopped by the limit of the child
+process (below). `ls {a..p}*` in
 50,000 names took 0.67 s and is denied in 0.04 s; `*`, `.r*`, `*/*.json`, `a*c`, `f*` and
 `a*b*c` pass in a folder of 50,000 short names, and `*` in 12,000 names of 254 characters.
 
-A glob with a backslash and a glob character (`*`, `?`, `[` or `{`) is denied, with the second
+A glob with a backslash and a `*`, `?` or `[` is denied, with the second
 line "Remove the backslash before the glob character, or write the path without a glob: ...".
 `fs.globSync` reads a backslash as a path separator, and the guard reads `\*` as text:
 `ls \*\*\*\*\*\*\*\*\*\*` (10 times a backslash and a star) walked the whole disk and
 never returned, and 76 of the patterns of 6 characters of `\ { } , * a` do. A word with a
-backslash and no glob character, as `a\b`, is a file name and passes. The count of the braces
+backslash and none of `*`, `?` and `[` passes: `a\b` is a file name, and `echo a\{b,c}` and `ls {x,y}\` are words of braces only, which never reach `fs.globSync`, so the rules for `.reports` decide them; bash reads `\{` as text, so `.rep\{orts,y}/x.json` is the name `.rep{orts,y}/x.json`. The count of the braces
 reads them as minimatch does, so that `{a}2,}` repeated is counted: each repeat doubles the
 words that `fs.globSync` makes, where a count that skips the `2,}` read 1; 30 repeats followed
 by `*` stalled the guard. The count is the larger of the two readings. The guard tests every
@@ -1249,13 +1249,19 @@ the absolute word from `/`; 9 words of this kind pass the limit of 4,096.
 The calls of `fs.globSync` for the globs of one command, those with a `*`, `?` or `[`, run in
 one child process of Node (`node -e`) that `spawnSync` kills with SIGKILL after 2.5 s for all
 the globs of the command, because no check of the input can promise that a call that cannot
-be stopped returns. The caps above deny before the child starts, and the child starts only for
-a command with a glob character that passes them. A command with only braces and no wildcard,
-and one without a glob, starts none. When the child is killed or cannot start, exits with a code
+be stopped returns. The caps above (backslash, braces, stars, depth, units, length) run for a word with a
+wildcard inside the child, so a command that one of them denies starts a child first, for 37 to
+40 ms; a word of braces only, with no `*`, `?` or `[`, is checked in the guard's own process, and
+a command with only such words, or with no glob, starts no child. When the child is killed or cannot start, exits with a code
 other than 0, prints text that is no JSON, a deny that is no text, or more than 1 MiB, the
 guard denies the call with the second line "Use a narrower glob: the globs of the command did
-not finish in 2,500 ms, or could not run, and the guard blocks the call." A hook has 10 s, and
-the guard takes at most the checks before the child plus 2.5 s for the child. The child
+not finish in 2,500 ms, or could not run, and the guard blocks the call." A hook has 10 s. All the children
+of one hook process share one deadline, 2.5 s after the first call of the guard: each child has
+the time that is left, and a call that begins when none is left is denied with the same line.
+Copilot CLI calls the guard once for each string argument of `write_bash` and `write_powershell`,
+and 250 arguments of `ls *.txt`, one child each, took more than 10 s before the deadline was shared;
+they are denied in 2.5 s now. Gemini CLI and Cursor call the guard once, and `tool-guard.cjs`
+(Claude Code and Codex) expands no glob and starts no child. The child
 costs 37 to 40 ms to start at load 41: `ls *.ts` takes 40 ms with the child and under 1 ms
 without it, and `a*b*c`, `*.txt` and `*` in a folder of 50,000 names take 177, 209 and 196 ms with
 it, and 140, 134 and 148 ms without it. The child needs a POSIX system.
@@ -1268,7 +1274,7 @@ field. A file of the workspace can reach the environment of a hook (Gemini CLI 0
 `.env` into its environment, and the guard does not deny a write to it), so no field turns off a
 check: `{"noCaps":true}` and any other field change nothing. The options `noCaps` (no early deny
 of backslashes and braces, so that only the limit of the child decides), `waitMs` (a limit for
-the time between two calls instead of 600 ms) and `inline` (no child) belong to `decide`, and the
+the time of all the calls instead of 600 ms) and `inline` (no child) belong to `decide`, and the
 adapters build their call from fixed fields, so no adapter sets them. The checks reach the
 wrappers with these options through a copy of the hooks that the check patches. The 600 ms
 limit counts from the start of the child's work, so the 40 ms to start the child do not count;
