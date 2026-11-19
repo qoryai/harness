@@ -2265,14 +2265,16 @@ other type changes. A `\![a](address)` is a link, and the check reads its addres
   is removed.");
 - a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
   a removed decision's diagram is not in that count. Qory Apiary draws every code block
-  whose info string starts with `mermaid`, wherever it stands (`markdown.ex:328-339`), so
-  the count reads each line that starts, after spaces, `>` marks and list marks, with 3 or
-  more backticks or tildes and `mermaid` as the first word, in any case: a block in a
-  quote, in a list item, nested, or indented. The count is never below Qory Apiary's, and
-  it counts a fence in a code block too. Qory Apiary draws such a block without the rules
-  above, which read only a block at the start of the line, so the check refuses each line
-  that opens a block and is not a fence at the start of the line, in a decision or outside
-  the decisions, with the fence line below ("Write the fence of the Mermaid block of
+  whose info string starts with `mermaid` (`markdown.ex:328-339`) after its parser has
+  decoded the entities in it, wherever the block stands. The count reads each line that
+  starts, after spaces, `>` marks and list marks, with 3 or more backticks or tildes and
+  then `mermaid` as the first word, in any case, or any `&` in the info string, which may
+  decode to `mermaid` (`&#109;ermaid`, `mermaid&#32;x`). It counts a fence in a code block
+  too, and a fence such as `` ```c&x ``. It reads quote marks and list marks only: no other
+  container that the parser opens is known to hide a fence, and no test with the parser
+  exists. Qory Apiary draws such a block without the rules above, which read only a block at
+  the start of the line, so the check refuses each such line, in a decision or outside the
+  decisions, with the fence line below ("Write the fence of the Mermaid block of
   decision-record.md as `` ```mermaid `` at the line start." outside a decision).
 
 The 450 words leave out the diagrams, whatever their size: the 20,000 characters and the 200
@@ -2305,8 +2307,8 @@ and without front matter (`mermaid.js:195-202`). It refuses:
 - a `%%{` line ("Remove the %%{ line from the Mermaid block of decision-1."), which Qory
   Apiary strips before it draws.
 
-Qory Apiary also strips each `click` line and the front matter before it draws, and the
-check refuses neither.
+Qory Apiary also strips each `click`, `link`, `callback` and `links` statement line and the
+front matter before it draws, and the check refuses neither.
 
 `mermaid.js` sets both limits (`:158-159`), but only Mermaid counts edges, and it stops a
 flowchart at the 201st edge. `lib/mermaid.cjs` counts every link, one edge for each

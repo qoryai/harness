@@ -1180,6 +1180,13 @@ test('decision record: every Mermaid block that Qory Apiary draws counts toward 
     'indented 3 spaces': listed('   '),
     'indented 3 spaces in tildes': listed('   ', '~~~'),
   };
+  // Qory Apiary decodes an entity in the info string and draws the block when the first word is
+  // mermaid, so an "&" in the info string counts, and so does a fence that is no Mermaid block.
+  for (const info of ['&#109;ermaid', 'mer&#x6d;aid', '&#x6D;ermaid', 'mermaid&#32;x', 'mermaid&#x20;',
+    'mermaid&#9;x', 'mermaid&Tab;x', 'mermaid&#10;x', 'mermaid&#13;x', 'c&x']) {
+    forms[`with ${info} as the info string`] = `\`\`\`${info}\nflowchart LR\n\`\`\``;
+    forms[`in a quote with ${info}`] = `> \`\`\`${info}\n> flowchart LR\n> \`\`\``;
+  }
   passes(push(fixture(withDecisions(true, false), diagram(1)), 'decision-record'));
   for (const block of Object.values(forms)) {
     fails(push(record(block), 'decision-record'), FIX);
@@ -1200,6 +1207,15 @@ test('decision record: every Mermaid block that Qory Apiary draws counts toward 
     const above = ['decision-record.md', '## Decisions\n', `## Decisions\n\n${block}\n`];
     fails(push(fixture(above), 'decision-record'), RECORD_FENCE);
   }
+  // A third block right after a Cost line, one in a quote under a list item and one at the line
+  // start with a %%{ line and url( are refused, whatever the entity in the info string.
+  const entity = '```mermaid&#32;x\nflowchart LR\n  A --> B\n```';
+  fails(push(fixture(withDecisions(true, false), diagram(1),
+    ['decision-record.md', /\n*$/, `\n${entity}\n`]), 'decision-record'), FIX);
+  fails(push(fixture(withDecisions(true, false), diagram(1),
+    third(`- item\n  > ${entity.replace(/\n/g, '\n  > ')}`)), 'decision-record'), FIX);
+  fails(push(fixture(third('```&#109;ermaid\nflowchart LR\n  A --> url(x)\n%%{init: {}}%%\n```')),
+    'decision-record'), FENCE);
   // A refused form that Qory Apiary shows as text is not hidden in a quote: the fix comes first.
   fails(push(fixture(third('> ```mermaid\n> notadiagram\n> ```')), 'decision-record'), FENCE);
   // A fence at the line start gets every check, and one in another code block is refused too.

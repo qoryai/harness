@@ -11,27 +11,32 @@ const lineList = (text) => text.replace(/\r\n?/g, '\n').split('\n');
 
 const headingLevel = (line) => (/^ {0,3}(#{1,6})(\s|$)/.exec(line) || ['', ''])[1].length;
 
-// fence returns the character, length and first word of a line that opens a code block.
+// fence returns the character, length and first word of a line that opens a code block, and
+// whether its info string has an "&": a parser reads an entity in an info string.
 function fence(line) {
   const match = /^ {0,3}(`{3,}|~{3,})\s*([^\s`]*)/.exec(line);
   if (!match || (match[1][0] === '`' && line.slice(match[0].length).includes('`'))) return null;
-  return { mark: match[1][0], size: match[1].length, info: match[2].toLowerCase() };
+  return {
+    mark: match[1][0], size: match[1].length, info: match[2].toLowerCase(), amp: line.includes('&'),
+  };
 }
 
-// lines returns each line with whether it opens, closes or sits inside a code block, and the
-// first word of that block.
+// lines returns each line with whether it opens, closes or sits inside a code block, the first
+// word of that block, and whether its info string has an "&".
 function lines(text) {
   const out = [];
   let open = null;
   for (const line of lineList(text)) {
     if (open) {
       const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
-      out.push({ text: line, fenced: true, info: open.info });
+      out.push({ text: line, fenced: true, info: open.info, amp: open.amp });
       if (close && close[1][0] === open.mark && close[1].length >= open.size) open = null;
       continue;
     }
     open = fence(line);
-    out.push({ text: line, fenced: Boolean(open), info: open ? open.info : '' });
+    out.push({
+      text: line, fenced: Boolean(open), info: open ? open.info : '', amp: Boolean(open && open.amp),
+    });
   }
   return out;
 }

@@ -85,15 +85,16 @@ characters, as Qory Apiary measures them, and, in a flowchart, at most 200 edges
 check counts from every link. It also checks that a decision has at most one block and a
 removed decision none, and that the decisions that are not removed have at most 2 in the
 record, each block that Qory Apiary draws counted, and that a block in a quote or a list
-item is refused, because the fence must start the line. It
-checks that "Rests on:" lists criteria of the newest acceptance criteria that are not
-removed, or one of its two other lines, and that "Question:" lists a question of this run's
-questions in the state that the decision needs. The push form reads only the newest
-questions version, which does not have this run's new questions yet, so it does not report
-a "Question:" id that is missing there; the check before your start reports it. It checks
-that the ids keep the newest version's ids and numbers, and it checks the characters, each
-link, `.qory/repositories`, each path of the machine the run is on, and each `![` and
-`<img`, code blocks and diagrams included. Judge the rest of the check list.
+item, or with an `&` in its info string, is refused, because the fence must start the line
+and say `mermaid`. It checks that "Rests on:" lists criteria of the newest acceptance
+criteria that are not removed, or one of its two other lines, and that "Question:" lists a
+question of this run's questions in the state that the decision needs. The push form reads
+only the newest questions version, which does not have this run's new questions yet, so it
+does not report a "Question:" id that is missing there; the check before your start
+reports it. It checks that the ids keep the newest version's ids and numbers, and it
+checks the characters, each link, `.qory/repositories`,
+each path of the machine the run is on, and each `![` and `<img`, code blocks and diagrams
+included. Judge the rest of the check list.
 
 - The text "The spec leaves no technical choice open." stands only when the spec's
   `## Changes` parts leave no technical choice open, no further choice exists, and no

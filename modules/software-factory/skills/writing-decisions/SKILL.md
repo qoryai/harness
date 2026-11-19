@@ -139,8 +139,9 @@ The other rules stay, such as the edit in place of the newest version, and the 4
   as text, under a line that says why it failed. It shows a block over 20,000 characters as
   the size-error diagram of Mermaid, with its source in `<details>`. The check refuses each
   of them.
-- The 450 words leave out the diagrams. Qory Apiary strips each `click` line and the front
-  matter of a block before it draws, and the check refuses neither.
+- The 450 words leave out the diagrams. Qory Apiary strips each `click`, `link`, `callback`
+  and `links` statement line and the front matter of a block before it draws, and the check
+  refuses neither.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw
