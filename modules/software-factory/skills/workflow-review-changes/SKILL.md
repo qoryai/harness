@@ -27,7 +27,7 @@ lists it. When one of the three cannot be loaded, start nothing and end with "Th
 not load the rules it needs, so the review of the change did not start."
 
 Each command of this skill that starts with `<skill folder>/checks.cjs` is the checks script
-of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
+of `running-a-workflow`. The input file is the file whose path the prompt contains, which
 ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull prints.
 
 Run only `<qory>` commands, the checks script and the read forms of `run-artifacts`. Write
