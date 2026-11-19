@@ -1663,9 +1663,9 @@ test('the first line of each deny has at most 100 characters and says what to do
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const texts = { ...guardModule.REASONS, WRITE_REASON: reports.WRITE_REASON,
     SHELL_REASON: reports.SHELL_REASON, HIDDEN_REASON: reports.HIDDEN_REASON,
-    PATH_REASON: reports.PATH_REASON,
+    PATH_REASON: reports.PATH_REASON, SPECIAL_REASON: reports.SPECIAL_REASON,
     STEPS: steps.REASON, UNWRITABLE: steps.UNWRITABLE };
-  assert.ok(Object.keys(texts).length >= 20, Object.keys(texts).join(' '));
+  assert.ok(Object.keys(texts).length >= 21, Object.keys(texts).join(' '));
   for (const [name, text] of Object.entries(texts)) {
     const [first, ...rest] = text.split('\n');
     assert.ok(first.length <= 100, `${name}: ${first.length} characters: ${first}`);
@@ -2379,5 +2379,84 @@ test('a command with many globs is decided in under 1 second, and one over the l
   } finally {
     fs.globSync = globSync;
     Date.now = now;
+  }
+});
+
+test('the first word of a command is read only as a file of the size of checks.cjs', async () => {
+  const net = require('node:net');
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const home = harnessHome();
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  const dir = next('first');
+  fs.mkdirSync(dir);
+  const fifo = path.join(dir, 'pipe');
+  childProcess.execFileSync('mkfifo', [fifo]);
+  const socket = path.join(dir, 's.sock');
+  const server = net.createServer().listen(socket);
+  await new Promise((resolve) => server.once('listening', resolve));
+  try {
+    // The real hook, killed after 2 s: it printed a deny in under 1 s, or it was still reading.
+    const hook = (command) => {
+      const begun = process.hrtime.bigint();
+      const ran = childProcess.spawnSync(process.execPath,
+        [path.join(home, 'hooks', 'reports-guard-gemini.cjs')], { cwd: WORK, env,
+          input: JSON.stringify({ tool_name: 'run_shell_command', tool_input: { command } }),
+          encoding: 'utf8', timeout: 2000, killSignal: 'SIGKILL' });
+      const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+      assert.equal(ran.error, undefined, `${command}: ${ran.error} after ${ms} ms`);
+      assert.ok(ms < 1000, `${command}: ${ms} ms at load average ${os.loadavg()[0].toFixed(1)}`);
+      return JSON.parse(ran.stdout);
+    };
+    for (const word of ['/dev/zero', '/dev/urandom', fifo, socket]) {
+      for (const command of [`${word} x`, `node ${word}`, `"${word}" 2>&1`]) {
+        const out = hook(command);
+        assert.equal(out.decision, 'deny', command);
+        firstLine(out.reason, 'Start the command with a program or a script, not a device');
+        assert.ok(out.reason.split('\n')[1].includes(word), command);
+      }
+    }
+    // A file, a folder and a path that is not there are decided as before: they pass.
+    for (const word of [process.execPath, dir, path.join(dir, 'missing'), '/dev/null/x']) {
+      assert.deepEqual(hook(`${word} x`), {}, word);
+    }
+  } finally {
+    server.close();
+  }
+  // A file of 600 MB, which no run of checks.cjs equals, is not read, and the command passes.
+  const big = path.join(dir, 'big');
+  fs.writeFileSync(big, '');
+  fs.truncateSync(big, 600 * (1 << 20));
+  fs.chmodSync(big, 0o755);
+  const { readFileSync, readSync } = fs;
+  const reads = [];
+  fs.readFileSync = (file, ...rest) => {
+    reads.push(String(file));
+    return readFileSync(file, ...rest);
+  };
+  fs.readSync = (fd, ...rest) => {
+    reads.push(`fd ${fd}`);
+    return readSync(fd, ...rest);
+  };
+  try {
+    const run = { kind: 'shell', env, script: path.join(home, 'hooks', 'reports-guard-gemini.cjs'),
+      cwd: WORK };
+    assert.equal(reports.decide({ ...run, args: { command: `${big} x` } }), null);
+    assert.deepEqual(reads, []);
+    // A copy of checks.cjs with the bytes of the original runs, and a copy with one byte changed
+    // does not, at the same size.
+    const checks = path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.cjs');
+    const text = fs.readFileSync(checks);
+    reads.length = 0;
+    fs.writeFileSync(path.join(dir, 'same.cjs'), text);
+    const changed = Buffer.from(text);
+    changed[changed.length - 2] ^= 1;
+    fs.writeFileSync(path.join(dir, 'changed.cjs'), changed);
+    const report = (file) => reports.decide({ ...run,
+      args: { command: `${file} report a .reports/a-1.md` } });
+    assert.equal(report(path.join(dir, 'same.cjs')), null);
+    assert.ok(report(path.join(dir, 'changed.cjs')).startsWith('Write to .reports/ only'));
+  } finally {
+    fs.readFileSync = readFileSync;
+    fs.readSync = readSync;
   }
 });

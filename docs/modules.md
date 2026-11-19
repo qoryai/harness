@@ -1158,6 +1158,14 @@ outlasts its timeout lets the call run on Cursor and Copilot CLI. Before the lim
 words of `***` took 70 s one expansion at a time. The second line of that deny is "The globs
 of the command pass what the guard expands: " and the limit that the command passed.
 
+To tell whether the first word of a command is a copy of `checks.cjs`, the guard reads that
+file only when it is a regular file of the size of `checks.cjs`, and then at most that size
+and one byte. `/dev/zero` as the first word made the hook grow to 44.8 GB, and a FIFO would
+block it. A command whose first word is a path to a device, a pipe or a socket is denied
+with the first line "Start the command with a program or a script, not a device, pipe or
+socket." and the word on the second line. A file of another size, a folder and a path that
+is not there are decided by the other rules of the guard.
+
 The first line of a deny for the last three cases is "Leave .reports/ to checks.cjs, and
 name other files with no `$`, backtick, eval or glob." The second line contains the part of
 the command that reaches `.reports`. A command still reaches the folder past the guard

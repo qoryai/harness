@@ -1355,6 +1355,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The reports guard reads the first word of a command, to find out whether it is a copy of
+  `checks.cjs`, only when it is a regular file of the size of `checks.cjs`, and then at most
+  that size and one byte. It read the whole file, so `/dev/zero` grew the hook to 44.8 GB, a
+  FIFO blocked it until the timeout of the hook, which lets the call run on Cursor and
+  Copilot CLI, and any program such as `/usr/bin/git` was read in full. A command whose
+  first word is a path to a device, a pipe or a socket is denied with the first line "Start
+  the command with a program or a script, not a device, pipe or socket." A regular file of
+  another size is decided by the other rules of the guard: the command is not `checks.cjs`.
 - The reports guard of Gemini CLI, Cursor and Copilot CLI decides a command with 62,500 words
   of `***` in 30 ms, where it took 70 s with the working folder at `/tmp`. It expanded each
   glob word with a separate `fs.globSync` call, and the hook outlasted its timeout of 10 s,

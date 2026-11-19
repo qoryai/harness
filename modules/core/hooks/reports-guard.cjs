@@ -13,7 +13,9 @@
 // - a shell command that reaches .reports, unless it runs the harness's checks.cjs and
 //   nothing else: the first word, after node, is a path to checks.cjs, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
-//   end. A command reaches .reports when its text contains .reports; when one of its words,
+//   end. decide reads that file only if it has the size of checks.cjs, and denies a first
+//   word that is a device, a pipe or a socket. A command reaches .reports when its text
+//   contains .reports; when one of its words,
 //   as the shell reads it, contains .reports; when a word with an unquoted * ? [ or {, or a
 //   folder part of that word, matches a path under .reports, as fs.globSync expands it from
 //   the working folder of the command; or when the command has $, a backtick or eval and
@@ -141,6 +143,9 @@ const CONTROL = /[;&|<>`\n\r]|\$\(/;
 const WRITE_REASON = 'Write no file under .reports/ that ends in .json or has .json.lock in ' +
   'its name.\nOnly checks.cjs writes these files, which contain the report checks, the ' +
   'counts of the run, the findings of a change and the locks of the counts and the findings.';
+// The first line of a deny for a command whose first word is a device, a pipe or a socket; the
+// second line contains that word.
+const SPECIAL_REASON = 'Start the command with a program or a script, not a device, pipe or socket.\n';
 const SHELL_REASON = 'Write to .reports/ only through checks.cjs.\nOnly ' +
   'checks.cjs writes the .json files there, which contain the report checks, the counts and ' +
   'the findings of a change.';
@@ -197,16 +202,42 @@ function withoutRedirect(command) {
   return end < text.length - '2>&1'.length ? text.slice(0, end) : text;
 }
 
-// runsChecks reports whether command runs the checks.cjs next to script and nothing else.
-function runsChecks(command, env, script) {
+// checksWord returns the first word of command, after node, as an absolute path with a leading
+// quote, $QORY_HARNESS_HOME or ~ resolved, when the command has no ; & | < > ` $( or line break
+// other than a 2>&1 at its end; else null.
+function checksWord(command, env) {
   const rest = withoutRedirect(command);
-  if (CONTROL.test(rest)) return false;
+  if (CONTROL.test(rest)) return null;
   const words = rest.split(/\s+/);
   if (words[0] === 'node') words.shift();
   const first = (words[0] || '').replace(/^(['"])(.*)\1$/, '$2')
     .replace(/^\$(QORY_HARNESS_HOME|\{QORY_HARNESS_HOME\})(?=\/)/, env.QORY_HARNESS_HOME || '\0')
     .replace(/^~(?=\/)/, env.HOME || '\0');
-  if (!path.isAbsolute(first) || first.includes('\0')) return false;
+  return path.isAbsolute(first) && !first.includes('\0') ? first : null;
+}
+
+// sameFile reports whether the file real has the bytes of the file checks. It reads real only
+// when it is a regular file of the size of checks, and then at most that size and one byte
+// more: a device such as /dev/zero has no end, a FIFO blocks the read, and a big file takes
+// time and memory.
+function sameFile(real, checks) {
+  const want = fs.statSync(checks);
+  const have = fs.statSync(real);
+  if (!have.isFile() || have.size !== want.size) return false;
+  const fd = fs.openSync(real, 'r');
+  try {
+    const bytes = Buffer.alloc(want.size + 1);
+    return bytes.subarray(0, fs.readSync(fd, bytes, 0, bytes.length, 0))
+      .equals(fs.readFileSync(checks));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+// runsChecks reports whether command runs the checks.cjs next to script and nothing else.
+function runsChecks(command, env, script) {
+  const first = checksWord(command, env);
+  if (first === null) return false;
   const checks = path.join(path.resolve(path.dirname(script), '..'), 'modules',
     'core', 'skills', 'running-a-workflow', 'checks.cjs');
   const real = realPath(first);
@@ -214,10 +245,25 @@ function runsChecks(command, env, script) {
   if (real === realPath(checks)) return true;
   // A compose with copies in place of links writes checks.cjs more than once.
   try {
-    return fs.readFileSync(real).equals(fs.readFileSync(checks));
+    return sameFile(real, checks);
   } catch {
     return false;
   }
+}
+
+// notProgram returns the second line of a deny when the first word of command is a path to a
+// device, a pipe or a socket, or null. A file, a folder and a path that is not there give null.
+function notProgram(command, env) {
+  const first = checksWord(command, env);
+  if (first === null) return null;
+  let info;
+  try {
+    info = fs.statSync(first);
+  } catch {
+    return null;
+  }
+  return info.isFile() || info.isDirectory() ? null
+    : `The first word of the command is ${short(first)}, which is no program.`;
 }
 
 // The character of each escape of a $'...' quote, after the backslash, other than the
@@ -433,6 +479,8 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
     if (typeof command !== 'string') return null;
     if (runsChecks(command, env, script)) return null;
     if (REPORTS.test(command)) return SHELL_REASON;
+    const special = notProgram(command, env);
+    if (special !== null) return SPECIAL_REASON + special;
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
     const part = hidden(command, from, env, globs);
     return part === null ? null : HIDDEN_REASON + part;
@@ -458,4 +506,4 @@ function safeDecide(call) {
 }
 
 module.exports = { readInput, decide, safeDecide, runsChecks, withoutRedirect, reportsJson, REPORTS,
-  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, FAILED_REASON };
+  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, FAILED_REASON, SPECIAL_REASON };
