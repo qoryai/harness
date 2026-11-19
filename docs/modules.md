@@ -1796,7 +1796,7 @@ find:
 - `submission`: a `passed` verdict with no `text`; a description without the parts
   `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; the form of a
   secret, such as a private key or an access token, in the title or the description; and,
-  from its schema, a `base` with no `commit`; more than 100 `commits[]`, or one with no
+  from its schema, a `base` with no `commit`; a `commits[]` entry with no
   `commit` or with a `step` of 0 or more than 128 characters; a `none` reason
   `program-failed` with no `exit` of 0, 1 or 2, `login-needed` with no `exit` of 3, or
   another reason with an `exit`; a title of 0 or more than 256 characters, of spaces only,

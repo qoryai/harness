@@ -21,13 +21,17 @@ module.exports = (lib) => {
   ];
 
   // partFindings returns the finding of a description that lacks the four parts in their
-  // order, or none. where is the words for the description in the fix.
+  // order, or that has text before the first part, or none. where is the words for the
+  // description in the fix.
   function partFindings(description, where) {
-    const titles = sections(lines(description), 2).slice(1).map((part) => part.title);
-    if (titles.join('\n') === PARTS.join('\n')) return [];
+    const all = sections(lines(description), 2);
+    const titles = all.slice(1).map((part) => part.title);
+    const before = all[0].lines.some((line) => line.text.trim() !== '');
+    if (!before && titles.join('\n') === PARTS.join('\n')) return [];
     return [`Write ${where} in four parts, in their order.\n` +
       `They are ${PARTS.map((part) => `## ${part}`).join(', ')}.\nIt has ` +
-      `${titles.map((title) => `## ${title}`).join(', ') || 'no ## heading'}.`];
+      `${titles.map((title) => `## ${title}`).join(', ') || 'no ## heading'}.` +
+      `${before && titles.length ? '\nText comes before the first part.' : ''}`];
   }
 
   // secretFindings returns one finding for each member of text, { title, description },

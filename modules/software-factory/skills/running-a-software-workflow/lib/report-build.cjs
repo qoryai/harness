@@ -142,20 +142,51 @@ module.exports = (lib) => {
   const blockingRound = (text) => text.split('\n').filter((line) => /^\|/.test(line)).slice(2)
     .some((line) => cells(line)[2] === 'yes');
 
-  // leftOut returns the items of each list `Left out:` of report: the lines `- <item>:
-  // <risk>` after it, up to a line that is no such item. `Left out: none` is an empty
-  // list.
+  // leftOut reads each list `Left out:` of report as { items, problems }: the lines `- <item>:
+  // <risk>` or `* <item>: <risk>` after the header and its blank lines, or none. A list that
+  // it cannot read adds a problem, the cause in words.
   function leftOut(report) {
     const rows = report.replace(/\r\n?/g, '\n').split('\n');
     const items = [];
+    const problems = [];
+    const bullet = /^[-*] /;
     rows.forEach((row, at) => {
-      if (row.trimEnd() !== 'Left out:') return;
-      for (let next = at + 1; next < rows.length && /^- /.test(rows[next]); next += 1) {
-        items.push(rows[next].slice(2).trim());
+      const head = /^(?:\*\*)?Left out:(?:\*\*)?[ \t]*(.*)$/.exec(row.trimEnd());
+      if (!head) return;
+      const none = /^(?:\*\*)?none\.?$/i.test(head[1]);
+      if (head[1] && !none) {
+        problems.push('text after `Left out:` on its line that is not none');
+        return;
       }
+      let next = at + 1;
+      while (next < rows.length && rows[next].trim() === '') next += 1;
+      if (/^\s+[-*] /.test(rows[next] || '')) {
+        problems.push('an indented list');
+        return;
+      }
+      const found = [];
+      for (; next < rows.length && bullet.test(rows[next]); next += 1) {
+        found.push(rows[next].slice(2).trim());
+        if (/^\s+\S/.test(rows[next + 1] || '')) {
+          problems.push('an item that continues on an indented line');
+          return;
+        }
+      }
+      if (none && found.length) problems.push('items after `Left out: none`');
+      else if (!none && !found.length) problems.push('no item and no none after `Left out:`');
+      else items.push(...found);
     });
-    return items;
+    return { items, problems };
   }
+
+  // leftOutFindings returns one finding for each row of ledger whose report has a list
+  // `Left out:` that leftOut cannot read. The cause is in the report of the row, not in
+  // submission.md, so the first line starts with the same words for each row.
+  const leftOutFindings = (ledger) => ledger.steps.flatMap((row) => {
+    const { problems } = leftOut(row.report || '');
+    return problems.length ? [`Fix the list Left out: of step ${row.id}.\nWrite it as lines - ` +
+      `<item>: <risk>, or as Left out: none. The report of the row has ${problems[0]}.`] : [];
+  });
 
   // stateAt returns the result, green or red, of the locked check on commit in the newest
   // record of `run locked` on that commit with no uncommitted change, or unknown.
@@ -178,7 +209,9 @@ module.exports = (lib) => {
     const ledger = readLedger(context.root);
     if (!ledger) return null;
     const head = git.head(cwd, env);
-    if (!head) throw new Missing('Run the verb in the checkout of the work.\ngit has no HEAD there.');
+    if (!head) {
+      throw new Missing('Run the verb in the checkout of the work.\ngit has no HEAD there.');
+    }
     const lock = context.newest('acceptance-lock', 'acceptance-lock.json');
     const locked = lock ? parseJson(lock.text, `acceptance-lock version ${lock.number}`) : null;
     const previous = context.history('build-report', FILE);
@@ -235,7 +268,7 @@ module.exports = (lib) => {
     // An item goes through plainText and the cut of a point. An item that the check of the
     // report refuses, such as a path of the machine or a link that is not https://, is
     // replaced, so that the report never breaks the check.
-    const left = rows.flatMap((row) => leftOut(row.report || '')
+    const left = rows.flatMap((row) => leftOut(row.report || '').items
       .map((item) => cut(plainText(item), POINT_TEXT)).filter(Boolean)
       .map((item) => `- ${row.id}: ${item}`)
       .map((line) => (refused(line, data.machine) ? `- ${row.id}: ${REPLACED}` : line)));
@@ -259,5 +292,6 @@ module.exports = (lib) => {
     return out;
   }
 
-  return { BUILD_REPORT_FILE: FILE, gatherReport: gather, renderReport: render, splitReport: split };
+  return { BUILD_REPORT_FILE: FILE, gatherReport: gather, leftOutFindings, renderReport: render,
+    splitReport: split };
 };

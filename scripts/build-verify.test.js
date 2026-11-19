@@ -775,7 +775,7 @@ test('submission: a repository with base and commits, and one with no draft, is 
     []);
 });
 
-test('submission: a step has 1 to 128 characters, and at most 100 commits', () => {
+test('submission: a step has 1 to 128 characters, and the commits have no upper bound', () => {
   const step = (value) => submissionErrors((d) => {
     d.repositories[0].commits = [{ commit: C1, step: value }];
   });
@@ -789,7 +789,11 @@ test('submission: a step has 1 to 128 characters, and at most 100 commits', () =
     d.repositories[0].commits = Array.from({ length: count }, () => ({ commit: C1, step: 's' }));
   });
   assert.deepEqual(commits(100), []);
-  assert.notDeepEqual(commits(101), []);
+  assert.deepEqual(commits(101), []);
+  // The push check of the type takes 101 commits in one repository, as qory does.
+  const many = clone(SUBMISSION);
+  many.repositories[0].commits = Array.from({ length: 101 }, () => ({ commit: C1, step: 's' }));
+  passes(push(fixture(), 'submission', ['submission.json', many]), 'submission');
 });
 
 test('submission: the title is one line, with no control, bidi or invisible character', () => {

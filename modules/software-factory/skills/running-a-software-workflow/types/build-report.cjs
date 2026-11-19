@@ -19,11 +19,9 @@ module.exports = (lib) => {
   // A fast-track session that escalated adds this section at the end.
   const ESCALATION = 'Escalation';
 
-  // rendered finds each section of the standard track whose raw text, as the file has it,
-  // differs from the render of the records: a CRLF line break, a trailing space, an extra
-  // blank line or a changed heading counts. The rounds come from open-findings.json beside the inputs.json, so
-  // without --inputs, the sections with the number of rounds, Summary, Review rounds and
-  // Counts, are left out, and the check says so.
+  // rendered finds each section of the standard track whose raw text differs from the render
+  // of the records. The rounds come from open-findings.json beside --inputs, so without it
+  // Summary, Review rounds and Counts are left out, and the check prints that.
   function rendered(run) {
     const { context } = run;
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;

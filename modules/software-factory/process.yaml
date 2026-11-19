@@ -196,7 +196,6 @@ artifact_types:
               },
               "commits": {
                 "type": "array",
-                "maxItems": 100,
                 "items": {
                   "type": "object",
                   "required": [

@@ -60,7 +60,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `report` of a row of the build ledger, as `- <row id>: <item>: <risk>`, or `none`.
 - The type `submission` has the values and bounds of qory and of the change feed:
   - `base` with `commit`, and `branch` and `commit_url` when known;
-  - `commits[]`, at most 100, each with `commit` and a `step` of 1 to 128 characters;
+  - `commits[]`, with no upper bound, each with `commit` and a `step` of 1 to 128
+    characters;
   - `draft` is optional, and `draft.state` is `draft`, `open`, `closed` or `merged`;
   - the `none` reasons `program-failed` with `exit` 0, 1 or 2, `program-timeout`, and
     `login-needed` with `exit` 3;
