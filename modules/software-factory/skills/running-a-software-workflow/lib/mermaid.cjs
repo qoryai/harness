@@ -1,7 +1,8 @@
 // The part of the Mermaid hook of Qory Apiary that decides whether a block is drawn as a
 // diagram: the text it draws, its type, the syntax that loads an address, and its limits.
 // A port of assets/js/hooks/mermaid.js of qoryai/apiary, so that a check of the harness
-// refuses a block that Qory Apiary shows as text, which no word count may leave out.
+// refuses a block that Qory Apiary shows as text, and the words of a block that no diagram
+// syntax holds, which the 450 words of a record count.
 'use strict';
 
 // The settings of mermaid.js (lines 158-159): maxTextSize and maxEdges.
@@ -38,15 +39,33 @@ const LINK_STATEMENTS = [
   /(^|;)\s*links?\s+[^\s:;|"<>-][^\s:;|"<>]*\s*:/i,
 ];
 
-// source returns the text of a block as Qory Apiary draws it: without each line that has a
-// directive (%%{), without each line with a link statement, and without front matter at its
-// start (mermaid.js:195-202).
+// shown returns text as Qory Apiary shows a code block: without the invisible characters,
+// with U+FFFD for each control character except tab, line feed and carriage return, and for
+// each unpaired surrogate (lib/apiary/external_text.ex:49,114-121, called by
+// lib/apiary_web/live/artifact_live/markdown.ex:336).
+const INVISIBLE = /[\p{Cf}\u2028\u2029\u034F\u17B4\u17B5\u180B-\u180D\u180F]/gu;
+const KEPT = new Set(['\u200C', '\u200D']);
+const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
+const UNPAIRED = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+function shown(text) {
+  return text.replace(UNPAIRED, '\uFFFD').replace(INVISIBLE, (char) => (KEPT.has(char) ? char : ''))
+    .replace(CONTROL, '\uFFFD');
+}
+
+// source returns the text of a block as Qory Apiary draws it: as shown, without each line that
+// has a directive (%%{), without each line with a link statement, and without front matter at
+// its start (mermaid.js:195-202).
 function source(text) {
   return withoutFrontMatter(
-    text.split(/\r\n|\r|\n/)
+    shown(text).split(/\r\n|\r|\n/)
       .filter((line) => !line.includes('%%{') && !LINK_STATEMENTS.some((one) => one.test(line))),
   ).join('\n');
 }
+
+// size returns the length that Mermaid compares with maxTextSize: the text with a line feed
+// added, without its %% comment lines (not %%{), and without the white space at its start.
+const size = (text) => `${text}\n`.replace(/^\s*%%(?!\{)[^\n]+\n?/gm, '').trimStart().length;
 
 // firstLine returns the first line of text that is not blank and not a %% comment, trimmed
 // (mermaid.js:254-258).
@@ -117,28 +136,35 @@ function loads(text) {
   return /(^|;)\s*(properties|details)(\s|$)/im.test(text);
 }
 
-// The words of a flowchart statement that are no link: the statements of other kinds.
-const NOT_LINKS = /^\s*(subgraph|end|style|classDef|class|linkStyle|direction|click)(\s|$)/;
+// The statements of a flowchart that add no link. A node may be called direction, so only
+// "direction" with a direction after it is no link.
+const NOT_LINKS = new RegExp(
+  '^\\s*(?:(?:subgraph|end|style|classDef|class|linkStyle|click)(?:\\s|$)' +
+    '|direction\\s+(?:TB|TD|BT|RL|LR)(?:\\s|$))',
+);
 
-// A link of a flowchart: its two ends, with a head, and a link with a text in two parts,
-// "A -- text --> B", which the first replace turns into "A --> B".
-const TEXT_LINK = /(?:--|==|-\.)[ \t]+(?:(?!--|==|-\.)[^\n])+?[ \t]+(?=-{2,}|={2,}|-?\.+-)/g;
+// A link of a flowchart has two ends. A link with a text in two parts, "A -- text --> B" or
+// "A--text-->B", loses its first part, so that the second part is its only token.
+const CLOSER = '(?=-{2,}|={2,}|-?\\.+-)';
+const TEXT_LINK = new RegExp(
+  '(?<![-=.<])(?:--|==|-\\.)(?:[ \\t]+(?:(?!--|==|-\\.)[^\\n;])+?[ \\t]+' +
+    `|(?![-=.>xo\\s])(?:(?!--|==|-\\.)[^\\n;])*?)${CLOSER}`,
+  'g',
+);
 const LINK = /(?:[<ox](?=--|==|-\.))?(?:-{2,}|={2,}|-\.+-?|\.+-|~{3,})[>ox]?/g;
+const ENDS_IN_LINK = new RegExp(`${LINK.source}\\s*$`);
+const STARTS_WITH_LINK = new RegExp(`^\\s*${LINK.source}`);
 
-// nodes returns the number of nodes that one side of a link has: names joined by "&".
+// nodes returns the number of nodes that one side of a link has: names joined by "&", and at
+// least 1, so that a link with a side the count cannot read still counts.
 function nodes(side) {
-  return side.split('&').filter((name) => name.trim() !== '').length;
+  return Math.max(1, side.split('&').filter((name) => name.trim() !== '').length);
 }
 
 // statementEdges returns how many edges one statement of a flowchart adds.
 function statementEdges(statement) {
-  if (statement.trim().startsWith('%%') || NOT_LINKS.test(statement)) return 0;
-  let rest = statement.replace(/"[^"]*"/g, '""').replace(/\|[^|]*\|/g, '');
-  for (let before = ''; before !== rest;) {
-    before = rest;
-    rest = rest.replace(/\[[^[\]]*\]|\([^()]*\)|\{[^{}]*\}/g, '');
-  }
-  const sides = rest.replace(TEXT_LINK, '').split(LINK);
+  if (NOT_LINKS.test(statement)) return 0;
+  const sides = statement.replace(TEXT_LINK, '').split(LINK);
   let total = 0;
   for (let index = 0; index + 1 < sides.length; index += 1) {
     total += nodes(sides[index]) * nodes(sides[index + 1]);
@@ -146,38 +172,90 @@ function statementEdges(statement) {
   return total;
 }
 
-// edges returns how many edges the text of a flowchart has, as Mermaid adds them in the
-// flowchart database, which stops at maxEdges: a link between two sides adds one edge for
-// each pair of nodes, so "A & B --> C" adds 2, and "A --> B --> C" adds 2. Text in quotes,
-// in |...| and in brackets is no node. The count reads the statements that look like links,
-// with no check that Mermaid reads them. mermaid.js sets maxEdges but has no count of its own.
-function edges(text) {
-  let total = 0;
-  let typed = false;
-  for (const line of text.split('\n')) {
-    let rest = line;
-    if (!typed && rest.trim() !== '' && !rest.trim().startsWith('%%')) {
-      typed = true;
-      rest = rest.replace(/^\s*(flowchart|graph)(\s+(TB|TD|BT|RL|LR))?/, '');
-    }
-    for (const statement of rest.split(';')) total += statementEdges(statement);
+// readable returns text without its %% comment lines, its quoted text and its |...| and
+// bracket text, which hold no link. The first line with a type loses the type.
+function readable(text) {
+  let rest = text.split('\n').filter((line) => !line.trim().startsWith('%%')).join('\n')
+    .replace(/^(\s*)(?:flowchart|graph)(?:[ \t]+(?:TB|TD|BT|RL|LR))?(?=[\s;]|$)/, '$1')
+    .replace(/"[^"]*"/g, '""').replace(/\|[^|\n]*\|/g, '');
+  for (let before = ''; before !== rest;) {
+    before = rest;
+    rest = rest.replace(/\[[^[\]]*\]|\([^()]*\)|\{[^{}]*\}/g, '');
   }
-  return total;
+  return rest;
+}
+
+// edges returns at least the edges that Mermaid adds, never fewer: each link token adds one edge
+// for each pair of nodes of its two sides (& groups), a link at the end or start of a line joins
+// the next or previous line, and a text link "A -- t --> B" is one token.
+function edges(text) {
+  const joined = [];
+  for (const part of readable(text).split(/[;\n]/)) {
+    if (part.trim() === '') continue;
+    const last = joined.length - 1;
+    if (last >= 0 && (ENDS_IN_LINK.test(joined[last]) || STARTS_WITH_LINK.test(part))) {
+      joined[last] += ` ${part}`;
+    } else {
+      joined.push(part);
+    }
+  }
+  return joined.reduce((sum, statement) => sum + statementEdges(statement), 0);
+}
+
+// prose returns the lines of a block whose words count toward a word limit. A line is diagram
+// syntax, and its words do not count, when it has a link token, starts with a node id and a
+// shape that ends the line, opens a block with "{" after at most 3 words, or is a subgraph
+// line that ends with a bracket (its title is a label). A line that starts with a keyword
+// counts only the words after its first 6. A %% comment line counts its words, and a line
+// with a directive (%%{), which Qory Apiary does not draw, counts none.
+const LINK_TOKEN = /-{2,}|={2,}|~{3,}|-\.|\.-|->|<\||\|\||\*-|\.\.[>|]/;
+const NODE_SHAPE = /^[\w.-]+(?:\[|\(|\{|>|@\{).*[\])}](?::::[\w-]+)?;?$|^\S+(?:\s+\S+){0,2}\s*\{$/;
+const KEYWORDS = new Set([
+  'flowchart', 'graph', 'sequenceDiagram', 'stateDiagram', 'stateDiagram-v2', 'classDiagram',
+  'classDiagram-v2', 'erDiagram', 'subgraph', 'end', 'direction', 'style', 'classDef', 'class',
+  'linkStyle', 'click', 'participant', 'actor', 'activate', 'deactivate', 'note', 'Note', 'loop',
+  'alt', 'else', 'opt', 'par', 'and', 'rect', 'critical', 'option', 'break', 'autonumber',
+  'title', 'state', 'namespace', 'box', 'link', 'links', 'callback', 'accTitle', 'accDescr',
+  'create', 'destroy', 'interface',
+]);
+const KEYWORD_ARGUMENTS = 6;
+
+function prose(text) {
+  const kept = [];
+  for (const line of shown(text).split(/\r\n|\r|\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.includes('%%{')) continue;
+    if (trimmed.startsWith('%%')) {
+      kept.push(trimmed.slice(2));
+    } else if (LINK_TOKEN.test(trimmed) || NODE_SHAPE.test(trimmed)) {
+      continue;
+    } else if (/^subgraph\s.*[\])}]$/.test(trimmed)) {
+      continue;
+    } else if (KEYWORDS.has(trimmed.split(/[\s:;]/)[0])) {
+      kept.push(trimmed.split(/\s+/).slice(KEYWORD_ARGUMENTS).join(' '));
+    } else {
+      kept.push(trimmed);
+    }
+  }
+  return kept.join('\n');
 }
 
 // refusal returns why Qory Apiary shows the Mermaid block with this text as text, or draws
 // it as an error, as { reason, found }, or null when it draws the block. reason is `type`,
 // `loads`, `size` or `edges`.
 function refusal(text) {
-  const shown = source(text);
-  if (!TYPES.includes(typeOf(shown))) return { reason: 'type', found: typeOf(shown) };
-  if (loads(shown)) return { reason: 'loads' };
-  if (shown.length > MAX_CHARACTERS) return { reason: 'size', found: shown.length };
-  if (['flowchart', 'graph'].includes(typeOf(shown))) {
-    const count = edges(shown);
+  const drawn = source(text);
+  if (!TYPES.includes(typeOf(drawn))) return { reason: 'type', found: typeOf(drawn) };
+  if (loads(drawn)) return { reason: 'loads' };
+  const length = size(drawn);
+  if (length > MAX_CHARACTERS) return { reason: 'size', found: length };
+  if (['flowchart', 'graph'].includes(typeOf(drawn))) {
+    const count = edges(drawn);
     if (count > MAX_EDGES) return { reason: 'edges', found: count };
   }
   return null;
 }
 
-module.exports = { MAX_CHARACTERS, MAX_EDGES, TYPES, edges, loads, refusal, source, typeOf };
+module.exports = {
+  MAX_CHARACTERS, MAX_EDGES, TYPES, edges, loads, prose, refusal, size, source, typeOf,
+};

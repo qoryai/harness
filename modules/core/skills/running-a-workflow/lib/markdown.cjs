@@ -367,15 +367,78 @@ function address(addr) {
   return null;
 }
 
-// definitions returns the labels of the link reference definitions of text outside code, in
-// lower case with each run of white space as one space, with their addresses.
+// label returns a link label as Markdown compares it: lower case, each run of white space as
+// one space.
+const label = (text) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+
+// inner returns a line without the quote marks and list marks that start it, so that a
+// definition in a list item or a quote reads as one.
+const inner = (text) => text.replace(/^(?:\s*>[ \t]?|\s*(?:[-*+]|\d{1,9}[.)])[ \t]+)+/, '').trim();
+
+// definitions returns the link reference definitions of text outside code, at the start of a
+// line, of a list item or of a quote, as a map from label() to address. The address may be on
+// the next line.
 function definitions(list) {
   const out = new Map();
-  for (const line of list) {
-    const found = line.fenced ? null : /^\s{0,3}\[([^\]]+)\]:\s*<?(\S+?)>?(\s|$)/.exec(line.text);
-    if (found) out.set(found[1].toLowerCase().replace(/\s+/g, ' ').trim(), found[2]);
-  }
+  list.forEach((line, index) => {
+    if (line.fenced) return;
+    const found = /^\[((?:[^[\]\\]|\\.)+)\]:\s*(.*)$/.exec(inner(line.text));
+    if (!found) return;
+    let rest = found[2].trim();
+    const next = list[index + 1];
+    if (rest === '' && next && !next.fenced) rest = inner(next.text);
+    const addr = /^<?(\S+?)>?(\s|$)/.exec(rest);
+    if (addr && !out.has(label(found[1]))) out.set(label(found[1]), addr[1]);
+  });
   return out;
+}
+
+// brackets returns a map from the index of each "[" of text to the index of the "]" that
+// closes it, with brackets in pairs and a backslash escaping the next character. One pass,
+// so that a long line of "![" takes no more time than a short one.
+function brackets(text) {
+  const pairs = new Map();
+  const open = [];
+  for (let at = 0; at < text.length; at += 1) {
+    if (text[at] === '\\') at += 1;
+    else if (text[at] === '[') open.push(at);
+    else if (text[at] === ']' && open.length) pairs.set(open.pop(), at);
+  }
+  return pairs;
+}
+
+const LABEL = /\[((?:[^[\]\\]|\\.)*)\]/y;
+
+// referenceImages returns text without its reference images, ![alt][label], ![alt][] and ![alt],
+// whose label has a definition in defined; found gets the address of each.
+function referenceImages(text, defined, found) {
+  const pairs = brackets(text);
+  let out = '';
+  let at = 0;
+  for (;;) {
+    const start = text.indexOf('![', at);
+    if (start === -1) return out + text.slice(at);
+    const end = pairs.has(start + 1) ? pairs.get(start + 1) : -1;
+    let stop = end;
+    let key = '';
+    if (end !== -1) {
+      key = label(text.slice(start + 2, end));
+      LABEL.lastIndex = end + 1;
+      const named = text[end + 1] === '[' ? LABEL.exec(text) : null;
+      if (named) {
+        stop = end + named[0].length;
+        if (named[1].trim() !== '') key = label(named[1]);
+      }
+    }
+    if (end !== -1 && defined.has(key)) {
+      found.push({ image: true, addr: defined.get(key) });
+      out += `${text.slice(at, start)} `;
+      at = stop + 1;
+    } else {
+      out += text.slice(at, start + 2);
+      at = start + 2;
+    }
+  }
 }
 
 // links checks each link and image of Markdown text outside code. images(addr) returns
@@ -408,12 +471,7 @@ function links(
         found.push({ image: true, addr: '<img>' });
         return ' ';
       });
-      rest = rest.replace(/!\[((?:[^[\]\\]|\\.)*)\](?:\[([^[\]]*)\])?/g, (all, alt, label) => {
-        const key = (label || alt).toLowerCase().replace(/\s+/g, ' ').trim();
-        if (label === undefined && !defined.has(key)) return all;
-        found.push({ image: true, addr: defined.get(key) || key });
-        return ' ';
-      });
+      rest = referenceImages(rest, defined, found);
     }
     rest = rest.replace(/<([a-z][a-z0-9+.-]*:[^<>\s]*)>/gi, (all, addr) => {
       found.push({ image: false, addr });
@@ -557,10 +615,11 @@ function summary(run, file, text) {
 
 // wordLimit checks at most 450 words:
 // artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true.
-function wordLimit(run, file, text, background) {
+// without the background after its first paragraph when background is true, and plus the
+// number extra of words that the caller counts for text that counted() leaves out.
+function wordLimit(run, file, text, background, extra = 0) {
   run.did('word limit');
-  const count = words(counted(text, background));
+  const count = words(counted(text, background)) + extra;
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 

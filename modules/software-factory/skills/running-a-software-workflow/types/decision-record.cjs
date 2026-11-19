@@ -4,7 +4,7 @@
 module.exports = (lib) => {
   const {
     blank, brief, criterionMap, headings, idHistory, lines, markdownText, quote, REMOVED, same,
-    sections, topSections, wordLimit,
+    sections, topSections, wordLimit, words,
   } = lib;
   const mermaid = require('../lib/mermaid.cjs');
 
@@ -93,12 +93,9 @@ module.exports = (lib) => {
       });
   }
 
-  // blockFinding returns the fix line for a closed Mermaid block that Qory Apiary does not draw
-  // as a diagram, or null. Qory Apiary draws a code block as a diagram when the first word of its
-  // info string is mermaid in lower case (qoryai/apiary, markdown.ex:329-337). A fence that is
-  // indented 1 to 3 spaces may sit inside the item above it, so the check asks for a fence at
-  // the start of its line, with no other word. The types and the limits are those of
-  // mermaid.js:158-159 and 262-271.
+  // blockFinding returns the fix for a closed Mermaid block that Qory Apiary does not draw, or
+  // null. It draws a block whose info string starts with mermaid (markdown.ex:328-339); a fence
+  // indented 1 to 3 spaces may belong to the item above it, so the fence starts its line.
   function blockFinding(id, block) {
     const open = /^( *)(`{3,}|~{3,})(.*)$/.exec(block.open);
     if (!open || open[1] !== '' || !/^[ \t]*mermaid[ \t]*$/.test(open[3])) {
@@ -196,9 +193,14 @@ module.exports = (lib) => {
           `${expected.map((name) => `"${name}:"`).join(', ')}.${whole(decision.id)}`);
       }
     }
-    wordLimit(run, 'decision-record.md', md, false);
-    // writing-decisions (SKILL.md:136: "a third diagram in the record fail"): the Mermaid
-    // blocks of decisions that are not removed. wordLimit leaves them out of the 450 words.
+    // writing-decisions (SKILL.md:137-138: "each `%%` comment line of a diagram"): the 450 words
+    // leave out the diagram syntax of a Mermaid block and count the rest of its lines.
+    const diagramWords = words(all.flatMap((decision) => decision.blocks)
+      .filter((block) => block.end !== null)
+      .map((block) => mermaid.prose(block.text)).join('\n'));
+    wordLimit(run, 'decision-record.md', md, false, diagramWords);
+    // writing-decisions (SKILL.md:142: "a third diagram in the record fail"): the Mermaid
+    // blocks of decisions that are not removed.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
       0);
     if (diagrams > MAX_DIAGRAMS) {

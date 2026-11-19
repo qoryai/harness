@@ -2083,41 +2083,69 @@ that, so the writer lists a question that quotes it, and reports
 `workflow-write-technical-decisions`, as an `answer` point: a question asks whether the
 spec changes.
 
-The record keeps its list of decisions and may add pictures. `writing-decisions` follows the
-section "Markdown documents" of `artifact-text` for them: a decision whose chosen way
+The record keeps its list of decisions and may add pictures. `writing-decisions` follows
+the section "Markdown documents" of `artifact-text` for them. A decision whose chosen way
 changes how two parts call each other, or a flow of states, may end with one Mermaid
 diagram, drawn by `visuals`. The record has no wireframe, table or image of any form:
-`checks.cjs` also refuses a reference image, such as `![alt][label]`, and an `<img>` (the
-option `everyImage` of `links` in `lib/markdown.cjs`, which only the decision record sets,
-so no other type changes). `checks.cjs` refuses, each with a fix line that starts with the
-fix: a block with no closing fence ("Close the Mermaid block of decision-1 with a line of 3
-backticks.", or "3 tildes" or another length, as the opening fence is), a second diagram in
-a decision ("Cut decision-1 to one Mermaid diagram: it has 2."), a diagram that is not the
-last text of its decision after a blank line ("Put the Mermaid diagram of decision-1 after
-its last item, with a blank line before it."; "Put the text after the Mermaid diagram of
-decision-1 above it, or delete it." when text follows the diagram), a diagram in a removed
-decision ("Remove the Mermaid diagram of decision-1: the decision is removed."), and a third
-diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."). A removed
-decision's diagram is not in that count. The 450 words leave out the words of a diagram, so
-the check also refuses a block that Qory Apiary does not draw as a diagram, by
-`lib/mermaid.cjs`, a port of `assets/js/hooks/mermaid.js` of qoryai/apiary. Qory Apiary
-draws a code block as a diagram when the first word of its info string is `mermaid` in lower
-case (`lib/apiary_web/live/artifact_live/markdown.ex:329-337`), so the check wants the fence
-at the start of its line, in lower case, with no other word ("Write the fence of the Mermaid
-block of decision-1 as `` ```mermaid `` at the line start."): a fence that is indented 1 to
-3 spaces can belong to the list item above it. The hook draws the types in
-`mermaid.js:262-271`, so a block that starts with another word gets "Start the Mermaid block
-of decision-1 with a type that Qory Apiary draws.", with the types and the first word on the
-next line. A block with a syntax that loads an address (`mermaid.js:289-296`) gets "Remove
-the syntax that loads an address from the Mermaid block of decision-1." A block over 20,000
-characters, counted on the text that the hook draws (`mermaid.js:195-202`), gets "Cut the
-Mermaid block of decision-1 to 20000 characters: it has N.", and a flowchart over 200 edges
-gets "Cut the Mermaid block of decision-1 to 200 edges: it has N." `mermaid.js` sets both
-limits (`:158-159`) but has no count: Mermaid stops a flowchart at the 201st edge.
-`lib/mermaid.cjs` counts the edges from the link lines, one for each pair of nodes, so it
-can differ from Mermaid for an unusual line. `checking-decisions` has the reviewer judge the
-rest: a diagram under a decision that changes no call or flow, a diagram that does not match
-its decision, and a drawing of the system's architecture.
+`checks.cjs` also refuses a reference image, such as `![alt][label]`, and an `<img>`. It
+reads them through the option `everyImage` of `links` in `lib/markdown.cjs`, which only the
+decision record sets, so no other type changes. A reference image has a definition, and the check finds it
+with brackets in its alt text, and with its definition at the start of a line, in a list
+item or in a quote, and with the address on the next line. A reference with no definition
+is no image.
+
+`checks.cjs` refuses, each with a fix line that starts with the fix:
+
+- a block with no closing fence ("Close the Mermaid block of decision-1 with a line of 3
+  backticks.", or "3 tildes" or another length, as the opening fence is);
+- a second diagram in a decision ("Cut decision-1 to one Mermaid diagram: it has 2.");
+- a diagram that is not the last text of its decision after a blank line ("Put the Mermaid
+  diagram of decision-1 after its last item, with a blank line before it."; "Put the text
+  after the Mermaid diagram of decision-1 above it, or delete it." when text follows it);
+- a diagram in a removed decision ("Remove the Mermaid diagram of decision-1: the decision
+  is removed.");
+- a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
+  a removed decision's diagram is not in that count.
+
+The 450 words count each `%%` comment line of a diagram (not a `%%{` line) and each line
+with no link token, no node shape and no keyword, and leave out the rest of the diagram.
+`lib/mermaid.cjs` defines those three, and it counts the words after the first 6 words of a
+keyword line. The lines of a class member, an entity attribute, a state text and a node id
+alone have none of the three, so their words count.
+
+The check also refuses a block that Qory Apiary does not draw as a diagram.
+`lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
+that, on the text that Qory Apiary draws: without the invisible characters that
+`Apiary.ExternalText.lines` drops (`lib/apiary/external_text.ex:49,114-121`, called at
+`lib/apiary_web/live/artifact_live/markdown.ex:336`), without each line with a directive,
+and without front matter (`mermaid.js:195-202`). It refuses:
+
+- a fence that is not lower case `mermaid` at the start of its line with no other word
+  ("Write the fence of the Mermaid block of decision-1 as `` ```mermaid `` at the line
+  start."). Qory Apiary draws a code block when the first word of its info string is
+  `mermaid` in lower case (`markdown.ex:328-339`), and a fence indented 1 to 3 spaces can
+  belong to the list item above it;
+- a first word that is not a type of `mermaid.js:262-271` ("Start the Mermaid block of
+  decision-1 with a type that Qory Apiary draws.", with the types and the first word on the
+  next line);
+- a syntax that loads an address (`mermaid.js:289-296`): "Remove the syntax that loads an
+  address from the Mermaid block of decision-1.";
+- a block over 20,000 characters, measured as Mermaid measures: a line feed added, the `%%`
+  comment lines (not `%%{`) removed, and the start trimmed ("Cut the Mermaid block of
+  decision-1 to 20000 characters: it has N."); Qory Apiary shows it as an error diagram with
+  its source in `<details>`;
+- a flowchart over 200 edges ("Cut the Mermaid block of decision-1 to 200 edges: it has
+  N.").
+
+`mermaid.js` sets both limits (`:158-159`), but only Mermaid counts edges, and it stops a
+flowchart at the 201st edge. `lib/mermaid.cjs` counts every link token, one edge for each
+pair of nodes of its two sides, and joins a link that ends or starts a line with the next or
+previous line. It can count more edges than Mermaid for an unusual line, and it counts none
+fewer in the tests of `scripts/checks.test.js`.
+
+`checking-decisions` has the reviewer judge the rest: a diagram under a decision that
+changes no call or flow, a diagram that does not match its decision, and a drawing of the
+system's architecture.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, and `designer` writes one

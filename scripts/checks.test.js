@@ -1335,36 +1335,107 @@ test('decision record: a block with syntax that loads an address is refused', ()
   fails(push(fixture(drawn('sequenceDiagram\n  A->>B: Ask\n  details A: x')), 'decision-record'), loads);
 });
 
-test('decision record: a block of at most 20000 characters and 200 edges passes', () => {
+test('decision record: a block of at most 20000 characters passes, measured as Mermaid does', () => {
   const size = /^Cut the Mermaid block of decision-1 to 20000 characters: it has (\d+)\.$/;
-  const edges = /^Cut the Mermaid block of decision-1 to 200 edges: it has (\d+)\.$/;
-  // The text of a block is what Qory Apiary draws: with no line that has a directive.
-  const head = 'flowchart LR\n  A --> B\n%% ';
-  const sized = (count) => drawn(`${head}${'x'.repeat(count - head.length)}`);
+  // Mermaid compares the text with a line feed added, without its %% comment lines (not %%{),
+  // and without the white space at its start.
+  // sized(count) is a block that Mermaid measures as count characters.
+  const head = 'flowchart LR\n  A["';
+  const sized = (count, before = '') => drawn(`${before}${head}${'x'.repeat(count - head.length - 3)}"]`);
+  passes(push(fixture(sized(19999)), 'decision-record'));
   passes(push(fixture(sized(20000)), 'decision-record'));
   const over = push(fixture(sized(20001)), 'decision-record');
   fails(over, size);
   assert.ok(over.findings.some((line) => (size.exec(line) || [])[1] === '20001'), over.out);
-  const links = (count) => Array.from({ length: count }, (_, at) => `  N${at} --> M${at}`);
-  const graph = (count, type = 'flowchart LR') => drawn([type, ...links(count)].join('\n'));
-  passes(push(fixture(graph(200)), 'decision-record'));
-  passes(push(fixture(graph(200, 'graph TD')), 'decision-record'));
-  const many201 = push(fixture(graph(201)), 'decision-record');
-  fails(many201, edges);
-  assert.ok(many201.findings.some((line) => (edges.exec(line) || [])[1] === '201'), many201.out);
-  fails(push(fixture(graph(201, 'graph TD')), 'decision-record'), edges);
-  // A link of 2 nodes to 2 nodes is 4 edges, a chain of 3 nodes is 2, and a link with a label
-  // or a bracket text is 1.
+  // A comment line and a directive line are not in the length, and the white space at the start is not.
+  const comment = '%% ' + 'y'.repeat(400) + '\n%%{init: {"theme": "dark"}}%%\n\n   ';
+  passes(push(fixture(sized(20000, comment)), 'decision-record'));
+  fails(push(fixture(sized(20001, comment)), 'decision-record'), size);
+});
+
+test('decision record: Qory Apiary strips characters before it draws, and so does the check', () => {
+  const loads = /^Remove the syntax that loads an address from the Mermaid block of decision-1\./;
+  const body = (middle) => `flowchart LR\n  A --> B\n  style A fill:url${middle}(x.png)`;
+  fails(push(fixture(drawn(body('͏'))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('­'))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body(' '))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('᠋'))), 'decision-record'), loads);
+  // A join control stays, so the text is not an address. A control character becomes U+FFFD.
+  const kept = push(fixture(drawn(body('‍'))), 'decision-record');
+  assert.ok(!kept.findings.some((line) => loads.test(line)), kept.out);
+  const control = push(fixture(drawn(body('\u0001'))), 'decision-record');
+  assert.ok(!control.findings.some((line) => loads.test(line)), control.out);
+});
+
+// A flowchart with count links of the form given, one per line, after the type line.
+const flowchart = (...lines) => drawn(['flowchart LR', ...lines].join('\n'));
+const linkLines = (count, form) => Array.from({ length: count }, (_, at) => `  ${form(at)}`);
+const EDGES = /^Cut the Mermaid block of decision-1 to 200 edges: it has (\d+)\.$/;
+
+test('decision record: a flowchart of at most 200 edges passes, whatever the link form', () => {
+  const links = (count) => linkLines(count, (at) => `N${at} --> M${at}`);
+  passes(push(fixture(flowchart(...links(200))), 'decision-record'));
+  passes(push(fixture(drawn(['graph TD', ...links(200)].join('\n'))), 'decision-record'));
+  const many201 = push(fixture(flowchart(...links(201))), 'decision-record');
+  fails(many201, EDGES);
+  assert.ok(many201.findings.some((line) => (EDGES.exec(line) || [])[1] === '201'), many201.out);
+  fails(push(fixture(drawn(['graph TD', ...links(201)].join('\n'))), 'decision-record'), EDGES);
+  // A link between 2 sides adds one edge for each pair of nodes: "A & B --> C & D" is 4, a chain
+  // of 3 nodes is 2, and a link with a label or a bracket text is 1.
   const sides = ['  A & B --> C & D', '  A --> B --> C', '  A -- text --> B', '  A[x --> y] -->|l| B'];
   const counts = [4, 2, 1, 1];
   sides.forEach((line, at) => {
-    const body = ['flowchart LR', ...links(200 - counts[at]), line].join('\n');
-    passes(push(fixture(drawn(body)), 'decision-record'));
-    fails(push(fixture(drawn(`${body}\n  X --> Y`)), 'decision-record'), edges);
+    const body = [...links(200 - counts[at]), line];
+    passes(push(fixture(flowchart(...body)), 'decision-record'));
+    fails(push(fixture(flowchart(...body, '  X --> Y')), 'decision-record'), EDGES);
   });
   // Qory Apiary sets the edge limit for flowcharts: other types have no count.
   passes(push(fixture(drawn(['sequenceDiagram', ...Array.from({ length: 300 },
     (_, at) => `  A->>B: Ask ${at}`)].join('\n'))), 'decision-record'));
+});
+
+test('decision record: the edge count is never below the count of Mermaid', () => {
+  const edges = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs')).edges;
+  const chain = (nodes, link) => Array.from({ length: nodes }, (_, at) => `n${at}`).join(` ${link} `);
+  // The counts of Mermaid 11.17.2 for these blocks, by the vendored build of Qory Apiary.
+  const cases = [
+    ['n0 --- n1 --- n2 --- n3', 3], ['A --- B --> C', 2], ['A === B === C', 2],
+    ['A -.- B -.-> C', 2], ['A --o B --o C', 2], ['A --> B --- C --- D', 3],
+    ['direction --> B', 1], ['direction TB\n  A --> B', 1],
+    ['subgraph s\n  direction LR\n  A --> B\nend', 1],
+    ['n0 -->\n  m0', 1], ['n0\n  --> m0', 1], ['n0 -->\n\n  m0', 1],
+    ['A -- t1 --- B -- t2 --- C', 2], ['a1--text-->b1', 1], ['a1==text==>b1', 1], ['a1-.text.->b1', 1],
+    ['A["x;y"] --> B[p;q]; C --> D', 2], ['A & B --> C & D', 4], ['A --> B & C --> D & E', 6],
+  ];
+  for (const [body, count] of cases) assert.equal(edges(body), count, body);
+  // The review's blocks: 201 edges in a chain, behind a node called direction, in a link on 2 lines.
+  assert.equal(edges(chain(202, '---')), 201);
+  assert.equal(edges(chain(202, '==>')), 201);
+  assert.equal(edges(Array.from({ length: 201 }, (_, at) => `direction --> n${at}`).join('\n')), 201);
+  assert.equal(edges(Array.from({ length: 201 }, (_, at) => `n${at} -->\n  m${at}`).join('\n')), 201);
+  // A link of text with no spaces is 1 edge: 101 lines are 101 edges, and 100 lines are not refused.
+  assert.equal(edges(Array.from({ length: 101 }, (_, at) => `a${at}--text-->b${at}`).join('\n')), 101);
+});
+
+test('decision record: a flowchart over 200 edges is refused in the forms that the count once missed', () => {
+  const forms = {
+    'a chain of open links': (count) => [`  ${Array.from({ length: count + 1 }, (_, at) => `n${at}`).join(' --- ')}`],
+    'a chain of thick links': (count) => [`  ${Array.from({ length: count + 1 }, (_, at) => `n${at}`).join(' === ')}`],
+    'an open link before an arrow': (count) => ['  A --- B --> C', ...linkLines(count - 2, (at) => `N${at} --> M${at}`)],
+    'a node called direction': (count) => linkLines(count, (at) => `direction --> n${at}`),
+    'a link on 2 lines': (count) => linkLines(count, (at) => `n${at} -->\n    m${at}`),
+    'a link that starts a line': (count) => linkLines(count, (at) => `n${at}\n    --> m${at}`),
+    'a link with a text and no spaces': (count) => linkLines(count, (at) => `a${at}--text-->b${at}`),
+    'a text with ;': (count) => linkLines(count, (at) => `a${at}["x;y"]-->b${at}[p;q]`),
+  };
+  for (const [name, lines] of Object.entries(forms)) {
+    passes(push(fixture(flowchart(...lines(200))), 'decision-record'));
+    const result = push(fixture(flowchart(...lines(201))), 'decision-record');
+    fails(result, EDGES);
+    assert.ok(result.findings.some((line) => (EDGES.exec(line) || [])[1] === '201'), `${name}: ${result.out}`);
+  }
+  // 101 links of text with no spaces are 101 edges, not 202.
+  passes(push(fixture(flowchart(...linkLines(101, (at) => `a${at}--text-->b${at}`))), 'decision-record'));
 });
 
 test('decision record: an image of any form is refused', () => {
@@ -1383,6 +1454,36 @@ test('decision record: an image of any form is refused', () => {
   passes(push(fixture(why('![Flow] and <imgx> ')), 'decision-record'));
 });
 
+test('decision record: a reference image is found with brackets in its alt text and in any definition', () => {
+  const image = /^Remove the image "https:\/\/example\.com\/flow\.svg" from decision-record\.md\./;
+  const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
+  const after = (text) => ['decision-record.md', COST, (item) => `${item}\n\n${text}`];
+  const address = 'https://example.com/flow.svg';
+  const forms = [
+    ['balanced brackets in the alt text', '![a [b] c][f]', `[f]: ${address}`],
+    ['2 levels of brackets in the alt text', '![a [b [c]] d][f]', `[f]: ${address}`],
+    ['an escaped bracket in the alt text', '![a \\] b][f]', `[f]: ${address}`],
+    ['the address on the next line', '![a][f]', `[f]:\n    ${address}`],
+    ['the address in angle brackets on the next line', '![a][f]', `[f]:\n<${address}>`],
+    ['a definition in a list item', '![a][f]', `- [f]: ${address}`],
+    ['a definition in a numbered list item', '![a][f]', `1. [f]: ${address}`],
+    ['a definition in a quote', '![a][f]', `> [f]: ${address}`],
+    ['a definition in a list item in a quote', '![a][f]', `> - [f]: ${address}`],
+    ['a label in other case', '![a][F]', `[f]: ${address}`],
+    ['a collapsed reference', '![f][]', `[f]: ${address}`],
+    ['a shortcut reference', '![f]', `[f]: ${address}`],
+  ];
+  for (const [name, text, definition] of forms) {
+    const result = push(fixture(why(`${text} `), after(definition)), 'decision-record');
+    assert.equal(result.status, 1, `${name}: ${result.out}`);
+    assert.ok(result.findings.slice(0, -1).some((line) => image.test(line)), `${name}: ${result.out}`);
+  }
+  // A reference with no definition is no image, however its alt text is written.
+  for (const text of ['![a][nope]', '![a [b] c][nope]', '![nope][]', '![nope]']) {
+    passes(push(fixture(why(`${text} `)), 'decision-record'));
+  }
+});
+
 test('decision record: the 450 words leave out the diagram', () => {
   const cost = (words) => ['decision-record.md', COST, `- Cost: ${many(words)}.`];
   const count = /^Cut decision-record.md to 450 words: it has (\d+)\./;
@@ -1391,6 +1492,79 @@ test('decision record: the 450 words leave out the diagram', () => {
   const exact = 440 + 450 - Number(found[1]);
   passes(push(fixture(cost(exact), diagram(1)), 'decision-record'));
   fails(push(fixture(cost(exact + 1), diagram(1)), 'decision-record'), count);
+});
+
+// A diagram of about 40 lines with nodes, labels, subgraphs, links, classes and styles, and no
+// comment: it adds no word to the 450.
+const DIAGRAM_40 = [
+  'flowchart LR',
+  '  subgraph intake ["Intake of a reply"]',
+  '    direction TB',
+  '    A[Customer writes]:::warn --> B{Hours known?}',
+  '    B -->|yes| C[Send the hours]',
+  '    B -->|no| D[Ask support]',
+  '  end',
+  '  subgraph support [Support side]',
+  '    E((Open)) --> F[[Check the ticket]]',
+  '    F --> G>Note the answer]',
+  '    G --> H{{Review}}',
+  '  end',
+  '  D --> E',
+  '  H -- approved --> C',
+  '  H -.-> D',
+  '  C ==> I[(Archive)]',
+  '  I --- J(Closed)',
+  '  classDef warn fill:#f96,stroke:#333',
+  '  class D warn',
+  '  style C fill:#9f6',
+  '  linkStyle 0 stroke:#333,stroke-width:2px',
+  ...Array.from({ length: 19 }, (_, at) => `  P${at}[Step ${at}] --> P${at + 1}[Step ${at + 1}]`),
+].join('\n');
+
+test('decision record: the words of a comment line and of a line with no diagram syntax count', () => {
+  const count = /^Cut decision-record.md to 450 words: it has (\d+)\./;
+  const cost = (words) => ['decision-record.md', COST, `- Cost: ${many(words)}.`];
+  const found = count.exec(push(fixture(cost(440)), 'decision-record').out);
+  assert.ok(found);
+  const exact = 440 + 450 - Number(found[1]);
+  // 40 lines of diagram syntax add 0 words, and a record of exactly 450 words passes.
+  assert.equal(DIAGRAM_40.split('\n').length, 40);
+  passes(push(fixture(cost(exact), drawn(DIAGRAM_40)), 'decision-record'));
+  fails(push(fixture(cost(exact + 1), drawn(DIAGRAM_40)), 'decision-record'), count);
+  // A comment of 500 words, in a diagram that has a link.
+  fails(push(fixture(drawn(`flowchart LR\n  A --> B\n%% ${many(500)}`)), 'decision-record'), count);
+  // 500 words of prose after the type, one sentence on each line, also from keyword words.
+  const prose = (sentence, lines) => drawn(`flowchart LR\n${Array(lines).fill(sentence).join('\n')}`);
+  fails(push(fixture(prose('The retry waits for a reply from the support desk.', 60)), 'decision-record'), count);
+  fails(push(fixture(prose('Note that the retry (see below) waits for a reply from support.', 90)),
+    'decision-record'), count);
+  fails(push(fixture(prose('End the retry (see below) when a reply from support arrives.', 60)),
+    'decision-record'), count);
+  // A directive line is not drawn, so its words do not count, and the words of a comment do.
+  passes(push(fixture(drawn(`flowchart LR\n  A --> B\n%%{init: {"note": "${many(500)}"}}%%`)),
+    'decision-record'));
+  const some = (words) => drawn(`flowchart LR\n  A --> B\n%% ${many(words)}`);
+  passes(push(fixture(cost(exact - 10), some(10)), 'decision-record'));
+  fails(push(fixture(cost(exact - 10), some(11)), 'decision-record'), count);
+});
+
+test('decision record: a diagram that has lines with no diagram syntax counts those words', () => {
+  const mermaid = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs'));
+  const { words: countWords } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs'));
+  const words = (text) => countWords(mermaid.prose(text));
+  assert.equal(words(DIAGRAM_40), 0);
+  // The lines of the other types that hold no link, shape or keyword count: a class member, an
+  // attribute of an entity, a state text, and a node id alone.
+  assert.equal(words('classDiagram\n  class Reply {\n    +int age\n  }\n  Reply --> Hours'), 2);
+  assert.equal(words('erDiagram\n  REPLY {\n    string name PK\n  }\n  REPLY ||--o{ HOURS : has'), 3);
+  assert.equal(words('stateDiagram-v2\n  Open : waits for the answer\n  [*] --> Open'), 5);
+  assert.equal(words('flowchart LR\n  A\n  B[x]'), 1);
+  // A keyword line counts its words after the 6th, and a text with a link token counts none.
+  assert.equal(words('sequenceDiagram\n  participant Customer as Support Agent\n  A->>B: Ask a long question here'), 0);
+  assert.equal(words('flowchart LR\n  Note that the retry waits for a reply from support.'), 4);
+  // A %% comment counts its words, a directive none.
+  assert.equal(words('flowchart LR\n%% one two three\n%%{init: {"a": "b c d"}}%%\n  A --> B'), 3);
+  assert.equal(words('flowchart LR\n%%one two\n  A --> B'), 2);
 });
 
 // ---- Limits -------------------------------------------------------------------------------
@@ -3871,6 +4045,9 @@ const HOSTILE = {
   'link starts': '[a]('.repeat(50000),
   'spaces in a link': `[a](${' '.repeat(200000)}`,
   'image starts': '!['.repeat(100000),
+  'image brackets': '![a ['.repeat(40000),
+  'definition starts': '[a]:'.repeat(50000),
+  'list and quote marks': '> - 1. '.repeat(30000),
   backticks: '`'.repeat(200000),
   'backtick runs': Array.from({ length: 600 }, (_, n) => '`'.repeat(n + 1)).join('a'),
   'full stops': '.'.repeat(200000),
@@ -3912,6 +4089,17 @@ test('a hostile line of 200 KB takes less than 5 s in every check', () => {
       assert.ok(took < 5000, `${name} in ${type} took ${took} ms`);
       assert.ok([0, 1].includes(result.status), `${name} in ${type}: ${result.out}`);
       assert.doesNotMatch(result.out, /at most 256 KB/, `${name} in ${type}: ${result.out}`);
+    }
+    // The decision record also reads a definition at the start of a line, of a list item and of
+    // a quote, and a reference image in the text of each.
+    for (const mark of ['', '> ', '- ', '> - ']) {
+      write(root, 'decision-record.md', `## Decisions\n\n### \`decision-1\`: a\n\n- Decision: a\n\n` +
+        `${mark}${cut}\n\n${mark}[f]:\n${mark}${cut}\n\n![${cut}][f]\n`);
+      const started = Date.now();
+      const result = push(root, 'decision-record');
+      const took = Date.now() - started;
+      assert.ok(took < 5000, `${name} after ${JSON.stringify(mark)} in decision-record took ${took} ms`);
+      assert.ok([0, 1].includes(result.status), `${name} in decision-record: ${result.out}`);
     }
   }
 });

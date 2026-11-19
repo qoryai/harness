@@ -112,8 +112,8 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   `![alt][label]`, and no `<img>`. The ways that a person compares are the options of the
   question.
 
-The other rules stay, such as the 450 words, which leave out the words of a diagram, and
-the edit in place of the newest version.
+The other rules stay, such as the edit in place of the newest version, and the 450 words,
+which leave out the syntax of a diagram.
 
 - A diagram shows the change in how two parts call each other, or in a flow of states, and
   nothing else, and it is no drawing of the system's architecture.
@@ -125,11 +125,17 @@ the edit in place of the newest version.
   `mermaid` in lower case and no other word or character after it. Qory Apiary draws a code
   block as a diagram when the first word of its info string is `mermaid`. A fence indented
   1 to 3 spaces can belong to the list item above it, and one indented 4 spaces or more is
-  code, so the check wants the fence at the start of the line.
-- Start the diagram with a type that Qory Apiary draws, as ${qory:skills/visuals} lists,
-  keep it to 20,000 characters and 200 edges, and write no syntax that loads an address,
-  as that skill lists. Qory Apiary shows any other block as text, and the check refuses
-  it, because the 450 words leave out the words of a diagram.
+  code, so the check requires the fence at the start of the line.
+- Start the diagram with `flowchart`, `graph`, `sequenceDiagram`, `stateDiagram`,
+  `stateDiagram-v2`, `classDiagram`, `classDiagram-v2` or `erDiagram`. Keep it to 20,000
+  characters, counted as Mermaid counts them: with a line feed added, and without the `%%`
+  comment lines and the white space at the start. Keep a flowchart to 200 edges: a link
+  between two `&` groups adds one edge for each pair of nodes. Write no `url(`, `image-set(`
+  or `@import`, no node with `img`, and no `properties` or `details` line. Qory Apiary shows
+  a block of another type, or with one of these, as text, and a block over a limit as an
+  error diagram with its source in `<details>`. The check refuses each of them.
+- The 450 words count each `%%` comment line of a diagram (not a `%%{` line) and each line
+  with no link, no node shape and no keyword, and leave out the rest of the diagram.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw
