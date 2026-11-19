@@ -27,10 +27,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Apiary strips, and counts every link of a flowchart, because Qory Apiary sets the limit
   but has no edge count. The 450 words of a record leave out its diagrams. Qory Apiary
   strips each `click`, `link`, `callback` and `links` statement line and the front matter,
-  and the check refuses neither. The decision record has no `![` or `<img` anywhere, code
-  blocks and diagrams included, and you write `\![` outside code for a literal `![`: the new
-  option `everyImage` of `links` in `lib/markdown.cjs`, which no other type sets, refuses
-  each one. `checking-decisions` has the reviewer judge each diagram, and `decision-writer`
+  and the check refuses neither. A line that starts with `|` counts toward the 450 words
+  unless it forms a table with a delimiter row. The decision record has no `![` or `<img`
+  anywhere, code blocks and diagrams included, and you write `\![` outside code for a
+  literal `![`: the new option `everyImage` of `links` in `lib/markdown.cjs`, which no other
+  type sets, refuses each one. `checking-decisions` has the reviewer judge each diagram, and `decision-writer`
   and `decision-reviewer` load `visuals` when the record has one.
 - The review report is checked against qory's
   `contracts/harness/v1/review-report.schema.json`, not a copy in this repository.

@@ -1623,6 +1623,64 @@ test('decision record: the 450 words leave out the diagram, whatever its size', 
   fails(push(fixture(cost(exact + 1), drawn(long)), 'decision-record'), count);
 });
 
+// A line that starts with "|" counts toward the 450 words unless it is a row of a table with a
+// delimiter row. over(text) tells whether the record, with 440 words and then text as a last
+// paragraph, fails the word limit. Other findings of the record do not matter here.
+const tail = (text) => ['decision-record.md', /\n*$/, `\n\n${text}\n`];
+const WORDS = /^Cut decision-record.md to 450 words: it has (\d+)\./;
+const piped = (count) => `| ${many(count)} | ${many(count)} |`;
+
+test('decision record: a line that starts with "|" counts unless it is in a table', () => {
+  const cost = (count) => ['decision-record.md', COST, `- Cost: ${many(count)}.`];
+  const exact = 880 - Number(WORDS.exec(push(fixture(cost(440)), 'decision-record').out)[1]);
+  const over = (text) => push(fixture(cost(exact), tail(text)), 'decision-record')
+    .findings.some((line) => WORDS.test(line));
+  assert.ok(!over(many(10)) && over(many(11)));
+  const lines = Array(5).fill(piped(50)).join('\n');
+  // No delimiter row: 500 words in "|" lines fail, in a paragraph of 5 lines.
+  assert.ok(over(lines));
+  // A header, a delimiter row and rows add no word.
+  const table = `${piped(50)}\n|---|:--:|\n${piped(50)}\n${piped(50)}\n${piped(50)}`;
+  assert.ok(!over(table));
+  // A delimiter row with another count of cells: the lines count.
+  assert.ok(over(`${piped(50)}\n|---|---|---|\n${lines}`));
+  assert.ok(over(`${piped(50)}\n|---|\n${lines}`));
+  // A line that is no delimiter row: the lines count.
+  assert.ok(over(`${piped(50)}\n| - | x |\n${lines}`));
+  // A blank line between the header and the delimiter row: no table.
+  assert.ok(over(`${piped(50)}\n\n|---|---|\n${lines}`));
+  // After the table, a line that does not start with "|" ends it, and a later "|" line counts.
+  assert.ok(over(`${table}\nend of the table\n${lines}`));
+  // A line indented 4 spaces is code, not a table.
+  assert.ok(over(table.replace(/^/gm, '    ')));
+  // In a quote, a list item or an HTML block, a table may not start.
+  assert.ok(over(`- item\n${table}`));
+  assert.ok(over(`> quote\n${table}`));
+  assert.ok(over(`<div>\n${table}`));
+  assert.ok(over(`<!--\n\n${table}\n\n-->`));
+  assert.ok(!over(`<!-- x -->\n\n${table}`));
+  // A table that follows a paragraph line at once, as GFM reads it: the paragraph line counts,
+  // the table does not. The first "|" line of a paragraph of "|" lines counts too.
+  assert.ok(!over(`A line of text.\n${table}`));
+  assert.ok(over(`${piped(200)}\n${table}`));
+  // A table in a fence of 5 backticks is code: it counts.
+  assert.ok(over(`\`\`\`\`\`text\n${table}\n\`\`\`\`\``));
+});
+
+test('decision record: the table scan takes linear time', () => {
+  for (const [name, text] of [
+    ['a long line', `|${'|'.repeat(250000)}`],
+    ['header rows', `${'| a |\n'.repeat(40000)}`],
+    ['tables', '| a |\n|---|\n| b |\n\n'.repeat(15000)],
+    ['delimiter rows', '| a |\n|-|\n'.repeat(40000)],
+  ]) {
+    const started = Date.now();
+    const result = push(fixture(tail(text)), 'decision-record');
+    assert.ok(Date.now() - started < 5000, `${name} took ${Date.now() - started} ms`);
+    assert.ok([0, 1].includes(result.status), `${name}: ${result.out}`);
+  }
+});
+
 const MERMAID = path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs');
 
 test('decision record: a Mermaid block with a %%{ line is refused', () => {

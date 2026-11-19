@@ -223,8 +223,8 @@ module.exports = (lib) => {
           `${expected.map((name) => `"${name}:"`).join(', ')}.${whole(decision.id)}`);
       }
     }
-    wordLimit(run, 'decision-record.md', md, false);
-    // writing-decisions (SKILL.md:148: "a third diagram in the record fail"): the Mermaid
+    wordLimit(run, 'decision-record.md', md, false, { tables: true });
+    // writing-decisions (SKILL.md:150: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed, wherever they stand.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.drawn),
       0);

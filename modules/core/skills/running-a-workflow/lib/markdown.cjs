@@ -224,16 +224,72 @@ const sentences = (text, options) => sentenceParts(text, options).length;
 // fenceLine reports whether a line of a code block opens or closes it.
 const fenceLine = (text) => Boolean(fence(text)) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(text);
 
+// The start of an HTML block that ends at a mark, not at a blank line, and its end mark.
+const HTML_ENDS = [
+  [/^ {0,3}<(script|pre|style|textarea)(\s|>|$)/i, /<\/(script|pre|style|textarea)>/i],
+  [/^ {0,3}<!--/, /-->/],
+  [/^ {0,3}<\?/, /\?>/],
+  [/^ {0,3}<!\[CDATA\[/, /\]\]>/],
+  [/^ {0,3}<![A-Za-z]/, />/],
+];
+
+// tableLines returns, for each line of list, whether it is a row of a table as Qory Apiary shows
+// it: a line that starts with `|` and at most 3 spaces, and a delimiter row right after it with
+// as many cells. A table goes on over the lines that start with `|`, up to a line that does not.
+// When a line may be in a quote, a list item or an HTML block, where a table may not start,
+// no table starts before the next blank line, and the lines count.
+function tableLines(list) {
+  const rows = new Array(list.length).fill(false);
+  const pipe = (line) => !line.fenced && /^ {0,3}\|/.test(line.text);
+  let blocked = false;
+  let waiting = null;
+  let inTable = false;
+  for (let at = 0; at < list.length; at += 1) {
+    const line = list[at];
+    if (line.fenced) {
+      inTable = false;
+    } else if (blank(line)) {
+      inTable = false;
+      if (!waiting) blocked = false;
+    } else if (waiting) {
+      if (waiting.test(line.text)) waiting = null;
+    } else if (/^\s*(>|[-*+](\s|$)|\d+[.)](\s|$)|<)/.test(line.text)) {
+      blocked = true;
+      inTable = false;
+      for (const [start, end] of HTML_ENDS) {
+        const found = start.exec(line.text);
+        if (found && !end.test(line.text.slice(found[0].length))) waiting = end;
+      }
+    } else if (blocked) {
+      inTable = false;
+    } else if (inTable) {
+      if (pipe(line)) rows[at] = true;
+      else inTable = false;
+    } else if (pipe(line) && at + 1 < list.length && pipe(list[at + 1])) {
+      const next = cells(list[at + 1].text);
+      if (delimiter(next) && next.length === cells(line.text).length) {
+        rows[at] = true;
+        rows[at + 1] = true;
+        at += 1;
+        inTable = true;
+      }
+    }
+  }
+  return rows;
+}
+
 // counted returns the text whose words count, as
 // artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
-// first paragraph. Other code blocks count.
-function counted(text, background) {
+// first paragraph. Other code blocks count. With options.tables, a line that starts with `|`
+// counts unless tableLines shows it as a table row.
+function counted(text, background, options = {}) {
   const kept = [];
   const list = lines(text);
+  const rows = options.tables ? tableLines(list) : null;
   let section = '';
   let paragraph = 'before';
-  for (const line of list) {
+  for (const [at, line] of list.entries()) {
     const level = line.fenced ? 0 : headingLevel(line.text);
     if (level === 2) {
       section = line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase();
@@ -248,7 +304,7 @@ function counted(text, background) {
       else if (paragraph === 'in' && !line.text.trim()) paragraph = 'after';
       if (paragraph === 'after') continue;
     }
-    if (!/^\s*\|/.test(line.text)) kept.push(line.text);
+    if (!(rows ? rows[at] : /^\s*\|/.test(line.text))) kept.push(line.text);
   }
   return kept.join('\n');
 }
@@ -572,10 +628,11 @@ function summary(run, file, text) {
 
 // wordLimit checks at most 450 words:
 // artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true.
-function wordLimit(run, file, text, background) {
+// without the background after its first paragraph when background is true. The options are
+// those of counted.
+function wordLimit(run, file, text, background, options) {
   run.did('word limit');
-  const count = words(counted(text, background));
+  const count = words(counted(text, background, options));
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 

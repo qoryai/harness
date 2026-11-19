@@ -2280,6 +2280,10 @@ other type changes. A `\![a](address)` is a link, and the check reads its addres
 The 450 words leave out the diagrams, whatever their size: the 20,000 characters and the 200
 edges bound them.
 
+A line that starts with `|` counts toward the 450 words, unless it forms a table with a
+delimiter row: `counted` in `lib/markdown.cjs` takes the option `tables` for it, which only
+the decision record sets. A spec, a question and a review reply leave out every such line.
+
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
 that, on the text that Qory Apiary draws: without the invisible characters that
