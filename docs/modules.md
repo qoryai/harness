@@ -2284,9 +2284,12 @@ again after a small workflow's stop, and when the session lost the list.
   line, `check` runs on the spec, and the session starts the planner again after the push.
   The newest spec now lists the screen, so `make-mockups` follows and `designer` draws it.
   When the spec lists the screen and the newest mockup lacks it, only `make-mockups` runs.
-  After a follow of `write-specs` for the word, the planner lists `make-mockups` alone, also
-  when `spec-writer` declined or asked about the screen, so the run does not start
-  `write-specs` again for the same word.
+  After a follow of `write-specs` in the log after the word's `at`, the planner lists
+  `make-mockups` alone, also when the reply of the spec writer has outcome `declined` or
+  `asked`, so the run does not start `write-specs` again for the same word.
+  `shape-reviewer` counts such a word as covered, by `checking-shape`: its last reply
+  declined, answered or asked about the part, or a follow of `write-specs` after its `at`
+  took it. So the read sends it to `write-specs` no more.
 - **Older versions.** A pull writes one folder per type, and only
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.
@@ -2296,7 +2299,8 @@ again after a small workflow's stop, and when the session lost the list.
 - **A small workflow's stop.** A stop that needs a change to a criterion, a new criterion or
   a change to the spec runs `write-specs`, then the stopped workflow, and one that needs a
   type runs the workflow that writes it. The end "The spec states no screen change, so the
-  run pushed no mockup." is such a stop when a word asks for a screen that the spec lacks.
+  run pushed no mockup." is such a stop when a word asks for a screen that the spec lacks
+  and the log has no follow of `write-specs` after the word's `at`.
   A later follow of the stopped workflow settles a stop, so it is not routed again, and a
   later push by the listed workflow settles that part of the route. A stop with no person's
   word behind it, and every other stop, reaches the planner's "Stop:" line, and the run
