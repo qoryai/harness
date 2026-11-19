@@ -1179,7 +1179,11 @@ the command that reaches `.reports`. A command still reaches the folder past the
 through a variable built without `.r`, or with a `.r` after a letter, digit or `_`, as in
 `d=x.rep; cat ${d#x}orts/starts.json`, `shopt -s dotglob`, `find` or `cp -r` of the parent
 folder, a glob after a `cd` in the command, `python -c`, or a script that it writes to a
-file and then runs. Each hook has a timeout of 10 seconds. A hook that runs past its timeout
+file and then runs. A first word that is a byte copy of `checks.cjs` counts as the checks
+tool, although `checks.cjs` loads files next to it, so a copy of the whole folder with an
+edited file runs. A shell command that writes through an existing link to `.reports` is not
+followed to the target: the write tools follow links, the shell kind does not. Each hook has
+a timeout of 10 seconds. A hook that runs past its timeout
 lets the call run on Cursor and on Copilot CLI ([Cursor](https://cursor.com/docs/agent/hooks),
 [Copilot CLI](https://docs.github.com/en/copilot/reference/hooks-reference)). Of a hook that
 fails, the pages say this. Cursor: a crash and an exit code other than 0 and 2 let the call run

@@ -29,10 +29,13 @@
 // .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
 // through a glob after a cd in the command, through python -c, and through a script that it
-// writes to a file and then runs. The adapters of Gemini CLI, Cursor and Copilot CLI call
-// safeDecide, which denies a call for which decide throws. A guard that runs past the
-// timeout of its hook lets the command run on Cursor and Copilot CLI. Outside a run decide
-// denies nothing, as checks.cjs end checks nothing there.
+// writes to a file and then runs. A first word that is a byte copy of checks.cjs counts as the
+// checks tool, although checks.cjs loads files next to it, so a copy of the whole folder with
+// an edited file runs. A shell command that writes through an existing link to .reports is not
+// followed to the target: the write tools follow links, the shell kind does not. The adapters
+// of Gemini CLI, Cursor and Copilot CLI call safeDecide, which denies a call for which decide
+// throws. A guard that runs past the timeout of its hook lets the command run on Cursor and
+// Copilot CLI. Outside a run decide denies nothing, as checks.cjs end checks nothing there.
 //
 // The adapter lies at <home>/hooks/, and checks.cjs at
 // <home>/modules/core/skills/running-a-workflow/checks.cjs, as end-gate.cjs lists.
