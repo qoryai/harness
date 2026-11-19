@@ -16,8 +16,8 @@ falls under the definition of `blocking` in `judging-findings`.
   its path as the folder, to trace a criterion through the code.
 - `qory.review.suite_result`: the result of the full suite. Its `output_tail`, the last
   lines of the output of the suite, is the source of a `failing check` proof. When
-  `suite_result` has no `output_tail`, prove a criterion that is not met with a `failing
-  input`. A red locked check is a finding that qory writes; the review gets no result of the
+  `suite_result` has no `output_tail`, prove with a `failing input` that a criterion is not
+  met. A red locked check is a finding that qory writes; the review gets no result of the
   locked checks.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists: what the session that made the change states
