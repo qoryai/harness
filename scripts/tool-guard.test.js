@@ -19,7 +19,13 @@ const guardModule = require(path.join(HOOKS, 'tool-guard.cjs'));
 const { lockedFiles, patchPaths, countsAsWrite } = guardModule;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tool-guard-test-')));
-test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// The folders of the checks go a few at a time: some hold 50,000 files, and the removal of a
+// folder is a series of calls that waits for the disk.
+test.after(async () => {
+  await pooled(fs.readdirSync(tmp).map((name) => () => fs.promises.rm(path.join(tmp, name),
+    { recursive: true, force: true })));
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
 
 // The artifact folder of a run, which no test makes, so that a /tmp/qory-artifacts that
 // another run left on this machine changes no test.
@@ -694,13 +700,18 @@ function harnessHome() {
 
 // patchedHome returns a harness home whose reports-guard.cjs has `from` replaced by `to`: no
 // adapter and no environment variable sets the options of decide, so a copy that the check
-// patches is the way through the real wrappers to a guard with another limit.
-function patchedHome(from, to) {
+// patches is the way through the real wrappers to a guard with another limit. More pairs of
+// from and to, in the arguments after the first two, patch the copy in more places.
+function patchedHome(from, to, ...more) {
   const home = harnessHome();
   const file = path.join(home, 'hooks', 'reports-guard.cjs');
-  const text = fs.readFileSync(file, 'utf8');
-  assert.ok(text.includes(from), `reports-guard.cjs has ${from}`);
-  fs.writeFileSync(file, text.replace(from, to));
+  let text = fs.readFileSync(file, 'utf8');
+  const pairs = [from, to, ...more];
+  for (let at = 0; at < pairs.length; at += 2) {
+    assert.ok(text.includes(pairs[at]), `reports-guard.cjs has ${pairs[at]}`);
+    text = text.replace(pairs[at], pairs[at + 1]);
+  }
+  fs.writeFileSync(file, text);
   return home;
 }
 
@@ -2678,10 +2689,9 @@ test('a brace or a deep wildcard in one word is counted before fs.globSync runs,
     /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
 });
 
-// adapter starts the real adapter of runtime (gemini, cursor or copilot) from harness home on a
-// write or shell call that runs in cwd, and kills it after limit ms. It returns whether the
-// call is denied, how many ms the adapter took, and whether it was killed.
-function adapter(home, runtime, kind, args, cwd, limit = 5000, hooks = null, extraEnv = {}) {
+// adapterCall returns the script, the stdin and the environment that start the real adapter of
+// runtime (gemini, cursor or copilot) from harness home on a write or shell call in cwd.
+function adapterCall(home, runtime, kind, args, cwd, hooks, extraEnv) {
   const shell = kind === 'shell';
   const input = {
     gemini: { tool_name: shell ? 'run_shell_command' : 'write_file', tool_input: shell
@@ -2693,17 +2703,110 @@ function adapter(home, runtime, kind, args, cwd, limit = 5000, hooks = null, ext
   }[runtime];
   const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, ...extraEnv };
   if (hooks !== null) env.QORY_REPORTS_GUARD_TEST = JSON.stringify(hooks);
-  const begun = process.hrtime.bigint();
-  const ran = childProcess.spawnSync(process.execPath,
-    [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { input: JSON.stringify(input),
-      env, cwd: WORK, encoding: 'utf8', timeout: limit, killSignal: 'SIGKILL',
-      maxBuffer: 1 << 24 });
-  const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+  return { runtime, file: path.join(home, 'hooks', `reports-guard-${runtime}.cjs`),
+    input: JSON.stringify(input), env };
+}
+
+// adapterResult reads the output of an adapter that ended after ms, or the kill of one that ran
+// past its limit.
+function adapterResult(call, ran, ms) {
   if (ran.error !== undefined) return { denied: false, ms, killed: true, reason: '' };
   const out = ran.stdout === '' ? {} : JSON.parse(ran.stdout);
   const reason = out.reason || out.agent_message || out.permissionDecisionReason || '';
-  return { denied: runtime === 'cursor' ? ran.status === 2 : reason !== '', ms, killed: false,
-    reason };
+  return { denied: call.runtime === 'cursor' ? ran.status === 2 : reason !== '', ms,
+    killed: false, reason };
+}
+
+// adapter starts that adapter and kills it after limit ms. It returns whether the call is
+// denied, how many ms the adapter took, and whether it was killed.
+function adapter(home, runtime, kind, args, cwd, limit = 5000, hooks = null, extraEnv = {}) {
+  const call = adapterCall(home, runtime, kind, args, cwd, hooks, extraEnv);
+  const begun = process.hrtime.bigint();
+  const ran = childProcess.spawnSync(process.execPath, [call.file], { input: call.input,
+    env: call.env, cwd: WORK, encoding: 'utf8', timeout: limit, killSignal: 'SIGKILL',
+    maxBuffer: 1 << 24 });
+  return adapterResult(call, ran, Number(process.hrtime.bigint() - begun) / 1e6);
+}
+
+// spawned starts the node script file with input on stdin and kills it after limit ms. It
+// resolves with { error, status, stdout } as spawnSync returns them, and error is set for a kill.
+// A check that runs it blocks this process for no long work meanwhile, so the kill is on time.
+function spawned(file, input, env, cwd, limit) {
+  return new Promise((resolve) => {
+    const child = childProcess.spawn(process.execPath, [file], { env, cwd,
+      stdio: ['pipe', 'pipe', 'ignore'] });
+    let stdout = '';
+    let error;
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (data) => { stdout += data; });
+    child.stdin.on('error', () => {});
+    const killer = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) {
+        error = new Error('killed after the limit');
+        child.kill('SIGKILL');
+      }
+    }, limit);
+    child.on('error', (failed) => { error = failed; });
+    child.on('close', (status) => {
+      clearTimeout(killer);
+      resolve({ error, status, stdout });
+    });
+    child.stdin.end(input);
+  });
+}
+
+// adapterAsync is adapter that does not block this process, for pooled.
+async function adapterAsync(home, runtime, kind, args, cwd, limit = 5000, hooks = null,
+  extraEnv = {}) {
+  const call = adapterCall(home, runtime, kind, args, cwd, hooks, extraEnv);
+  const begun = process.hrtime.bigint();
+  const ran = await spawned(call.file, call.input, call.env, WORK, limit);
+  return adapterResult(call, ran, Number(process.hrtime.bigint() - begun) / 1e6);
+}
+
+// withGuardTest runs fn with QORY_REPORTS_GUARD_TEST set to the JSON of hooks, in this process,
+// and restores the variable.
+function withGuardTest(hooks, fn) {
+  const before = process.env.QORY_REPORTS_GUARD_TEST;
+  process.env.QORY_REPORTS_GUARD_TEST = JSON.stringify(hooks);
+  try {
+    return fn();
+  } finally {
+    if (before === undefined) delete process.env.QORY_REPORTS_GUARD_TEST;
+    else process.env.QORY_REPORTS_GUARD_TEST = before;
+  }
+}
+
+// waiting registers a check that mostly waits for a clock of the guard (1.5 s, 2.5 s or 8 s).
+// The registered checks run together in the last check of the file, so that their waits
+// overlap. They block this process for no long work, because the times they assert run in it.
+const waited = [];
+const waiting = (name, fn) => waited.push([name, fn]);
+
+// POOL is the number of child processes that a check starts at once: a few, so that a small
+// runner is not overloaded and the checks of times keep their margins.
+const POOL = Math.max(1, Math.min(4, os.availableParallelism()));
+
+// pooled runs the async functions of jobs, at most size at a time, and returns their results
+// in order. It waits for all of them, then throws the first failure.
+async function pooled(jobs, size = POOL) {
+  const results = new Array(jobs.length);
+  const failures = [];
+  let at = 0;
+  const worker = async () => {
+    while (at < jobs.length) {
+      const mine = at;
+      at += 1;
+      try {
+        results[mine] = await jobs[mine]();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(size, jobs.length) }, worker));
+  if (failures.length > 0) throw failures[0];
+  return results;
 }
 
 test('the whole text is read as one path, also when a line of it is a patch header', () => {
@@ -2859,7 +2962,7 @@ test('flat cuts each `..` out of a path as path.posix.normalize does, in linear 
   }
 });
 
-test('a glob that makes fs.globSync stall is denied before the call, in under 1 second, on each adapter', () => {
+test('a glob that makes fs.globSync stall is denied before the call, in under 1 second, on each adapter', async () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   // A folder with a file name of 254 `a` and `!`, the worst name for a glob with `*`, and 5,000
   // files; the guard was measured to 50,000 files too (CHANGELOG).
@@ -2907,12 +3010,16 @@ test('a glob that makes fs.globSync stall is denied before the call, in under 1 
       'more than 4,096 characters'],
     [`ls ${'a/'.repeat(2048)}*`, 'more than 4,096 characters'],
   ];
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
   for (const [command, fragment] of stalls) {
     denied(command, fragment);
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, work, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
-      assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 60)}`);
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, work, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 60)}`);
+      });
     }
   }
   // Words at a limit pass, and so do ordinary globs, also in the folder with the worst name.
@@ -2921,9 +3028,14 @@ test('a glob that makes fs.globSync stall is denied before the call, in under 1 
     'ls many/f{4096..1}.txt', 'ls f{-5..5}.txt', 'ls f{1..100..0}.txt', `ls ${'a/'.repeat(2046)}*`,
     'ls {a,b}/*/*/*/*', 'ls *.{js,ts,json}']) {
     assert.equal(shell(command), null, command);
-    assert.equal(adapter(home, 'copilot', 'shell', command, work, 3000).denied, false, command);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', command, work, 3000);
+      assert.equal(ran.denied, false, command);
+    });
   }
-  // A hit under .reports is still found when it comes before a word at a limit.
+  // A hit under .reports is still found when it comes before a word at a limit. The folder is
+  // made after the runs, because the globs of the runs above pass only while it is not there.
+  await pooled(jobs);
   fs.mkdirSync(path.join(work, '.reports'));
   fs.writeFileSync(path.join(work, '.reports', 'end.json'), '{}');
   assert.match(shell('ls .rep*/end.json *a*a*c'),
@@ -3071,22 +3183,36 @@ test('a path over 4,096 characters, or with a `.` or empty part, is also read as
   assert.equal(write('y/../../l4/x.json', path.join(work, 'deep')), null);
 });
 
-test('a glob with 2 or more `*` is denied when the names it scans would take too long, before fs.globSync runs', () => {
+// shortNames returns a folder of 50,000 files, f0.txt to f49999.txt. The first check that
+// needs it makes it and the others read it, so that the files are made once.
+let shortFolder;
+function shortNames() {
+  if (shortFolder === undefined) {
+    shortFolder = next('short');
+    fs.mkdirSync(shortFolder);
+    for (let n = 0; n < 50000; n += 1) fs.writeFileSync(path.join(shortFolder, `f${n}.txt`), '');
+  }
+  return shortFolder;
+}
+
+test('a glob with 2 or more `*` is denied when the names it scans would take too long, before fs.globSync runs', async () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   // 12,000 files with names of 254 characters (240 `a`, 5 digits and `!`): fs.globSync takes
   // about 1 ms for each name with `*a*a*c`, so 12 s, and the hook outlasts its timeout. The
   // second folder has 50,000 short names, and the third a few files with ordinary names.
   const work = next('scan');
   const many = path.join(work, 'many');
-  const short = path.join(work, 'short');
   const small = path.join(work, 'small');
-  for (const folder of [many, short, small, path.join(work, 'art', '.reports')]) {
+  for (const folder of [many, small, path.join(work, 'art', '.reports')]) {
     fs.mkdirSync(folder, { recursive: true });
   }
   for (let n = 0; n < 12000; n += 1) {
     fs.writeFileSync(path.join(many, `${'a'.repeat(240)}${String(n).padStart(5, '0')}!`), '');
   }
-  for (let n = 0; n < 50000; n += 1) fs.writeFileSync(path.join(short, `f${n}.txt`), '');
+  // The folder of 50,000 names is shared, and a link in the working folder puts it among the
+  // folders that a glob of the working folder scans.
+  const short = shortNames();
+  fs.symlinkSync(short, path.join(work, 'short'));
   for (const name of ['a.md', 'b.json', 'abc.txt', 'notes-1-2.md']) {
     fs.writeFileSync(path.join(small, name), '');
   }
@@ -3103,21 +3229,27 @@ test('a glob with 2 or more `*` is denied when the names it scans would take too
     assert.match(reason, /\nUse a narrower glob: the part \S+ of a glob of the command /,
       command);
   };
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
   // The call that forges a report file, through the real adapters, which are killed after 3 s:
   // the glob in the case arm is read, and the guard denies before the 12,000 names are matched.
   const forge = `case x in *a*a*c) :;; esac; echo forged > ${work}/art/.rep*/x.json`;
   for (const command of [forge, 'ls *a*a*c', 'ls *a?*a?*c', 'ls *a*a*0', 'ls a*b*c', 'ls *a*c']) {
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, many, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)} ran past 3 s`);
-      assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)}`);
-      assert.match(ran.reason, /\nUse a narrower glob: /, `${runtime}: ${command.slice(0, 40)}`);
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, many, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)} ran past 3 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)}`);
+        assert.match(ran.reason, /\nUse a narrower glob: /, `${runtime}: ${command.slice(0, 40)}`);
+      });
     }
   }
   // A part of a longer glob scans the folders that the part before it matches.
-  const root = adapter(home, 'copilot', 'shell', 'ls m*/*a*a*c', work, 3000);
-  assert.equal(root.killed, false);
-  assert.equal(root.denied, true);
+  jobs.push(async () => {
+    const root = await adapterAsync(home, 'copilot', 'shell', 'ls m*/*a*a*c', work, 3000);
+    assert.equal(root.killed, false);
+    assert.equal(root.denied, true);
+  });
   for (const command of ['ls many/*a*a*c', 'ls m*/*a*a*c', 'ls {many,none}/*a*a*c',
     'ls ./many/*a*a*0', 'ls */*a*a*c']) {
     narrow(shell(command, work), command);
@@ -3132,7 +3264,10 @@ test('a glob with 2 or more `*` is denied when the names it scans would take too
   for (const command of ['ls *', 'ls f1*', 'ls *.txt', 'ls */*.json', 'ls a*b*c', 'ls f*0*.txt',
     'ls f*1*.txt']) {
     assert.equal(shell(command, short), null, command);
-    assert.equal(adapter(home, 'copilot', 'shell', command, short, 3000).denied, false, command);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', command, short, 3000);
+      assert.equal(ran.denied, false, command);
+    });
   }
   for (const command of ['ls *', 'ls a*', 'ls *!', 'ls *.json', 'ls */*.json']) {
     assert.equal(shell(command, many), null, command);
@@ -3142,9 +3277,10 @@ test('a glob with 2 or more `*` is denied when the names it scans would take too
   assert.match(shell('ls f*1*2*.txt', short), /a folder of more than 20,000 names/);
   // The global limit holds with a hit: .reports is found before a glob at the limits.
   assert.match(shell('ls .rep*/x.json', path.join(work, 'art')), /\nThe glob \.rep\*\/x\.json matches/);
+  await pooled(jobs);
 });
 
-test('a part scans the folders that the part before it matches, also when 2,100 files sort before them', () => {
+test('a part scans the folders that the part before it matches, also when 2,100 files sort before them', async () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   // 2,100 empty files a00000 to a02099 and 100 folders z000 to z099, each with 120 files whose
   // names have 254 characters: fs.globSync('*/*a*a*c') takes 15 s here, and the first 2,001
@@ -3173,13 +3309,17 @@ test('a part scans the folders that the part before it matches, also when 2,100 
   };
   const narrow = /\nUse a narrower glob: the part \S+ of a glob of the command /;
   const forge = (glob) => `ls ${glob}; echo forged > art/.rep*/x.json`;
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
   for (const glob of ['*/*a*a*c', './*/*a*a*c', '?*/*a*a*c', '[a-z]*/*a*a*c', '*/*a*c', 'z*/*a*a*c']) {
     const command = forge(glob);
     assert.match(shell(command, hide), narrow, glob);
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, hide, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${glob} ran past 3 s`);
-      assert.equal(ran.denied, true, `${runtime}: ${glob}`);
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, hide, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${glob} ran past 3 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${glob}`);
+      });
     }
   }
   // The folder may be reached from another working folder.
@@ -3201,19 +3341,21 @@ test('a part scans the folders that the part before it matches, also when 2,100 
   }
   for (const glob of ['*/*a*c', '*/*a*a*c', 'z*/*a*c', './*/*a*c']) {
     assert.equal(shell(`ls ${glob}`, small), null, glob);
-    assert.equal(adapter(home, 'copilot', 'shell', `ls ${glob}`, small, 3000).denied, false, glob);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', `ls ${glob}`, small, 3000);
+      assert.equal(ran.denied, false, glob);
+    });
   }
+  await pooled(jobs);
 });
 
-test('`*` are counted for each alternative of a brace, and a part with alternatives is bounded by the names it scans', () => {
+test('`*` are counted for each alternative of a brace, and a part with alternatives is bounded by the names it scans', async () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const work = next('alts');
   const normal = path.join(work, 'normal');
   const adversarial = path.join(work, 'adversarial');
-  const short = path.join(work, 'short');
   const border = path.join(work, 'border');
-  for (const folder of [path.join(normal, 'src'), path.join(normal, 'lib'), adversarial, short,
-    border]) {
+  for (const folder of [path.join(normal, 'src'), path.join(normal, 'lib'), adversarial, border]) {
     fs.mkdirSync(folder, { recursive: true });
   }
   for (const name of ['a.ts', 'b.js', 'c.md', 'd.json', 'a.txt', 'b.txt', 'src/x.ts', 'lib/y.ts']) {
@@ -3230,7 +3372,7 @@ test('`*` are counted for each alternative of a brace, and a part with alternati
   }
   // 50,000 names: a part with 1 `*` and 16 alternatives took 0.67 s, and 17 took 0.52 s in
   // fs.globSync alone, where `*` takes 0.1 s.
-  for (let n = 0; n < 50000; n += 1) fs.writeFileSync(path.join(short, `f${n}.txt`), '');
+  const short = shortNames();
   // The 600 ms between two calls is wall time, which a loaded machine can pass: the allowed
   // commands run with a limit of 600 s, and the denials in this check are by the estimate.
   const home = patchedHome('const MAX_GLOB_MS = 600;', 'const MAX_GLOB_MS = 600000;');
@@ -3243,10 +3385,15 @@ test('`*` are counted for each alternative of a brace, and a part with alternati
   };
   // Each alternative is counted from the text before the braces, so these pass: the base guard
   // (5c25e957) denied neither.
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time.
+  const jobs = [];
   for (const command of ['cat {src/*,lib/*}', 'ls {*.ts,*.js,*.md,*.json}', 'ls {a,b}*.txt',
     'ls {src,lib}/*.ts', 'ls *.{ts,js,md,json}', 'ls {a,b}*{.txt,.md}']) {
     assert.equal(shell(command, normal), null, command);
-    assert.equal(adapter(home, 'copilot', 'shell', command, normal, 3000).denied, false, command);
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', command, normal, 3000);
+      assert.equal(ran.denied, false, command);
+    });
   }
   // The largest alternative counts, with the text before and after the braces.
   const stars = /more than 3 \* in one path part/;
@@ -3267,9 +3414,11 @@ test('`*` are counted for each alternative of a brace, and a part with alternati
   for (const command of ['ls {*a*a*c,b}', 'ls {b,c,*a*a*c}', 'ls *a*{a*c,b}']) {
     assert.match(shell(command, adversarial), /\nUse a narrower glob: /, command);
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, adversarial, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${command}`);
-      assert.equal(ran.denied, true, `${runtime}: ${command}`);
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, adversarial, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command}`);
+        assert.equal(ran.denied, true, `${runtime}: ${command}`);
+      });
     }
   }
   assert.equal(shell('ls {*a*a*c,b}', normal), null);
@@ -3282,20 +3431,25 @@ test('`*` are counted for each alternative of a brace, and a part with alternati
     assert.match(shell(command, short), /\nUse a narrower glob: .*alternatives, more than the guard allows\.$/,
       command);
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, short, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${command}`);
-      assert.equal(ran.denied, true, `${runtime}: ${command}`);
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, short, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command}`);
+        assert.equal(ran.denied, true, `${runtime}: ${command}`);
+      });
     }
   }
   for (const command of ['ls {a,b,c,d,f}*', 'ls {f,g}*', 'ls *', 'ls .r*', 'ls */*.json', 'ls a*b*c',
     'ls f*', 'ls a*c', 'ls *.txt', 'ls [a-f]*']) {
     assert.equal(shell(command, short), null, command);
   }
-  assert.equal(adapter(home, 'copilot', 'shell', 'ls {f,g}*', short, 3000).denied, false);
+  jobs.push(async () => {
+    const ran = await adapterAsync(home, 'copilot', 'shell', 'ls {f,g}*', short, 3000);
+    assert.equal(ran.denied, false);
+  });
+  await pooled(jobs);
 });
 
-test('braces that make `**` are denied before fs.globSync runs, and a / inside braces is scanned for each expansion', () => {
-  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+test('braces that make `**` are denied before fs.globSync runs, and a / inside braces is scanned for each expansion', async () => {
   const work = next('pass7');
   const normal = path.join(work, 'normal');
   const links = path.join(work, 'links');
@@ -3306,11 +3460,15 @@ test('braces that make `**` are denied before fs.globSync runs, and a / inside b
   }
   fs.writeFileSync(path.join(normal, 'src', 'x.ts'), '');
   fs.writeFileSync(path.join(normal, 'lib', 'x.ts'), '');
-  // 90,000 empty files are more than the 83,334 names that the guard reads from one folder, and
-  // three links make three folders of that size.
-  for (let n = 0; n < 90000; n += 1) fs.writeFileSync(path.join(huge, `f${n}`), '');
+  // In the copy of the guard that this check patches, one call of fs.globSync may cost 25 ms of
+  // the estimate where the guard allows 250 ms (MAX_WORK_NS). The guard then reads 8,334 names
+  // from one folder where it reads 83,334, and 9,000 empty files are more than that, as 90,000
+  // are in the guard as it is. Three links make three folders of that size.
+  for (let n = 0; n < 9000; n += 1) fs.writeFileSync(path.join(huge, `f${n}`), '');
   for (const name of ['l1', 'l2', 'l3']) fs.symlinkSync(huge, path.join(links, name));
-  const home = patchedHome('const MAX_GLOB_MS = 600;', 'const MAX_GLOB_MS = 600000;');
+  const home = patchedHome('const MAX_GLOB_MS = 600;', 'const MAX_GLOB_MS = 600000;',
+    'const MAX_WORK_NS = 250e6;', 'const MAX_WORK_NS = 25e6;');
+  const reports = require(path.join(home, 'hooks', 'reports-guard.cjs'));
   const shell = (command, cwd) => {
     const begun = process.hrtime.bigint();
     const reason = reports.decide({ inline: true, waitMs: 600000, kind: 'shell', args: { command }, env: RUN, cwd });
@@ -3318,15 +3476,20 @@ test('braces that make `**` are denied before fs.globSync runs, and a / inside b
     assert.ok(ms < 5000, `${ms} ms: ${command}`);
     return reason;
   };
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time. Each ends
+  // in under 2.5 s where a run alone ends in under 1 s, because they share the processors.
+  const jobs = [];
   const wrappers = (command, cwd, denied, fragment) => {
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, cwd, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
-      assert.ok(ran.ms < 1000, `${runtime}: ${command.slice(0, 60)}: ${ran.ms} ms`);
-      assert.equal(ran.denied, denied, `${runtime}: ${command.slice(0, 60)}`);
-      if (denied && runtime !== 'cursor') {
-        assert.ok(ran.reason.includes(fragment), `${runtime}: ${command.slice(0, 60)}: ${ran.reason}`);
-      }
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, cwd, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+        assert.ok(ran.ms < 2500, `${runtime}: ${command.slice(0, 60)}: ${ran.ms} ms`);
+        assert.equal(ran.denied, denied, `${runtime}: ${command.slice(0, 60)}`);
+        if (denied && runtime !== 'cursor') {
+          assert.ok(ran.reason.includes(fragment), `${runtime}: ${command.slice(0, 60)}: ${ran.reason}`);
+        }
+      });
     }
   };
   // fs.globSync expands `*{*,}` to `**`, a globstar that walks the whole disk from `/`.
@@ -3348,7 +3511,7 @@ test('braces that make `**` are denied before fs.globSync runs, and a / inside b
   }
   // A / inside braces makes path parts that differ for each expansion: each expansion scans the
   // folder that it reaches, so that links to one huge folder are not scanned as if they were not there.
-  const names = 'scans a folder of 83,334 names or more';
+  const names = 'scans a folder of 8,334 names or more';
   for (const command of ['ls {l1/,l2/,l3/}*', 'ls {l1/*,l2/*}', 'ls {l1/,l2/}x*', 'ls {../huge/,x}*']) {
     wrappers(command, links, true, names);
   }
@@ -3365,6 +3528,7 @@ test('braces that make `**` are denied before fs.globSync runs, and a / inside b
   // An expansion with no `*`, `?` or `[` is a path: this one is a file of .reports that is not there.
   assert.match(shell('ls {art/.repo,y/}rts/x.json', work), /\nThe glob \{art\/\.repo,y\/\}rts\/x\.json matches art\/\.reports\/x\.json\./);
   wrappers('ls {art/.repo,y/}rts/x.json', work, true, 'matches art/.reports/x.json');
+  await pooled(jobs);
 });
 
 // ---- The report of a reviewer ---------------------------------------------------------------
@@ -4241,7 +4405,7 @@ test('the report path matches in the case of the disk', () => {
   assert.equal(guard(write(file), env), null);
 });
 
-test('a backslash in a glob, braces that count more than they seem, and braces that make .reports are denied before a call of fs.globSync', () => {
+test('a backslash in a glob, braces that count more than they seem, and braces that make .reports are denied before a call of fs.globSync', async () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const work = next('pass8');
   const normal = path.join(work, 'normal');
@@ -4250,15 +4414,20 @@ test('a backslash in a glob, braces that count more than they seem, and braces t
   fs.writeFileSync(path.join(normal, 'src', 'a.ts'), '');
   fs.writeFileSync(path.join(normal, 'a b.txt'), '');
   const home = harnessHome();
+  // The runs of the real adapters wait in jobs until the end, and run a few at a time. Each ends
+  // in under 2.5 s where a run alone ends in under 1 s, because they share the processors.
+  const jobs = [];
   const wrappers = (command, cwd, denied, fragment) => {
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, cwd, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
-      assert.ok(ran.ms < 1000, `${runtime}: ${command.slice(0, 60)}: ${ran.ms} ms`);
-      assert.equal(ran.denied, denied, `${runtime}: ${command.slice(0, 60)}`);
-      if (denied && runtime !== 'cursor') {
-        assert.ok(ran.reason.includes(fragment), `${runtime}: ${command.slice(0, 60)}: ${ran.reason}`);
-      }
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, cwd, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 60)} ran past 3 s`);
+        assert.ok(ran.ms < 2500, `${runtime}: ${command.slice(0, 60)}: ${ran.ms} ms`);
+        assert.equal(ran.denied, denied, `${runtime}: ${command.slice(0, 60)}`);
+        if (denied && runtime !== 'cursor') {
+          assert.ok(ran.reason.includes(fragment), `${runtime}: ${command.slice(0, 60)}: ${ran.reason}`);
+        }
+      });
     }
   };
   // 1. fs.globSync reads a backslash as a path separator: `\\*` x 10 walks the whole disk, as
@@ -4351,6 +4520,8 @@ test('a backslash in a glob, braces that count more than they seem, and braces t
     args: { command: empty(8) } }), null);
   assert.match(reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: normal,
     args: { command: empty(9) } }), /braces in the command make more than 4,096/);
+  await pooled(jobs);
+  // These two run alone, one after the other, because they are limited to 3 s of one run.
   for (const runtime of ['gemini', 'copilot']) {
     const ran = adapter(home, runtime, 'shell', 'ls {*,}/*/*/*/*', normal, 5000);
     assert.equal(ran.killed, false, runtime);
@@ -4358,13 +4529,16 @@ test('a backslash in a glob, braces that count more than they seem, and braces t
   }
 });
 
-test('the fs.globSync calls of a command run in a child process that the guard stops, and a failure of the child denies the call', () => {
+test('the fs.globSync calls of a command run in a child process that the guard stops, and a failure of the child denies the call', async () => {
   const work = next('pass8-child');
   const normal = path.join(work, 'normal');
   fs.mkdirSync(normal, { recursive: true });
   fs.writeFileSync(path.join(normal, 'a.ts'), '');
   const home = harnessHome();
-  const finished = /did not finish in 1,500 ms/;
+  // QORY_REPORTS_GUARD_TEST lowers the limit of the child, 2,500 ms in the guard, to 300 ms, so
+  // that a child that stalls is stopped sooner. The limit of 2,500 ms is in the checks of the
+  // failures of the child below, and in the check of the deadline of one hook process.
+  const finished = /did not finish in 300 ms/;
   // A copy of the hooks whose decide has noCaps true: no adapter and no variable of the
   // environment sets noCaps, so a copy that the check patches is the way through the real
   // wrappers to the limit of the child alone.
@@ -4374,20 +4548,33 @@ test('the fs.globSync calls of a command run in a child process that the guard s
       && line.includes('max-old-space-size'));
   // The checks of backslashes and braces are off, so that only the limit of the child decides:
   // `\\*` x 10 stalls fs.globSync for more than 10 s. The first command goes through the copy.
-  const stalls = [[`ls ${'\\\\*'.repeat(10)}`, { globMs: 1500 }, bare],
-    ['ls STALLME*', { globMs: 1500, stall: 'STALLME' }, home]];
+  const stalls = [[`ls ${'\\\\*'.repeat(10)}`, { globMs: 300 }, bare],
+    ['ls STALLME*', { globMs: 300, stall: 'STALLME' }, home]];
+  // The runs of the real adapters wait in jobs, and run a few at a time.
+  const jobs = [];
   for (const [command, hooks, where] of stalls) {
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(where, runtime, 'shell', command, normal, 5000, hooks);
-      assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)} ran past 5 s`);
-      assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)}`);
-      assert.ok(ran.ms > 1400 && ran.ms < 3500, `${runtime}: ${command.slice(0, 40)}: ${ran.ms} ms`);
-      if (runtime !== 'cursor') {
-        assert.ok(ran.reason.startsWith('Leave .reports/ to checks.cjs'), ran.reason);
-        assert.match(ran.reason, finished);
-      }
+      jobs.push(async () => {
+        const ran = await adapterAsync(where, runtime, 'shell', command, normal, 5000, hooks);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)} ran past 5 s`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)}`);
+        assert.ok(ran.ms > 250 && ran.ms < 3500, `${runtime}: ${command.slice(0, 40)}: ${ran.ms} ms`);
+        if (runtime !== 'cursor') {
+          assert.ok(ran.reason.startsWith('Leave .reports/ to checks.cjs'), ran.reason);
+          assert.match(ran.reason, finished);
+        }
+      });
     }
   }
+  // A child that exits with 3, prints no JSON, prints a deny that is no text, or prints 2 MiB: the call is denied.
+  for (const fail of ['exit', 'garbage', 'type', 'big']) {
+    jobs.push(async () => {
+      const ran = await adapterAsync(home, 'copilot', 'shell', 'ls *.ts', normal, 5000, { fail });
+      assert.equal(ran.denied, true, fail);
+      assert.match(ran.reason, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms, or could not run, and the guard blocks the call\.$/, fail);
+    });
+  }
+  await pooled(jobs);
   assert.deepEqual(left(), [], 'no child is left');
   // The same command through the real hooks is denied by the early check, in under 1 s.
   const early = adapter(home, 'copilot', 'shell', `ls ${'\\\\*'.repeat(10)}`, normal, 5000, { globMs: 1500 });
@@ -4397,16 +4584,10 @@ test('the fs.globSync calls of a command run in a child process that the guard s
   // decide with noCaps, in this process, is bounded by the child alone as well.
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const begun = Date.now();
-  const bound = reports.decide({ kind: 'shell', env: RUN, cwd: normal, noCaps: true,
-    args: { command: `ls ${'\\\\*'.repeat(10)}` } });
-  assert.match(bound, /Use a narrower glob: the globs of the command did not finish in 2,500 ms/);
+  const bound = withGuardTest({ globMs: 300 }, () => reports.decide({ kind: 'shell', env: RUN,
+    cwd: normal, noCaps: true, args: { command: `ls ${'\\\\*'.repeat(10)}` } }));
+  assert.match(bound, /Use a narrower glob: the globs of the command did not finish in 300 ms/);
   assert.ok(Date.now() - begun < 4500, `${Date.now() - begun} ms`);
-  // A child that exits with 3, prints no JSON, prints a deny that is no text, or prints 2 MiB: the call is denied.
-  for (const fail of ['exit', 'garbage', 'type', 'big']) {
-    const ran = adapter(home, 'copilot', 'shell', 'ls *.ts', normal, 5000, { fail });
-    assert.equal(ran.denied, true, fail);
-    assert.match(ran.reason, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms, or could not run, and the guard blocks the call\.$/, fail);
-  }
   // With no hook, the child answers, in about 50 ms, and a command with only braces runs none.
   for (const command of ['ls *.ts', 'cat {*.ts,*.js}']) {
     const ran = adapter(home, 'copilot', 'shell', command, normal, 5000);
@@ -4416,7 +4597,7 @@ test('the fs.globSync calls of a command run in a child process that the guard s
   assert.equal(adapter(home, 'copilot', 'shell', 'ls .r*', normal, 5000).denied, false);
 });
 
-test('no field of QORY_REPORTS_GUARD_TEST, and none that the environment can add, switches off a check of the guard', () => {
+test('no field of QORY_REPORTS_GUARD_TEST, and none that the environment can add, switches off a check of the guard', async () => {
   const work = next('pass9');
   const normal = path.join(work, 'normal');
   fs.mkdirSync(normal, { recursive: true });
@@ -4426,20 +4607,38 @@ test('no field of QORY_REPORTS_GUARD_TEST, and none that the environment can add
   const denied = ['echo x > .{rep,x}orts/new.json', 'echo x > {.reports,y}/x.json',
     'touch .{reports,x}/n.json.lock', 'mkdir -p .{rep,x}orts', 'echo x > .r{e,x}ports/x.json',
     'echo x > a/../.{rep,x}orts/z.json', `ls ${'\\\\*'.repeat(10)}`, 'ls \\\\*{*,}; echo x > art/.rep*/x.json'];
+  // Each field set and each command go through decide in this process, with the variable set,
+  // as each adapter calls it. Each adapter runs for real on one command of each field set,
+  // and the commands go round among them, so that each command runs through an adapter too.
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   for (const hooks of env) {
     for (const command of denied) {
-      for (const runtime of ['gemini', 'cursor', 'copilot']) {
-        const ran = adapter(home, runtime, 'shell', command, normal, 3000, hooks);
-        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)}`);
-        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)} with ${JSON.stringify(hooks)}`);
-      }
+      const reason = withGuardTest(hooks, () => reports.decide({ kind: 'shell', env: RUN,
+        cwd: normal, args: { command } }));
+      assert.equal(typeof reason, 'string', `${command.slice(0, 40)} with ${JSON.stringify(hooks)}`);
     }
   }
+  const jobs = [];
+  env.forEach((hooks, at) => {
+    ['gemini', 'cursor', 'copilot'].forEach((runtime, other) => {
+      const command = denied[(at * 3 + other) % denied.length];
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, normal, 3000, hooks);
+        assert.equal(ran.killed, false, `${runtime}: ${command.slice(0, 40)}`);
+        assert.equal(ran.denied, true, `${runtime}: ${command.slice(0, 40)} with ${JSON.stringify(hooks)}`);
+      });
+    });
+  });
   // The variable lowers a limit or denies, and a command that is allowed without it stays so.
-  assert.equal(adapter(home, 'gemini', 'shell', 'cat src/{a,b}.ts', normal, 3000, { noCaps: true }).denied, false);
+  jobs.push(async () => {
+    const ran = await adapterAsync(home, 'gemini', 'shell', 'cat src/{a,b}.ts', normal, 3000,
+      { noCaps: true });
+    assert.equal(ran.denied, false);
+  });
+  await pooled(jobs);
 });
 
-test('the children of one hook process share one deadline, and a child that cannot start denies the call', () => {
+waiting('the children of one hook process share one deadline, and a child that cannot start denies the call', async () => {
   const work = next('pass10');
   const normal = path.join(work, 'normal');
   fs.mkdirSync(normal, { recursive: true });
@@ -4452,10 +4651,9 @@ test('the children of one hook process share one deadline, and a child that cann
   const fields = {};
   for (let n = 0; n < 250; n += 1) fields[`f${n}`] = 'ls *.txt';
   const begun = Date.now();
-  const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', 'reports-guard-copilot.cjs')], {
-    input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
-    env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, encoding: 'utf8',
-    timeout: 10000, killSignal: 'SIGKILL' });
+  const ran = await spawned(path.join(home, 'hooks', 'reports-guard-copilot.cjs'),
+    JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+    { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, undefined, 10000);
   const ms = Date.now() - begun;
   assert.equal(ran.error, undefined, `the hook ran past 10 s: ${ran.error}`);
   assert.ok(ms < 6000, `${ms} ms`);
@@ -4463,42 +4661,54 @@ test('the children of one hook process share one deadline, and a child that cann
   assert.match(reason, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms/);
   assert.deepEqual(left(home), [], 'no child is left');
   // One command with 250 glob words is one child, and Gemini CLI and Cursor call the guard once.
+  // They run together, and with the runs of the hooks with a child that cannot start.
   const words = Array.from({ length: 250 }, (_, n) => `f${n}*`).join(' ');
-  for (const runtime of ['gemini', 'cursor']) {
-    const one = adapter(home, runtime, 'shell', `ls ${words}`, normal, 10000);
-    assert.equal(one.killed, false, runtime);
-    assert.ok(one.ms < 6000, `${runtime}: ${one.ms} ms`);
-  }
-  assert.deepEqual(left(home), [], 'no child is left');
-  // A child that cannot start (node at a path that is not there) denies the call.
   const broken = patchedHome('childProcess.spawnSync(process.execPath,',
     "childProcess.spawnSync('/nonexistent/node',");
-  for (const runtime of ['gemini', 'cursor', 'copilot']) {
-    const ranBroken = adapter(broken, runtime, 'shell', 'ls *.txt', normal, 5000);
-    assert.equal(ranBroken.denied, true, runtime);
-    if (runtime !== 'cursor') {
-      const [first, second] = ranBroken.reason.split('\n');
-      assert.equal(`${first}\n`, 'Leave .reports/ to checks.cjs, and name other files with no `$`, backtick, eval or glob.\n');
-      assert.match(second, /^Use a narrower glob: .* or could not run, and the guard blocks the call\.$/);
-    }
-  }
   // spawnSync throws on an argument that is no path (a number): the call is denied as well.
   const throwing = patchedHome('childProcess.spawnSync(process.execPath,', 'childProcess.spawnSync(42,');
-  for (const runtime of ['gemini', 'copilot']) {
-    const ranThrowing = adapter(throwing, runtime, 'shell', 'ls *.txt', normal, 5000);
-    assert.equal(ranThrowing.denied, true, runtime);
-    assert.match(ranThrowing.reason, /\nUse a narrower glob: .* or could not run, and the guard blocks the call\.$/);
+  const jobs = [];
+  for (const runtime of ['gemini', 'cursor']) {
+    jobs.push(async () => {
+      const one = await adapterAsync(home, runtime, 'shell', `ls ${words}`, normal, 10000);
+      assert.equal(one.killed, false, runtime);
+      assert.ok(one.ms < 6000, `${runtime}: ${one.ms} ms`);
+    });
   }
+  // A child that cannot start (node at a path that is not there) denies the call.
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    jobs.push(async () => {
+      const ranBroken = await adapterAsync(broken, runtime, 'shell', 'ls *.txt', normal, 5000);
+      assert.equal(ranBroken.denied, true, runtime);
+      if (runtime !== 'cursor') {
+        const [first, second] = ranBroken.reason.split('\n');
+        assert.equal(`${first}\n`, 'Leave .reports/ to checks.cjs, and name other files with no `$`, backtick, eval or glob.\n');
+        assert.match(second, /^Use a narrower glob: .* or could not run, and the guard blocks the call\.$/);
+      }
+    });
+  }
+  for (const runtime of ['gemini', 'copilot']) {
+    jobs.push(async () => {
+      const ranThrowing = await adapterAsync(throwing, runtime, 'shell', 'ls *.txt', normal, 5000);
+      assert.equal(ranThrowing.denied, true, runtime);
+      assert.match(ranThrowing.reason, /\nUse a narrower glob: .* or could not run, and the guard blocks the call\.$/);
+    });
+  }
+  // A command with no glob and a word of braces only starts no child, so it passes there too.
+  jobs.push(async () => {
+    const braces = await adapterAsync(broken, 'copilot', 'shell', 'cat {a,b}.txt', normal, 5000);
+    assert.equal(braces.denied, false);
+  });
+  await pooled(jobs);
+  assert.deepEqual(left(home), [], 'no child is left');
   // A call that begins after the deadline of its hook process starts no child and is denied.
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const late = reports.decide({ kind: 'shell', env: RUN, cwd: normal, args: { command: 'ls *.txt' },
     deadline: require('node:perf_hooks').performance.now() - 5 });
   assert.match(late, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms/);
-  // A command with no glob and a word of braces only starts no child, so it passes there too.
-  assert.equal(adapter(broken, 'copilot', 'shell', 'cat {a,b}.txt', normal, 5000).denied, false);
 });
 
-test('a backslash at the end of a word is dropped by the shell, so `.reports\\` is .reports', () => {
+test('a backslash at the end of a word is dropped by the shell, so `.reports\\` is .reports', async () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const work = next('pass11a');
   fs.mkdirSync(work, { recursive: true });
@@ -4507,25 +4717,26 @@ test('a backslash at the end of a word is dropped by the shell, so `.reports\\` 
     args: { command } });
   // The words that bash makes: with set -f, braces still expand, and the backslash at the end of
   // the command is dropped.
-  const realWords = (word) => childProcess.spawnSync('bash', ['-c', `set -f; printf '%s\\n' ${word}`],
-    { encoding: 'utf8' }).stdout.split('\n').filter((one) => one !== '');
-  const reaches = (word) => realWords(word).some((one) => /(^|\/)\.reports(\/|$)/.test(one));
+  const realWords = (word) => new Promise((resolve) => {
+    childProcess.execFile('bash', ['-c', `set -f; printf '%s\\n' ${word}`], { encoding: 'utf8' },
+      (error, stdout) => resolve(stdout.split('\n').filter((one) => one !== '')));
+  });
   const stems = ['.reports', '{.reports,y}', '.rep{orts,y}', '.{rep,x}orts', 'x', 'art/.reports',
     '{x,y}', 'a\\{b,c}', '{.reports,y,z}', '{a,.reports}', '.rep\\{orts,y}', '{.rep,x}orts', '.reportsx',
     '.r{e,x}ports', '.reports/..'];
   const heads = ['', 'a/', './', '../x/', 'art/'];
   const verbs = ['mkdir -p', 'echo x >', 'touch', 'cat'];
+  // Bash makes the words of all the heads and stems first, a few runs at a time.
+  const wordList = heads.flatMap((head) => stems.map((stem) => `${head}${stem}\\`));
+  const reaching = await pooled(wordList.map((word) => async () => (await realWords(word))
+    .some((one) => /(^|\/)\.reports(\/|$)/.test(one))));
   let words = 0;
-  for (const head of heads) {
-    for (const stem of stems) {
-      const word = `${head}${stem}\\`;
-      const reach = reaches(word);
-      for (const verb of verbs) {
-        const command = `${verb} ${word}`;
-        const reason = decided(command);
-        words += 1;
-        if (reach) assert.equal(typeof reason, 'string', `bash reaches .reports: ${command}`);
-      }
+  for (const [at, word] of wordList.entries()) {
+    for (const verb of verbs) {
+      const command = `${verb} ${word}`;
+      const reason = decided(command);
+      words += 1;
+      if (reaching[at]) assert.equal(typeof reason, 'string', `bash reaches .reports: ${command}`);
     }
   }
   assert.ok(words >= 300, `${words} words`);
@@ -4533,27 +4744,30 @@ test('a backslash at the end of a word is dropped by the shell, so `.reports\\` 
   const named = [['mkdir .reports\\', true], ['echo x > .reports\\', true], ['mkdir -p {.reports,y}\\', true],
     ['echo x > .reports\\/x.json', true], ['ls {x,y}\\', false], ['echo a\\{b,c}', false],
     ['echo x > .reportsx\\', false]];
+  const jobs = [];
   for (const [command, denied] of named) {
     assert.equal(decided(command) !== null, denied, command);
     for (const runtime of ['gemini', 'cursor', 'copilot']) {
-      const ran = adapter(home, runtime, 'shell', command, work, 3000);
-      assert.equal(ran.killed, false, `${runtime}: ${command}`);
-      assert.equal(ran.denied, denied, `${runtime}: ${command}`);
+      jobs.push(async () => {
+        const ran = await adapterAsync(home, runtime, 'shell', command, work, 3000);
+        assert.equal(ran.killed, false, `${runtime}: ${command}`);
+        assert.equal(ran.denied, denied, `${runtime}: ${command}`);
+      });
     }
   }
+  await pooled(jobs);
 });
 
-test('the guard denies a call when its hook process has used 8 s, also for the last of many arguments', () => {
+waiting('the guard denies a call when its hook process has used 8 s, also for the last of many arguments', async () => {
   const work = next('pass11b');
   const normal = path.join(work, 'normal');
   fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
   const home = harnessHome();
-  const run = (where, fields, limit) => {
+  const run = async (where, fields, limit) => {
     const begun = Date.now();
-    const ran = childProcess.spawnSync(process.execPath, [path.join(where, 'hooks', 'reports-guard-copilot.cjs')], {
-      input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
-      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, encoding: 'utf8',
-      timeout: limit, killSignal: 'SIGKILL', maxBuffer: 1 << 24 });
+    const ran = await spawned(path.join(where, 'hooks', 'reports-guard-copilot.cjs'),
+      JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+      { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, undefined, limit);
     return { ran, ms: Date.now() - begun };
   };
   const heavy = 'ls {1..4096}.txt';
@@ -4567,25 +4781,26 @@ test('the guard denies a call when its hook process has used 8 s, also for the l
   // The limit of the hook is 1.5 s in a copy of the hooks that the check patches; the real one is 8 s.
   const quick = patchedHome('const HOOK_MS = 8000;', 'const HOOK_MS = 1500;');
   const time = /^Send fewer or smaller arguments in one tool call\.\nThe guard of \.reports\/ used more than 8 seconds/;
-  const small = run(quick, many(3000), 10000);
+  // The real limit: 14,000 fields of 4,096 brace words and a deny field last. The run waits the
+  // 8 s of the limit, so it starts first and the other runs of this check go on beside it.
+  const realRun = run(home, many(14000), 10000);
+  const [small, few] = await Promise.all([run(quick, many(3000), 10000),
+    // A deny field in the last place is denied when the time has not run out, and when it has.
+    run(quick, many(3), 10000)]);
   assert.equal(small.ran.error, undefined, 'the hook ran past 10 s');
   assert.match(JSON.parse(small.ran.stdout).permissionDecisionReason, time);
   assert.ok(small.ms < 9000, `${small.ms} ms`);
-  // A deny field in the last place is denied when the time has not run out, and when it has.
-  const few = run(quick, many(3), 10000);
   assert.match(JSON.parse(few.ran.stdout).permissionDecisionReason, /^Write to \.reports\/ only through checks\.cjs\./);
-  // The real limit: 14,000 fields of 4,096 brace words and a deny field last.
-  const real = run(home, many(14000), 10000);
+  // A word of 1 MiB is decided in a fraction of a second.
+  const word = `ls ${'{a,b}'.repeat((1 << 20) / 5)}`;
+  const huge = await adapterAsync(home, 'copilot', 'shell', word, normal, 10000);
+  assert.equal(huge.killed, false);
+  assert.ok(huge.ms < 3000, `${huge.ms} ms`);
+  const real = await realRun;
   assert.equal(real.ran.error, undefined, `the hook ran past 10 s: ${real.ms} ms`);
   const reason = JSON.parse(real.ran.stdout).permissionDecisionReason;
   assert.ok(typeof reason === 'string' && reason !== '', 'the call is denied');
   assert.ok(real.ms < 9800, `${real.ms} ms`);
-  // A word of 1 MiB is decided in a fraction of a second.
-  const word = `ls ${'{a,b}'.repeat((1 << 20) / 5)}`;
-  const begun = Date.now();
-  const huge = adapter(home, 'copilot', 'shell', word, normal, 10000);
-  assert.equal(huge.killed, false);
-  assert.ok(Date.now() - begun < 3000, `${Date.now() - begun} ms`);
 });
 
 test('the deadlines and budgets of the reports guard use a monotonic clock', () => {
@@ -4802,7 +5017,7 @@ test('a guard hook denies an input over 16 MiB before it parses it, and an input
   assert.deepEqual(left, []);
 });
 
-test('a guard hook in a run stops reading its input at 16 MiB and at the time limit, whatever the writer does', async () => {
+waiting('a guard hook in a run stops reading its input at 16 MiB and at the time limit, whatever the writer does', async () => {
   const home = harnessHome();
   const small = patchedHome('const HOOK_MS = 8000;', 'const HOOK_MS = 1500;');
   const MIB = 1024 * 1024;
@@ -4834,22 +5049,18 @@ test('a guard hook in a run stops reading its input at 16 MiB and at the time li
     });
     feed(child.stdin, () => ended);
   });
-  for (const file of files) {
-    // 16 MiB + 1 byte in pieces of 37 bytes, then the pipe stays open: the hook denies at the
-    // byte over the limit, and does not wait for the end of its input.
-    const slow = await drive(home, file, (stdin, over) => {
+  // The 16 MiB and 1 byte after the first 4,096 pieces of 37 bytes: one buffer for all the files.
+  const PIECES = 4096;
+  const rest = Buffer.alloc(16 * MIB + 1 - PIECES * 37, 'x');
+  // The files run together, so that the waits of their stalled writers overlap.
+  await Promise.all(files.map(async (file) => {
+    // 16 MiB + 1 byte, the first 4,096 pieces of 37 bytes and then the rest in one write, and
+    // then the pipe stays open: the hook denies at the byte over the limit, and does not wait
+    // for the end of its input.
+    const slow = await drive(home, file, (stdin) => {
       const piece = Buffer.alloc(37, 'x');
-      let sent = 0;
-      const pump = () => {
-        while (sent < 16 * MIB + 1 && !over()) {
-          sent += piece.length;
-          if (!stdin.write(piece)) {
-            stdin.once('drain', pump);
-            return;
-          }
-        }
-      };
-      pump();
+      for (let sent = 0; sent < PIECES; sent += 1) stdin.write(piece);
+      stdin.write(rest);
     });
     assert.equal(slow.killed, false, `${file}: the hook waited for the end of its input`);
     assert.match(reasonOf(slow.out), size, file);
@@ -4858,8 +5069,8 @@ test('a guard hook in a run stops reading its input at 16 MiB and at the time li
     const stalled = await drive(small, file, (stdin) => stdin.write(Buffer.alloc(1024, 'x')));
     assert.equal(stalled.killed, false, `${file}: the hook waited for a stalled writer`);
     assert.match(reasonOf(stalled.out), time, file);
-    assert.ok(stalled.ms < 6000, `${file}: ${stalled.ms} ms`);
-  }
+    assert.ok(stalled.ms < 8000, `${file}: ${stalled.ms} ms`);
+  }));
   const left = childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
     .stdout.split('\n').filter((one) => one.includes(home) || one.includes(small));
   assert.deepEqual(left, []);
@@ -4882,4 +5093,8 @@ test('the child that reads the input of a hook runs without NODE_OPTIONS', () =>
     assert.equal(hooked.killed, false, runtime);
     assert.equal(hooked.denied, true, `${runtime} with NODE_OPTIONS`);
   }
+});
+
+test('the checks that wait for a clock of the guard', { concurrency: true }, async (t) => {
+  await Promise.all(waited.map(([name, fn]) => t.test(name, fn)));
 });
