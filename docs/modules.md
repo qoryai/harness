@@ -1362,27 +1362,34 @@ list.
 
 A shell reads `BASH_ENV` before it runs the first word of its command, so `env -u` cannot
 clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the environment of
-Gemini CLI, and Gemini CLI loads `.env` and `.gemini/.env` into that environment. On a real
-Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its script before a hook command.
-So `settings/gemini/settings.json` does two things:
+Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks up from the
+working folder to the home folder, and in each folder it takes `.gemini/.env` before `.env`.
+On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its script before a hook
+command. So `settings/gemini/settings.json` does two things:
 
 - It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
   field to the environment of the hook after the other variables, and bash reads no file for
   an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it is
   read from the source of 0.68.0.
 - It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
-  `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a `.env` file of the
-  project. The list also has `DEBUG` and `DEBUG_MODE`, the default that a list replaces.
-  Gemini CLI applies the list to `.env` only, not to `.gemini/.env`: with the list set and no
-  `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before the hook.
+  `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
+  Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list
+  set and no `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before the
+  hook.
 
-The guard denies a write to a file named `.env`, which includes `.gemini/.env`. It applies
-the rules of `.reports/` for the write tools, links, `..` and patch headers, and denies a shell
-command in which a word is `.env`, or becomes `.env` after the shell removes quotes and
-backslashes. `.env.example`, `.envrc` and `.venv` pass. A command still reaches `.env` past
-the guard through a glob or braces such as `.en?` and `.en{v,}`, a variable, a script that it
-writes and then runs, or `python -c`. In a run on Claude Code and Codex, a command of
-read-only programs is not read, as for `.reports/`, so `cat .env` passes there.
+The guard denies a write to a file named `.env`, which includes `.gemini/.env`. For the
+write tools it reads paths with the rules of `.reports/`: links, `..` and patch headers. It
+denies a shell command in which a word is `.env`, or becomes `.env` after the shell removes
+quotes and backslashes. `.env.example`, `.envrc` and `.venv` pass.
+
+A command still reaches `.env` past the guard through a glob or braces such as `.en?` and
+`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same. In
+a run on Claude Code and Codex, a command of read-only programs is not read, as for
+`.reports/`, so `cat .env` passes there.
+
+By design, as for `.reports/`, the shell rule on all five runtimes also denies a command with
+the word `.env` as text, such as a commit message. It also denies a folder named `.env`. The test of the real Gemini CLI runs only where `gemini --version` prints 0.68.0,
+and CI does not run it.
 
 In a run, a guard runs before each tool call: `tool-guard-claude.cjs` on Claude Code and
 `tool-guard-codex.cjs` on Codex, through `tool-guard.cjs`. The `PreToolUse` hooks of

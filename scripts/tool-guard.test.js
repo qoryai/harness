@@ -5147,7 +5147,7 @@ test('Gemini CLI settings list the names in excludedEnvVars and clear BASH_ENV a
   const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
     'core/settings/gemini/settings.json'), 'utf8'));
   assert.deepEqual(settings.advanced.excludedEnvVars,
-    ['DEBUG', 'DEBUG_MODE', ...UNSET, 'BASH_ENV', 'ENV']);
+    [...UNSET, 'BASH_ENV', 'ENV']);
   const hooks = Object.values(settings.hooks).flatMap((groups) => groups.flatMap((group) =>
     group.hooks));
   assert.equal(hooks.length, 2);
@@ -5264,7 +5264,7 @@ test('the guard of each runtime that has a hook denies a write to .gemini/.env a
 // stand in for the system settings file that qory points GEMINI_CLI_SYSTEM_SETTINGS_PATH at,
 // which Gemini CLI reads only from a folder that root owns. `plain` cuts the hook down to the
 // bare command with no wrapper and no env field; `advanced` false leaves out excludedEnvVars;
-// `envFile` is the file that holds the variables: .env or .gemini/.env. It returns what the
+// `envFile` is the file with the variables: .env or .gemini/.env. It returns what the
 // probe wrote, and whether the script of BASH_ENV ran.
 async function geminiRun({ plain, advanced, envFile }) {
   const names = [...UNSET, 'BASH_ENV', 'ENV'];

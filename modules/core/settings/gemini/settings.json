@@ -17,8 +17,6 @@
   },
   "advanced": {
     "excludedEnvVars": [
-      "DEBUG",
-      "DEBUG_MODE",
       "NODE_OPTIONS",
       "NODE_PATH",
       "LD_PRELOAD",
