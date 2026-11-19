@@ -2286,11 +2286,14 @@ again after a small workflow's stop, and when the session lost the list.
   When the spec lists the screen and the newest mockup lacks it, only `make-mockups` runs.
   After a follow of `write-specs` in the log after the word's `at`, the planner lists
   `write-specs` no more for the word, also when the reply of the spec writer has outcome
-  `declined` or `asked`. It lists `make-mockups` when the newest spec lists the screen, and
-  otherwise puts `make-mockups` under "Not run", with the reason that the spec does not
-  list the screen. `shape-reviewer` sends no finding for a word on the spec whose last
-  reply declined, answered or asked about the part to `write-specs`, by `checking-shape`.
-  So the run does not start `write-specs` again for the same word.
+  `declined` or `asked`. It lists `make-mockups` when the newest spec lists the screen and
+  the newest mockup lacks it. Otherwise, when no other word or change needs `make-mockups`,
+  it lists it under "Not run", with the reason that the spec does not list the screen. A
+  declined or asked word pushes no spec, so the session starts the planner again after a
+  follow of `write-specs` that pushed no spec, while a later workflow of the same pass is
+  still listed. `shape-reviewer` sends no finding to `write-specs` for a word on the spec
+  whose last reply has outcome `declined`, `answered` or `asked`, by `checking-shape`. So
+  the run does not start `write-specs` again for the same word.
 - **Older versions.** A pull writes one folder per type, and only
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.

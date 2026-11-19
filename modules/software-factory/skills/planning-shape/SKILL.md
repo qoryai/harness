@@ -73,9 +73,9 @@ A word counts when it is an open review comment, or when none of these settled i
    newest spec lists the screen and the newest mockup lacks it, list `make-mockups` alone.
    After a follow of `write-specs` in the log after the word's `at`, the spec needs no
    further change for the word, also when the reply of the spec writer has outcome
-   `declined` or `asked`. Then, when the newest spec lists the screen, list `make-mockups`.
-   Otherwise list `make-mockups` under "Not run", with the reason that the spec does not
-   list the screen.
+   `declined` or `asked`. Then list `make-mockups` when the newest spec lists the screen and
+   the newest mockup lacks it. Otherwise, when no other word or change needs `make-mockups`,
+   list it under "Not run", with the reason that the spec does not list the screen.
 5. List each type that a word concerns, with a fact that quotes the word. When the words
    stay unclear, list `write-specs`.
 

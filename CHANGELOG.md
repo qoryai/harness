@@ -690,10 +690,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `writing-specs` lists, `check` runs on the spec, and the planner starts again after the
   spec push, so the mockup workflow follows. After a follow of `write-specs` in the log
   after the word's `at`, the planner lists `write-specs` no more for the word: it lists
-  `make-mockups` when the spec lists the screen, and else puts it under "Not run".
-  `shape-reviewer` sends no finding for a word whose last reply of the spec writer
-  declined, answered or asked about it to `write-specs`, so the run does not loop to its
-  limit.
+  `make-mockups` when the spec lists the screen and the newest mockup lacks it, and else,
+  when nothing else needs it, puts it under "Not run". The session of `shape-a-ticket`
+  starts the planner again after a follow of `write-specs` that pushed no spec, while a
+  later workflow of the same pass is still listed. `shape-reviewer` sends no finding to
+  `write-specs` for a word whose last reply of the spec writer has outcome `declined`,
+  `answered` or `asked`, so the run does not loop to its limit.
 
 - The acceptance criteria are `acceptance-criteria.json`, in the acceptance criteria format
   of qory's contract, in place of the table of `acceptance-criteria.md`: a `summary`, and
