@@ -73,6 +73,6 @@ push_checks:
   - type: verification
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, verification]
     reads: [acceptance-criteria]
-  - type: explainer
-    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, explainer]
+  - type: walkthrough
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, walkthrough]
     reads: [verification, acceptance-criteria]
