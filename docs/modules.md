@@ -1812,10 +1812,11 @@ find:
   backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links
   finds a bare http link; and, in `## Deliverables` or `## Commands`, a table with other
   columns than those that the check reads, or a second table with them;
-- `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
-  `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
-  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion` and `## Not run`, with
-  `## Escalation` after them when the session escalated;
+- `build-report`: sections other than those of the standard track, `## Summary`,
+  `## Steps`, `## Review rounds`, `## Checks`, `## Counts`, `## Not run` and `## Left out`,
+  or those of the fast track, `## Summary`, `## Change`, `## Proofs`, `## Criterion`, `## Not run` and
+  `## Left out`, with `## Escalation` after them when the session escalated. The check
+  reads no line of `## Left out`, and `none` is a valid body;
 - `build-ledger`: a file other than one line of compact JSON, the text that
   `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
   `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and
