@@ -167,7 +167,8 @@ separate session, with the tools Read, Grep, Glob, Skill and Write, no shell and
 The values of the round are in the member `qory.review` of the `inputs.json` that qory
 writes: `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`,
 the path where the reviewer writes its report. The reviewers of Build in `software-factory`
-are `code-reviewer`, `test-reviewer` and `acceptance-reviewer`. The skill
+are `code-reviewer`, `test-reviewer` and `acceptance-reviewer`, and the members of the group
+role `reviewers`: `security-reviewer`, `data-reviewer` and `failure-reviewer`. The skill
 `reviewing-changes` of `core` lists the report: one JSON file with a `reviewer` and a list
 of findings, each with a `severity` of `blocking` or `non-blocking`, `quote`, `problem`,
 `fix`, `proof`, `point`, and `file`, `line` and `id` when they apply. The report has no
@@ -179,7 +180,7 @@ schema; the harness checks no report of a change with a verb. The test of the ex
 in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
 commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
 `QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
-example reports of `code-reviewer`, `test-reviewer` and `acceptance-reviewer`. After a round
+example reports of the six reviewers. After a round
 with a `blocking` finding, the next session of the stage reads `open-findings.json`, which
 `checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
 workflows" lists. qory writes `qory.review`, `qory.stage` and
@@ -2497,7 +2498,7 @@ review round. In a stage with none, such as when `inputs.json` has no
   `acceptance-reviewer`, each as a separate session, as "The review of a change" lists.
   Each loads `reviewing-changes`, `judging-findings` and its checking skill,
   `checking-code`, `checking-tests` or `checking-acceptance`. A finding in another area is
-  left out: its reviewer writes it. Only `code-reviewer` reports bugs in each file that is
+  left out: its reviewer writes it. `code-reviewer` reports bugs in each file that is
   not a test, and security holes, data loss and secrets in every file of the change, tests
   and fixtures too. Only `test-reviewer` reports a failing test that the change skips,
   deletes or loosens, with the old test traced through the new code; it also reports code
@@ -2511,11 +2512,55 @@ review round. In a stage with none, such as when `inputs.json` has no
   criterion gets two findings: the cause from `code-reviewer`, and the criterion from
   `acceptance-reviewer`. A red suite and a red locked check are findings that qory writes.
   A `failing check` proof cites the lines of `output_tail` of `suite_result`.
+- **The group role `reviewers`.** `software-factory` declares `roles: {agents: {reviewers:
+  many}}` and lists `security-reviewer`, `data-reviewer` and `failure-reviewer` under
+  `provides.agents.reviewers`. Each agent file sets `paths`, a list of globs from the top
+  of the working folder, which qory writes into `roles.json` and leaves out of the agent
+  file for a runtime. `checks.cjs panel` starts a member only when a path of the change
+  matches one of its globs, so the reviewers start as follows:
+  - `security-reviewer`, with `checking-security`, reads a change in a folder or a file
+    whose name is about authentication, authorisation, sessions, tokens, passwords,
+    cryptography or secrets (`**/auth/**`, `**/*auth*`, `**/jwt/**`, `**/middleware/**`,
+    `**/*secret*`, `**/*access_token*`, `**/.env.*`); in the routes, controllers and
+    handlers that take input from outside (`**/routes/**`, `**/*_controller.*`); in the
+    manifests and lockfiles of the usual package managers (`**/package.json`,
+    `**/go.sum`, `**/Gemfile.lock`, `**/requirements*.txt`); in Dockerfiles, compose files
+    and infrastructure code (`**/Dockerfile`, `**/*.tf`, `**/k8s/**`, `**/helm/**`); and in
+    the CI workflows (`.github/workflows/**`, `.gitlab-ci.yml`, `.circleci/**`). It reports
+    a hole that a person can use, with who sends what and what they then reach. A name
+    with a bare `token` or `session`, such as `lexer/token.go` or `session.json`, is not in
+    its paths.
+  - `data-reviewer`, with `checking-data-changes`, reads a change in a migration folder
+    (`**/migrations/**`, `**/migrate/**`, `**/alembic/**`, `**/changelog/**`), in a file of
+    SQL or of an ORM schema (`**/*.sql`, `**/*.prisma`, `**/schema.rb`, `**/schema.go`,
+    `**/sqlc.yaml`, `**/schemas/**`) and in the model files (`**/models/**`,
+    `**/models.ts`, `**/*.entity.ts`). It reports data that a migration loses or leaves
+    wrong, or that makes it fail, and a column that the code of the release before still
+    uses and that the change drops or renames, with the row or request and the step that
+    meets it.
+  - `failure-reviewer`, with `checking-failure-handling`, reads a change in a file or a
+    folder whose name is about errors, retries, timeouts, queues, jobs or workers
+    (`**/errors/**`, `**/error.*`, `**/*retry*`, `**/*timeout*`, `**/jobs/**`,
+    `**/tasks/**`, `**/consumer/**`, `**/worker.*`, `**/*_worker.*`) and in clients of
+    other systems (`**/clients/**`, `**/*_client.*`, `**/http/client.*`). It reports a
+    failure that the change drops, repeats or leaves half done, with the failure and its
+    wrong result. A name with a bare `error`, such as `error_page.html`, or `Client.tsx` is
+    not in its paths.
+
+  The globs match path names, read no file and match case. A change of `README.md` or
+  `notes.txt` matches none of them and starts none of the three. A text file in a folder
+  or with a name that a glob lists, such as `docs/api/guide.md` or `docs/errors.md`, starts
+  the reviewer of that glob, because a glob has no form that leaves a file out; `**/api/**`
+  and `**/*auth*`, which also lists `Author.java`, stay in the list of `security-reviewer`.
+  A name in another case than the globs have, such as `Passwords.java`, starts none.
+  Each of the three also reports what `code-reviewer` reports in its area, so a finding
+  may be in two reports. `code-reviewer`, `test-reviewer` and `acceptance-reviewer` are
+  no members of the group.
 - **Earlier findings.** Each reviewer re-reads each finding of `previous_findings`, as
   `reviewing-changes` and `judging-findings` list, and repeats with its id each finding of
   its area that is still true.
-- **Not built yet.** The group role `reviewers` and the `reviewers` key of Build follow in
-  a later change. These parts of qory are not built yet:
+- **Not built yet.** The `reviewers` key of Build, which makes qory start the members of
+  the group, is not built. These parts of qory are not built yet:
   - `qory.stage.reviewers` in `inputs.json`: qory does not write it yet, so the
     `review-changes` session runs `qory run verdict passed` in every stage;
   - how qory takes `changes-requested` from the `review-changes` session in a stage with
@@ -3503,6 +3548,10 @@ Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one b
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
 read the same file without it.
+
+The script also checks that the compose of the `software` stack writes `roles.json` with
+`security-reviewer`, `data-reviewer` and `failure-reviewer` as the members of
+`agents/reviewers`, each with `paths`.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,

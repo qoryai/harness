@@ -117,7 +117,7 @@ with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
 `access: write`, the workflow `write-acceptance-checks`, with `tier: balanced` and
 `access: write`, and the workflow `review-changes`, with `tier: thinking` and
 `access: write`. The `software-factory` module ships the process template, nine workflows'
-skills, twenty-three other skills, twenty agents and the settings for a run of those
+skills, twenty-six other skills, twenty-three agents and the settings for a run of those
 workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -350,6 +350,25 @@ workflows:
   and `checking-acceptance` whether a change meets each approved acceptance criterion and
   builds each planned change, and writes one report file. qory starts it in the review
   round.
+- `checking-security`: load it before you review a change for security holes, after
+  `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
+  area it covers, the steps, what is blocking in that area and the proof it needs, and the
+  check list.
+- `checking-data-changes`: load it before you review a change to stored data, after
+  `reviewing-changes` and `judging-findings`. The skill has the same parts.
+- `checking-failure-handling`: load it before you review how a change handles failure,
+  after `reviewing-changes` and `judging-findings`. The skill has the same parts.
+- `security-reviewer`, `data-reviewer` and `failure-reviewer`: agents that review a change
+  by `reviewing-changes`, `judging-findings` and `checking-security`,
+  `checking-data-changes` or `checking-failure-handling`, and write one report file each.
+  They are the members of the group role `reviewers`, which `software-factory` declares,
+  and each sets `paths`, so `checks.cjs panel` starts one only for a change in its paths:
+  authentication, input from outside, secrets, dependencies, containers, infrastructure code
+  and CI workflows for `security-reviewer`; migrations, schema files and models for
+  `data-reviewer`; errors, retries, timeouts, queues, jobs and clients of other systems for
+  `failure-reviewer`. The globs match path names, so a change of
+  `README.md` starts none of them, and a text file with a listed folder or name, such as
+  `docs/api/guide.md`, starts the reviewer of that glob.
 - `settings/claude/settings.json`: the run may load the skills of this module, start its
   agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the
