@@ -1890,6 +1890,10 @@ test('review comments: a word that asks for a screen the spec lacks routes to wr
   assert.match(planning, /such as a screen that the newest spec does not list as `Mockup screen:`: list `write-specs`/);
   assert.match(read('skills/checking-shape/SKILL.md'),
     /Where a person's word needs the spec or a criterion to change, the finding goes to `write-specs`/);
+  // After a follow of write-specs for the word, the planner lists write-specs no more, also
+  // when the spec writer declined the screen, so the run does not loop to its limit.
+  assert.match(planning, /After a follow of `write-specs` for that word is in the log, the spec needs no further change for it, also when the spec writer declined or asked about the screen: list `make-mockups` alone, and its normal end stands/);
+  assert.match(planning, /and the log has no follow of `write-specs` for that word: the spec needs a change/);
   // A screen that the spec lists and the mockup lacks goes to make-mockups alone.
   assert.match(planning, /list `make-mockups` alone/);
   // The designer draws only the screens that the spec lists, so the spec writer adds one.

@@ -70,6 +70,9 @@ A word counts when it is an open review comment, or when none of these settled i
    lists. List `write-specs`, then `make-mockups`, each with a fact that quotes the word.
    `checking-shape` routes a word that needs the spec to change the same way. When the
    newest spec lists the screen and the newest mockup lacks it, list `make-mockups` alone.
+   After a follow of `write-specs` for that word is in the log, the spec needs no further
+   change for it, also when the spec writer declined or asked about the screen: list
+   `make-mockups` alone, and its normal end stands.
 5. List each type that a word concerns, with a fact that quotes the word. When the words
    stay unclear, list `write-specs`.
 
@@ -90,8 +93,8 @@ shown in a demo, so the run pushed no demo scenarios.", and an output with no ne
 because no file changed. A later follow of the stopped workflow settles the stop, and a
 later push by a workflow that a route lists settles that part. The line about no mockup is
 a stop when a person's word asks for a screen that the newest spec does not list as
-`Mockup screen:`: the spec needs a change, and the first item below routes it. Route only
-these:
+`Mockup screen:`, and the log has no follow of `write-specs` for that word: the spec needs
+a change, and the first item below routes it. Route only these:
 
 - The spec needs a change, and a person's word asks for it, such as a screen that the newest
   spec does not list as `Mockup screen:`: list `write-specs`, with a fact that quotes that

@@ -2253,7 +2253,8 @@ that the work needs drafts in one run, in the recommended direction, and an open
 stops no workflow. `workflow-shape-a-ticket` tells the run to decide every point that the
 rule "Decide or ask" of `writing-questions` allows, and to ask only what a person must
 answer by it, such as a change of scope or a split of the work item. A session follows only
-what the planner lists, so a word on one output reruns only what depends on that output.
+what the planner lists, so a word on one output reruns only what depends on that output. A
+word that asks for a screen that the spec lacks also depends on the spec.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
@@ -2283,6 +2284,9 @@ again after a small workflow's stop, and when the session lost the list.
   line, `check` runs on the spec, and the session starts the planner again after the push.
   The newest spec now lists the screen, so `make-mockups` follows and `designer` draws it.
   When the spec lists the screen and the newest mockup lacks it, only `make-mockups` runs.
+  After a follow of `write-specs` for the word, the planner lists `make-mockups` alone, also
+  when `spec-writer` declined or asked about the screen, so the run does not start
+  `write-specs` again for the same word.
 - **Older versions.** A pull writes one folder per type, and only
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.
