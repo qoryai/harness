@@ -575,10 +575,10 @@ function overTime(budget) {
 // globbed returns the paths that pattern matches from cwd, then those that each folder part of
 // pattern that has a glob character matches, so that a glob of a file that does not exist yet
 // matches its folder. Each ** counts as *, as in bash without globstar, so that no pattern
-// walks a whole tree. It throws the error of fs.globSync, such as "pattern is too long" for a
-// pattern that bash still expands, and Over when pattern passes a limit before any scan, or
-// when budget, which counts the work of all the globs of a command, has no call, match or time
-// left. It checks the time before each folder part, so a long pattern ends at the limit.
+// walks a whole tree. It throws the error of fs.globSync, and Over when pattern passes a limit
+// before any scan, or when budget, which counts the work of all the globs of a command, has no
+// call, match or time left. It checks the time before each folder part, so a long pattern ends
+// at the limit.
 function globbed(pattern, cwd, budget) {
   overTime(budget);
   if (pattern.length > MAX_GLOB_LENGTH) {

@@ -1149,8 +1149,7 @@ shell. A command reaches `.reports` when:
 `fs.globSync` expands a glob from the working folder of the command, which the hook's
 input contains: `cwd`, and on Gemini CLI also `tool_input.dir_path`. A `**` counts as `*`,
 as in bash without `globstar`, so no glob walks a whole tree. The guard denies a word with
-a glob when `fs.globSync` throws on it, such as "pattern is too long", which bash still
-expands, and when the word starts with another `~name`, such as `~alex`. It denies a word
+a glob when `fs.globSync` throws on it, and when the word starts with another `~name`, such as `~alex`. It denies a word
 that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
 older Node, the guard denies each word with a glob. Equal globs share one expansion. The
 guard denies a command whose globs need more than 256 different `fs.globSync` calls, match
