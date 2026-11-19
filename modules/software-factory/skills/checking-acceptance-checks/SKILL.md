@@ -41,15 +41,16 @@ while the finding is left, not what `reviewing-drafts` defines for it.
 3. Each entry's `path` is the Check cell of a row of the build plan whose Criteria cell
    lists the criterion. A check path is a relative path with no space and no `.` or `..`
    part, whose file name has an extension, such as `tests/export.test.ts`; `n/a`, `none`,
-   `-`, `TBD` and a scenario id are none. The check scope of that row is its Check path and
-   each folder of its Files that contains that path. Each other file that the writer's
-   report lists under "Files:", but `acceptance-lock.json`, is a new helper or fixture below
-   a folder of the check scope of such a row. A change to code under test, also one that the
-   Files of the row list, to a file of another row, or to a file that exists and is no check
-   is a finding marked `writer`, `no direction` and `break`. So is each path of "Changed
-   paths:" that the writer's "Files:" does not list, except a path under `.qory/` and a
-   Result file of a row of `## Commands` in the build plan: the report lacks a change that
-   exists.
+   `-`, `TBD` and a scenario id are none. The check scope of that row is its Check path, and
+   each folder of its Files that is the first folder of the Check path or below it, such as
+   `tests/` and `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder adds
+   none. Each other file that the writer's report lists under "Files:", but
+   `acceptance-lock.json`, is a new helper or fixture below a folder of the check scope of
+   such a row. A change to code under test, also one that the Files of the row list, to a
+   file of another row, or to a file that exists and is no check is a finding marked
+   `writer`, `no direction` and `break`. So is each path of "Changed paths:" that the
+   writer's "Files:" does not list, except a path under `.qory/` and a Result file of a row
+   of `## Commands` in the build plan: the report lacks a change that exists.
 4. Each check states the outcome of its criterion as an assertion. A test of another
    outcome, a test that passes whatever the code does, and a test that a later change that
    meets the criterion would fail, such as one that reads a private detail, are findings.

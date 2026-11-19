@@ -22,13 +22,14 @@ path with no space and no `.` or `..` part, whose file name has an extension, su
 `## Deliverables` whose Check is a check path has one check: the file at that path. Its
 criteria are the ones of the Criteria cell of that row.
 
-The check scope of a row is its Check path, and each folder of its Files that contains that
-path, such as `tests/`. The scope check of the run fails on each changed path outside the
-check scope of every row.
+The check scope of a row is its Check path, and each folder of its Files that is the first
+folder of the Check path or below it, such as `tests/` and `tests/helpers/` for
+`tests/x.test.ts`; a Check path with no folder adds none. The scope check of the run fails
+on each changed path outside the check scope of every row.
 
 - Write the check at its Check path, and nowhere else.
 - Write a new helper or fixture of the check only below a folder of the check scope of the
-  same row. A folder of the Files that does not contain the Check path is not in it.
+  same row. Another folder of the Files, such as `src/`, is not in it.
 - When the Check path already exists, as after an earlier round, edit it in place.
 - Change no other file. Code under test, also when the Files of the row list it, a file of
   another row and a file that sets up the tests, such as a config of the test runner or a

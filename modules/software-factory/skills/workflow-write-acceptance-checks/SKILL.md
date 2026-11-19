@@ -46,8 +46,9 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
      criteria of that row are the ones of its Criteria cell, and its Files are the Files of
      that row;
    - the check scope of each row with a check path: its Check path, and each folder of its
-     Files that contains that path, such as `tests/`. Its other Files, such as the code
-     under test, are not in it;
+     Files that is the first folder of the Check path or below it, such as `tests/` and
+     `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder adds none. Its
+     other Files, such as the code under test, are not in it;
    - whether the app starts: `## Commands` has a `serve` row with a command, and
      `## Summary` has a line that starts with `App address:`;
    - whether a demo script exists: `index.json` lists an artifact of type `demo-script` with

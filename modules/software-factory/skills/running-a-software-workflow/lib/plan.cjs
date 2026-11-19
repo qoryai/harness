@@ -192,10 +192,15 @@ module.exports = (lib) => {
     /^[^/.][^/]*\.[A-Za-z0-9]+$/.test(cell.split('/').pop());
 
   // checkScope returns the paths that a deliverable with a check path allows to the step
-  // checks: the check path, and each folder of its Files that contains it. The other paths of
-  // its Files, such as the code under test, are not in it.
-  const checkScope = (row) => [row.check,
-    ...row.paths.filter((one) => one.endsWith('/') && row.check.startsWith(one))];
+  // checks: the check path, and each folder of its Files that is the first folder of the check
+  // path or below it, such as tests/ and tests/helpers/ for tests/x.test.ts, where
+  // planning-builds lists the folder of the helpers. A check path with no folder adds none. The
+  // other paths of its Files, such as the code under test, are not in it.
+  const checkScope = (row) => {
+    const top = row.check.slice(0, row.check.indexOf('/') + 1);
+    return [row.check,
+      ...row.paths.filter((one) => top && one.endsWith('/') && one.startsWith(top))];
+  };
 
   // writeScope returns { paths, words } for step: the Files of its deliverable, or for a fix,
   // the Files of every deliverable, because a finding of the review may be in any of them.

@@ -127,8 +127,9 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
   // The writer runs only run targeted, and writes only in the Files of its rows.
   says(section(writer, 'Guardrails'), 'You run no command, except ' +
     '`<skill folder>/checks.cjs run targeted <path>... --inputs <path>`');
-  says(section(writer, 'Guardrails'), 'below a folder of the Files cell of that row that ' +
-    "contains the check's path");
+  says(section(writer, 'Guardrails'), 'below a folder of the check scope of that row, which is ' +
+    'its Check path, and each folder of its Files that is the first folder of the Check path ' +
+    'or below it');
 });
 
 test('the stack declares write-acceptance-checks with tier balanced and access write', () => {
@@ -819,6 +820,52 @@ test('scope checks refuses the code under test of a row with a check, and any Fi
   const deliverable = call('scope', 'deliverable:d-1', '--inputs', w.inputs);
   assert.equal(deliverable.status, 0, deliverable.out);
   assert.match(deliverable.out, /^Passed: 3 changed paths in the files of d-1/m);
+});
+
+test('scope checks takes a helper folder below the first folder of the Check path', () => {
+  const rule = 'its Check path, and each folder of its Files that is the first folder of the ' +
+    'Check path or below it, such as `tests/` and `tests/helpers/` for `tests/x.test.ts`; a ' +
+    'Check path with no folder adds none';
+  for (const text of [WORKFLOW, skill('writing-acceptance-checks'),
+    skill('checking-acceptance-checks'), agent('acceptance-check-writer'),
+    read(ROOT, 'docs/modules.md')]) says(text, rule);
+  // Check tests/lines.check.cjs, Files src/orders.cjs and tests/helpers/ only.
+  const plan = PLAN.replace('`src/orders.cjs`, `tests/` |',
+    '`src/orders.cjs`, `tests/helpers/` |');
+  assert.notEqual(plan, PLAN);
+  const w = work({ plan });
+  const call = session(w);
+  writeFile(w, 'tests/lines.check.cjs', CHECK_1);
+  writeFile(w, 'tests/helpers/h.js', 'module.exports = {};\n');
+  assert.equal(call('scope', 'checks', '--inputs', w.inputs).status, 0);
+  const frozen = call('freeze', 'checks', '--inputs', w.inputs);
+  assert.equal(frozen.status, 0, frozen.out);
+  // The code under test of the row is still outside the scope.
+  writeFile(w, 'src/orders.cjs', `${ORDERS}// changed\n`);
+  const refused = call('scope', 'checks', '--inputs', w.inputs);
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[0], 'Undo the change to "src/orders.cjs", or end the step as ' +
+    'failed: it is outside the scope.');
+  assert.equal(call('freeze', 'checks', '--inputs', w.inputs).status, 1);
+  // A folder outside the first folder of the Check path is not in the scope.
+  const other = PLAN.replace('`src/orders.cjs`, `tests/` |',
+    '`src/orders.cjs`, `helpers/` |');
+  const x = work({ plan: other });
+  writeFile(x, 'tests/lines.check.cjs', CHECK_1);
+  writeFile(x, 'helpers/h.js', 'module.exports = {};\n');
+  assert.equal(session(x)('scope', 'checks', '--inputs', x.inputs).status, 1);
+  // A Check path with no folder adds no folder of the Files, though d-1 lists tests/.
+  const flat = PLAN.replace('`tests/` | `tests/lines.check.cjs` |',
+    '`tests/` | `lines.check.cjs` |');
+  assert.notEqual(flat, PLAN);
+  const y = work({ plan: flat });
+  writeFile(y, 'lines.check.cjs', CHECK_1);
+  assert.equal(session(y)('scope', 'checks', '--inputs', y.inputs).status, 0);
+  writeFile(y, 'tests/helpers/n.js', 'module.exports = {};\n');
+  const nofolder = session(y)('scope', 'checks', '--inputs', y.inputs);
+  assert.equal(nofolder.status, 1, nofolder.out);
+  assert.equal(nofolder.lines[0], 'Undo the change to "tests/helpers/n.js", or end the step as ' +
+    'failed: it is outside the scope.');
 });
 
 test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay out', () => {

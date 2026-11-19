@@ -2253,23 +2253,24 @@ to plan the build again.
 
 - **The step `checks`.** The session starts the ledger step `checks` and then
   `acceptance-check-writer`, which writes each check at its Check path, writes new helpers
-  and fixtures only below a folder of the Files of the same row that contains that path, and
-  runs each check with `checks.cjs run targeted <path> --inputs <path>` until it fails with
-  a failed test. The command of a check is the `targeted` command of the plan, a space and
-  the path. The writer drafts `acceptance-lock.json`, with `failed_with` set to the `exit`
-  of the record of the last run, each support file under `support`, and no `sha256`. The
-  session runs `scope checks`, which allows only the check scope of each row with a check
-  path: its Check path, and each folder of its Files that contains that path. The code under
-  test in those Files is outside it. Then the session starts `check-reviewer`, which reads
-  the checks, the draft and the records read-only by `reviewing-drafts` and
-  `checking-acceptance-checks`. The reviewer gets no "Checks:", because the draft has no
-  `sha256` before `lock`. It gets "Changed paths:" instead, the output of `git status
-  --porcelain --untracked-files=all` and of `git diff --name-only <start commit>`, which the
-  session runs in the working folder before each start, with the files of each new folder,
-  because the reviewer reads files only. After a review with no finding left that fails a
-  push, the session runs `freeze checks`, sets `commit` in the draft to the commit that
-  `freeze` printed, runs `checks.cjs lock`, and ends the step as `done` with `--pushed
-  acceptance-lock/main/<N>`.
+  and fixtures only below a folder of the check scope of the same row, and runs each check
+  with `checks.cjs run targeted <path> --inputs <path>` until it fails with a failed test.
+  The command of a check is the `targeted` command of the plan, a space and the path. The
+  writer drafts `acceptance-lock.json`, with `failed_with` set to the `exit` of the record
+  of the last run, each support file under `support`, and no `sha256`. The session runs
+  `scope checks`, which allows only the check scope of each row with a check path: its Check
+  path, and each folder of its Files that is the first folder of the Check path or below it,
+  such as `tests/` and `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder
+  adds none. The code under test in those Files is outside it. Then the session starts
+  `check-reviewer`, which reads the checks, the draft and the records read-only by
+  `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no "Checks:",
+  because the draft has no `sha256` before `lock`. It gets "Changed paths:" instead, the
+  output of `git status --porcelain --untracked-files=all` and of `git diff --name-only
+  <start commit>`, which the session runs in the working folder before each start, with the
+  files of each new folder, because the reviewer reads files only. After a review with no
+  finding left that fails a push, the session runs `freeze checks`, sets `commit` in the
+  draft to the commit that `freeze` printed, runs `checks.cjs lock`, and ends the step as
+  `done` with `--pushed acceptance-lock/main/<N>`.
 - **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
   `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
   criterion planned as `Tests` with no check; a check that did not fail on the start commit
@@ -2492,8 +2493,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   commits since then, against the Files of the step's deliverable, or of every deliverable
   for `fix:f<N>` and for `--plan`. For `checks`, the step of `write-acceptance-checks`, they
   count against the check scope of each deliverable whose Check is a check path: that path,
-  and each folder of its Files that contains it. A Check cell such as `n/a`, `none` or a
-  scenario id is no check path. Exactly one of `<step>` and `--plan` is given. No file
+  and each folder of its Files that is the first folder of the Check path or below it, such
+  as `tests/` and `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder adds
+  none. A Check cell such as `n/a`, `none` or a scenario id is no check path. Exactly one of `<step>` and `--plan` is given. No file
   has a separate rule: `qory.yaml`, a hook program and a module count as any path. A path
   under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
   untracked result file. A path that the index marks skip-worktree or assume-unchanged
