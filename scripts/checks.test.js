@@ -1179,6 +1179,7 @@ test('decision record: every Mermaid block that Qory Apiary draws counts toward 
     'with the first word in upper case': '```MERMAID\nflowchart LR\n```',
     'indented 3 spaces': listed('   '),
     'indented 3 spaces in tildes': listed('   ', '~~~'),
+    'in tildes, with an "&" in the info string': '~~~ and & stuff\nflowchart LR\n~~~',
   };
   // Qory Apiary decodes an entity in the info string and draws the block when the first word is
   // mermaid, so an "&" in the info string counts, and so does a fence that is no Mermaid block.
@@ -1195,8 +1196,10 @@ test('decision record: every Mermaid block that Qory Apiary draws counts toward 
   // after the item list is a finding of its own, so only the findings about a block are tested.
   const about = /^(Cut decision-record\.md to 2 Mermaid diagrams|Write the fence of the Mermaid)/;
   const found = (result) => result.findings.some((line) => about.test(line));
+  // The info string of a backtick fence has no backtick: such a line is no fence.
   for (const block of ['```text\nflowchart LR\n```', '```mermaidx\nflowchart LR\n```',
-    '> ```python\n> x = 1\n> ```']) {
+    '> ```python\n> x = 1\n> ```', '```code``` & more text', '```code`` and R&D',
+    '> ```x`` & y']) {
     assert.equal(found(push(record(block), 'decision-record')), false, block);
   }
   // A block in a quote or a list item skips the checks of a block, so each one alone in the
@@ -1716,6 +1719,17 @@ test('decision record: a time limit for text that made a pattern slow', () => {
   timed('spaces after an image start', ['decision-record.md', '- Why: ', `- Why: ![a](${' '.repeat(250000)}x `]);
   timed('image destinations that do not close', ['decision-record.md', '- Why: ', `- Why: ${'![a]('.repeat(15000)} `]);
   timed('image starts with a long alt', ['decision-record.md', '- Why: ', `- Why: ${'![a b '.repeat(20000)} `]);
+});
+
+test('decision record: a line of 100,000 backticks or tildes takes linear time', () => {
+  for (const mark of ['`', '~']) {
+    for (const tail of ['', 'x', ' &', ' mermaid']) {
+      const started = Date.now();
+      push(fixture(['decision-record.md', COST, (item) => `${item}\n\n${mark.repeat(100000)}${tail}`]),
+        'decision-record');
+      assert.ok(Date.now() - started < 1500, `${mark}${tail} took ${Date.now() - started} ms`);
+    }
+  }
 });
 
 test('decision record: the checks of a diagram take linear time on long runs', () => {

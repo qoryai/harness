@@ -35,7 +35,10 @@ function lines(text) {
     }
     open = fence(line);
     out.push({
-      text: line, fenced: Boolean(open), info: open ? open.info : '', amp: Boolean(open && open.amp),
+      text: line,
+      fenced: Boolean(open),
+      info: open ? open.info : '',
+      amp: Boolean(open && open.amp),
     });
   }
   return out;

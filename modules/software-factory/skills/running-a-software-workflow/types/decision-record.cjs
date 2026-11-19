@@ -19,10 +19,13 @@ module.exports = (lib) => {
   const MAX_DIAGRAMS = 2;
 
   // A fence line, after spaces, ">" marks and list marks, with mermaid as the first word of its
-  // info string, in any case, or with an "&" in it: a parser decodes an entity there.
+  // info string, in any case, or with an "&" in it: a parser decodes an entity there. The info
+  // string of a backtick fence has no backtick. Each run of marks is atomic, by a lookahead and
+  // a back reference, so the time is linear in the length of the line.
   // shortcut: reads quote and list marks only, replace when a test with Apiary's parser exists.
   const MERMAID_LINE = new RegExp('^[ \\t]*(?:(?:>|[-*+](?=[ \\t])|\\d{1,9}[.)](?=[ \\t]))' +
-    '[ \\t]*)*(?:`{3,}|~{3,})(?:[ \\t]*mermaid(?=\\s|$)|.*&)', 'i');
+    '[ \\t]*)*(?:(?=(`{3,}))\\1(?:[ \\t]*mermaid(?=\\s|$)|(?=[^`]*$)[^`]*&)' +
+    '|(?=(~{3,}))\\2(?:[ \\t]*mermaid(?=\\s|$)|.*&))', 'i');
 
   // idOf returns the id of a decision as the first line of a finding shows it: up to 16
   // characters, else its start and its end. An id may have any number of digits. whole returns
