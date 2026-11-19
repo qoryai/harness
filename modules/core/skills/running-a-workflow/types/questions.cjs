@@ -1,14 +1,130 @@
 // The check of the type questions: questions.json, as writing-questions lists its rules.
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const {
-  isObject, jsonKind, label, entries, parseJson, plural, quote, short, sized, valueText,
+  CONTROL_ALL, REFUSED_ALL, isObject, jsonKind, label, entries, parseJson, plural, quote, short,
+  sized, valueText,
 } = require('../lib/base.cjs');
 const {
   MARKDOWN, bareId, characters, counted, links, sentences, words,
 } = require('../lib/markdown.cjs');
 
 const qNumber = (id) => Number((/^q(\d+)$/.exec(id) || ['', 'NaN'])[1]);
+
+// The form of the type of an output, as qory's questions format has it.
+const TYPE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+// The words of the two forms of about, for the line after a fix.
+const ABOUT_FORMS = 'The forms are {"work_item": true}, and {"type": ..., "name": ...} with an ' +
+  'optional "item".';
+
+// outputs returns each output of the work item that the run can read, as "<type>/<name>": each
+// name that index.json lists with a version that counts, each name of the store with a version
+// folder, and in a check, the main of each type of registry whose draft is at the top of the
+// artifact folder. A withdrawn name is none of them.
+function outputs(context, types) {
+  const out = new Set();
+  for (const artifact of context.index ? context.index.artifacts : []) {
+    const name = artifact.name || 'main';
+    if (!context.withdrawn(artifact.type, name) && context.counts(artifact.type, name).length) {
+      out.add(`${artifact.type}/${name}`);
+    }
+  }
+  const folders = (dir) => {
+    try {
+      return fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+  };
+  for (const type of folders(context.store)) {
+    for (const name of folders(path.join(context.store, type))) {
+      if (folders(path.join(context.store, type, name)).some((one) => /^v[0-9]{1,9}$/.test(one)) &&
+        !context.withdrawn(type, name)) out.add(`${type}/${name}`);
+    }
+  }
+  if (context.mode === 'check') {
+    for (const def of types) {
+      if (def.main && fs.existsSync(path.join(context.root, def.main))) out.add(`${def.type}/main`);
+    }
+  }
+  return out;
+}
+
+// aboutCheck checks about of question, which in a new question, or one whose about differs from
+// earlier, the same question in the newest questions, is set to the work item or to an output
+// that the run can read, as readable returns it. Its item has the form and is one of the ids
+// of the reader of the type's items, from the registry; for a type with no reader, the item is
+// 1 to 32 characters on one line, as qory's questions format requires. A question with an
+// option that has a proposal has an output with an item as about, as the format also requires:
+// writing-questions (SKILL.md:80-84: "for an output"), and
+// writing-questions (SKILL.md:173-174: "has a question with no `about`").
+function aboutCheck(run, which, question, earlier, readable) {
+  run.did('about');
+  const { about } = question;
+  const who = short(which, 24);
+  if (about === undefined) {
+    run.find(`Add about to ${who}: {"work_item": true}, or the type and name of an output.\n` +
+      `${which} has no about.`);
+    return;
+  }
+  const workItem = isObject(about) && about.work_item === true && Object.keys(about).length === 1;
+  const output = isObject(about) && !('work_item' in about) &&
+    typeof about.type === 'string' && typeof about.name === 'string';
+  if (!workItem && !output) {
+    // A list or an object shows as its kind, so that no value of any depth is walked. JSON
+    // text escapes each control character; the refused characters are removed.
+    const value = about !== null && typeof about === 'object'
+      ? jsonKind(about)
+      : short(JSON.stringify(about).replace(REFUSED_ALL, ''), 60);
+    run.find(`Write about of ${who} in one of its two forms.\nIt is ${value}.\n${ABOUT_FORMS}`);
+    return;
+  }
+  if (output && !outputForm(run, which, about)) return;
+  const options = Array.isArray(question.options) ? question.options : [];
+  if (options.some((option) => isObject(option) && 'proposal' in option) &&
+    (workItem || about.item === undefined)) {
+    run.find(`Give about of ${who} an output and its item: an option of it has a proposal.\n` +
+      `About is ${workItem ? 'the work item' : 'an output with no item'}.`);
+    return;
+  }
+  if (workItem || (earlier && sameJson(about, earlier.about))) return;
+  const { outputs: names, known, items } = readable();
+  const shown = `${about.type} ${about.name}`;
+  // In a check, the draft of a type that no module checks, such as a mockup, can lie anywhere
+  // in the artifact folder, so only a push, through index.json, refuses such an output.
+  const unseen = run.context.mode === 'check' && !known.has(about.type);
+  if (!names.has(`${about.type}/${about.name}`) && !unseen) {
+    run.find(`Set about of ${who} to an output that the run can read, or to the work item.\n` +
+      `The run can read no ${short(shown, 80)}.`);
+    return;
+  }
+  if (about.item === undefined) return;
+  const reader = items.find((one) => one.type === about.type);
+  if (!reader) {
+    const item = typeof about.item === 'string' ? about.item : '';
+    const size = [...item].length;
+    if (size < 1 || size > 32 || item.match(CONTROL_ALL) || item.match(REFUSED_ALL)) {
+      run.find(`Write about.item of ${who} as 1 to 32 characters on one line.\n` +
+        `It is ${valueText(about.item)}.`);
+    }
+    return;
+  }
+  if (typeof about.item !== 'string' || !reader.form.test(about.item)) {
+    run.find(`Write about.item of ${who} as an id of ${short(about.type, 40)}, such as ` +
+      `${reader.example}.\nIt is ${valueText(about.item)}.`);
+    return;
+  }
+  const ids = reader.read(run.context, about.name);
+  if (ids && !ids.has(about.item)) {
+    run.find(`Set about.item of ${who} to an entry that ${short(shown, 40)} has.\nIt has ` +
+      `no ${about.item}.`);
+  }
+}
 
 function questionsCheck(run, files) {
   let prefixes = null;
@@ -26,9 +142,19 @@ function questionsCheck(run, files) {
   }, 0);
   const places = new Map(list.map((entry, place) => [entry, place]));
   const seen = new Set();
+  // What the run can read, read once, and only when an about is set to an output.
+  let read = null;
+  const readable = () => {
+    if (!read) {
+      const { types, items } = require('./points.cjs').registryOf(run.context.plugin);
+      read = { outputs: outputs(run.context, types), items: items || [],
+        known: new Set(types.filter((one) => one.main).map((one) => one.type)) };
+    }
+    return read;
+  };
   all.forEach((question) => {
     const which = label(question, 'question', places.get(question) + 1);
-    // writing-questions (SKILL.md:76-77, 91-92, 156-157: "a number that no question"):
+    // writing-questions (SKILL.md:76-77, 99-100, 165-166: "a number that no question"):
     // each id once, and follows lists only earlier ids.
     run.did('ids and follows');
     if (seen.has(question.id)) run.find('Give each question in questions.json a different id.\n' +
@@ -40,7 +166,8 @@ function questionsCheck(run, files) {
       }
     }
     seen.add(question.id);
-    // writing-questions (SKILL.md:93-102, 154-155: "the options the run considered, 2 to 4"): a
+    aboutCheck(run, which, question, old.get(question.id), readable);
+    // writing-questions (SKILL.md:101-110, 163-164: "the options the run considered, 2 to 4"): a
     // decided question has 2 to 4 options, none recommended, and a decision; a chosen option is the
     // title of an option.
     run.did('decided questions');
@@ -64,7 +191,7 @@ function questionsCheck(run, files) {
           `options.\n${key}.option of ${which} is ${quote(chosen.option)}, the title of none.`);
       }
     }
-    // writing-questions (SKILL.md:78, 118, 126: "plain text on one line with no tab:"): members
+    // writing-questions (SKILL.md:78, 127, 135: "plain text on one line with no tab:"): members
     // read question, context, title and explanation; question and title have no tab, and title
     // no line feed.
     if (typeof question.question === 'string') {
@@ -85,6 +212,9 @@ function questionsCheck(run, files) {
       }
       if (typeof option.explanation === 'string') {
         characters(run, 'questions.json', `explanation of ${where}`, option.explanation);
+      }
+      if (typeof option.proposal === 'string') {
+        characters(run, 'questions.json', `proposal of ${where}`, option.proposal);
       }
     });
     // writing-questions (SKILL.md:52-53: "in at most 2 sentences and at most 40 words"):
@@ -111,7 +241,7 @@ function questionsCheck(run, files) {
       return;
     }
     newQuestion(run, which, question);
-    // writing-questions (SKILL.md:78-86, 126-128: "one sentence of 1 to 500 characters"):
+    // writing-questions (SKILL.md:78-94, 135-137: "one sentence of 1 to 500 characters"):
     // in a new question, question is one sentence of 1 to 500 characters with no Markdown, context
     // 1 to 20000 characters and at most 120 words, title 1 to 200 characters, and explanation 1 to
     // 2000 characters and at most 2 sentences.
@@ -128,7 +258,7 @@ function questionsCheck(run, files) {
           `mark.\nThe question of ${which} has a Markdown mark.`);
       }
     }
-    // writing-questions (SKILL.md:80-88: "the fact that the answer depends on"): a new open
+    // writing-questions (SKILL.md:88-96: "the fact that the answer depends on"): a new open
     // question has a context with a character other than a space, and a list of options,
     // empty when it asks for a value.
     run.did('asks');
@@ -154,6 +284,7 @@ function questionsCheck(run, files) {
       const where = `option ${place + 1} of ${which}`;
       sized(run, option.title, `the title of ${where}`, 200);
       sized(run, option.explanation, `the explanation of ${where}`, 2000);
+      sized(run, option.proposal, `the proposal of ${where}`, 2000, { optional: true });
       if (typeof option.explanation !== 'string') return;
       const count = sentences(option.explanation);
       if (count > 2) {
@@ -161,7 +292,7 @@ function questionsCheck(run, files) {
           `${where} has ${count}.`);
       }
     });
-    // writing-questions (SKILL.md:84-86: "Write the words of the item in quotes"): words in
+    // writing-questions (SKILL.md:92-94: "Write the words of the item in quotes"): words in
     // quotes beside the id of an item, in each text that members read.
     run.did('ids');
     const texts = [['the question', question.question], ['the context', question.context],
@@ -190,23 +321,62 @@ function questionsCheck(run, files) {
   });
 }
 
-// sameJson compares two JSON values: objects by their members in any order, and numbers by value,
-// as JSON.parse already reads 3.0 as 3.
-function sameJson(a, b) {
-  if (a === b) return true;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length &&
-      a.every((item, place) => sameJson(item, b[place]));
+// outputForm checks the members of about of question, an output, as qory's questions format
+// has them, and returns whether each is right: only type, name and item; a type of lower-case
+// letters and digits in groups joined by single hyphens, at most 64 bytes; and a name of 1 to
+// 64 characters on one line.
+function outputForm(run, which, about) {
+  const who = short(which, 24);
+  const other = Object.keys(about).find((key) => !['type', 'name', 'item'].includes(key));
+  if (other !== undefined) {
+    run.find(`Remove ${quote(short(other, 16))} from about of ${who}: an output has only type, ` +
+      `name and item.\nAbout of ${which} has ${quote(short(other, 16))}.`);
+    return false;
   }
-  if (!isObject(a) || !isObject(b)) return false;
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length &&
-    keys.every((key) => Object.hasOwn(b, key) && sameJson(a[key], b[key]));
+  if (!TYPE_NAME.test(about.type) || Buffer.byteLength(about.type) > 64) {
+    run.find(`Write about.type of ${who} as a type, such as proposal or mockup.\nIt is ` +
+      `${valueText(about.type)}, and a type is lower-case letters and digits in groups joined ` +
+      'by single hyphens, at most 64 bytes.');
+    return false;
+  }
+  const size = [...about.name].length;
+  if (size < 1 || size > 64 || about.name.match(CONTROL_ALL) || about.name.match(REFUSED_ALL)) {
+    run.find(`Write about.name of ${who} as 1 to 64 characters on one line, such as main.\n` +
+      `It is ${valueText(about.name)}.`);
+    return false;
+  }
+  return true;
+}
+
+// sameJson compares two JSON values: objects by their members in any order, and numbers by value,
+// as JSON.parse already reads 3.0 as 3. It walks with a list in place of recursion, so that it
+// returns for a value of any depth, with no stack overflow.
+function sameJson(a, b) {
+  const open = [[a, b]];
+  while (open.length) {
+    const [one, other] = open.pop();
+    if (one === other) continue;
+    if (Array.isArray(one) || Array.isArray(other)) {
+      if (!Array.isArray(one) || !Array.isArray(other) || one.length !== other.length) {
+        return false;
+      }
+      one.forEach((item, place) => open.push([item, other[place]]));
+      continue;
+    }
+    if (!isObject(one) || !isObject(other)) return false;
+    const keys = Object.keys(one);
+    if (keys.length !== Object.keys(other).length) return false;
+    for (const key of keys) {
+      if (!Object.hasOwn(other, key)) return false;
+      open.push([one[key], other[key]]);
+    }
+  }
+  return true;
 }
 
 // newQuestion checks the state of a question that the newest questions do not have:
-// writing-questions (SKILL.md:149-150: "adds an `open` question with a `decision`") and
-// writing-questions (SKILL.md:151-152: "adds a decided question whose `decision.run` is not"):
+// writing-questions (SKILL.md:158-159: "adds an `open` question with a `decision`") and
+// writing-questions (SKILL.md:160-161: "adds a decided question whose `decision.run` is not"):
 // open with no decision, or decided with a decision by the run that asked it. A decided
 // question with no decision has its finding in questionsCheck.
 function newQuestion(run, which, question) {
@@ -234,8 +404,8 @@ function newQuestion(run, which, question) {
 function keptQuestion(run, which, earlier, question, number) {
   run.did('kept questions');
   const was = `questions version ${number}`;
-  // writing-questions (SKILL.md:151-152: "or sets an existing question to `decided`") and
-  // writing-questions (SKILL.md:153: "removes, changes or adds a `decision`"): no question that
+  // writing-questions (SKILL.md:160-161: "or sets an existing question to `decided`") and
+  // writing-questions (SKILL.md:162: "removes, changes or adds a `decision`"): no question that
   // exists becomes decided, and its decision stays as it is, or absent.
   if (question.state === 'decided' && earlier.state !== 'decided') {
     run.find(`Keep the state of ${short(which, 24)}, and decide in a new question.\n${was} has ` +
@@ -247,7 +417,7 @@ function keptQuestion(run, which, earlier, question, number) {
     else if (!('decision' in earlier)) what = `${was} has no decision of ${which}.`;
     run.find(`Keep the decision of ${short(which, 24)} as ${was} has it.\n${what}`);
   }
-  // writing-questions (SKILL.md:143-144: "or that has a `decision`, in any state"): a question
+  // writing-questions (SKILL.md:152-153: "or that has a `decision`, in any state"): a question
   // with a decision keeps its question and options.
   if ('decision' in earlier) {
     for (const key of ['question', 'options']) {
@@ -257,7 +427,7 @@ function keptQuestion(run, which, earlier, question, number) {
       }
     }
   }
-  // writing-questions (SKILL.md:145: "changes the `context` of a question that stays answered"):
+  // writing-questions (SKILL.md:154: "changes the `context` of a question that stays answered"):
   // a question that stays answered, or stays decided, keeps its context. A reopen may add to it.
   if ((earlier.state === 'answered' || earlier.state === 'decided') &&
     question.state === earlier.state && !sameJson(question.context, earlier.context)) {

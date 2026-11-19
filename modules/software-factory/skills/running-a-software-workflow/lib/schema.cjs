@@ -1,7 +1,8 @@
-// The check of a JSON document against a JSON Schema of the folder schemas/, the same schema
-// that Qory Apiary reads from process.yaml for the type. It reads the keywords that those
-// schemas use, in the forms that they use, and throws for any other keyword or form, so that a
-// schema that the check would skip or misread never passes a document by mistake.
+// The check of a JSON document against a JSON Schema of the folder schemas/: for a custom type,
+// the json_schema of the type in process.yaml, and for the standard types acceptance-criteria
+// and verification, the format of qory's contract. It reads the keywords that those schemas use,
+// in the forms that they use, and throws for any other keyword or form, so that a schema that
+// the check would skip or misread never passes a document by mistake.
 'use strict';
 
 const fs = require('node:fs');
@@ -10,8 +11,8 @@ const path = require('node:path');
 // The keywords that the check applies, and those that only describe.
 const APPLIED = new Set([
   'type', 'required', 'additionalProperties', 'properties', 'enum', 'const', 'pattern',
-  'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems', 'items', '$ref',
-  'oneOf', 'allOf', 'if', 'then', 'not',
+  'minLength', 'maxLength', 'minimum', 'maximum', 'minItems', 'maxItems', 'uniqueItems', 'items',
+  '$ref', 'oneOf', 'allOf', 'if', 'then', 'not',
 ]);
 // format is an annotation in JSON Schema 2020-12: Qory Apiary and this check assert no format.
 const NOTES = new Set(['$schema', '$id', 'title', 'description', 'format', '$defs']);
@@ -20,6 +21,11 @@ const WORDS = {
   object: 'an object', array: 'a list', string: 'text', integer: 'a whole number',
   number: 'a number', boolean: 'true or false', null: 'null',
 };
+
+// entryCount and characterCount return count with the word entry or character, in the plural
+// for any count but 1.
+const entryCount = (count) => `${count} ${count === 1 ? 'entry' : 'entries'}`;
+const characterCount = (count) => `${count} ${count === 1 ? 'character' : 'characters'}`;
 
 // kind returns the JSON Schema type of a parsed JSON value.
 function kind(value) {
@@ -51,6 +57,63 @@ function brief(text, size) {
   return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
 }
 
+// The most levels of objects and lists that a document of a structured type may nest. The
+// deepest schema of schemas/ needs 5 levels, and the readers of a document, such as canonical,
+// recurse once per level, so 64 leaves room for a schema to grow and keeps every reader far
+// from the limit of the call stack.
+const MAX_DEPTH = 64;
+
+// deepAt returns the first list or object that value nests more than MAX_DEPTH levels deep, the
+// value itself being level 1: { node, at }, with at its JSON pointer, such as /0/0/0. The walk
+// takes the members of an object in the order of Object.keys: the keys that look like integers
+// first, from the lowest, then the other keys in the order of the document. Each key in at is
+// escaped as JSON Pointer escapes it, ~ as ~0 and / as ~1, and then as shown writes text, so
+// that a line feed or a bidirectional mark in a key shows as its escape. deepAt returns null
+// when value nests no deeper. It walks with a list in place of recursion, so that it returns
+// for a document of any depth, with no stack overflow.
+function deepAt(value) {
+  const nested = (node) => node !== null && typeof node === 'object';
+  const open = nested(value) ? [{ node: value, level: 1, parent: null, key: '' }] : [];
+  while (open.length) {
+    const entry = open.pop();
+    if (entry.level > MAX_DEPTH) {
+      const keys = [];
+      for (let at = entry; at.parent; at = at.parent) keys.push(at.key);
+      const escape = (key) => shown(key.replace(/~/g, '~0').replace(/\//g, '~1'), Infinity)
+        .slice(1, -1);
+      return { node: entry.node, at: keys.reverse().map((key) => `/${escape(key)}`).join('') };
+    }
+    const keys = Object.keys(entry.node);
+    for (let place = keys.length - 1; place >= 0; place -= 1) {
+      const child = entry.node[keys[place]];
+      if (nested(child)) {
+        open.push({ node: child, level: entry.level + 1, parent: entry, key: keys[place] });
+      }
+    }
+  }
+  return null;
+}
+
+// depthLine returns the line after the fix for value when it nests more than MAX_DEPTH levels
+// deep, such as "The list at /0/0/0 is 65 levels deep.", or null when it nests no deeper.
+function depthLine(value) {
+  const deep = deepAt(value);
+  if (!deep) return null;
+  return `The ${Array.isArray(deep.node) ? 'list' : 'object'} at ${brief(deep.at, POINTER)} ` +
+    `is ${MAX_DEPTH + 1} levels deep.`;
+}
+
+// canonical returns value as JSON with the members of each object in sorted order, so that two
+// values that JSON Schema counts as equal, as uniqueItems compares them, give the same text.
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    return `{${Object.keys(value).sort()
+      .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 // scalar is true for a JSON value that === compares as JSON Schema does.
 const scalar = (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value);
 
@@ -68,6 +131,7 @@ const FORMS = {
     text: 'a list of text, numbers, true, false or null',
   },
   const: { test: scalar, text: 'text, a number, true, false or null' },
+  uniqueItems: { test: (value) => value === true, text: 'true' },
 };
 
 // compile checks that each keyword of schema is one that this check reads, in a form that it
@@ -112,7 +176,10 @@ function load(type) {
 // errors returns the findings of value, the JSON of file, against the schema: each with the fix
 // on its first line, the member as its JSON pointer, such as /steps/0/pass, and the cause on
 // the line after it. A pointer that brief cuts on the first line is whole on the last line.
+// A value that nests deeper than MAX_DEPTH gets one finding, before any step that recurses.
 function errors(loaded, value, file) {
+  const deep = depthLine(value);
+  if (deep) return [`Cut the nesting of ${file} to ${MAX_DEPTH} levels.\n${deep}`];
   const { schema: root, patterns } = loaded;
   const out = [];
   const resolve = (ref) => {
@@ -149,14 +216,14 @@ function errors(loaded, value, file) {
     if (actual === 'string') {
       const count = codePoints(node);
       if (schema.minLength !== undefined && count < schema.minLength) {
-        add('Write', `as text of at least ${schema.minLength} characters`, `It has ${count}`);
+        add('Write', `as text of at least ${characterCount(schema.minLength)}`, `It has ${count}`);
       }
       if (schema.maxLength !== undefined && count > schema.maxLength) {
-        add('Cut', `to at most ${schema.maxLength} characters`, `It has ${count}`);
+        add('Cut', `to at most ${characterCount(schema.maxLength)}`, `It has ${count}`);
       }
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
         add('Write', 'so that it matches its pattern',
-          `The pattern is ${clip(schema.pattern, 120)}. It is ${shown(node)}`);
+          `The pattern is ${clip(visible(schema.pattern), 120)}. It is ${shown(node)}`);
       }
     }
     if (actual === 'integer' || actual === 'number') {
@@ -169,10 +236,18 @@ function errors(loaded, value, file) {
     }
     if (actual === 'array') {
       if (schema.minItems !== undefined && node.length < schema.minItems) {
-        add('Give', `at least ${schema.minItems} entries`, `It has ${node.length}`);
+        add('Give', `at least ${entryCount(schema.minItems)}`, `It has ${node.length}`);
       }
       if (schema.maxItems !== undefined && node.length > schema.maxItems) {
-        add('Cut', `to at most ${schema.maxItems} entries`, `It has ${node.length}`);
+        add('Cut', `to at most ${entryCount(schema.maxItems)}`, `It has ${node.length}`);
+      }
+      if (schema.uniqueItems) {
+        const seen = new Set();
+        const twice = node.find((item) => {
+          const key = canonical(item);
+          return seen.has(key) || !seen.add(key);
+        });
+        if (twice !== undefined) add('Give', 'each entry once', `${shown(twice)} is there twice`);
       }
       if (schema.items) {
         node.forEach((item, place) => visit(schema.items, item, `${at}/${place}`, found));
@@ -231,6 +306,12 @@ const UNSHOWN = new RegExp('[\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E
 const escaped = (json) => json.replace(UNSHOWN, (char) =>
   `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`);
 
+// visible returns text with each control character and each character of UNSHOWN as its
+// escape, such as \u0000, so that a pattern on the line of a finding has none of them.
+const visible = (text) => text.replace(/[\u0000-\u001F]/gu, (char) =>
+  `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`).replace(UNSHOWN, (char) =>
+  `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`);
+
 // shown returns a value for a finding as JSON.stringify writes it, cut to limit characters, 40
 // by default, as written: a control character or a refused character counts as its escape,
 // such as \u0002, and a list or an object is cut too. Text keeps its quotes. No escape is cut in
@@ -251,4 +332,4 @@ function shown(value, limit = 40) {
   return text ? `"${cutText}"` : cutText;
 }
 
-module.exports = { load, errors, compile, shown, escaped };
+module.exports = { MAX_DEPTH, load, errors, compile, shown, escaped, depthLine };

@@ -3,8 +3,11 @@
 // the schema cannot state, and each row of the newest version kept.
 'use strict';
 
+const { MAX_DEPTH, depthLine } = require('../lib/schema.cjs');
+const { sizeLimit } = require('../lib/template.cjs');
+
 module.exports = (lib) => {
-  const { isObject, jsonFile, parseJson, short } = lib;
+  const { Missing, isObject, jsonFile, parseJson, short } = lib;
 
   const FILE = 'build-ledger.json';
 
@@ -132,8 +135,15 @@ module.exports = (lib) => {
     const previous = run.context.history('build-ledger', FILE);
     if (!previous) return;
     run.did('rows of the newest version');
-    const before = parseJson(previous.text, `build-ledger version ${previous.number}`, 'steps')
-      .steps;
+    const data = parseJson(previous.text, `build-ledger version ${previous.number}`, 'steps');
+    // canonical recurses once per level, so a stored version that nests too deep is refused
+    // before it runs.
+    const deep = depthLine(data);
+    if (deep) {
+      throw new Missing(`Report to a member: build-ledger version ${previous.number} nests ` +
+        `deeper than ${MAX_DEPTH} levels.\n${deep}`);
+    }
+    const before = data.steps;
     if (steps.length < before.length) {
       run.find(`Keep the ${before.length} rows of build-ledger version ${previous.number} in ` +
         `${FILE}.\nIt has ${steps.length}.`);
@@ -178,8 +188,8 @@ module.exports = (lib) => {
     main: FILE,
     words: 'build ledger',
     reviewer: null,
-    // The type's size_limit in process.yaml: 1 MiB, the default of Qory Apiary.
-    maxBytes: 1024 * 1024,
+    // The type's size_limit in process.yaml, so that a draft and a push agree.
+    get maxBytes() { return sizeLimit('build-ledger'); },
     // Its check reads the version that Context.history reads, which end --offline needs.
     history: true,
     check: buildLedger,

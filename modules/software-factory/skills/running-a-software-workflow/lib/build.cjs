@@ -36,7 +36,8 @@ module.exports = (lib) => {
   const SCENARIO_JSON = /^(scenario-[1-9][0-9]?)\.json$/;
 
   // jsonFile parses text, the file of a structured type, and checks it against the schema of
-  // type. It returns the data when the schema passes, else null.
+  // type. It returns the data when the schema passes, else null. The schema check refuses a
+  // document that nests too deep before any reader walks it.
   function jsonFile(run, type, file, text) {
     const data = parseJson(text, file);
     run.did('schema');
@@ -151,20 +152,28 @@ module.exports = (lib) => {
     return null;
   }
 
-  // verifiedCommit returns { commit } for verification.md: the draft at the top of the
-  // artifact folder in a check, else the newest version. commit is null when the summary has
-  // no line "Commit: <id>". It returns null when neither verification exists.
+  // verifiedCommit returns { commit } for verification.json: the draft at the top of the
+  // artifact folder in a check, else the newest version. commit is null when target_version is
+  // no full commit id, or the file is no JSON object. It returns null when neither
+  // verification exists.
   function verifiedCommit(run) {
-    const top = path.join(run.context.root, 'verification.md');
+    const top = path.join(run.context.root, 'verification.json');
     let text = null;
-    if (run.context.mode === 'check' && fs.existsSync(top)) text = readFile(top, 'verification.md');
-    else {
-      const newest = run.context.newest('verification', 'verification.md');
+    if (run.context.mode === 'check' && fs.existsSync(top)) {
+      text = readFile(top, 'verification.json');
+    } else {
+      const newest = run.context.newest('verification', 'verification.json');
       text = newest && newest.text;
     }
     if (text === null) return null;
-    const summary = sections(lines(text), 2).slice(1).find((part) => part.title === 'Summary');
-    return { commit: summary ? commitLine(summary) : null };
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    const version = isObject(data) ? data.target_version : null;
+    return { commit: typeof version === 'string' && COMMIT.test(version) ? version : null };
   }
 
   // approvedNumber returns the number of the version of the main artifact of type that
@@ -245,6 +254,14 @@ module.exports = (lib) => {
     return Math.max(approvedVersion, ...persons);
   }
 
+  // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
+  // the store, or null when the store has no such file.
+  function criteriaFile(context, number) {
+    const file = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`,
+      'acceptance-criteria.json');
+    return fs.existsSync(file) ? file : null;
+  }
+
   // newestCriteria returns the number of the newest criteria version in index.json that no
   // cancelled run wrote, the one version that qory mounts for a push once its push folder
   // holds the newest version that counts, or null when index.json lists none.
@@ -285,7 +302,7 @@ module.exports = (lib) => {
   // version number.
   const pullCriteria = (number) => `Pull version ${num(number)} of the acceptance criteria, ` +
     'then check again.\nThe artifact folder has no acceptance-criteria/main/' +
-    `v${number}/acceptance-criteria.md.`;
+    `v${number}/acceptance-criteria.json.`;
 
   // criteriaText returns the number and the text of the target of criteriaTarget, which
   // build-plan, verification and explainer read in a check and in a push, or null after one
@@ -313,9 +330,8 @@ module.exports = (lib) => {
       run.find(askAbove(context, `push ${what} again`, target, newest));
       return null;
     }
-    const file = path.join(context.store, 'acceptance-criteria', 'main', `v${target}`,
-      'acceptance-criteria.md');
-    if (!fs.existsSync(file)) {
+    const file = criteriaFile(context, target);
+    if (file === null) {
       run.find(context.mode === 'push' ? noCriteria(what) : pullCriteria(target));
       return null;
     }
@@ -347,8 +363,8 @@ module.exports = (lib) => {
   // spaces as one space, and with no space at either end.
   const flat = (text) => text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
 
-  // criterionWords returns the words of criterion that a Criteria cell, a Criterion cell and
-  // an explainer heading have in quotes: its first sentence, as the check of the criteria
+  // criterionWords returns the words of criterion that a Criteria cell and an explainer
+  // heading have in quotes: its first sentence, as the check of the criteria
   // counts its sentences, so after e.g. it goes on, with no full stop at the end.
   function criterionWords(criterion) {
     return flat(sentenceParts(criterion.text)[0] || '');
@@ -390,7 +406,7 @@ module.exports = (lib) => {
 
   // wrongQuotes adds the finding of quoteFix for each id in text of a criterion of byId whose
   // quote, as quotes reads it, is not the criterion's words, once per line. where locates
-  // text, such as "## Lowered of verification.md". Wrapped lines count as one line.
+  // text, such as "/matrix/0/evidence of verification.json". Wrapped lines count as one line.
   function wrongQuotes(run, text, byId, where) {
     const found = new Set();
     const plain = flat(text);
@@ -404,7 +420,7 @@ module.exports = (lib) => {
     for (const line of found) run.find(line);
   }
 
-  // liveIn returns the criteria of text, an acceptance-criteria.md, that are not removed, one
+  // liveIn returns the criteria of text, an acceptance-criteria.json, that are not removed, one
   // per id, as criterionMap keeps them.
   function liveIn(text) {
     const list = lib.criteria(text);
@@ -422,7 +438,8 @@ module.exports = (lib) => {
   return {
     COMMIT, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, countedOf, pullAgain, criteriaTarget, newestCriteria, askAbove, noCriteria,
+    versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
+    noCriteria,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
   };
 };

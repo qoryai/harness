@@ -12,7 +12,8 @@ its criteria cannot drift apart.
 ## What a version contains
 
 A `spec` version is one file, `spec.md`, and an `acceptance-criteria` version is one file,
-`acceptance-criteria.md`. Members read all of both. An `ac-N` is a term that members read,
+`acceptance-criteria.json`. Members read all of both: the summary, and each criterion's
+text, check and reason. An `ac-N` is a term that members read,
 not a word of the system that runs you. `declines.md` is no part of a version.
 
 ## Review of a spec
@@ -25,7 +26,7 @@ not a word of the system that runs you. `declines.md` is no part of a version.
    words concern only a type other than the spec and the criteria, and that no fact or
    finding quotes, is no word on them, and needs no finding. A note that concerns them and
    another type counts for its part on them.
-2. Compare each `ac-N` with the row of the same id in the newest version under
+2. Compare each `ac-N` with the criterion of the same id in the newest version under
    `acceptance-criteria/main/`. A renumbered criterion, whose text moved to another id so
    that an id now states another criterion, is a finding.
 3. A rule with no criterion, a criterion that rests on no rule, and a criterion whose values
@@ -59,11 +60,12 @@ When you review, the run gives you the lines of its checks script under "Checks:
 `reviewing-drafts` lists. In `spec.md`, the script checks the four sections in order, at
 least one part under `## Changes`, the table with the columns "Rule", "Today" and "After"
 that opens each part, the summary of 1 to 3 sentences, the limit of 450 words, and at most
-3 points per part. In `acceptance-criteria.md`, it checks the summary, then the table and
-nothing after it, each id as `ac-` and a number on one row, each criterion as one sentence
-of at most 25 words with the planned check `Demo: <title>` or `Tests`, each removed row, and
-that the ids keep the newest version's ids and numbers. In both, it checks the characters,
-each link and image, `.qory/repositories` and each path of the machine the run is on. Judge
+3 points per part. In `acceptance-criteria.json`, it checks the members against the schema
+of the type, each id as `ac-` and a number once, the summary of 1 to 3 sentences, each
+criterion that is not removed as one sentence of at most 25 words with the check
+`Demo: <title>` or `Tests`, and that the ids keep the newest version's ids and numbers. In
+both, it checks the characters, `.qory/repositories` and each path of the machine the run is
+on, and in `spec.md` each link and image. Judge
 the rest of the check list.
 
 - The background starts with one sentence that names the proposal version, linked to

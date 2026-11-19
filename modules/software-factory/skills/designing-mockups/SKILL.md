@@ -16,7 +16,8 @@ it sits. It is one version of one name per ticket.
 `<folder>/index.json` lists every version, but a pull writes one folder per type. For each
 type, try the newest `<N>` that it lists, then the approved one. Then:
 
-1. Read `spec/main/v<N>/spec.md` and `acceptance-criteria/main/v<N>/acceptance-criteria.md`.
+1. Read `spec/main/v<N>/spec.md` and
+   `acceptance-criteria/main/v<N>/acceptance-criteria.json`.
    With either missing, stop with `Blocked: needs spec`.
 2. When no part of the spec names a `Mockup screen:`, write no page, run no command of the
    scripts, and report `- none: no part of the spec names a screen` under "Files:".

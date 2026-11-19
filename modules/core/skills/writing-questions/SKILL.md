@@ -77,6 +77,14 @@ question, in its order, with all its members as they are, except for these four 
     in the document and no item of your list has, such as `q4` after `q3`.
   - `question`: the question, plain text on one line with no tab: one sentence of 1 to 500
     characters, with no Markdown.
+  - `about`: what the question is about. Write `{"work_item": true}` for the work item
+    itself, before any output. Write `{"type": "<type>", "name": "<name>"}` for an output
+    that the newest artifacts or a draft in the artifact folder contain, such as
+    `{"type": "proposal", "name": "main"}`. Add `"item"` for one entry of that output, by
+    its id of 1 to 32 characters on one line, such as `"item": "screen-2"` for a screen of
+    a mockup. The check refuses an option with a `proposal` in a question whose `about`
+    is not an output with an `item`, and, in a new question, a `proposal` that is not text
+    of 1 to 2000 characters.
   - `context`: what the person needs to answer that question, and nothing more, as
     Markdown of 1 to 20000 characters and at most 120 words. Its first sentence is the fact
     that the answer depends on, such as "The export service returns at most 10,000 rows per
@@ -113,7 +121,8 @@ question, in its order, with all its members as they are, except for these four 
 Never add or change an `answer`, and never change a `decision` that exists. Change `history`
 only to reopen a question, and never set an existing question to `decided`.
 Never remove a question, and never change the `id`, `question`, `options`, `recommended`
-included, `asked` or `follows` of a question that exists.
+included, `asked` or `follows` of a question that exists. Keep the `about` of a question
+that exists: a push checks a changed `about` again, as it checks a new one.
 
 Members read each `question`, each `context`, and each option's `title` and `explanation`.
 
@@ -160,7 +169,17 @@ A push fails, and Qory Apiary stores nothing, when the version does one of these
   or `step-2` when a module gives that prefix, with no words in quotes beside it;
 - has a question with more than 4 options, such as 5;
 - has two options marked `recommended: true` in one question;
-- has a key twice in one object, such as two `state` keys in one question.
+- has a key twice in one object, such as two `state` keys in one question;
+- has a question with no `about`, or adds or changes an `about` so that it is set to an
+  output that `index.json` does not list, or lists as withdrawn;
+- has an `about` with a member other than `type`, `name` and `item`, a `type` that is not
+  lower-case letters and digits in groups joined by single hyphens, or a `name` that is not
+  1 to 64 characters on one line;
+- has an `item` that is not 1 to 32 characters on one line, or, for an output whose ids a
+  module reads, an id that the output does not have;
+- has an option with a `proposal` in a question whose `about` is not an output with an
+  `item`;
+- adds a question with an option whose `proposal` is not text of 1 to 2000 characters.
 
 The check compares numbers by value, so `3.0` is the same run number as `3`.
 
@@ -172,7 +191,7 @@ comment of 2026-10-17 settles. The answer to `q2` raises `q3`, so you add `q3` w
 `follows` set to `["q2"]`. Once you have the time, `questions.json` contains this:
 
 ```json
-{"questions":[{"id":"q1","question":"How did the customer pay for the order?","options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"answered","asked":{"run":1,"at":"2026-10-17T10:00:00Z"},"answer":{"option":"Full refund","by":{"name":"Sam Example"},"at":"2026-10-17T11:00:00Z"}},{"id":"q3","question":"Does the refund include the delivery fee?","context":"The late delivery policy refunds the full amount, and the customer paid a delivery fee on top of the items.","options":[{"title":"Include the delivery fee","explanation":"The customer gets back everything they paid. Recommended, because the policy refunds the full amount.","recommended":true},{"title":"Refund the items only","explanation":"The delivery fee stays with the store."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"},"follows":["q2"]}]}
+{"questions":[{"id":"q1","question":"How did the customer pay for the order?","about":{"work_item":true},"options":[],"state":"withdrawn","asked":{"run":1,"at":"2026-10-17T10:00:00Z"}},{"id":"q2","question":"Which settlement does the customer ask for?","about":{"work_item":true},"context":"The [late delivery policy](https://help.example.com/policies/late-delivery) offers a full refund or store credit for a delivery more than seven days late.","options":[{"title":"Full refund","explanation":"The money goes back to the customer. Recommended, because the customer's last comment mentions a refund.","recommended":true},{"title":"Store credit","explanation":"The customer keeps the order, so no return is needed."}],"state":"answered","asked":{"run":1,"at":"2026-10-17T10:00:00Z"},"answer":{"option":"Full refund","by":{"name":"Sam Example"},"at":"2026-10-17T11:00:00Z"}},{"id":"q3","question":"Does the refund include the delivery fee?","about":{"work_item":true},"context":"The late delivery policy refunds the full amount, and the customer paid a delivery fee on top of the items.","options":[{"title":"Include the delivery fee","explanation":"The customer gets back everything they paid. Recommended, because the policy refunds the full amount.","recommended":true},{"title":"Refund the items only","explanation":"The delivery fee stays with the store."}],"state":"open","asked":{"run":2,"at":"2026-10-17T12:00:00Z"},"follows":["q2"]}]}
 ```
 
 ## Before you report

@@ -30,15 +30,20 @@ const reviewComments = require('../types/review-comments.cjs');
 //   such as "Track review:", that check covers, so the report check looks for no such line;
 // - verbs: more verbs, each { usage, args(io, what, rest), run(io, what, rest) }, and
 //   optionally crash, the fix that a crash of the verb prints before it exits 4;
+// - items: the readers of the ids of a type, each { type, form, example, read(context, name) },
+//   which the questions check reads for the item of an about; read returns the ids of name,
+//   or null when it cannot read them;
 // - ledger: the rules of the ledger of steps, which verbs/ledger.cjs lists. One skill at most
 //   adds them.
 const FILE = 'workflow-checks.cjs';
 
 // What a workflow-checks.cjs gets: everything that the lib files base, context, markdown and
-// plugin export, the reports' file name and check results, the reader of the lock of
-// verbs/lock.cjs, and the check of a point of points.json, for a verb that writes points.
+// plugin export, the reports' file name and check results, the rule of lib/drafts.cjs for a
+// file given to check or push, the reader of the lock of verbs/lock.cjs, and the check of a
+// point of points.json, for a verb that writes points.
 const LIBRARY = Object.freeze({
   ...base, ...context, ...markdown, ...plugin, REPORT_FILE, results,
+  draftFile: require('./drafts.cjs').draftFile,
   lockReader: require('../verbs/lock.cjs').lockReader,
   pointCheck: points.pointCheck, pointRules: points.pointRules, MAX_POINTS: points.MAX_POINTS,
 });
@@ -51,7 +56,7 @@ const CORE_TYPES = [questions, reviewComments];
 // reads it beside this skill's files, from the real path of this file, so no plugin folder,
 // module or variable changes which list it reads. In a walled run with push checks, qory
 // mounts the home, and this list with it, read-only (cmd/run.go and cmd/harness.go,
-// pushChecksWritable, at qory 1deb56e).
+// pushChecksWritable, at qory 0e02282).
 const TRUSTED = path.join(__dirname, '..', 'trusted-checks.json');
 
 // LOADABLE matches the names of the files that require can load from a skill folder. treeHash
@@ -205,7 +210,9 @@ function part(file) {
 // folders have counts once, from the first. A type that two files add, or that this skill
 // checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
-  const registry = { types: [], stops: [], verbs: {}, records: [], ids: [], ledger: null };
+  const registry = {
+    types: [], stops: [], verbs: {}, records: [], ids: [], items: [], ledger: null,
+  };
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -230,6 +237,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     registry.records.push(...(added.records || []));
     // Only a list adds prefixes: the string 'ac' would add a and c.
     if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
+    if (Array.isArray(added.items)) registry.items.push(...added.items);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {
       throw new base.Missing('Remove one of the two rules of the ledger: two skills add them ' +

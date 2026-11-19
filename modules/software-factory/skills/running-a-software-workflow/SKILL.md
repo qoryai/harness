@@ -49,7 +49,7 @@ This line adds to the lines of "Failures" for a "Blocked:" line before the first
 
 "Check before each review" runs `check` with these types and files, each at the top of the
 artifact folder: `spec` with `spec.md`, `acceptance-criteria` with
-`acceptance-criteria.md`, `decision-record` with `decision-record.md`, `demo-scenarios`
+`acceptance-criteria.json`, `decision-record` with `decision-record.md`, `demo-scenarios`
 with `demo-scenarios.md`, and `build-plan` with `build-plan.md`. A mockup has no checks, and
 its reviewer gets no "Checks:".
 

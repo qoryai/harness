@@ -1190,6 +1190,31 @@ test('run locked: runs each check of the lock once and records each, green when 
   assert.equal(call(dir, ['run', 'locked', '../x']).status, 2);
 });
 
+test('run locked: takes a criterion up to ac-9999, and no ac-0, ac-01 or ac-10000', () => {
+  const dir = checkout();
+  write(dir, 'tests/ac123.test.js',
+    "if (require('../src/a.js').add(2, 2) !== 4) throw new Error('ac-123');\n");
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'check');
+  lockOf(dir, [{ checks: [{ criterion: 'ac-123', path: 'tests/ac123.test.js',
+    command: 'node tool/runner.js tests/ac123.test.js' }] }]);
+  const got = call(dir, ['run', 'locked', 'ac-123']);
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.deepEqual(lastRecord(dir).checks.map((one) => [one.criterion, one.state]),
+    [['ac-123', 'green']]);
+  // ac-9999 has the form of a criterion, and the lock has no check of it.
+  const unknown = call(dir, ['run', 'locked', 'ac-9999']);
+  assert.equal(unknown.status, 3, unknown.out + unknown.err);
+  assert.match(unknown.out + unknown.err, /Give run locked a criterion that /);
+  for (const bad of ['ac-0', 'ac-01', 'ac-10000']) {
+    const refused = call(dir, ['run', 'locked', bad]);
+    const text = refused.out + refused.err;
+    assert.equal(refused.status, 2, `${bad}: ${text}`);
+    assert.match(text, /Give run locked criteria such as ac-1, or none\./, bad);
+    assert.ok(text.includes(`"${bad}" is not one.`), `${bad}: ${text}`);
+  }
+});
+
 test('run locked: a withdrawn lock runs no check, also after a write to a locked file', () => {
   const dir = lockedCheckout();
   // Version 2 withdraws the lock, and an agent then weakens a locked check.
