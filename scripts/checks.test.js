@@ -1875,38 +1875,67 @@ test('review comments: a round comment has on {"run": N}, N of 1 or more, and no
   fails(both, /An "on" with run has no other key, and the "on" of c6 has "version"/);
 });
 
-test('review comments: a word that asks for a screen the spec lacks routes to write-specs, then make-mockups', () => {
+test('a word that asks for a screen the spec lacks: the rule number that planning-shape cites', () => {
+  const module = path.join(MODULES, 'software-factory');
+  const read = (file) => fs.readFileSync(path.join(module, file), 'utf8');
+  const planning = read('skills/planning-shape/SKILL.md');
+  // The numbered items of "Which workflow a person's word concerns".
+  const heading = '## Which workflow a person\'s word concerns';
+  const section = planning.slice(planning.indexOf(heading) + heading.length)
+    .split(/^## /m)[0];
+  const items = [...section.matchAll(/^(\d+)\. ([\s\S]*?)(?=^\d+\. |(?![\s\S]))/gm)]
+    .map((found) => ({ number: Number(found[1]), text: found[2].replace(/\s+/g, ' ') }));
+  assert.ok(items.length >= 4, 'the section has its numbered items');
+  const screen = items.filter((item) => item.text.includes('Mockup screen:'));
+  assert.equal(screen.length, 1, 'one item routes a word that asks for a screen');
+  const n = screen[0].number;
+  const flat = planning.replace(/\s+/g, ' ');
+  // Both places that cite the item cite its number.
+  assert.ok(flat.includes(`Rule ${n} adds \`write-specs\` to a comment that asks for a screen`),
+    `item 1 cites rule ${n}`);
+  assert.ok(flat.includes(`(rule ${n} of "Which workflow a person's word concerns")`),
+    `the write-specs bullet cites rule ${n}`);
+  // The item routes write-specs, then make-mockups, as checking-shape routes a word on the spec.
+  assert.match(screen[0].text, /List `write-specs`, then `make-mockups`, each with a fact/);
+  assert.match(read('skills/checking-shape/SKILL.md').replace(/\s+/g, ' '),
+    /Where a person's word needs the spec or a criterion to change, the finding goes to `write-specs`/);
+});
+
+test('a word that asks for a screen the spec lacks: no second write-specs for the same word', () => {
   const module = path.join(MODULES, 'software-factory');
   const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
   const planning = read('skills/planning-shape/SKILL.md');
-  // The planner lists write-specs and then make-mockups, also for a comment that names only
-  // the mockup, with the same rule as checking-shape.
-  assert.match(planning, /A word that asks for a screen, such as "draw a mockup of the export screen", needs the spec to change when the newest spec does not list that screen as `Mockup screen: <screen id>`/);
-  assert.match(planning, /List `write-specs`, then `make-mockups`, each with a fact that quotes the word/);
-  assert.match(planning, /Rule 4 adds `write-specs` to a comment that asks for a screen, also when the comment names only the mockup/);
-  assert.match(planning, /it reruns `write-specs`, then `make-mockups`/);
-  assert.match(planning, /`write-specs`: when no spec exists, when a person's word asks for a screen that the newest spec does not list as `Mockup screen:`/);
-  assert.match(planning, /The line about no mockup is a stop when a person's word asks for a screen that the newest spec does not list/);
-  assert.match(planning, /such as a screen that the newest spec does not list as `Mockup screen:`: list `write-specs`/);
-  assert.match(read('skills/checking-shape/SKILL.md'),
-    /Where a person's word needs the spec or a criterion to change, the finding goes to `write-specs`/);
-  // After a follow of write-specs for the word, the planner lists write-specs no more, also
-  // when the spec writer declined the screen, so the run does not loop to its limit.
-  assert.match(planning, /After a follow of `write-specs` for that word is in the log, the spec needs no further change for it, also when the spec writer declined or asked about the screen: list `make-mockups` alone, and its normal end stands/);
-  assert.match(planning, /and the log has no follow of `write-specs` for that word: the spec needs a change/);
-  // A screen that the spec lists and the mockup lacks goes to make-mockups alone.
-  assert.match(planning, /list `make-mockups` alone/);
-  // The designer draws only the screens that the spec lists, so the spec writer adds one.
+  assert.match(planning, /After a follow of `write-specs` in the log after the word's `at`, the spec needs no further change for the word, also when the reply of the spec writer has outcome `declined` or `asked`: list `make-mockups` alone/);
+  assert.match(planning, /and the log has no follow of `write-specs` after the word's `at`: the spec needs a change/);
+  // checking-shape covers the same word, so shape-reviewer sends it to write-specs no more.
+  const shape = read('skills/checking-shape/SKILL.md');
+  assert.match(shape, /A word on the spec whose last reply declined, answered or asked about that part, or that a follow of `write-specs` after the word's `at` already took, is covered/);
+  assert.match(shape, /the finding goes to `write-specs`, unless the word is covered as step 1 lists/);
+  // The wording of checking-specs item 7, which the two lines above repeat.
+  assert.match(read('skills/checking-specs/SKILL.md'), /unless its last reply declined, answered or asked about that part/);
+});
+
+test('a word that asks for a screen the spec lacks: the spec writer can add its part', () => {
+  // designer draws only the listed screens, so the spec needs the part with Mockup screen:.
+  const module = path.join(MODULES, 'software-factory');
+  const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
   assert.match(read('skills/designing-mockups/SKILL.md'),
     /When no part of the spec names a `Mockup screen:`, write no page/);
   assert.match(read('skills/writing-specs/SKILL.md'),
-    /## A screen that a person asks for A person's word that asks for a screen, such as "draw a mockup of the export screen", is a word on the spec: `designer` draws only the screens that the spec lists\. When the spec lacks that screen, add a `###` part for it, or add `Mockup screen: <screen id>` as the first point of the part that changes it/);
+    /## A screen that a person asks for A person's word that asks for a screen/);
   assert.match(read('agents/spec-writer.md'),
-    /When that word asks for a screen, add it as `writing-specs` lists under "A screen that a person asks for", with a `Mockup screen:` line/);
-  // After the spec push the session starts the planner again, and the mockups follow.
-  const workflow = read('skills/workflow-shape-a-ticket/SKILL.md');
-  assert.match(workflow, /in the order spec, technical decision, mockups, demo scenarios/);
-  assert.match(workflow, /After a push of the spec or the acceptance criteria, do step 2\. Other pending items stay pending\./);
+    /under "A screen that a person asks for", with a `Mockup screen:` line/);
+  // A spec with a new part for the screen and a new criterion for it passes the checks.
+  const part = '\n### Export screen\n\n| Rule | Today | After |\n|---|---|---|\n' +
+    '| Export of the saved replies | Not stated | A screen lists the replies to export |\n\n' +
+    '- Mockup screen: `export-replies`.\n';
+  const root = fixture(['spec.md', '\n## Sources', `${part}\n## Sources`],
+    editCriteria((data) => {
+      data.criteria.push({ id: 'ac-5', text: 'The export screen lists the saved replies.',
+        check: 'Demo: Read the export screen' });
+    }));
+  passes(push(root, 'spec'));
+  passes(push(root, 'acceptance-criteria'));
 });
 
 test('review comments: a reply cites a question that exists and, when asked, is not withdrawn', () => {
