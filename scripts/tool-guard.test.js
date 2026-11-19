@@ -469,9 +469,9 @@ test('patchPaths reads each file of a Codex patch', () => {
   }
 });
 
-// The regular expression that patchPaths used before it scanned each line once. It stays here
-// only to compare: on a header line that has a run of white space and then a character that
-// is no white space, it takes time in the square of the run.
+// The regular expression that patchPaths used before it scanned each line once. It is kept
+// only for the comparison: on a header line that has a run of white space and then a
+// character that is no white space, it takes time in the square of the run.
 const OLD_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f' +
   '\\u205f\\u3000';
 const OLD_PATCH_FILE = new RegExp(`^[${OLD_SPACE}]*\\*\\*\\* (?:Add File|Update File|` +
@@ -635,8 +635,11 @@ test('each hook entry decides a call of 250,000 characters in under 5 seconds', 
   const run = (script, input) => {
     const begun = process.hrtime.bigint();
     const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', script)],
-      { input: JSON.stringify(input), env, cwd: WORK, encoding: 'utf8', maxBuffer: 1 << 26 });
+      { input: JSON.stringify(input), env, cwd: WORK, encoding: 'utf8', maxBuffer: 1 << 26,
+        timeout: 20000, killSignal: 'SIGKILL' });
     const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.equal(ran.error, undefined, `${script} hung or failed after ${ms} ms at load ` +
+      `average ${load}: ${ran.error}`);
     assert.ok(ms < 5000, `${script}: ${ms} ms at load average ${load}`);
     assert.equal(ran.status, 0, ran.stderr);
     return ran.stdout === '' ? null : JSON.parse(ran.stdout);
