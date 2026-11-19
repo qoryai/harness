@@ -3071,7 +3071,8 @@ test('the report path matches in the case of the disk', () => {
     assert.equal(guard(write(upper), env), null);
     assert.equal(guard(write(path.join(swapped, 'report.json')), env), null);
   } else {
-    firstLine(guard(write(upper), env), 'Start an agent to change');
+    // On a disk that tells case apart, REPORT.JSON is another file than report.json.
+    firstLine(guard(write(upper), env), ONLY);
   }
   assert.equal(guard(write(file), env), null);
 });
