@@ -93,14 +93,15 @@ module.exports = (lib) => {
       } else {
         // The cause prints indented by two spaces, so it has at most 98 characters.
         const shown = secrets.shown(String(arg), secrets.secretValues(io.env));
-        return { problem: `Give ${verb} deliverable:d-<N>, fix:f<N> or --plan, then only ` +
-          '--base, --inputs and --artifacts.\n' +
+        // The first line has at most 100 characters with freeze.
+        return { problem: `Give ${verb} deliverable:d-<N>, fix:f<N>, checks or --plan, then only ` +
+          '--base, --inputs, --artifacts.\n' +
           `${fitted(shown, (name) => `${name} is none of them.`, 98)}` };
       }
     }
     if ((got.step === null) === !got.plan) {
-      return { problem: `Give ${verb} either the id of a step, deliverable:d-<N> or fix:f<N>, ` +
-        'or --plan.' };
+      return { problem: `Give ${verb} either the id of a step, deliverable:d-<N>, fix:f<N> or ` +
+        'checks, or --plan.' };
     }
     return got;
   }

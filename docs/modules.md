@@ -2413,7 +2413,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
-  for `fix:f<N>` and for `--plan`. Exactly one of `<step>` and `--plan` is given. No file
+  for `fix:f<N>` and for `--plan`. For `checks`, the step of `write-acceptance-checks`, they
+  count against the Files of each deliverable whose Check is the path of a test file, not
+  `n/a` or a scenario id. Exactly one of `<step>` and `--plan` is given. No file
   has a separate rule: `qory.yaml`, a hook program and a module count as any path. A path
   under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
   untracked result file. A path that the index marks skip-worktree or assume-unchanged
