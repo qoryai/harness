@@ -90,7 +90,7 @@ const { performance } = require('node:perf_hooks');
 
 // The keys of a write tool's arguments that contain the text it writes, not a path.
 const TEXT_KEYS = new Set(['content', 'contents', 'file_text', 'new_string', 'old_string',
-  'new_str', 'old_str', 'instruction', 'description']);
+  'new_str', 'old_str', 'new_source', 'instruction', 'description']);
 // The u flag with i folds letters as a disk that ignores case does: U+017F (long s) is s and
 // U+212A (Kelvin sign) is k, so .reportſ/ is .reports/ and .json.locK is .json.lock.
 // The start of a path under a folder .reports, in a word of a text: at its start or after /, =

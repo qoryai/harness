@@ -5166,15 +5166,16 @@ test('a preload in NODE_OPTIONS loads in a registered hook command only without 
   fs.writeFileSync(preload, `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'x');\n`);
   const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: work,
     NODE_OPTIONS: `--require ${preload}` };
-  const registered = hookCommands().filter(({ file }) => file === 'gemini/settings.json' ||
-    file === 'claude/settings.json');
-  const guards = registered.filter(({ command }) => /reports-guard-gemini|tool-guard-claude/
-    .test(command));
-  assert.equal(guards.length, 3);
+  const registered = hookCommands().filter(({ file }) => ['gemini/settings.json',
+    'claude/settings.json', 'codex/config.toml'].includes(file));
+  const guards = registered.filter(({ command }) =>
+    /reports-guard-gemini|tool-guard-claude|tool-guard-codex/.test(command));
+  assert.deepEqual(guards.map(({ file }) => file.split('/')[0]).sort(),
+    ['claude', 'claude', 'codex', 'codex', 'gemini']);
   for (const { file, command } of guards) {
     const input = file.startsWith('gemini')
       ? { tool_name: 'run_shell_command', cwd: work, tool_input: { command: 'ls' } }
-      : claude('Bash', { command: 'ls' });
+      : (file.startsWith('codex') ? codex : claude)('Bash', { command: 'ls' });
     // The command as registered, then the command with the wrapper cut out.
     for (const [text, loads] of [[command, false],
       [command.replace(/\/usr\/bin\/env(?: -u [A-Z_]+)+ node/, 'node'), true]]) {
@@ -5238,6 +5239,50 @@ test('the guard denies a write to .env and .gemini/.env, and lets .env.example a
     "grep a --exclude='.env*' -r .", 'cp a b/env', 'echo ".env.local"', 'git add -- env.d.ts',
     "cat 'x'.env"]) {
     assert.equal(shell(command), null, command);
+  }
+});
+
+test('the guard denies Edit, MultiEdit and NotebookEdit of .env and .gemini/.env, and lets .env.example pass', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('envedit');
+  fs.mkdirSync(path.join(work, '.gemini'), { recursive: true });
+  const at = (input) => ({ ...input, cwd: work });
+  const calls = (file) => [
+    ['Edit', { file_path: file, old_string: 'A=1', new_string: 'A=2' }],
+    ['MultiEdit', { file_path: file, edits: [{ old_string: 'A=1', new_string: 'A=2' }] }],
+    ['NotebookEdit', { notebook_path: file, new_source: 'A=2' }],
+  ];
+  for (const file of ['.env', '.gemini/.env']) {
+    for (const [tool, args] of calls(file)) {
+      assert.equal(guard(at(claude(tool, args, 'implementer'))), reports.ENV_REASON,
+        `${tool} ${file}`);
+    }
+  }
+  // Near misses pass: another file name, and a file that only has the text .env in its edit.
+  for (const [tool, args] of [...calls('.env.example'), ...calls('notes.md').map(([name, one]) =>
+    [name, { ...one, new_string: '.gemini/.env', new_source: '.env' }])]) {
+    assert.equal(guard(at(claude(tool, args, 'implementer'))), null, tool);
+  }
+  // The edit tools of the other runtimes that have a hook: Gemini replace, and Copilot CLI edit,
+  // create and str_replace_editor. The Cursor hook and Codex take only Write and apply_patch.
+  const home = harnessHome();
+  const run = (runtime, input) => childProcess.spawnSync(process.execPath,
+    [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { input: JSON.stringify(input),
+      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, cwd: WORK,
+      encoding: 'utf8', timeout: 20000, killSignal: 'SIGKILL' });
+  const denies = (runtime, input) => {
+    const ran = run(runtime, input);
+    assert.equal(ran.error, undefined, `${runtime}: ${ran.error}`);
+    return (JSON.parse(ran.stdout || '{}').reason || JSON.parse(ran.stdout || '{}')
+      .permissionDecisionReason || '').startsWith(ENV_START);
+  };
+  for (const [file, denied] of [['.gemini/.env', true], ['.env.example', false]]) {
+    assert.equal(denies('gemini', { tool_name: 'replace', cwd: work, tool_input: { file_path: file,
+      old_string: 'A=1', new_string: 'A=2' } }), denied, `replace ${file}`);
+    for (const toolName of ['edit', 'create', 'str_replace_editor']) {
+      assert.equal(denies('copilot', { toolName, cwd: work, toolArgs: JSON.stringify({ path: file,
+        old_str: 'A=1', new_str: 'A=2' }) }), denied, `${toolName} ${file}`);
+    }
   }
 });
 
