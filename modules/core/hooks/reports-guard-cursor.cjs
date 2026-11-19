@@ -10,10 +10,10 @@
 // approval prompt and allowlist. The page (https://cursor.com/docs/agent/hooks) states that a
 // hook that fails, with no output among the failures, lets the call run unless failClosed is
 // true. The hooks leave failClosed off, so a pass runs the call, and so does a guard that
-// crashes or runs past its timeout.
+// runs past its timeout. A call for which decide throws is denied by safeDecide.
 'use strict';
 
-const { readInput, decide } = require('./reports-guard.cjs');
+const { readInput, safeDecide } = require('./reports-guard.cjs');
 
 const input = readInput();
 let call = { kind: null, args: null };
@@ -26,7 +26,7 @@ if (input.hook_event_name === 'beforeShellExecution') {
 }
 const roots = Array.isArray(input.workspace_roots) ? input.workspace_roots : [];
 const cwd = [input.cwd, roots[0]].find((one) => typeof one === 'string');
-const reason = decide({ ...call, cwd });
+const reason = safeDecide({ ...call, cwd });
 if (reason) {
   process.stdout.write(`${JSON.stringify({ permission: 'deny', user_message: reason,
     agent_message: reason })}\n`);

@@ -4,7 +4,7 @@
 // permissionDecisionReason. With no decision, the call runs.
 'use strict';
 
-const { readInput, decide } = require('./reports-guard.cjs');
+const { readInput, safeDecide } = require('./reports-guard.cjs');
 
 const KINDS = {
   bash: 'shell', powershell: 'shell',
@@ -18,7 +18,7 @@ const TYPED = new Set(['write_bash', 'write_powershell']);
 function typed(args) {
   const texts = typeof args === 'string' ? [args] : Object.values(args || {});
   for (const text of texts.filter((one) => typeof one === 'string')) {
-    const reason = decide({ kind: 'shell', args: { command: text }, cwd });
+    const reason = safeDecide({ kind: 'shell', args: { command: text }, cwd });
     if (reason) return reason;
   }
   return null;
@@ -35,6 +35,6 @@ if (typeof args === 'string') {
   }
 }
 const reason = TYPED.has(input.toolName) ? typed(args)
-  : decide({ kind: KINDS[input.toolName], args, cwd });
+  : safeDecide({ kind: KINDS[input.toolName], args, cwd });
 process.stdout.write(`${JSON.stringify(reason
   ? { permissionDecision: 'deny', permissionDecisionReason: reason } : {})}\n`);

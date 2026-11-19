@@ -1159,8 +1159,11 @@ the command that reaches `.reports`. A command still reaches the folder past the
 through a variable built without `.r`, or with a `.r` after a letter, digit or `_`, as in
 `d=x.rep; cat ${d#x}orts/starts.json`, `shopt -s dotglob`, `find` or `cp -r` of the parent
 folder, a glob after a `cd` in the command, `python -c`, or a script that it writes to a
-file and then runs. Each hook has a timeout of 10 seconds. A guard that crashes or runs
-past it lets the call run on Cursor and Copilot CLI: both fail open. On Cursor, the guard
+file and then runs. Each hook has a timeout of 10 seconds. A guard that runs past it lets
+the call run on Cursor and Copilot CLI: both fail open. When `decide` throws, the adapter
+denies the call with "Make the call smaller or simpler, and send it again."; before that, a
+call nested 3,000 levels deep made the guard exit 1, which lets the call run on both. On
+Cursor, the guard
 never prints `allow`, for the reason in the paragraph after the list of hooks. The hooks:
 
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.

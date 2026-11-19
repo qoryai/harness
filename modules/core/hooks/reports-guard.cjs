@@ -27,9 +27,10 @@
 // .reports past these checks through a variable built without .r, or with a .r after a
 // letter, digit or _, through shopt -s dotglob, through find or cp -r of the parent folder,
 // through a glob after a cd in the command, through python -c, and through a script that it
-// writes to a file and then runs. A guard that crashes or runs past the timeout of its hook
-// lets the command run on Cursor and Copilot CLI. Outside a run decide denies nothing, as
-// checks.cjs end checks nothing there.
+// writes to a file and then runs. The adapters of Gemini CLI, Cursor and Copilot CLI call
+// safeDecide, which denies a call for which decide throws. A guard that runs past the
+// timeout of its hook lets the command run on Cursor and Copilot CLI. Outside a run decide
+// denies nothing, as checks.cjs end checks nothing there.
 //
 // The adapter lies at <home>/hooks/, and checks.cjs at
 // <home>/modules/core/skills/running-a-workflow/checks.cjs, as end-gate.cjs lists.
@@ -60,9 +61,11 @@ function pathJson(full) {
 }
 
 // reportsJson reports whether text has a path under a folder .reports that ends in .json, or
-// whose name has .json.lock, alone or inside a patch. It reads each word once: the regular
-// expression that it replaced took time in the square of a text of repeated `.reports/`.
+// whose name has .json.lock, alone or inside a patch. It returns false for a value that is no
+// string. It reads each word once: the regular expression that it replaced took time in the
+// square of a text of repeated `.reports/`.
 function reportsJson(text) {
+  if (typeof text !== 'string') return false;
   for (const [word] of text.matchAll(WORD)) {
     if (pathJson(word)) return true;
   }
@@ -156,14 +159,21 @@ const DOT_R = /(?<![A-Za-z0-9_])\.r/i;
 // A glob character, which the shell expands when it is not quoted.
 const GLOB = /[*?[{]/;
 
-// strings returns each [key, text] of value: each string in it, with the key it is under.
-function strings(value, key = '', out = []) {
-  if (typeof value === 'string') {
-    out.push([key, value]);
-  } else if (Array.isArray(value)) {
-    for (const one of value) strings(one, key, out);
-  } else if (value !== null && typeof value === 'object') {
-    for (const [name, one] of Object.entries(value)) strings(one, name, out);
+// strings returns each [key, text] of value: each string in it, with the key it is under. It
+// walks a list, not a recursion: a call nested 3,000 levels deep overflowed the call stack.
+function strings(value) {
+  const out = [];
+  const stack = [['', value]];
+  while (stack.length > 0) {
+    const [key, one] = stack.pop();
+    if (typeof one === 'string') {
+      out.push([key, one]);
+    } else if (Array.isArray(one)) {
+      for (let at = one.length - 1; at >= 0; at -= 1) stack.push([key, one[at]]);
+    } else if (one !== null && typeof one === 'object') {
+      const entries = Object.entries(one);
+      for (let at = entries.length - 1; at >= 0; at -= 1) stack.push(entries[at]);
+    }
   }
   return out;
 }
@@ -397,5 +407,22 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
   return null;
 }
 
-module.exports = { readInput, decide, runsChecks, withoutRedirect, reportsJson, REPORTS,
-  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON };
+// The deny of a call that made decide throw. The second line has the error.
+const FAILED_REASON = 'Make the call smaller or simpler, and send it again.\n';
+
+// safeDecide returns what decide returns for call, or, when decide throws in a run, a deny with
+// FAILED_REASON and the error: the adapters of Cursor and Copilot CLI let a call run when a hook
+// exits with an error, so a call that the guard cannot read is denied.
+function safeDecide(call) {
+  try {
+    return decide(call);
+  } catch (error) {
+    const env = call.env || process.env;
+    return env.QORY_RUN_ID
+      ? `${FAILED_REASON}The guard of .reports/ stopped on this call: ${String(error).slice(0, 200)}`
+      : null;
+  }
+}
+
+module.exports = { readInput, decide, safeDecide, runsChecks, withoutRedirect, reportsJson, REPORTS,
+  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, FAILED_REASON };

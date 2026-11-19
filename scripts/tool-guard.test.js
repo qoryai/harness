@@ -2274,3 +2274,63 @@ test('a disk that ignores case reads U+017F as s and U+212A as k: the guard does
     assert.equal(write(file), null, file);
   }
 });
+
+test('a call nested 3,000 levels deep is read by each adapter of reports-guard, and a throw denies', () => {
+  const home = harnessHome();
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home };
+  // run starts the real adapter as a process, and kills it after 5 s.
+  const run = (runtime, input) => {
+    const ran = childProcess.spawnSync(process.execPath,
+      [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { input, env, cwd: WORK,
+        encoding: 'utf8', timeout: 5000, killSignal: 'SIGKILL', maxBuffer: 1 << 24 });
+    assert.equal(ran.error, undefined, `${runtime}: ${ran.error}`);
+    return { status: ran.status, out: ran.stdout === '' ? null : JSON.parse(ran.stdout),
+      err: ran.stderr };
+  };
+  const nested = (leaf) => `${'['.repeat(3000)}${JSON.stringify(leaf)}${']'.repeat(3000)}`;
+  // The input of each runtime for a write whose argument edits is the text at the bottom.
+  const calls = {
+    gemini: (leaf) => `{"tool_name":"write_file","tool_input":{"file_path":"a.md","edits":${nested(leaf)}}}`,
+    cursor: (leaf) => `{"hook_event_name":"preToolUse","tool_name":"Write","tool_input":{"file_path":"a.md","edits":${nested(leaf)}}}`,
+    copilot: (leaf) => `{"toolName":"edit","toolArgs":${JSON.stringify(`{"path":"a.md","edits":${nested(leaf)}}`)}}`,
+  };
+  const denied = (runtime, out) => (runtime === 'gemini' ? out.decision === 'deny'
+    : runtime === 'cursor' ? out.permission === 'deny' : out.permissionDecision === 'deny');
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    // A .reports/end.json at the bottom is found, and the call is refused.
+    const hit = run(runtime, calls[runtime]('/w/.reports/end.json'));
+    assert.ok(hit.out && denied(runtime, hit.out), `${runtime}: ${JSON.stringify(hit)}`.slice(0, 300));
+    assert.equal(hit.status, runtime === 'cursor' ? 2 : 0, runtime);
+    // A text with no such path passes.
+    const miss = run(runtime, calls[runtime]('/w/notes.md'));
+    assert.equal(miss.status, 0, `${runtime}: ${miss.err.slice(0, 200)}`);
+    assert.ok(miss.out === null || !denied(runtime, miss.out), runtime);
+  }
+  // A decide that throws denies the call in a run, with exit 2 on Cursor, and passes outside one.
+  const hooks = path.join(home, 'hooks', 'reports-guard.cjs');
+  const text = fs.readFileSync(hooks, 'utf8');
+  assert.ok(text.includes('function decide('));
+  fs.writeFileSync(hooks, text.replace('function decide(',
+    "function decide() { throw new Error('boom'); }\nfunction unused("));
+  const inputs = {
+    gemini: '{"tool_name":"run_shell_command","tool_input":{"command":"ls"}}',
+    cursor: '{"hook_event_name":"beforeShellExecution","command":"ls"}',
+    copilot: '{"toolName":"bash","toolArgs":"{\\"command\\":\\"ls\\"}"}',
+  };
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    const thrown = run(runtime, inputs[runtime]);
+    assert.ok(thrown.out && denied(runtime, thrown.out), runtime);
+    const reason = thrown.out.reason || thrown.out.agent_message || thrown.out.permissionDecisionReason;
+    firstLine(reason, 'Make the call smaller or simpler, and send it again.');
+    assert.match(reason, /\nThe guard of \.reports\/ stopped on this call: Error: boom$/, runtime);
+    assert.equal(thrown.status, runtime === 'cursor' ? 2 : 0, runtime);
+  }
+  delete env.QORY_RUN_ID;
+  assert.equal(run('gemini', inputs.gemini).status, 0);
+  assert.deepEqual(run('gemini', inputs.gemini).out, {});
+  // reportsJson returns false for a value that is no string.
+  const { reportsJson } = require(path.join(HOOKS, 'reports-guard.cjs'));
+  for (const value of [undefined, null, 5, {}, ['.reports/end.json'], true]) {
+    assert.equal(reportsJson(value), false, String(value));
+  }
+});
