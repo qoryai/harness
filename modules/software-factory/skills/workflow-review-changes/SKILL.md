@@ -102,8 +102,8 @@ Then decide, in this order, and go no further when a case ends the run:
 Write no `points.json`, because qory sends `escalate` or `answer` from that file after the
 session ends. Run `<qory> run verdict changes-requested` with no point, and end with the
 line that the case lists. The next Build session then builds what is missing. In a stage
-that has reviewers, how qory takes this verdict from the session is not built in qory yet.
-When the command fails, end with the same line, and the run ends with no verdict.
+that has reviewers, the command fails until Q-35b. When the command fails, end with the
+same line, and the run ends with no verdict.
 
 ## The end
 

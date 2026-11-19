@@ -16,8 +16,10 @@ falls under the definition of `blocking` in `judging-findings`.
   its path as the folder. The diff shows a deleted test; the copy shows the code that the
   test would run on now.
 - `qory.review.suite_result`: the result of the full suite, with the counts `tests`,
-  `failed` and `skipped`, and no failing rows yet. The result of the locked checks that
-  qory runs before the round is not in `qory.review` yet.
+  `failed` and `skipped`. Its `output_tail`, the last lines of the output of the suite, is
+  the source of a `failing check` proof. Until Q-35b, `suite_result` has no `output_tail`.
+  The result of the locked checks that qory runs before the round is not in `qory.review`
+  yet.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists. A claim in it is no proof. Judge the tests.
 

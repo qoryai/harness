@@ -26,16 +26,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   reports a failing test that the change skips, deletes or loosens, and code with no test;
   `code-reviewer` reports the bug behind that failing test. `acceptance-reviewer`
   reports a criterion that the change does not meet, a planned change that it does not
-  build, and a changed path that no Files cell of the build plan lists. Each reviewer
-  re-reads the earlier findings and repeats those of its area that are still true. The group
-  role `reviewers` and the `reviewers` key of Build follow in a later change. Not built yet
-  in qory: `qory.stage.reviewers`, which qory does not write yet, so the session runs
-  `qory run verdict passed` in every stage until it does; how qory takes `changes-requested`
-  from the session in a stage with reviewers; the acceptance criteria, the spec and the
-  build plan in `qory.review`, so `acceptance-reviewer` stops with no report until qory
-  passes them in `qory.review`; the failing rows of the suite result; the result of the
-  locked checks before the round, as a reviewer input; and the shape of the earlier
-  findings.
+  build, and a changed path that no Files cell of the build plan lists; it reads the
+  approved acceptance criteria, the spec and the build plan from the folder of
+  `qory.start_artifacts`, and stops with no report when it cannot read them. A `failing
+  check` proof cites `output_tail` of the suite result. Each reviewer re-reads the earlier
+  findings and repeats those of its area that are still true. The group role `reviewers` and
+  the `reviewers` key of Build follow in a later change. Not built yet in qory:
+  `qory.stage.reviewers`, which qory does not write yet, so the session runs `qory run
+  verdict passed` in every stage until it does; how qory takes `changes-requested` from the
+  session in a stage with reviewers; `qory.start_artifacts` in the input file of a
+  reviewer, so `acceptance-reviewer` stops with no report until qory writes it;
+  `output_tail` of the suite result; the result of the locked checks before the round, as a
+  reviewer input; and the shape of the earlier findings.
 - The review report is checked against qory's
   `contracts/harness/v1/review-report.schema.json`, not a copy in this repository.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and

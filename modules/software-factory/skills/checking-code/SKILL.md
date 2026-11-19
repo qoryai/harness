@@ -62,10 +62,11 @@ them. The shape of `previous_findings` is not in a contract of qory yet.
    with a wider scope than its rule; a step that cannot be undone and has no guard.
 6. The same defect in another place of the change is a separate finding for each place. A
    defect in code that the change does not touch and does not newly call is no finding.
-7. The suite: write no finding for a red suite, because the run writes it. You may cite a
-   failing row of `suite_result` as the `failing check` of a bug that you name. The result
-   of the suite has counts and no failing rows yet, and qory passes the review no result of
-   the locked checks yet: until then, prove a bug with a `failing input`.
+7. The suite: write no finding for a red suite, because the run writes it. You may cite the
+   lines of `output_tail` of `suite_result`, the last lines of the output of the suite,
+   that show a check fail, as the `failing check` of a bug that you name. Until Q-35b,
+   `suite_result` has no `output_tail`, and qory passes the review no result of the locked
+   checks yet: with neither, prove a bug with a `failing input`.
 
 ## Blocking in this area
 

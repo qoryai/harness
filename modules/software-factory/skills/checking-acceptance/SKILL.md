@@ -14,17 +14,33 @@ falls under the definition of `blocking` in `judging-findings`.
 - `qory.review.diff`: the lines that the change adds and removes. Read all of it.
 - `qory.review.commit`: the read-only copy of the change. Search it with Grep and Glob, with
   its path as the folder, to trace a criterion through the code.
-- `qory.review.suite_result`: the result of the full suite, for a `failing check` proof.
-  It has no failing rows yet. The result of the locked checks that qory runs before the
-  round is not in `qory.review` yet.
+- `qory.review.suite_result`: the result of the full suite. Its `output_tail`, the last
+  lines of the output of the suite, is the source of a `failing check` proof. Until Q-35b,
+  `suite_result` has no `output_tail`. The result of the locked checks that qory runs before
+  the round is not in `qory.review` yet.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists: what the session that made the change states
   that it did.
 
-The review also needs the approved acceptance criteria, the spec and the build plan of the
-work item. qory writes no value for them in `qory.review` yet: until then, stop and write
-no file. The copy at `commit` contains no `.qory` folder, so do not
-look for them there.
+The review also reads the approved acceptance criteria, the spec and the build plan of the
+work item, from `<start>`, the folder in `qory.start_artifacts` of the input file. The copy
+at `commit` contains no `.qory` folder, so do not look for them there. Read
+`<start>/index.json`. Then, for each of the types `acceptance-criteria`, `spec` and
+`build-plan`:
+
+- Of the entries of `artifacts` with that `type`, leave out each withdrawn one: an entry
+  whose version with the largest `number` in `versions`, of those with no `cancelled` set
+  to `true`, has `withdrawn` set to `true`.
+- Take the entry left whose `name` is `main` or missing, else the one entry left. `<N>` is
+  its `newest_version`, and `<name>` is its `name`, or `main` when it has none.
+- Read `<start>/<type>/<name>/v<N>/<file>`, where `<file>` is `acceptance-criteria.json`,
+  `spec.md` or `build-plan.md`.
+
+The file of a type cannot be read when no entry is left, when its `newest_version` is null,
+when more than one entry is left and none has the name `main`, or when `<name>` is no
+folder name. A folder name has only letters, digits, `.`, `_` and `-`, and is not `.` or
+`..`. When `qory.start_artifacts` is missing, or one of the three files cannot be read,
+stop and write no file.
 
 ## The area
 
@@ -50,9 +66,8 @@ them. The shape of `previous_findings` is not in a contract of qory yet.
 ## Review of the acceptance
 
 1. Take the live criteria: each entry of `criteria` with no `removed` member, in the
-   approved acceptance criteria that qory is to pass in `qory.review`. That value is not
-   built yet, as "What the review reads" lists. The `check` of each is `Tests` or
-   `Demo: <title>`.
+   approved acceptance criteria that "What the review reads" lists. The `check` of each is
+   `Tests` or `Demo: <title>`.
 2. For each criterion, find the lines of the change that meet it. Trace one input that the
    words of the criterion describe through those lines to the result. A criterion that the
    change meets needs no finding.
@@ -77,14 +92,15 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 
 - `blocking`: a criterion that the change does not meet, or meets for only part of its
   cases, step 2. The proof is a `failing input` from the words of the criterion, or a
-  `failing check` when the locked check of the criterion is a failing row of
-  `suite_result`. Also a deliverable of step 3 whose change is missing, when a criterion of
+  `failing check` when `output_tail` of `suite_result` shows the locked check of the
+  criterion fail. Also a deliverable of step 3 whose change is missing, when a criterion of
   its Criteria cell is not met.
 - `non-blocking`: a deliverable of step 3 whose change is missing while its criteria are
   met; work of step 4, with a `broken rule` proof that quotes the spec, unless it also
   breaks a criterion; a path of step 5, with a `broken rule` proof that quotes the Files
   cells of the build plan, unless it also breaks a criterion; and a claim of step 6, unless
-  it states that a criterion is met when the change does not meet it.
+  it states that a criterion is met when the change does not meet it. Such a claim is
+  covered by the `blocking` finding of that criterion from step 2.
 
 ## Check list
 

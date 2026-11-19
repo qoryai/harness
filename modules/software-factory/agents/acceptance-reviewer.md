@@ -57,9 +57,9 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/simple-communication}, before you write a finding: the sentence rules of
   each `point`.
 
-The prompt contains the path of the input file. Read `qory.review` in it. You get no summary
-from another session. You fetch no web page. A refused tool call stays refused. Read through
-no link.
+The prompt contains the path of the input file. Read `qory.review` and
+`qory.start_artifacts` in it. You get no summary from another session. You fetch no web
+page. A refused tool call stays refused. Read through no link.
 
 ## Stop conditions
 
@@ -71,9 +71,10 @@ because your session ended with no report.
 - `commit`, `diff` or `report` is missing from `qory.review`, or the copy at `commit` or the
   file at `diff` cannot be read.
 - The write of the report is denied.
-- The approved acceptance criteria, the spec or the build plan cannot be read: without them,
-  this review has nothing to check the change against. qory writes no value for them in
-  `qory.review` yet, so until then this review stops here.
+- `qory.start_artifacts` is missing from the input file, or the approved acceptance
+  criteria, the spec or the build plan in its folder cannot be read, as "What the review
+  reads" of `checking-acceptance` lists: without them, this review has nothing to check the
+  change against.
 
 These cases are no reason to stop:
 
