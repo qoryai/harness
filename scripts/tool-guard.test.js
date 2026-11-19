@@ -2513,3 +2513,29 @@ test('a path over 4,096 characters is read with each `..` cut out as text, and o
   assert.equal(edge.length, 4096);
   assert.equal(write({ file_path: edge }), reports.WRITE_REASON);
 });
+
+test('each part of a path costs a step, also `.` and an empty part, and a call over the steps is denied quickly', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('steps');
+  fs.mkdirSync(path.join(work, '.reports'), { recursive: true });
+  // A link whose target is `./` 500 times and then a file: 500 parts that need no disk read.
+  fs.symlinkSync(`${'./'.repeat(500)}notes.md`, path.join(work, 'dots'));
+  fs.symlinkSync(`${'./'.repeat(500)}.reports/report.json`, path.join(work, 'hit'));
+  const timed = (args) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+    const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+    assert.ok(ms < 1000, `${ms} ms at load average ${os.loadavg()[0].toFixed(1)}`);
+    return reason;
+  };
+  assert.equal(timed({ file_path: 'hit' }), reports.WRITE_REASON);
+  // 20 paths through the link need 10,000 steps and pass; 60 need 30,000, over the 16,384 of a
+  // call, and are denied.
+  assert.equal(timed({ paths: Array(20).fill('dots') }), null);
+  assert.equal(timed({ paths: Array(60).fill('dots') }), reports.PATH_REASON);
+  assert.equal(timed(`*** Begin Patch\n${'*** Add File: dots\n'.repeat(60)}`), reports.PATH_REASON);
+  // `.` parts cost steps too: 7 paths of 2,000 of them pass, 10 are over the budget.
+  const dots = `${'./'.repeat(2000)}x.md`;
+  assert.equal(timed({ paths: Array(7).fill(dots) }), null);
+  assert.equal(timed({ paths: Array(10).fill(dots) }), reports.PATH_REASON);
+});

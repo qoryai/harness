@@ -91,13 +91,13 @@ function onDisk(file, cwd, budget) {
   let real = '/';
   while (todo.length > 0) {
     const part = todo.pop();
+    if (budget.steps <= 0) return null;
+    budget.steps -= 1;
     if (part === '' || part === '.') continue;
     if (part === '..') {
       real = path.dirname(real);
       continue;
     }
-    if (budget.steps <= 0) return null;
-    budget.steps -= 1;
     const at = path.join(real, part);
     let link = null;
     try {
