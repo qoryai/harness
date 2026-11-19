@@ -1412,14 +1412,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `*.json` in the 12,000 long names.
 - The guard counts the `*` of a glob for each alternative of its braces, and bounds every glob
   part by the names it scans. `cat {src/*,lib/*}` and `ls {*.ts,*.js,*.md,*.json}` were denied
-  (the stars were added across the alternatives and not reset at `/`); each pair of braces now
+  (the stars were added across the alternatives and not reset at `/`); each pair of braces
   counts as its largest alternative, counted from the text before the braces, so `*{*a,*b}*`
   has 3 `*` and `{*a*a*c,b}` is limited by the work estimate, which multiplies by the number of
   alternatives. A part that follows a `/` inside braces and has 2 or more `*` is still denied,
   with the second line "Write each alternative as its own word, as `src/*a* lib/*b*`." A part
   with fewer than 2 `*` read no names and had no limit: `ls {a..p}*` (16 alternatives) took
   0.67 s on 50,000 names, over the 600 ms that the guard allows. Every part with a `*`, `?`
-  or `[` now costs 2.2 microseconds for each name and 0.6 microseconds for each alternative
+  or `[` costs 2.2 microseconds for each name and 0.6 microseconds for each alternative
   after the first, within the same 250 ms of one call: `ls {a..p}*` is denied in 0.04 s,
   while `{a,b,c,d,f}*`, `*`, `.r*`, `*/*.json`, `a*c`, `f*` and `a*b*c` pass in the same
   folder. A folder of 83,334 names or more is denied for a part with a `*`.
