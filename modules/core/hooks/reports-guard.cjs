@@ -50,8 +50,10 @@
 // process also denies the call that takes its size past 8 MiB, before it reads any text: the
 // size is the length of each string, the length of each key plus 16 for each entry of an object,
 // 8 for each item of an array, and the length of cwd, a measure of the work and not an exact
-// count. In a run, the adapters deny an input of more than 16 MiB on stdin before they parse it,
-// and an input that is not a JSON object. The clock is read once for each call. A backslash at
+// count. In a run, a child process reads stdin and stops at 16 MiB + 1 byte, so the adapters deny
+// an input of more than 16 MiB before they parse it, with its own text, and an input that does not
+// end by 8 s with the 8 s deny, and an input that is not a JSON object. The clock is read once for
+// each call. A backslash at
 // the end of a word or command is dropped by the shell: .reports\ is .reports.
 // QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
 // a call: a file of the workspace can reach the environment of a hook, so no field turns off a
@@ -1410,33 +1412,58 @@ const SIZE_REASON = `${SEND_LESS}The arguments of this call are more than 8 MiB 
   'guard of .reports/ does not read that much in the 10 seconds of its hook, so it blocks the call.';
 let hookChars = 0;
 
-// The stdin of a hook in a run is denied before it is parsed when it is over INPUT_BYTES.
-// shortcut: the whole of stdin is read before the length is compared, so an input of several
-// GB still uses that memory, replace with a read that stops at INPUT_BYTES + 1 if a runtime
-// sends such an input.
+// The stdin of a hook in a run is read by a child process, which stops at INPUT_BYTES + 1 bytes,
+// so that an input of any size uses at most that much memory and a writer that sends little or
+// nothing, with no end of input, cannot hold the hook past HOOK_MS: the parent kills the child
+// at that time. The read of fd 0 blocks and no fs call in this process can be interrupted, which
+// is why the read is in a child. Cost: one more process start in each hook of a run.
+// shortcut: the child writes the text to a pipe, so an input near INPUT_BYTES is copied once more,
+// replace with a read in this process if a runtime gives the hook a non-blocking stdin.
 const INPUT_BYTES = 16 * 1024 * 1024;
+const INPUT_REASON = `${SEND_LESS}The input of this call is more than 16 MiB, and the guard of ` +
+  '.reports/ does not read that much in the 10 seconds of its hook, so it blocks the call.';
 const UNREADABLE_REASON = 'Send the call again.\n' +
   'The guard of .reports/ could not read the input of this call, and blocks it.';
+// The child exits 3 for an input over the limit, and writes the input to stdout otherwise. A
+// wait of 5 ms follows an EAGAIN, and the end of the input is a read of 0 bytes or the error EOF.
+const READER = "const fs = require('fs'); const limit = Number(process.argv[1]);" +
+  'const chunk = Buffer.allocUnsafe(65536); const parts = []; let total = 0;' +
+  'for (;;) { let n;' +
+  ' try { n = fs.readSync(0, chunk, 0, chunk.length, null); } catch (error) {' +
+  "  if (error.code === 'EAGAIN') { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5); continue; }" +
+  "  if (error.code === 'EOF') break; process.exit(4); }" +
+  ' if (n === 0) break; total += n; if (total > limit) process.exit(3);' +
+  ' parts.push(Buffer.from(chunk.subarray(0, n))); }' +
+  'process.stdout.write(Buffer.concat(parts));';
 
-// readStdin returns { text, reason } for the stdin of a hook: the text, or, in a run (QORY_RUN_ID
-// is set) with an input of more than INPUT_BYTES bytes, no text and the reason SIZE_REASON, so
-// that the caller denies the call before it parses or resolves a path from the input. Outside
-// a run, any size is read. A stdin that cannot be read gives the text ''.
+// readStdin returns { text, reason } for the stdin of a hook. Outside a run (QORY_RUN_ID is not
+// set), it reads all of stdin, as before. In a run, reason is INPUT_REASON for an input of more
+// than INPUT_BYTES bytes, and TIME_REASON when the input does not end by HOOK_MS; the caller
+// denies the call, before it parses or resolves a path from the input. A stdin that cannot be
+// read gives the text ''.
 function readStdin(env = process.env) {
-  let data;
-  try {
-    data = fs.readFileSync(0);
-  } catch {
-    return { text: '', reason: null };
+  if (!env.QORY_RUN_ID) {
+    try {
+      return { text: fs.readFileSync(0, 'utf8'), reason: null };
+    } catch {
+      return { text: '', reason: null };
+    }
   }
-  if (env.QORY_RUN_ID && data.length > INPUT_BYTES) return { text: '', reason: SIZE_REASON };
-  return { text: data.toString('utf8'), reason: null };
+  const left = HOOK_MS - clock();
+  if (!(left >= 1)) return { text: '', reason: TIME_REASON };
+  const read = childProcess.spawnSync(process.execPath, ['-e', READER, String(INPUT_BYTES)], {
+    stdio: ['inherit', 'pipe', 'ignore'], timeout: Math.ceil(left), killSignal: 'SIGKILL',
+    maxBuffer: INPUT_BYTES + 1 });
+  if (read.error && read.error.code === 'ETIMEDOUT') return { text: '', reason: TIME_REASON };
+  if (read.error || read.status === null || read.signal) return { text: '', reason: null };
+  if (read.status === 3) return { text: '', reason: INPUT_REASON };
+  return { text: read.status === 0 ? read.stdout.toString('utf8') : '', reason: null };
 }
 
 // readGuardInput returns { input, reason } for the adapters: input is the JSON object on stdin,
-// or {} when there is none. In a run, reason is SIZE_REASON for an input over the limit and
-// UNREADABLE_REASON for stdin that is not a JSON object, and the adapter denies the call with
-// it. Outside a run, reason is null and an input that cannot be read is {}.
+// or {} when there is none. In a run, reason is the reason of readStdin for an input over the
+// limit or one that does not end in time, and UNREADABLE_REASON for stdin that is not a JSON
+// object, and the adapter denies the call with it. Outside a run, reason is null and an input that cannot be read is {}.
 function readGuardInput(env = process.env) {
   const { text, reason } = readStdin(env);
   if (reason) return { input: {}, reason };
@@ -1509,6 +1536,6 @@ function safeDecide(call) {
   }
 }
 
-module.exports = { readStdin, readGuardInput, SIZE_REASON, decide, safeDecide, globsChild, braces, runsChecks, withoutRedirect, reportsJson, flat,
+module.exports = { readStdin, readGuardInput, INPUT_REASON, decide, safeDecide, globsChild, braces, runsChecks, withoutRedirect, reportsJson, flat,
   REPORTS, HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON,
   SPECIAL_REASON };

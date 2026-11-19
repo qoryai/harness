@@ -4697,10 +4697,12 @@ test('the entries of an object and the items of an array count toward the 8 MiB 
   fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
   const home = harnessHome();
   const line = /^Send fewer or smaller arguments in one tool call\.\nThe arguments of this call are more than 8 MiB of text/;
-  // 4,000,000 entries of `"<base36>":""` in the tool_input of write_file (40 MiB, 9.4 s in the
-  // review), with a file_path that is a ledger file last: denied by size, well inside 10 s.
+  // 1,400,000 entries of `"<base36>":""` in the tool_input of write_file (14 MB, under the 16 MiB
+  // of the input, and 0 characters of text before the count of keys), with a file_path that is a
+  // ledger file last: denied by the 8 MiB count, well inside 10 s. 4,000,000 such entries (40 MiB,
+  // 9.4 s in the review) are over 16 MiB and get the deny of the input.
   const entries = [];
-  for (let n = 0; n < 4000000; n += 1) entries.push(`"${n.toString(36)}":""`);
+  for (let n = 0; n < 1400000; n += 1) entries.push(`"${n.toString(36)}":""`);
   const body = `${entries.join(',')},"file_path":"art/.reports/x.json"`;
   entries.length = 0;
   const begun = Date.now();
@@ -4712,11 +4714,11 @@ test('the entries of an object and the items of an array count toward the 8 MiB 
   assert.equal(ran.error, undefined, `the hook ran past 10 s: ${ms} ms`);
   assert.match(JSON.parse(ran.stdout).reason, line);
   assert.ok(ms < 6000, `${ms} ms`);
-  // 1,000,000 fields of an empty string for Copilot CLI, with the deny field last, and a limit of
+  // 300,000 fields of an empty string for Copilot CLI, with the deny field last, and a limit of
   // 100,000 in a copy of the hooks (each call is 23 + the cwd): denied by size, after about 600 calls.
   const small = patchedHome('const HOOK_CHARS = 8 * 1024 * 1024;', 'const HOOK_CHARS = 100000;');
   const fields = {};
-  for (let n = 0; n < 1000000; n += 1) fields[`k${n}`] = '';
+  for (let n = 0; n < 300000; n += 1) fields[`k${n}`] = '';
   fields.last = 'echo x > art/.reports/x.json';
   const empty = childProcess.spawnSync(process.execPath, [path.join(small, 'hooks', 'reports-guard-copilot.cjs')], {
     input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
@@ -4730,7 +4732,7 @@ test('a guard hook denies an input over 16 MiB before it parses it, and an input
   const work = next('pass14');
   const home = harnessHome();
   const MIB = 1024 * 1024;
-  const size = /^Send fewer or smaller arguments in one tool call\.\nThe arguments of this call are more than 8 MiB of text/;
+  const size = /^Send fewer or smaller arguments in one tool call\.\nThe input of this call is more than 16 MiB, and the guard of \.reports\/ does not read that much in the 10 seconds of its hook, so it blocks the call\.$/;
   const unreadable = /^Send the call again\.\nThe guard of \.reports\/ could not read the input of this call, and blocks it\.$/;
   // For each runtime: the hook file, a valid input with a harmless command and a padding field
   // that makes its length exactly bytes, and what the hook prints on a deny and on a pass.
@@ -4772,7 +4774,8 @@ test('a guard hook denies an input over 16 MiB before it parses it, and an input
     assert.ok(runtime.pass(edge.out), `${name}: ${edge.out.slice(0, 200)}`);
     for (const [what, input] of [['valid JSON', exact(runtime, 16 * MIB + 1)], ['text', 'x'.repeat(17 * MIB)]]) {
       const over = hook(runtime, input, true);
-      assert.equal(over.ran.error, undefined, `${name} ${what}`);
+      // The hook stops reading at the limit, so the write of the rest can end with EPIPE.
+      assert.ok(over.ran.error === undefined || over.ran.error.code === 'EPIPE', `${name} ${what}`);
       assert.match(runtime.deny(over.out), size, `${name} ${what}`);
       assert.ok(over.ms < 3000, `${name} ${what}: ${over.ms} ms`);
     }
@@ -4790,11 +4793,74 @@ test('a guard hook denies an input over 16 MiB before it parses it, and an input
       const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', script)], {
         input, env: { ...process.env, QORY_RUN_ID: 'run-1' }, encoding: 'utf8', timeout: 10000,
         killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
-      assert.equal(ran.error, undefined, script);
+      assert.ok(ran.error === undefined || ran.error.code === 'EPIPE', script);
       assert.match(JSON.parse(ran.stdout).hookSpecificOutput.permissionDecisionReason, size, script);
     }
   }
   const left = childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
     .stdout.split('\n').filter((one) => one.includes(home));
+  assert.deepEqual(left, []);
+});
+
+test('a guard hook in a run stops reading its input at 16 MiB and at the time limit, whatever the writer does', async () => {
+  const home = harnessHome();
+  const small = patchedHome('const HOOK_MS = 8000;', 'const HOOK_MS = 1500;');
+  const MIB = 1024 * 1024;
+  const size = /^Send fewer or smaller arguments in one tool call\.\nThe input of this call is more than 16 MiB, and the guard of \.reports\/ does not read that much in the 10 seconds of its hook, so it blocks the call\.$/;
+  const time = /^Send fewer or smaller arguments in one tool call\.\nThe guard of \.reports\/ used more than 8 seconds of the 10 seconds of its hook, and blocks the call\.$/;
+  const files = ['reports-guard-gemini.cjs', 'reports-guard-cursor.cjs', 'reports-guard-copilot.cjs',
+    'tool-guard-claude.cjs', 'tool-guard-codex.cjs'];
+  const reasonOf = (out) => {
+    const one = JSON.parse(out);
+    return one.reason || one.agent_message || one.permissionDecisionReason
+      || (one.hookSpecificOutput && one.hookSpecificOutput.permissionDecisionReason);
+  };
+  // drive runs a hook in a run with a stdin that feed writes to and that stays open: the hook
+  // has to end by itself, which the 10 s kill would show.
+  const drive = (where, file, feed) => new Promise((resolve) => {
+    const begun = Date.now();
+    const child = childProcess.spawn(process.execPath, [path.join(where, 'hooks', file)], {
+      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, stdio: ['pipe', 'pipe', 'ignore'] });
+    let out = '';
+    let ended = false;
+    child.stdout.on('data', (data) => { out += data; });
+    child.stdin.on('error', () => {});
+    const killer = setTimeout(() => child.kill('SIGKILL'), 10000);
+    child.on('exit', (code, signal) => {
+      ended = true;
+      clearTimeout(killer);
+      child.stdin.destroy();
+      resolve({ out, ms: Date.now() - begun, killed: signal === 'SIGKILL', code });
+    });
+    feed(child.stdin, () => ended);
+  });
+  for (const file of files) {
+    // 16 MiB + 1 byte in pieces of 37 bytes, then the pipe stays open: the hook denies at the
+    // byte over the limit, and does not wait for the end of its input.
+    const slow = await drive(home, file, (stdin, over) => {
+      const piece = Buffer.alloc(37, 'x');
+      let sent = 0;
+      const pump = () => {
+        while (sent < 16 * MIB + 1 && !over()) {
+          sent += piece.length;
+          if (!stdin.write(piece)) {
+            stdin.once('drain', pump);
+            return;
+          }
+        }
+      };
+      pump();
+    });
+    assert.equal(slow.killed, false, `${file}: the hook waited for the end of its input`);
+    assert.match(reasonOf(slow.out), size, file);
+    // 1 KiB, then no more and no end of input: the hook denies at its time limit, which the
+    // copy of the hooks sets to 1.5 s, before the kill at 10 s.
+    const stalled = await drive(small, file, (stdin) => stdin.write(Buffer.alloc(1024, 'x')));
+    assert.equal(stalled.killed, false, `${file}: the hook waited for a stalled writer`);
+    assert.match(reasonOf(stalled.out), time, file);
+    assert.ok(stalled.ms < 6000, `${file}: ${stalled.ms} ms`);
+  }
+  const left = childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((one) => one.includes(home) || one.includes(small));
   assert.deepEqual(left, []);
 });
