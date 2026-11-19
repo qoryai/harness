@@ -5336,6 +5336,33 @@ test('a write that names .env as text passes, and a patch that writes the file .
       `--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-A=1\n+A=2\n`]) {
       assert.equal(write(text), reports.ENV_REASON, JSON.stringify(text));
     }
+    // A unified diff that deletes the file names it in the --- header only, and +++ is /dev/null.
+    const stamp = '\t2026-11-20 10:00:00.000000000 +0000';
+    for (const text of [`--- a/${file}\n+++ /dev/null\n@@ -1 +0,0 @@\n-A=1\n`,
+      // A header can end with a tab and a time, which is no part of the path.
+      `--- a/${file}${stamp}\n+++ b/${file}${stamp}\n@@ -1 +1 @@\n-A=1\n+A=2\n`,
+      `--- /dev/null${stamp}\n+++ b/${file}${stamp}\n@@ -0,0 +1 @@\n+A=1\n`]) {
+      assert.equal(write(text), reports.ENV_REASON, JSON.stringify(text));
+    }
+  }
+  const stamp = '\t2026-11-20 10:00:00.000000000 +0000';
+  for (const line of ['+.env', ' .env', '-.env']) {
+    const text = `--- a/.gitignore${stamp}\n+++ b/.gitignore${stamp}\n@@ -1,2 +1,2 @@\n node_modules\n${line}\n`;
+    assert.equal(write(text), null, JSON.stringify(text));
+  }
+  // Codex apply_patch reads only its own headers and rejects a unified diff, so the tool guard
+  // reads none of the --- and +++ lines of one. A patch run through the shell, as Codex does
+  // with `apply_patch <<'EOF'`, is read by its headers.
+  const diff = (file, line) => `--- a/${file}\n+++ b/${file}\n@@ -1,2 +1,2 @@\n node_modules\n${line}\n`;
+  for (const line of ['+.env', ' .env', '-.env']) {
+    assert.equal(guard(at(codex('apply_patch', { command: diff('.gitignore', line) }, 'default'))),
+      null, line);
+    assert.equal(guard(at(codex('Bash', { command: `apply_patch <<'EOF'\n${ignore(line)[0]}EOF` },
+      'default'))), null, line);
+  }
+  for (const file of ['.env', '.gemini/.env']) {
+    assert.equal(guard(at(codex('Bash', { command: `apply_patch <<'EOF'\n*** Begin Patch\n` +
+      `*** Add File: ${file}\n+A=1\n*** End Patch\nEOF` }, 'default'))), reports.ENV_REASON, file);
   }
 });
 
@@ -5363,6 +5390,20 @@ test('the guard of each runtime that has a hook denies a write to .gemini/.env a
   assert.equal(adapter(home, 'copilot', 'write', patchText, work).denied, false);
   assert.equal(adapter(home, 'copilot', 'write', patchText.replace('.gitignore', '.env'), work)
     .denied, true);
+  // Added and removed lines .env of a patch of .gitignore pass, and a header for the file
+  // .env is denied in each header of a Codex patch and in a unified diff.
+  for (const line of ['+.env', '-.env', '+.gemini/.env']) {
+    assert.equal(adapter(home, 'copilot', 'write', patchText.replace(' .env', line), work).denied,
+      false, line);
+  }
+  const diffText = (file) => `--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-A=1\n+A=2\n`;
+  assert.equal(adapter(home, 'copilot', 'write', diffText('.gitignore').replace('-A=1', '-.env'),
+    work).denied, false);
+  for (const header of ['Add File', 'Delete File', 'Move to']) {
+    const text = `*** Begin Patch\n*** ${header}: .env\n*** End Patch\n`;
+    assert.equal(adapter(home, 'copilot', 'write', text, work).denied, true, header);
+  }
+  assert.equal(adapter(home, 'copilot', 'write', diffText('.env'), work).denied, true);
   // The matcher of the Cursor hook for a shell command passes a command with .env, in each case.
   const cursor = JSON.parse(fs.readFileSync(path.join(MODULES,
     'core/settings/cursor/hooks.json'), 'utf8')).hooks.beforeShellExecution[0].matcher;
