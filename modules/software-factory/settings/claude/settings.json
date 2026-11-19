@@ -26,6 +26,9 @@
       "Skill(harness:workflow-plan-the-build)",
       "Skill(harness:planning-builds)",
       "Skill(harness:checking-build-plans)",
+      "Skill(harness:workflow-write-acceptance-checks)",
+      "Skill(harness:writing-acceptance-checks)",
+      "Skill(harness:checking-acceptance-checks)",
       "Skill(harness:checking-proposals)",
       "Skill(harness:writing-proposals)",
       "Skill(harness:exploring-code)",
@@ -46,6 +49,8 @@
       "Agent(harness:shape-reviewer)",
       "Agent(harness:build-planner)",
       "Agent(harness:plan-reviewer)",
+      "Agent(harness:acceptance-check-writer)",
+      "Agent(harness:check-reviewer)",
       "WebSearch",
       "WebFetch"
     ],
