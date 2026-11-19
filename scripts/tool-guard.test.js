@@ -2913,3 +2913,59 @@ test('a glob that makes fs.globSync stall is denied before the call, in under 1 
   assert.match(shell('ls .rep*/end.json *a*a*c'),
     /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
 });
+
+test('the first word is opened without blocking and read by its type on the open file', () => {
+  const home = harnessHome();
+  const dir = next('race');
+  fs.mkdirSync(dir);
+  const fifo = path.join(dir, 'pipe');
+  childProcess.execFileSync('mkfifo', [fifo]);
+  const checks = path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.cjs');
+  const copy = path.join(dir, 'same.cjs');
+  fs.copyFileSync(checks, copy);
+  // The child makes the stat of the path say "a file of the size of checks.cjs" for the FIFO, as
+  // when another process renames a FIFO over the path after the stat. A blocking open waits for
+  // a writer for ever, so the child is killed after 5 s.
+  const source = `
+    const fs = require('node:fs');
+    const [hooks, fifo, copy, checks] = process.argv.slice(1);
+    const reports = require(hooks + '/reports-guard.cjs');
+    const stat = fs.statSync;
+    fs.statSync = (file, ...rest) => stat(file === fifo ? checks : file, ...rest);
+    const open = fs.openSync;
+    const flags = [];
+    let fifoFd = -1;
+    fs.openSync = (file, mode, ...rest) => {
+      flags.push([file, mode]);
+      const fd = open(file, mode, ...rest);
+      if (file === fifo) fifoFd = fd;
+      return fd;
+    };
+    const close = fs.closeSync;
+    fs.closeSync = (fd) => {
+      if (fd === fifoFd) fifoFd = -1;
+      return close(fd);
+    };
+    const read = fs.readSync;
+    let reads = 0;
+    fs.readSync = (fd, ...args) => {
+      if (fd === fifoFd) reads += 1;
+      return read(fd, ...args);
+    };
+    const env = { QORY_RUN_ID: 'run-1' };
+    const script = hooks + '/reports-guard-gemini.cjs';
+    const run = (file) => reports.runsChecks(file + ' report a .reports/a-1.md', env, script);
+    console.log(JSON.stringify([run(fifo), run(copy), flags.filter(([file]) => file === fifo || file === copy)
+      .map(([file, mode]) => [file === fifo ? 'fifo' : 'copy', (mode & fs.constants.O_NONBLOCK) !== 0]), reads]));
+  `;
+  const begun = process.hrtime.bigint();
+  const ran = childProcess.spawnSync(process.execPath,
+    ['-e', source, path.join(home, 'hooks'), fifo, copy, checks],
+    { encoding: 'utf8', timeout: 5000, killSignal: 'SIGKILL' });
+  const ms = Number(process.hrtime.bigint() - begun) / 1e6;
+  assert.equal(ran.error, undefined, `the open blocked: ${ran.error} after ${ms} ms`);
+  assert.equal(ran.status, 0, ran.stderr);
+  // The FIFO is no checks.cjs and is not read, a copy with the bytes is one, and each open has
+  // O_NONBLOCK.
+  assert.deepEqual(JSON.parse(ran.stdout), [false, true, [['fifo', true], ['copy', true]], 0]);
+});

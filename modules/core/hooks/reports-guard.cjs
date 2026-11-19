@@ -275,13 +275,17 @@ function checksWord(command, env) {
 
 // sameFile reports whether the file real has the bytes of the file checks. It reads real only
 // if it is a regular file of the size of checks, and then at most one byte more than that:
-// /dev/zero has no end, and a FIFO blocks the read.
+// /dev/zero has no end, and a FIFO blocks the read. Another process may replace real with a
+// FIFO between the stat of its path and the open, so the open does not block (O_NONBLOCK) and
+// the type and size come from the open file (fstat), not from the path.
 function sameFile(real, checks) {
   const want = fs.statSync(checks);
   const have = fs.statSync(real);
   if (!have.isFile() || have.size !== want.size) return false;
-  const fd = fs.openSync(real, 'r');
+  const fd = fs.openSync(real, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
   try {
+    const open = fs.fstatSync(fd);
+    if (!open.isFile() || open.size !== want.size) return false;
     const bytes = Buffer.alloc(want.size + 1);
     return bytes.subarray(0, fs.readSync(fd, bytes, 0, bytes.length, 0))
       .equals(fs.readFileSync(checks));

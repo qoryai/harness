@@ -1178,7 +1178,9 @@ characters, and checks the time before each folder part of a word.
 
 To tell whether the first word of a command is a copy of `checks.cjs`, the guard reads that
 file only when it is a regular file of the size of `checks.cjs`, and then at most that size
-and one byte. `/dev/zero` as the first word made the hook grow to 44.8 GB, and a FIFO would
+and one byte. It opens the file without blocking and reads the type and size from the open
+file, not from the path, because a FIFO renamed over the path after the stat would block the
+open. `/dev/zero` as the first word made the hook grow to 44.8 GB, and a FIFO would
 block it. A command whose first word is a path to a device, a pipe or a socket is denied
 with the first line "Start the command with a program or a script, not a device, pipe or
 socket." and the word on the second line. A file of another size, a folder and a path that

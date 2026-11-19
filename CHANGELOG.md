@@ -1363,6 +1363,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   first word is a path to a device, a pipe or a socket is denied with the first line "Start
   the command with a program or a script, not a device, pipe or socket." A regular file of
   another size is decided by the other rules of the guard: the command is not `checks.cjs`.
+  The guard opens the file without blocking (`O_NONBLOCK`) and reads its type and size from
+  the open file, because another process may rename a FIFO over the path between the stat of
+  the path and the open: the open waited for a writer, and 11 of 600 runs of a rename loop
+  hung. A FIFO opened this way is not read.
 - The reports guard of Gemini CLI, Cursor and Copilot CLI decides a command with 62,500 words
   of `***` in 30 ms, where it took 70 s with the working folder at `/tmp`. It expanded each
   glob word with a separate `fs.globSync` call, and the hook outlasted its timeout of 10 s,
