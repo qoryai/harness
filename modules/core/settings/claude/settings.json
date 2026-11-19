@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -z \"$QORY_RUN_ID\" ] || env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.cjs\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }",
+            "command": "[ -z \"$QORY_RUN_ID\" ] || /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.cjs\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }",
             "timeout": 120,
             "onFailure": "block"
           }
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.cjs\"",
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/tool-guard-claude.cjs\"",
             "timeout": 30
           }
         ]
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/end-gate-claude.cjs\"",
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/end-gate-claude.cjs\"",
             "timeout": 180
           }
         ]

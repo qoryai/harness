@@ -5133,11 +5133,11 @@ function hookCommands() {
 
 const UNSET = ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_AUDIT'];
 
-test('each hook command of the five runtimes starts node through env -u of the four names', () => {
+test('each hook command of the five runtimes starts node through /usr/bin/env -u of the four names', () => {
   const commands = hookCommands();
   assert.equal(commands.length, 13, JSON.stringify(commands.map((one) => one.file)));
   for (const { file, command } of commands) {
-    const start = /\benv((?: -u [A-Z_]+)+) node "\$QORY_HARNESS_HOME\/hooks\/[a-z-]+\.cjs"/
+    const start = /(?:^|[ (])\/usr\/bin\/env((?: -u [A-Z_]+)+) node "\$QORY_HARNESS_HOME\/hooks\/[a-z-]+\.cjs"/
       .exec(command);
     assert.ok(start, `${file}: ${command}`);
     assert.deepEqual(start[1].split(' -u ').slice(1), UNSET, `${file}: ${command}`);
@@ -5157,7 +5157,7 @@ test('Gemini CLI settings list the names in excludedEnvVars and clear BASH_ENV a
   for (const hook of hooks) assert.deepEqual(hook.env, { BASH_ENV: '', ENV: '' }, hook.name);
 });
 
-test('a preload in NODE_OPTIONS loads in a registered hook command only without env -u', () => {
+test('a preload in NODE_OPTIONS loads in a registered hook command only without /usr/bin/env -u', () => {
   const home = harnessHome();
   const work = next('preload');
   fs.mkdirSync(work);
@@ -5177,7 +5177,7 @@ test('a preload in NODE_OPTIONS loads in a registered hook command only without 
       : claude('Bash', { command: 'ls' });
     // The command as registered, then the command with the wrapper cut out.
     for (const [text, loads] of [[command, false],
-      [command.replace(/env(?: -u [A-Z_]+)+ node/, 'node'), true]]) {
+      [command.replace(/\/usr\/bin\/env(?: -u [A-Z_]+)+ node/, 'node'), true]]) {
       fs.rmSync(marker, { force: true });
       const ran = childProcess.spawnSync('/bin/sh', ['-c', text], { input: JSON.stringify(input),
         env, cwd: work, encoding: 'utf8', timeout: 20000, killSignal: 'SIGKILL' });
@@ -5295,7 +5295,7 @@ async function geminiRun({ plain, advanced, envFile }) {
     'core/settings/gemini/settings.json'), 'utf8'));
   const registered = fragment.hooks.AfterAgent[0].hooks[0];
   const hook = plain ? { type: 'command',
-    command: registered.command.replace(/env(?: -u [A-Z_]+)+ node/, 'node') } : registered;
+    command: registered.command.replace(/\/usr\/bin\/env(?: -u [A-Z_]+)+ node/, 'node') } : registered;
   const settings = { ...fragment, hooks: { SessionStart: [{ hooks: [hook] }] } };
   if (!advanced) delete settings.advanced;
   fs.writeFileSync(path.join(home, '.gemini', 'settings.json'), JSON.stringify(settings));

@@ -1355,17 +1355,20 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 and `HOME` by default.
 
 Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-`env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code, Codex, Gemini
-CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads no
-preload into a hook process. `DYLD_INSERT_LIBRARIES`, the variable of macOS, is not on the
-list.
+`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code, Codex,
+Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads
+no preload into a hook process. The path is absolute, so that no `env` earlier in `PATH`
+replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
+`DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
+checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are the
+ones that Linux reads.
 
-A shell reads `BASH_ENV` before it runs the first word of its command, so `env -u` cannot
-clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the environment of
-Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks up from the
-working folder to the home folder, and in each folder it takes `.gemini/.env` before `.env`.
-On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its script before a hook
-command. So `settings/gemini/settings.json` does two things:
+A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
+cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
+environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks up
+from the working folder to the home folder, and in each folder it takes `.gemini/.env`
+before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
+script before a hook command. So `settings/gemini/settings.json` does two things:
 
 - It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
   field to the environment of the hook after the other variables, and bash reads no file for

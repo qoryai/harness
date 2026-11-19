@@ -1544,14 +1544,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A hook process loads no preload from the environment of its session or from a `.env` file.
   Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-  `env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`. This holds on Claude Code,
+  `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`. The path is
+  absolute, so that no `env` earlier in `PATH` replaces it. This holds on Claude Code,
   Codex, Gemini CLI, Cursor and Copilot CLI. A shell reads `BASH_ENV` before `env` runs, so
   each hook of Gemini CLI also sets `env` to `{ "BASH_ENV": "", "ENV": "" }`. The setting
   `advanced.excludedEnvVars` of Gemini CLI lists the four names, `BASH_ENV` and `ENV`.
   Gemini CLI applies that list to a project `.env` and not to `.gemini/.env`. So the reports
   guard of all five runtimes also denies a write to a file named `.env` and a shell command
   with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a
-  command with `.env`. `DYLD_INSERT_LIBRARIES` is not unset.
+  command with `.env`. On macOS with System Integrity Protection, `/usr/bin/env` drops
+  `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` itself, and no `DYLD_` name is on the list.
 - The reports guard reads the first word of a command, to find out whether it is a copy of
   `checks.cjs`, only when it is a regular file of the size of `checks.cjs`, and then at most
   that size and one byte. It read the whole file, so `/dev/zero` grew the hook to 44.8 GB, a
