@@ -1,6 +1,6 @@
 ---
 name: writing-decisions
-description: Load before you write a decision record. Contains where it starts, its parts, when you decide and when you ask, decision ids, criterion ids, questions, review comments and notes.
+description: Load before you write a decision record. Contains where it starts, its parts, when you decide and when you ask, decision ids, criterion ids, pictures, questions, review comments and notes.
 ---
 
 # Writing decisions
@@ -47,6 +47,8 @@ Use this form, in this order:
 An open decision, with `- Decision: open until the questions are answered.`, has every
 item except "Cost:".
 
+A decision may end with one Mermaid diagram, as the section "Pictures" lists.
+
 With no target, "Today:" is "The ticket has no target." With a target and no files in the
 code explorer's report, it is "The run has no files of the target." A file of a further
 repository is the folder's name, a colon and the path.
@@ -88,6 +90,32 @@ build the work that differ in what they cost later.
   `Blocked: needs a new criterion: <the change>`.
 - In every start, change or remove a decision that rests only on removed criteria, or that
   no longer meets a criterion it rests on.
+
+## Pictures
+
+The record is a Markdown document and follows the section "Markdown documents" of
+`artifact-text` for its pictures. The record keeps the form of the section "The parts", so
+this skill replaces these rules of that section:
+
+- The summary, the background and the parts: the record has only `## Decisions`, and each
+  decision starts with its items.
+- One picture under each part's heading, and the reason of a part with no picture: a
+  picture is optional, and a decision with no picture needs no reason.
+- The points after a picture: the items of the form replace them.
+- Pictures other than a Mermaid diagram: the record has no wireframe, no table and no
+  image.
+
+The other rules stay, such as the 450 words, which leave out the words of a diagram.
+
+- Give a decision one Mermaid diagram only when the chosen way changes how two parts call
+  each other, or a flow of states. A diagram shows that change and nothing else, and it is
+  no drawing of the system's architecture.
+- Write the diagram in a ```` ```mermaid ```` block after the last item of its decision,
+  after a blank line. Draw it by the rules of ${qory:skills/visuals}: load it before you
+  draw or change a diagram. If it cannot be loaded, report `blocked`.
+- Write at most 2 diagrams in the record, not counting a removed decision. When you remove
+  a decision, remove its diagram. A third diagram fails the check.
+- A diagram that no answer, finding or word concerns stays as it is.
 
 ## Questions
 

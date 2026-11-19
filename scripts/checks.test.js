@@ -1134,6 +1134,39 @@ test('decision record: each decision has its items in order, and its id in the h
     /decision-<N>/);
 });
 
+// diagram returns the edit of a decision record fixture that adds a Mermaid block after the
+// Cost item of decision-1, count times.
+const COST = /^- Cost: .*$/m;
+const diagram = (count) => ['decision-record.md', COST,
+  (item) => `${item}${'\n\n```mermaid\nflowchart LR\n  A[Reply] --> B[Hours]\n```'.repeat(count)}`];
+
+test('decision record: at most 2 Mermaid diagrams, and no image', () => {
+  passes(push(fixture(diagram(1)), 'decision-record'));
+  passes(push(fixture(diagram(2)), 'decision-record'));
+  fails(push(fixture(diagram(3)), 'decision-record'),
+    /^Cut decision-record.md to 2 Mermaid diagrams: it has 3\. Keep the diagrams of the decisions that change how two parts call each other or a state flow\.$/);
+  fails(push(fixture(['decision-record.md', '- Decision: The hours stay',
+    '- Decision: ![Flow](flow.svg) The hours stay']), 'decision-record'),
+    /^Remove the image "flow.svg" from decision-record.md/);
+});
+
+test('decision record: a diagram of a removed decision does not count', () => {
+  const removed = '\n\n### `decision-2`: the old way\n\n- Removed, because the rule changed.' +
+    '\n\n```mermaid\nflowchart LR\n  A --> B\n```';
+  const root = fixture(diagram(2), ['decision-record.md', COST, (item) => item + removed]);
+  passes(push(root, 'decision-record'));
+});
+
+test('decision record: the 450 words leave out the diagram', () => {
+  const cost = (words) => ['decision-record.md', COST, `- Cost: ${many(words)}.`];
+  const count = /^Cut decision-record.md to 450 words: it has (\d+)\./;
+  const found = count.exec(push(fixture(cost(440)), 'decision-record').out);
+  assert.ok(found);
+  const exact = 440 + 450 - Number(found[1]);
+  passes(push(fixture(cost(exact), diagram(1)), 'decision-record'));
+  fails(push(fixture(cost(exact + 1), diagram(1)), 'decision-record'), count);
+});
+
 // ---- Limits -------------------------------------------------------------------------------
 
 test('a summary of 1 to 3 sentences', () => {
