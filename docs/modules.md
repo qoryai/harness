@@ -2134,7 +2134,7 @@ pictures inside. The run pushes `screens.json` and the packed pages. A member se
 start screen in a frame on the version page of Qory Apiary. A click on a linked element
 opens its screen, and a list of screen titles beside the frame opens any screen. Each page
 lists the `ac-N` ids it shows in `data-criteria`, and the designer draws each screen that a
-part of the spec names as `Mockup screen:`. A spec that names no screen makes the run push
+part of the spec lists as `Mockup screen:`. A spec that names no screen makes the run push
 no mockup, and the run still handles its questions and replies.
 
 `designer` lists Bash for the two mockup scripts alone. On Claude Code 2.1.316 under
@@ -2342,7 +2342,9 @@ word that asks for a screen that the spec lacks also depends on the spec.
 under "Not run:" with the reason. Before a spec exists, the planner lists every workflow
 that the ticket and the proposal need. After a push of the spec or the criteria, the session
 starts it again, and it plans from the spec and the acceptance criteria. It also starts
-again after a small workflow's stop, and when the session lost the list.
+again after a small workflow's stop, after a follow of `write-specs` that pushed no spec
+while a later workflow of the pass is still listed or has a pending item, and when the
+session lost the list.
 
 - **A person's word.** The planner routes a review comment by its text, to each output it
   concerns. For a comment on one output, the planner reads the type in `on` only as a hint.
@@ -2368,11 +2370,11 @@ again after a small workflow's stop, and when the session lost the list.
   After a follow of `write-specs` in the log after the word's `at`, the planner lists
   `write-specs` no more for the word, also when the reply of the spec writer has outcome
   `declined` or `asked`. It lists `make-mockups` when the newest spec lists the screen and
-  the newest mockup lacks it. Otherwise, when no other word or change needs `make-mockups`,
-  it lists it under "Not run", with the reason that the spec does not list the screen. A
-  declined or asked word pushes no spec, so the session starts the planner again after a
-  follow of `write-specs` that pushed no spec, while a later workflow of the same pass is
-  still listed. `shape-reviewer` sends no finding to `write-specs` for a word on the spec
+  the newest mockup lacks it. Otherwise, when the spec does not list the screen and no
+  other word or change needs `make-mockups`, it lists it under "Not run", with that reason.
+  A declined or asked word leaves the spec unchanged, so the session starts the planner
+  again after a follow of `write-specs` that pushed no spec, while a later workflow of the
+  same pass is still listed or has a pending item. `shape-reviewer` sends no finding to `write-specs` for a word on the spec
   whose last reply has outcome `declined`, `answered` or `asked`, by `checking-shape`. So
   the run does not start `write-specs` again for the same word.
 - **Older versions.** A pull writes one folder per type, and only

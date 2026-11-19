@@ -19,7 +19,7 @@ type, try the newest `<N>` that it lists, then the approved one. Then:
 1. Read `spec/main/v<N>/spec.md` and
    `acceptance-criteria/main/v<N>/acceptance-criteria.json`.
    With either missing, stop with `Blocked: needs spec`.
-2. When no part of the spec names a `Mockup screen:`, write no page, run no command of the
+2. When no part of the spec lists a `Mockup screen:`, write no page, run no command of the
    scripts, and report `- none: no part of the spec names a screen` under "Files:".
 3. Otherwise, run `render-mockups.cjs --check`.
 4. Read `decision-record/main/v<N>/` when `index.json` lists one, and follow what it
@@ -29,8 +29,8 @@ type, try the newest `<N>` that it lists, then the approved one. Then:
    that a word or a criterion's changed text concerns. When the unpack exits with 1
    because `mockup-pages/` has pages already, change those pages. Otherwise, or when the
    unpack exits with 1 for another reason, write each page anew.
-6. Draw each screen that the spec lists as `Mockup screen:`, and no other. Note each `ac-N`
-   that a person sees there.
+6. Draw each screen that the spec lists as `Mockup screen:`, and each state of it that the
+   spec states, and no other screen. Note each `ac-N` that a person sees there.
 
 A start again that fixes a finding skips steps 3 and 5, and changes only pages in
 `mockup-pages/`: `--unpack` would overwrite them and undo a `<!-- dropped -->` mark.

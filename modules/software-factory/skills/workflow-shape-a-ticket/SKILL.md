@@ -63,10 +63,9 @@ only what a person must answer by it, such as a change of scope or a split of th
      with the line that ended the small workflow.
    - With any other line that ended it, except that no screen changes or that no criterion
      is shown in a demo, end the run as "Points" lists, with that line.
-   - After a push of the spec or the acceptance criteria, do step 2. Other pending items
-     stay pending.
-   - After a follow of `write-specs` that pushed no spec, while a later workflow of the same
-     pass is still listed, do step 2.
+   - After a push of the spec or the acceptance criteria, or after a follow of
+     `write-specs` that pushed no spec while a later workflow of the same pass is still
+     listed or has a pending item, do step 2. Other pending items stay pending.
 4. Pull, then run `check` of `running-a-workflow`'s section "Checks" on the newest version
    of `decision-record` and of `demo-scenarios`, each that has one: the type, then the file
    `<folder>/<type>/main/v<N>/<type>.md` with the largest `<N>`. These checks read the
