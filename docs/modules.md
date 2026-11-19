@@ -2274,6 +2274,15 @@ again after a small workflow's stop, and when the session lost the list.
   last reply declined, answered or asked about that part. For "rename the button, and use a
   queue instead of cron", `spec-writer` may decline the button, and `decision-writer` still
   applies the queue. When the words stay unclear, `write-specs` runs.
+- **A screen that the spec lacks.** `designer` draws only the screens that the spec lists
+  as `Mockup screen:`, and only the spec adds one. When a word asks for a screen that the
+  newest spec does not list, such as "draw a mockup of the export screen" in a comment on
+  the mockup, the planner lists `write-specs` and then `make-mockups`, each with a fact
+  that quotes the word. This is the rule of `checking-shape`: a word that needs the spec
+  to change goes to `write-specs`. `spec-writer` adds the part with its `Mockup screen:`
+  line, `check` runs on the spec, and the session starts the planner again after the push.
+  The newest spec now lists the screen, so `make-mockups` follows and `designer` draws it.
+  When the spec lists the screen and the newest mockup lacks it, only `make-mockups` runs.
 - **Older versions.** A pull writes one folder per type, and only
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.
@@ -2282,12 +2291,13 @@ again after a small workflow's stop, and when the session lost the list.
   of a criterion reruns the demo scenarios.
 - **A small workflow's stop.** A stop that needs a change to a criterion, a new criterion or
   a change to the spec runs `write-specs`, then the stopped workflow, and one that needs a
-  type runs the workflow that writes it. A later follow of the stopped workflow settles a
-  stop, so it is not routed again, and a later push by the listed workflow settles that part
-  of the route. A stop with no person's word behind it, and every other stop, reaches the
-  planner's "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word,
-  also from a comment on another type, and `spec-writer` and `spec-reviewer` count that
-  quote as one.
+  type runs the workflow that writes it. The end "The spec states no screen change, so the
+  run pushed no mockup." is such a stop when a word asks for a screen that the spec lacks.
+  A later follow of the stopped workflow settles a stop, so it is not routed again, and a
+  later push by the listed workflow settles that part of the route. A stop with no person's
+  word behind it, and every other stop, reaches the planner's "Stop:" line, and the run
+  ends with `escalate`. The fact quotes a person's word, also from a comment on another
+  type, and `spec-writer` and `spec-reviewer` count that quote as one.
 - **Settled words.** A word counts for a workflow until a later version of its type, a later
   version of a Shape output that the passed run wrote, or a follow of that workflow in the
   log settles it. The passed run is the run that recorded the work item's newest verdict,
