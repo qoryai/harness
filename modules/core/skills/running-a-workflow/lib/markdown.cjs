@@ -376,20 +376,16 @@ const label = (text) => text.toLowerCase().replace(/\s+/g, ' ').trim();
 const inner = (text) => text.replace(/^(?:\s*>[ \t]?|\s*(?:[-*+]|\d{1,9}[.)])[ \t]+)+/, '').trim();
 
 // definitions returns the link reference definitions of text outside code, at the start of a
-// line, of a list item or of a quote, as a map from label() to address. The address may be on
-// the next line.
+// line, of a list item or of a quote, as a map from label() to address. A label may run over
+// two lines, and the address may be on the next line.
 function definitions(list) {
+  const text = list.map((line) => (line.fenced ? '' : inner(line.text))).join('\n');
   const out = new Map();
-  list.forEach((line, index) => {
-    if (line.fenced) return;
-    const found = /^\[((?:[^[\]\\]|\\.)+)\]:\s*(.*)$/.exec(inner(line.text));
-    if (!found) return;
-    let rest = found[2].trim();
-    const next = list[index + 1];
-    if (rest === '' && next && !next.fenced) rest = inner(next.text);
-    const addr = /^<?(\S+?)>?(\s|$)/.exec(rest);
-    if (addr && !out.has(label(found[1]))) out.set(label(found[1]), addr[1]);
-  });
+  const pattern = /^\[((?:[^[\]\\]|\\.)+)\]:[ \t]*(?:\n[ \t]*)?(?:<([^<>\n]*)>|(\S+))/gm;
+  for (const found of text.matchAll(pattern)) {
+    const key = label(found[1]);
+    if (!out.has(key)) out.set(key, found[2] === undefined ? found[3] : found[2]);
+  }
   return out;
 }
 
@@ -408,45 +404,47 @@ function brackets(text) {
 }
 
 const LABEL = /\[((?:[^[\]\\]|\\.)*)\]/y;
+const DESTINATION = /\(\s*(?:<([^<>\n]*)>|([^\s)]*))/y;
+// A label of a link reference has at most 999 characters (CommonMark).
+const LABEL_LIMIT = 999;
 
-// referenceImages returns text without its reference images, ![alt][label], ![alt][] and ![alt],
-// whose label has a definition in defined; found gets the address of each.
-function referenceImages(text, defined, found) {
+// imageAddresses returns the address of each image of text, in any form, with a text that has
+// no code: an HTML <img>, an inline image ![alt](address) whose alt text or destination may run
+// over two lines or have the destination in <>, and a reference image, ![alt][label], ![alt][]
+// and ![alt], whose label has a definition in defined (its address is the definition's).
+// A reference whose label has no definition is no image. Each pass reads a character once, so
+// that a long line of "![" takes linear time: the label is read only when it can match.
+function imageAddresses(text, defined) {
+  const found = [];
+  found.push(...Array.from(text.matchAll(/<img(?=[\s/>]|$)/gi), () => '<img>'));
   const pairs = brackets(text);
-  let out = '';
-  let at = 0;
-  for (;;) {
-    const start = text.indexOf('![', at);
-    if (start === -1) return out + text.slice(at);
+  for (let start = text.indexOf('!['); start !== -1; start = text.indexOf('![', start + 2)) {
     const end = pairs.has(start + 1) ? pairs.get(start + 1) : -1;
-    let stop = end;
+    if (end === -1) continue;
+    const next = text[end + 1];
+    if (next === '(') {
+      DESTINATION.lastIndex = end + 1;
+      const destination = DESTINATION.exec(text);
+      found.push(destination[1] === undefined ? destination[2] : destination[1]);
+      continue;
+    }
     let key = '';
-    if (end !== -1) {
-      key = label(text.slice(start + 2, end));
+    if (next === '[') {
       LABEL.lastIndex = end + 1;
-      const named = text[end + 1] === '[' ? LABEL.exec(text) : null;
-      if (named) {
-        stop = end + named[0].length;
-        if (named[1].trim() !== '') key = label(named[1]);
-      }
+      const named = LABEL.exec(text);
+      if (named && named[1].trim() !== '' && named[1].length <= LABEL_LIMIT) key = label(named[1]);
     }
-    if (end !== -1 && defined.has(key)) {
-      found.push({ image: true, addr: defined.get(key) });
-      out += `${text.slice(at, start)} `;
-      at = stop + 1;
-    } else {
-      out += text.slice(at, start + 2);
-      at = start + 2;
-    }
+    if (key === '' && end - start - 2 <= LABEL_LIMIT) key = label(text.slice(start + 2, end));
+    if (defined.has(key)) found.push(defined.get(key));
   }
+  return found;
 }
 
 // links checks each link and image of Markdown text outside code. images(addr) returns
 // whether the skill for the artifact allows that image, and links whether it allows a link.
-// With everyImage, the check also reads an HTML <img> and a reference image, ![alt][label],
-// ![alt][] and ![alt] with a definition of its label. images(addr) decides on them too, with
-// the address "<img>" for an HTML image, and for a reference image the address of its
-// definition, else its label.
+// With everyImage, the check reads each image with imageAddresses() over the whole text, and
+// no longer line by line: an HTML <img> (address "<img>"), an inline image and a reference
+// image. images(addr) decides on each of them.
 function links(
   run,
   file,
@@ -457,22 +455,25 @@ function links(
   run.did('links');
   const at = where ? `${where} of ${file}` : file;
   const list = lines(text);
-  const defined = everyImage ? definitions(list) : new Map();
+  const report = (addr) => {
+    // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, unless the skill of
+    // the artifact allows it.
+    if (images(addr)) return;
+    run.find(`Remove the image ${quote(short(addr, 32))} from ${short(at)}.\nThe image is ` +
+      `${quote(addr)} in ${at}.`);
+  };
+  if (everyImage) {
+    const joined = list.map((line) => (line.fenced ? '' : withoutCode(line.text))).join('\n');
+    imageAddresses(joined, definitions(list)).forEach(report);
+  }
   for (const line of list) {
     if (line.fenced) continue;
     let rest = withoutCode(line.text);
     const found = [];
     rest = rest.replace(INLINE, (all, bang, _text, _space, addr) => {
-      found.push({ image: bang === '!', addr });
+      if (!everyImage || bang !== '!') found.push({ image: bang === '!', addr });
       return ' ';
     });
-    if (everyImage) {
-      rest = rest.replace(/<img(?=[\s/>]|$)[^>]*>?/gi, () => {
-        found.push({ image: true, addr: '<img>' });
-        return ' ';
-      });
-      rest = referenceImages(rest, defined, found);
-    }
     rest = rest.replace(/<([a-z][a-z0-9+.-]*:[^<>\s]*)>/gi, (all, addr) => {
       found.push({ image: false, addr });
       return ' ';
@@ -487,12 +488,7 @@ function links(
     }
     for (const link of found) {
       if (link.image) {
-        // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, unless the skill of
-        // the artifact allows it.
-        if (!images(link.addr)) {
-          run.find(`Remove the image ${quote(short(link.addr, 32))} from ${short(at)}.\nThe ` +
-            `image is ${quote(link.addr)} in ${at}.`);
-        }
+        report(link.addr);
         continue;
       }
       if (!allowLinks) {

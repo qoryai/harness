@@ -1,8 +1,8 @@
 // The part of the Mermaid hook of Qory Apiary that decides whether a block is drawn as a
 // diagram: the text it draws, its type, the syntax that loads an address, and its limits.
 // A port of assets/js/hooks/mermaid.js of qoryai/apiary, so that a check of the harness
-// refuses a block that Qory Apiary shows as text, and the words of a block that no diagram
-// syntax holds, which the 450 words of a record count.
+// refuses a block that Qory Apiary shows as text, and counts the words of a diagram that are no
+// syntax, which the 450 words of a record count after the free words of each diagram.
 'use strict';
 
 // The settings of mermaid.js (lines 158-159): maxTextSize and maxEdges.
@@ -63,9 +63,28 @@ function source(text) {
   ).join('\n');
 }
 
-// size returns the length that Mermaid compares with maxTextSize: the text with a line feed
-// added, without its %% comment lines (not %%{), and without the white space at its start.
-const size = (text) => `${text}\n`.replace(/^\s*%%(?!\{)[^\n]+\n?/gm, '').trimStart().length;
+// size returns the length that Mermaid compares with maxTextSize, of the text of a code block
+// (which ends with a line feed): without its %% comment lines (not %%{), the blank lines before
+// each of them, and the white space at its start. One pass; a pattern with "^\\s*" is quadratic
+// on blank lines.
+function size(text) {
+  const kept = [];
+  let blank = [];
+  for (const line of `${text}\n`.split('\n').slice(0, -1)) {
+    if (/^\s*%%(?!\{)[^\n]/.test(line)) {
+      blank = [];
+    } else if (/^\s*$/.test(line)) {
+      blank.push(line);
+    } else {
+      kept.push(...blank, line);
+      blank = [];
+    }
+  }
+  return `${[...kept, ...blank].join('\n')}\n`.trimStart().length;
+}
+
+// directive reports whether text has a line with a directive (%%{), as Qory Apiary reads it.
+const directive = (text) => shown(text).includes('%%{');
 
 // firstLine returns the first line of text that is not blank and not a %% comment, trimmed
 // (mermaid.js:254-258).
@@ -173,7 +192,8 @@ function statementEdges(statement) {
 }
 
 // readable returns text without its %% comment lines, its quoted text and its |...| and
-// bracket text, which hold no link. The first line with a type loses the type.
+// bracket text (Mermaid reads no link in them), with each run of spaces and tabs as one
+// space, so that TEXT_LINK takes linear time. The first line with a type loses the type.
 function readable(text) {
   let rest = text.split('\n').filter((line) => !line.trim().startsWith('%%')).join('\n')
     .replace(/^(\s*)(?:flowchart|graph)(?:[ \t]+(?:TB|TD|BT|RL|LR))?(?=[\s;]|$)/, '$1')
@@ -182,7 +202,7 @@ function readable(text) {
     before = rest;
     rest = rest.replace(/\[[^[\]]*\]|\([^()]*\)|\{[^{}]*\}/g, '');
   }
-  return rest;
+  return rest.replace(/[ \t]+/g, ' ');
 }
 
 // edges returns at least the edges that Mermaid adds, never fewer: each link token adds one edge
@@ -202,66 +222,176 @@ function edges(text) {
   return joined.reduce((sum, statement) => sum + statementEdges(statement), 0);
 }
 
-// prose returns the lines of a block whose words count toward a word limit. A line is diagram
-// syntax, and its words do not count, when it has a link token, starts with a node id and a
-// shape that ends the line, opens a block with "{" after at most 3 words, or is a subgraph
-// line that ends with a bracket (its title is a label). Some lines are syntax only in their
-// own diagram type, and count their words after the first 6, as a line that starts with a
-// keyword does: a member or an attribute inside "{" and "}" of a class or entity diagram, a
-// "Name : text" line of a class or state diagram, and a lone node id of a flowchart or state
-// diagram. A %% comment line counts its words, and a line with a directive (%%{), which Qory
-// Apiary does not draw, counts none.
-const LINK_TOKEN = /-{2,}|={2,}|~{3,}|-\.|\.-|->|<\||\|\||\*-|\.\.[>|]/;
-const NODE_SHAPE = /^[\w.-]+(?:\[|\(|\{|>|@\{).*[\])}](?::::[\w-]+)?;?$/;
+// The words of a diagram that are no syntax. Syntax is a node id, a link token, a keyword and the
+// brackets of a shape; every other word is text: a label ("..." and [...], (...), {...}, |...|, or
+// "-- t -->"), the text after ":" (a message, a state text, a relation), a note, a title, a
+// comment, a class member and an entity attribute. A word is a run of characters with no white
+// space that has a letter or a digit; the core word count, which reads Markdown, is not used,
+// because Markdown in a label would hide words. Each diagram has FREE_WORDS free words, and each
+// word after them counts toward the 450 words of a record.
+const FREE_WORDS = 150;
+const LINK_TOKEN = /-{2,}|={2,}|~{3,}|-\.|\.-|->|-\)|<\||\|\||\*-|\.\.[>|]/;
+const LINK_END = /[-=.>~<|)*{}]$/;
+const COLON = /(?<!:):(?!:)/;
 const OPENS_BLOCK = /^\S+(?:\s+\S+){0,2}\s*\{$/;
+const HEADER = new RegExp(`^(?:${TYPES.slice().sort((a, b) => b.length - a.length).join('|')})` +
+  '(?:[ \\t]+(?:TB|TD|BT|RL|LR))?');
 const KEYWORDS = new Set([
-  'flowchart', 'graph', 'sequenceDiagram', 'stateDiagram', 'stateDiagram-v2', 'classDiagram',
-  'classDiagram-v2', 'erDiagram', 'subgraph', 'end', 'direction', 'style', 'classDef', 'class',
-  'linkStyle', 'click', 'participant', 'actor', 'activate', 'deactivate', 'note', 'Note', 'loop',
-  'alt', 'else', 'opt', 'par', 'and', 'rect', 'critical', 'option', 'break', 'autonumber',
-  'title', 'state', 'namespace', 'box', 'link', 'links', 'callback', 'accTitle', 'accDescr',
-  'create', 'destroy', 'interface',
+  'end', 'direction', 'activate', 'deactivate', 'autonumber', 'rect', 'namespace', 'create',
+  'destroy', 'interface', 'link', 'links', 'callback', 'click', 'state', 'note', 'Note',
+  'participant', 'actor', 'title', 'accTitle', 'accDescr', 'box', 'loop', 'alt', 'else', 'opt',
+  'par', 'and', 'critical', 'option', 'break', 'subgraph', 'style', 'classDef', 'class',
+  'linkStyle',
+]);
+// The keywords whose line has no text but a label that brackets or quotes hold.
+const NO_TEXT = new Set([
+  'end', 'direction', 'activate', 'deactivate', 'autonumber', 'rect', 'namespace', 'create',
+  'destroy', 'interface', 'link', 'links', 'callback', 'click', 'state',
 ]);
 const BLOCK_TYPES = ['classDiagram', 'classDiagram-v2', 'erDiagram'];
-const NAMED_TYPES = ['classDiagram', 'classDiagram-v2', 'stateDiagram', 'stateDiagram-v2'];
 const ID_TYPES = ['flowchart', 'graph', 'stateDiagram', 'stateDiagram-v2'];
-const NAMED_TEXT = /^[^\s:]+\s*:\s*\S/;
-const LONE_ID = /^[\w.-]+;?$/;
-const FREE_WORDS = 6;
 
-function prose(text) {
-  const kept = [];
-  const type = typeOf(source(text));
-  // bounded keeps the words of a line after its first FREE_WORDS words.
-  const bounded = (line) => kept.push(line.split(/\s+/).slice(FREE_WORDS).join(' '));
-  let inBlock = false;
-  for (const line of shown(text).split(/\r\n|\r|\n/)) {
-    const trimmed = line.trim();
-    if (trimmed.includes('%%{')) continue;
-    if (trimmed.startsWith('%%')) {
-      kept.push(trimmed.slice(2));
-    } else if (BLOCK_TYPES.includes(type) && inBlock && trimmed !== '}') {
-      bounded(trimmed);
-    } else if (BLOCK_TYPES.includes(type) && OPENS_BLOCK.test(trimmed)) {
-      inBlock = true;
-    } else if (trimmed === '}') {
-      inBlock = false;
-    } else if (LINK_TOKEN.test(trimmed) || NODE_SHAPE.test(trimmed) || OPENS_BLOCK.test(trimmed)) {
-      continue;
-    } else if (/^subgraph\s.*[\])}]$/.test(trimmed)) {
-      continue;
-    } else if (KEYWORDS.has(trimmed.split(/[\s:;]/)[0])) {
-      bounded(trimmed);
-    } else if (NAMED_TYPES.includes(type) && NAMED_TEXT.test(trimmed)) {
-      bounded(trimmed);
-    } else if (ID_TYPES.includes(type) && LONE_ID.test(trimmed)) {
-      continue;
+// count returns the number of words of text.
+const count = (text) => (text.match(/\S+/g) || [])
+  .filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+
+// labels returns the text of a line in quotes, in brackets and, with pipes true, in |...|, and
+// the rest of the line with a space for each of those characters, in one pass. A quote, a
+// bracket or a pipe that nothing closes holds the rest of the line.
+function labels(line, { brackets, pipes }) {
+  let text = '';
+  let rest = '';
+  let depth = 0;
+  let quoted = false;
+  let piped = false;
+  for (const char of line) {
+    if (quoted) {
+      if (char === '"') quoted = false;
+      else text += char;
+      rest += ' ';
+    } else if (char === '"') {
+      quoted = true;
+      text += ' ';
+      rest += ' ';
+    } else if (brackets && '[({'.includes(char)) {
+      depth += 1;
+      text += ' ';
+      rest += ' ';
+    } else if (brackets && depth > 0 && '])}'.includes(char)) {
+      depth -= 1;
+      text += ' ';
+      rest += ' ';
+    } else if (depth > 0 || piped) {
+      if (pipes && depth === 0 && char === '|') piped = false;
+      else text += char;
+      rest += ' ';
+    } else if (pipes && char === '|') {
+      piped = true;
+      text += ' ';
+      rest += ' ';
     } else {
-      kept.push(trimmed);
+      rest += char;
     }
   }
-  return kept.join('\n');
+  return { text, rest };
 }
+
+// linkLine returns the number of words of a line with a link token that are no syntax: a word
+// that is not a node id. A node id is the one word at the start of the line, after a link
+// token, or after "&".
+function linkLine(rest) {
+  let total = 0;
+  let expectId = true;
+  for (const token of rest.split(/\s+/).filter(Boolean)) {
+    if (token === '&') {
+      expectId = true;
+    } else if (LINK_TOKEN.test(token)) {
+      expectId = LINK_END.test(token);
+    } else if (expectId) {
+      expectId = false;
+    } else {
+      total += count(token);
+    }
+  }
+  return total;
+}
+
+// restWords returns the number of words of a line, after its labels, that are no syntax.
+function restWords(trimmed, type, inBlock) {
+  const named = /^(\S+?)\s*:(?!:)\s*(.*)$/.exec(trimmed);
+  const keyword = trimmed.split(/[\s:;]/)[0];
+  if (LINK_TOKEN.test(trimmed)) {
+    const colon = COLON.exec(trimmed);
+    if (colon) {
+      return linkLine(trimmed.slice(0, colon.index)) + count(trimmed.slice(colon.index + 1));
+    }
+    return linkLine(trimmed);
+  }
+  if (KEYWORDS.has(keyword)) {
+    const after = trimmed.slice(keyword.length);
+    if (NO_TEXT.has(keyword)) return 0;
+    if (keyword === 'participant' || keyword === 'actor') {
+      return count(after.split(/\bas\b/)[1] || '');
+    }
+    if ((keyword === 'note' || keyword === 'Note') && COLON.test(after)) {
+      return count(after.slice(COLON.exec(after).index + 1));
+    }
+    return count(after);
+  }
+  if (inBlock) return count(trimmed);
+  if (/^[\w.-]+;?$/.test(trimmed) && ID_TYPES.includes(type)) return 0;
+  if (named && !/\s/.test(named[1])) return count(named[2]);
+  return count(trimmed);
+}
+
+// diagramWords returns the number of words of the text of a Mermaid block that are no syntax.
+// A line with a directive (%%{) is no text that Qory Apiary draws, and counts none.
+function diagramWords(text) {
+  const type = typeOf(source(text));
+  const options = { brackets: type !== 'erDiagram', pipes: ['flowchart', 'graph'].includes(type) };
+  let total = 0;
+  let inBlock = false;
+  let header = false;
+  for (const line of shown(text).split(/\r\n|\r|\n/)) {
+    let trimmed = line.trim();
+    if (trimmed.includes('%%{')) continue;
+    if (trimmed.startsWith('%%')) {
+      total += count(trimmed.slice(2));
+      continue;
+    }
+    if (!header && trimmed.split(/[\s;]/)[0] === type) {
+      header = true;
+      trimmed = trimmed.replace(HEADER, '').trim();
+    }
+    if (BLOCK_TYPES.includes(type) && inBlock) {
+      if (trimmed === '}') inBlock = false;
+      else total += count(trimmed);
+      continue;
+    }
+    if (BLOCK_TYPES.includes(type) && OPENS_BLOCK.test(trimmed)) {
+      inBlock = true;
+      continue;
+    }
+    const split = labels(trimmed, options);
+    total += count(split.text);
+    let rest = split.rest;
+    const comment = rest.indexOf('%%');
+    if (comment !== -1) {
+      total += count(rest.slice(comment + 2));
+      rest = rest.slice(0, comment);
+    }
+    rest = rest.replace(/[ \t]+/g, ' ').replace(TEXT_LINK, (match) => {
+      total += count(match.slice(2));
+      return '';
+    }).trim();
+    total += restWords(rest.replace(/;$/, ''), type, inBlock);
+  }
+  return total;
+}
+
+// charged returns the number of words of the block that count toward a word limit: the words
+// of the diagram after the first FREE_WORDS.
+const charged = (text) => Math.max(0, diagramWords(text) - FREE_WORDS);
 
 // refusal returns why Qory Apiary shows the Mermaid block with this text as text, or draws
 // it as an error, as { reason, found }, or null when it draws the block. reason is `type`,
@@ -280,5 +410,6 @@ function refusal(text) {
 }
 
 module.exports = {
-  MAX_CHARACTERS, MAX_EDGES, TYPES, edges, loads, prose, refusal, size, source, typeOf,
+  FREE_WORDS, MAX_CHARACTERS, MAX_EDGES, TYPES, charged, diagramWords, directive, edges, loads,
+  refusal, size, source, typeOf,
 };

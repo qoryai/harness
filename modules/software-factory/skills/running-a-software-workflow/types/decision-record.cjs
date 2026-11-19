@@ -4,7 +4,7 @@
 module.exports = (lib) => {
   const {
     blank, brief, criterionMap, headings, idHistory, lines, markdownText, quote, REMOVED, same,
-    sections, topSections, wordLimit, words,
+    sections, topSections, wordLimit,
   } = lib;
   const mermaid = require('../lib/mermaid.cjs');
 
@@ -102,7 +102,11 @@ module.exports = (lib) => {
       return `Write the fence of the Mermaid block of ${id} as ${'```'}mermaid at the line start.`;
     }
     const refused = mermaid.refusal(block.text);
-    if (!refused) return null;
+    if (!refused) {
+      if (!mermaid.directive(block.text)) return null;
+      return `Remove the %%{ line from the Mermaid block of ${id}.\nQory Apiary strips it ` +
+        'before it draws, and a record needs none.';
+    }
     if (refused.reason === 'type') {
       return `Start the Mermaid block of ${id} with a type that Qory Apiary draws.\n` +
         `The types are ${mermaid.TYPES.join(', ')}. ` +
@@ -150,7 +154,7 @@ module.exports = (lib) => {
     // writing-decisions (SKILL.md:32-48, 80-81: "Use this form, in this order"): ## Decisions only,
     // each decision with its items in order, or only its reason when removed. The no-choice line
     // alone only
-    // checking-decisions (SKILL.md:76, 94-95: "The spec leaves no technical choice open.") has.
+    // checking-decisions (SKILL.md:76, 96: "The spec leaves no technical choice open.") has.
     run.did('sections');
     const parts = topSections(run, 'decision-record.md', list);
     const titles = parts.map((part) => part.title);
@@ -193,13 +197,13 @@ module.exports = (lib) => {
           `${expected.map((name) => `"${name}:"`).join(', ')}.${whole(decision.id)}`);
       }
     }
-    // writing-decisions (SKILL.md:137-138: "each `%%` comment line of a diagram"): the 450 words
-    // leave out the diagram syntax of a Mermaid block and count the rest of its lines.
-    const diagramWords = words(all.flatMap((decision) => decision.blocks)
+    // writing-decisions (SKILL.md:140-141: "first 150 words of the text of each diagram"): the
+    // 450 words count the words of a diagram that are no syntax, after its first 150.
+    const diagramWords = all.flatMap((decision) => decision.blocks)
       .filter((block) => block.end !== null)
-      .map((block) => mermaid.prose(block.text)).join('\n'));
+      .reduce((sum, block) => sum + mermaid.charged(block.text), 0);
     wordLimit(run, 'decision-record.md', md, false, diagramWords);
-    // writing-decisions (SKILL.md:143: "a third diagram in the record fail"): the Mermaid
+    // writing-decisions (SKILL.md:147: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
       0);

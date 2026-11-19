@@ -2089,10 +2089,11 @@ changes how two parts call each other, or a flow of states, may end with one Mer
 diagram, drawn by `visuals`. The record has no wireframe, table or image of any form:
 `checks.cjs` also refuses a reference image, such as `![alt][label]`, and an `<img>`. It
 reads them through the option `everyImage` of `links` in `lib/markdown.cjs`, which only the
-decision record sets, so no other type changes. A reference image has a definition, and the check finds it
-with brackets in its alt text, and with its definition at the start of a line, in a list
-item or in a quote, and with the address on the next line. A reference with no definition
-is no image.
+decision record sets, so no other type changes. With it the check reads each image over
+the whole text, not line by line: an inline image whose alt text or address runs over 2
+lines, an address in `<>`, a reference image with brackets in its alt text, and a
+definition at the start of a line, in a list item or in a quote, with its label over 2
+lines or its address on the next line. A reference with no definition is no image.
 
 `checks.cjs` refuses, each with a fix line that starts with the fix:
 
@@ -2107,17 +2108,25 @@ is no image.
 - a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
   a removed decision's diagram is not in that count.
 
-The 450 words count each `%%` comment line of a diagram (not a `%%{` line), each line with
-no diagram syntax, and the words after the first 6 of a keyword line, a class member, an
-entity attribute, a state text or a lone node id.
+The 450 words count the text of each diagram after its first 150 words. The text is each
+word of the diagram that is no syntax: a label (`["..."]`, `("...")`, `{...}`, `|...|` and
+`-- text -->`), the text after `:` of a message, a relation or a state, a note, a title, a
+subgraph title, a `%%` comment (not `%%{`), a class member and an entity attribute. A node
+id, a link token, a keyword and the brackets of a shape are syntax. `diagramWords` in
+`lib/mermaid.cjs` counts a word as a run of characters with no white space that has a
+letter or a digit. It does not read Markdown, so `![...](u)` in a comment hides no word.
 
-`lib/mermaid.cjs` defines the diagram syntax of a line: a link token, a node id with a
-shape that ends the line, a line of at most 3 words that ends with `{`, or a `subgraph`
-line that ends with a bracket. It recognises the five forms in their diagram type: a
-keyword line in any type; a member or an attribute between `{` and `}` in a class or an
-entity diagram; a `Name : text` line in a class or a state diagram; and a node id alone in
-a flowchart, a graph or a state diagram. A line of another shape, or of a form in another
-type, counts in full.
+`diagramWords` tells text and syntax apart by the line:
+
+- A line with a link token has node ids: the one word at its start, after a link token and
+  after `&`. Each other word counts, and so do the words after its `:`.
+- A line that starts with a keyword counts the words after the keyword, except for the
+  keywords that have no text, such as `end`, `direction` and `state`. `participant` and
+  `actor` count the words after `as`.
+- Between a line of at most 3 words that ends with `{` and a line `}`, in a class or an
+  entity diagram, each line counts: a member or an attribute.
+- A node id alone on a line of a flowchart, a graph or a state diagram is syntax.
+- Any other line counts in full.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
@@ -2136,12 +2145,15 @@ and without front matter (`mermaid.js:195-202`). It refuses:
   next line);
 - a syntax that loads an address (`mermaid.js:289-296`): "Remove the syntax that loads an
   address from the Mermaid block of decision-1.";
-- a block over 20,000 characters, measured as Mermaid measures: a line feed added, the `%%`
-  comment lines (not `%%{`) removed, and the start trimmed ("Cut the Mermaid block of
-  decision-1 to 20000 characters: it has N."); Qory Apiary shows it as an error diagram with
-  its source in `<details>`;
+- a block over 20,000 characters ("Cut the Mermaid block of decision-1 to 20000
+  characters: it has N."), measured on the text of the code block, which ends with a line
+  feed, without its `%%` comment lines (not `%%{`), the blank lines before them and the
+  white space at its start. Mermaid then draws its size-error diagram, and Qory Apiary
+  shows the source in `<details>`;
 - a flowchart over 200 edges ("Cut the Mermaid block of decision-1 to 200 edges: it has
-  N.").
+  N."). Qory Apiary shows it as text, under a line that says why it failed;
+- a `%%{` line ("Remove the %%{ line from the Mermaid block of decision-1."), which Qory
+  Apiary strips before it draws.
 
 `mermaid.js` sets both limits (`:158-159`), but only Mermaid counts edges, and it stops a
 flowchart at the 201st edge. `lib/mermaid.cjs` counts every link token, one edge for each

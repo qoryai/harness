@@ -113,7 +113,7 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   question.
 
 The other rules stay, such as the edit in place of the newest version, and the 450 words,
-which leave out the syntax of a diagram.
+which count the text of a diagram after its first 150 words.
 
 - A diagram shows the change in how two parts call each other, or in a flow of states, and
   nothing else, and it is no drawing of the system's architecture.
@@ -128,15 +128,19 @@ which leave out the syntax of a diagram.
   code, so the check requires the fence at the start of the line.
 - Start the diagram with `flowchart`, `graph`, `sequenceDiagram`, `stateDiagram`,
   `stateDiagram-v2`, `classDiagram`, `classDiagram-v2` or `erDiagram`. Keep it to 20,000
-  characters, counted as Mermaid counts them: with a line feed added, and without the `%%`
-  comment lines and the white space at the start. Keep a flowchart to 200 edges: a link
-  between two `&` groups adds one edge for each pair of nodes. Write no `url(`, `image-set(`
-  or `@import`, no node with `img`, and no `properties` or `details` line. Qory Apiary shows
-  a block of another type, or with one of these, as text, and a block over a limit as an
-  error diagram with its source in `<details>`. The check refuses each of them.
-- The 450 words count each `%%` comment line of a diagram (not a `%%{` line), each line
-  with no diagram syntax, and the words after the first 6 of a keyword line, a class member,
-  an entity attribute, a state text or a lone node id.
+  characters: the text of a code block ends with a line feed, and Mermaid leaves out its
+  `%%` comment lines, the blank lines before them and the white space at the start. Keep a
+  flowchart to 200 edges: a link between two `&` groups adds one edge for each pair of
+  nodes. Write no `url(`, `image-set(` or `@import`, no node with `img`, no `properties` or
+  `details` line, and no `%%{` line, which Qory Apiary strips before it draws.
+- Qory Apiary shows a block of another type, with one of those syntaxes, or over 200 edges
+  as text, under a line that says why it failed. It shows a block over 20,000 characters as
+  the size-error diagram of Mermaid, with its source in `<details>`. The check refuses each
+  of them.
+- The first 150 words of the text of each diagram are free, and each word after them counts
+  toward the 450 words. The text is each word that is no syntax: a label, a link text, a
+  message, a note, a title, a `%%` comment, a class member, an entity attribute and a state
+  text. A node id, a link token, a keyword and the brackets of a shape are syntax.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw

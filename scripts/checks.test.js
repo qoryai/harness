@@ -1335,11 +1335,11 @@ test('decision record: a block with syntax that loads an address is refused', ()
   fails(push(fixture(drawn('sequenceDiagram\n  A->>B: Ask\n  details A: x')), 'decision-record'), loads);
 });
 
-test('decision record: a block of at most 20000 characters passes, measured as Mermaid does', () => {
+test('decision record: a block of at most 20000 characters passes, measured as Qory Apiary does', () => {
   const size = /^Cut the Mermaid block of decision-1 to 20000 characters: it has (\d+)\.$/;
-  // Mermaid compares the text with a line feed added, without its %% comment lines (not %%{),
-  // and without the white space at its start.
-  // sized(count) is a block that Mermaid measures as count characters.
+  // The text of a code block ends with a line feed. Mermaid compares it without its %% comment
+  // lines (not %%{), the blank lines before them, and the white space at its start.
+  // sized(count) is a block of count characters in that measure.
   const head = 'flowchart LR\n  A["';
   const sized = (count, before = '') => drawn(`${before}${head}${'x'.repeat(count - head.length - 3)}"]`);
   passes(push(fixture(sized(19999)), 'decision-record'));
@@ -1347,8 +1347,8 @@ test('decision record: a block of at most 20000 characters passes, measured as M
   const over = push(fixture(sized(20001)), 'decision-record');
   fails(over, size);
   assert.ok(over.findings.some((line) => (size.exec(line) || [])[1] === '20001'), over.out);
-  // A comment line and a directive line are not in the length, and the white space at the start is not.
-  const comment = '%% ' + 'y'.repeat(400) + '\n%%{init: {"theme": "dark"}}%%\n\n   ';
+  // A comment line, the blank lines before it and the white space at the start are not in the length.
+  const comment = `%% ${'y'.repeat(400)}\n\n   \n%% z\n\n   `;
   passes(push(fixture(sized(20000, comment)), 'decision-record'));
   fails(push(fixture(sized(20001, comment)), 'decision-record'), size);
 });
@@ -1391,7 +1391,7 @@ test('decision record: a flowchart of at most 200 edges passes, whatever the lin
   });
   // Qory Apiary sets the edge limit for flowcharts: other types have no count.
   passes(push(fixture(drawn(['sequenceDiagram', ...Array.from({ length: 300 },
-    (_, at) => `  A->>B: Ask ${at}`)].join('\n'))), 'decision-record'));
+    () => '  A->>B')].join('\n'))), 'decision-record'));
 });
 
 test('decision record: the edge count is never below the count of Mermaid', () => {
@@ -1454,6 +1454,27 @@ test('decision record: an image of any form is refused', () => {
   passes(push(fixture(why('![Flow] and <imgx> ')), 'decision-record'));
 });
 
+test('decision record: an inline image is found with its alt text, its address or its label over 2 lines', () => {
+  const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
+  const after = (text) => ['decision-record.md', COST, (item) => `${item}\n\n${text}`];
+  const image = (addr) => new RegExp(`^Remove the image "${addr}" from decision-record\\.md\\.`);
+  const cases = [
+    ['an alt text over 2 lines', why('![a\nb](x.png) '), 'x.png'],
+    ['an address in <>', why('![a](<x y.png>) '), 'x y.png'],
+    ['an address on the next line', why('![a](\nx.png) '), 'x.png'],
+    ['an address after spaces and a title', why('![a](  x.png "t") '), 'x.png'],
+    ['a label over 2 lines in a definition', why('![a][r ef] '), 'x.png', after('[r\nef]: x.png')],
+    ['a label over 2 lines in a reference', why('![a][r\nef] '), 'x.png', after('[r ef]: x.png')],
+  ];
+  for (const [name, edit, addr, definition] of cases) {
+    const result = push(fixture(edit, ...(definition ? [definition] : [])), 'decision-record');
+    assert.equal(result.status, 1, `${name}: ${result.out}`);
+    assert.ok(result.findings.slice(0, -1).some((line) => image(addr).test(line)), `${name}: ${result.out}`);
+  }
+  // A link is no image, and an image in a code block is no text of the record.
+  passes(push(fixture(why('[a](https://example.com/x) ')), 'decision-record'));
+});
+
 test('decision record: a reference image is found with brackets in its alt text and in any definition', () => {
   const image = /^Remove the image "https:\/\/example\.com\/flow\.svg" from decision-record\.md\./;
   const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
@@ -1495,7 +1516,7 @@ test('decision record: the 450 words leave out the diagram', () => {
 });
 
 // A diagram of about 40 lines with nodes, labels, subgraphs, links, classes and styles, and no
-// comment: it adds no word to the 450.
+// comment: its text has fewer than the 150 free words.
 const DIAGRAM_40 = [
   'flowchart LR',
   '  subgraph intake ["Intake of a reply"]',
@@ -1521,33 +1542,6 @@ const DIAGRAM_40 = [
   ...Array.from({ length: 19 }, (_, at) => `  P${at}[Step ${at}] --> P${at + 1}[Step ${at + 1}]`),
 ].join('\n');
 
-test('decision record: the words of a comment line and of a line with no diagram syntax count', () => {
-  const count = /^Cut decision-record.md to 450 words: it has (\d+)\./;
-  const cost = (words) => ['decision-record.md', COST, `- Cost: ${many(words)}.`];
-  const found = count.exec(push(fixture(cost(440)), 'decision-record').out);
-  assert.ok(found);
-  const exact = 440 + 450 - Number(found[1]);
-  // 40 lines of diagram syntax add 0 words, and a record of exactly 450 words passes.
-  assert.equal(DIAGRAM_40.split('\n').length, 40);
-  passes(push(fixture(cost(exact), drawn(DIAGRAM_40)), 'decision-record'));
-  fails(push(fixture(cost(exact + 1), drawn(DIAGRAM_40)), 'decision-record'), count);
-  // A comment of 500 words, in a diagram that has a link.
-  fails(push(fixture(drawn(`flowchart LR\n  A --> B\n%% ${many(500)}`)), 'decision-record'), count);
-  // 500 words of prose after the type, one sentence on each line, also from keyword words.
-  const prose = (sentence, lines) => drawn(`flowchart LR\n${Array(lines).fill(sentence).join('\n')}`);
-  fails(push(fixture(prose('The retry waits for a reply from the support desk.', 60)), 'decision-record'), count);
-  fails(push(fixture(prose('Note that the retry (see below) waits for a reply from support.', 90)),
-    'decision-record'), count);
-  fails(push(fixture(prose('End the retry (see below) when a reply from support arrives.', 60)),
-    'decision-record'), count);
-  // A directive line is not drawn, so its words do not count, and the words of a comment do.
-  passes(push(fixture(drawn(`flowchart LR\n  A --> B\n%%{init: {"note": "${many(500)}"}}%%`)),
-    'decision-record'));
-  const some = (words) => drawn(`flowchart LR\n  A --> B\n%% ${many(words)}`);
-  passes(push(fixture(cost(exact - 10), some(10)), 'decision-record'));
-  fails(push(fixture(cost(exact - 10), some(11)), 'decision-record'), count);
-});
-
 // CLASS_40 is a class diagram of 40 members, in a body and as "Name : member" lines.
 const CLASS_40 = [
   'classDiagram',
@@ -1560,52 +1554,119 @@ const CLASS_40 = [
   '  Reply --> Hours',
 ].join('\n');
 
-test('decision record: a member, an attribute, a state text and a lone node id add no word', () => {
-  const mermaid = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs'));
-  const { words: countWords } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs'));
-  const words = (text) => countWords(mermaid.prose(text));
-  assert.equal(words(DIAGRAM_40), 0);
-  // One test for each form, in its own diagram type.
-  assert.equal(words('classDiagram\n  class Reply {\n    +int age\n    -List~T~ items\n    +get() int\n  }'), 0);
-  assert.equal(words('classDiagram\n  Reply : +int age\n  Reply : +get() int'), 0);
-  assert.equal(words('erDiagram\n  REPLY {\n    string name PK\n    int id\n  }\n  REPLY ||--o{ HOURS : has'), 0);
-  assert.equal(words('stateDiagram-v2\n  Open : waits for the answer\n  [*] --> Open'), 0);
-  assert.equal(words('stateDiagram\n  Open\n  Closed;'), 0);
-  assert.equal(words('flowchart LR\n  A\n  B[x]'), 0);
-  assert.equal(words(CLASS_40), 0);
-  // The words of such a line after the first 6 count: a member line of 30 words adds 24.
-  const long = many(30);
-  assert.equal(words(`classDiagram\n  class Reply {\n    ${long}\n  }`), 24);
-  assert.equal(words(`classDiagram\n  Reply: ${many(29)}`), 24);
-  assert.equal(words(`erDiagram\n  REPLY {\n    ${long}\n  }`), 24);
-  assert.equal(words(`stateDiagram-v2\n  Open: ${many(29)}`), 24);
-  // A form is recognised only in its diagram type, so prose elsewhere counts in full.
-  assert.equal(words(`flowchart LR\n  Open : ${many(29)}`), 30);
-  assert.equal(words(`sequenceDiagram\n  Open : ${many(29)}`), 30);
-  assert.equal(words(`classDiagram\n  A lone line of prose that is not a member`), 10);
-  assert.equal(words(`classDiagram\n  A\n  Open`), 2);
-  assert.equal(words(`erDiagram\n  Reply : ${many(29)}`), 30);
-  assert.equal(words(`stateDiagram\n  class Reply {\n    ${long}\n  }`), 30);
-  // A keyword line counts its words after the first 6, a text with a link token none.
-  assert.equal(words('sequenceDiagram\n  participant Customer as Support Agent\n  A->>B: Ask a long question here'), 0);
-  assert.equal(words('flowchart LR\n  Note that the retry waits for a reply from support.'), 4);
-  // A %% comment counts its words, a directive none.
-  assert.equal(words('flowchart LR\n%% one two three\n%%{init: {"a": "b c d"}}%%\n  A --> B'), 3);
-  assert.equal(words('flowchart LR\n%%one two\n  A --> B'), 2);
+const MERMAID = path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs');
+const COUNT = /^Cut decision-record.md to 450 words: it has (\d+)\./;
+// cost returns the edit that gives the Cost item of decision-1 count words.
+const cost = (count) => ['decision-record.md', COST, `- Cost: ${many(count)}.`];
+// exactWords returns the words of the Cost item with which the record has exactly 450 words, as
+// the check counts them, with the edits.
+function exactWords(...edits) {
+  const found = COUNT.exec(push(fixture(cost(440), ...edits), 'decision-record').out);
+  assert.ok(found);
+  return 440 + 450 - Number(found[1]);
+}
+// total returns the words that the check counts in the record with the edits, which must have
+// more than 450.
+function totalWords(...edits) {
+  const found = COUNT.exec(push(fixture(...edits), 'decision-record').out);
+  assert.ok(found, 'the record has at most 450 words');
+  return Number(found[1]);
+}
+
+test('decision record: each diagram has 150 free words, and each word after them counts', () => {
+  const exact = exactWords();
+  const label = (count) => drawn(`flowchart LR\n  A["${many(count)}"] --> B`);
+  // 40 lines of diagram syntax and labels stay in the free words.
+  passes(push(fixture(cost(exact), drawn(DIAGRAM_40)), 'decision-record'));
+  passes(push(fixture(cost(exact), drawn(CLASS_40)), 'decision-record'));
+  // 150 label words add 0, and 151 add 1.
+  passes(push(fixture(cost(exact), label(150)), 'decision-record'));
+  fails(push(fixture(cost(exact), label(151)), 'decision-record'), COUNT);
+  assert.equal(totalWords(cost(exact), label(151)), 451);
+  // The 4 ways to hide 1500 words that the word count once missed add 1350.
+  const hidden = {
+    'a label': `flowchart LR\n  A["${many(1500)}"] --> B`,
+    'a link text': `flowchart LR\n  A -->|${many(1500)}| B`,
+    'a message': `sequenceDiagram\n  Alice->>Bob: ${many(1500)}`,
+    '300 titles': `flowchart LR\n  A --> B\n${Array(300).fill(`title ${many(6)}`).join('\n')}`,
+    'a comment with an image': `flowchart LR\n  A --> B\n%% ![${many(1500)}](u)`,
+    'a text link': `flowchart LR\n  A -- ${many(1500)} --> B`,
+  };
+  for (const [name, body] of Object.entries(hidden)) {
+    const words = name === '300 titles' ? 1800 : 1500;
+    assert.equal(totalWords(cost(exact), drawn(body)), 450 + words - 150, name);
+  }
+  // 2 diagrams of 200 label words add 2 x 50: each diagram has its own 150 free words.
+  const two = (first, second) => [drawn(first), ['decision-record.md', /\n*$/,
+    `${decision(2, false)}\n\n\`\`\`mermaid\n${second}\n\`\`\`\n`]];
+  const small = 'flowchart LR\n  A --> B';
+  const big = `flowchart LR\n  A["${many(200)}"] --> B`;
+  assert.equal(totalWords(cost(500), ...two(big, big)) - totalWords(cost(500), ...two(small, small)),
+    100);
+});
+
+test('decision record: a Mermaid block with a %%{ line is refused, and its words count none', () => {
+  const directive = /^Remove the %%\{ line from the Mermaid block of decision-1\. Qory Apiary strips it before it draws, and a record needs none\.$/;
+  fails(push(fixture(drawn('flowchart LR\n  A --> B\n%%{init: {"theme": "dark"}}%%')), 'decision-record'),
+    directive);
+  fails(push(fixture(drawn('%%{init: {}}%%\nflowchart LR\n  A --> B')), 'decision-record'), directive);
+  const mermaid = require(MERMAID);
+  assert.equal(mermaid.diagramWords(`flowchart LR\n  A --> B\n%%{ ${many(500)} }%%`), 0);
+  // The size leaves out a %% comment line, and a directive line is dropped before.
+  assert.equal(mermaid.size(mermaid.source('flowchart LR\n%%{ init }%%\n  A')),
+    'flowchart LR\n  A\n'.length);
+  assert.equal(mermaid.directive('flowchart LR\n%​%{ init }%%'), true);
+});
+
+test('decision record: the words of a diagram that are no syntax, by form', () => {
+  const { diagramWords: words } = require(MERMAID);
+  assert.equal(words(DIAGRAM_40) <= 150, true);
+  // Syntax counts 0: node ids, link tokens, keywords and the brackets of a shape.
+  assert.equal(words('flowchart LR\n  A\n  B[x]\n  C & D --> E\n  subgraph s\n  direction TB\n  end'), 2);
+  assert.equal(words('flowchart LR\n  A --> B\n  A -.-> B\n  A ==> B\n  A --- B\n  A ~~~ B'), 0);
+  // Text counts: labels, link texts, messages, notes, titles, comments, members, attributes
+  // and state texts, with a plain split on white space.
+  assert.equal(words('flowchart LR\n  A[one two] --> B("three") -->|four five| C{six}'), 6);
+  assert.equal(words('flowchart LR\n  A -- one two --> B\n  C -- three --- D'), 3);
+  assert.equal(words('sequenceDiagram\n  participant A as Alice\n  A->>B: hi there\n  Note over A,B: a note'), 5);
+  assert.equal(words('sequenceDiagram\n  title One two\n  loop Every minute\n  B-->>A: ok\n  end'), 5);
+  assert.equal(words('flowchart LR\n%% one two three\n  A --> B'), 3);
+  assert.equal(words('classDiagram\n  class Reply {\n    +int age\n    -List~T~ items\n    +get() int\n  }'), 6);
+  assert.equal(words('classDiagram\n  Reply : +int age\n  Reply --> Hours : has'), 3);
+  assert.equal(words('erDiagram\n  REPLY {\n    string name PK\n  }\n  REPLY ||--o{ HOURS : has'), 4);
+  assert.equal(words('stateDiagram-v2\n  [*] --> Open\n  Open : waits for the answer\n  Open\n  Open --> Closed'), 4);
+  // Markdown in a label does not hide a word, and prose with a link token counts.
+  assert.equal(words(`flowchart LR\n%% ![${many(10)}](u)`), 10);
+  assert.equal(words(`flowchart LR\n  ${many(10)}`), 10);
+  assert.equal(words('flowchart LR\n  one two -- three four'), 2);
+  assert.equal(words(`flowchart LR\n  Open : ${many(29)}`), 29);
+  // A free word count of 150 is charged only above it.
+  assert.equal(require(MERMAID).charged(`flowchart LR\n  A["${many(200)}"] --> B`), 50);
+});
+
+test('decision record: a time limit for text that made a pattern slow', () => {
+  const timed = (name, edit) => {
+    const started = Date.now();
+    const result = push(fixture(edit), 'decision-record');
+    const took = Date.now() - started;
+    assert.ok(took < 5000, `${name} took ${took} ms`);
+    assert.ok([0, 1].includes(result.status), `${name}: ${result.out}`);
+  };
+  timed('spaces after a link', drawn(`flowchart LR\n  A --${' '.repeat(19000)}x`));
+  timed('spaces between 2 texts', drawn(`flowchart LR\n  A --${' '.repeat(9000)}a${' '.repeat(9000)}q`));
+  timed('blank lines', drawn(`flowchart LR\n${'\n'.repeat(19000)}  A --> B`));
+  timed('blank lines with a comment', drawn(`flowchart LR\n${' \n'.repeat(9000)}%% a\n  A --> B`));
+  timed('nested brackets', drawn(`flowchart LR\n  A${'['.repeat(9000)}${']'.repeat(9000)} --> B`));
+  timed('nested image starts', ['decision-record.md', '- Why: ', `- Why: ${'![x'.repeat(30000)}${']'.repeat(30000)} `]);
+  timed('image starts with a long alt', ['decision-record.md', '- Why: ', `- Why: ${'![a b '.repeat(20000)} `]);
 });
 
 test('decision record: a class diagram of 40 members adds no word to a record of 450 words', () => {
-  const count = /^Cut decision-record.md to 450 words: it has (\d+)\./;
-  const cost = (words) => ['decision-record.md', COST, `- Cost: ${many(words)}.`];
-  const found = count.exec(push(fixture(cost(440)), 'decision-record').out);
-  assert.ok(found);
-  const exact = 440 + 450 - Number(found[1]);
+  const exact = exactWords();
   passes(push(fixture(cost(exact), drawn(CLASS_40)), 'decision-record'));
-  fails(push(fixture(cost(exact + 1), drawn(CLASS_40)), 'decision-record'), count);
-  // A member line of 30 words adds 24, and prose lines in the diagram count in full.
+  // A member line of 30 words adds 30, and the 150 free words of the diagram take them.
   const long = `classDiagram\n  class Reply {\n    ${many(30)}\n  }\n  Reply --> Hours`;
-  passes(push(fixture(cost(exact - 24), drawn(long)), 'decision-record'));
-  fails(push(fixture(cost(exact - 23), drawn(long)), 'decision-record'), count);
+  passes(push(fixture(cost(exact), drawn(long)), 'decision-record'));
   // An entity diagram and a state diagram of usual size add nothing.
   const er = 'erDiagram\n  REPLY {\n    string name PK\n    int hours\n  }\n  REPLY ||--o{ HOURS : has';
   const state = 'stateDiagram-v2\n  [*] --> Open\n  Open : waits for the answer\n  Open --> Closed\n  Closed';
