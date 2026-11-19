@@ -12,8 +12,8 @@ const VERBS = new Set(['Add', 'Ask', 'Check', 'Cite', 'Change', 'Close', 'Commit
   'Cut', 'Delete', 'Empty', 'End', 'Find', 'Fix', 'Freeze', 'Give', 'Go', 'Install', 'Judge',
   'Keep', 'Leave', 'List', 'Lock', 'Make', 'Name', 'Number', 'Open', 'Pass', 'Plant', 'Probe',
   'Propose', 'Prove', 'Pull', 'Push', 'Put', 'Quote', 'Raise', 'Record', 'Remove',
-  'Rename', 'Replace', 'Report', 'Restore', 'Return', 'Rewrite', 'Round', 'Run', 'Save', 'Send', 'Set',
-  'Split', 'Start', 'Store', 'Take', 'Undo', 'Verify', 'Wait', 'Write']);
+  'Rename', 'Replace', 'Report', 'Restore', 'Return', 'Rewrite', 'Round', 'Run', 'Save', 'Send',
+  'Set', 'Split', 'Start', 'Store', 'Take', 'Undo', 'Verify', 'Wait', 'Write']);
 
 // Lines that the rule does not cover. A point of fixes keeps the text of the verdict, up to
 // 500 characters: the run that wrote the verdict wrote the fix. The title line and the

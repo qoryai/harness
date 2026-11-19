@@ -71,12 +71,17 @@ function htmlBlocks() {
   let stays = null;
   let text = false;
   let doubt = false;
+  let bare = false;
   return {
     reset() {
       text = false;
     },
     doubtful: () => doubt,
+    // begins returns whether the last step started a block of HTML on a line with no quote or
+    // list mark before the tag, so that the check cannot tell where the item that holds it ends.
+    begins: () => bare,
     step(line) {
+      bare = false;
       const empty = /^[ \t]*$/.test(line);
       const before = text;
       text = !empty;
@@ -95,6 +100,7 @@ function htmlBlocks() {
       const seven = !found && !HTML_BLOCK_TAG.test(rest) && HTML_TAG_LINE.test(rest);
       if (!found && !seven && !HTML_BLOCK_TAG.test(rest)) return false;
       if (seven && before) doubt = true;
+      bare = !/\S/.test(prefix);
       end = 'blank';
       if (found) end = found[1].test(rest.slice(found[0].exec(rest)[0].length)) ? null : found[1];
       stays = null;
@@ -115,8 +121,13 @@ const BLOCK_START =
   /^ {0,3}(?:>|#{1,6}(?:\s|$)|(?:[-*+]|\d{1,9}[.)])(?:\s|$))|^ {0,3}([-*_])( *\1){2,} *$/;
 // A list mark with nothing after it.
 const MARK_ONLY = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]*$/;
-// The start of an HTML tag or comment at the start of a line.
-const TAG_START = /^[ \t]*<[!?/A-Za-z]/;
+// startsHtml returns whether text, a line with no marks before it, starts a block of HTML of the
+// kinds 1 to 6, which end a paragraph. A tag alone on a line (kind 7) ends none, so a line that
+// starts with "<" and is no such start is text that goes on with the paragraph.
+function startsHtml(text) {
+  const rest = text.replace(/^[ \t]+/, '');
+  return HTML_ENDS.some(([start]) => start.test(rest)) || HTML_BLOCK_TAG.test(rest);
+}
 
 // itemColumn returns the column where the text of a list item starts, for a line that starts
 // with its list mark, or 0 for any other line. A mark with no text after it, or with 5 or more
@@ -182,6 +193,11 @@ function lines(text) {
     }
     const inHtml = html.step(line);
     if (html.doubtful()) uncertain = true;
+    // A block of HTML in a list item that starts on a line with no mark has the end of the item
+    // as its end, which the check reads only for a line with a mark: it counts the lines.
+    const top = items.length ? items[items.length - 1] : Infinity;
+    const bareInItem = html.begins() && indentOf(line) >= top;
+    if (bareInItem) uncertain = true;
     open = !uncertain && !inHtml && !empty ? fence(line) || markerFence(line, paragraph) : null;
     if (open && open.doubt) {
       open = null;
@@ -192,10 +208,14 @@ function lines(text) {
     } else {
       // A line that follows a paragraph line and starts no block may continue the paragraph
       // of a list item, where it starts left of the item and leaves it.
-      const lazy = paragraph && !open && !BLOCK_START.test(line) && !TAG_START.test(line);
+      const lazy = paragraph && !open && !BLOCK_START.test(line) && !startsHtml(line);
       while (!lazy && items.length && indentOf(line) < items[items.length - 1]) items.pop();
       const column = itemColumn(line);
       if (column) items.push(column);
+      // In a list item, a fence is indented from the text of the item, not from the line start,
+      // so a fence line that starts 4 or more columns in may open a block that fence() misses.
+      const deep = items.length && !open && !inHtml && indentOf(line) >= 4;
+      if (deep && /^[ \t]*(`{3,}|~{3,})/.test(line)) uncertain = true;
       paragraph = !open && headingLevel(line) === 0 && !BREAK.test(line) && !MARK_ONLY.test(line);
     }
     if (open) {
@@ -209,6 +229,7 @@ function lines(text) {
       amp: Boolean(open && open.amp),
       ...(open ? { edge: 'open' } : {}),
       ...(uncertain ? { uncertain: true } : {}),
+      ...(items.length >= MAX_MARKS ? { levels: items.length } : {}),
     });
   }
   return out;
@@ -718,44 +739,53 @@ function imageStarts(text) {
   return found;
 }
 
-// The most quote marks and list marks that a line may start with. From 128 levels of nesting,
-// Qory Apiary shows the whole text as plain text. The check refuses 60, to stay far from it.
+// The most quote marks and list marks that a line may start with, and the most levels of
+// nesting by indentation. From 128 levels of nesting, Qory Apiary shows the whole text as plain
+// text. The check refuses 60, to stay far from it.
 const MAX_MARKS = 60;
 const MARK = /[ \t]*(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$))/y;
 
 // marks returns how many quote marks and list marks, each with the spaces before it, a line
-// starts with, up to MAX_MARKS.
+// starts with.
 function marks(line) {
   MARK.lastIndex = 0;
   let count = 0;
-  while (count < MAX_MARKS && MARK.test(line)) count += 1;
+  while (MARK.test(line)) count += 1;
   return count;
 }
 
 // shownAsText checks the text that is the member where of file, as every Markdown text needs
 // it: Qory Apiary shows a text as plain text when a line starts with 60 or more quote and list
-// marks, and when the text has U+FFFD, the character that stands for a byte that is no UTF-8.
+// marks, or sits 60 or more list items deep by its indentation, and when the text has U+FFFD,
+// the character that stands for a byte that is no UTF-8.
 // shortcut: the nesting of inline marks, such as emphasis in emphasis or a link in a link, also
 // reaches the limit of 128 levels and is not counted. Count it when such a text is shown as
 // plain text.
 function shownAsText(run, file, where, text) {
   const at = where ? `${where} of ${file}` : file;
-  // The first line of a finding stays within 100 characters, so a long place goes to a line
-  // after it.
-  const brief = short(at, 34);
-  const whole = brief === at ? '' : `\nThe text is in ${at}.`;
   const rows = lineList(text);
   const refuse = (fix, index) => {
-    const shown = [...rows[index].slice(0, 160)].slice(0, 40).join('');
-    run.find(`${fix}\nLine ${index + 1} is ${quote(shown)}.${whole}`);
+    const shown = [...rows[index].trimStart().slice(0, 160)].slice(0, 40).join('');
+    const whole = fix.brief === at ? '' : `\nThe text is in ${at}.`;
+    run.find(`${fix.line}\nLine ${index + 1} is ${quote(shown)}.${whole}`);
   };
-  const deep = rows.findIndex((line) => marks(line) >= MAX_MARKS && !BREAK.test(line));
+  // The first line of a finding stays within 100 characters, so a long place goes to a line
+  // after it.
+  const brief = (room) => short(at, Math.max(12, 100 - room));
+  const nested = lines(text).map((line) => line.levels || 0);
+  const levels = rows.map((line, index) =>
+    Math.max(BREAK.test(line) ? 0 : marks(line), nested[index]));
+  const deep = levels.findIndex((count) => count >= MAX_MARKS);
   if (deep !== -1) {
-    refuse(`Remove the deep nesting from ${brief}: Qory Apiary shows it as plain text.`, deep);
+    const tail = `: line ${deep + 1} has ${levels[deep]} levels, and the check allows 59.`;
+    const place = brief(29 + tail.length);
+    refuse({ brief: place, line: `Remove the deep nesting from ${place}${tail}` }, deep);
   }
   const broken = rows.findIndex((line) => line.includes('\uFFFD'));
   if (broken !== -1) {
-    refuse(`Save ${brief} as UTF-8: Qory Apiary shows it as plain text.`, broken);
+    const place = brief(30 + 42);
+    const fix = `Save ${place} as UTF-8: Qory Apiary shows it as plain text.`;
+    refuse({ brief: place, line: fix }, broken);
   }
 }
 

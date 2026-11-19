@@ -2310,15 +2310,21 @@ line that is not blank and starts left of the text of the item, and the text aft
 counts. A fence that starts on the line of a list mark (`` - ```js ``) is read the same
 way, but a number other than 1 after a line of text starts no list, so no code block opens
 there. Where the check cannot tell whether a line ends the item, from that line no code
-block opens, and every line counts.
+block opens, and every line counts. That is so for a fence line that starts 4 or more
+columns in, inside a list item, which may start a block from the text column of the item;
+and for a block of HTML in a list item that starts on a line with no mark before its tag.
+A line that starts with `<` and is no start of a block of HTML goes on with the paragraph
+of the item, so it does not end the item.
 
-Qory Apiary shows a Markdown text as plain text, not as Markdown, when a line starts with
-128 levels of quote marks and list marks, and when the text has a byte that is no UTF-8.
-`shownAsText` in `lib/markdown.cjs` refuses a line with 60 or more such marks, each `>` and
-each list mark (`-`, `*`, `+`, `1.`, `1)`) at the start of the line, with the spaces between
-them, and a text with U+FFFD, which stands for such a byte. A line of 60 marks that is a
-thematic break is no nesting. The findings are "Remove the deep nesting from <file>: Qory
-Apiary shows it as plain text." and "Save <file> as UTF-8: Qory Apiary shows it as plain
+Qory Apiary shows a Markdown text as plain text, not as Markdown, from 128 levels of
+nesting, and when the text has a byte that is no UTF-8. `shownAsText` in `lib/markdown.cjs`
+refuses a line with 60 or more levels, and a text with U+FFFD, which stands for such a byte.
+The levels of a line are the larger of its quote and list marks (each `>` and each list mark
+`-`, `*`, `+`, `1.` or `1)` at the start of the line, with the spaces between them) and the
+depth of the list items that its indentation opens, which `lines` counts. A line of 60 marks
+that is a thematic break is no nesting. The findings are "Remove the deep nesting from
+<file>: line <L> has <n> levels, and the check allows 59.", where <L> is the first line that
+reaches 60 and <n> its levels, and "Save <file> as UTF-8: Qory Apiary shows it as plain
 text.", each with the line "Line N is \"...\".". `links` calls `shownAsText`, so each
 Markdown text that a type checks gets the check. The check does not count the nesting of
 inline marks, such as emphasis in emphasis or a link in a link, which also reaches the limit

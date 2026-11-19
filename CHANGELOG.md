@@ -42,13 +42,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   which no other type sets, refuses each one. `checking-decisions` has the reviewer judge
   each diagram, and `decision-writer` and `decision-reviewer` load `visuals` when the record
   has one.
-- The check of every Markdown text refuses a line with 60 or more quote or list marks and
-  a text with U+FFFD, because Qory Apiary shows such a text as plain text. The fixes are
-  "Remove the deep nesting from <file>: Qory Apiary shows it as plain text." and "Save
-  <file> as UTF-8: Qory Apiary shows it as plain text.", each with a line that quotes the
-  first line that holds it. `shownAsText` in `lib/markdown.cjs` makes the check, and `links`
-  calls it, so each type that checks Markdown text gets it. It does not count the nesting of
-  inline marks, such as emphasis in emphasis, which also reaches the limit of 128 levels.
+- - The check of every Markdown text refuses a line with 60 or more levels of nesting and a
+  text with U+FFFD, because Qory Apiary shows such a text as plain text. The levels of a
+  line are the larger of its quote and list marks and the depth of the list items that its
+  indentation opens. The fixes are "Remove the deep nesting from <file>: line <L> has <n>
+  levels, and the check allows 59." and "Save <file> as UTF-8: Qory Apiary shows it as plain
+  text.", each with a line that quotes the first line that holds it. `shownAsText` in
+  `lib/markdown.cjs` makes the check, and `links` calls it, so each type that checks
+  Markdown text gets it. It does not count the nesting of inline marks, such as emphasis in
+  emphasis, which also reaches the limit of 128 levels. Where the reading of code blocks
+  cannot tell whether a fence starts in a list item, the words count.
 - The agents `security-reviewer`, `data-reviewer` and `failure-reviewer`, and the skills
   `checking-security`, `checking-data-changes` and `checking-failure-handling`. Each agent
   loads `reviewing-changes`, `judging-findings` and its checking skill, writes one JSON

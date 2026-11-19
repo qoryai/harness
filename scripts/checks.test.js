@@ -1902,8 +1902,9 @@ test('a line of 60 quote or list marks, and U+FFFD, are refused in every Markdow
   const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const finding = (fix, file, shown) => new RegExp(
     `^${fix.replace('<file>', escaped(file))} Line \\d+ is "${escaped(shown)}"\\.$`);
-  const deep = (file, shown = '.*') => finding(
-    'Remove the deep nesting from <file>: Qory Apiary shows it as plain text\\.', file, shown);
+  const deep = (file, levels, shown = '.*') => finding(
+    'Remove the deep nesting from <file>: line \\d+ has ' + levels +
+    ' levels, and the check allows 59\\.', file, shown);
   const save = (file, shown = '.*') => finding(
     'Save <file> as UTF-8: Qory Apiary shows it as plain text\\.', file, shown);
   for (const mark of ['> ', '>', '- ', '1. ', '* ', '+ ', '1) ', '> - ']) {
@@ -1914,14 +1915,56 @@ test('a line of 60 quote or list marks, and U+FFFD, are refused in every Markdow
     // A record has other findings for a text after its items, so only this one is looked for.
     const short = push(record(under), 'decision-record');
     assert.ok(!short.findings.some((line) => /deep nesting/.test(line)));
-    fails(push(spec(over), 'spec'), deep('spec.md', over.slice(0, 40).trim()));
-    fails(push(record(over), 'decision-record'), deep('decision-record.md', over.slice(0, 40).trim()));
+    fails(push(spec(over), 'spec'), deep('spec.md', 60, over.slice(0, 40).trim()));
+    fails(push(record(over), 'decision-record'),
+      deep('decision-record.md', 60, over.slice(0, 40).trim()));
   }
   // A line of 60 marks that is a thematic break is no nesting.
   passes(push(spec('- '.repeat(60).trim()), 'spec'));
   fails(push(spec('A word \uFFFD here.'), 'spec'), save('spec.md', 'A word \uFFFD here.'));
   fails(push(record('A word \uFFFD here.'), 'decision-record'),
     save('decision-record.md', 'A word \uFFFD here.'));
+});
+
+test('nesting by indentation: 60 list items deep is refused with its line and levels', () => {
+  const nest = (count) => Array.from({ length: count }, (_, at) => `${' '.repeat(2 * at)}- a`)
+    .join('\n');
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  passes(push(spec(nest(59)), 'spec'));
+  const result = push(spec(nest(64)), 'spec');
+  fails(result, new RegExp('^Remove the deep nesting from spec\\.md: line \\d+ has 60 levels, ' +
+    'and the check allows 59\\. Line \\d+ is "- a"\\.$'));
+  // The levels of a line are the larger of its marks and its depth by indentation.
+  const mixed = `${nest(10)}\n${'> '.repeat(61)}wq`;
+  fails(push(spec(mixed), 'spec'), /has 61 levels, and the check allows 59\./);
+  const run = { did() {}, find: (text) => run.found.push(text), found: [] };
+  require(MARKDOWN).shownAsText(run, 'spec.md', null, `x\ny\n${nest(60)}`);
+  assert.equal(run.found[0].split('\n')[0],
+    'Remove the deep nesting from spec.md: line 62 has 60 levels, and the check allows 59.');
+});
+
+// The cases that the reading cannot tell apart count every line from there on, so that no
+// word is lost: the word of each case follows a block that the reading may take for a diagram.
+test('a fence 4 columns in, in a list item, may open a code block: the words count', () => {
+  for (const [text, word] of [
+    ['2.\n    ```\n   ```wq0', 'wq0'],
+    ['-\n\t```\n  ~~~wq1', 'wq1'],
+    ['-\n    ```\n  ```wq9', 'wq9'],
+    ['- x\n\n    ```\n    wq1\n   ```wq2\n', 'wq2'],
+    ['-\n    ```\n\n  ||wq1\n  |-|-', 'wq1'],
+    ['-\r    ```\r\r  ||wq4\r  |-|-', 'wq4'],
+  ]) assert.ok(keeps(text, word), JSON.stringify(text));
+});
+
+test('a line that starts with "<" and is no start of HTML goes on with the paragraph', () => {
+  for (const text of ['- x\n<q\n  ```mermaid\nwq6', '- x\n<a b="\n  ```mermaid\nwq6',
+    '- |\n<e\n  ```mermaid\nwq1']) {
+    assert.ok(keeps(text, /wq\d/.exec(text)[0]), JSON.stringify(text));
+  }
+});
+
+test('a block of HTML in a list item on a line with no mark ends with the item', () => {
+  assert.ok(keeps('+\n  <div\n```\n\n```wq5', 'wq5'));
 });
 
 test('the check of how Qory Apiary shows a text takes linear time', () => {
@@ -4613,8 +4656,8 @@ test('report: each agent of the modules has a shape that the script reads', () =
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
     assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
-  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, security-reviewer, ' +
-    'data-reviewer and failure-reviewer');
+  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
+    'security-reviewer, data-reviewer and failure-reviewer');
 });
 
 // ---- Time and size ------------------------------------------------------------------------
