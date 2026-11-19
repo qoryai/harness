@@ -2497,15 +2497,14 @@ review round. In a stage with none, such as when `inputs.json` has no
   `checking-code`, `checking-tests` or `checking-acceptance`. A finding in another area is
   left out: its reviewer writes it. Only `code-reviewer` reports bugs in each file that is
   not a test, and security holes, data loss and secrets in every file of the change, tests
-  and fixtures too. Only `test-reviewer` reports a failing test that the change hides by
-  deleting, skipping or loosening it, with the old test traced through the new code; it
-  also reports code with no test and tests that show nothing. `code-reviewer` reports the
-  bug behind such a hidden test. Only `acceptance-reviewer` reports a criterion that the
-  change does not meet; it also reports a planned change that is not in the diff, a changed
-  path that no Files cell of the build plan lists, and work that no rule of the spec
-  requires. A bug that also breaks a criterion gets two findings: the cause from
-  `code-reviewer`, and the criterion from `acceptance-reviewer`. A red suite is the
-  finding that qory writes.
+  and fixtures too. Only `test-reviewer` reports a failing test that the change skips,
+  deletes or loosens, with the old test traced through the new code; it also reports code
+  with no test and tests that show nothing. `code-reviewer` reports the bug behind such a
+  failing test. Only `acceptance-reviewer` reports a criterion that the change does not
+  meet; it also reports a planned change that is not in the diff, a changed path that no
+  Files cell of the build plan lists, and work that no rule of the spec requires. A bug that
+  also breaks a criterion gets two findings: the cause from `code-reviewer`, and the
+  criterion from `acceptance-reviewer`. A red suite is the finding that qory writes.
 - **Earlier findings.** Each reviewer re-reads each finding of `previous_findings`, as
   `reviewing-changes` and `judging-findings` list, and repeats with its id each finding of
   its area that is still true.

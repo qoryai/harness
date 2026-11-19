@@ -3566,10 +3566,21 @@ test('report: the lists and words come from the agent file, and a missing agent 
 
 // A reviewer of a change, an agent whose file loads reviewing-changes, writes the JSON report
 // of a review round, which qory reads, and no text report. Its Expected output has a json
-// block that passes the fixture of qory's report schema, with the agent's name as reviewer.
-const REPORT_SCHEMA_FILE = path.join(__dirname, 'testdata', 'review-report.schema.json');
+// block that passes qory's report schema, with the agent's name as reviewer. The schema is
+// read as scripts/findings.test.js reads it: from the folder QORY_SOURCE, qory at the commit
+// that .github/workflows/check.yml pins as QORY_CONTRACTS_COMMIT.
+const REPORT_SCHEMA_PIN = /^\s*QORY_CONTRACTS_COMMIT: (\w+)$/m.exec(fs.readFileSync(
+  path.join(__dirname, '..', '.github', 'workflows', 'check.yml'), 'utf8'))[1];
+const REPORT_SCHEMA_PATH = 'contracts/harness/v1/review-report.schema.json';
+const REPORT_SCHEMA_FILE = path.join(process.env.QORY_SOURCE || '', REPORT_SCHEMA_PATH);
 
 test('report: each agent of the modules has a shape that the script reads', () => {
+  if (!process.env.QORY_SOURCE || !fs.existsSync(REPORT_SCHEMA_FILE)) {
+    throw new Error(`Set QORY_SOURCE to a folder with qory's contracts at ${REPORT_SCHEMA_PIN}.\n` +
+      `Run: git -C <qory checkout> archive ${REPORT_SCHEMA_PIN} contracts | tar -x -C <dir>\n` +
+      `The test reads ${REPORT_SCHEMA_PATH} from QORY_SOURCE, which is ` +
+      `${process.env.QORY_SOURCE || 'not set'}.`);
+  }
   const schema = require(path.join(MODULES,
     'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
   const loaded = { file: REPORT_SCHEMA_FILE,

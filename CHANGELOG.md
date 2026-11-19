@@ -23,8 +23,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Write. It loads `reviewing-changes`, `judging-findings` and its checking skill, and writes
   one JSON report. `code-reviewer` reports bugs, security holes and data loss in the code,
   and security holes, data loss and secrets in the tests and fixtures. `test-reviewer`
-  reports tests that the change removes, skips or loosens, and code with no test;
-  `code-reviewer` reports the bug behind a hidden failing test. `acceptance-reviewer`
+  reports a failing test that the change skips, deletes or loosens, and code with no test;
+  `code-reviewer` reports the bug behind that failing test. `acceptance-reviewer`
   reports a criterion that the change does not meet, a planned change that it does not
   build, and a changed path that no Files cell of the build plan lists. Each reviewer
   re-reads the earlier findings and repeats those of its area that are still true. The group
