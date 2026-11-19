@@ -2562,7 +2562,10 @@ The ends of steps 1 to 4 run no `qory run verdict passed`.
     stops with no report;
   - `output_tail` of `suite_result`, the last lines of the output of the suite, so
     `suite_result` has counts only;
-  - the shape of `previous_findings`.
+  - the shape of `previous_findings`;
+  - `qory.review.submission` in the `inputs.json` of a reviewer, the title and the
+    description of the draft pull request, so `acceptance-reviewer` checks them only once
+    qory writes it.
 
 ## The high-level workflow, shape-a-ticket
 

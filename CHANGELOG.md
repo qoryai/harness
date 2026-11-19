@@ -8,6 +8,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `acceptance-reviewer` reads `qory.review.submission` of its `inputs.json`, when it
+  exists: the title and the description of the draft pull request, as qory stores them. A
+  claim in them that the diff or the records of the run do not show is a finding.
 - The agent `submission-writer` and the skill `writing-submissions` in `software-factory`.
   When every check of the `review-changes` workflow passed, the session starts the agent,
   which writes the title and the four-part description (`## Problem`, `## Change`,
