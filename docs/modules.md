@@ -2134,7 +2134,7 @@ pictures inside. The run pushes `screens.json` and the packed pages. A member se
 start screen in a frame on the version page of Qory Apiary. A click on a linked element
 opens its screen, and a list of screen titles beside the frame opens any screen. Each page
 lists the `ac-N` ids it shows in `data-criteria`, and the designer draws each screen that a
-part of the spec names as `Mockup screen:`. A spec that names no screen makes the run push
+part of the spec lists as `Mockup screen:`. A spec that names no screen makes the run push
 no mockup, and the run still handles its questions and replies.
 
 `designer` lists Bash for the two mockup scripts alone. On Claude Code 2.1.316 under
@@ -2334,14 +2334,17 @@ that the work needs drafts in one run, in the recommended direction, and an open
 stops no workflow. `workflow-shape-a-ticket` tells the run to decide every point that the
 rule "Decide or ask" of `writing-questions` allows, and to ask only what a person must
 answer by it, such as a change of scope or a split of the work item. A session follows only
-what the planner lists, so a word on one output reruns only what depends on that output.
+what the planner lists, so a word on one output reruns only what depends on that output. A
+word that asks for a screen that the spec lacks also depends on the spec.
 
 `shape-planner` reads the input file, the notes, `index.json` and the newest versions by
 `planning-shape`, read-only. Each of the four workflows is under "Run:" with one fact, or
 under "Not run:" with the reason. Before a spec exists, the planner lists every workflow
 that the ticket and the proposal need. After a push of the spec or the criteria, the session
 starts it again, and it plans from the spec and the acceptance criteria. It also starts
-again after a small workflow's stop, and when the session lost the list.
+again after a small workflow's stop, after a follow of `write-specs` that pushed no spec
+while a later workflow of the pass is still listed or has a pending item, and when the
+session lost the list.
 
 - **A person's word.** The planner routes a review comment by its text, to each output it
   concerns. For a comment on one output, the planner reads the type in `on` only as a hint.
@@ -2355,6 +2358,26 @@ again after a small workflow's stop, and when the session lost the list.
   last reply declined, answered or asked about that part. For "rename the button, and use a
   queue instead of cron", `spec-writer` may decline the button, and `decision-writer` still
   applies the queue. When the words stay unclear, `write-specs` runs.
+- **A screen that the spec lacks.** `designer` draws only the screens that the spec lists
+  as `Mockup screen:`, and only the spec adds one. When a word asks for a screen that the
+  newest spec does not list, such as "draw a mockup of the export screen" in a comment on
+  the mockup, the planner lists `write-specs` and then `make-mockups`, each with a fact
+  that quotes the word. This is the rule of `checking-shape`: a word that needs the spec
+  to change goes to `write-specs`. `spec-writer` adds the part with its `Mockup screen:`
+  line, `check` runs on the spec, and the session starts the planner again after the push.
+  The newest spec now lists the screen, so `make-mockups` follows and `designer` draws it.
+  When the spec lists the screen and the newest mockup lacks it, only `make-mockups` runs.
+  After a follow of `write-specs` in the log after the word's `at`, the planner lists
+  `write-specs` no more for the word, also when the reply of the spec writer has outcome
+  `declined` or `asked`. It lists `make-mockups` when the newest spec lists the screen and
+  the newest mockup lacks it. Otherwise, when the spec does not list the screen and no
+  other word or change needs `make-mockups`, it lists it under "Not run", with that reason.
+  A declined or asked word leaves the spec unchanged, so the session starts the planner
+  again after a follow of `write-specs` that pushed no spec, while a later workflow of the
+  same pass is still listed or has a pending item. `shape-reviewer` sends no finding to
+  `write-specs` for a word on the spec whose last reply has outcome `declined`, `answered`
+  or `asked`, by `checking-shape`. So the run does not start `write-specs` again for the
+  same word.
 - **Older versions.** A pull writes one folder per type, and only
   `artifact pull <type> --version <N>` writes an older one. The planner has no shell, so it
   lists what it needs under "Pull:", and the session pulls and starts it again.
@@ -2363,12 +2386,14 @@ again after a small workflow's stop, and when the session lost the list.
   of a criterion reruns the demo scenarios.
 - **A small workflow's stop.** A stop that needs a change to a criterion, a new criterion or
   a change to the spec runs `write-specs`, then the stopped workflow, and one that needs a
-  type runs the workflow that writes it. A later follow of the stopped workflow settles a
-  stop, so it is not routed again, and a later push by the listed workflow settles that part
-  of the route. A stop with no person's word behind it, and every other stop, reaches the
-  planner's "Stop:" line, and the run ends with `escalate`. The fact quotes a person's word,
-  also from a comment on another type, and `spec-writer` and `spec-reviewer` count that
-  quote as one.
+  type runs the workflow that writes it. The end "The spec states no screen change, so the
+  run pushed no mockup." is such a stop when a word asks for a screen that the spec lacks
+  and the log has no follow of `write-specs` after the word's `at`.
+  A later follow of the stopped workflow settles a stop, so it is not routed again, and a
+  later push by the listed workflow settles that part of the route. A stop with no person's
+  word behind it, and every other stop, reaches the planner's "Stop:" line, and the run
+  ends with `escalate`. The fact quotes a person's word, also from a comment on another
+  type, and `spec-writer` and `spec-reviewer` count that quote as one.
 - **Settled words.** A word counts for a workflow until a later version of its type, a later
   version of a Shape output that the passed run wrote, or a follow of that workflow in the
   log settles it. The passed run is the run that recorded the work item's newest verdict,

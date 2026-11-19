@@ -88,3 +88,11 @@ about one criterion has the `about`
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
   its id, the fact that rules it out, and a source file that the reviewer can read. The run
   never pushes that file.
+
+## A screen that a person asks for
+
+A person's word that asks for a screen, such as "draw a mockup of the export screen", is a
+word on the spec: `designer` draws only the screens that the spec lists. When the spec lacks
+that screen, add a `###` part for it, or add `Mockup screen: <screen id>` as the first point
+of the part that changes it. The table of a new part has one row for what the screen shows,
+so that a criterion covers the screen.

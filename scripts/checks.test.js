@@ -1875,6 +1875,82 @@ test('review comments: a round comment has on {"run": N}, N of 1 or more, and no
   fails(both, /An "on" with run has no other key, and the "on" of c6 has "version"/);
 });
 
+test('a word that asks for a screen the spec lacks: the rule number that planning-shape cites', () => {
+  const module = path.join(MODULES, 'software-factory');
+  const read = (file) => fs.readFileSync(path.join(module, file), 'utf8');
+  const planning = read('skills/planning-shape/SKILL.md');
+  // The numbered items of "Which workflow a person's word concerns".
+  const heading = '## Which workflow a person\'s word concerns';
+  const section = planning.slice(planning.indexOf(heading) + heading.length)
+    .split(/^## /m)[0];
+  const items = [...section.matchAll(/^(\d+)\. ([\s\S]*?)(?=^\d+\. |(?![\s\S]))/gm)]
+    .map((found) => ({ number: Number(found[1]), text: found[2].replace(/\s+/g, ' ') }));
+  assert.ok(items.length >= 4, 'the section has its numbered items');
+  const screen = items.filter((item) => item.text.includes('Mockup screen:'));
+  assert.equal(screen.length, 1, 'one item routes a word that asks for a screen');
+  const n = screen[0].number;
+  const flat = planning.replace(/\s+/g, ' ');
+  // Both places that cite the item cite its number.
+  assert.ok(flat.includes(`Rule ${n} adds \`write-specs\` to a comment that asks for a screen`),
+    `item 1 cites rule ${n}`);
+  assert.ok(flat.includes(`(rule ${n} of "Which workflow a person's word concerns")`),
+    `the write-specs bullet cites rule ${n}`);
+  // The item routes write-specs, then make-mockups, as checking-shape routes a word on the spec.
+  assert.match(screen[0].text, /List `write-specs`, then `make-mockups`, each with a fact/);
+  assert.match(read('skills/checking-shape/SKILL.md').replace(/\s+/g, ' '),
+    /Where a person's word needs the spec or a criterion to change, the finding goes to `write-specs`/);
+});
+
+test('a word that asks for a screen the spec lacks: no second write-specs for the same word', () => {
+  const module = path.join(MODULES, 'software-factory');
+  const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
+  const planning = read('skills/planning-shape/SKILL.md');
+  assert.match(planning, /After a follow of `write-specs` in the log after the word's `at`, the spec needs no further change for the word, also when the reply of the spec writer has outcome `declined` or `asked`\. Then list `make-mockups` when the newest spec lists the screen and the newest mockup lacks it\./);
+  // Otherwise the screen has no spec part, so make-mockups is "Not run", with the reason.
+  assert.match(planning, /Otherwise, when the spec does not list the screen and no other word or change needs `make-mockups`, list it under "Not run", with that reason/);
+  // The session plans again after a follow of write-specs that pushed no spec, or the case
+  // never starts: no push, so no other case of step 3 does step 2.
+  assert.match(read('skills/workflow-shape-a-ticket/SKILL.md'),
+    /After a push of the spec or the acceptance criteria, or after a follow of `write-specs` that pushed no spec while a later workflow of the same pass is still listed or has a pending item, do step 2\. Other pending items stay pending\./);
+  // The rule and its end agree: write-specs runs for the word until that follow.
+  assert.match(planning, /does not list as `Mockup screen:`, until a follow of `write-specs` after the word's `at` \(rule \d of/);
+  assert.match(planning, /it reruns `write-specs`, then `make-mockups`, until a follow of `write-specs` after the word's `at`/);
+  assert.match(planning, /and the log has no follow of `write-specs` after the word's `at`: the spec needs a change/);
+  // checking-shape covers the same word, so shape-reviewer sends it to write-specs no more.
+  const shape = read('skills/checking-shape/SKILL.md');
+  // shape-reviewer gets no follow log, so the follow is no part of its rule.
+  assert.match(shape, /A word on the spec whose last reply has outcome `declined`, `answered` or `asked` is covered\./);
+  assert.doesNotMatch(shape, /already took/);
+  assert.match(shape, /the finding goes to `write-specs`, unless the word is covered as step 1 lists/);
+  // The lines above pin the rule of checking-shape: the outcome of the reply covers the word.
+  // checking-specs item 7 words the same rule for a review comment, and this test skips it.
+});
+
+test('a word that asks for a screen the spec lacks: the spec writer can add its part', () => {
+  // designer draws only the listed screens, so the spec needs the part with Mockup screen:.
+  const module = path.join(MODULES, 'software-factory');
+  const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
+  assert.match(read('skills/designing-mockups/SKILL.md'),
+    /When no part of the spec lists a `Mockup screen:`, write no page/);
+  assert.match(read('skills/designing-mockups/SKILL.md'),
+    /6\. Draw each screen that the spec lists as `Mockup screen:`, and each state of it that the spec states, and no other screen\. Note each `ac-N` that a person sees there\./);
+  assert.match(read('skills/writing-specs/SKILL.md'),
+    /## A screen that a person asks for A person's word that asks for a screen/);
+  assert.match(read('agents/spec-writer.md'),
+    /under "A screen that a person asks for", with a `Mockup screen:` line/);
+  // A spec with a new part for the screen and a new criterion for it passes the checks.
+  const part = '\n### Export screen\n\n| Rule | Today | After |\n|---|---|---|\n' +
+    '| Export of the saved replies | Not stated | A screen lists the replies to export |\n\n' +
+    '- Mockup screen: `export-replies`.\n';
+  const root = fixture(['spec.md', '\n## Sources', `${part}\n## Sources`],
+    editCriteria((data) => {
+      data.criteria.push({ id: 'ac-5', text: 'The export screen lists the saved replies.',
+        check: 'Demo: Read the export screen' });
+    }));
+  passes(push(root, 'spec'));
+  passes(push(root, 'acceptance-criteria'));
+});
+
 test('review comments: a reply cites a question that exists and, when asked, is not withdrawn', () => {
   fails(push(fixture(['review-comments.json', '"question": "q4"', '"question": "q8"']), 'review-comments'),
     /^Set the question of reply 1 of c2 to an id of this run's questions\. The question of reply 1 of c2 is "q8", which is not there\.$/);

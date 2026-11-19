@@ -22,7 +22,9 @@ as the steps below ask for it.
    `{"run": N}`, can concern every output of the stage: list it for the output that it
    names, or else for each output where it fits. Flag each item that no output covers. An
    item in an open question of this run is covered. An output comment only on a type
-   that no workflow of this run writes, such as `proposal`, stays open and is no finding.
+   that no workflow of this run writes, such as `proposal`, stays open and is no finding. A
+   word on the spec whose last reply has outcome `declined`, `answered` or `asked` is
+   covered.
 2. Screen against mockup. Each screen that a part of the spec changes is in `screens.json`
    of the newest mockup, with its title, `ac-N` ids and links. A missing screen, or a
    screen that no part changes, is a finding for `make-mockups`. A page of the mockup has
@@ -47,7 +49,7 @@ as the steps below ask for it.
 7. Contradictions. A decision against the spec, a page or a step against a decision, and
    a step against what a page shows are findings. Where a
    person's word needs the spec or a criterion to change, the finding goes to
-   `write-specs`.
+   `write-specs`, unless the word is covered as step 1 lists.
 8. Reasons. A workflow under the planner's list "Not run" whose reason does not hold against
    the versions gets a finding.
 
