@@ -1399,7 +1399,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   denies. The guard reads the whole text of an argument as one path too, so a line break in
   it is part of a folder name, also when a line of the text is a patch header such as
   `*** Add File: ok`; the text `*** Add File: ok`, a line break and `/../l1/x.json` reached
-  `l1/x.json` through a link to `.reports` and passed. A path of more than 4,096 characters is read with each `..` cut out as text,
+  `l1/x.json` through a link to `.reports` and passed. A patch header is read as Codex reads
+  it, with the white space of Unicode's White_Space around it and each of its line breaks
+  ending the line: U+0085 (NEL) before `*** Add File: l1/x.json` passed, because the `\s` of
+  JavaScript lacks it. A path of more than 4,096 characters is read with each `..` cut out as text,
   because a tool may cut them out before it writes: `x/../` 1,000 times and then
   `.reports/a b/../report.json` is denied. The paths of one call share 16,384 steps, one for
   each part of a path, `.` and `..` too; a call that needs more is denied with "Write fewer

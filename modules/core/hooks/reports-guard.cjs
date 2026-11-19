@@ -79,8 +79,25 @@ const PATH_MAX = 4096;
 const MAX_LINKS = 40;
 // The most parts, `.` and empty ones too, that onDisk takes from all the paths of one call.
 const MAX_STEPS = 16384;
+// The white space that Codex trims from a line of a patch, as Rust's trim does: the characters of
+// Unicode's White_Space. JavaScript's \s lacks U+0085. PATCH_BREAK is each line break of that
+// set, so a header ends at U+0085 and U+2028 as at a line feed.
+const PATCH_SPACE = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f' +
+  '\\u3000';
+const PATCH_SPACE_CHAR = new RegExp(`[${PATCH_SPACE}]`);
+const PATCH_BREAK = /[\n\v\f\r\u0085\u2028\u2029]/;
 // A line of a patch that adds, changes, deletes or moves to a file, up to its path.
-const PATCH_LINE = /^\s*\*\*\* (?:Add File|Update File|Delete File|Move to): ?/;
+const PATCH_LINE = new RegExp(`^[${PATCH_SPACE}]*\\*\\*\\* (?:Add File|Update File|Delete File|` +
+  'Move to): ?');
+
+// trimmed returns text without the white space of PATCH_SPACE at both ends, in one pass.
+function trimmed(text) {
+  let from = 0;
+  let to = text.length;
+  while (from < to && PATCH_SPACE_CHAR.test(text[from])) from += 1;
+  while (to > from && PATCH_SPACE_CHAR.test(text[to - 1])) to -= 1;
+  return text.slice(from, to);
+}
 
 // Stop is the error that onDisk throws for a path that it cannot read; its message is the deny.
 class Stop extends Error {}
@@ -122,9 +139,9 @@ function onDisk(file, start, budget) {
 // of a part's name. state has the budget of the call and the resolved folder cwd.
 function reportsOnDisk(text, cwd, state) {
   const paths = [text];
-  for (const line of text.split('\n')) {
+  for (const line of text.split(PATCH_BREAK)) {
     const header = PATCH_LINE.exec(line);
-    if (header !== null) paths.push(line.slice(header[0].length).trim());
+    if (header !== null) paths.push(trimmed(line.slice(header[0].length)));
   }
   try {
     for (let one of paths) {

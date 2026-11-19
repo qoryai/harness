@@ -2725,3 +2725,38 @@ test('the whole text is read as one path, also when a line of it is a patch head
   assert.equal(adapter(home, 'copilot', 'write', '*** Add File: ok\n/../l1/x.json', work).denied,
     true);
 });
+
+test('a patch header between U+0085, U+2028 or other white space of Codex is read as a header', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('nel');
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  for (const space of ['\u0085', ' ', ' ', '\v', '\f', '\r', ' ', '　']) {
+    for (const [header, file] of [['Add File', 'l1/x.json'], ['Update File', 'l1/x.json.lock'],
+      ['Delete File', 'art/.reports/x.json'], ['Move to', 'l1/y.json']]) {
+      const text = `${space}*** ${header}: ${file}${space}`;
+      assert.equal(write(text), reports.WRITE_REASON, JSON.stringify(text));
+      // Only a line break ends the line before the header.
+      if (/[\v\f\r\u0085\u2028\u2029]/.test(space)) {
+        assert.equal(write(`*** Begin Patch${space}*** ${header}: ${file}${space}+x`),
+          reports.WRITE_REASON, JSON.stringify(text));
+      }
+    }
+    assert.equal(write(`${space}*** Add File: l1/notes.md${space}`), null, JSON.stringify(space));
+  }
+  // Copilot CLI passes the raw patch text of apply_patch.
+  const home = harnessHome();
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    const hit = adapter(home, runtime, 'write', { patch: '\u0085*** Add File: l1/x.json\u0085' },
+      work);
+    assert.equal(hit.denied, true, runtime);
+  }
+  assert.equal(adapter(home, 'copilot', 'write', '\u0085*** Add File: l1/x.json\u0085', work).denied,
+    true);
+  // A header line of 250,000 white space characters is read in under 1 second.
+  const begun = process.hrtime.bigint();
+  assert.equal(write(`*** Add File: ${'\u0085'.repeat(250000)}x`), null);
+  assert.equal(write(`${'　'.repeat(250000)}*** Add File: l1/x.json`), reports.WRITE_REASON);
+  assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+});
