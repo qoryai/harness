@@ -112,8 +112,9 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   `![alt][label]`, and no `<img>`. The ways that a person compares are the options of the
   question.
 
-The other rules stay, such as the edit in place of the newest version, and the 450 words,
-which count the text of a diagram after its first 150 words.
+The other rules stay, such as the edit in place of the newest version, and the 450 words.
+They also count the tokens of each diagram after its first 200. A token is a run of
+characters with no white space.
 
 - A diagram shows the change in how two parts call each other, or in a flow of states, and
   nothing else, and it is no drawing of the system's architecture.
@@ -138,10 +139,10 @@ which count the text of a diagram after its first 150 words.
   as text, under a line that says why it failed. It shows a block over 20,000 characters as
   the size-error diagram of Mermaid, with its source in `<details>`. The check refuses each
   of them.
-- The first 150 words of the text of each diagram are free, and each word after them counts
-  toward the 450 words. The text is each word that is no syntax: a label, a link text, a
-  message, a note, a title, a `%%` comment, a class member, an entity attribute and a state
-  text. A node id, a link token, a keyword and the brackets of a shape are syntax.
+- The first 200 tokens of each diagram are free, and each token after them counts toward the
+  450 words, node ids and keywords included. A token of only the characters
+  ``- = . < > | * ( ) [ ] { } : ; & ~ % " '`` is syntax and counts 0, such as `-->` and
+  `[(`.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw

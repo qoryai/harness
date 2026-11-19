@@ -2265,29 +2265,12 @@ lines or its address on the next line. A reference with no definition is no imag
 - a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
   a removed decision's diagram is not in that count.
 
-The 450 words count the text of each diagram after its first 150 words. The text is each
-word of the diagram that is no syntax: a label (`["..."]`, `("...")`, `{...}`, `|...|` and
-`-- text -->`), the text after `:` of a message, a relation or a state, a note, a title, a
-subgraph title, a `%%` comment (not `%%{`), a class member and an entity attribute. A node
-id, a link token, a keyword and the brackets of a shape are syntax. `diagramWords` in
-`lib/mermaid.cjs` counts a word as a run of characters with no white space that has a
-letter or a digit. It does not read Markdown, so `![...](u)` in a comment hides no word.
-
-`diagramWords` tells text and syntax apart by the line:
-
-- A line with a link token has node ids: the one word at its start, after a link token and
-  after `&`. Each other word counts, and so do the words after its `:`.
-- A line that starts with a keyword counts the words after the keyword, except for the
-  keywords that have no text, such as `end`, `direction` and `state`. `participant` and
-  `actor` count the words after `as`.
-- A `style`, `classDef`, `class`, `linkStyle` or `cssClass` line, and a `:::name` class
-  shorthand on a node, are syntax: they hold node ids, class names and CSS properties. In
-  a class diagram, `class` counts its label. `source()` strips each `click` line, as Qory
-  Apiary does, so Qory Apiary draws no tooltip and a `click` line counts no word.
-- Between a line of at most 3 words that ends with `{` and a line `}`, in a class or an
-  entity diagram, each line counts: a member or an attribute.
-- A node id alone on a line of a flowchart, a graph or a state diagram is syntax.
-- Any other line counts in full.
+The 450 words also count the tokens of each diagram after its first 200 tokens, node ids and
+keywords included. `tokens` in `lib/mermaid.cjs` counts a token as a run of characters with
+no white space, in the text that `source()` returns. A token of only the characters
+``- = . < > | * ( ) [ ] { } : ; & ~ % " '`` is syntax and counts 0. It does not read
+Markdown, so `![...](u)` in a comment hides no token, and a `%%` comment counts as any other
+text. `source()` strips each `click` line, so it counts no token.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for

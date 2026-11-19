@@ -125,7 +125,7 @@ module.exports = (lib) => {
   }
 
   // diagramFinding reports the first rule that the Mermaid blocks of a decision break, as
-  // writing-decisions (SKILL.md:120: "Write the diagram in a") lists them.
+  // writing-decisions (SKILL.md:121: "Write the diagram in a") lists them.
   function diagramFinding(run, decision) {
     const id = idOf(decision.id);
     if (!decision.diagrams) return;
@@ -197,13 +197,13 @@ module.exports = (lib) => {
           `${expected.map((name) => `"${name}:"`).join(', ')}.${whole(decision.id)}`);
       }
     }
-    // writing-decisions (SKILL.md:141-142: "first 150 words of the text of each diagram"): the
-    // 450 words count the words of a diagram that are no syntax, after its first 150.
-    const diagramWords = all.flatMap((decision) => decision.blocks)
+    // writing-decisions (SKILL.md:142: "first 200 tokens of each diagram are free"): the 450
+    // words count each token of a diagram after its first 200.
+    const diagramTokens = all.flatMap((decision) => decision.blocks)
       .filter((block) => block.end !== null)
       .reduce((sum, block) => sum + mermaid.charged(block.text), 0);
-    wordLimit(run, 'decision-record.md', md, false, diagramWords);
-    // writing-decisions (SKILL.md:148: "a third diagram in the record fail"): the Mermaid
+    wordLimit(run, 'decision-record.md', md, false, diagramTokens);
+    // writing-decisions (SKILL.md:149: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
       0);

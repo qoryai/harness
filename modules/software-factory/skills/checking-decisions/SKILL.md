@@ -76,17 +76,18 @@ When you review, the run gives you the lines of its checks script under "Checks:
 `## Decisions`, the line "The spec leaves no technical choice open." or at least one
 decision, the heading of each decision, each id once, the items of each decision in order,
 the form of a removed or open decision, and the limit of 450 words, which counts the text of
-each diagram after its first 150 words: each word that is no node id, link token, keyword or
-shape bracket. It checks each Mermaid block: that it is closed, that it is the last text of
-its decision, after a blank line, that its fence is lower case `mermaid` at the start of the
-line with no other word, that its first word is a type that Qory Apiary draws, that it has
-no syntax that loads an address and no `%%{` line, and that it has at most 20,000
-characters, as Qory Apiary measures them, and, in a flowchart, at most 200 edges, which the
-check counts from every link token. It also checks that a decision has at most one block and
-a removed decision none, and that the decisions that are not removed have at most 2 in the
-record. It checks that "Rests on:" lists criteria of the newest acceptance criteria that are
-not removed, or one of its two other lines, and that "Question:" lists a question of this
-run's questions in the state that the decision needs. The push form reads only the newest
+each diagram after its first 200 tokens: a token is a run of characters with no white space,
+and one of only the characters ``- = . < > | * ( ) [ ] { } : ; & ~ % " '`` counts 0. It
+checks each Mermaid block: that it is closed, that it is the last text of its decision,
+after a blank line, that its fence is lower case `mermaid` at the start of the line with no
+other word, that its first word is a type that Qory Apiary draws, that it has no syntax that
+loads an address and no `%%{` line, and that it has at most 20,000 characters, as Qory
+Apiary measures them, and, in a flowchart, at most 200 edges, which the check counts from
+every link token. It also checks that a decision has at most one block and a removed
+decision none, and that the decisions that are not removed have at most 2 in the record. It
+checks that "Rests on:" lists criteria of the newest acceptance criteria that are not
+removed, or one of its two other lines, and that "Question:" lists a question of this run's
+questions in the state that the decision needs. The push form reads only the newest
 questions version, which does not have this run's new questions yet, so it does not report a
 "Question:" id that is missing there; the check before your start reports it. It checks that
 the ids keep the newest version's ids and numbers, and it checks the characters, each link

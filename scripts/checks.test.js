@@ -1531,7 +1531,7 @@ test('decision record: the 450 words leave out the diagram', () => {
 });
 
 // A diagram of about 40 lines with nodes, labels, subgraphs, links, classes and styles, and no
-// comment: its text has fewer than the 150 free words.
+// comment: it has fewer than the 200 free tokens.
 const DIAGRAM_40 = [
   'flowchart LR',
   '  subgraph intake ["Intake of a reply"]',
@@ -1588,44 +1588,188 @@ function totalWords(...edits) {
   return Number(found[1]);
 }
 
-test('decision record: each diagram has 150 free words, and each word after them counts', () => {
+// FLOW_40 is a flowchart of 40 lines with 2 subgraphs, labels and 4 style lines: 162 tokens.
+const FLOW_40 = [
+  'flowchart TD',
+  '  subgraph intake [Intake of a reply]',
+  '    direction TB',
+  '    A[Customer writes a reply] --> B{Hours known?}',
+  '    B -->|yes| C[Send the hours]',
+  '    B -->|no| D[Ask support for the hours]',
+  '    D --> E[Support reads the ticket]',
+  '    E --> F{Hours in the ticket?}',
+  '    F -->|yes| G[Copy the hours to the reply]',
+  '    F -->|no| H[Ask the customer]',
+  '    H --> A',
+  '    G --> C',
+  '  end',
+  '  subgraph storage [Storage of the reply]',
+  '    I[Validate the reply] --> J{Valid?}',
+  '    J -->|yes| K[Save the reply]',
+  '    J -->|no| L[Return an error]',
+  '    K --> M[(Reply table)]',
+  '    K --> N[Write an audit line]',
+  '    N --> O[(Audit table)]',
+  '    L --> A',
+  '    M --> P[Publish the event]',
+  '    P --> Q[Queue for the mail job]',
+  '    Q --> R[Mail job reads the queue]',
+  '    R --> S{Mail sent?}',
+  '    S -->|yes| T[Mark the reply as sent]',
+  '    S -->|no| U[Retry after 5 minutes]',
+  '    U --> R',
+  '    T --> V[Close the ticket]',
+  '    V --> Y[Archive the ticket]',
+  '    Y --> Z[Delete the draft]',
+  '  end',
+  '  C --> I',
+  '  V --> W[Customer sees the answer]',
+  '  W --> X((End))',
+  '  X --> AA[Report to the dashboard]',
+  '  classDef warn fill:#f96,stroke:#333',
+  '  class D,H warn',
+  '  style X fill:#9f6',
+  '  linkStyle 0 stroke:#333',
+].join('\n');
+
+// CLASS_5 is a class diagram of 5 classes and 38 members, with relations: 113 tokens.
+const CLASS_5 = [
+  'classDiagram',
+  '  class Reply {',
+  '    +int id',
+  '    +String body',
+  '    +Date sentAt',
+  '    +send() bool',
+  '    +validate() bool',
+  '    +archive() void',
+  '    -String token',
+  '    -int attempts',
+  '    -Date lastTry',
+  '    -String error',
+  '  }',
+  '  class Ticket {',
+  '    +int id',
+  '    +String subject',
+  '    +Status status',
+  '    +close() void',
+  '    +reopen() void',
+  '    +assign(Agent agent) void',
+  '    -Date openedAt',
+  '    -Date closedAt',
+  '    -String priority',
+  '  }',
+  '  class Agent {',
+  '    +int id',
+  '    +String name',
+  '    +String email',
+  '    +answer(Ticket ticket) Reply',
+  '    +handOver(Agent other) void',
+  '    +rate() int',
+  '    +leave() void',
+  '  }',
+  '  class Mailer {',
+  '    +String host',
+  '    +int port',
+  '    +deliver(Reply reply) bool',
+  '    +retry(Reply reply) bool',
+  '    -int timeoutSeconds',
+  '    -bool tls',
+  '    -String sender',
+  '  }',
+  '  class AuditLog {',
+  '    +write(String line) void',
+  '    +read(int count) List~String~',
+  '    -String path',
+  '    -int size',
+  '    -List~String~ lines',
+  '  }',
+  '  Ticket "1" --> "many" Reply : has',
+  '  Agent "1" --> "many" Ticket : handles',
+  '  Reply --> Mailer : uses',
+  '  Reply ..> AuditLog : writes to',
+  '  Agent --|> Person',
+].join('\n');
+
+// SEQUENCE_20 is a sequence diagram of 5 participants, 19 messages, a note, an alt and a loop:
+// 113 tokens.
+const SEQUENCE_20 = [
+  'sequenceDiagram',
+  '  participant C as Customer',
+  '  participant W as Web app',
+  '  participant S as Reply service',
+  '  participant D as Database',
+  '  participant M as Mail job',
+  '  C->>W: Write a reply',
+  '  W->>S: POST /replies',
+  '  S->>D: Load the ticket',
+  '  D-->>S: Ticket with its hours',
+  '  Note over S,D: The hours come from the ticket',
+  '  S->>S: Validate the reply',
+  '  alt reply is valid',
+  '    S->>D: Save the reply',
+  '    D-->>S: Saved',
+  '    S->>M: Queue the mail',
+  '    S-->>W: 201 Created',
+  '  else reply is invalid',
+  '    S-->>W: 422 with the errors',
+  '  end',
+  '  W-->>C: Show the result',
+  '  loop Every 5 minutes until sent',
+  '    M->>D: Read the queue',
+  '    M->>C: Send the mail',
+  '  end',
+  '  M->>D: Mark the reply as sent',
+  '  D-->>M: Done',
+  '  M->>S: Report the result',
+  '  S-->>M: Thanks',
+].join('\n');
+
+// A diagram of tokens tokens: a flowchart with one label of tokens - 3 words.
+const flowOf = (tokens) => `flowchart LR\n  A["${many(tokens - 3)}"] --> B`;
+
+test('decision record: the first 200 tokens of each diagram are free, and each token after counts', () => {
   const exact = exactWords();
-  const label = (count) => drawn(`flowchart LR\n  A["${many(count)}"] --> B`);
-  // 40 lines of diagram syntax and labels stay in the free words.
-  passes(push(fixture(cost(exact), drawn(DIAGRAM_40)), 'decision-record'));
-  passes(push(fixture(cost(exact), drawn(CLASS_40)), 'decision-record'));
-  // 30 classDef and style lines add 0.
-  const styled = `flowchart LR\n  A --> B\n${Array.from({ length: 15 }, (_, at) =>
-    `  classDef c${at} fill:#f9f,stroke:#333,color:white,${many(40, 'x')}`).join('\n')}\n${
-    Array.from({ length: 15 }, (_, at) => `  style A${at} fill:#f9f,${many(40, 'y')}`).join('\n')}`;
-  passes(push(fixture(cost(exact), drawn(styled)), 'decision-record'));
-  // A click tooltip of 200 words adds 50, as the text that it shows.
-  const click = `flowchart LR\n  A --> B\n  click A call cb() "${many(200)}"`;
-  assert.equal(totalWords(cost(exact), drawn(click)), 450 + 50);
-  // 150 label words add 0, and 151 add 1.
-  passes(push(fixture(cost(exact), label(150)), 'decision-record'));
-  fails(push(fixture(cost(exact), label(151)), 'decision-record'), COUNT);
-  assert.equal(totalWords(cost(exact), label(151)), 451);
-  // The 4 ways to hide 1500 words that the word count once missed add 1350.
-  const hidden = {
-    'a label': `flowchart LR\n  A["${many(1500)}"] --> B`,
-    'a link text': `flowchart LR\n  A -->|${many(1500)}| B`,
-    'a message': `sequenceDiagram\n  Alice->>Bob: ${many(1500)}`,
-    '300 titles': `flowchart LR\n  A --> B\n${Array(300).fill(`title ${many(6)}`).join('\n')}`,
-    'a comment with an image': `flowchart LR\n  A --> B\n%% ![${many(1500)}](u)`,
-    'a text link': `flowchart LR\n  A -- ${many(1500)} --> B`,
-  };
-  for (const [name, body] of Object.entries(hidden)) {
-    const words = name === '300 titles' ? 1800 : 1500;
-    assert.equal(totalWords(cost(exact), drawn(body)), 450 + words - 150, name);
+  const mermaid = require(MERMAID);
+  // The 3 usual diagrams add 0.
+  for (const [name, body, tokens] of [['a flowchart', FLOW_40, 162], ['a class diagram', CLASS_5, 113],
+    ['a sequence diagram', SEQUENCE_20, 113], ['DIAGRAM_40', DIAGRAM_40, 138], ['CLASS_40', CLASS_40, 123]]) {
+    assert.equal(mermaid.tokens(body), tokens, name);
+    passes(push(fixture(cost(exact), drawn(body)), 'decision-record'));
   }
-  // 2 diagrams of 200 label words add 2 x 50: each diagram has its own 150 free words.
+  // 200 tokens add 0, so that a record of exactly 450 words passes. 201 add 1.
+  assert.equal(mermaid.tokens(flowOf(200)), 200);
+  passes(push(fixture(cost(exact), drawn(flowOf(200))), 'decision-record'));
+  assert.equal(mermaid.tokens(flowOf(201)), 201);
+  fails(push(fixture(cost(exact), drawn(flowOf(201))), 'decision-record'),
+    /^Cut decision-record.md to 450 words: it has 451\./);
+  // An emoji is a token: 250 add 50, though no letter or digit is in them.
+  const emoji = `flowchart LR\n  A["${Array(247).fill('\u{1F600}').join(' ')}"] --> B`;
+  assert.equal(mermaid.tokens(emoji), 250);
+  assert.equal(totalWords(cost(exact), drawn(emoji)), 450 + 50);
+  // 5 texts that the earlier rules counted by form are charged in full beyond the 200 free tokens.
+  const ids = Array.from({ length: 1000 }, (_, at) => `w${at}`);
+  const label30 = (at) => `  N${at}["${Array.from({ length: 30 }, (_, word) => `l${word}`).join('\n')}"]`;
+  const cases = {
+    'a label of 30 words, one word on each line':
+      [`flowchart LR\n${Array.from({ length: 10 }, (_, at) => label30(at)).join('\n')}`, 2 + 10 * 30],
+    'a style line with an arrow':
+      [`sequenceDiagram\n  style ->> A: ${many(1000)}`, 1 + 1 + 1 + 1000],
+    'a create line':
+      [`sequenceDiagram\n  create participant B as ${many(1000)}`, 1 + 4 + 1000],
+    'a loop with arrows': [`sequenceDiagram\n  loop ${ids.join(' -> ')}`, 1 + 1 + 1000],
+    '200 style members of a class':
+      [`classDiagram\n  class C {\n${'    style w0 w1 w2 w3 w4\n'.repeat(200)}  }`, 1 + 1 + 1 + 200 * 6],
+  };
+  for (const [name, [body, tokens]] of Object.entries(cases)) {
+    assert.equal(mermaid.tokens(body), tokens, name);
+    assert.equal(totalWords(cost(exact), drawn(body)), 450 + tokens - 200, name);
+  }
+  // 2 diagrams of 250 tokens add 2 x 50: each diagram has its own 200 free tokens.
   const two = (first, second) => [drawn(first), ['decision-record.md', /\n*$/,
     `${decision(2, false)}\n\n\`\`\`mermaid\n${second}\n\`\`\`\n`]];
   const small = 'flowchart LR\n  A --> B';
-  const big = `flowchart LR\n  A["${many(200)}"] --> B`;
-  assert.equal(totalWords(cost(500), ...two(big, big)) - totalWords(cost(500), ...two(small, small)),
-    100);
+  assert.equal(totalWords(cost(500), ...two(flowOf(250), flowOf(250)))
+    - totalWords(cost(500), ...two(small, small)), 100);
 });
 
 test('decision record: a Mermaid block with a %%{ line is refused, and its words count none', () => {
@@ -1634,46 +1778,34 @@ test('decision record: a Mermaid block with a %%{ line is refused, and its words
     directive);
   fails(push(fixture(drawn('%%{init: {}}%%\nflowchart LR\n  A --> B')), 'decision-record'), directive);
   const mermaid = require(MERMAID);
-  assert.equal(mermaid.diagramWords(`flowchart LR\n  A --> B\n%%{ ${many(500)} }%%`), 0);
+  assert.equal(mermaid.tokens(`flowchart LR\n  A --> B\n%%{ ${many(500)} }%%`), 4);
   // The size leaves out a %% comment line, and a directive line is dropped before.
   assert.equal(mermaid.size(mermaid.source('flowchart LR\n%%{ init }%%\n  A')),
     'flowchart LR\n  A\n'.length);
   assert.equal(mermaid.directive('flowchart LR\n%​%{ init }%%'), true);
 });
 
-test('decision record: the words of a diagram that are no syntax, by form', () => {
-  const { diagramWords: words } = require(MERMAID);
-  assert.equal(words(DIAGRAM_40) <= 150, true);
-  // Syntax counts 0: node ids, link tokens, keywords and the brackets of a shape.
-  assert.equal(words('flowchart LR\n  A\n  B[x]\n  C & D --> E\n  subgraph s\n  direction TB\n  end'), 2);
-  // Style lines, class shorthands and the target of a click are syntax. A tooltip is text.
-  const styles = ['  classDef default fill:#f9f,stroke:#333,font-family:"Arial Black"',
-    '  class A,B warn', '  linkStyle 0 stroke:red', '  cssClass "A,B" warn', '  style A fill:#f9f'];
-  assert.equal(words(`flowchart LR\n  A --> B\n${styles.join('\n')}`), 0);
-  assert.equal(words('flowchart LR\n  A:::warn --> B:::cls\n  C:::d'), 0);
-  assert.equal(words('flowchart LR\n  A[one]:::warn --> B[two]:::cls'), 2);
-  assert.equal(words('classDiagram\n  class Animal["My Animal"]\n  class Plain'), 2);
-  assert.equal(words('flowchart LR\n  A --> B\n  click A call cb() "one two three"'), 3);
-  assert.equal(words('flowchart LR\n  A --> B\n  click A "https://example.com/a"'), 1);
-  assert.equal(words('flowchart LR\n  A --> B\n  A -.-> B\n  A ==> B\n  A --- B\n  A ~~~ B'), 0);
-  // Text counts: labels, link texts, messages, notes, titles, comments, members, attributes
-  // and state texts, with a plain split on white space.
-  assert.equal(words('flowchart LR\n  A[one two] --> B("three") -->|four five| C{six}'), 6);
-  assert.equal(words('flowchart LR\n  A -- one two --> B\n  C -- three --- D'), 3);
-  assert.equal(words('sequenceDiagram\n  participant A as Alice\n  A->>B: hi there\n  Note over A,B: a note'), 5);
-  assert.equal(words('sequenceDiagram\n  title One two\n  loop Every minute\n  B-->>A: ok\n  end'), 5);
-  assert.equal(words('flowchart LR\n%% one two three\n  A --> B'), 3);
-  assert.equal(words('classDiagram\n  class Reply {\n    +int age\n    -List~T~ items\n    +get() int\n  }'), 6);
-  assert.equal(words('classDiagram\n  Reply : +int age\n  Reply --> Hours : has'), 3);
-  assert.equal(words('erDiagram\n  REPLY {\n    string name PK\n  }\n  REPLY ||--o{ HOURS : has'), 4);
-  assert.equal(words('stateDiagram-v2\n  [*] --> Open\n  Open : waits for the answer\n  Open\n  Open --> Closed'), 4);
-  // Markdown in a label does not hide a word, and prose with a link token counts.
-  assert.equal(words(`flowchart LR\n%% ![${many(10)}](u)`), 10);
-  assert.equal(words(`flowchart LR\n  ${many(10)}`), 10);
-  assert.equal(words('flowchart LR\n  one two -- three four'), 2);
-  assert.equal(words(`flowchart LR\n  Open : ${many(29)}`), 29);
-  // A free word count of 150 is charged only above it.
-  assert.equal(require(MERMAID).charged(`flowchart LR\n  A["${many(200)}"] --> B`), 50);
+test('decision record: a token is a run with no white space, and only a syntax token counts 0', () => {
+  const { tokens } = require(MERMAID);
+  // A token of only - = . < > | * ( ) [ ] { } : ; & ~ % " ' counts 0.
+  assert.equal(tokens('flowchart LR\n  A --> B\n  A -.-> B\n  A ==> B\n  A --- B\n  A ~~~ B'), 12);
+  assert.equal(tokens('flowchart LR\n  C & D --> E'), 5);
+  assert.equal(tokens('flowchart LR\n  A[(x)] -->|y| B'), 5);
+  assert.equal(tokens('flowchart LR\n  A[ ( ) ] ; { } : " \' %%'), 3);
+  // Every other token counts, node ids and keywords included.
+  assert.equal(tokens('flowchart LR\n  subgraph s\n  direction TB\n  end'), 7);
+  assert.equal(tokens('flowchart LR\n  A[one two] --> B("three")'), 5);
+  assert.equal(tokens('sequenceDiagram\n  participant A as Alice\n  A->>B: hi there'), 8);
+  // A %% comment counts as any other text, with an image in it. A %%{ line and a click line are
+  // stripped before the count, as Qory Apiary strips them.
+  assert.equal(tokens('flowchart LR\n%% one two three'), 5);
+  assert.equal(tokens(`flowchart LR\n%% ![${many(10)}](u)`), 12);
+  assert.equal(tokens('flowchart LR\n  A --> B\n  click A call cb() "one two three"'), 4);
+  // An emoji, a letter and a digit are tokens, and so is a word of 2 non-Latin characters.
+  assert.equal(tokens('flowchart LR\n  \u{1F600} \u4F60\u597D 1'), 5);
+  // The charge is the count above FREE_TOKENS.
+  assert.equal(require(MERMAID).FREE_TOKENS, 200);
+  assert.equal(require(MERMAID).charged(flowOf(250)), 50);
 });
 
 test('decision record: a time limit for text that made a pattern slow', () => {
@@ -1693,6 +1825,7 @@ test('decision record: a time limit for text that made a pattern slow', () => {
   timed('blank lines in a sequence diagram', drawn(`sequenceDiagram\n${'\n'.repeat(150000)}  A->>B: x`));
   timed('blank lines before a properties line', drawn(`sequenceDiagram\n${' \n'.repeat(75000)}properties A`));
   timed('nested image starts', ['decision-record.md', '- Why: ', `- Why: ${'![x'.repeat(30000)}${']'.repeat(30000)} `]);
+  timed('tokens', drawn(`flowchart LR\n${'a '.repeat(9400)}`));
   timed('image destinations that do not close', ['decision-record.md', '- Why: ', `- Why: ${'![a]('.repeat(15000)} `]);
   timed('image starts with a long alt', ['decision-record.md', '- Why: ', `- Why: ${'![a b '.repeat(20000)} `]);
 });
@@ -1703,13 +1836,14 @@ test('decision record: the checks of a diagram take linear time on nested bracke
   assert.equal(mermaid.edges(`flowchart LR\n  A${'[('.repeat(100000)}${')]'.repeat(100000)} --> B`), 1);
   assert.equal(mermaid.edges(`flowchart LR\n  A${'['.repeat(200000)}${']'.repeat(200000)} --> B`), 1);
   assert.equal(mermaid.loads(`sequenceDiagram\n${'\n'.repeat(200000)}properties A`), true);
+  assert.equal(mermaid.tokens(`flowchart LR\n${'a '.repeat(500000)}`), 500002);
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
 });
 
-test('decision record: a class diagram of 40 members adds no word to a record of 450 words', () => {
+test('decision record: a class diagram of 40 members adds no token to a record of 450 words', () => {
   const exact = exactWords();
   passes(push(fixture(cost(exact), drawn(CLASS_40)), 'decision-record'));
-  // A member line of 30 words adds 30, and the 150 free words of the diagram take them.
+  // A member line of 30 words adds 0: the 200 free tokens of the diagram take them.
   const long = `classDiagram\n  class Reply {\n    ${many(30)}\n  }\n  Reply --> Hours`;
   passes(push(fixture(cost(exact), drawn(long)), 'decision-record'));
   // An entity diagram and a state diagram of usual size add nothing.
