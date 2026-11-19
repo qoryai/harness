@@ -689,9 +689,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   no mockup." Now `spec-writer` adds a part with a `Mockup screen:` line for such a word, as
   `writing-specs` lists, `check` runs on the spec, and the planner starts again after the
   spec push, so the mockup workflow follows. After a follow of `write-specs` in the log
-  after the word's `at`, the planner lists `make-mockups` alone, and `shape-reviewer`
-  counts a word as covered when the last reply of the spec writer declined, answered or
-  asked about it, or when such a follow took it, so the run does not loop to its limit.
+  after the word's `at`, the planner lists `write-specs` no more for the word: it lists
+  `make-mockups` when the spec lists the screen, and else puts it under "Not run".
+  `shape-reviewer` sends no finding for a word whose last reply of the spec writer
+  declined, answered or asked about it to `write-specs`, so the run does not loop to its
+  limit.
 
 - The acceptance criteria are `acceptance-criteria.json`, in the acceptance criteria format
   of qory's contract, in place of the table of `acceptance-criteria.md`: a `summary`, and

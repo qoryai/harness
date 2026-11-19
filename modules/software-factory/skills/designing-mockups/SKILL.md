@@ -29,7 +29,7 @@ type, try the newest `<N>` that it lists, then the approved one. Then:
    that a word or a criterion's changed text concerns. When the unpack exits with 1
    because `mockup-pages/` has pages already, change those pages. Otherwise, or when the
    unpack exits with 1 for another reason, write each page anew.
-6. Draw each screen that the spec names as `Mockup screen:`, and note each `ac-N` that a
+6. Draw only the screens that the spec lists as `Mockup screen:`. Note each `ac-N` that a
    person sees there.
 
 A start again that fixes a finding skips steps 3 and 5, and changes only pages in

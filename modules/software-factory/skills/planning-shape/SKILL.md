@@ -28,8 +28,9 @@ Before a spec exists, judge by the ticket and the proposal, and after that by th
 spec and acceptance criteria. A workflow runs when a word concerns its output, and also:
 
 - `write-specs`: when no spec exists, when a person's word asks for a screen that the newest
-  spec does not list as `Mockup screen:` (rule 4 of "Which workflow a person's word
-  concerns"), or when "A stop in the log" routes a stop to it.
+  spec does not list as `Mockup screen:`, until a follow of `write-specs` after the word's
+  `at` (rule 4 of "Which workflow a person's word concerns"), or when "A stop in the log"
+  routes a stop to it.
 - `write-technical-decisions`: when the work leaves open a choice of how to build that the
   newest record does not decide, or a criterion on a decision's "Rests on:" line changed.
 - `make-mockups`: when the work changes a screen that the newest mockup lacks, or a
@@ -41,7 +42,7 @@ spec and acceptance criteria. A workflow runs when a word concerns its output, a
 The reason for a workflow that does not run names the missing case. A word on one output
 reruns only what depends on that output. A word that asks for a screen that the newest spec
 does not list as `Mockup screen:` depends on the spec too: it reruns `write-specs`, then
-`make-mockups`.
+`make-mockups`, until a follow of `write-specs` after the word's `at`.
 
 ## Which workflow a person's word concerns
 
@@ -72,7 +73,9 @@ A word counts when it is an open review comment, or when none of these settled i
    newest spec lists the screen and the newest mockup lacks it, list `make-mockups` alone.
    After a follow of `write-specs` in the log after the word's `at`, the spec needs no
    further change for the word, also when the reply of the spec writer has outcome
-   `declined` or `asked`: list `make-mockups` alone, and its normal end stands.
+   `declined` or `asked`. Then, when the newest spec lists the screen, list `make-mockups`.
+   Otherwise list `make-mockups` under "Not run", with the reason that the spec does not
+   list the screen.
 5. List each type that a word concerns, with a fact that quotes the word. When the words
    stay unclear, list `write-specs`.
 
