@@ -13,7 +13,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   two parts call each other, or a flow of states, may end with one Mermaid diagram, drawn by
   `visuals`. The check of the type `decision-record` refuses, each with a fix line that
   starts with the fix: a Mermaid block with no closing fence ("Close the Mermaid block of
-  decision-1 with a line of 3 backticks."), a second diagram in a decision, a diagram that
+  decision-1 with a line of 3 backticks.", with the length and the mark of the opening
+  fence), a second diagram in a decision, a diagram that
   is not the last text of its decision after a blank line, a diagram in a removed decision,
   and a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has
   3."). It still refuses an image, and the 450 words leave out the words of a diagram.

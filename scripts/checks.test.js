@@ -1228,8 +1228,14 @@ test('decision record: an unclosed Mermaid block is refused, and hides nothing',
   fails(push(fixture(open(many(2000))), 'decision-record'), closing);
   fails(push(fixture(open(`### \`decision-2\`: the old way\n\n- Removed, because it changed.`)),
     'decision-record'), closing);
-  fails(push(fixture(['decision-record.md', COST, (item) => `${item}\n\n~~~mermaid\nA --> B\n`]),
-    'decision-record'), closing);
+  const tildes = (fence) => ['decision-record.md', COST,
+    (item) => `${item}\n\n${fence}mermaid\nA --> B\n`];
+  fails(push(fixture(tildes('~~~')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 3 tildes\.$/);
+  fails(push(fixture(tildes('~~~~~')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 5 tildes\.$/);
+  fails(push(fixture(tildes('````')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 4 backticks\.$/);
 });
 
 test('decision record: the 450 words leave out the diagram', () => {

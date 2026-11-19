@@ -25,7 +25,7 @@ module.exports = (lib) => {
 
   // decisions reads decision-record.md: one entry per ### heading, with its items and its
   // Mermaid blocks. A Mermaid block is no item: it ends the item before it. diagrams counts
-  // the blocks, open is true when the last block has no closing fence, and placed is true when
+  // the blocks, unclosed is the block with no closing fence, else null, and placed is true when
   // each block follows the last item after a blank line and nothing but blank lines follows it.
   function decisions(text) {
     return sections(lines(text), 3)
@@ -79,7 +79,7 @@ module.exports = (lib) => {
           fields,
           diagrams: blocks.length,
           open: Boolean(decision && decision.value === OPEN_DECISION),
-          unclosed: blocks.some((one) => one.end === null),
+          unclosed: blocks.find((one) => one.end === null) || null,
           placed,
           removed: items.length === 1 && items[0] !== null && REMOVED.test(items[0]),
         };
@@ -92,7 +92,11 @@ module.exports = (lib) => {
     const id = idOf(decision.id);
     if (!decision.diagrams) return;
     let fix = null;
-    if (decision.unclosed) fix = `Close the Mermaid block of ${id} with a line of 3 backticks.`;
+    if (decision.unclosed) {
+      const { char, size } = decision.unclosed;
+      fix = `Close the Mermaid block of ${id} with a line of ${size} ` +
+        `${char === '~' ? 'tildes' : 'backticks'}.`;
+    }
     else if (decision.removed) fix = `Remove the Mermaid diagram of ${id}, which is removed.`;
     else if (decision.diagrams > 1) {
       fix = `Cut ${id} to one Mermaid diagram: it has ${decision.diagrams}.`;

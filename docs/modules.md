@@ -2085,16 +2085,16 @@ section "Markdown documents" of `artifact-text` for them: a decision whose chose
 changes how two parts call each other, or a flow of states, may end with one Mermaid
 diagram, drawn by `visuals`. The record has no wireframe, table or image. `checks.cjs`
 refuses, each with a fix line that starts with the fix: a block with no closing fence
-("Close the Mermaid block of decision-1 with a line of 3 backticks."), a second diagram in
-a decision ("Cut decision-1 to one Mermaid diagram: it has 2."), a diagram that is not the
-last text of its decision after a blank line ("Put the Mermaid diagram of decision-1 after
-its last item, with a blank line before it."), a diagram in a removed decision ("Remove the
-Mermaid diagram of decision-1, which is removed."), a third diagram in the record
-("Cut decision-record.md to 2 Mermaid diagrams: it has 3."), and an image. A removed
-decision's diagram is not in that count. The 450 words leave out the words of a diagram.
-`checking-decisions` has the reviewer judge the rest: a diagram under a decision that
-changes no call or flow, a diagram that does not match its decision, and a drawing of the
-system's architecture.
+("Close the Mermaid block of decision-1 with a line of 3 backticks.", or "3 tildes" or
+another length, as the opening fence is), a second diagram in a decision ("Cut decision-1 to
+one Mermaid diagram: it has 2."), a diagram that is not the last text of its decision after
+a blank line ("Put the Mermaid diagram of decision-1 after its last item, with a blank line
+before it."), a diagram in a removed decision ("Remove the Mermaid diagram of decision-1,
+which is removed."), a third diagram in the record ("Cut decision-record.md to 2 Mermaid
+diagrams: it has 3."), and an image. A removed decision's diagram is not in that count. The
+450 words leave out the words of a diagram. `checking-decisions` has the reviewer judge the
+rest: a diagram under a decision that changes no call or flow, a diagram that does not match
+its decision, and a drawing of the system's architecture.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, and `designer` writes one
