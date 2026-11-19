@@ -136,10 +136,29 @@ function onDisk(file, start, budget) {
   return real;
 }
 
+// flat returns file as path.posix.normalize returns it, in one pass: it drops each `.` and empty
+// part, and each `..` with the part before it. path.posix.normalize took 26 s on 990 KB of `../`.
+function flat(file) {
+  const absolute = file.startsWith('/');
+  const stack = [];
+  for (const part of file.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part !== '..') stack.push(part);
+    else if (stack.length > 0 && stack[stack.length - 1] !== '..') stack.pop();
+    else if (!absolute) stack.push('..');
+  }
+  const body = stack.join('/');
+  const out = absolute ? `/${body}` : body || '.';
+  return file.endsWith('/') && !out.endsWith('/') ? `${out}/` : out;
+}
+
 // reportsOnDisk returns the deny for a text whose path the disk resolves to a file .reports/*.json,
 // as one with a space before a `..` or one through a link, or null. It reads the whole text as one
 // path, and also the path of each header line of a patch in it; a line break in a path is part
-// of a part's name. state has the budget of the call and the resolved folder cwd.
+// of a part's name. It reads each path in two ways: as the kernel does, which applies each `..` to
+// the folder that the part before it resolves to, and as a tool that cuts each `..` out of the
+// text before it opens the file; a deny by either way counts. state has the budget of the call, the
+// resolved folder cwd and its text.
 function reportsOnDisk(text, cwd, state) {
   const paths = [text];
   for (const line of text.split(PATCH_BREAK)) {
@@ -147,16 +166,18 @@ function reportsOnDisk(text, cwd, state) {
     if (header !== null) paths.push(trimmed(line.slice(header[0].length)));
   }
   try {
-    for (let one of paths) {
+    for (const one of paths) {
       if (one === '' || one.includes('\0')) continue;
-      // No disk takes a path this long, but a tool may cut each `..` out of it as text first.
-      if (one.length > PATH_MAX) {
-        one = path.posix.normalize(one);
-        if (pathJson(one)) return WRITE_REASON;
-        if (one.length > PATH_MAX) continue;
+      if (state.start === undefined) {
+        state.text = path.resolve(cwd);
+        state.start = onDisk(state.text, '/', state);
       }
-      if (state.start === undefined) state.start = onDisk(path.resolve(cwd), '/', state);
-      if (pathJson(onDisk(one, state.start, state))) return WRITE_REASON;
+      // No disk takes a path over PATH_MAX characters.
+      if (one.length <= PATH_MAX && pathJson(onDisk(one, state.start, state))) return WRITE_REASON;
+      if (!one.includes('..')) continue;
+      const cut = flat(one.startsWith('/') ? one : `${state.text}/${one}`);
+      if (pathJson(cut)) return WRITE_REASON;
+      if (cut.length <= PATH_MAX && pathJson(onDisk(cut, '/', state))) return WRITE_REASON;
     }
   } catch (error) {
     if (error instanceof Stop) return error.message;
@@ -602,5 +623,6 @@ function safeDecide(call) {
   }
 }
 
-module.exports = { readInput, decide, safeDecide, runsChecks, withoutRedirect, reportsJson, REPORTS,
-  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON, SPECIAL_REASON };
+module.exports = { readInput, decide, safeDecide, runsChecks, withoutRedirect, reportsJson, flat,
+  REPORTS, HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON,
+  SPECIAL_REASON };

@@ -1402,9 +1402,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `l1/x.json` through a link to `.reports` and passed. A patch header is read as Codex reads
   it, with the white space of Unicode's White_Space around it and each of its line breaks
   ending the line: U+0085 (NEL) before `*** Add File: l1/x.json` passed, because the `\s` of
-  JavaScript lacks it. A path of more than 4,096 characters is read with each `..` cut out as text,
-  because a tool may cut them out before it writes: `x/../` 1,000 times and then
-  `.reports/a b/../report.json` is denied. The paths of one call share 16,384 steps, one for
+  JavaScript lacks it. The guard reads each path two ways: as the kernel opens it, with each `..`
+  applied to the folder that the part before it resolves to, and as a tool that cuts each `..`
+  out of the text before it opens the file; the second reading joins the path to the working
+  folder and follows each link of the result. A deny by either reading counts. With
+  `lnk -> deep/d1/d2` and `l2 -> art/.reports`, the kernel opens `lnk/../l2/x.json` as
+  `deep/d1/l2/x.json`, which is not there, and a tool that cuts `lnk/..` first writes
+  `l2/x.json`, in `.reports`: the guard denies it. A path of more than 4,096 characters, which
+  no disk opens, gets the second reading only: `x/../` 1,000 times and then
+  `.reports/a b/../report.json` is denied, and so is `../` 1,400 times, the working folder
+  without its first `/`, and `/l1/x.json`. The cut runs in one pass; `path.posix.normalize`
+  took 26 s on 990 KB of `../`. The paths of one call share 16,384 steps, one for
   each part of a path, `.` and `..` too; a call that needs more is denied with "Write fewer
   files in one call, each with a short path and no link." A path through more than 40 links,
   or through a link loop, is denied with "Remove the link loop from the path."

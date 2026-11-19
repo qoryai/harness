@@ -2760,3 +2760,85 @@ test('a patch header between U+0085, U+2028 or other white space of Codex is rea
   assert.equal(write(`${'　'.repeat(250000)}*** Add File: l1/x.json`), reports.WRITE_REASON);
   assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
 });
+
+test('a path is read as the kernel opens it and as a tool that cuts each `..` out of the text first', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('both');
+  fs.mkdirSync(path.join(work, 'deep', 'd1', 'd2'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'art', '.reports'), { recursive: true });
+  fs.mkdirSync(path.join(work, 'sub'));
+  fs.symlinkSync('deep/d1/d2', path.join(work, 'lnk'));
+  fs.symlinkSync('art/.reports', path.join(work, 'l2'));
+  fs.symlinkSync('art/.reports', path.join(work, 'l1'));
+  const write = (args) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+    return reason;
+  };
+  // The kernel opens lnk/../l2/x.json as deep/d1/l2/x.json, which is not there; a tool that
+  // cuts `lnk/..` out first opens l2/x.json, which is a link to .reports.
+  for (const file of ['lnk/../l2/x.json', 'lnk/../l2/x.json.lock', './lnk/../l1/x.json',
+    `${work}/lnk/../l2/x.json`]) {
+    assert.equal(write({ file_path: file }), reports.WRITE_REASON, file);
+    assert.equal(write(`*** Add File: ${file}\n+{}\n`), reports.WRITE_REASON, file);
+    assert.equal(guard({ ...claude('Write', { file_path: file, content: '{}' }, 'implementer'),
+      cwd: work }), reports.WRITE_REASON, file);
+  }
+  // A path over 4,096 characters that goes up past the root of the disk and then down through
+  // the working folder: as text it is the working folder and l1/x.json.
+  const over = '../'.repeat(1400) + work.slice(1) + '/l1/x.json';
+  assert.ok(over.length > 4096, `${over.length} characters`);
+  assert.equal(write({ file_path: over }), reports.WRITE_REASON);
+  assert.equal(write(`*** Add File: ${over}\n`), reports.WRITE_REASON);
+  assert.equal(write({ file_path: `${over.slice(0, -'l1/x.json'.length)}sub/x.md` }), null);
+  // The kernel reads lr/../x.json as .reports/x.json, but a tool that cuts `lr/..` first writes
+  // x.json in the working folder: the kernel reading denies it.
+  fs.mkdirSync(path.join(work, 'art', '.reports', 'sub'));
+  fs.symlinkSync('art/.reports/sub', path.join(work, 'lr'));
+  assert.equal(write({ file_path: 'lr/../x.json' }), reports.WRITE_REASON);
+  // A path that goes up and down and reaches no report file passes.
+  for (const file of ['sub/../a.txt', 'lnk/../a.json', 'sub/../l1/note.md', 'a/../../x.md']) {
+    assert.equal(write({ file_path: file }), null, file);
+  }
+  // A path of 990 KB of `../` is decided in under 1 second (write checks the time).
+  assert.equal(write({ file_path: `${'../'.repeat(330000)}x.md` }), null);
+  assert.equal(write({ file_path: `${'../'.repeat(330000)}${work.slice(1)}/l1/x.json` }),
+    reports.WRITE_REASON);
+  assert.equal(write({ file_path: `${'../'.repeat(330000)}.reports/a b/../x.json` }),
+    reports.WRITE_REASON);
+  // The adapters of the three runtimes decide the same, in under 1 second.
+  const home = harnessHome();
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    for (const file of ['lnk/../l2/x.json', over, `${'../'.repeat(330000)}${work.slice(1)}/l1/x.json`]) {
+      const hit = adapter(home, runtime, 'write', { file_path: file }, work, 3000);
+      assert.equal(hit.killed, false, runtime);
+      assert.equal(hit.denied, true, `${runtime}: ${file.slice(0, 40)}`);
+      assert.ok(hit.ms < 1500, `${runtime}: ${hit.ms} ms`);
+    }
+  }
+});
+
+test('flat cuts each `..` out of a path as path.posix.normalize does, in linear time', () => {
+  const { flat } = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const pieces = ['', '.', '..', 'a', 'b c', '/', '//', 'x.json', '.reports', '...'];
+  let seed = 11;
+  const pick = (count) => {
+    seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff;
+    return (seed >>> 8) % count;
+  };
+  for (let n = 0; n < 5000; n += 1) {
+    let text = '';
+    for (let parts = pick(9); parts > 0; parts -= 1) {
+      text += pieces[pick(pieces.length)] + (pick(3) === 0 ? '' : '/');
+    }
+    assert.equal(flat(text), path.posix.normalize(text), JSON.stringify(text));
+  }
+  // path.posix.normalize took 2.2 s on 300 KB and 26 s on 990 KB of this.
+  for (const text of ['../'.repeat(330000) + 'x', '../'.repeat(100000), '/a/'.repeat(1) +
+    '../'.repeat(330000)]) {
+    const begun = process.hrtime.bigint();
+    flat(text);
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000, `${text.length} characters`);
+  }
+});
