@@ -98,16 +98,44 @@ test('the skill reads the criteria, and ends with run_again for a Tests criterio
   says(order, '"The build plan has no check path for <criterion>, a criterion planned as ' +
     'Tests, so the run wrote no acceptance checks."');
   says(order, '"Plan the build again, with a check path for <criterion>."');
-  // The point has the shape that the check of points accepts.
+  // The points of the three cases pin their texts and pass the check of points.
+  says(order, '"The work item has no build plan, so the run wrote no acceptance checks." and its ' +
+    '`fix` is "Plan the build, so that a run pushes the build plan."');
+  says(order, '"The work item has no acceptance criteria, so the run wrote no acceptance ' +
+    'checks." and its `fix` is "Move the work item back to Shape, so that a run there writes ' +
+    'the acceptance criteria."');
   const w = work();
   const call = session(w);
   const file = path.join(w.artifacts, 'points.json');
-  fs.writeFileSync(file, JSON.stringify([{ text: 'The build plan has no check path for ' +
-    'AC-3, "The export has a footer line", a criterion planned as Tests, so the run wrote no ' +
+  const check = (points) => {
+    fs.writeFileSync(file, JSON.stringify(points));
+    return call('check', 'points', file);
+  };
+  const missing = (quote) => [{ text: `The build plan has no check path for ${quote}, a ` +
+    'criterion planned as Tests, so the run wrote no acceptance checks.', action: 'run_again',
+  fix: `Plan the build again, with a check path for ${quote}.` }];
+  for (const points of [[{ text: 'The work item has no build plan, so the run wrote no ' +
     'acceptance checks.', action: 'run_again',
-  fix: 'Plan the build again, with a check path for AC-3, "The export has a footer line".' }]));
-  const checked = call('check', 'points', file);
-  assert.equal(checked.status, 0, checked.out + checked.err);
+  fix: 'Plan the build, so that a run pushes the build plan.' }],
+  [{ text: 'The work item has no acceptance criteria, so the run wrote no acceptance checks.',
+    action: 'run_again',
+    fix: 'Move the work item back to Shape, so that a run there writes the acceptance criteria.' }],
+  missing('AC-3, "The export has a footer line"')]) {
+    const checked = check(points);
+    assert.equal(checked.status, 0, checked.out + checked.err);
+  }
+  // A sentence of 450 characters makes the text and the fix more than 500 characters, which
+  // the check refuses. The cut of the skill, the first 8 words and "...", brings both under.
+  says(order, 'While the text or the `fix` has more than 500 characters, cut the quote of the ' +
+    'criterion in both to its first 8 words and "...".');
+  const sentence = Array.from({ length: 75 }, (_, at) => `word${at}`).join(' ').slice(0, 450);
+  assert.equal(sentence.length, 450);
+  const whole = `AC-3, "${sentence}"`;
+  const cut = `AC-3, "${sentence.split(' ').slice(0, 8).join(' ')}..."`;
+  assert.ok(missing(whole)[0].text.length > 500, 'the text is over 500 characters');
+  assert.equal(check(missing(whole)).status, 1);
+  assert.ok(missing(cut)[0].text.length <= 500 && missing(cut)[0].fix.length <= 500);
+  assert.equal(check(missing(cut)).status, 0);
 });
 
 test('each new agent has guardrails, stop conditions, expected output and tier thinking', () => {
@@ -128,8 +156,8 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
   says(section(writer, 'Guardrails'), 'You run no command, except ' +
     '`<skill folder>/checks.cjs run targeted <path>... --inputs <path>`');
   says(section(writer, 'Guardrails'), 'below a folder of the check scope of that row, which is ' +
-    'its Check path, and each folder of its Files that is the first folder of the Check path ' +
-    'or below it');
+    'its Check path, and each folder of its Files that contains the Check path or lies under ' +
+    'the folder of the Check path');
 });
 
 test('the stack declares write-acceptance-checks with tier balanced and access write', () => {
@@ -822,10 +850,11 @@ test('scope checks refuses the code under test of a row with a check, and any Fi
   assert.match(deliverable.out, /^Passed: 3 changed paths in the files of d-1/m);
 });
 
-test('scope checks takes a helper folder below the first folder of the Check path', () => {
-  const rule = 'its Check path, and each folder of its Files that is the first folder of the ' +
-    'Check path or below it, such as `tests/` and `tests/helpers/` for `tests/x.test.ts`; a ' +
-    'Check path with no folder adds none';
+test('scope checks takes a helper folder below the folder of the Check path', () => {
+  const rule = 'its Check path, and each folder of its Files that contains the Check path or ' +
+    'lies under the folder of the Check path (`tests/` for `tests/x.test.ts`), unless the ' +
+    'folder contains a Files entry of any row that is a file and no Check path, such as ' +
+    '`src/` with `src/a.ts`; a Check path with no folder adds none';
   for (const text of [WORKFLOW, skill('writing-acceptance-checks'),
     skill('checking-acceptance-checks'), agent('acceptance-check-writer'),
     read(ROOT, 'docs/modules.md')]) says(text, rule);
@@ -847,7 +876,7 @@ test('scope checks takes a helper folder below the first folder of the Check pat
   assert.equal(refused.lines[0], 'Undo the change to "src/orders.cjs", or end the step as ' +
     'failed: it is outside the scope.');
   assert.equal(call('freeze', 'checks', '--inputs', w.inputs).status, 1);
-  // A folder outside the first folder of the Check path is not in the scope.
+  // A folder outside the folder of the Check path is not in the scope.
   const other = PLAN.replace('`src/orders.cjs`, `tests/` |',
     '`src/orders.cjs`, `helpers/` |');
   const x = work({ plan: other });
@@ -866,6 +895,66 @@ test('scope checks takes a helper folder below the first folder of the Check pat
   assert.equal(nofolder.status, 1, nofolder.out);
   assert.equal(nofolder.lines[0], 'Undo the change to "tests/helpers/n.js", or end the step as ' +
     'failed: it is outside the scope.');
+});
+
+// planOf returns PLAN with the rows of ## Deliverables set to rows, each [files, check].
+function planOf(rows) {
+  const head = PLAN.slice(0, PLAN.indexOf('| d-1 |'));
+  const tail = PLAN.slice(PLAN.indexOf('\n## Commands'));
+  const body = rows.map(([files, check], at) => `| d-${at + 1} | Change ${at + 1}. | ${Q1} | ` +
+    `${files} | ${check} |`).join('\n');
+  return `${head}${body}\n${tail}`;
+}
+
+test('scope checks refuses the code under test near the check, as src/ or src/main/', () => {
+  // Case A: the check sits in src/ with the code under test src/a.cjs, and src/ is listed.
+  const a = work({ plan: planOf([['`src/a.cjs`, `src/`', '`src/a.test.cjs`']]) });
+  writeFile(a, 'src/a.test.cjs', CHECK_1);
+  assert.equal(session(a)('scope', 'checks', '--inputs', a.inputs).status, 0);
+  writeFile(a, 'src/a.cjs', "'use strict';\n");
+  const refusedA = session(a)('scope', 'checks', '--inputs', a.inputs);
+  assert.equal(refusedA.status, 1, refusedA.out);
+  assert.equal(refusedA.lines[0], 'Undo the change to "src/a.cjs", or end the step as failed: ' +
+    'it is outside the scope.');
+  assert.equal(refusedA.lines[2], '  src/a.test.cjs.');
+  assert.equal(session(a)('freeze', 'checks', '--inputs', a.inputs).status, 1);
+  // A new file in src/ is no helper either: src/ is out.
+  const a2 = work({ plan: planOf([['`src/a.cjs`, `src/`', '`src/a.test.cjs`']]) });
+  writeFile(a2, 'src/a.test.cjs', CHECK_1);
+  writeFile(a2, 'src/helper.cjs', "'use strict';\n");
+  assert.equal(session(a2)('scope', 'checks', '--inputs', a2.inputs).status, 1);
+  // Case B: a Java layout. src/main/java/x/ does not lie under src/test/java/x/.
+  const files = '`src/main/java/x/`, `src/test/resources/`';
+  const plan = planOf([[files, '`src/test/java/x/FooTest.java`']]);
+  const b = work({ plan });
+  writeFile(b, 'src/test/java/x/FooTest.java', 'class FooTest {}\n');
+  assert.equal(session(b)('scope', 'checks', '--inputs', b.inputs).status, 0);
+  writeFile(b, 'src/main/java/x/Foo.java', 'class Foo {}\n');
+  const refusedB = session(b)('scope', 'checks', '--inputs', b.inputs);
+  assert.equal(refusedB.status, 1, refusedB.out);
+  assert.equal(refusedB.lines[0], 'Undo the change to "src/main/java/x/Foo.java", or end the ' +
+    'step as failed: it is outside the scope.');
+  assert.equal(session(b)('freeze', 'checks', '--inputs', b.inputs).status, 1);
+  // src/test/resources/ neither contains the Check path nor lies under src/test/java/x/.
+  const c = work({ plan });
+  writeFile(c, 'src/test/java/x/FooTest.java', 'class FooTest {}\n');
+  writeFile(c, 'src/test/resources/r.txt', 'r\n');
+  const refusedC = session(c)('scope', 'checks', '--inputs', c.inputs);
+  assert.equal(refusedC.status, 1, refusedC.out);
+  assert.equal(refusedC.lines[0], 'Undo the change to "src/test/resources/r.txt", or end the ' +
+    'step as failed: it is outside the scope.');
+  // The folder of the Check path with a file of another row that is no check: out.
+  const d = work({ plan: planOf([['`tests/`', '`tests/x.check.cjs`'],
+    ['`tests/other.cjs`', 'n/a']]) });
+  writeFile(d, 'tests/x.check.cjs', CHECK_1);
+  writeFile(d, 'tests/helpers/h.cjs', "'use strict';\n");
+  assert.equal(session(d)('scope', 'checks', '--inputs', d.inputs).status, 1);
+  // tests/ and tests/helpers/ stay in for a check with no code of another row below them.
+  const e = work({ plan: planOf([['`src/x.cjs`, `tests/helpers/`', '`tests/x.check.cjs`'],
+    ['`docs/export.md`', 'n/a']]) });
+  writeFile(e, 'tests/x.check.cjs', CHECK_1);
+  writeFile(e, 'tests/helpers/h.cjs', "'use strict';\n");
+  assert.equal(session(e)('scope', 'checks', '--inputs', e.inputs).status, 0);
 });
 
 test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay out', () => {
@@ -899,14 +988,15 @@ test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay o
 test('check-reviewer gets the changed paths, stays read-only and marks each missing path', () => {
   const order = oneLine(section(WORKFLOW, 'The order of the run'));
   says(order, 'Run these two commands in the working folder, each in a separate Bash call: ' +
-    '`git status --porcelain --untracked-files=all`, and `git diff --name-only <start commit>`.');
+    '`git status --porcelain --untracked-files=all`, and `git diff --name-only --no-renames ' +
+    '<start commit>`.');
   says(order, 'Run them again before each later review.');
   says(order, 'the writer\'s newest report, unchanged, and the two outputs under "Changed ' +
     'paths:", unchanged');
   const reviewer = agent('check-reviewer');
   assert.match(reviewer, /\ntools: Read, Grep, Glob, Skill\n/);
   says(reviewer, '"Changed paths:", the output of `git status --porcelain ' +
-    '--untracked-files=all` and of `git diff --name-only <start commit>`');
+    '--untracked-files=all` and of `git diff --name-only --no-renames <start commit>`');
   says(reviewer, 'You run neither command');
   const checking = oneLine(skill('checking-acceptance-checks'));
   says(checking, 'So is each path of "Changed paths:" that the writer\'s "Files:" does not ' +
@@ -922,7 +1012,8 @@ test('check-reviewer gets the changed paths, stays read-only and marks each miss
   const status = git(w.repo, w.env, 'status', '--porcelain', '--untracked-files=all');
   assert.match(status, /^M src\/orders\.cjs$/m);
   assert.match(status, /^\?\? tests\/new\/deep\/orders\.check\.cjs$/m);
-  assert.equal(git(w.repo, w.env, 'diff', '--name-only', w.start), 'src/orders.cjs');
+  assert.equal(git(w.repo, w.env, 'diff', '--name-only', '--no-renames', w.start),
+    'src/orders.cjs');
 });
 
 // ---- The reports of the agents -------------------------------------------------------------
@@ -938,8 +1029,8 @@ test('report: the writer and the reviewer pass with the shapes that their agents
   assert.equal(run('acceptance-check-writer', written).status, 0);
   for (const line of ['Blocked: needs a change to criterion ac-2: The start commit already ' +
     'meets it.', 'Blocked: needs build-plan',
-  'Blocked: the build plan lists no file for tests/fixtures/orders.json, which the check of ' +
-    'ac-1 needs.']) {
+  'Blocked: the check scope of the row lists no folder for tests/fixtures/orders.json, which ' +
+    'the check of ac-1 needs.']) {
     const blocked = `What you read:\n- a\n\nFiles:\n- none\n\n${line}\n\nblocked\n`;
     const result = run('acceptance-check-writer', blocked);
     assert.equal(result.status, 0, `${line}\n${result.out}`);

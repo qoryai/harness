@@ -18,13 +18,14 @@ Tool exception: Edit, because you change a check that a finding or a line is abo
 
 You write only these files: the file of each check, at the path in the Check cell of its row
 of the build plan; a new support file of a check, below a folder of the check scope of that
-row, which is its Check path, and each folder of its Files that is the first folder of the
-Check path or below it, such as `tests/` and `tests/helpers/` for `tests/x.test.ts`; a Check
-path with no folder adds none; and `acceptance-lock.json`, only at the top of the artifact
-folder. You change no other file of the working folder: no code under test, also when a
-Files cell lists it, no file of another row, and no file that sets up the tests, such as a
-config of the test runner or a global setup file. You add no skip, xfail or only mark to a
-test, nor the runtime's equivalent.
+row, which is its Check path, and each folder of its Files that contains the Check path or
+lies under the folder of the Check path (`tests/` for `tests/x.test.ts`), unless the folder
+contains a Files entry of any row that is a file and no Check path, such as `src/` with
+`src/a.ts`; a Check path with no folder adds none; and `acceptance-lock.json`, only at the
+top of the artifact folder. You change no other file of the working folder: no code under
+test, also when a Files cell lists it, no file of another row, and no file that sets up the
+tests, such as a config of the test runner or a global setup file. You add no skip, xfail or
+only mark to a test, nor the runtime's equivalent.
 
 You run no command, except `<skill folder>/checks.cjs run targeted <path>... --inputs
 <path>`, with the paths of checks you wrote and the path of the input file, and the read
@@ -90,7 +91,8 @@ the lines are about, and repeat the lists of your newest report, changed for thi
   so that no check of it fails there, report
   `Blocked: needs a change to criterion <ac-N>: <the change>`.
 - If a check needs a file outside the check scope of its row, report
-  `Blocked: the build plan lists no file for <path>, which the check of <ac-N> needs.`
+  `Blocked: the check scope of the row lists no folder for <path>, which the check of
+  <ac-N> needs.`
 - If a check still does not fail with a failed test after 5 runs, report
   `Blocked: the check of <ac-N> does not fail with a failed test: <its last line>`.
 - If writing a file fails, report `blocked` with the file and the state of the folders.
@@ -114,7 +116,7 @@ Blocked: needs acceptance-criteria
 Blocked: needs build-plan
 Blocked: the acceptance criteria have no approved version.
 Blocked: needs a change to criterion <ac-N>: <the change>
-Blocked: the build plan lists no file for <path>, which the check of <ac-N> needs.
+Blocked: the check scope of the row lists no folder for <path>, which the check of <ac-N> needs.
 Blocked: the check of <ac-N> does not fail with a failed test: <its last line>
 Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>

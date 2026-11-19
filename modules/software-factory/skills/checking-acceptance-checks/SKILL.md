@@ -23,9 +23,9 @@ script reads it before the review. This document is no Markdown document of
 
 The reviewer reads files only, so the run passes the real changes under "Changed paths:":
 the output of `git status --porcelain --untracked-files=all` and of `git diff --name-only
-<start commit>`, run in the working folder before each review. A path of a `git status
---porcelain` line is the text after its two status characters and a space, and a rename
-lists both of its paths.
+--no-renames <start commit>`, run in the working folder before each review. A path of a `git
+status --porcelain` line is the text after its two status characters and a space, and a
+rename lists both of its paths.
 
 In this review, the mark `break` on every finding means that the run must not push the lock
 while the finding is left, not what `reviewing-drafts` defines for it.
@@ -42,11 +42,12 @@ while the finding is left, not what `reviewing-drafts` defines for it.
    lists the criterion. A check path is a relative path with no space and no `.` or `..`
    part, whose file name has an extension, such as `tests/export.test.ts`; `n/a`, `none`,
    `-`, `TBD` and a scenario id are none. The check scope of that row is its Check path, and
-   each folder of its Files that is the first folder of the Check path or below it, such as
-   `tests/` and `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder adds
-   none. Each other file that the writer's report lists under "Files:", but
-   `acceptance-lock.json`, is a new helper or fixture below a folder of the check scope of
-   such a row. A change to code under test, also one that the Files of the row list, to a
+   each folder of its Files that contains the Check path or lies under the folder of the
+   Check path (`tests/` for `tests/x.test.ts`), unless the folder contains a Files entry of
+   any row that is a file and no Check path, such as `src/` with `src/a.ts`; a Check path
+   with no folder adds none. Each other file that the writer's report lists under "Files:",
+   but `acceptance-lock.json`, is a new helper or fixture below a folder of the check scope
+   of such a row. A change to code under test, also one that the Files of the row list, to a
    file of another row, or to a file that exists and is no check is a finding marked
    `writer`, `no direction` and `break`. So is each path of "Changed paths:" that the
    writer's "Files:" does not list, except a path under `.qory/` and a Result file of a row

@@ -46,9 +46,10 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
      criteria of that row are the ones of its Criteria cell, and its Files are the Files of
      that row;
    - the check scope of each row with a check path: its Check path, and each folder of its
-     Files that is the first folder of the Check path or below it, such as `tests/` and
-     `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder adds none. Its
-     other Files, such as the code under test, are not in it;
+     Files that contains the Check path or lies under the folder of the Check path (`tests/`
+     for `tests/x.test.ts`), unless the folder contains a Files entry of any row that is a
+     file and no Check path, such as `src/` with `src/a.ts`; a Check path with no folder
+     adds none. Its other Files, such as the code under test, are not in it;
    - whether the app starts: `## Commands` has a `serve` row with a command, and
      `## Summary` has a line that starts with `App address:`;
    - whether a demo script exists: `index.json` lists an artifact of type `demo-script` with
@@ -56,11 +57,13 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
 
    Then decide, in this order, and go no further in this list when a case ends the run:
    - When `index.json` lists no version of `build-plan`, start no agent, push nothing, and
-     end as "Points" lists, with "The work item has no build plan, so the run wrote no
-     acceptance checks."
+     end as "Points" lists, with one `run_again` point. Its text is "The work item has no
+     build plan, so the run wrote no acceptance checks." and its `fix` is "Plan the build,
+     so that a run pushes the build plan."
    - When `index.json` lists no version of `acceptance-criteria`, start no agent, push
-     nothing, and end the same way, with "Write the acceptance criteria in Shape: the work
-     item has none, so the run wrote no acceptance checks."
+     nothing, and end the same way, with one `run_again` point. Its text is "The work item
+     has no acceptance criteria, so the run wrote no acceptance checks." and its `fix` is
+     "Move the work item back to Shape, so that a run there writes the acceptance criteria."
    - When the JSON has no live Tests criterion, do "No check to write", whatever the build
      plan lists.
    - When a live Tests criterion is in the Criteria cell of no row with a check path, start
@@ -68,7 +71,9 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
      one `run_again` point for each such criterion. Its text is "The build plan has no check
      path for <criterion>, a criterion planned as Tests, so the run wrote no acceptance
      checks." and its `fix` is "Plan the build again, with a check path for <criterion>.",
-     where `<criterion>` is as "A locked check that does not fail" lists it.
+     where `<criterion>` is as "A locked check that does not fail" lists it. While the text
+     or the `fix` has more than 500 characters, cut the quote of the criterion in both to
+     its first 8 words and "...".
 
 3. Run `step begin` for the step `checks` of the workflow `write-acceptance-checks`, as "The
    build ledger" lists. Its files are the `acceptance-criteria.json` of the newest version
@@ -86,17 +91,17 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
    start the writer with every line that it printed, quoted, at most twice, and run `scope`
    again. When it still exits with 1, end as "Failures" lists.
 6. Run these two commands in the working folder, each in a separate Bash call: `git status
-   --porcelain --untracked-files=all`, and `git diff --name-only <start commit>`. `<start
-   commit>` is the `commit` of the entry of `qory.start_commits` in the input file whose
-   `path` is the working folder. Run them again before each later review. The reviewer reads
-   files only, so it judges the changes by these lists. The first command lists each new
-   file, not only its folder. Start ${qory:agents/check-reviewer} with the input file's
-   path, the artifact folder, the run's number, the notes, the writer's newest report,
-   unchanged, and the two outputs under "Changed paths:", unchanged. Give it no "Checks:":
-   the draft has no `sha256` until `lock` fills it, so you run no `check` on it. Decide on
-   each report as "Findings" lists. After a start of the writer for a finding, do step 5
-   again before the next review. A finding left that fails a push ends the run with no lock,
-   as "Findings" lists.
+   --porcelain --untracked-files=all`, and `git diff --name-only --no-renames <start
+   commit>`. `<start commit>` is the `commit` of the entry of `qory.start_commits` in the
+   input file whose `path` is the working folder. Run them again before each later review.
+   The reviewer reads files only, so it judges the changes by these lists. The first command
+   lists each new file, not only its folder. Start ${qory:agents/check-reviewer} with the
+   input file's path, the artifact folder, the run's number, the notes, the writer's newest
+   report, unchanged, and the two outputs under "Changed paths:", unchanged. Give it no
+   "Checks:": the draft has no `sha256` until `lock` fills it, so you run no `check` on it.
+   Decide on each report as "Findings" lists. After a start of the writer for a finding, do
+   step 5 again before the next review. A finding left that fails a push ends the run with
+   no lock, as "Findings" lists.
 7. Run `<skill folder>/checks.cjs freeze checks --inputs <inputs>`. It commits the checks
    and prints a line that starts with "Froze checks as commit <commit>:". Set `commit` in
    `<folder>/acceptance-lock.json` to that `<commit>`, and change nothing else in the file:

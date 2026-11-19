@@ -2244,12 +2244,15 @@ plan that is a check path is a check, and the criteria of its row are planned as
 The agents start only when the JSON has a live criterion whose `check` is `Tests`, one with
 no `removed` member set to `true`. With none, the session runs no ledger step, starts no
 agent, pushes nothing and ends `passed`, with "No criterion is planned as Tests, so the run
-wrote no acceptance checks." With no build plan or no acceptance criteria, it ends with a
-`run_again` point. When a live `Tests` criterion is in the Criteria cell of no row with a
-check path, the session starts no agent, pushes nothing and ends with one `run_again` point
-for each such criterion, not `passed`: "The build plan has no check path for AC-3, "<first
+wrote no acceptance checks." With no build plan, it ends with a `run_again` point whose fix
+is "Plan the build, so that a run pushes the build plan." With no acceptance criteria, the
+point's fix is "Move the work item back to Shape, so that a run there writes the acceptance
+criteria." When a live `Tests` criterion is in the Criteria cell of no row with a check
+path, the session starts no agent, pushes nothing and ends with one `run_again` point for
+each such criterion, not `passed`: "The build plan has no check path for AC-3, "<first
 sentence>", a criterion planned as Tests, so the run wrote no acceptance checks." Its fix is
-to plan the build again.
+to plan the build again. While the text or the fix has more than 500 characters, the quote
+of the criterion is cut in both to its first 8 words and "...".
 
 - **The step `checks`.** The session starts the ledger step `checks` and then
   `acceptance-check-writer`, which writes each check at its Check path, writes new helpers
@@ -2259,18 +2262,19 @@ to plan the build again.
   writer drafts `acceptance-lock.json`, with `failed_with` set to the `exit` of the record
   of the last run, each support file under `support`, and no `sha256`. The session runs
   `scope checks`, which allows only the check scope of each row with a check path: its Check
-  path, and each folder of its Files that is the first folder of the Check path or below it,
-  such as `tests/` and `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder
-  adds none. The code under test in those Files is outside it. Then the session starts
-  `check-reviewer`, which reads the checks, the draft and the records read-only by
-  `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no "Checks:",
-  because the draft has no `sha256` before `lock`. It gets "Changed paths:" instead, the
-  output of `git status --porcelain --untracked-files=all` and of `git diff --name-only
-  <start commit>`, which the session runs in the working folder before each start, with the
-  files of each new folder, because the reviewer reads files only. After a review with no
-  finding left that fails a push, the session runs `freeze checks`, sets `commit` in the
-  draft to the commit that `freeze` printed, runs `checks.cjs lock`, and ends the step as
-  `done` with `--pushed acceptance-lock/main/<N>`.
+  path, and each folder of its Files that contains the Check path or lies under the folder
+  of the Check path (`tests/` for `tests/x.test.ts`), unless the folder contains a Files
+  entry of any row that is a file and no Check path, such as `src/` with `src/a.ts`; a Check
+  path with no folder adds none. The code under test in those Files is outside it. Then the
+  session starts `check-reviewer`, which reads the checks, the draft and the records
+  read-only by `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no
+  "Checks:", because the draft has no `sha256` before `lock`. It gets "Changed paths:"
+  instead, the output of `git status --porcelain --untracked-files=all` and of `git diff
+  --name-only --no-renames <start commit>`, which the session runs in the working folder
+  before each start, with the files of each new folder, because the reviewer reads files
+  only. After a review with no finding left that fails a push, the session runs `freeze
+  checks`, sets `commit` in the draft to the commit that `freeze` printed, runs `checks.cjs
+  lock`, and ends the step as `done` with `--pushed acceptance-lock/main/<N>`.
 - **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
   `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
   criterion planned as `Tests` with no check; a check that did not fail on the start commit
@@ -2493,40 +2497,41 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   commits since then, against the Files of the step's deliverable, or of every deliverable
   for `fix:f<N>` and for `--plan`. For `checks`, the step of `write-acceptance-checks`, they
   count against the check scope of each deliverable whose Check is a check path: that path,
-  and each folder of its Files that is the first folder of the Check path or below it, such
-  as `tests/` and `tests/helpers/` for `tests/x.test.ts`; a Check path with no folder adds
-  none. A Check cell such as `n/a`, `none` or a scenario id is no check path. Exactly one of `<step>` and `--plan` is given. No file
-  has a separate rule: `qory.yaml`, a hook program and a module count as any path. A path
-  under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
-  untracked result file. A path that the index marks skip-worktree or assume-unchanged
-  counts when its file differs. A path under `.qory` in a commit since `--base` is outside
-  the scope, as qory pushes the commit as it is. With the base from `--inputs`, a
-  `deliverable:d-<N>` step judges a path of a commit since the base against the Files of
-  that deliverable and of each deliverable before it in the order of the build plan, such as
-  "the files of d-1 and d-2", and an uncommitted path, or a path that is also changed now,
-  against the Files of the step. Without `--inputs`, the step judges every changed path,
-  committed or not, against the Files of the step. A committed path outside its scope gets
-  the line "Take "<path>" out of the commits since the base: it is outside the files of d-1
-  and d-2."; an uncommitted one gets "Undo the change to "<path>"". With a committed path
-  outside, the last finding on a committed path has, indented after it, "For example: git
-  reset --soft <c>, git restore -s <c> -SW -- <path>, commit (<c>: before the path).", where
-  `git restore` brings the path back as it was at `<c>`, or removes it when it was not
-  there, and "If the path is in a frozen or pushed commit, report to a member.", as a reset
-  drops the commit that the build ledger records and a push that qory made cannot be redone.
-  The lines of the scope of the commits come after them, also indented. The last finding on
-  an uncommitted path has the lines of the scope of the step, indented. A passing `scope`
-  prints one line, such as "Passed: 2 changed paths in the files of d-2, 1 commit with no
-  key."
-  No line of `scope` has more than 100 characters: a long name is cut, a long list of
-  Files goes on a second line, and the scan result is the line before "Checked ...". git
-  runs with full stat checks, no untracked cache, no global excludes file, no global or
-  system git config (git 2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and
-  a pattern in `.git/info/exclude` is red. An ignored path is no change, but an untracked
-  `.gitignore` file is one, also when it ignores itself; one inside an ignored folder is
-  none. git compares change times by the second, so a tracked file whose times or size
-  differ from its index entry by a nanosecond or a byte is hashed, and counts when its
-  content differs. Stat data that an agent writes into the index file is not checked. With
-  a base, it also scans each commit since the base for keys, as `freeze` does.
+  and each folder of its Files that contains the Check path or lies under the folder of the
+  Check path (`tests/` for `tests/x.test.ts`), unless the folder contains a Files entry of
+  any row that is a file and no Check path, such as `src/` with `src/a.ts`; a Check path
+  with no folder adds none. A Check cell such as `n/a`, `none` or a scenario id is no check
+  path. Exactly one of `<step>` and `--plan` is given. No file has a separate rule:
+  `qory.yaml`, a hook program and a module count as any path. A path under `.qory` counts as
+  none, as qory leaves `.qory` out of every commit, and so does an untracked result file. A
+  path that the index marks skip-worktree or assume-unchanged counts when its file differs.
+  A path under `.qory` in a commit since `--base` is outside the scope, as qory pushes the
+  commit as it is. With the base from `--inputs`, a `deliverable:d-<N>` step judges a path
+  of a commit since the base against the Files of that deliverable and of each deliverable
+  before it in the order of the build plan, such as "the files of d-1 and d-2", and an
+  uncommitted path, or a path that is also changed now, against the Files of the step.
+  Without `--inputs`, the step judges every changed path, committed or not, against the
+  Files of the step. A committed path outside its scope gets the line "Take "<path>" out of
+  the commits since the base: it is outside the files of d-1 and d-2."; an uncommitted one
+  gets "Undo the change to "<path>"". With a committed path outside, the last finding on a
+  committed path has, indented after it, "For example: git reset --soft <c>, git restore -s
+  <c> -SW -- <path>, commit (<c>: before the path).", where `git restore` brings the path
+  back as it was at `<c>`, or removes it when it was not there, and "If the path is in a
+  frozen or pushed commit, report to a member.", as a reset drops the commit that the build
+  ledger records and a push that qory made cannot be redone. The lines of the scope of the
+  commits come after them, also indented. The last finding on an uncommitted path has the
+  lines of the scope of the step, indented. A passing `scope` prints one line, such as
+  "Passed: 2 changed paths in the files of d-2, 1 commit with no key." No line of `scope`
+  has more than 100 characters: a long name is cut, a long list of Files goes on a second
+  line, and the scan result is the line before "Checked ...". git runs with full stat
+  checks, no untracked cache, no global excludes file, no global or system git config (git
+  2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in
+  `.git/info/exclude` is red. An ignored path is no change, but an untracked `.gitignore`
+  file is one, also when it ignores itself; one inside an ignored folder is none. git
+  compares change times by the second, so a tracked file whose times or size differ from its
+  index entry by a nanosecond or a byte is hashed, and counts when its content differs. Stat
+  data that an agent writes into the index file is not checked. With a base, it also scans
+  each commit since the base for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
   `scope`, stages the change in a temporary index, checks every path of the tree to commit
   against the scope, scans the names and added lines of the change and of the commits that
