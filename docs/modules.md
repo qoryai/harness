@@ -1260,7 +1260,7 @@ of one hook process share one deadline, 2.5 s after the first call of the guard:
 the time that is left, and a call that begins when none is left is denied with the same line.
 Copilot CLI calls the guard once for each string argument of `write_bash` and `write_powershell`,
 and 250 arguments of `ls *.txt`, one child each, took more than 10 s before the deadline was shared;
-they are denied in 2.5 s now. Gemini CLI and Cursor call the guard once, and `tool-guard.cjs`
+they are denied in 2.5 s now. The in-process work of those calls is bounded too: from 8 s after the start of the hook process, the guard denies each further call, without reading it, with the first line "Send fewer or smaller arguments in one tool call." (14,000 arguments of 4,096 brace words each, and a deny argument last, took more than 10 s before). The deadlines and the 600 ms budget use a monotonic clock (`performance.now()`), so a step of the system clock changes none of them. Gemini CLI and Cursor call the guard once, and `tool-guard.cjs`
 (Claude Code and Codex) expands no glob and starts no child. The child
 costs 37 to 40 ms to start at load 41: `ls *.ts` takes 40 ms with the child and under 1 ms
 without it, and `a*b*c`, `*.txt` and `*` in a folder of 50,000 names take 177, 209 and 196 ms with
@@ -1303,7 +1303,7 @@ followed to the target: the write tools follow links, the shell kind does not. A
 backslash separators is read as POSIX, so `art\.reports\x.json` is one name, which a tool of
 Windows reads as a path under `.reports`. The guard reads a `}2,}` after a group of braces
 differently from bash in about 1 % of 5,000 random strings; the words that bash makes there are
-`.reports/` followed by text that does not end in `.json` or contain `.json.lock`. Each hook has
+`.reports/` followed by text that does not end in `.json` or contain `.json.lock`. A backslash at the end of a word or of the command is dropped by the shell, so `mkdir .reports\`, `echo x > .reports\` and `mkdir -p {.reports,y}\` make the folder or file `.reports`, and the guard reads them as `.reports`; `ls {x,y}\` and `echo a\{b,c}` pass. A glob `a\{b,c}*` is expanded by `fs.globSync` as `a{b,c}*`, with more words than bash makes, and matches no ledger file. Each hook has
 a timeout of 10 seconds. A hook that runs past its timeout
 lets the call run on Cursor and on Copilot CLI ([Cursor](https://cursor.com/docs/agent/hooks),
 [Copilot CLI](https://docs.github.com/en/copilot/reference/hooks-reference)). Of a hook that

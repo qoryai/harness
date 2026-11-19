@@ -44,6 +44,10 @@
 // children of one hook process share one deadline of 2.5 s (Copilot CLI calls the guard for
 // each string argument of a typing tool). The checks of a word with a wildcard run inside the
 // child, as do 250 ms of estimate for each call and 600 ms in all, checked between the calls.
+// From 8 s after the start of the hook process, safeDecide denies each call without reading it,
+// so that in-process work for many arguments ends before the 10 s of the hook. Deadlines and
+// budgets use performance.now(), which a step of the system clock does not change. A backslash
+// at the end of a word or command is dropped by the shell: .reports\ is .reports.
 // QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
 // a call: a file of the workspace can reach the environment of a hook, so no field turns off a
 // check, and the options noCaps and waitMs belong to decide, which the adapters call with fixed
@@ -69,6 +73,7 @@
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { performance } = require('node:perf_hooks');
 
 const { readInput } = require('./end-gate.cjs');
 
@@ -261,7 +266,8 @@ function reportsOnDisk(text, cwd, state) {
 }
 
 // The folder .reports in a shell command.
-const REPORTS = /\.reports(?:[/\s'"`;|&)]|$)/iu;
+// A \ at the end of the command or word is dropped by the shell, so `.reports\` is .reports.
+const REPORTS = /\.reports(?:[/\s'"`;|&)]|\\?$)/iu;
 // A part of a shell command that runs a second command or redirects one.
 const CONTROL = /[;&|<>`\n\r]|\$\(/;
 
@@ -690,11 +696,17 @@ function checkGlob(pattern) {
   });
 }
 
+// clock returns milliseconds from a monotonic clock, as the budgets and the deadline need: a step
+// of the system clock changes neither. Deadlines and budgets are on this clock.
+function clock() {
+  return performance.now();
+}
+
 // overTime throws Over when the globs of a command have taken more than MAX_GLOB_MS, or
 // budget.hooks.waitMs, an option of decide for checks of the guard that no adapter sets.
 function overTime(budget) {
   const limit = budget.hooks.waitMs > 0 ? budget.hooks.waitMs : MAX_GLOB_MS;
-  if (Date.now() - budget.start > limit) {
+  if (clock() - budget.start > limit) {
     throw new Over(`The globs of the command take more than ${limit} ms, and the guard ` +
       `waits at most ${limit} ms.`);
   }
@@ -1221,7 +1233,7 @@ function guardHooks() {
 // no word: a word that it cannot expand is a deny.
 function globsHidden(list, cwd, hooks) {
   const budget = { calls: 0, matches: 0, units: 0, names: new Map(), seen: new Map(),
-    start: Date.now(), hooks };
+    start: clock(), hooks };
   // The globs that match nothing under .reports: a word that repeats one costs no more work.
   const clean = new Set();
   for (const { raw, value } of list) {
@@ -1273,7 +1285,7 @@ function globsInChild(list, cwd, noCaps, waitMs, deadline) {
     `${total.toLocaleString('en-US')} ms, or could not run, and the guard blocks the call.`;
   // The children of all the calls of one hook process share one deadline: each has the time
   // that is left, and none starts when there is none.
-  const left = deadline === undefined ? total : Math.min(total, deadline - Date.now());
+  const left = deadline === undefined ? total : Math.min(total, deadline - clock());
   if (!(left >= 1)) return failed;
   const limit = Math.ceil(left);
   const env = { ...process.env };
@@ -1380,15 +1392,22 @@ const FAILED_REASON = 'Send a smaller call: the guard failed on this call and bl
 // safeDecide returns what decide returns for call, or, when decide throws in a run, a deny with
 // FAILED_REASON and the error. The adapters call it, so that a call that the guard cannot read
 // is blocked.
+// HOOK_MS is the time from the start of a hook process after which safeDecide denies a call
+// before it reads it: the hook has 10 s, and the adapter of Copilot CLI calls safeDecide once
+// for each string argument of a typing tool, with in-process work for each that no child bounds.
+const HOOK_MS = 8000;
+const TIME_REASON = 'Send fewer or smaller arguments in one tool call.\nThe guard of .reports/ ' +
+  'used more than 8 seconds of the 10 seconds of its hook, and blocks the call.';
 let hookEnd;
 function safeDecide(call) {
+  const env = call.env || process.env;
+  if (env.QORY_RUN_ID && clock() > HOOK_MS) return TIME_REASON;
   // An adapter may call safeDecide for each text of one tool call: all the children of that
   // hook process share the deadline of the first call, GLOB_CHILD_MS after it.
-  if (hookEnd === undefined) hookEnd = Date.now() + GLOB_CHILD_MS;
+  if (hookEnd === undefined) hookEnd = clock() + GLOB_CHILD_MS;
   try {
     return decide({ ...call, deadline: hookEnd });
   } catch (error) {
-    const env = call.env || process.env;
     return env.QORY_RUN_ID
       ? `${FAILED_REASON}The guard of .reports/ stopped on this call: ${String(error).slice(0, 200)}`
       : null;

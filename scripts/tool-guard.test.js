@@ -2380,20 +2380,21 @@ test('a command with many globs is decided in under 1 second, and one over the l
     /\nThe glob \.rep\*\/end\.json matches \.reports\/end\.json\.$/);
   // The paths that the globs match, and the time that they take, have limits too.
   const { globSync } = fs;
-  const { now } = Date;
+  const { performance } = require('node:perf_hooks');
+  const { now } = performance;
   try {
     fs.globSync = () => Array.from({ length: 60000 }, (_, at) => `f${at}`);
     assert.equal(shell('ls a* b*').split('\n')[1],
       'The globs of the command match more than 100,000 paths, and the guard reads at most 100,000.');
     assert.equal(shell('ls a*'), null);
     let clock = 0;
-    Date.now = () => (clock += 400);
+    performance.now = () => (clock += 400);
     fs.globSync = () => [];
     assert.equal(shell('ls a* b* c*').split('\n')[1],
       'The globs of the command take more than 600 ms, and the guard waits at most 600 ms.');
   } finally {
     fs.globSync = globSync;
-    Date.now = now;
+    performance.now = now;
   }
 });
 
@@ -4491,8 +4492,104 @@ test('the children of one hook process share one deadline, and a child that cann
   // A call that begins after the deadline of its hook process starts no child and is denied.
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const late = reports.decide({ kind: 'shell', env: RUN, cwd: normal, args: { command: 'ls *.txt' },
-    deadline: Date.now() - 5 });
+    deadline: require('node:perf_hooks').performance.now() - 5 });
   assert.match(late, /\nUse a narrower glob: the globs of the command did not finish in 2,500 ms/);
   // A command with no glob and a word of braces only starts no child, so it passes there too.
   assert.equal(adapter(broken, 'copilot', 'shell', 'cat {a,b}.txt', normal, 5000).denied, false);
+});
+
+test('a backslash at the end of a word is dropped by the shell, so `.reports\\` is .reports', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('pass11a');
+  fs.mkdirSync(work, { recursive: true });
+  const home = harnessHome();
+  const decided = (command) => reports.decide({ inline: true, kind: 'shell', env: RUN, cwd: work,
+    args: { command } });
+  // The words that bash makes: with set -f, braces still expand, and the backslash at the end of
+  // the command is dropped.
+  const realWords = (word) => childProcess.spawnSync('bash', ['-c', `set -f; printf '%s\\n' ${word}`],
+    { encoding: 'utf8' }).stdout.split('\n').filter((one) => one !== '');
+  const reaches = (word) => realWords(word).some((one) => /(^|\/)\.reports(\/|$)/.test(one));
+  const stems = ['.reports', '{.reports,y}', '.rep{orts,y}', '.{rep,x}orts', 'x', 'art/.reports',
+    '{x,y}', 'a\\{b,c}', '{.reports,y,z}', '{a,.reports}', '.rep\\{orts,y}', '{.rep,x}orts', '.reportsx',
+    '.r{e,x}ports', '.reports/..'];
+  const heads = ['', 'a/', './', '../x/', 'art/'];
+  const verbs = ['mkdir -p', 'echo x >', 'touch', 'cat'];
+  let words = 0;
+  for (const head of heads) {
+    for (const stem of stems) {
+      const word = `${head}${stem}\\`;
+      const reach = reaches(word);
+      for (const verb of verbs) {
+        const command = `${verb} ${word}`;
+        const reason = decided(command);
+        words += 1;
+        if (reach) assert.equal(typeof reason, 'string', `bash reaches .reports: ${command}`);
+      }
+    }
+  }
+  assert.ok(words >= 300, `${words} words`);
+  // The named forms, through decide and the three wrappers.
+  const named = [['mkdir .reports\\', true], ['echo x > .reports\\', true], ['mkdir -p {.reports,y}\\', true],
+    ['echo x > .reports\\/x.json', true], ['ls {x,y}\\', false], ['echo a\\{b,c}', false],
+    ['echo x > .reportsx\\', false]];
+  for (const [command, denied] of named) {
+    assert.equal(decided(command) !== null, denied, command);
+    for (const runtime of ['gemini', 'cursor', 'copilot']) {
+      const ran = adapter(home, runtime, 'shell', command, work, 3000);
+      assert.equal(ran.killed, false, `${runtime}: ${command}`);
+      assert.equal(ran.denied, denied, `${runtime}: ${command}`);
+    }
+  }
+});
+
+test('the guard denies a call when its hook process has used 8 s, also for the last of many arguments', () => {
+  const work = next('pass11b');
+  const normal = path.join(work, 'normal');
+  fs.mkdirSync(path.join(normal, 'art', '.reports'), { recursive: true });
+  const home = harnessHome();
+  const run = (where, fields, limit) => {
+    const begun = Date.now();
+    const ran = childProcess.spawnSync(process.execPath, [path.join(where, 'hooks', 'reports-guard-copilot.cjs')], {
+      input: JSON.stringify({ toolName: 'write_bash', cwd: normal, toolArgs: JSON.stringify(fields) }),
+      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: where }, encoding: 'utf8',
+      timeout: limit, killSignal: 'SIGKILL', maxBuffer: 1 << 24 });
+    return { ran, ms: Date.now() - begun };
+  };
+  const heavy = 'ls {1..4096}.txt';
+  const last = 'echo x > art/.reports/x.json';
+  const many = (count) => {
+    const fields = {};
+    for (let n = 0; n < count; n += 1) fields[`f${n}`] = heavy;
+    fields.last = last;
+    return fields;
+  };
+  // The limit of the hook is 1.5 s in a copy of the hooks that the check patches; the real one is 8 s.
+  const quick = patchedHome('const HOOK_MS = 8000;', 'const HOOK_MS = 1500;');
+  const time = /^Send fewer or smaller arguments in one tool call\.\nThe guard of \.reports\/ used more than 8 seconds/;
+  const small = run(quick, many(3000), 10000);
+  assert.equal(small.ran.error, undefined, 'the hook ran past 10 s');
+  assert.match(JSON.parse(small.ran.stdout).permissionDecisionReason, time);
+  assert.ok(small.ms < 9000, `${small.ms} ms`);
+  // A deny field in the last place is denied when the time has not run out, and when it has.
+  const few = run(quick, many(3), 10000);
+  assert.match(JSON.parse(few.ran.stdout).permissionDecisionReason, /^Write to \.reports\/ only through checks\.cjs\./);
+  // The real limit: 14,000 fields of 4,096 brace words and a deny field last.
+  const real = run(home, many(14000), 10000);
+  assert.equal(real.ran.error, undefined, `the hook ran past 10 s: ${real.ms} ms`);
+  const reason = JSON.parse(real.ran.stdout).permissionDecisionReason;
+  assert.ok(typeof reason === 'string' && reason !== '', 'the call is denied');
+  assert.ok(real.ms < 9800, `${real.ms} ms`);
+  // A word of 1 MiB is decided in a fraction of a second.
+  const word = `ls ${'{a,b}'.repeat((1 << 20) / 5)}`;
+  const begun = Date.now();
+  const huge = adapter(home, 'copilot', 'shell', word, normal, 10000);
+  assert.equal(huge.killed, false);
+  assert.ok(Date.now() - begun < 3000, `${Date.now() - begun} ms`);
+});
+
+test('the deadlines and budgets of the reports guard use a monotonic clock', () => {
+  const text = fs.readFileSync(path.join(HOOKS, 'reports-guard.cjs'), 'utf8');
+  assert.doesNotMatch(text.replace(/\/\/.*$/gm, ''), /Date\.now\(/);
+  assert.match(text, /performance\.now\(\)/);
 });

@@ -1601,6 +1601,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   CLI 0.68.0 loads the `.env` of the workspace into the environment of a hook, and the guard
   does not deny a write to `.env`; the options `noCaps` and `waitMs` belong to `decide`, which
   the adapters call with fixed fields.
+- The reports guard of Copilot CLI denies a call when its hook process has used 8 s: the adapter
+  calls the guard for each string argument of `write_bash`, and 14,000 arguments of 4,096 brace
+  words each, with `echo x > art/.reports/x.json` last, ran past the 10 s of the hook, which
+  Copilot CLI treats as no answer and runs. From 8 s after the start of the process, each
+  further call is denied with the first line "Send fewer or smaller arguments in one tool
+  call." The shared deadline of the children and the 600 ms budget use a monotonic clock
+  (`performance.now()`), so a step of the system clock changes neither. A backslash at the end of
+  a word is dropped by the shell, so `mkdir .reports\`, `echo x > .reports\` and
+  `mkdir -p {.reports,y}\` make `.reports`; the guard denies them, and `ls {x,y}\` and
+  `echo a\{b,c}` pass.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini
