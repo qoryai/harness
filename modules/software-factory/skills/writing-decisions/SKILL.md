@@ -95,26 +95,33 @@ build the work that differ in what they cost later.
 
 The record is a Markdown document and follows the section "Markdown documents" of
 `artifact-text` for its pictures. The record keeps the form of the section "The parts", so
-this skill replaces these rules of that section:
+this skill replaces these rules of the section "Markdown documents" of `artifact-text`:
 
 - The summary, the background and the parts: the record has only `## Decisions`, and each
   decision starts with its items.
-- One picture under each part's heading, and the reason of a part with no picture: a
-  picture is optional, and a decision with no picture needs no reason.
+- "Start with one picture" and the reason of a part with no picture: a picture is optional
+  and stands after the last item, and a decision with no picture needs no reason.
+- "Pick the picture by what the part changes": a decision has a picture only when the
+  chosen way changes how two parts call each other, or a flow of states, and the picture
+  is a Mermaid diagram.
+- "No limit on pictures": a decision has at most one diagram, and the record at most 2.
 - The points after a picture: the items of the form replace them.
-- Pictures other than a Mermaid diagram: the record has no wireframe, no table and no
-  image.
+- The table of options and the other pictures: the record has no table, no wireframe and
+  no image. The ways that a person compares are the options of the question.
 
-The other rules stay, such as the 450 words, which leave out the words of a diagram.
+The other rules stay, such as the 450 words, which leave out the words of a diagram, and
+the edit in place of the newest version.
 
-- Give a decision one Mermaid diagram only when the chosen way changes how two parts call
-  each other, or a flow of states. A diagram shows that change and nothing else, and it is
-  no drawing of the system's architecture.
-- Write the diagram in a ```` ```mermaid ```` block after the last item of its decision,
-  after a blank line. Draw it by the rules of ${qory:skills/visuals}: load it before you
-  draw or change a diagram. If it cannot be loaded, report `blocked`.
-- Write at most 2 diagrams in the record, not counting a removed decision. When you remove
-  a decision, remove its diagram. A third diagram fails the check.
+- A diagram shows that change and nothing else, and it is no drawing of the system's
+  architecture.
+- Write the diagram in a ```` ```mermaid ```` block, after a blank line, as the last text of
+  its decision, after the last item. Close the block with its fence line. Draw it by the
+  rules of ${qory:skills/visuals}: load it before you draw or change a diagram. If it
+  cannot be loaded, report `blocked`.
+- Write no diagram in a removed decision: when you remove a decision, remove its diagram.
+- A second diagram in a decision, a diagram that is not the last text of its decision, a
+  diagram in a removed decision, an unclosed block and a third diagram in the record fail
+  the check.
 - A diagram that no answer, finding or word concerns stays as it is.
 
 ## Questions

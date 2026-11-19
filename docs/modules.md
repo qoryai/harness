@@ -1510,15 +1510,14 @@ The checks:
   questions; and the refused phrases of `writing-proposals`, outside `## Sources`, code
   blocks, code spans and text in double quotes;
 - the other limits: at most 450 words in a spec and a decision record (a decision record's
-  count leaves out Mermaid diagrams, and it has at most 2 of them in decisions that are not
-  removed), a summary of 1 to 3 sentences in a spec, the criteria and the scenarios, at
-  most 3 points per part in a spec, a criterion of 1 sentence and at most 25 words, at most
-  8 steps per scenario and 12
-  scenarios, in a new question a `question` of one sentence of 1 to 500 characters with no
-  Markdown, a `context` of 1 to 20000 characters and at most 120 words, an option `title`
-  of 1 to 200 characters and an `explanation` of 1 to 2000 characters and at most 2
-  sentences, a `decision.reason` of at most 2 sentences and 40 words when it is new or
-  differs from the newest questions, and a new reply of at most 80 words;
+  count leaves out its Mermaid diagrams), a summary of 1 to 3 sentences in a spec, the
+  criteria and the scenarios, at most 3 points per part in a spec, a criterion of 1 sentence
+  and at most 25 words, at most 8 steps per scenario and 12 scenarios, in a new question a
+  `question` of one sentence of 1 to 500 characters with no Markdown, a `context` of 1 to
+  20000 characters and at most 120 words, an option `title` of 1 to 200 characters and an
+  `explanation` of 1 to 2000 characters and at most 2 sentences, a `decision.reason` of at
+  most 2 sentences and 40 words when it is new or differs from the newest questions, and a
+  new reply of at most 80 words;
 - the asks of a new question: an open question with no `context`, or a `context` of only
   spaces; a question that is not decided with no `options` list; and an id of an item with
   no words in quotes beside it, as `check points` reads it, in the `question`, the
@@ -2084,14 +2083,18 @@ spec changes.
 The record keeps its list of decisions and may add pictures. `writing-decisions` follows the
 section "Markdown documents" of `artifact-text` for them: a decision whose chosen way
 changes how two parts call each other, or a flow of states, may end with one Mermaid
-diagram, drawn by `visuals`. The record has no wireframe, table or image, and at most 2
-Mermaid diagrams in the decisions that are not removed. `checks.cjs` refuses a third with
-the fix line "Cut decision-record.md to 2 Mermaid diagrams: it has 3.", and it still
-refuses an image. The 450 words leave out the words of a diagram. `checking-decisions` has
-the reviewer judge the rest: a diagram under a decision that changes no call or flow, two
-diagrams under one decision, a diagram that does not match its decision, and a drawing of
-the system's architecture. Nothing checks that a diagram follows the placement in "Pictures" or that a
-removed decision has none.
+diagram, drawn by `visuals`. The record has no wireframe, table or image. `checks.cjs`
+refuses, each with a fix line that starts with the fix: a block with no closing fence
+("Close the Mermaid block of decision-1 with a line of 3 backticks."), a second diagram in
+a decision ("Cut decision-1 to one Mermaid diagram: it has 2."), a diagram that is not the
+last text of its decision after a blank line ("Put the Mermaid diagram of decision-1 after
+its last item, with a blank line before it."), a diagram in a removed decision ("Remove the
+Mermaid diagram of decision-1, which is removed."), a third diagram in the record
+("Cut decision-record.md to 2 Mermaid diagrams: it has 3."), and an image. A removed
+decision's diagram is not in that count. The 450 words leave out the words of a diagram.
+`checking-decisions` has the reviewer judge the rest: a diagram under a decision that
+changes no call or flow, a diagram that does not match its decision, and a drawing of the
+system's architecture.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, and `designer` writes one

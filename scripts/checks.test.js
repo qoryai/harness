@@ -1134,27 +1134,102 @@ test('decision record: each decision has its items in order, and its id in the h
     /decision-<N>/);
 });
 
-// diagram returns the edit of a decision record fixture that adds a Mermaid block after the
-// Cost item of decision-1, count times.
+// The record of the fixture has decision-1, whose last item is Cost. diagram(count, fence) is
+// the edit that adds count Mermaid blocks of the fence after it, each after a blank line.
 const COST = /^- Cost: .*$/m;
-const diagram = (count) => ['decision-record.md', COST,
-  (item) => `${item}${'\n\n```mermaid\nflowchart LR\n  A[Reply] --> B[Hours]\n```'.repeat(count)}`];
+const BLOCK = (fence = '```', info = 'mermaid') =>
+  `${fence}${info}\nflowchart LR\n  A[Reply] --> B[Hours]\n${fence}`;
+const diagram = (count, fence, info) => ['decision-record.md', COST,
+  (item) => `${item}${`\n\n${BLOCK(fence, info)}`.repeat(count)}`];
+// decision returns decision number with its 6 items and, when diagram is true, a Mermaid block.
+const decision = (number, withDiagram) => `\n\n### \`decision-${number}\`: where the hours go\n\n` +
+  '- Decision: The hours stay in the reply.\n- Rests on: `ac-1`.\n- Today: The ticket has no ' +
+  'target.\n- Why: One reply changes.\n- Question: `q6`.\n- Cost: Support edits the reply.' +
+  `${withDiagram ? `\n\n${BLOCK()}` : ''}`;
+// withDecisions is the edit that adds the decisions numbered from 2, each as decision() shows.
+const withDecisions = (...flags) => ['decision-record.md', COST,
+  (item) => item + flags.map((flag, at) => decision(at + 2, flag)).join('')];
+const FIX = /^Cut decision-record.md to 2 Mermaid diagrams: it has 3\. Keep the diagrams of the decisions that change how two parts call each other or a state flow\.$/;
 
-test('decision record: at most 2 Mermaid diagrams, and no image', () => {
+test('decision record: 1 or 2 Mermaid diagrams in the record pass, 3 fail', () => {
   passes(push(fixture(diagram(1)), 'decision-record'));
-  passes(push(fixture(diagram(2)), 'decision-record'));
-  fails(push(fixture(diagram(3)), 'decision-record'),
-    /^Cut decision-record.md to 2 Mermaid diagrams: it has 3\. Keep the diagrams of the decisions that change how two parts call each other or a state flow\.$/);
+  passes(push(fixture(withDecisions(true), diagram(1)), 'decision-record'));
+  fails(push(fixture(withDecisions(true, true), diagram(1)), 'decision-record'), FIX);
+});
+
+test('decision record: an image is refused', () => {
   fails(push(fixture(['decision-record.md', '- Decision: The hours stay',
     '- Decision: ![Flow](flow.svg) The hours stay']), 'decision-record'),
     /^Remove the image "flow.svg" from decision-record.md/);
 });
 
-test('decision record: a diagram of a removed decision does not count', () => {
-  const removed = '\n\n### `decision-2`: the old way\n\n- Removed, because the rule changed.' +
-    '\n\n```mermaid\nflowchart LR\n  A --> B\n```';
-  const root = fixture(diagram(2), ['decision-record.md', COST, (item) => item + removed]);
-  passes(push(root, 'decision-record'));
+test('decision record: a ~~~ fence and an info string after mermaid are Mermaid blocks', () => {
+  passes(push(fixture(diagram(1, '~~~')), 'decision-record'));
+  passes(push(fixture(diagram(1, '```', 'mermaid title')), 'decision-record'));
+  fails(push(fixture(withDecisions(true, true), diagram(1, '~~~')), 'decision-record'), FIX);
+  fails(push(fixture(diagram(2, '~~~')), 'decision-record'),
+    /^Cut decision-1 to one Mermaid diagram: it has 2\.$/);
+});
+
+test('decision record: a code block that is no Mermaid block is still refused', () => {
+  const code = ['decision-record.md', COST, (item) => `${item}\n\n\`\`\`text\nA --> B\n\`\`\``];
+  fails(push(fixture(code), 'decision-record'),
+    /^Give decision-1 its 6 items in their order, or only "- Removed, because <the reason>\."/);
+});
+
+test('decision record: at most one diagram in a decision', () => {
+  fails(push(fixture(diagram(2)), 'decision-record'),
+    /^Cut decision-1 to one Mermaid diagram: it has 2\.$/);
+});
+
+test('decision record: the diagram is the last text of its decision, after a blank line', () => {
+  const moved = /^Put the Mermaid diagram of decision-1 after its last item, with a blank line before it\.$/;
+  const lastItem = '- Cost: The next change of hours edits this reply again, and support pays that cost.';
+  // Between items.
+  fails(push(fixture(['decision-record.md', '- Rests on:', `${BLOCK()}\n- Rests on:`]), 'decision-record'),
+    moved);
+  fails(push(fixture(['decision-record.md', '- Rests on:', `\n${BLOCK()}\n\n- Rests on:`]), 'decision-record'),
+    moved);
+  // Before the first item.
+  fails(push(fixture(['decision-record.md', '- Decision:', `${BLOCK()}\n\n- Decision:`]), 'decision-record'),
+    moved);
+  // Right after the last item, with no blank line.
+  fails(push(fixture(['decision-record.md', lastItem, `${lastItem}\n${BLOCK()}`]), 'decision-record'),
+    moved);
+  // Text after the diagram.
+  fails(push(fixture(diagram(1), ['decision-record.md', '```\n', '```\n\nMore text.\n']), 'decision-record'),
+    moved);
+  // Blank lines after it are no text.
+  passes(push(fixture(diagram(1), ['decision-record.md', /\n*$/, '\n\n\n']), 'decision-record'));
+});
+
+test('decision record: a removed decision has no diagram, and it counts for no limit', () => {
+  const removedAt = (number) =>
+    `\n\n### \`decision-${number}\`: the old way\n\n- Removed, because the rule changed.`;
+  const removed = removedAt(2);
+  const plain = ['decision-record.md', COST, (item) => item + removed];
+  passes(push(fixture(plain), 'decision-record'));
+  const drawn = ['decision-record.md', COST, (item) => `${item}${removed}\n\n${BLOCK()}`];
+  fails(push(fixture(drawn), 'decision-record'),
+    /^Remove the Mermaid diagram of decision-2, which is removed\.$/);
+  // Two diagrams and a removed one: the removed diagram is not the third.
+  const two = fixture(withDecisions(true), diagram(1), ['decision-record.md', /\n*$/,
+    `${removedAt(3)}\n\n${BLOCK()}\n`]);
+  const result = push(two, 'decision-record');
+  fails(result, /^Remove the Mermaid diagram of decision-3, which is removed\.$/);
+  assert.ok(!result.findings.some((line) => /^Cut decision-record.md to 2 Mermaid/.test(line)),
+    result.out);
+});
+
+test('decision record: an unclosed Mermaid block is refused, and hides nothing', () => {
+  const closing = /^Close the Mermaid block of decision-1 with a line of 3 backticks\.$/;
+  const open = (tail) => ['decision-record.md', COST,
+    (item) => `${item}\n\n\`\`\`mermaid\nflowchart LR\n  A --> B\n${tail}`];
+  fails(push(fixture(open(many(2000))), 'decision-record'), closing);
+  fails(push(fixture(open(`### \`decision-2\`: the old way\n\n- Removed, because it changed.`)),
+    'decision-record'), closing);
+  fails(push(fixture(['decision-record.md', COST, (item) => `${item}\n\n~~~mermaid\nA --> B\n`]),
+    'decision-record'), closing);
 });
 
 test('decision record: the 450 words leave out the diagram', () => {

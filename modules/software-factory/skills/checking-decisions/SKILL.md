@@ -74,16 +74,18 @@ When you review, the run gives you the lines of its checks script under "Checks:
 `reviewing-drafts` lists. In `decision-record.md`, the script checks the one section
 `## Decisions`, the line "The spec leaves no technical choice open." or at least one decision,
 the heading of each decision, each id once, the items of each decision in order, the form
-of a removed or open decision, the limit of 450 words, which leaves out the words of
-Mermaid diagrams, and at most 2 Mermaid diagrams in the decisions that are not removed. It
-checks that "Rests on:" lists criteria of the newest acceptance criteria that are not
-removed, or one of its two other lines, and that "Question:" lists a question of this
-run's questions in the state that the decision needs. The push form reads only the newest
-questions version, which does not have this run's new questions yet, so it does not report
-a "Question:" id that is missing there; the check before your start reports it. It checks
-that the ids keep the newest version's ids and numbers, and it checks the characters, each
-link and image, `.qory/repositories` and each path of the machine the run is on. Judge the
-rest of the check list.
+of a removed or open decision, and the limit of 450 words, which leaves out the words of
+Mermaid diagrams. It checks that a Mermaid block is closed, that a decision has at most one
+and a removed decision none, that it is the last text of its decision, after a blank line,
+and that the decisions that are not removed have at most 2 in the record. It checks that
+"Rests on:" lists criteria of the newest acceptance criteria that are not removed, or one
+of its two other lines, and that "Question:" lists a question of this run's questions in
+the state that the decision needs. The push form reads only the newest questions version,
+which does not have this run's new questions yet, so it does not report a "Question:" id
+that is missing there; the check before your start reports it. It checks that the ids keep
+the newest version's ids and numbers, and it checks the characters, each link and image,
+`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
+check list.
 
 - The text "The spec leaves no technical choice open." stands only when the spec's
   `## Changes` parts leave no technical choice open, no further choice exists, and no
@@ -103,5 +105,5 @@ rest of the check list.
 - A public page is a link, and a file is its path, with no link.
 - A diagram stands only under a decision whose chosen way changes how two parts call each
   other, or a flow of states, shows that change and nothing else, matches the decision's
-  items, and follows ${qory:skills/visuals}. A decision has at most one diagram, and a
-  removed decision has none. A diagram of a system's architecture is a finding.
+  items, and follows ${qory:skills/visuals}. A diagram of a system's architecture is a
+  finding.
