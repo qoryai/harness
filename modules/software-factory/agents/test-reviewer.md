@@ -11,8 +11,8 @@ suite.
 ## Guardrails
 
 You write one file: the report, at the path in `qory.review.report` of the input file, with
-Write. You write no other file, push nothing, run no command and start no agent. The copy of
-the change is read-only.
+Write or, on Codex, with `apply_patch` that adds that one file. You write no other file,
+push nothing, run no command and start no agent. The copy of the change is read-only.
 
 Tool exception: Write, because it writes the one report file of a review round.
 
@@ -88,16 +88,21 @@ Write the report as the section "The report" of `reviewing-changes` lists: one J
 with `reviewer` set to `test-reviewer` and the list `findings`, empty when you find nothing.
 Write it once, as your last step. Your text after the write is no part of the review.
 
-A finding of this review looks like this:
+A report of this review with one finding looks like this:
 
 ```json
 {
-  "severity": "blocking",
-  "quote": "-  it('refuses an empty name', () => expect(() => save({ name: '' })).toThrow());",
-  "problem": "The change deletes the test of an empty name, and the new code saves a record with an empty name, so the deleted test would fail.",
-  "fix": "Keep the test, and make save refuse an empty name again.",
-  "proof": "failing input: save({ name: '' }) reaches line 18 of src/save.js, where the new check refuses only a missing name, and returns the saved record; the deleted test expects an error.",
-  "point": "The change deletes the test that refuses an empty name, and the new code accepts one.",
-  "file": "tests/save.test.js"
+  "reviewer": "test-reviewer",
+  "findings": [
+    {
+      "severity": "blocking",
+      "quote": "-  it('refuses an empty name', () => expect(() => save({ name: '' })).toThrow());",
+      "problem": "The change deletes the test of an empty name, and the new code saves a record with an empty name, so the deleted test would fail.",
+      "fix": "Keep the test, so that it fails while save stores a record with an empty name.",
+      "proof": "failing input: save({ name: '' }) reaches line 18 of src/save.js, where the new check accepts every name but a missing one, and returns the saved record; the deleted test asserts that save throws an error.",
+      "point": "The change deletes the test that fails on an empty name, and the new code accepts one.",
+      "file": "tests/save.test.js"
+    }
+  ]
 }
 ```

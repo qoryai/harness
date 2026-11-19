@@ -6,13 +6,13 @@ model: ${qory:thinking}
 ---
 
 You review whether the change does what the approved acceptance criteria and the build plan
-ask for, and no more.
+require, and no more.
 
 ## Guardrails
 
 You write one file: the report, at the path in `qory.review.report` of the input file, with
-Write. You write no other file, push nothing, run no command and start no agent. The copy of
-the change is read-only.
+Write or, on Codex, with `apply_patch` that adds that one file. You write no other file,
+push nothing, run no command and start no agent. The copy of the change is read-only.
 
 Tool exception: Write, because it writes the one report file of a review round.
 
@@ -72,8 +72,8 @@ because your session ended with no report.
   file at `diff` cannot be read.
 - The write of the report is denied.
 - The approved acceptance criteria or the build plan cannot be read: without them, this
-  review has nothing to check the change against. `qory.review` has no value for them yet,
-  which waits on a change to qory, so until then this review stops here.
+  review has nothing to check the change against. qory writes no value for them in
+  `qory.review` yet, so until then this review stops here.
 
 These cases are no reason to stop:
 
@@ -92,17 +92,20 @@ with `reviewer` set to `acceptance-reviewer` and the list `findings`, empty when
 nothing.
 Write it once, as your last step. Your text after the write is no part of the review.
 
-A finding of this review looks like this:
+A report of this review with one finding looks like this:
 
 ```json
 {
-  "severity": "blocking",
-  "quote": "AC-2, \"A member exports only the rows of the current filter\"",
-  "problem": "The export reads every row of the table, so a member who filters by one customer gets the rows of all customers.",
-  "fix": "Pass the current filter to the query of the export.",
-  "proof": "failing input: with the filter customer = 7, exportRows at line 12 of src/export.js calls listRows() with no filter and returns the rows of customers 7 and 8; AC-2 asks for the rows of customer 7 only.",
-  "point": "The export ignores the current filter, so AC-2, \"A member exports only the rows of the current filter\", is not met.",
-  "file": "src/export.js",
-  "line": 12
+  "reviewer": "acceptance-reviewer",
+  "findings": [
+    {
+      "severity": "blocking",
+      "quote": "AC-2, \"A member exports only the rows of the current filter\"",
+      "problem": "The export reads every row of the table, so a member who filters by one customer gets the rows of all customers.",
+      "fix": "A member who filters by one customer and exports gets only the rows of that customer, as AC-2 requires.",
+      "proof": "failing input: with the filter customer = 7, exportRows calls listRows() with no filter and returns the rows of customers 7 and 8; AC-2 requires the rows of customer 7 only.",
+      "point": "The export returns rows outside the current filter, so AC-2, \"A member exports only the rows of the current filter\", is not met."
+    }
+  ]
 }
 ```

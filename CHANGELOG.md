@@ -11,21 +11,28 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The `review-changes` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-review-changes`, `checking-code`, `checking-tests`
   and `checking-acceptance`, and the agents `code-reviewer`, `test-reviewer` and
-  `acceptance-reviewer`. The session reads the build plan of the run's start and the
-  newest build ledger. While a planned deliverable has no `done` row at its highest pass,
-  the session runs `qory run verdict changes-requested` and ends with a line that lists
-  those deliverables. Otherwise it runs `checks.cjs lock --verify` in a run, and ends the
-  same way when a locked file differs. With every check passed, it runs no verdict command
-  and ends ready for the review round that qory runs. In a stage with no reviewers, or
-  with no build plan, it ends with a `run_again` point. It starts no reviewer. Each
-  reviewer runs as the main agent of a session that qory starts, with the tools Read,
-  Grep, Glob, Skill and Write. It loads `reviewing-changes`, `judging-findings` and its
-  checking skill, and writes one JSON report. `code-reviewer` reports bugs, security holes
-  and data loss in the code. `test-reviewer` reports tests that the change removes, skips
-  or loosens, and code with no test. `acceptance-reviewer` reports a criterion that the
-  change does not meet and a planned change that it does not build. Each reviewer repeats
-  only the earlier findings under its name. The group role `reviewers` and the `reviewers`
-  key of Build follow in a later change.
+  `acceptance-reviewer`. The session reads the build plan of the run's start and
+  `.reports/build-ledger.json`. With no build plan, it ends with a `run_again` point. While
+  a planned deliverable has no `done` row at its highest pass, the session runs
+  `qory run verdict changes-requested` with no point and ends with a line that lists those
+  deliverables. Otherwise it runs `checks.cjs lock --verify` in a run, and ends the same
+  way when a locked file differs. With every check passed, it runs no verdict command and
+  ends ready. It starts no reviewer. Each reviewer runs as the main agent of a session that
+  qory starts, with the tools Read, Grep, Glob, Skill and Write. It loads
+  `reviewing-changes`, `judging-findings` and its checking skill, and writes one JSON
+  report. `code-reviewer` reports bugs, security holes and data loss in the code, and
+  security holes, data loss and secrets in the tests and fixtures. `test-reviewer` reports
+  tests that the change removes, skips or loosens, and code with no test; `code-reviewer`
+  reports the bug behind a hidden failing test. `acceptance-reviewer` reports a criterion
+  that the change does not meet, a planned change that it does not build, and a changed
+  path that no Files cell of the build plan lists. Each reviewer re-reads the earlier
+  findings and repeats those of its area that are still true. The group role `reviewers`
+  and the `reviewers` key of Build follow in a later change. Not built yet in qory:
+  `qory.stage.reviewers`; how qory takes `changes-requested` from the session in a stage
+  with reviewers; the acceptance criteria, the spec and the build plan in `qory.review`,
+  so `acceptance-reviewer` stops with no report until `qory.review` passes them; the
+  failing rows of the suite result; the result of the locked checks before the round, as a
+  reviewer input; and the shape of the earlier findings.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
   `access: write`: the skills `workflow-write-acceptance-checks`,
   `writing-acceptance-checks` and `checking-acceptance-checks`, and the agents

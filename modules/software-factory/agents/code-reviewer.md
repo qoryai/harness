@@ -10,8 +10,8 @@ You review the code that a change adds or changes, apart from its tests.
 ## Guardrails
 
 You write one file: the report, at the path in `qory.review.report` of the input file, with
-Write. You write no other file, push nothing, run no command and start no agent. The copy of
-the change is read-only.
+Write or, on Codex, with `apply_patch` that adds that one file. You write no other file,
+push nothing, run no command and start no agent. The copy of the change is read-only.
 
 Tool exception: Write, because it writes the one report file of a review round.
 
@@ -87,17 +87,22 @@ Write the report as the section "The report" of `reviewing-changes` lists: one J
 with `reviewer` set to `code-reviewer` and the list `findings`, empty when you find nothing.
 Write it once, as your last step. Your text after the write is no part of the review.
 
-A finding of this review looks like this:
+A report of this review with one finding looks like this:
 
 ```json
 {
-  "severity": "blocking",
-  "quote": "return rows.slice(0, limit - 1);",
-  "problem": "An export of more rows than the limit returns one row fewer than the limit, so the member loses the last row that the limit allows.",
-  "fix": "Return the first limit rows: rows.slice(0, limit).",
-  "proof": "failing input: an export of 11 rows with a limit of 10 reaches line 42, where slice(0, 9) returns 9 rows; the member asked for 10.",
-  "point": "An export over the limit drops the last row that the limit allows.",
-  "file": "src/export.js",
-  "line": 42
+  "reviewer": "code-reviewer",
+  "findings": [
+    {
+      "severity": "blocking",
+      "quote": "return rows.slice(0, limit - 1);",
+      "problem": "An export of as many rows as the limit or more returns one row fewer than the limit, so the member loses the last row that the limit allows.",
+      "fix": "Return the first limit rows: rows.slice(0, limit).",
+      "proof": "failing input: an export of 11 rows with a limit of 10 reaches line 42, where slice(0, 9) returns 9 rows; the member asked for 10.",
+      "point": "An export of as many rows as the limit or more drops the last row that the limit allows.",
+      "file": "src/export.js",
+      "line": 42
+    }
+  ]
 }
 ```

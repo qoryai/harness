@@ -16,7 +16,8 @@ falls under the definition of `blocking` in `judging-findings`.
   its path as the folder. The diff shows a deleted test; the copy shows the code that the
   test would run on now.
 - `qory.review.suite_result`: the result of the full suite, with the counts `tests`,
-  `failed` and `skipped`.
+  `failed` and `skipped`, and no failing rows yet. The result of the locked checks that
+  qory runs before the round is not in `qory.review` yet.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists. A claim in it is no proof. Judge the tests.
 
@@ -27,17 +28,19 @@ the test setup: a config of the test runner, a setup file, a helper or a fixture
 tests use, and the counts of the suite. It reports a test that the change hides, changed
 code with no test, and a test that shows nothing.
 
-The review of the code covers every other file of the change, and the review of the
+The review of the code covers every other file of the change, and also a security hole,
+data loss or a secret in a test file, a fixture or the test setup. The review of the
 acceptance covers the change against the acceptance criteria and the build plan. A finding
-in another area is left out: its reviewer writes it. A failing test that the suite shows is
-the finding that the run writes.
+in another area is left out: its reviewer writes it. When the change hides a failing test,
+write the test that the change hides: the review of the code writes the bug in the code
+under that test. A failing test that the suite shows is the finding that the run writes.
 
 ## Earlier findings
 
-Of `previous_findings`, read only the entry whose `reviewer` is the name that you write in
-`reviewer` of the report. In it, leave out each finding with no `quote`: the run wrote it,
-and writes it again when it still applies. Re-read the lines of each other finding, as
-`judging-findings` lists.
+When `previous_findings` exists, re-read the lines of each finding in it, as
+`reviewing-changes` and `judging-findings` list. Repeat, with its id, each finding of the
+area of this review that is still true, and leave out the others. The shape of
+`previous_findings` is not in a contract of qory yet.
 
 ## Review of the tests
 
@@ -56,8 +59,8 @@ and writes it again when it still applies. Re-read the lines of each other findi
    Trace each test that uses it. This step warns early: the review of the locked checks in
    the Verify stage is the one that binds.
 7. The suite: write no finding for a red suite, or for one that did not run, because the
-   run writes it. When `skipped` counts more tests than the change marks to skip, write a
-   finding.
+   run writes it. Compare no count of the suite with the skip marks: in step 2, you find
+   each test that the change skips.
 
 ## Blocking in this area
 
@@ -70,8 +73,8 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 - `non-blocking`: a test of step 2 that still passes on the new code, with the reason in the
   finding; changed code with no test, step 3; a test that shows nothing, step 4, unless it
   hides a failing test as in step 2; a test of step 5, unless a `failing input` shows it
-  failing on the change, such as in another time zone; any other change to the setup, step
-  6; and more skipped tests than the change marks, step 7.
+  failing on the change, such as in another time zone; and any other change to the setup,
+  step 6.
 
 ## Check list
 
@@ -79,6 +82,9 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 - Each deleted, skipped or loosened test is traced against the new code.
 - Each changed branch of code has a test that reaches it, or a finding.
 - Each change to the test setup is traced through the tests that use it.
-- No finding is about code that is not a test, or about the acceptance criteria.
+- No finding is about code that is not a test, about the acceptance criteria, or about a
+  security hole, data loss or a secret in a test.
+- A failing test that the change hides has a finding on the hiding, and none on the bug in
+  the code.
 - No finding is for a red suite or a suite that did not run.
-- Each earlier finding of your entry that is still true is in the report with its `id`.
+- Each earlier finding of this area that is still true is in the report with its `id`.
