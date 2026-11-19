@@ -16,10 +16,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   decision-1 with a line of 3 backticks.", with the length and the mark of the opening
   fence), a second diagram in a decision, a diagram that is not the last text of its
   decision after a blank line, a diagram in a removed decision, and a third diagram in the
-  record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."). It still refuses an
-  image, and the 450 words leave out the words of a diagram. `checking-decisions` has the
-  reviewer judge each diagram, and `decision-writer` and `decision-reviewer` load `visuals`
-  when the record has one.
+  record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."). It also refuses a
+  block that Qory Apiary does not draw as a diagram, because the 450 words leave out the
+  words of a diagram: a fence that is not lower case `mermaid` at the start of its line with
+  no other word, a first word that is not a type that Qory Apiary draws, a syntax that loads
+  an address, more than 20,000 characters, and a flowchart with more than 200 edges, which
+  `lib/mermaid.cjs` counts from the link lines because Qory Apiary sets the limit but has no
+  count. The decision record also refuses an HTML `<img>` and a reference image next to an
+  inline image, by the new option `everyImage` of `links` in `lib/markdown.cjs`, which no
+  other type sets. `checking-decisions` has the reviewer judge each diagram, and
+  `decision-writer` and `decision-reviewer` load `visuals` when the record has one.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
   `access: write`: the skills `workflow-write-acceptance-checks`,
   `writing-acceptance-checks` and `checking-acceptance-checks`, and the agents

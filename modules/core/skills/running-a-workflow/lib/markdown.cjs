@@ -367,12 +367,35 @@ function address(addr) {
   return null;
 }
 
+// definitions returns the labels of the link reference definitions of text outside code, in
+// lower case with each run of white space as one space, with their addresses.
+function definitions(list) {
+  const out = new Map();
+  for (const line of list) {
+    const found = line.fenced ? null : /^\s{0,3}\[([^\]]+)\]:\s*<?(\S+?)>?(\s|$)/.exec(line.text);
+    if (found) out.set(found[1].toLowerCase().replace(/\s+/g, ' ').trim(), found[2]);
+  }
+  return out;
+}
+
 // links checks each link and image of Markdown text outside code. images(addr) returns
 // whether the skill for the artifact allows that image, and links whether it allows a link.
-function links(run, file, where, text, { images = () => false, allowLinks = true } = {}) {
+// With everyImage, the check also reads an HTML <img> and a reference image, ![alt][label],
+// ![alt][] and ![alt] with a definition of its label. images(addr) decides on them too, with
+// the address "<img>" for an HTML image, and for a reference image the address of its
+// definition, else its label.
+function links(
+  run,
+  file,
+  where,
+  text,
+  { images = () => false, allowLinks = true, everyImage = false } = {},
+) {
   run.did('links');
   const at = where ? `${where} of ${file}` : file;
-  for (const line of lines(text)) {
+  const list = lines(text);
+  const defined = everyImage ? definitions(list) : new Map();
+  for (const line of list) {
     if (line.fenced) continue;
     let rest = withoutCode(line.text);
     const found = [];
@@ -380,6 +403,18 @@ function links(run, file, where, text, { images = () => false, allowLinks = true
       found.push({ image: bang === '!', addr });
       return ' ';
     });
+    if (everyImage) {
+      rest = rest.replace(/<img(?=[\s/>]|$)[^>]*>?/gi, () => {
+        found.push({ image: true, addr: '<img>' });
+        return ' ';
+      });
+      rest = rest.replace(/!\[((?:[^[\]\\]|\\.)*)\](?:\[([^[\]]*)\])?/g, (all, alt, label) => {
+        const key = (label || alt).toLowerCase().replace(/\s+/g, ' ').trim();
+        if (label === undefined && !defined.has(key)) return all;
+        found.push({ image: true, addr: defined.get(key) || key });
+        return ' ';
+      });
+    }
     rest = rest.replace(/<([a-z][a-z0-9+.-]*:[^<>\s]*)>/gi, (all, addr) => {
       found.push({ image: false, addr });
       return ' ';

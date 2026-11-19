@@ -6,6 +6,7 @@ module.exports = (lib) => {
     blank, brief, criterionMap, headings, idHistory, lines, markdownText, quote, REMOVED, same,
     sections, topSections, wordLimit,
   } = lib;
+  const mermaid = require('../lib/mermaid.cjs');
 
   const DECISION_ITEMS = ['Decision', 'Rests on', 'Today', 'Why', 'Question', 'Cost'];
 
@@ -44,12 +45,14 @@ module.exports = (lib) => {
             if (!block) {
               block = {
                 char: mark[1][0], size: mark[1].length, start: index, end: null,
-                items: items.length,
+                items: items.length, open: line.text,
               };
               blocks.push(block);
             } else if (mark && mark[1][0] === block.char && mark[1].length >= block.size &&
               /^ {0,3}(`{3,}|~{3,})\s*$/.test(line.text)) {
               block.end = index;
+              block.text = part.lines.slice(block.start + 1, index).map((one) => one.text)
+                .join('\n');
               block = null;
             }
             continues = false;
@@ -80,6 +83,7 @@ module.exports = (lib) => {
           id: heading ? heading[1] : null,
           fields,
           diagrams: blocks.length,
+          blocks,
           open: Boolean(decision && decision.value === OPEN_DECISION),
           unclosed: blocks.find((one) => one.end === null) || null,
           placed,
@@ -89,8 +93,38 @@ module.exports = (lib) => {
       });
   }
 
+  // blockFinding returns the fix line for a closed Mermaid block that Qory Apiary does not draw
+  // as a diagram, or null. Qory Apiary draws a code block as a diagram when the first word of its
+  // info string is mermaid in lower case (qoryai/apiary, markdown.ex:329-337). A fence that is
+  // indented 1 to 3 spaces may sit inside the item above it, so the check asks for a fence at
+  // the start of its line, with no other word. The types and the limits are those of
+  // mermaid.js:158-159 and 262-271.
+  function blockFinding(id, block) {
+    const open = /^( *)(`{3,}|~{3,})(.*)$/.exec(block.open);
+    if (!open || open[1] !== '' || !/^[ \t]*mermaid[ \t]*$/.test(open[3])) {
+      return `Write the fence of the Mermaid block of ${id} as ${'```'}mermaid at the line start.`;
+    }
+    const refused = mermaid.refusal(block.text);
+    if (!refused) return null;
+    if (refused.reason === 'type') {
+      return `Start the Mermaid block of ${id} with a type that Qory Apiary draws.\n` +
+        `The types are ${mermaid.TYPES.join(', ')}. ` +
+        `The first word is ${quote(brief(refused.found, 32))}.`;
+    }
+    if (refused.reason === 'loads') {
+      return `Remove the syntax that loads an address from the Mermaid block of ${id}.\nQory ` +
+        'Apiary shows such a block as text: url(), @import, a node with img, properties or ' +
+        'details.';
+    }
+    if (refused.reason === 'size') {
+      return `Cut the Mermaid block of ${id} to ${mermaid.MAX_CHARACTERS} characters: it has ` +
+        `${refused.found}.`;
+    }
+    return `Cut the Mermaid block of ${id} to ${mermaid.MAX_EDGES} edges: it has ${refused.found}.`;
+  }
+
   // diagramFinding reports the first rule that the Mermaid blocks of a decision break, as
-  // writing-decisions (SKILL.md:118: "Write the diagram in a") lists them.
+  // writing-decisions (SKILL.md:120: "Write the diagram in a") lists them.
   function diagramFinding(run, decision) {
     const id = idOf(decision.id);
     if (!decision.diagrams) return;
@@ -100,13 +134,15 @@ module.exports = (lib) => {
       fix = `Close the Mermaid block of ${id} with a line of ${size} ` +
         `${char === '~' ? 'tildes' : 'backticks'}.`;
     } else if (decision.removed) {
-      fix = `Remove the Mermaid diagram of ${id}, which is removed.`;
+      fix = `Remove the Mermaid diagram of ${id}: the decision is removed.`;
     } else if (decision.diagrams > 1) {
       fix = `Cut ${id} to one Mermaid diagram: it has ${decision.diagrams}.`;
     } else if (!decision.placed) {
       fix = `Put the Mermaid diagram of ${id} after its last item, with a blank line before it.`;
     } else if (!decision.last) {
       fix = `Put the text after the Mermaid diagram of ${id} above it, or delete it.`;
+    } else {
+      fix = blockFinding(id, decision.blocks[0]);
     }
     if (fix) run.find(fix + whole(decision.id));
   }
@@ -117,7 +153,7 @@ module.exports = (lib) => {
     // writing-decisions (SKILL.md:32-48, 80-81: "Use this form, in this order"): ## Decisions only,
     // each decision with its items in order, or only its reason when removed. The no-choice line
     // alone only
-    // checking-decisions (SKILL.md:75, 90-91: "The spec leaves no technical choice open.") has.
+    // checking-decisions (SKILL.md:76, 94-95: "The spec leaves no technical choice open.") has.
     run.did('sections');
     const parts = topSections(run, 'decision-record.md', list);
     const titles = parts.map((part) => part.title);
@@ -161,7 +197,7 @@ module.exports = (lib) => {
       }
     }
     wordLimit(run, 'decision-record.md', md, false);
-    // writing-decisions (SKILL.md:124: "a third diagram in the record fail"): the Mermaid
+    // writing-decisions (SKILL.md:136: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed. wordLimit leaves them out of the 450 words.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
       0);
@@ -206,7 +242,7 @@ module.exports = (lib) => {
     }
     // writing-decisions (SKILL.md:43: "- Question: `q6`."): "Question:" cites a question
     // of this run. That it is decided or answered, and open for an open decision, only
-    // checking-decisions (SKILL.md:49-50: "needs a question with no recommended option")
+    // checking-decisions (SKILL.md:50-51: "needs a question with no recommended option")
     // states.
     let questions = null;
     for (const decision of all) {
@@ -247,7 +283,7 @@ module.exports = (lib) => {
     );
     // artifact-text (SKILL.md:14-15: "Use no image in Markdown"): no image, and writing-decisions
     // allows none.
-    markdownText(run, 'decision-record.md', md);
+    markdownText(run, 'decision-record.md', md, { everyImage: true });
   }
 
   return {

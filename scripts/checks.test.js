@@ -1149,6 +1149,7 @@ const decision = (number, withDiagram) => `\n\n### \`decision-${number}\`: where
 // withDecisions is the edit that adds the decisions numbered from 2, each as decision() shows.
 const withDecisions = (...flags) => ['decision-record.md', COST,
   (item) => item + flags.map((flag, at) => decision(at + 2, flag)).join('')];
+const FENCE = /^Write the fence of the Mermaid block of decision-1 as ```mermaid at the line start\.$/;
 const FIX = /^Cut decision-record.md to 2 Mermaid diagrams: it has 3\. Keep the diagrams of the decisions that change how two parts call each other or a state flow\.$/;
 
 test('decision record: 1 or 2 Mermaid diagrams in the record pass, 3 fail', () => {
@@ -1163,9 +1164,9 @@ test('decision record: an image is refused', () => {
     /^Remove the image "flow.svg" from decision-record.md/);
 });
 
-test('decision record: a ~~~ fence and an info string after mermaid are Mermaid blocks', () => {
+test('decision record: a ~~~ fence is a Mermaid block, and an info string after mermaid is not', () => {
   passes(push(fixture(diagram(1, '~~~')), 'decision-record'));
-  passes(push(fixture(diagram(1, '```', 'mermaid title')), 'decision-record'));
+  fails(push(fixture(diagram(1, '```', 'mermaid title')), 'decision-record'), FENCE);
   fails(push(fixture(withDecisions(true, true), diagram(1, '~~~')), 'decision-record'), FIX);
   fails(push(fixture(diagram(2, '~~~')), 'decision-record'),
     /^Cut decision-1 to one Mermaid diagram: it has 2\.$/);
@@ -1214,12 +1215,12 @@ test('decision record: a removed decision has no diagram, and it counts for no l
   passes(push(fixture(plain), 'decision-record'));
   const drawn = ['decision-record.md', COST, (item) => `${item}${removed}\n\n${BLOCK()}`];
   fails(push(fixture(drawn), 'decision-record'),
-    /^Remove the Mermaid diagram of decision-2, which is removed\.$/);
+    /^Remove the Mermaid diagram of decision-2: the decision is removed\.$/);
   // Two diagrams and a removed one: the removed diagram is not the third.
   const two = fixture(withDecisions(true), diagram(1), ['decision-record.md', /\n*$/,
     `${removedAt(3)}\n\n${BLOCK()}\n`]);
   const result = push(two, 'decision-record');
-  fails(result, /^Remove the Mermaid diagram of decision-3, which is removed\.$/);
+  fails(result, /^Remove the Mermaid diagram of decision-3: the decision is removed\.$/);
   assert.ok(!result.findings.some((line) => /^Cut decision-record.md to 2 Mermaid/.test(line)),
     result.out);
 });
@@ -1270,6 +1271,116 @@ test('decision record: how a closing fence ends a Mermaid block', () => {
   // A line of tildes inside a backtick block is a line of the block, not its end.
   passes(push(fixture(block('```mermaid', '~~~\n  C --> D\n```')), 'decision-record'));
   fails(push(fixture(block('```mermaid', '~~~\n  C --> D')), 'decision-record'), closing);
+});
+
+// drawn returns the edit that adds one closed Mermaid block with the body text, after the Cost
+// item of decision-1. open is its opening fence line.
+const drawn = (body, open = '```mermaid') => ['decision-record.md', COST,
+  (item) => `${item}\n\n${open}\n${body}\n${/^\s*([`~]+)/.exec(open)[1]}`];
+
+test('decision record: the fence is lower case mermaid at the line start, with no other word', () => {
+  const body = 'flowchart LR\n  A --> B';
+  passes(push(fixture(drawn(body)), 'decision-record'));
+  passes(push(fixture(drawn(body, '~~~mermaid')), 'decision-record'));
+  passes(push(fixture(drawn(body, '```mermaid  ')), 'decision-record'));
+  passes(push(fixture(drawn(body, '````mermaid')), 'decision-record'));
+  for (const open of ['```Mermaid', '```MERMAID', '~~~Mermaid', ' ```mermaid', '  ```mermaid',
+    '   ```mermaid', ' ~~~mermaid', '```mermaid title', '~~~mermaid`x', '~~~mermaid x']) {
+    fails(push(fixture(drawn(body, open)), 'decision-record'), FENCE);
+  }
+  // A refused block cannot hide words from the 450.
+  fails(push(fixture(drawn(`flowchart LR\n  A[${many(2000)}] --> B`, '```Mermaid')), 'decision-record'),
+    FENCE);
+});
+
+test('decision record: a block of each type that Qory Apiary draws passes', () => {
+  const bodies = [
+    'flowchart LR\n  A --> B',
+    'graph TD\n  A --> B',
+    'sequenceDiagram\n  A->>B: Ask',
+    'stateDiagram\n  [*] --> Open',
+    'stateDiagram-v2\n  [*] --> Open',
+    'classDiagram\n  class Reply',
+    'classDiagram-v2\n  class Reply',
+    'erDiagram\n  REPLY ||--o{ HOURS : has',
+    '%% A comment first.\n\n  flowchart LR\n  A --> B',
+    'graph TD;A-->B',
+    '---\ntitle: Hours\n---\nflowchart LR\n  A --> B',
+  ];
+  for (const body of bodies) passes(push(fixture(drawn(body)), 'decision-record'));
+});
+
+test('decision record: a block of a type that Qory Apiary does not draw is refused', () => {
+  const type = /^Start the Mermaid block of decision-1 with a type that Qory Apiary draws\. The types are flowchart, graph, sequenceDiagram, stateDiagram, stateDiagram-v2, classDiagram, classDiagram-v2, erDiagram\. The first word is "(\S*)"\.$/;
+  for (const [body, word] of [['pie\n  "A": 1', 'pie'], ['gantt\n  title Hours', 'gantt'],
+    ['Flowchart LR\n  A --> B', 'Flowchart'], ['%% Only a comment.', ''], ['', ''],
+    ['\n  A --> B', 'A']]) {
+    const result = push(fixture(drawn(body)), 'decision-record');
+    fails(result, type);
+    assert.ok(result.findings.some((line) => type.exec(line) && type.exec(line)[1] === word), result.out);
+  }
+  // A directive line is dropped before the front matter is read: the --- that opens it has no
+  // closing line, so it drops the rest of the block.
+  fails(push(fixture(drawn('---\n%%{init: {"theme": "dark"}}%%\nflowchart LR\n  A --> B')), 'decision-record'), type);
+});
+
+test('decision record: a block with syntax that loads an address is refused', () => {
+  const loads = /^Remove the syntax that loads an address from the Mermaid block of decision-1\. Qory Apiary shows such a block as text: url\(\), @import, a node with img, properties or details\.$/;
+  for (const extra of ['  style A fill:url(x.png)', '  classDef a @import "x"', '  A@{ img: "x.png" }',
+    '  A@{ shape: "rect" }\n  B@{ label: "\\x" }']) {
+    fails(push(fixture(drawn(`flowchart LR\n  A --> B\n${extra}`)), 'decision-record'), loads);
+  }
+  fails(push(fixture(drawn('sequenceDiagram\n  A->>B: Ask\n  properties A: {"icon": "x"}')), 'decision-record'),
+    loads);
+  fails(push(fixture(drawn('sequenceDiagram\n  A->>B: Ask\n  details A: x')), 'decision-record'), loads);
+});
+
+test('decision record: a block of at most 20000 characters and 200 edges passes', () => {
+  const size = /^Cut the Mermaid block of decision-1 to 20000 characters: it has (\d+)\.$/;
+  const edges = /^Cut the Mermaid block of decision-1 to 200 edges: it has (\d+)\.$/;
+  // The text of a block is what Qory Apiary draws: with no line that has a directive.
+  const head = 'flowchart LR\n  A --> B\n%% ';
+  const sized = (count) => drawn(`${head}${'x'.repeat(count - head.length)}`);
+  passes(push(fixture(sized(20000)), 'decision-record'));
+  const over = push(fixture(sized(20001)), 'decision-record');
+  fails(over, size);
+  assert.ok(over.findings.some((line) => (size.exec(line) || [])[1] === '20001'), over.out);
+  const links = (count) => Array.from({ length: count }, (_, at) => `  N${at} --> M${at}`);
+  const graph = (count, type = 'flowchart LR') => drawn([type, ...links(count)].join('\n'));
+  passes(push(fixture(graph(200)), 'decision-record'));
+  passes(push(fixture(graph(200, 'graph TD')), 'decision-record'));
+  const many201 = push(fixture(graph(201)), 'decision-record');
+  fails(many201, edges);
+  assert.ok(many201.findings.some((line) => (edges.exec(line) || [])[1] === '201'), many201.out);
+  fails(push(fixture(graph(201, 'graph TD')), 'decision-record'), edges);
+  // A link of 2 nodes to 2 nodes is 4 edges, a chain of 3 nodes is 2, and a link with a label
+  // or a bracket text is 1.
+  const sides = ['  A & B --> C & D', '  A --> B --> C', '  A -- text --> B', '  A[x --> y] -->|l| B'];
+  const counts = [4, 2, 1, 1];
+  sides.forEach((line, at) => {
+    const body = ['flowchart LR', ...links(200 - counts[at]), line].join('\n');
+    passes(push(fixture(drawn(body)), 'decision-record'));
+    fails(push(fixture(drawn(`${body}\n  X --> Y`)), 'decision-record'), edges);
+  });
+  // Qory Apiary sets the edge limit for flowcharts: other types have no count.
+  passes(push(fixture(drawn(['sequenceDiagram', ...Array.from({ length: 300 },
+    (_, at) => `  A->>B: Ask ${at}`)].join('\n'))), 'decision-record'));
+});
+
+test('decision record: an image of any form is refused', () => {
+  const image = (addr) => new RegExp(`^Remove the image "${addr}" from decision-record\\.md\\.`);
+  const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
+  fails(push(fixture(why('![Flow](flow.svg) ')), 'decision-record'), image('flow.svg'));
+  fails(push(fixture(why('<img src="flow.svg"> ')), 'decision-record'), image('<img>'));
+  fails(push(fixture(why('<IMG SRC="flow.svg"> ')), 'decision-record'), image('<img>'));
+  fails(push(fixture(why('![Flow][f] '), ['decision-record.md', COST, (item) => `${item}\n\n[f]: https://example.com/flow.svg`]),
+    'decision-record'), image('https://example.com/flow.svg'));
+  fails(push(fixture(why('![Flow][] '), ['decision-record.md', COST, (item) => `${item}\n\n[flow]: https://example.com/flow.svg`]),
+    'decision-record'), image('https://example.com/flow.svg'));
+  fails(push(fixture(why('![Flow] '), ['decision-record.md', COST, (item) => `${item}\n\n[flow]: https://example.com/flow.svg`]),
+    'decision-record'), image('https://example.com/flow.svg'));
+  // A reference with no label, and a tag that only starts with img, are no image.
+  passes(push(fixture(why('![Flow] and <imgx> ')), 'decision-record'));
 });
 
 test('decision record: the 450 words leave out the diagram', () => {

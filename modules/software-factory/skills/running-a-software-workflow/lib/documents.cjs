@@ -12,7 +12,7 @@ module.exports = (lib) => {
   // writing-decisions (SKILL.md:53-54: "A file of a further repository is the folder's name") state
   // only the form of a file of a further repository, and only
   // checking-specs (SKILL.md:67-68: "each path of the machine the run is on") and
-  // checking-decisions (SKILL.md:87: "each path of the machine the run is on") list paths.
+  // checking-decisions (SKILL.md:92: "each path of the machine the run is on") list paths.
   function paths(run, file, where, text) {
     run.did('paths');
     const at = where ? `${where} of ${file}` : file;

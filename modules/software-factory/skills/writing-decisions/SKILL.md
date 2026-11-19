@@ -108,7 +108,9 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   and the record at most 2.
 - The points after a picture: the items of the form replace them.
 - The table of options and the other pictures: the record has no table, no wireframe and
-  no image. The ways that a person compares are the options of the question.
+  no image of any form, that is no `![alt](address)`, no reference image such as
+  `![alt][label]`, and no `<img>`. The ways that a person compares are the options of the
+  question.
 
 The other rules stay, such as the 450 words, which leave out the words of a diagram, and
 the edit in place of the newest version.
@@ -119,10 +121,19 @@ the edit in place of the newest version.
   its decision, after the last item. Close the block with its fence line. Draw it by the
   rules of ${qory:skills/visuals}: load it before you draw or change a diagram. If it
   cannot be loaded, report `blocked`.
+- Open the block with ```` ```mermaid ```` or `~~~mermaid` at the start of the line, with
+  `mermaid` in lower case and no other word or character after it. Qory Apiary draws a code
+  block as a diagram when the first word of its info string is `mermaid`. A fence indented
+  1 to 3 spaces can belong to the list item above it, and one indented 4 spaces or more is
+  code, so the check wants the fence at the start of the line.
+- Start the diagram with a type that Qory Apiary draws, as ${qory:skills/visuals} lists,
+  keep it to 20,000 characters and 200 edges, and write no syntax that loads an address,
+  as that skill lists. Qory Apiary shows any other block as text, and the check refuses
+  it, because the 450 words leave out the words of a diagram.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
-  diagram in a removed decision, an unclosed block and a third diagram in the record fail
-  the check.
+  diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw
+  and a third diagram in the record fail the check.
 - A diagram that no answer, finding or word concerns stays as it is.
 
 ## Questions
