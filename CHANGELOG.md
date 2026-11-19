@@ -30,6 +30,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   refuses each one.
   `checking-decisions` has the reviewer judge each diagram, and `decision-writer` and
   `decision-reviewer` load `visuals` when the record has one.
+- The review report is checked against qory's
+  `contracts/harness/v1/review-report.schema.json`, not a copy in this repository.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
   `access: write`: the skills `workflow-write-acceptance-checks`,
   `writing-acceptance-checks` and `checking-acceptance-checks`, and the agents

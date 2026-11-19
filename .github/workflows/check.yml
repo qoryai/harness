@@ -33,6 +33,12 @@ jobs:
       # modules/software-factory/process.yaml and the questions check follow. Move to a
       # release when one has them.
       QORY_COMMIT: 0e022820ca3f3725b9a6a31b39d20424f2b33076
+      # qory's commit that the tests read the contract files from, such as
+      # contracts/harness/v1/review-report.schema.json. It is the merge of qoryai/qory#136
+      # into qory's 544-build-verify branch, which publishes that schema; QORY_COMMIT does
+      # not have it. The step "Fetch qory's contracts" sets QORY_SOURCE to the folder of
+      # that commit. scripts/findings.test.js reads this pin to name the commit in its error.
+      QORY_CONTRACTS_COMMIT: afee80c313bda3e75b8508bf3c6bf7e557a903db
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,6 +56,20 @@ jobs:
 
       - name: Install qory
         run: GOBIN="$RUNNER_TEMP/qory" go install "github.com/qoryai/qory@$QORY_COMMIT"
+
+      - name: Fetch qory's contracts
+        run: |
+          go mod download -json "github.com/qoryai/qory@$QORY_CONTRACTS_COMMIT" \
+            > "$RUNNER_TEMP/qory-contracts.json"
+          dir=$(node -e '
+            const got = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            if (!got.Dir) {
+              console.error(got.Error || "go mod download printed no Dir");
+              process.exit(1);
+            }
+            console.log(got.Dir);
+          ' "$RUNNER_TEMP/qory-contracts.json")
+          echo "QORY_SOURCE=$dir" >> "$GITHUB_ENV"
 
       - name: Check
         run: QORY="$RUNNER_TEMP/qory/qory" sh scripts/check.sh
