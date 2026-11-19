@@ -3329,6 +3329,58 @@ test('report-build: a left-out item loses hidden characters and is cut like a po
   assert.equal(got.status, 0, got.out + got.err);
 });
 
+// Each item is a kind of content that markdownText refuses in a report, or a form near it.
+const REFUSED_ITEMS = [
+  ['a path under /Users/', 'Read /Users/jo/app/config.js: it stays.'],
+  ['a path under ~/', 'Read ~/app/config.js: it stays.'],
+  ['a path under /workspace/', 'Read /workspace/app/config.js: it stays.'],
+  ['a path under /qory/', 'Read /qory/app/config.js: it stays.'],
+  ['a path under /home/agent/', 'Read /home/agent/app/config.js: it stays.'],
+  ['a path under /var/folders/', 'Read /var/folders/ab/cd/T/x.log: it stays.'],
+  ['a path under /private/tmp/qory-artifacts', 'Read /private/tmp/qory-artifacts/x.md: it stays.'],
+  ['a path under .qory/', 'Read .qory/artifacts/spec.md: it stays.'],
+  ['a path under .qory/repositories', 'Read .qory/repositories/web/src/a.js: it stays.'],
+  ['a path of Windows', 'Read C:\\Users\\jo\\app\\config.js: it stays.'],
+  ['a path under .reports/', 'Read .reports/build-ledger.json: it stays.'],
+  ['a bare http link', 'See http://example.com/docs: it stays.'],
+  ['a bare ftp link', 'See ftp://example.com/docs: it stays.'],
+  ['a bare file link', 'See file:///etc/hosts: it stays.'],
+  ['a bare https link', 'See https://example.com/docs: it stays.'],
+  ['an http link in Markdown', 'See [docs](http://example.com/docs): it stays.'],
+  ['an https link in Markdown', 'See [docs](https://example.com/docs): it stays.'],
+  ['a link with a user name', 'See https://jo@example.com/docs: it stays.'],
+  ['a relative link in Markdown', 'See [docs](docs/a.md): it stays.'],
+  ['an autolink', 'See <https://example.com/docs>: it stays.'],
+  ['an image', 'See ![shot](https://example.com/a.png): it stays.'],
+  ['a code fence', '```: it stays.'],
+  ['a tab', 'Export\tdates: it stays.'],
+  ['a null character', 'Export\u0000dates: it stays.'],
+  ['a secret form', 'Key sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789: it stays.'],
+  ['a pipe and a backslash', 'Export a \\| b \\\\| c: it stays.'],
+];
+
+test('report-build: no left-out item makes check build-report refuse the report', () => {
+  const failed = [];
+  for (const [kind, item] of REFUSED_ITEMS) {
+    const { dir } = buildRepo(`Built it.\n\nLeft out:\n- ${item}\n- Plain item: it stays.\n`);
+    const made = call(dir, ['report-build']);
+    assert.equal(made.status, 0, `${kind}: ${made.out}${made.err}`);
+    const file = path.join(dir, '.qory/artifacts/build-report.md');
+    const got = call(dir, ['check', 'build-report', file]);
+    if (got.status !== 0) failed.push(`${kind}: ${got.lines.join(' / ')}`);
+  }
+  assert.deepEqual(failed, []);
+});
+
+test('report-build: a refused left-out item is replaced, and the items beside it stay', () => {
+  const left = 'Built it.\n\nLeft out:\n- Read /Users/jo/app/config.js: it stays.\n- Plain item: it stays.\n- See http://example.com/docs: it stays.\n- See https://example.com/docs: it stays.\n';
+  const { dir } = buildRepo(left);
+  assert.equal(call(dir, ['report-build']).status, 0);
+  const replaced = "- deliverable:d-1: an item that the report cannot contain; see the row's report in the ledger";
+  assert.ok(reportOf(dir).endsWith(`## Left out\n\n${replaced}\n- deliverable:d-1: Plain item: it stays.\n${replaced}\n- deliverable:d-1: See https://example.com/docs: it stays.\n`), reportOf(dir));
+  assert.equal(call(dir, ['check', 'build-report', path.join(dir, '.qory/artifacts/build-report.md')]).status, 0);
+});
+
 test('report-build: the checks column reads the newest clean record of the head, and the counts sum the replays', () => {
   const { dir, ledger } = buildRepo();
   const head = sh(dir, 'rev-parse', 'HEAD');

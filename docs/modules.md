@@ -2976,7 +2976,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   - `## Left out`: each item of a list `Left out:` in the `report` of a ledger row, as
     `- <row id>: <item>: <risk>`, or `none`. Each item loses its control, refused and
     hidden characters and is cut to 500 characters, the length of a point of
-    `open-findings.json`.
+    `open-findings.json`. An item that `check build-report` refuses, such as a path of
+    the machine or a link that is not `https://`, becomes `an item that the report cannot
+    contain; see the row's report in the ledger`.
 
   A `|` in a cell is written `\|`, with each backslash before it doubled. A proof of a
   finding is cut to 500 characters, and a proof that is empty or only spaces is `none`.

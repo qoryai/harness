@@ -19,6 +19,8 @@ const schema = require('./schema.cjs');
 const FILE = 'build-report.md';
 // The last line of ## Review rounds.
 const CLOSING = 'The result of the last round is in the review in Qory Apiary, not in this report.';
+// The text of an item of ## Left out that the check of the report refuses.
+const REPLACED = "an item that the report cannot contain; see the row's report in the ledger";
 
 module.exports = (lib) => {
   const {
@@ -184,7 +186,17 @@ module.exports = (lib) => {
       ledger, head, records: readRecords(context.root),
       checks: locked && Array.isArray(locked.checks) ? locked.checks.filter(isObject) : [],
       round: readRound(inputs), previous: previous ? previous.text : null,
+      machine: context.machine,
     };
+  }
+
+  // refused reports whether the check of the type build-report refuses text, a line of
+  // ## Left out: it runs markdownText on it, with machine as the pattern of context.machine.
+  function refused(text, machine) {
+    let count = 0;
+    const probe = { context: { machine }, did() {}, find() { count += 1; } };
+    lib.markdownText(probe, FILE, text);
+    return count > 0;
   }
 
   // render returns the text of build-report.md of the standard track for what gather
@@ -220,11 +232,13 @@ module.exports = (lib) => {
     const open = rows.filter((row) => row.state !== 'done');
     out.push(['Not run', open.length
       ? open.map((row) => `- ${row.id}, pass ${row.pass}: ${row.state}`) : ['None.']]);
-    // An item goes through plainText and the cut of a point, so that the check of the report
-    // never refuses the text of a writer.
+    // An item goes through plainText and the cut of a point. An item that the check of the
+    // report refuses, such as a path of the machine or a link that is not https://, is
+    // replaced, so that the report never breaks the check.
     const left = rows.flatMap((row) => leftOut(row.report || '')
       .map((item) => cut(plainText(item), POINT_TEXT)).filter(Boolean)
-      .map((item) => `- ${row.id}: ${item}`));
+      .map((item) => `- ${row.id}: ${item}`)
+      .map((line) => (refused(line, data.machine) ? `- ${row.id}: ${REPLACED}` : line)));
     out.push(['Left out', left.length ? left : ['none']]);
     return `${out.map(([title, body]) => `## ${title}\n\n${body.join('\n')}`).join('\n\n')}\n`;
   }
