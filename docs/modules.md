@@ -1212,7 +1212,9 @@ folder, a glob after a `cd` in the command, `python -c`, or a script that it wri
 file and then runs. A first word that is a byte copy of `checks.cjs` counts as the checks
 tool, although `checks.cjs` loads files next to it, so a copy of the whole folder with an
 edited file runs. A shell command that writes through an existing link to `.reports` is not
-followed to the target: the write tools follow links, the shell kind does not. Each hook has
+followed to the target: the write tools follow links, the shell kind does not. A path with
+backslash separators is read as POSIX, so `art\.reports\x.json` is one name, which a tool of
+Windows reads as a path under `.reports`. Each hook has
 a timeout of 10 seconds. A hook that runs past its timeout
 lets the call run on Cursor and on Copilot CLI ([Cursor](https://cursor.com/docs/agent/hooks),
 [Copilot CLI](https://docs.github.com/en/copilot/reference/hooks-reference)). Of a hook that

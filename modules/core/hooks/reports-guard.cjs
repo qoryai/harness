@@ -35,7 +35,9 @@
 // writes to a file and then runs. A first word that is a byte copy of checks.cjs counts as the
 // checks tool, although checks.cjs loads files next to it, so a copy of the whole folder with
 // an edited file runs. A shell command that writes through an existing link to .reports is not
-// followed to the target: the write tools follow links, the shell kind does not. The adapters
+// followed to the target: the write tools follow links, the shell kind does not. A path with
+// backslash separators is read as POSIX, so `art\.reports\x.json` is one name, which a tool of
+// Windows reads as a path under .reports. The adapters
 // of Gemini CLI, Cursor and Copilot CLI call safeDecide, which denies a call for which decide
 // throws. A guard that runs past the timeout of its hook lets the command run on Cursor and
 // Copilot CLI. Outside a run decide denies nothing, as checks.cjs end checks nothing there.
