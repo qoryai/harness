@@ -16,18 +16,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   decision-1 with a line of 3 backticks.", with the length and the mark of the opening
   fence), a second diagram in a decision, a diagram that is not the last text of its
   decision after a blank line, a diagram in a removed decision, and a third diagram in the
-  record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."). It also refuses a
+  record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."), which counts each
+  block that Qory Apiary draws, also one in a quote or a list item. It also refuses a
   block that Qory Apiary does not draw as a diagram: a fence that is not lower case
   `mermaid` at the start of its line with no other word, a first word that is not a type
   that Qory Apiary draws, a syntax that loads an address, more than 20,000 characters as
   Qory Apiary measures them, a flowchart with more than 200 edges, and a `%%{` line.
   `lib/mermaid.cjs` reads the text as Qory Apiary draws it, without the characters that Qory
   Apiary strips, and counts every link of a flowchart, because Qory Apiary sets the limit
-  but has no edge count. Each diagram's characters other than spaces and Mermaid symbols
-  over 700 cost one word per 6. The decision record has no `![` or `<img` anywhere,
-  code blocks and diagrams included, and you write `\![` outside code for a literal `![`:
-  the new option `everyImage` of `links` in `lib/markdown.cjs`, which no other type sets,
-  refuses each one.
+  but has no edge count. The 450 words of a record leave out its diagrams. Qory Apiary
+  strips each `click` line and the front matter, and the check refuses neither. The decision
+  record has no `![` or `<img` anywhere, code blocks and diagrams included, and you write
+  `\![` outside code for a literal `![`: the new option `everyImage` of `links` in
+  `lib/markdown.cjs`, which no other type sets, refuses each one.
   `checking-decisions` has the reviewer judge each diagram, and `decision-writer` and
   `decision-reviewer` load `visuals` when the record has one.
 - The review report is checked against qory's

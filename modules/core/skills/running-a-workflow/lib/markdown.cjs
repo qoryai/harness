@@ -404,9 +404,9 @@ function links(
   if (everyImage) {
     for (const start of imageStarts(text)) {
       const shown = [...start.text.slice(0, 160)].slice(0, 40).join('');
-      const fix = start.mark === '![' ? `, or write \`\\![\` outside code for a literal \`![\``
-        : ': the record has no `<img`';
-      run.find(`Remove the image from ${short(at)}${fix}.\nLine ${start.line} is ${quote(shown)}.`);
+      run.find(`Remove \`![\` and \`<img\` from ${short(at)}, also inside code.\n` +
+        `Line ${start.line} is ${quote(shown)}.\n` +
+        'Outside code, write `\\![` for a literal `![`.');
     }
   }
   for (const line of lines(text)) {
@@ -567,11 +567,10 @@ function summary(run, file, text) {
 
 // wordLimit checks at most 450 words:
 // artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true, and plus the
-// number extra of words that the caller counts for text that counted() leaves out.
-function wordLimit(run, file, text, background, extra = 0) {
+// without the background after its first paragraph when background is true.
+function wordLimit(run, file, text, background) {
   run.did('word limit');
-  const count = words(counted(text, background)) + extra;
+  const count = words(counted(text, background));
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 

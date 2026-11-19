@@ -18,6 +18,14 @@ module.exports = (lib) => {
   // Mermaid diagrams in decisions that are not removed.
   const MAX_DIAGRAMS = 2;
 
+  // A line that opens a block that Qory Apiary draws as a diagram, in a quote, in a list item or
+  // nested (markdown.ex:328-339: the first word of the info string is mermaid): a fence of 3 or
+  // more backticks or tildes, after spaces, ">" marks and list marks, and then mermaid as the
+  // first word, in any case. It counts a line that Qory Apiary does not draw (a fence in a code
+  // block), so that the count is never below Qory Apiary's.
+  const MERMAID_LINE = new RegExp('^[ \\t]*(?:(?:>|[-*+](?=[ \\t])|\\d{1,9}[.)](?=[ \\t]))' +
+    '[ \\t]*)*(?:`{3,}|~{3,})[ \\t]*mermaid(?=\\s|$)', 'i');
+
   // idOf returns the id of a decision as the first line of a finding shows it: up to 16
   // characters, else its start and its end. An id may have any number of digits. whole returns
   // a later line with the id when idOf shortens it, else nothing.
@@ -26,9 +34,10 @@ module.exports = (lib) => {
 
   // decisions reads decision-record.md: one entry per ### heading, with its items and its
   // Mermaid blocks. A Mermaid block is no item: it ends the item before it. diagrams counts
-  // the blocks, unclosed is the block with no closing fence, else null, placed is true when
-  // each block follows an item after a blank line, and last is true when nothing but blank
-  // lines follows each closed block.
+  // the blocks, drawn counts the lines that open a block that Qory Apiary draws, wherever it
+  // stands, and is at least diagrams, unclosed is the block with no closing fence, else null,
+  // placed is true when each block follows an item after a blank line, and last is true when
+  // nothing but blank lines follows each closed block.
   function decisions(text) {
     return sections(lines(text), 3)
       .slice(1)
@@ -83,6 +92,8 @@ module.exports = (lib) => {
           id: heading ? heading[1] : null,
           fields,
           diagrams: blocks.length,
+          drawn: Math.max(blocks.length, part.lines.filter((line) => MERMAID_LINE.test(line.text))
+            .length),
           blocks,
           open: Boolean(decision && decision.value === OPEN_DECISION),
           unclosed: blocks.find((one) => one.end === null) || null,
@@ -125,7 +136,7 @@ module.exports = (lib) => {
   }
 
   // diagramFinding reports the first rule that the Mermaid blocks of a decision break, as
-  // writing-decisions (SKILL.md:119: "Write the diagram in a") lists them.
+  // writing-decisions (SKILL.md:120: "Write the diagram in a") lists them.
   function diagramFinding(run, decision) {
     const id = idOf(decision.id);
     if (!decision.diagrams) return;
@@ -197,15 +208,10 @@ module.exports = (lib) => {
           `${expected.map((name) => `"${name}:"`).join(', ')}.${whole(decision.id)}`);
       }
     }
-    // writing-decisions (SKILL.md:140: "characters other than spaces and Mermaid symbols"): the
-    // 450 words count one word for each 6 characters of a diagram over its first 700.
-    const diagramWords = all.flatMap((decision) => decision.blocks)
-      .filter((block) => block.end !== null)
-      .reduce((sum, block) => sum + mermaid.charged(block.text), 0);
-    wordLimit(run, 'decision-record.md', md, false, diagramWords);
+    wordLimit(run, 'decision-record.md', md, false);
     // writing-decisions (SKILL.md:146: "a third diagram in the record fail"): the Mermaid
-    // blocks of decisions that are not removed.
-    const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.diagrams),
+    // blocks of decisions that are not removed, wherever they stand.
+    const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.drawn),
       0);
     if (diagrams > MAX_DIAGRAMS) {
       run.find(`Cut decision-record.md to ${MAX_DIAGRAMS} Mermaid diagrams: it has ${diagrams}.\n` +

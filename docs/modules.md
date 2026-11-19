@@ -2247,8 +2247,11 @@ section "Markdown documents" of `artifact-text` for them. A decision whose chose
 changes how two parts call each other, or a flow of states, may end with one Mermaid
 diagram, drawn by `visuals`. The record has no wireframe or table, and no `![` or `<img`
 anywhere, code blocks and diagrams included, and you write `\![` outside code for a
-literal `![`. `checks.cjs` refuses each one through the option `everyImage` of `links` in
-`lib/markdown.cjs`, which only the decision record sets, so no other type changes.
+literal `![`. `checks.cjs` refuses each one ("Remove `![` and `<img` from
+decision-record.md, also inside code.", then the line number with the first 40 characters
+of the line, then "Outside code, write `\![` for a literal `![`.") through the option
+`everyImage` of `links` in `lib/markdown.cjs`, which only the decision record sets, so no
+other type changes. A `\![a](address)` is a link, and the check reads its address as one.
 
 `checks.cjs` refuses, each with a fix line that starts with the fix:
 
@@ -2261,15 +2264,16 @@ literal `![`. `checks.cjs` refuses each one through the option `everyImage` of `
 - a diagram in a removed decision ("Remove the Mermaid diagram of decision-1: the decision
   is removed.");
 - a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
-  a removed decision's diagram is not in that count.
+  a removed decision's diagram is not in that count. Qory Apiary draws every code block
+  whose info string starts with `mermaid`, wherever it stands (`markdown.ex:328-339`), so
+  the count reads each line that starts, after spaces, `>` marks and list marks, with 3 or
+  more backticks or tildes and `mermaid` as the first word, in any case: a block in a
+  quote, in a list item, nested, or indented. The count is never below Qory Apiary's, and
+  it counts a fence in a code block too. A fence indented 1 to 3 spaces is still refused
+  with the fence line below.
 
-Each diagram's characters other than spaces and Mermaid symbols over 700 cost one word per
-6. The Mermaid symbols are ``- = . < > | * ( ) [ ] { } : ; & ~ % " '``, "spaces" covers
-every white-space character, and an entity such as `&nbsp;` counts as it is written.
-`characters` in `lib/mermaid.cjs` counts them in the text that `source()` returns, and
-decodes no entity: `&nbsp;` counts its 4 letters, and `&#x20;` its 4 characters `#x20`. It
-does not read Markdown, so `![...](u)` in a comment hides no character. `source()` strips
-each `click` line, so it counts none.
+The 450 words leave out the diagrams, whatever their size: the 20,000 characters and the 200
+edges bound them.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
@@ -2297,6 +2301,9 @@ and without front matter (`mermaid.js:195-202`). It refuses:
   N."). Qory Apiary shows it as text, under a line that says why it failed;
 - a `%%{` line ("Remove the %%{ line from the Mermaid block of decision-1."), which Qory
   Apiary strips before it draws.
+
+Qory Apiary also strips each `click` line and the front matter before it draws, and the
+check refuses neither.
 
 `mermaid.js` sets both limits (`:158-159`), but only Mermaid counts edges, and it stops a
 flowchart at the 201st edge. `lib/mermaid.cjs` counts every link, one edge for each

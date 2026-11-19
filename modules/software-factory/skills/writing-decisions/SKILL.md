@@ -105,7 +105,8 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   chosen way changes how two parts call each other, or a flow of states, and the picture
   is a Mermaid diagram.
 - The rule that a document "has no limit on pictures": a decision has at most one diagram,
-  and the record at most 2.
+  and the record at most 2. The record counts each block that Qory Apiary draws, also one
+  in a quote or a list item.
 - The points after a picture: the items of the form replace them.
 - The table of options and the other pictures: the record has no table and no wireframe,
   and no `![` or `<img` anywhere, code blocks and diagrams included. Write `\![` outside
@@ -137,9 +138,8 @@ The other rules stay, such as the edit in place of the newest version, and the 4
   as text, under a line that says why it failed. It shows a block over 20,000 characters as
   the size-error diagram of Mermaid, with its source in `<details>`. The check refuses each
   of them.
-- Each diagram's characters other than spaces and Mermaid symbols over 700 cost one word per
-  6. The Mermaid symbols are ``- = . < > | * ( ) [ ] { } : ; & ~ % " '``, "spaces" covers
-  every white-space character, and an entity such as `&nbsp;` counts as it is written.
+- The 450 words leave out the diagrams. Qory Apiary strips each `click` line and the front
+  matter of a block before it draws, and the check refuses neither.
 - Write no diagram in a removed decision: when you remove a decision, remove its diagram.
 - A second diagram in a decision, a diagram that is not the last text of its decision, a
   diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw

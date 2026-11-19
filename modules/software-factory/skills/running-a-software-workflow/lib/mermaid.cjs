@@ -1,8 +1,7 @@
 // The part of the Mermaid hook of Qory Apiary that decides whether a block is drawn as a
 // diagram: the text it draws, its type, the syntax that loads an address, and its limits.
 // A port of assets/js/hooks/mermaid.js of qoryai/apiary, so that a check of the harness
-// refuses a block that Qory Apiary shows as text, and counts the characters of a diagram, which
-// the 450 words of a record count above the free characters of each diagram.
+// refuses a block that Qory Apiary shows as text.
 'use strict';
 
 // The settings of mermaid.js (lines 158-159): maxTextSize and maxEdges.
@@ -284,27 +283,6 @@ function edges(text) {
   return joined.reduce((sum, parts) => sum + statementEdges(parts.join(' ')), 0);
 }
 
-// FREE_CHARACTERS characters of each diagram are free, and each 6 after them cost one word of
-// the 450 of a record. The characters are those of source() that are no white space and not in
-// SYMBOLS; the core word count reads Markdown, so it is not used.
-const FREE_CHARACTERS = 700;
-const CHARACTERS_PER_WORD = 6;
-const SYMBOLS = new Set([...'-=.<>|*()[]{}:;&~%"\'']);
-
-// characters returns the number of characters of the Mermaid block with this text that count.
-function characters(text) {
-  let count = 0;
-  for (const char of source(text)) {
-    if (!SYMBOLS.has(char) && !/\s/u.test(char)) count += 1;
-  }
-  return count;
-}
-
-// charged returns the number of words that the block costs: one for each 6 characters over
-// FREE_CHARACTERS.
-const charged = (text) => Math.ceil(Math.max(0, characters(text) - FREE_CHARACTERS) /
-  CHARACTERS_PER_WORD);
-
 // refusal returns why Qory Apiary shows the Mermaid block with this text as text, or draws
 // it as an error, as { reason, found }, or null when it draws the block. reason is `type`,
 // `loads`, `size` or `edges`.
@@ -322,6 +300,5 @@ function refusal(text) {
 }
 
 module.exports = {
-  CHARACTERS_PER_WORD, FREE_CHARACTERS, MAX_CHARACTERS, MAX_EDGES, TYPES, characters, charged,
-  directive, edges, loads, refusal, size, source, typeOf,
+  MAX_CHARACTERS, MAX_EDGES, TYPES, directive, edges, loads, refusal, size, source, typeOf,
 };
