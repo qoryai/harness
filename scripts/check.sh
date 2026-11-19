@@ -18,7 +18,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -67,6 +67,9 @@ BANNED_ANY_CASE='(^|[^[:alnum:]_])(white-?list(s|ed|ing)?|black-?list(s|ed|ing)?
 # writing rules for every kind of text, including commit messages and pull requests.
 CORE_WORDS='software|repositor(y|ies)|repos?|git|github|commit(s|ted|ting)?|diff(s|ing)?|branch(es|ing)?|pull[ _-]requests?|test(s|ed|ing)?|criteri(on|a)|specs?|specifications?|codebases?|source code|deploy(s|ed|ing|ments?)?'
 PR_WORDS='PRs?'
+# The words that the tool guard may contain: it names the read commands of a version control tool,
+# git and diff, which it allows in the shell of a reviewer session.
+GUARD_WORDS=$(printf '%s' "$CORE_WORDS" | sed 's/|git|/|/; s/|diff(s|ing)?|/|/')
 
 # A relative QORY path stays valid after `run` changes directory.
 case $QORY in
@@ -236,11 +239,18 @@ rule_sections() {
 	[ -z "$OUT" ]
 }
 
+# The line that lets a reviewer list Write: qory starts a reviewer of a change as the main agent
+# of its session, with no shell, and the reviewer writes its one report file.
+REVIEWER_EXCEPTION='Tool exception: Write, because it writes the one report file of a review round.'
+
 # rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every
 # tool. The key lists Bash, Edit, Write, WebFetch or WebSearch only with a line outside the
 # code fences of the body for that tool: `Tool exception: <tool>, because <reason>`. No
 # agent lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
-# code-explorer or shape-planner lists only Read, Grep, Glob and Skill.
+# code-explorer or shape-planner lists only Read, Grep, Glob and Skill. A reviewer also lists
+# Write when its body has the line REVIEWER_EXCEPTION, exactly, and no other tool. The tool
+# guard limits that Write to the path of the report, and denies a Write by an agent whose
+# type ends in -reviewer.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do
@@ -257,6 +267,13 @@ rule_tools() {
 			printf '%s\n' "$agent_text" | grep -Eq "^Tool exception: $tool, because [^[:space:]]" ||
 				add "Remove $tool from the tools key of $file, or add the line 'Tool exception: $tool, because <reason>' to its body."
 		done
+		# The tool guard matches the agent_type of a call, which is the name in the front matter,
+		# so an agent that lists Write has the name of its file.
+		if printf '%s\n' "$tools" | grep -Eq '(^|[^[:alnum:]_])Write([^[:alnum:]_]|$)'; then
+			agent_name=$(front_matter "$file" | awk "$NAME_AWK")
+			[ "$agent_name" = "$(basename "$file" .md)" ] ||
+				add "Set name: $(basename "$file" .md) in the front matter of $file: an agent that lists Write has the name of its file, and the tool guard reads that name."
+		fi
 		for tool in Agent NotebookEdit MultiEdit; do
 			printf '%s\n' "$tools" |
 				grep -Eq "(^|[^[:alnum:]_])$tool([^[:alnum:]_]|\$)" &&
@@ -264,10 +281,18 @@ rule_tools() {
 		done
 		case $(basename "$file" .md) in
 		*-reviewer | code-explorer | shape-planner)
+			allowed='Read|Grep|Glob|Skill'
+			case $(basename "$file" .md) in
+			*-reviewer)
+				if printf '%s\n' "$agent_text" | grep -Fxq "$REVIEWER_EXCEPTION"; then
+					allowed='Read|Grep|Glob|Skill|Write'
+				fi
+				;;
+			esac
 			extra=$(printf '%s\n' "$tools" | tr -cs '[:alnum:]_' '\n' | grep -v '^$' |
-				grep -Evx 'Read|Grep|Glob|Skill' | tr '\n' ' ')
+				grep -Evx "$allowed" | tr '\n' ' ')
 			[ -z "$extra" ] ||
-				add "Remove $extra from the tools key of $file: it lists only Read, Grep, Glob and Skill."
+				add "Remove $extra from the tools key of $file: it lists only Read, Grep, Glob and Skill, and a reviewer also Write with the line '$REVIEWER_EXCEPTION' in its body."
 			;;
 		esac
 	done
@@ -1078,7 +1103,8 @@ EOF
 
 # rule_core_words DIR: rule 11, no file of DIR/modules/core, outside the skill
 # simple-communication, contains a word of CORE_WORDS, in any case, or of PR_WORDS, by case,
-# as a whole word, and no file of simple-communication contains software-factory. `.test(`
+# as a whole word, and no file of simple-communication contains software-factory. The one file
+# core/hooks/tool-guard.cjs may also contain git and diff, the read commands that it allows. `.test(`
 # does not count, and neither does the folder name `.git` when no letter, digit or `_` comes
 # before the dot, so `app.git` counts. Each finding is a line, as <file>:<line>:<text>, with
 # the path under modules/.
@@ -1090,7 +1116,9 @@ rule_core_words() {
 			sed -E 's/[.]test[(]/.(/g; s/(^|[^[:alnum:]_])[.]git([^[:alnum:]_]|$)/\1.\2/g' "$file" \
 				>"$TMP/core-words"
 			{
-				grep -n -i -E "(^|[^[:alnum:]_])($CORE_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
+				words=$CORE_WORDS
+				[ "$file" = ./core/hooks/tool-guard.cjs ] && words=$GUARD_WORDS
+				grep -n -i -E "(^|[^[:alnum:]_])($words)([^[:alnum:]_]|\$)" "$TMP/core-words"
 				grep -n -E "(^|[^[:alnum:]_])($PR_WORDS)([^[:alnum:]_]|\$)" "$TMP/core-words"
 			} | sort -t: -k1,1n -u | sed "s|^|${file#./}:|"
 		done
@@ -1541,17 +1569,62 @@ for bad_tool in Agent NotebookEdit MultiEdit; do
 	printf '\nTool exception: %s, because the role needs it.\n' "$bad_tool" >>"$AGENT"
 	expect_broken "rule 2 fails on $bad_tool, also with an exception" "Remove $bad_tool" rule_tools "$FIX"
 done
-for bad_name in sample-reviewer code-explorer shape-planner; do
+for bad_name in sample-reviewer spec-reviewer code-reviewer code-explorer shape-planner; do
 	bad_file=modules/core/agents/$bad_name.md
 	fixture
 	good_agent >"$FIX/$bad_file"
 	expect_passes "rule 2 passes on the four read tools in $bad_name" rule_tools "$FIX"
-	good_agent | sed 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
+	good_agent | sed -e "s/^name: .*/name: $bad_name/" -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
 	printf '\nTool exception: Write, because the role needs it.\n' >>"$FIX/$bad_file"
 	expect_broken "rule 2 fails on Write in $bad_name, also with an exception" "Remove Write" rule_tools "$FIX"
+	good_agent | sed -e "s/^name: .*/name: $bad_name/" -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/$bad_file"
+	printf '\n%s\n' "$REVIEWER_EXCEPTION" >>"$FIX/$bad_file"
+	case $bad_name in
+	*-reviewer)
+		expect_passes "rule 2 passes on Write in $bad_name with the line of the report file" rule_tools "$FIX"
+		;;
+	*)
+		expect_broken "rule 2 fails on Write in $bad_name, also with the line of the report file" "Remove Write" rule_tools "$FIX"
+		;;
+	esac
 	good_agent | sed 's/^tools: .*/tools: Read, Task/' >"$FIX/$bad_file"
 	expect_broken "rule 2 fails on any other tool in $bad_name" "Remove Task" rule_tools "$FIX"
 done
+fixture
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write, Bash/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n%s\nTool exception: Bash, because the role needs it.\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on Bash in a reviewer with the line of the report file and an exception for Bash" "Remove Bash" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\nTool exception: Write, because it writes the one report file of a review round, and more.\n' >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on Write in a reviewer when the line of the report file differs by a word" "Remove Write" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n```text\n%s\n```\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on Write in a reviewer when the line of the report file is in a code fence" "Remove Write" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\nNote: %s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on Write in a reviewer when a line only ends with the line of the report file" "Remove Write" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n%s Do as you like.\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on Write in a reviewer when a line only starts with the line of the report file" "Remove Write" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: code-reviewer/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n %s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on Write in a reviewer when the line has a space before it" "Remove Write" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: other-agent/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n%s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on a reviewer that lists Write when its name differs from its file name" "Set name: code-reviewer" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: other-agent/' >"$FIX/modules/core/agents/code-reviewer.md"
+expect_passes "rule 2 passes on a reviewer with no Write when its name differs from its file name" rule_tools "$FIX"
+fixture
+good_agent | sed -e 's/^name: .*/name: sample-agent/' -e 's/^tools: .*/tools: Read, Grep, Glob, Skill, Write/' >"$FIX/modules/core/agents/code-reviewer.md"
+printf '\n%s\n' "$REVIEWER_EXCEPTION" >>"$FIX/modules/core/agents/code-reviewer.md"
+expect_broken "rule 2 fails on a reviewer that lists Write with the name of another file" "Set name: code-reviewer" rule_tools "$FIX"
 fixture
 good_agent | sed 's/^tools: .*/tools: Read, Bash, Edit/' >"$AGENT"
 printf '\nTool exception: Bash, because the role needs it.\n' >>"$AGENT"
@@ -2328,6 +2401,18 @@ printf '%s\n' 'Read .github and .GitHub/hooks.' >>"$SKILL"
 expect_broken "rule 11 fails on the folder name .github in a core skill" \
 	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
 fixture
+mkdir -p "$FIX/modules/core/hooks" || exit 1
+printf '%s\n' "const READ = ['git', 'diff'];" >"$FIX/modules/core/hooks/tool-guard.cjs"
+expect_passes "rule 11 passes on git and diff in the tool guard" rule_core_words "$FIX"
+printf '%s\n' "const READ = 'repository';" >"$FIX/modules/core/hooks/tool-guard.cjs"
+expect_broken "rule 11 fails on another software word in the tool guard" \
+	'core/hooks/tool-guard.cjs:1:' rule_core_words "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/hooks" || exit 1
+printf '%s\n' "const READ = ['git', 'diff'];" >"$FIX/modules/core/hooks/end-gate.cjs"
+expect_broken "rule 11 fails on git in a core hook other than the tool guard" \
+	'core/hooks/end-gate.cjs:1:' rule_core_words "$FIX"
+fixture
 printf '%s\n' 'Open a PR for each change.' >>"$SKILL"
 expect_broken "rule 11 fails on PR in upper case in a core skill" \
 	'core/skills/sample/SKILL.md:' rule_core_words "$FIX"
@@ -2491,7 +2576,8 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 # The tests of the types of Build and Verify: their JSON Schemas against process.yaml and the
 # 40 samples, and each rule of each type in check and push.
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
-# The tests of the findings of a change: a proof per finding, and a closure with its proof.
+# The tests of the review of a change: the example report against the draft schema, the open
+# findings verb, and the removed forms.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list
 # "Notes read:".

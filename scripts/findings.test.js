@@ -1,11 +1,10 @@
-// Tests of the findings of the review of a change: the report check of a finding's proof and
-// severity, and the verb findings of the checks script of running-a-workflow, which records
-// each finding with an id and a proof, closes it with its closing proof, and gives a later
-// round the earlier findings. scripts/check.sh runs them.
+// Tests of the review of a change: the skills that define a reviewer's report, the report in
+// the JSON format of the review round against the fixture of its schema, and the verb
+// `findings open` of the checks script of running-a-workflow, which prints the findings that
+// the next session fixes first. scripts/check.sh runs them.
 'use strict';
 
 const assert = require('node:assert/strict');
-const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -15,744 +14,572 @@ const MODULES = path.join(__dirname, '../modules');
 const SKILLS = path.join(MODULES, 'core', 'skills');
 const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.cjs');
 const { main } = require(CHECKS);
-const { watch, CHILD } = require('./first-line.js');
-const { expected } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'reports.cjs'));
-// plainLine cuts a line of output to 200 characters, so a line with a path of the temporary
-// folder is compared with its expected text cut the same way.
-const { plainLine } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'base.cjs'));
+const { watch } = require('./first-line.js');
+const schema = require(path.join(MODULES,
+  'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
+
+// A path as the verb prints it: in double quotes, with no cut. The test writes the expected
+// text by hand and does not call the function of the module.
+const quoted = (text) => `"${text}"`;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'findings-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
-// PLUGIN has the layout of a composed plugin with core's agents, the skills that the reports
-// of the two agents below name, and running-a-workflow. change-reviewer reports as
-// reviewing-changes lists, and change-fixer lists the findings that it closed.
-const PLUGIN = path.join(tmp, 'plugin');
-fs.cpSync(path.join(MODULES, 'core', 'agents'), path.join(PLUGIN, 'agents'), { recursive: true });
-fs.mkdirSync(path.join(PLUGIN, 'skills'));
-for (const skill of ['reviewing-changes', 'reviewing-drafts', 'running-a-workflow']) {
-  fs.symlinkSync(path.join(SKILLS, skill), path.join(PLUGIN, 'skills', skill));
-}
-const REVIEWER = 'change-reviewer';
-const OTHER = 'second-reviewer';
-const FIXER = 'change-fixer';
-// MANY are the reviewers of one round whose findings add calls run at once.
-const MANY = Array.from({ length: 12 }, (_, at) => `reviewer-${at + 1}`);
-for (const agent of [REVIEWER, OTHER, ...MANY]) {
-  fs.writeFileSync(path.join(PLUGIN, 'agents', `${agent}.md`), [
-    '---', `name: ${agent}`, '---', '', '## Expected output', '',
-    'Report as `reviewing-changes` lists in its section "The report".', '',
-  ].join('\n'));
-}
-fs.writeFileSync(path.join(PLUGIN, 'agents', `${FIXER}.md`), [
-  '---', `name: ${FIXER}`, '---', '', '## Expected output', '', '```text', 'What you read:',
-  '- <path>', '', 'Closed:', '- <id>: <closing proof>', '', 'Blocked: <why>',
-  '<done or blocked>', '```', '', 'Only a blocked report has the "Blocked:" line.', '',
-].join('\n'));
-// proof-reviewer reports a finding with a proof and a severity, and with no point.
-const PROOF_ONLY = 'proof-reviewer';
-fs.writeFileSync(path.join(PLUGIN, 'agents', `${PROOF_ONLY}.md`), [
-  '---', `name: ${PROOF_ONLY}`, '---', '', '## Expected output', '', '```text', 'Findings:',
-  '1. Quote: "<words>"', '   Problem: <what>', '   Fix: <what must hold>',
-  '   Proof: <form>: <steps>', '   Severity: <break or no break>', '',
-  '<clean or changes-needed>', '```', '', 'A clean report leaves out "Findings:".', '',
-].join('\n'));
+const REVIEWING = fs.readFileSync(path.join(SKILLS, 'reviewing-changes', 'SKILL.md'), 'utf8');
+const JUDGING = fs.readFileSync(path.join(MODULES,
+  'software-factory/skills/judging-findings/SKILL.md'), 'utf8');
 
-let folders = 0;
+// The fixture of qory's report schema, and the document that it checks.
+const SCHEMA_FILE = path.join(__dirname, 'testdata', 'review-report.schema.json');
+const loaded = {
+  file: SCHEMA_FILE,
+  schema: JSON.parse(fs.readFileSync(SCHEMA_FILE, 'utf8')),
+};
+loaded.patterns = schema.compile(loaded.schema, SCHEMA_FILE);
+const problems = (report) => schema.errors(loaded, report, 'report.json');
 
-// folder makes a new artifact folder with .reports in it.
-function folder() {
-  const root = path.join(tmp, `run-${++folders}`);
-  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
-  return root;
-}
+const clone = (value) => JSON.parse(JSON.stringify(value));
 
-function call(root, argv, deps = {}) {
+// The report that "The report" of reviewing-changes shows: the first fenced json block.
+const EXAMPLE = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(REVIEWING)[1]);
+
+// ---- The report of a reviewer -------------------------------------------------------------
+
+test('the JSON example of reviewing-changes passes the schema of the report', () => {
+  assert.deepEqual(problems(EXAMPLE), []);
+  assert.equal(EXAMPLE.findings.length, 2);
+  assert.deepEqual(EXAMPLE.findings.map((one) => one.severity), ['blocking', 'non-blocking']);
+  // A report with no finding passes, and so does one with an id on a finding that repeats it.
+  assert.deepEqual(problems({ reviewer: 'code-reviewer', findings: [] }), []);
+});
+
+test('the schema fails a result word, an unknown member and each bad finding', () => {
+  const broken = (change, why) => {
+    const report = clone(EXAMPLE);
+    change(report);
+    assert.notDeepEqual(problems(report), [], why);
+  };
+  broken((report) => { report.result = 'clean'; }, 'a result word');
+  broken((report) => { delete report.reviewer; }, 'no reviewer');
+  broken((report) => { report.reviewer = 'Code Reviewer'; }, 'a reviewer name with a space');
+  broken((report) => { report.unverified = []; }, 'a list of unverified claims');
+  broken((report) => { report.findings[0].severity = 'break'; }, 'the old severity');
+  broken((report) => { report.findings[0].severity = 'no break'; }, 'the old severity');
+  broken((report) => { report.findings[0].marks = 'writer'; }, 'a mark');
+  broken((report) => { delete report.findings[0].proof; }, 'no proof');
+  broken((report) => { delete report.findings[0].fix; }, 'no fix');
+  broken((report) => { report.findings[0].proof = 'planted fault: a fault'; }, 'planted fault');
+  broken((report) => { report.findings[0].proof = 'failing check:'; }, 'no steps');
+  broken((report) => { report.findings[0].proof = `failing check: ${'a'.repeat(1000)}`; },
+    'a proof over 1,000 characters');
+  broken((report) => { report.findings[0].point = 'a'.repeat(501); }, 'a point over 500');
+  broken((report) => { report.findings[0].point = 'Two lines.\nThe second.'; },
+    'a point on two lines');
+  broken((report) => { report.findings[0].id = 'x1'; }, 'an id of another form');
+  broken((report) => { report.findings[0].id = 'f0'; }, 'an id of 0');
+  broken((report) => { report.findings[0].line = 0; }, 'a line of 0');
+  broken((report) => { report.findings[0].proof = 'broken rule: the naming rule.'; },
+    'a blocking finding on a broken rule');
+  // The same finding on a broken rule is fine when it is non-blocking, and a point of 500
+  // characters and a proof of 1,000 are the largest that pass.
+  const fine = clone(EXAMPLE);
+  fine.findings[0].severity = 'non-blocking';
+  fine.findings[0].proof = 'broken rule: the naming rule.';
+  fine.findings[1].point = 'a'.repeat(500);
+  fine.findings[1].proof = `broken rule: ${'a'.repeat(987)}`;
+  assert.equal(fine.findings[1].proof.length, 1000);
+  assert.deepEqual(problems(fine), []);
+});
+
+test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
+  assert.match(REVIEWING, /Write one file, the report, to the path in `qory\.review\.report` of `inputs\.json`/);
+  assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
+  assert.match(REVIEWING, /If your session has a shell, run only commands that read, with only the options in this\s+list\./);
+  assert.match(REVIEWING, /`cat`: `-n -b -s -A -E -T -v`/);
+  assert.match(REVIEWING, /The guard allows Read, Grep, Glob, Skill, TodoWrite, update_plan/);
+  assert.match(REVIEWING, /`mcp__qory_review__read_file`/);
+  assert.match(REVIEWING, /`'HEAD\^'`/);
+  assert.match(REVIEWING, /`\/dev\/null` too/);
+  assert.match(REVIEWING, /--before-context\s+--regexp`/);
+  assert.match(REVIEWING, /Start no agent and use no network\./);
+  assert.match(REVIEWING, /with\s+Write or, on Codex, with `apply_patch`/);
+  // The report has no result word, no list of unverified claims and no closing of a finding.
+  for (const gone of ['changes-needed', 'Unverified', 'Earlier findings', 'Closed:',
+    'no break', 'planted fault']) {
+    assert.ok(!REVIEWING.includes(gone), gone);
+  }
+  assert.match(REVIEWING, /Nobody closes a finding/);
+});
+
+test('judging-findings defines a blocking finding word for word, and lists qory.review', () => {
+  assert.ok(JUDGING.includes('a bug, a security hole, data loss, a broken acceptance criterion ' +
+    'or a failing test; every other finding is non-blocking'));
+  for (const name of ['commit', 'diff', 'suite_result', 'previous_findings', 'build_report',
+    'report']) {
+    assert.match(JUDGING, new RegExp(`^- \`${name}\`: `, 'm'), name);
+  }
+  assert.match(JUDGING, /\$\{qory:skills\/reviewing-changes\}/);
+  // The words that core may not contain are in this skill, which is why it is in software-factory.
+  assert.ok(!fs.existsSync(path.join(SKILLS, 'judging-findings')));
+});
+
+test('no skill or agent has a step that uses the removed verbs', () => {
+  const found = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.md$/.test(entry.name) && /(?:skills|agents)/.test(full)) {
+        const text = fs.readFileSync(full, 'utf8');
+        for (const pattern of ['--subject', 'findings add', 'findings close', 'findings show',
+          'checks.cjs panel', '.reports/findings.json']) {
+          if (text.includes(pattern)) found.push(`${path.relative(MODULES, full)}: ${pattern}`);
+        }
+      }
+    }
+  };
+  walk(MODULES);
+  assert.deepEqual(found, []);
+});
+
+// ---- findings open ------------------------------------------------------------------------
+
+function call(argv) {
   let out = '';
   let err = '';
   const first = watch();
   const status = main(argv, {
     cwd: tmp,
-    artifacts: [root],
-    plugin: PLUGIN,
+    artifacts: [tmp],
+    plugin: path.join(tmp, 'plugin'),
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
     firstLine: first.firstLine,
-    ...deps,
   });
   first.check(status, err);
-  // check, push and end print the line of what they checked on stderr, first. out has it last,
-  // as a session reads it.
-  const stdout = out;
-  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
-    const at = err.indexOf('\n') + 1;
-    out += err.slice(0, at);
-    err = err.slice(at);
-  }
-  return { status, out, stdout, err, lines: out.split('\n').filter(Boolean) };
+  return { status, out, err, lines: out.split('\n').filter(Boolean) };
 }
 
-// child runs checks.cjs with argv in a new node process, and resolves to its exit status and
-// its output.
-function child(root, argv) {
-  const deps = `{ cwd: ${JSON.stringify(tmp)}, artifacts: [${JSON.stringify(root)}], ` +
-    `plugin: ${JSON.stringify(PLUGIN)}, firstLine: ${CHILD} }`;
-  const code = `process.exitCode = require(${JSON.stringify(CHECKS)})` +
-    `.main(${JSON.stringify(argv)}, ${deps});`;
-  const first = watch();
-  return new Promise((resolve) => {
-    const proc = spawn(process.execPath, ['-e', code],
-      { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
-    let out = '';
-    let err = '';
-    let lines = '';
-    proc.stdout.on('data', (data) => { out += data; });
-    proc.stderr.on('data', (data) => { out += data; err += data; });
-    proc.stdio[3].on('data', (data) => { lines += data; });
-    proc.on('close', (status) => resolve({ status, out, err, lines }));
-  }).then(({ status, out, err, lines }) => {
-    first.read(lines);
-    first.check(status, err);
-    return { status, out };
-  });
-}
-
-// put writes text as the report file name under .reports of root, and returns its path.
-function put(root, name, text) {
-  const file = path.join(root, '.reports', name);
-  fs.writeFileSync(file, text);
+let files = 0;
+// put writes an open-findings.json with data, as it is when it is text, and returns its path.
+function put(data) {
+  const file = path.join(tmp, `open-${++files}.json`);
+  fs.writeFileSync(file, typeof data === 'string' ? data : JSON.stringify(data));
   return file;
 }
 
-const PROOF = 'failing check: run the refund check on the change; it prints "expected 3, got 0".';
-const POINT = 'The change gives a refund of zero days to every order.';
-const PASSES = 'passing check: the refund check passes on the fix.';
-// holds returns the item of "Earlier findings:" that judges that the closure of id holds.
-const holds = (id, closing = PASSES) => `${id}: holds: ${closing}`;
+const FINDING = {
+  id: 'f3', severity: 'blocking', quote: '<the code that is wrong>',
+  problem: '<what is wrong>', fix: '<the change that makes it right>',
+  proof: '<the input or rule that shows the problem>',
+  point: '<what is wrong in the first finding>', file: 'src/main.ts', line: 12,
+};
+const OTHER = {
+  id: 'f4', severity: 'non-blocking', quote: '<the code that is wrong>',
+  problem: '<what is wrong>', fix: '<the change that makes it right>',
+  proof: '<the rule that is broken>', point: '<what is wrong in the second finding>',
+};
+const ROUND = {
+  round: 2,
+  reviewers: [{ reviewer: 'code-reviewer', findings: [FINDING] },
+    { reviewer: 'security-reviewer', findings: [OTHER] }],
+};
 
-// finding returns the lines of a finding with the fields of fields; a field set to null is
-// left out.
-function finding(number, fields = {}) {
-  const all = {
-    Quote: '"refundDays = 0"',
-    Problem: 'A refund takes zero days, and the request asks for three.',
-    Fix: 'A refund takes three days.',
-    Proof: PROOF,
-    Severity: 'break',
-    Point: POINT,
-    ...fields,
-  };
-  return Object.entries(all).filter(([, value]) => value !== null)
-    .map(([key, value], at) => `${at ? '   ' : `${number}. `}${key}: ${value}`).join('\n');
-}
-
-// review returns a report of a reviewer with findings, each the fields of one finding, and
-// the items of "Earlier findings:", if any.
-function review(findings, earlier = []) {
-  const parts = ['What you read:', '- /tmp/qory-artifacts/change', ''];
-  if (earlier.length) parts.push('Earlier findings:', ...earlier.map((item) => `- ${item}`), '');
-  if (findings.length) {
-    parts.push('Findings:', findings.map((fields, at) => finding(at + 1, fields)).join('\n\n'),
-      '', 'changes-needed', '');
-  } else if (earlier.some((item) => /^f[0-9]+: open:/.test(item))) {
-    parts.push('Findings:', '- none', '', 'changes-needed', '');
-  } else {
-    parts.push('clean', '');
-  }
-  return parts.join('\n');
-}
-
-// fixed returns a report of the fixer with the items of "Closed:".
-const fixed = (...items) => ['What you read:', '- /tmp/qory-artifacts/change', '', 'Closed:',
-  ...(items.length ? items.map((item) => `- ${item}`) : ['- none']), '', 'done', ''].join('\n');
-
-const record = (root) => JSON.parse(fs.readFileSync(path.join(root, '.reports', 'findings.json'),
-  'utf8'));
-
-// joined joins each line that starts with two spaces, the cause and the values of a finding,
-// to the line before it with one space, so that a pattern can match the whole finding.
-function joined(lines) {
-  const out = [];
-  for (const line of lines) {
-    if (line.startsWith('  ') && out.length) out[out.length - 1] += ` ${line.trim()}`;
-    else out.push(line);
-  }
-  return out;
-}
-
-function fails(result, pattern) {
+test('findings open: a file with 2 findings prints 2 Fix first lines and exits 1', () => {
+  const result = call(['findings', 'open', put(ROUND)]);
   assert.equal(result.status, 1, result.out);
-  assert.ok(joined(result.lines).slice(0, -1).some((line) => pattern.test(line)), result.out);
+  assert.deepEqual(result.lines, [
+    'Fix first: f3 (blocking, src/main.ts:12): <what is wrong in the first finding>',
+    'Fix first: f4 (non-blocking): <what is wrong in the second finding>',
+    expectedLast(2, 1, 1),
+  ]);
+});
+
+const expectedLast = (count, blocking, non, name = /open-\d+\.json/) => {
+  const text = `Checked open-${files}.json: round 2 has ${count} open findings, ${blocking} ` +
+    `blocking and ${non} non-blocking. Open the files each finding points to; fix those ` +
+    'that are true, the non-blocking ones too.';
+  assert.match(text, name);
+  return text;
+};
+
+test('findings open: only non-blocking findings are printed too, with the round', () => {
+  const file = put({ round: 5, reviewers: [{ reviewer: 'code-reviewer', findings: [OTHER] }] });
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1);
+  assert.equal(result.lines.length, 2);
+  assert.match(result.lines[1], /^Checked open-\d+\.json: round 5 has 1 open finding, 0 blocking and 1 non-blocking\./);
+});
+
+test('findings open: a missing file or a round with no finding exits 0', () => {
+  const missing = call(['findings', 'open', path.join(tmp, 'absent.json')]);
+  assert.equal(missing.status, 0);
+  const absent = path.join(tmp, 'absent.json');
+  assert.equal(missing.out,
+    `Checked nothing: ${quoted(absent)} does not exist, so no finding is open.\n`);
+  assert.equal(missing.err, `no open findings file at ${quoted(absent)}\n`);
+  const empty = call(['findings', 'open', put({ round: 3, reviewers: [] })]);
+  assert.equal(empty.status, 0);
+  assert.match(empty.out, /^Checked open-\d+\.json: round 3 has no open finding\.\n$/);
+  const none = call(['findings', 'open',
+    put({ round: 3, reviewers: [{ reviewer: 'code-reviewer', findings: [] }] })]);
+  assert.equal(none.status, 0);
+});
+
+test('findings open: the point loses control characters and stops at 500 characters', () => {
+  const point = `${'Fix the value. '.repeat(40)}‮\u0007end`;
+  const file = put({ round: 1, reviewers: [{ reviewer: 'code-reviewer',
+    findings: [{ ...FINDING, point, file: 'a\nb.js' }] }] });
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1);
+  assert.equal(result.lines.length, 2, result.out);
+  assert.ok(/^Fix first: f3 \(blocking, a b\.js:12\): Fix the value\./.test(result.lines[0]));
+  assert.ok([...result.lines[0].slice(result.lines[0].indexOf('): ') + 3)].length <= 500);
+  assert.ok(!/[\u0000-\u0008‮]/.test(result.out));
+});
+
+test('findings open: each broken form of the file exits 3 with the fix on line 1', () => {
+  const finding = (change) => ({ round: 1, reviewers: [{ reviewer: 'code-reviewer',
+    findings: [{ ...FINDING, ...change }] }] });
+  const forms = [
+    ['not json', /does not parse/],
+    ['[]', /is a list, not an object/],
+    [{ reviewers: [] }, /no round that is a whole number/],
+    [{ round: 0, reviewers: [] }, /no round that is a whole number/],
+    [{ round: 1.5, reviewers: [] }, /no round that is a whole number/],
+    [{ round: 1 }, /no list reviewers/],
+    [{ round: 1, reviewers: [1] }, /reviewers 1 with no reviewer name/],
+    [{ round: 1, reviewers: [{ reviewer: 'Bad Name', findings: [] }] }, /no reviewer name/],
+    [{ round: 1, reviewers: [{ reviewer: 'code-reviewer' }] }, /no list findings/],
+    [{ round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: ['x'] }] }, /as a string/],
+    [finding({ id: 'g1' }), /no id of the form f<number>/],
+    [finding({ id: undefined }), /no id of the form f<number>/],
+    [finding({ severity: 'break' }), /neither blocking nor non-blocking/],
+    [finding({ point: 4 }), /point as a number, not text/],
+    [finding({ point: undefined }), /point as missing, not text/],
+    [finding({ point: ' \u0007 ' }), /an empty point/],
+    [finding({ proof: [] }), /proof as a list, not text/],
+    [finding({ line: 0 }), /a line that is not a whole number/],
+    [finding({ line: '3' }), /a line that is not a whole number/],
+  ];
+  for (const [data, why] of forms) {
+    const result = call(['findings', 'open', put(data)]);
+    assert.equal(result.status, 3, `${JSON.stringify(data)}\n${result.out}`);
+    const text = result.out + result.err;
+    assert.match(text.split('\n')[0], /^(?:Give findings open the open-findings\.json that qory wrote\.|Write open-\d+\.json as valid JSON\.)/);
+    assert.match(text, why);
+  }
+});
+
+test('findings open: a link and a folder exit 3', () => {
+  const real = put(ROUND);
+  const link = path.join(tmp, 'open-link.json');
+  fs.symlinkSync(real, link);
+  const viaLink = call(['findings', 'open', link]);
+  assert.equal(viaLink.status, 3);
+  assert.match(viaLink.out + viaLink.err, /is not a regular file\./);
+  assert.equal(call(['findings', 'open', tmp]).status, 3);
+});
+
+const many = (count, change = () => ({})) => ({ round: 1, reviewers: [{ reviewer: 'code-reviewer',
+  findings: Array.from({ length: count }, (_, at) => ({ ...FINDING, id: `f${at + 1}`,
+    point: `Fix the point ${at + 1}.`, ...change(at) })) }] });
+
+test('findings open: 201 findings print 200, blocking first, and one line that counts the rest', () => {
+  // Finding 201 is the only blocking one; the others are non-blocking.
+  const file = put(many(201, (at) => ({ severity: at === 200 ? 'blocking' : 'non-blocking' })));
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1, result.out);
+  assert.equal(result.lines.length, 202, result.out);
+  assert.match(result.lines[0], /^Fix first: f201 \(blocking, src\/main\.ts:12\): Fix the point 201\./);
+  assert.match(result.lines[1], /^Fix first: f1 \(non-blocking/);
+  assert.match(result.lines[199], /^Fix first: f199 /);
+  assert.equal(result.lines[200], `Fix first: 1 more findings in ${quoted(file)}`);
+  assert.match(result.lines[201], /^Checked open-\d+\.json: round 1 has 201 open findings, 1 blocking and 200 non-blocking\./);
+  assert.equal(result.lines.filter((line) => line.includes('Fix the point 200.')).length, 0);
+});
+
+// deepPut writes ROUND to a file whose full path has at least size characters, in folders of
+// at most 200 characters each, and returns the path.
+function deepPut(size) {
+  let folder = tmp;
+  while (folder.length + '/open.json'.length < size) {
+    const room = size - folder.length - '/open.json'.length - 1;
+    folder = path.join(folder, 'd'.repeat(Math.max(1, Math.min(room, 100))));
+  }
+  fs.mkdirSync(folder, { recursive: true });
+  const file = path.join(folder, 'open.json');
+  fs.writeFileSync(file, JSON.stringify(ROUND));
+  assert.ok(file.length >= size);
+  return file;
 }
 
-const passes = (result) => assert.equal(result.status, 0, result.out);
-
-// ---- The report of a reviewer of a change -------------------------------------------------
-
-test('the report of reviewing-changes has a Proof: and a Point: line in a finding', () => {
-  const shape = expected(PLUGIN, REVIEWER);
-  assert.equal(shape.proof, true);
-  assert.equal(shape.point, true);
-  assert.deepEqual(shape.words, ['clean', 'changes-needed', 'blocked']);
-  assert.ok(shape.optional.has('Earlier findings:'));
-  assert.ok(shape.optional.has('Unverified:'));
-  assert.ok(shape.leftOut.get('clean').has('Findings:'));
-  assert.equal(expected(PLUGIN, FIXER).proof, false);
-});
-
-test('report: a finding of a change without a proof is refused', () => {
-  const root = folder();
-  const check = (text) => call(root, ['report', REVIEWER, put(root, `${REVIEWER}-1.md`, text)]);
-  const result = check(review([{}]));
-  passes(result);
-  assert.equal(result.lines.at(-1), `Checked the report of ${REVIEWER}: size, last word, lists, ` +
-    'Blocked: line, and Point:, Proof: and Severity: lines; 0 findings.');
-  fails(check(review([{}, { Proof: null }])), new RegExp('^Add a "Proof:" line to finding 2\\. ' +
-    'The proof is a failing check, a planted fault that the checks miss, the failing input, ' +
-    `or for a finding that breaks nothing the broken rule\\. The finding is in the report of ${REVIEWER}\\.$`));
-  fails(check(review([{ Proof: 'it looks wrong to me' }])),
-    /^Start the "Proof:" line of finding 1 with a form, then the steps that repeat it\. The form is one of failing check:, planted fault:, failing input: or broken rule:\. The text is "it looks wrong to me"\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Proof: 'failing check:' }])), /^Write the steps after the form of the "Proof:" line of finding 1\. The steps that repeat it have no letter or digit\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Proof: 'failing check:steps' }])), /^Start the "Proof:" line of finding 1 .* The text is "failing check:steps"\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Proof: '' }])), /^Write the steps of the proof on the "Proof:" line of finding 1: it is empty\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Proof: `failing check: ${'a'.repeat(1000)}` }])),
-    /^Cut the "Proof:" line of finding 1 to at most 1000 characters\. The text has 1015\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Severity: null }])), /^Add a "Severity:" line to finding 1: break or no break\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Severity: 'high' }])), /^Set the "Severity:" line of finding 1 to break or no break\. The line is "high"\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Proof: 'broken rule: rule 7 of the style guide; line 4 breaks it.' }])),
-    /^Prove the break of finding 1 with a failing check, a planted fault or the failing input\. A broken rule proves no break\. With a broken rule, set the severity to no break\. The finding is in the report of change-reviewer\.$/);
-  passes(check(review([{ Proof: 'broken rule: rule 7 of the style guide; line 4 breaks it.',
-    Severity: 'no break' }])));
-  for (const form of ['planted fault', 'failing input']) {
-    passes(check(review([{ Proof: `${form}: the steps.` }])));
+test('findings open: a path of 81, 120, 201 and 400 characters is printed whole in each message', () => {
+  for (const size of [81, 120, 201, 400]) {
+    const real = deepPut(size);
+    const absent = path.join(path.dirname(real), 'absent.json');
+    const result = call(['findings', 'open', absent]);
+    assert.equal(result.status, 0);
+    assert.equal(result.err, `no open findings file at ${quoted(absent)}\n`);
+    assert.equal(result.out,
+      `Checked nothing: ${quoted(absent)} does not exist, so no finding is open.\n`);
+    // A link and a folder at a long path.
+    const folder = call(['findings', 'open', path.dirname(real)]);
+    assert.equal(folder.status, 3);
+    assert.ok((folder.err + folder.out).includes(`${quoted(path.dirname(real))} is not a regular file.`),
+      folder.err + folder.out);
+    // More than 200 findings at a long path: the count line has the whole path.
+    const many201 = path.join(path.dirname(real), 'many.json');
+    fs.writeFileSync(many201, JSON.stringify(many(201)));
+    const counted = call(['findings', 'open', many201]);
+    assert.equal(counted.lines[200], `Fix first: 1 more findings in ${quoted(many201)}`);
   }
-  // A proof that wraps onto a second line, and a finding with two proofs.
-  fails(check(review([{ Proof: `${PROOF}\n     and more` }])),
-    /^Write the "Proof:" line of finding 1 on one line\. The line after it is "and more"\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Fix: `A refund takes three days.\n   Proof: ${PROOF}` }])),
-    /^Give finding 1 one "Proof:" line: it has 2\. The finding is in the report of change-reviewer\.$/);
-  // The Point: line keeps its check.
-  fails(check(review([{ Point: null }])), /^Add a "Point:" line to finding 1 of change-reviewer/);
 });
 
-test('report: each judgement of an earlier closure holds or is open with a proof', () => {
-  const root = folder();
-  const check = (text) => call(root, ['report', REVIEWER, put(root, `${REVIEWER}-1.md`, text)]);
-  passes(check(review([], [holds('f1')])));
-  passes(check(review([], [`f1: open: ${PROOF}`])));
-  fails(check(review([], ['f1: fine'])),
-    /^Write each item of "Earlier findings:" as "<id>: holds: <closing proof>" or "<id>: open: <proof>"\. The item "f1: fine" of the report of change-reviewer is neither\.$/);
-  fails(check(review([], ['f1: open: it still fails'])),
-    /^Start the proof of f1 with a form, then the steps that repeat it\. The form is one of failing check:, .* The item is under "Earlier findings:" of the report of change-reviewer\.$/);
-  // holds carries a closing proof.
-  fails(check(review([], ['f1: holds'])), /^Write each item of "Earlier findings:" .* The item "f1: holds" of the report of change-reviewer is neither\.$/);
-  fails(check(review([], ['f1: holds: it works now'])),
-    /^Start the closing proof of f1 with a form, then the steps that repeat it\. The form is one of passing check:, caught fault:, passing input: or kept rule:\. The text is "it works now"\. The item is under "Earlier findings:" of the report of change-reviewer\.$/);
-  fails(check(review([], [holds('f1', `failing check: ${PROOF}`)])), /^Start the closing proof of f1/);
-  // open may raise the severity to break, with a proof that shows a break; nothing lowers it.
-  passes(check(review([], [`f1: open: break: ${PROOF}`])));
-  fails(check(review([], ['f1: open: break: broken rule: rule 7; line 4 breaks it.'])),
-    /^Prove the break of f1 with a failing check, a planted fault or the failing input\. A broken rule proves no break\. With a broken rule, leave out "break:"\. The item is under "Earlier findings:" of the report of change-reviewer\.$/);
-  fails(check(review([], [`f1: open: no break: ${PROOF}`])),
-    /^Start the proof of f1 with a form, .* The text is "no break: fail.* The item is under "Earlier findings:" of the report of change-reviewer\.$/);
-  // A clean report opens no finding again.
-  const clean = review([], [holds('f1')]).replace(`- ${holds('f1')}`, `- f1: open: ${PROOF}`);
-  fails(check(clean), /^End the report with changes-needed\. "Earlier findings:" of the report of change-reviewer has a finding that is open again\.$/);
-  // changes-needed with no finding needs an earlier finding that is open again.
-  const none = review([], [`f1: open: ${PROOF}`]).replace(`- f1: open: ${PROOF}`, `- ${holds('f1')}`);
-  assert.match(none, /Findings:\n- none\n\nchanges-needed\n$/);
-  fails(check(none), /^End the report with clean, or add a finding\. The report of change-reviewer ends with changes-needed, and has no finding and no earlier finding that is open again\.$/);
-  const bare = ['What you read:', '- /tmp/qory-artifacts/change', '', 'Findings:', '- none', '',
-    'changes-needed', ''].join('\n');
-  fails(check(bare), /^End the report with clean, or add a finding\. The report of change-reviewer /);
-});
-
-test('report: each closure of the fixer has a closing proof', () => {
-  const root = folder();
-  const check = (text) => call(root, ['report', FIXER, put(root, `${FIXER}-1.md`, text)]);
-  const result = check(fixed('f1: passing check: the refund check passes on the fix.'));
-  passes(result);
-  assert.match(result.lines.at(-1), /last word, lists, Blocked: line and closures; 0 findings\.$/);
-  passes(check(fixed()));
-  fails(check(fixed('f1: fixed it')),
-    /^Start the closing proof of f1 with a form, then the steps that repeat it\. The form is one of passing check:, caught fault:, passing input: or kept rule:\. The text is "fixed it"\. The item is under "Closed:" of the report of change-fixer\.$/);
-  fails(check(fixed('f1:')), /^Write each item of "Closed:" as "<id>: <closing proof>"\. The item "f1:" of the report of change-fixer is not\.$/);
-});
-
-// ---- findings add, close and show ---------------------------------------------------------
-
-test('findings add: a finding without a proof is refused, and nothing is recorded', () => {
-  const root = folder();
-  const file = put(root, `${REVIEWER}-1.md`, review([{}, { Proof: null }]));
-  const result = call(root, ['findings', 'add', '1', REVIEWER, file]);
-  fails(result, /^Add a "Proof:" line to finding 2\. .* The finding is in the report of change-reviewer\.$/);
-  assert.equal(result.lines.at(-1), 'Added nothing to findings.json: the report of ' +
-    'change-reviewer has 1 finding.');
-  assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
-});
-
-test('findings add: a report over about 2,000 tokens is refused, and nothing is recorded', () => {
-  const root = folder();
-  const text = review([{}]).replace('/change\n', `/${'a'.repeat(8000)}\n`);
-  const file = put(root, `${REVIEWER}-1.md`, text);
-  const result = call(root, ['findings', 'add', '1', REVIEWER, file]);
-  fails(result, new RegExp('^Cut the report to about 2,000 tokens, counted as 8,000 bytes\\. ' +
-    `The report of ${REVIEWER} has ${Buffer.byteLength(text)} bytes\\.$`));
-  assert.equal(result.lines.at(-1), 'Added nothing to findings.json: the report of ' +
-    `${REVIEWER} has 1 finding.`);
-  assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
-});
-
-test('findings add: each finding gets an id, its proof and its severity', () => {
-  const root = folder();
-  const file = put(root, `${REVIEWER}-1.md`, review([{}, {
-    Proof: 'broken rule: rule 7 of the style guide; line 4 breaks it.', Severity: 'no break' }]));
-  const result = call(root, ['findings', 'add', '1', REVIEWER, file]);
-  passes(result);
-  assert.deepEqual(result.lines, ['Added 2 findings of change-reviewer to round 1 of ' +
-    'findings.json: f1 and f2, 1 of them a break.']);
-  const data = record(root);
-  assert.deepEqual(data.findings.map((one) => [one.id, one.round, one.by, one.severity,
-    one.state, one.closure]), [['f1', 1, REVIEWER, 'break', 'open', null],
-    ['f2', 1, REVIEWER, 'no break', 'open', null]]);
-  assert.equal(data.findings[0].proof, PROOF);
-  assert.equal(data.findings[0].point, POINT);
-  assert.equal(data.findings[0].report, `${REVIEWER}-1.md`);
-  assert.match(data.findings[0].text, /^1\. Quote: "refundDays = 0"\n {3}Problem: /);
-  // The same report again, as after a crash, adds nothing and passes.
-  const again = call(root, ['findings', 'add', '1', REVIEWER, file]);
-  passes(again);
-  assert.deepEqual(again.lines,
-    ['Added nothing to findings.json: it has the report of change-reviewer already.']);
-  // The same report for another round is refused.
-  const later = call(root, ['findings', 'add', '2', REVIEWER, file]);
-  fails(later, /^Write a new report for round 2\. findings\.json has change-reviewer-1\.md, a report of change-reviewer with the same bytes, in round 1\.$/);
-  assert.equal(later.lines.at(-1), 'Added nothing to findings.json: the call of findings add ' +
-    'has 1 problem.');
-  // A report with findings and the bytes of a recorded report is refused, under another name
-  // or of another agent.
-  const same = /^Write a new report for round 1\. The report of (change|second)-reviewer has the same bytes as change-reviewer-1\.md of change-reviewer in round 1 of findings\.json\.$/;
-  const copied = call(root, ['findings', 'add', '1', OTHER, put(root, `${OTHER}-copy.md`,
-    fs.readFileSync(file, 'utf8'))]);
-  fails(copied, same);
-  assert.equal(copied.lines.at(-1), 'Added nothing to findings.json: the call of findings add ' +
-    'has 1 problem.');
-  assert.equal(record(root).findings.length, 2);
-  assert.equal(record(root).reports.length, 1);
-  // A second report of the agent in the round is refused.
-  const second = put(root, `${REVIEWER}-2.md`, review([{ Quote: '"a"' }]));
-  const twice = call(root, ['findings', 'add', '1', REVIEWER, second]);
-  fails(twice, /^Add one report per round\. Round 1 of findings\.json has change-reviewer-1\.md of change-reviewer\.$/);
-  assert.equal(twice.lines.at(-1), 'Added nothing to findings.json: the call of findings add ' +
-    'has 1 problem.');
-  // Another reviewer of the same round gets the next id.
-  const other = put(root, `${OTHER}-1.md`, review([{ Severity: 'no break' }]));
-  passes(call(root, ['findings', 'add', '1', OTHER, other]));
-  assert.deepEqual(record(root).findings.map((one) => one.id), ['f1', 'f2', 'f3']);
-  // A round is 1 to 99, the newest round or the next one. The last line counts the findings on
-  // the report apart from the problems of the call.
-  const far = call(root, ['findings', 'add', '3', OTHER, put(root, `${OTHER}-2.md`,
-    review([{ Quote: '"b"' }]))]);
-  fails(far, /^Give findings add the round 1 or 2: findings\.json has round 1, and the round is 3\.$/);
-  assert.equal(far.lines.at(-1), 'Added nothing to findings.json: the call of findings add ' +
-    'has 1 problem.');
-  const both = call(root, ['findings', 'add', '3', OTHER, put(root, `${OTHER}-3.md`,
-    review([{ Quote: '"c"', Severity: null }]))]);
-  assert.equal(both.status, 1);
-  assert.equal(both.lines.at(-1), 'Added nothing to findings.json: the report of ' +
-    'second-reviewer has 1 finding, and the call of findings add has 1 problem.');
-  assert.equal(call(root, ['findings', 'add', '0', OTHER, other]).status, 2);
-});
-
-test('findings add: a clean report adds no finding, and a blocked one adds nothing', () => {
-  const root = folder();
-  passes(call(root, ['findings', 'add', '1', REVIEWER, put(root, `${REVIEWER}-1.md`, review([]))]));
-  assert.deepEqual(record(root).findings, []);
-  // A clean report with the bytes of another reviewer's clean report is recorded too.
-  passes(call(root, ['findings', 'add', '1', MANY[0], put(root, `${MANY[0]}-1.md`, review([]))]));
-  assert.deepEqual(record(root).reports.map((one) => [one.agent, one.file]),
-    [[REVIEWER, `${REVIEWER}-1.md`], [MANY[0], `${MANY[0]}-1.md`]]);
-  assert.equal(record(root).reports[0].sha256, record(root).reports[1].sha256);
-  const blocked = put(root, `${OTHER}-1.md`, 'Blocked: the change cannot be read\nblocked\n');
-  assert.deepEqual(call(root, ['findings', 'add', '1', OTHER, blocked]).lines,
-    ['Added nothing to findings.json: the report of second-reviewer is blocked.']);
-});
-
-test('findings close: a closed finding has its closing proof', () => {
-  const root = folder();
-  passes(call(root, ['findings', 'add', '1', REVIEWER,
-    put(root, `${REVIEWER}-1.md`, review([{}, { Proof: 'failing input: an order of 3 items.' }]))]));
-  const close = (name, ...items) => call(root, ['findings', 'close', FIXER,
-    put(root, name, fixed(...items))]);
-  // A closing proof of another form, an unknown id and a closure twice close nothing.
-  fails(close(`${FIXER}-1.md`, 'f1: passing input: an order of 3 items gives 3 days.'),
-    /^Close f1 with a closing proof that starts with passing check:\. The proof of f1 is a failing check\.$/);
-  fails(close(`${FIXER}-2.md`, 'f9: passing check: it passes.'),
-    /^Close only an open finding under "Closed:"\. The item f9 of the report of change-fixer is not in findings\.json\.$/);
-  fails(close(`${FIXER}-3.md`, 'f1: passing check: it passes.', 'f1: passing check: it passes.'),
-    /^Close f1 once under "Closed:"\. The report of change-fixer has the item twice\.$/);
-  fails(close(`${FIXER}-4.md`, 'f1: it passes now'), /^Start the closing proof of f1/);
-  assert.deepEqual(record(root).findings.map((one) => one.state), ['open', 'open']);
-  const closing = 'passing check: run the refund check on the fix; it prints "3 days".';
-  const result = close(`${FIXER}-5.md`, `f1: ${closing}`);
-  passes(result);
-  assert.deepEqual(result.lines, ['Closed 1 finding in findings.json: f1.']);
-  const [first, second] = record(root).findings;
-  assert.equal(first.state, 'closed');
-  assert.deepEqual(first.closure, { round: 1, by: FIXER, proof: closing, held: null });
-  assert.deepEqual(first.history.map((one) => one.event), ['found', 'closed']);
-  assert.equal(second.state, 'open');
-  fails(close(`${FIXER}-6.md`, `f1: ${closing}`), /^Close only an open finding under "Closed:"\. The item f1 of the report of change-fixer is closed\.$/);
-  assert.deepEqual(close(`${FIXER}-7.md`).lines, ['Closed no finding in findings.json: "Closed:" of change-fixer has no item.']);
-});
-
-test('findings show: only an open break finding starts another round', () => {
-  const root = folder();
-  const none = call(root, ['findings', 'show']);
-  passes(none);
-  assert.deepEqual(none.lines, ['Checked findings.json: 0 findings in 0 rounds, 0 open and 0 ' +
-    'closed; no break finding open.']);
-  passes(call(root, ['findings', 'add', '1', REVIEWER,
-    put(root, `${REVIEWER}-1.md`, review([{}, { Severity: 'no break' }]))]));
-  const open = call(root, ['findings', 'show']);
-  assert.equal(open.status, 1);
-  assert.deepEqual(open.lines, ['Checked findings.json: 2 findings in 1 round, 2 open and 0 ' +
-    'closed; 1 break finding open.']);
-  passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`,
-    fixed('f1: passing check: the refund check passes on the fix.'))]));
-  // The break is closed, and its reviewer did not judge the closure: another round.
-  const after = call(root, ['findings', 'show']);
-  assert.equal(after.status, 1);
-  assert.deepEqual(after.lines, ['Start change-reviewer again to judge the closure of f1.',
-    'Checked findings.json: 2 findings in 1 round, 1 open and 1 closed; no break finding ' +
-    'open, and 1 closed break finding that its reviewer did not judge.']);
-  // Only the finding that breaks nothing is open: no other round.
-  passes(call(root, ['findings', 'add', '2', REVIEWER,
-    put(root, `${REVIEWER}-2.md`, review([], [holds('f1')]))]));
-  const judged = call(root, ['findings', 'show']);
-  passes(judged);
-  assert.deepEqual(judged.lines, ['Checked findings.json: 2 findings in 2 rounds, 1 open and 1 ' +
-    'closed; no break finding open.']);
-});
-
-test('a later round gets the earlier findings and judges each closure', () => {
-  const root = folder();
-  passes(call(root, ['findings', 'add', '1', REVIEWER,
-    put(root, `${REVIEWER}-1.md`, review([{}, { Proof: 'planted fault: remove the guard.' }]))]));
-  passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(
-    'f1: passing check: the refund check passes on the fix.',
-    'f2: caught fault: the refund check fails when you remove the guard.'))]));
-  assert.deepEqual(call(root, ['findings', 'show']).lines[0],
-    'Start change-reviewer again to judge the closures of f1 and f2.');
-  // The reviewer of round 2 judges each closure of its findings, and only a closed finding.
-  fails(call(root, ['findings', 'add', '2', REVIEWER,
-    put(root, `${REVIEWER}-2.md`, review([], [holds('f1')]))]),
-  /^Add f2 to "Earlier findings:"\. change-reviewer made the finding f2, and no review judged the closure\.$/);
-  fails(call(root, ['findings', 'add', '2', REVIEWER,
-    put(root, `${REVIEWER}-3.md`, review([], [holds('f1'), holds('f2'), holds('f7')]))]),
-  /^Judge only a closed finding under "Earlier findings:"\. The item f7 of the report of change-reviewer is not in findings\.json\.$/);
-  fails(call(root, ['findings', 'add', '2', REVIEWER, put(root, `${REVIEWER}-5.md`,
-    review([], [holds('f1'), 'f2: open: broken rule: rule 7; line 4 breaks it.']))]),
-  /^Prove that f2 is open again with a failing check, a planted fault or the failing input\. f2 is a break, and a broken rule proves no break\.$/);
-  const reopen = 'failing check: the refund check still fails on an order of 0 items.';
-  const result = call(root, ['findings', 'add', '2', REVIEWER,
-    put(root, `${REVIEWER}-4.md`, review([], [holds('f1'), `f2: open: ${reopen}`]))]);
-  passes(result);
-  assert.deepEqual(result.lines, ['Added 0 findings of change-reviewer to round 2 of ' +
-    'findings.json; of the closures it judged, 1 holds and 1 is open again.']);
-  const [first, second] = record(root).findings;
-  assert.deepEqual(first.closure.held, { round: 2, by: REVIEWER, proof: PASSES });
-  assert.equal(second.state, 'open');
-  assert.equal(second.closure, null);
-  assert.equal(second.proof, reopen);
-  assert.deepEqual(second.history.map((one) => one.event), ['found', 'closed', 'opened again']);
-  // f2 is a break and open again, so another round follows; f1 needs no judgement.
-  const shown = call(root, ['findings', 'show']);
-  assert.equal(shown.status, 1);
-  assert.deepEqual(shown.lines, ['Checked findings.json: 2 findings in 2 rounds, 1 open and 1 ' +
-    'closed; 1 break finding open.']);
-  // The reopened finding closes again with a closing proof of its new form.
-  passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-2.md`,
-    fixed('f2: passing check: the refund check passes on an order of 0 items.'))]));
-  assert.equal(record(root).findings[1].closure.round, 2);
-  assert.equal(call(root, ['findings', 'show']).status, 1);
-  passes(call(root, ['findings', 'add', '3', REVIEWER, put(root, `${REVIEWER}-6.md`,
-    review([], [holds('f2', 'passing check: the refund check passes on an order of 0 items.')]))]));
-  passes(call(root, ['findings', 'show']));
-});
-
-test('findings: a broken findings.json exits 3, and wrong arguments exit 2', () => {
-  const root = folder();
-  fs.writeFileSync(path.join(root, '.reports', 'findings.json'), JSON.stringify({ findings: [{
-    id: 'f1', round: 1, by: REVIEWER, severity: 'break', proof: PROOF, state: 'closed',
-    closure: null, history: [] }], reports: [] }));
-  const result = call(root, ['findings', 'show']);
-  assert.equal(result.status, 3, result.out);
-  assert.deepEqual(result.lines.slice(0, 2), ['Write findings.json only through checks.cjs ' +
-    'findings.', `  ${plainLine(`${path.join(root, '.reports', 'findings.json')} breaks the ` +
-    'form of the record: f1 is closed with no closing proof of the form passing check.')}`]);
-  for (const argv of [['findings'], ['findings', 'list'], ['findings', 'show', 'x'],
-    ['findings', 'add', '1', REVIEWER], ['findings', 'add', 'one', REVIEWER, 'a'],
-    ['findings', 'close', 'Bad', 'a'], ['findings', 'close', FIXER]]) {
-    const wrong = call(root, argv);
-    assert.equal(wrong.status, 2, argv.join(' '));
-    assert.match(wrong.err, /\nUsage: checks\.cjs /);
-  }
-  // An agent whose report has no proof is no reviewer of a change.
-  const other = put(root, 'questions-reviewer-1.md', 'clean\n');
-  assert.equal(call(root, ['findings', 'add', '1', 'questions-reviewer', other]).status, 3);
-  assert.equal(call(root, ['findings', 'close', 'questions-reviewer', other]).status, 3);
-});
-
-test('findings show: a closed break that its reviewer did not judge starts another round', () => {
-  const root = folder();
-  passes(call(root, ['findings', 'add', '1', REVIEWER, put(root, `${REVIEWER}-1.md`, review([{}]))]));
-  passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(`f1: ${PASSES}`))]));
-  const shown = call(root, ['findings', 'show']);
-  assert.equal(shown.status, 1);
-  assert.deepEqual(shown.lines, ['Start change-reviewer again to judge the closure of f1.',
-    'Checked findings.json: 1 finding in 1 round, 0 open and 1 closed; no break finding open, ' +
-    'and 1 closed break finding that its reviewer did not judge.']);
-});
-
-test('findings add: a holds of another reviewer sets held only for a finding that breaks nothing',
-  () => {
-    const root = folder();
-    passes(call(root, ['findings', 'add', '1', REVIEWER, put(root, `${REVIEWER}-1.md`, review([{},
-      { Proof: 'broken rule: rule 7 of the style guide; line 4 breaks it.',
-        Severity: 'no break' }]))]));
-    passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(
-      `f1: ${PASSES}`, 'f2: kept rule: line 4 keeps rule 7.'))]));
-    // second-reviewer judges both closures: f1 is a break of change-reviewer, f2 breaks nothing.
-    const judged = call(root, ['findings', 'add', '2', OTHER, put(root, `${OTHER}-1.md`,
-      review([], [holds('f1'), holds('f2', 'kept rule: line 4 keeps rule 7.')]))]);
-    passes(judged);
-    assert.deepEqual(judged.lines, ['Added 0 findings of second-reviewer to round 2 of ' +
-      'findings.json; of the closures it judged, 1 holds, 0 are open again, and 1 holds in the ' +
-      'history only, as a break of another reviewer.']);
-    const [first, second] = record(root).findings;
-    assert.equal(first.closure.held, null);
-    assert.deepEqual(first.history.at(-1), { event: 'held', round: 2, by: OTHER, proof: PASSES });
-    assert.deepEqual(second.closure.held, { round: 2, by: OTHER,
-      proof: 'kept rule: line 4 keeps rule 7.' });
-    const shown = call(root, ['findings', 'show']);
-    assert.equal(shown.status, 1);
-    assert.equal(shown.lines[0], 'Start change-reviewer again to judge the closure of f1.');
-    // Another reviewer may open the break again.
-    passes(call(root, ['findings', 'add', '2', MANY[0], put(root, `${MANY[0]}-1.md`,
-      review([], [`f1: open: ${PROOF}`]))]));
-    assert.equal(record(root).findings[0].state, 'open');
-    assert.deepEqual(record(root).findings[0].history.at(-1),
-      { event: 'opened again', round: 2, by: MANY[0], proof: PROOF });
-  });
-
-test('findings add: a holds starts with the closing form that pairs with the proof', () => {
-  const root = folder();
-  passes(call(root, ['findings', 'add', '1', REVIEWER, put(root, `${REVIEWER}-1.md`, review([{}]))]));
-  passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(`f1: ${PASSES}`))]));
-  const wrong = call(root, ['findings', 'add', '2', REVIEWER, put(root, `${REVIEWER}-2.md`,
-    review([], [holds('f1', 'passing input: an order of 3 items gives 3 days.')]))]);
-  fails(wrong, /^Prove that f1 holds with a closing proof that starts with passing check:\. The proof of f1 is a failing check\.$/);
-  assert.equal(wrong.lines.at(-1), 'Added nothing to findings.json: the report of ' +
-    'change-reviewer has 1 finding.');
-  assert.equal(record(root).findings[0].closure.held, null);
-});
-
-test('findings add: open: break: raises a finding that breaks nothing, and nothing lowers one',
-  () => {
-    const root = folder();
-    const rule = 'broken rule: rule 7 of the style guide; line 4 breaks it.';
-    passes(call(root, ['findings', 'add', '1', REVIEWER, put(root, `${REVIEWER}-1.md`, review([
-      { Proof: rule, Severity: 'no break' }, { Quote: '"b"', Proof: rule, Severity: 'no break' },
-      { Quote: '"c"' }]))]));
-    passes(call(root, ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(
-      'f1: kept rule: line 4 keeps rule 7.', 'f2: kept rule: line 4 keeps rule 7.',
-      `f3: ${PASSES}`))]));
-    // A raise needs a proof that shows a break; the report check finds the broken rule.
-    fails(call(root, ['findings', 'add', '2', REVIEWER, put(root, `${REVIEWER}-2.md`,
-      review([], [`f1: open: break: ${rule}`, holds('f2', 'kept rule: line 4 keeps rule 7.'),
-        holds('f3')]))]), /^Prove the break of f1 .* The item is under "Earlier findings:" of the report of change-reviewer\.$/);
-    const input = 'failing input: an order of 0 items gives a refund of 0 days, and 3 are asked.';
-    const result = call(root, ['findings', 'add', '2', REVIEWER, put(root, `${REVIEWER}-3.md`,
-      review([], [`f1: open: break: ${input}`, `f2: open: ${rule}`, `f3: open: ${PROOF}`]))]);
-    passes(result);
-    const [first, second, third] = record(root).findings;
-    assert.deepEqual([first.severity, first.proof, first.state], ['break', input, 'open']);
-    assert.deepEqual(first.history.at(-1), { event: 'opened again', round: 2, by: REVIEWER,
-      proof: input, severity: 'break' });
-    // A plain open keeps the severity.
-    assert.deepEqual([second.severity, second.state], ['no break', 'open']);
-    assert.deepEqual([third.severity, third.state], ['break', 'open']);
-    assert.equal(call(root, ['findings', 'show']).status, 1);
-  });
-
-test('report: a finding of a change has no "Marks:" line', () => {
-  const root = folder();
-  const check = (text) => call(root, ['report', REVIEWER, put(root, `${REVIEWER}-1.md`, text)]);
-  fails(check(review([{ Marks: 'person, direction, break' }])),
-    /^Remove the "Marks:" line from finding 1\. A finding of a change has a "Proof:" and a "Severity:" line in place of marks\. The finding is in the report of change-reviewer\.$/);
-  const file = put(root, `${REVIEWER}-2.md`, review([{ Marks: 'writer, no direction, no break' }]));
-  fails(call(root, ['findings', 'add', '1', REVIEWER, file]), /^Remove the "Marks:" line/);
-  assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
-});
-
-test('report: a proof form is followed by whitespace, and its steps have a letter or digit', () => {
-  const root = folder();
-  const check = (text) => call(root, ['report', REVIEWER, put(root, `${REVIEWER}-1.md`, text)]);
-  passes(check(review([{ Proof: 'failing check:\trun the refund check; it prints 0.' }])));
-  passes(check(review([{ Proof: 'failing check:   run the refund check; it prints 0.' }])));
-  fails(check(review([{ Proof: 'failing check:​run the refund check.' }])),
-    /^Start the "Proof:" line of finding 1 with a form, .* The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Proof: 'failing check: ​' }])),
-    /^Write the steps after the form of the "Proof:" line of finding 1\. The steps that repeat it have no letter or digit\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([{ Proof: 'failing check: ... !' }])), /have no letter or digit\. The finding is in the report of change-reviewer\.$/);
-  fails(check(review([], [`f1: open: failing check: ​`])),
-    /^Write the steps after the form of the proof of f1\. .* The item is under "Earlier findings:" of the report of change-reviewer\.$/);
-  passes(check(review([], ['f1: holds:\tpassing check: the refund check passes on the fix.'])));
-});
-
-test('report: the last line of a report with a proof and no point', () => {
-  const root = folder();
-  const text = ['Findings:', '1. Quote: "refundDays = 0"', '   Problem: A refund takes 0 days.',
-    '   Fix: A refund takes three days.', `   Proof: ${PROOF}`, '   Severity: break', '',
-    'changes-needed', ''].join('\n');
-  const result = call(root, ['report', PROOF_ONLY, put(root, `${PROOF_ONLY}-1.md`, text)]);
-  passes(result);
-  assert.equal(result.lines.at(-1), `Checked the report of ${PROOF_ONLY}: size, last word, ` +
-    'lists, Blocked: line, and Proof: and Severity: lines; 0 findings.');
-});
-
-test('findings add: CRLF, a BOM and a tab pass, and a control character is refused', () => {
-  const root = folder();
-  const crlf = review([{}]).replace(/\n/g, '\r\n');
-  passes(call(root, ['findings', 'add', '1', REVIEWER, put(root, `${REVIEWER}-1.md`, crlf)]));
-  const bom = `﻿${review([{ Quote: '"b"', Proof: `failing check:\t${PROOF.slice(15)}` }])}`;
-  passes(call(root, ['findings', 'add', '1', OTHER, put(root, `${OTHER}-1.md`, bom)]));
-  const [first, second] = record(root).findings;
-  assert.equal(first.proof, PROOF);
-  assert.equal(first.point, POINT);
-  assert.doesNotMatch(first.text, /\r/);
-  assert.equal(second.proof, `failing check:\t${PROOF.slice(15)}`);
-  const bell = put(root, `${MANY[0]}-1.md`, review([{ Proof: `${PROOF}\u0007` }]));
-  fails(call(root, ['findings', 'add', '1', MANY[0], bell]),
-    /^Remove the control character from the "Proof:" line of finding 1\. The finding is in the report of reviewer-1\.$/);
-  const closing = put(root, `${FIXER}-1.md`, fixed(`f1: ${PASSES}\u001B`));
-  fails(call(root, ['findings', 'close', FIXER, closing]),
-    /^Remove the control character from the closing proof of f1\. The item is under "Closed:" of the report of change-fixer\.$/);
-  assert.deepEqual(record(root).findings.map((one) => one.state), ['open', 'open']);
-  assert.equal(record(root).reports.length, 2);
-});
-
-test('findings add: calls at once lose no finding', async () => {
-  const root = folder();
-  const files = MANY.map((agent) => put(root, `${agent}-1.md`,
-    review([{ Quote: `"${agent}"` }])));
-  const results = await Promise.all(MANY.map((agent, at) => child(root,
-    ['findings', 'add', '1', agent, files[at]])));
-  for (const result of results) assert.equal(result.status, 0, result.out);
-  const data = record(root);
-  assert.deepEqual(data.findings.map((one) => one.id).sort(),
-    MANY.map((_, at) => `f${at + 1}`).sort());
-  assert.deepEqual(data.findings.map((one) => one.by).sort(), [...MANY].sort());
-  assert.equal(data.reports.length, MANY.length);
-  assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json.lock')), false);
-});
-
-test('findings add and close: a lock that stays exits 3 with a line to report it', () => {
-  const root = folder();
-  const lock = path.join(root, '.reports', 'findings.json.lock');
-  fs.writeFileSync(lock, '');
-  const file = put(root, `${REVIEWER}-1.md`, review([{}]));
-  for (const argv of [['findings', 'add', '1', REVIEWER, file],
-    ['findings', 'close', FIXER, put(root, `${FIXER}-1.md`, fixed(`f1: ${PASSES}`))]]) {
-    const result = call(root, argv, { lockWait: 50 });
-    assert.equal(result.status, 3, result.out);
-    assert.equal(result.lines[0],
-      'Report to a member: checks.cjs findings cannot run, because its lock file still exists.');
-    assert.equal(result.lines[1], `  ${plainLine(`${lock} still exists after 0.05 s of tries.`)}`);
-  }
-  assert.equal(fs.existsSync(lock), true);
-  assert.equal(fs.existsSync(path.join(root, '.reports', 'findings.json')), false);
-  // A lock with the id of a process that runs stays.
-  fs.writeFileSync(lock, String(process.pid));
-  assert.equal(call(root, ['findings', 'add', '1', REVIEWER, file], { lockWait: 50 }).status, 3);
-  assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
-  // A lock with the id of a process that no longer runs, as after a kill, is removed.
-  const dead = spawnSync(process.execPath, ['-e', '']).pid;
-  assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
-  fs.writeFileSync(lock, String(dead));
-  passes(call(root, ['findings', 'add', '1', REVIEWER, file], { lockWait: 50 }));
-  assert.equal(fs.existsSync(lock), false);
-  assert.equal(record(root).findings.length, 1);
-});
-
-test('findings add: the lock contains the process id while the record is written', () => {
-  const root = folder();
-  const lock = path.join(root, '.reports', 'findings.json.lock');
-  let seen = null;
-  const result = call(root, ['findings', 'add', '1', REVIEWER,
-    put(root, `${REVIEWER}-1.md`, review([{}]))], {
-    out: { write: () => { seen = fs.readFileSync(lock, 'utf8'); } },
-  });
-  assert.equal(result.status, 0);
-  assert.equal(seen, String(process.pid));
-  assert.equal(fs.existsSync(lock), false);
-});
-
-test('findings: each broken form of findings.json exits 3 and is left as it is', () => {
-  const finding = {
-    id: 'f1', round: 1, by: REVIEWER, severity: 'break', proof: PROOF, state: 'open',
-    closure: null, history: [],
+test('findings open: each message prints the whole escaped path, of 81 to 400 characters', () => {
+  // A line with a path is not cut at 200 characters: lib/base.cjs cuts only the other lines.
+  const kinds = {
+    'missing file': [(real) => path.join(path.dirname(real), 'absent.json'), 0],
+    'folder': [(real) => path.dirname(real), 3],
+    'link': [(real) => {
+      const link = path.join(path.dirname(real), 'link.json');
+      fs.symlinkSync(real, link);
+      return link;
+    }, 3],
+    'path through a file': [(real) => path.join(real, 'under.json'), 3],
+    'file that is too big': [(real) => {
+      const big = path.join(path.dirname(real), 'big.json');
+      fs.writeFileSync(big, JSON.stringify(many(40, () => ({ problem: 'x'.repeat(8000) }))));
+      return big;
+    }, 3],
+    'more findings': [(real) => {
+      const file = path.join(path.dirname(real), 'many.json');
+      fs.writeFileSync(file, JSON.stringify(many(201)));
+      return file;
+    }, 1],
   };
-  const report = { file: `${REVIEWER}-1.md`, agent: REVIEWER, round: 1, verb: 'add',
-    sha256: 'a'.repeat(64) };
-  // Each entry is the broken record and the finding on its problem: a first line, or the end
-  // of the line "<file> breaks the form of the record: " after the first line "Write
-  // findings.json only through checks.cjs findings.".
-  const lacks = 'f1 lacks a round, a reviewer, a severity, a proof or a history';
-  const entry = 'an entry of reports lacks a file, an agent, a round, a sha256 or a verb';
-  const broken = [
-    ['{"findings": [', () => 'Write findings.json as valid JSON.'],
-    ['[]', () => 'Give findings.json the list findings.'],
-    [{ findings: {}, reports: [] }, () => 'Give findings.json the list findings.'],
-    [{ findings: [] }, 'it has no list reports'],
-    [{ findings: [null], reports: [] }, 'finding 1 is null'],
-    [{ findings: [{ ...finding, id: 'x1' }], reports: [] },
-      'x1 has no id of the form f<number>, or one that another finding has'],
-    [{ findings: [finding, finding], reports: [] },
-      'f1 has no id of the form f<number>, or one that another finding has'],
-    [{ findings: [{ ...finding, state: 'done' }], reports: [] },
-      'the state of f1 is neither open nor closed'],
-    [{ findings: [{ ...finding, round: 0 }], reports: [] }, lacks],
-    [{ findings: [{ ...finding, severity: 'high' }], reports: [] }, lacks],
-    [{ findings: [{ ...finding, proof: 'it fails' }], reports: [] }, lacks],
-    [{ findings: [{ ...finding, history: null }], reports: [] }, lacks],
-    [{ findings: [{ ...finding, closure: { proof: PASSES } }], reports: [] },
-      'f1 is open and has a closure'],
-    [{ findings: [{ ...finding, state: 'closed', closure: { proof: PASSES, held: 'yes' } }],
-      reports: [] }, 'f1 has a closure whose held is neither null nor an object'],
-    [{ findings: [{ ...finding, state: 'closed',
-      closure: { proof: 'kept rule: line 4.', held: null } }], reports: [] },
-    'f1 is closed with no closing proof of the form passing check'],
-    [{ findings: [], reports: [{ ...report, sha256: 7 }] }, entry],
-    [{ findings: [], reports: [{ ...report, verb: 'remove' }] }, entry],
-    [{ findings: [], reports: ['x'] }, entry],
-  ];
-  for (const [data, problem] of broken) {
-    const root = folder();
-    const file = path.join(root, '.reports', 'findings.json');
-    const text = typeof data === 'string' ? data : JSON.stringify(data);
-    const line = typeof problem === 'function' ? problem(file)
-      : `Write findings.json only through checks.cjs findings. ${file} breaks the form of the ` +
-        `record: ${problem}.`;
-    fs.writeFileSync(file, text);
-    for (const argv of [['findings', 'show'], ['findings', 'add', '1', REVIEWER,
-      put(root, `${REVIEWER}-1.md`, review([{}]))]]) {
-      const result = call(root, argv);
-      assert.equal(result.status, 3, `${text}: ${result.out}`);
-      assert.equal(joined(result.lines)[0].slice(0, line.length), line, text);
+  for (const size of [81, 120, 201, 400]) {
+    const real = deepPut(size);
+    for (const [kind, [make, status]] of Object.entries(kinds)) {
+      const target = make(real);
+      const result = call(['findings', 'open', target]);
+      const text = `${result.out}${result.err}`;
+      assert.equal(result.status, status, `${kind}: ${text}`);
+      assert.ok(text.includes(quoted(target)), `${kind}, ${size} characters: ${text}`);
+      assert.ok(!text.includes('...'), `${kind}: ${text}`);
     }
-    assert.equal(fs.readFileSync(file, 'utf8'), text);
-    assert.equal(fs.existsSync(`${file}.lock`), false);
+    // The file of a finding, in the line of the finding.
+    const file = `/${'f'.repeat(size)}`;
+    const named = put(many(1, () => ({ file })));
+    const result = call(['findings', 'open', named]);
+    assert.ok(result.out.includes(`blocking, ${file}:12)`), result.out);
+  }
+  // A file name of 200 characters is cut to 40 in the fix on the first line, and whole in the
+  // line after it.
+  const named = path.join(tmp, `${'n'.repeat(200)}.json`);
+  fs.writeFileSync(named, '[1');
+  const result = call(['findings', 'open', named]);
+  assert.equal(result.status, 3);
+  assert.ok(result.out.split('\n')[0].length <= 100, result.out);
+});
+
+test('findings open: 40 findings of 5 KB each, in a file over 200 KB, print all 40', () => {
+  const file = put(many(40, () => ({ problem: 'x'.repeat(5000) })));
+  assert.ok(fs.statSync(file).size > 200 * 1024);
+  assert.ok(fs.statSync(file).size < 256 * 1024);
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1);
+  assert.equal(result.lines.length, 41);
+});
+
+test('findings open: a regular file over 256 KB is read up to 256 KB', () => {
+  // The JSON ends inside the part that is read: exit 3 with the limit and the fix on line 1.
+  const cut = put(many(40, () => ({ problem: 'x'.repeat(8000) })));
+  assert.ok(fs.statSync(cut).size > 256 * 1024);
+  const result = call(['findings', 'open', cut]);
+  assert.equal(result.status, 3);
+  const text = result.out + result.err;
+  assert.match(text.split('\n')[0], /^Open open-\d+\.json with Read and fix each finding in it\.$/);
+  assert.match(text, /has \d+ bytes, and findings open reads at most 256 KB, which ends inside its JSON/);
+  // The JSON is whole inside the first 256 KB, and the rest of the file is blank.
+  const padded = put(`${JSON.stringify(ROUND)}${' '.repeat(300 * 1024)}`);
+  const whole = call(['findings', 'open', padded]);
+  assert.equal(whole.status, 1);
+  assert.equal(whole.lines.length, 3);
+  // A file over the limit is never read whole.
+  const source = fs.readFileSync(path.join(SKILLS, 'running-a-workflow', 'verbs', 'findings.cjs'), 'utf8');
+  assert.ok(!/readFileSync|readFile\(/.test(source));
+});
+
+// A file name with ESC, CSI and OSC sequences, BEL, U+202E, U+2028, a tag character, a zero
+// width joiner and a line feed. Each control character prints as a space, and each refused and
+// hidden character is removed.
+const HOSTILE = 'x\u001b[31m\u001b]0;t\u0007\u202e\u2028\u{E0041}\u200dY\nz';
+const BAD = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2028\u2029\u200D\u{E0000}-\u{E007F}]/u;
+
+test('findings open: a file name with control, refused and hidden characters prints plain', () => {
+  // The path line, for a file that is missing, a folder and a path through a file.
+  const missing = path.join(tmp, `${HOSTILE}-missing.json`);
+  const absent = call(['findings', 'open', missing]);
+  assert.equal(absent.status, 0);
+  assert.equal(absent.out, `Checked nothing: "${tmp}/x [31m ]0;t Y z-missing.json" does not ` +
+    'exist, so no finding is open.\n');
+  assert.equal(absent.err, `no open findings file at "${tmp}/x [31m ]0;t Y z-missing.json"\n`);
+  const folder = path.join(tmp, `${HOSTILE}-folder`);
+  fs.mkdirSync(folder);
+  const asFolder = call(['findings', 'open', folder]);
+  assert.equal(asFolder.status, 3);
+  assert.ok(asFolder.out.includes(`  "${tmp}/x [31m ]0;t Y z-folder" is not a regular file.`),
+    asFolder.out);
+  // The fix line of a file over the limit has the base name, plain.
+  const big = path.join(tmp, `${HOSTILE}.json`);
+  fs.writeFileSync(big, JSON.stringify(many(40, () => ({ problem: 'x'.repeat(8000) }))));
+  const tooBig = call(['findings', 'open', big]);
+  assert.equal(tooBig.status, 3);
+  assert.equal(tooBig.out.split('\n')[0],
+    'Open x [31m ]0;t Y z.json with Read and fix each finding in it.');
+  // The line of a file that is no object, from the checks of the file.
+  const list = path.join(tmp, `${HOSTILE}-list.json`);
+  fs.writeFileSync(list, '[]');
+  const broken = call(['findings', 'open', list]);
+  assert.equal(broken.status, 3);
+  assert.ok(broken.out.includes('x [31m ]0;t Y z-list.json is a list, not an object.'),
+    broken.out);
+  // The file of a finding.
+  const named = put(many(1, () => ({ file: HOSTILE })));
+  const finding = call(['findings', 'open', named]);
+  assert.equal(finding.lines[0], 'Fix first: f1 (blocking, x [31m ]0;t Y z:12): Fix the point 1.');
+  for (const result of [absent, asFolder, tooBig, broken, finding]) {
+    assert.ok(!BAD.test(result.out + result.err), JSON.stringify(result.out + result.err));
+  }
+});
+
+test('readOpen: the name of the file in a fault line has no control or hidden character', () => {
+  const { readOpen } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'findings.cjs'));
+  assert.throws(() => readOpen([], HOSTILE), (error) => {
+    assert.equal(error.message.split('\n')[1], 'x [31m ]0;t Y z is a list, not an object.');
+    return true;
+  });
+});
+
+// The invisible characters that findings open removes, one name each, besides the tag
+// characters and the joiners that HOSTILE has.
+const INVISIBLE = {
+  'variation selector supplement': '\u{E0100}',
+  'variation selector supplement end': '\u{E01EF}',
+  'halfwidth Hangul filler': '\uFFA0',
+  'deprecated format 206A': '\u206A',
+  'deprecated format 206F': '\u206F',
+  'Khmer inherent vowel 17B4': '\u17B4',
+  'Khmer inherent vowel 17B5': '\u17B5',
+  'object replacement character': '\uFFFC',
+  'musical format 1D173': '\u{1D173}',
+  'musical format 1D17A': '\u{1D17A}',
+  'shorthand format 1BCA0': '\u{1BCA0}',
+  'shorthand format 1BCA3': '\u{1BCA3}',
+  'Mongolian vowel separator 180F': '\u180F',
+  'unassigned default ignorable 2065': '\u2065',
+  'unassigned default ignorable FFF0': '\uFFF0',
+  'unassigned default ignorable FFF8': '\uFFF8',
+  'tag block E0080': '\u{E0080}',
+  'tag block E00FF': '\u{E00FF}',
+  'variation selector supplement E01F0': '\u{E01F0}',
+  'variation selector supplement E0FFF': '\u{E0FFF}',
+  'Arabic number sign 0600': '\u0600',
+  'Arabic number sign 0605': '\u0605',
+  'Arabic end of ayah 06DD': '\u06DD',
+  'Syriac abbreviation mark 070F': '\u070F',
+  'Arabic pound mark 0890': '\u0890',
+  'Arabic piastre mark 0891': '\u0891',
+  'Arabic disputed end of ayah 08E2': '\u08E2',
+  'Kaithi number sign 110BD': '\u{110BD}',
+  'Kaithi number sign above 110CD': '\u{110CD}',
+  'Egyptian hieroglyph format 13430': '\u{13430}',
+  'Egyptian hieroglyph format 1343F': '\u{1343F}',
+  'soft hyphen 00AD': '\u00AD',
+  'zero width joiner 200D': '\u200D',
+  'zero width non-joiner 200C': '\u200C',
+};
+
+test('findings open: each invisible character is removed from a file name and a finding file', () => {
+  for (const [what, char] of Object.entries(INVISIBLE)) {
+    const missing = path.join(tmp, `in${char}visible-${files}.json`);
+    const result = call(['findings', 'open', missing]);
+    assert.equal(result.out, `Checked nothing: "${tmp}/invisible-${files}.json" does not exist, so ` +
+      'no finding is open.\n', what);
+    const named = put(many(1, () => ({ file: `src/a${char}b.ts` })));
+    assert.equal(call(['findings', 'open', named]).lines[0],
+      'Fix first: f1 (blocking, src/ab.ts:12): Fix the point 1.', what);
+  }
+  // A lone surrogate cannot be in a file name, which the disk stores as UTF-8: it is in a finding
+  // file, as the escape \ud800 of JSON.
+  const lone = put('{"round":1,"reviewers":[{"reviewer":"code-reviewer","findings":[' +
+    JSON.stringify({ ...FINDING }).replace('src/main.ts', 'src/a\\ud800b.ts') + ']}]}');
+  assert.equal(call(['findings', 'open', lone]).lines[0],
+    'Fix first: f3 (blocking, src/ab.ts:12): <what is wrong in the first finding>');
+});
+
+// The characters that findings open keeps, as code points: letters, a valid surrogate pair, a
+// combining sequence, and the code point on each side of each removed range.
+const KEPT = [0xE9, 0x4E2D, 0x1F600, 0x1D11E, 0x65, 0x301, 0x34E, 0x350, 0x115E, 0x1161, 0x17B3,
+  0x17B6, 0x3163, 0x3165, 0xFDFF, 0xFE10, 0xFF9F, 0xFFA1, 0xFFFD, 0x2070, 0x1D172, 0x1D17B,
+  0x1BC9F, 0x1BCA4, 0xE000, 0xE1000];
+
+test('findings open: a visible character stays, also next to a removed range', () => {
+  for (const point of KEPT) {
+    const char = String.fromCodePoint(point);
+    const hex = point.toString(16);
+    const missing = path.join(tmp, `k${char}k-${hex}.json`);
+    assert.equal(call(['findings', 'open', missing]).out,
+      `Checked nothing: "${tmp}/k${char}k-${hex}.json" does not exist, so no finding is open.\n`,
+      hex);
+    const named = put(many(1, () => ({ file: `src/k${char}k.ts` })));
+    assert.equal(call(['findings', 'open', named]).lines[0],
+      `Fix first: f1 (blocking, src/k${char}k.ts:12): Fix the point 1.`, hex);
+  }
+});
+
+test('findings open: a path with spaces at either end shows them inside the quotes', () => {
+  const lead = path.join(tmp, ' lead', 'absent.json');
+  assert.equal(call(['findings', 'open', lead]).out,
+    `Checked nothing: "${tmp}/ lead/absent.json" does not exist, so no finding is open.\n`);
+  const trail = path.join(tmp, 'absent.json  ');
+  assert.equal(call(['findings', 'open', trail]).out,
+    `Checked nothing: "${tmp}/absent.json  " does not exist, so no finding is open.\n`);
+});
+
+test('findings open: hidden characters are removed from the printed text', () => {
+  const hidden = '\u{E0049}\u200C\u200D\uFE0F\u034F\u3164\u115F\u1160\u180B\u180C\u180D';
+  const file = put({ round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: [{ ...FINDING,
+    point: `Fix${hidden} the value.`, file: `src/${hidden}main.ts` }] }] });
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1);
+  assert.equal(result.lines[0],
+    'Fix first: f3 (blocking, src/main.ts:12): Fix the value.');
+  assert.ok(!/[\u{E0000}-\u{E007F}\u200C\u200D\uFE00-\uFE0F\u034F\u3164\u115F\u1160\u180B-\u180D]/u.test(result.out));
+});
+
+test('plainLine removes hidden characters, as plain does', () => {
+  const { plainLine } = require(path.join(SKILLS, 'running-a-workflow', 'lib', 'base.cjs'));
+  const points = { 'U+180F': String.fromCodePoint(0x180F), 'U+E0001': String.fromCodePoint(0xE0001),
+    'lone surrogate': String.fromCharCode(0xD800), 'U+200D': String.fromCodePoint(0x200D) };
+  for (const [name, one] of Object.entries(points)) {
+    assert.equal(plainLine(`Re${one}move ${one}me${one}`), 'Remove me', name);
+  }
+  assert.equal(plainLine('caf\u00e9 \u4e2d \u{1F600}'), 'caf\u00e9 \u4e2d \u{1F600}');
+});
+
+test('findings: wrong arguments exit 2, and the removed forms are gone', () => {
+  for (const argv of [['findings'], ['findings', 'open'], ['findings', 'open', 'a', 'b'],
+    ['findings', 'show'], ['findings', 'add', '1', 'code-reviewer', 'r.md'],
+    ['findings', 'close', 'fixer', 'r.md'], ['findings', 'check', 'r.json']]) {
+    const result = call(argv);
+    assert.equal(result.status, 2, argv.join(' '));
+    assert.match(result.err, /Give findings open one file/);
+    assert.match(result.err, /findings open <file>/);
+  }
+  for (const argv of [['starts', 'r1', 'code-reviewer', '--subject', 'change'],
+    ['starts', 'r1', 'code-reviewer', '--subject']]) {
+    assert.equal(call(argv).status, 2, argv.join(' '));
   }
 });

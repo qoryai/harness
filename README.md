@@ -37,7 +37,7 @@ extends the `software` stack instead: write `stack: software` in the `extends` b
 
 ## What it contains
 
-The `core` stack composes one module, `core`. The `core` module ships ten skills, three
+The `core` stack composes one module, `core`. The `core` module ships eleven skills, three
 agents, and the hooks of the end check with their settings:
 
 - `simple-communication`: load it before you write any text a person reads, such as a
@@ -78,6 +78,9 @@ agents, and the hooks of the end check with their settings:
 - `reviewing-drafts`: load it before you review a draft. The skill contains the order of a
   review, what a finding contains, what a report contains, how to check the sentence rules
   of `simple-communication`, and the check list of a Markdown document.
+- `reviewing-changes`: load it before you review a change that a run made. The skill contains
+  what a reviewer of a change may do, the order of a review, the members of a finding with its
+  proof and severity, and the JSON report that the reviewer writes.
 - `questions-writer`: an agent that drafts a run's questions by `writing-questions`, and
   sets their times once the run has one.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
@@ -113,7 +116,7 @@ workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-tic
 with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
 `access: write`, and the workflow `write-acceptance-checks`, with `tier: balanced` and
 `access: write`. The `software-factory` module ships the process template, eight workflows'
-skills, nineteen other skills, seventeen agents and the settings for a run of those
+skills, twenty other skills, seventeen agents and the settings for a run of those
 workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -295,6 +298,9 @@ workflows:
   and an example plan.
 - `checking-build-plans`: load it before you write or review a build plan. The skill
   contains the steps of a review and the check list.
+- `judging-findings`: load it before you review a change to software, with
+  `reviewing-changes`. The skill contains the definition of a blocking finding and the values
+  that the run passes a reviewer.
 - `build-planner`: an agent that drafts `build-plan.md` by `planning-builds` and reports
   the deliverables over the limit of 7.
 - `plan-reviewer`: an agent that reviews a build plan by `reviewing-drafts` against
@@ -365,6 +371,7 @@ modules/core/skills/writing-questions/     the skill: SKILL.md
 modules/core/skills/checking-questions/    the skill: SKILL.md
 modules/core/skills/replying-to-comments/  the skill: SKILL.md
 modules/core/skills/reviewing-drafts/      the skill: SKILL.md
+modules/core/skills/reviewing-changes/     the skill: SKILL.md
 modules/core/skills/running-a-workflow/    the skill: SKILL.md, versions.cjs and checks.cjs
 modules/core/agents/                       the agents questions-writer, questions-reviewer and reply-writer
 modules/core/hooks/                        the end check and the guard of .reports/

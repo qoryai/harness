@@ -2985,37 +2985,6 @@ test('starts: a count that is not a whole number of 0 or more exits 3', () => {
   }
 });
 
-test('starts --subject: counts 3 starts of a reviewer per subject, and refuses the fourth', () => {
-  const root = path.join(tmp, `starts-${++folders}`);
-  fs.mkdirSync(root);
-  const start = (run, reviewer, subject) => call({ cwd: tmp, artifacts: [root] },
-    ['starts', run, reviewer, '--subject', subject]);
-  assert.equal(start('r1', 'harness:code-reviewer', 'change').out, 'code-reviewer on change: start 1 of 3.\n');
-  assert.equal(start('r1', 'code-reviewer', 'change').out, 'code-reviewer on change: start 2 of 3.\n');
-  assert.equal(start('r1', 'harness:code-reviewer', 'change').out,
-    'code-reviewer on change: start 3 of 3. This is the last start.\n');
-  const fourth = start('r1', 'harness:code-reviewer', 'change');
-  assert.equal(fourth.status, 1);
-  assert.equal(fourth.out, 'Start no more code-reviewer on change: it has had 3 starts, and the limit is 3.\n');
-  // Another subject, and another reviewer on the same subject, have their counts.
-  assert.equal(start('r1', 'harness:code-reviewer', 'plan').status, 0);
-  assert.equal(start('r1', 'test-reviewer', 'change').status, 0);
-  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
-  assert.deepEqual(counts, {
-    counts: { r1: { 'change/code-reviewer': 3, 'plan/code-reviewer': 1, 'change/test-reviewer': 1 } },
-  });
-});
-
-test('starts --subject: local counts under the key of begin', () => {
-  const root = path.join(tmp, `starts-${++folders}`);
-  fs.mkdirSync(root);
-  const deps = { cwd: tmp, artifacts: [root] };
-  const key = call(deps, ['begin']).lines[0];
-  assert.equal(call(deps, ['starts', 'local', 'code-reviewer', '--subject', 'change']).status, 0);
-  const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
-  assert.deepEqual(counts, { counts: { [key]: { 'change/code-reviewer': 1 } } });
-});
-
 // startsChild runs starts in a new process, with root as the artifact folder, and resolves to
 // its exit status and output. With at, a time in ms, the process loads the script and then
 // waits until that time, so that calls of several processes start at the same moment.
@@ -3044,36 +3013,36 @@ function startsChild(root, argv, at = 0) {
   });
 }
 
-test('starts --subject: starts at once in several processes count each start once', async () => {
+test('starts: starts at once in several processes count each start once', async () => {
   const root = path.join(tmp, `starts-${++folders}`);
   fs.mkdirSync(root);
   const reviewers = ['a-reviewer', 'b-reviewer', 'c-reviewer', 'd-reviewer'];
   // Four starts of each reviewer, all at once: three pass and the fourth exits 1.
   const calls = reviewers.flatMap((reviewer) => [1, 2, 3, 4].map(() => reviewer));
   const results = await Promise.all(calls.map((reviewer) =>
-    startsChild(root, ['r1', `harness:${reviewer}`, '--subject', 'change'])));
+    startsChild(root, ['r1', reviewer, '3'])));
   for (const reviewer of reviewers) {
     const mine = results.filter((_, at) => calls[at] === reviewer);
     assert.deepEqual(mine.map((one) => one.status).sort(), [0, 0, 0, 1], JSON.stringify(mine));
     assert.deepEqual(mine.filter((one) => one.status === 0).map((one) => one.out).sort(), [
-      `${reviewer} on change: start 1 of 3.\n`,
-      `${reviewer} on change: start 2 of 3.\n`,
-      `${reviewer} on change: start 3 of 3. This is the last start.\n`,
+      `${reviewer}: start 1 of 3.\n`,
+      `${reviewer}: start 2 of 3.\n`,
+      `${reviewer}: start 3 of 3. This is the last start.\n`,
     ]);
     assert.equal(mine.find((one) => one.status === 1).out,
-      `Start no more ${reviewer} on change: it has had 3 starts, and the limit is 3.\n`);
+      `Start no more ${reviewer}: it has had 3 starts, and the limit is 3.\n`);
   }
   // Three starts of each of eight reviewers, all at once in another run: all 24 count.
   const eight = 'abcdefgh'.split('').map((letter) => `${letter}-reviewer`);
   const more = await Promise.all(eight.flatMap((reviewer) => [1, 2, 3].map(() =>
-    startsChild(root, ['r2', reviewer, '--subject', 'change']))));
+    startsChild(root, ['r2', reviewer, '3']))));
   assert.deepEqual(more.filter((one) => one.status !== 0), []);
   assert.equal(more.filter((one) => one.out.endsWith('This is the last start.\n')).length, 8);
   const counts = JSON.parse(fs.readFileSync(path.join(root, '.reports', 'starts.json'), 'utf8'));
   assert.deepEqual(counts, {
     counts: {
-      r1: Object.fromEntries(reviewers.map((reviewer) => [`change/${reviewer}`, 3])),
-      r2: Object.fromEntries(eight.map((reviewer) => [`change/${reviewer}`, 3])),
+      r1: Object.fromEntries(reviewers.map((reviewer) => [reviewer, 3])),
+      r2: Object.fromEntries(eight.map((reviewer) => [reviewer, 3])),
     },
   });
   assert.deepEqual(fs.readdirSync(path.join(root, '.reports')), ['starts.json']);
@@ -3087,7 +3056,7 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
   const lock = path.join(reports, 'starts.json.lock');
   fs.mkdirSync(reports, { recursive: true });
   const start = () => call({ cwd: tmp, artifacts: [root], lockWait: 50 },
-    ['starts', 'r1', 'code-reviewer', '--subject', 'change']);
+    ['starts', 'r1', 'code-reviewer', '3']);
   // A lock of a process that runs stays, also when it is old, and so does an empty lock 1 s
   // old, whose call may still write its id. After the wait, the call exits 3.
   const old = new Date(Date.now() - 60000);
@@ -3108,13 +3077,13 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
   // removed.
   fs.writeFileSync(lock, '');
   fs.utimesSync(lock, old, old);
-  assert.equal(start().out, 'code-reviewer on change: start 1 of 3.\n');
+  assert.equal(start().out, 'code-reviewer: start 1 of 3.\n');
   assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
   // A lock with the id of a process that no longer runs is removed.
   const dead = spawnSync(process.execPath, ['-e', '']).pid;
   assert.throws(() => process.kill(dead, 0), { code: 'ESRCH' });
   fs.writeFileSync(lock, String(dead));
-  assert.equal(start().out, 'code-reviewer on change: start 2 of 3.\n');
+  assert.equal(start().out, 'code-reviewer: start 2 of 3.\n');
   assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
   // A break file of a call that was killed while it removed a stale lock stays until it is
   // older than 5 s; then the next call removes it, and the stale lock after it.
@@ -3122,7 +3091,7 @@ test('starts: a lock that stays exits 3 with a line to report it, and a stale lo
   fs.writeFileSync(`${lock}.break`, '');
   assert.equal(start().status, 3);
   fs.utimesSync(`${lock}.break`, old, old);
-  assert.equal(start().out, 'code-reviewer on change: start 3 of 3. This is the last start.\n');
+  assert.equal(start().out, 'code-reviewer: start 3 of 3. This is the last start.\n');
   assert.deepEqual(fs.readdirSync(reports), ['starts.json']);
 });
 
@@ -3179,15 +3148,15 @@ test('starts: with a stale lock, starts at once in several processes count each 
   }
 });
 
-test('starts --subject: a wrong reviewer, subject or count of arguments exits 2', () => {
+test('starts: --subject is no form of starts, and a wrong name or count exits 2', () => {
   const root = path.join(tmp, `starts-${++folders}`);
   fs.mkdirSync(root);
   const start = (...argv) => call({ cwd: tmp, artifacts: [root] }, ['starts', 'r1', ...argv]);
   for (const [argv, why] of [
-    [['Bad Name', '--subject', 'change'], /^Give a reviewer as <agent> or <prefix>:<agent>\.\n  The argument is Bad Name\.\n/],
-    [['code-reviewer', '--subject', 'Change'], /^Give a subject of lower-case letters, digits and hyphens, such as change\.\n  The argument is Change\.\n/],
-    [['code-reviewer', '--subject'], /^Give starts a run, a name and a limit of 1 to 99, or a run, a reviewer and --subject <subject>\.\n/],
-    [['code-reviewer', '--subject', 'change', 'more'], /^Give starts a run, a name and a limit/],
+    [['code-reviewer', '--subject', 'change'], /^Give starts a run, a name and a limit of 1 to 99\.\n/],
+    [['Bad Name', '3'], /^Give a name of lower-case letters, digits and hyphens\.\n  The argument is Bad Name\.\n/],
+    [['code-reviewer'], /^Give starts a run, a name and a limit of 1 to 99\.\n/],
+    [['code-reviewer', '0'], /^Give starts a run, a name and a limit of 1 to 99\.\n/],
   ]) {
     const result = start(...argv);
     assert.equal(result.status, 2, argv.join(' '));
@@ -5664,14 +5633,6 @@ test('end: each report finding', () => {
   assert.match(result.lines.at(-1), /: 5 findings; check 1 of 3\. Fix them, then end again\./);
 });
 
-test('end: a start on a subject needs the report of its reviewer', () => {
-  const root = fixture();
-  started(root, { 'change/questions-reviewer': 1, 'change/no-such-reviewer': 1 });
-  const result = end(root);
-  fails(result, /^Write the report of questions-reviewer, and run checks\.cjs report on it\. /);
-  assert.ok(!result.out.includes('no-such-reviewer'), result.out);
-});
-
 test('end: the third failed check writes points.json and records the verdict escalate', () => {
   const root = fixture(['spec.md', '## Background', '## Context']);
   started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1,
@@ -5700,6 +5661,121 @@ test('end: the third failed check writes points.json and records the verdict esc
   assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
   // The run ended through points.json, so the next check runs the verdict again.
   assert.match(end(root, env).lines.at(-1), /^Checked points\.json: the run ended with it, and qory run verdict/);
+});
+
+// stageInputs returns the path of an inputs.json that qory wrote, with the member qory.stage of
+// stage, as given.
+function stageInputs(stage) {
+  const file = path.join(tmp, `inputs-${++folders}.json`);
+  fs.writeFileSync(file, JSON.stringify({ qory: { stage, harness_extensions: {} } }));
+  return file;
+}
+
+// endThrice runs end on a folder whose spec draft breaks a rule, three times, with the
+// inputs.json at inputs (none when null), and returns the third result, the stub's calls of
+// qory and the folder.
+function endThrice(inputs) {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1, 'write-specs-1-questions-reviewer': 1,
+    'write-specs-1-decision-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const { args, env } = stub();
+  const run = () => call({ cwd: tmp, plugin: PLUGIN, env },
+    ['end', root, ...(inputs ? ['--inputs', inputs] : [])]);
+  assert.equal(run().status, 1);
+  assert.equal(run().status, 1);
+  return { third: run(), args, root, run };
+}
+
+test('end: in a stage with reviewers the third failed check writes points.json and runs no verdict', () => {
+  for (const reviewers of ['reviewers', true]) {
+    const { third, args, root } = endThrice(stageInputs({ reviewers }));
+    passes(third);
+    assert.match(third.lines.at(-1), /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and no verdict command runs, because the stage has reviewers\.$/);
+    assert.deepEqual(verdicts(args), []);
+    const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
+    assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
+    passes(check(root, 'points', path.join(root, 'points.json')));
+  }
+});
+
+test('end: in a stage with reviewers the first checks say that the run ends with points', () => {
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const result = call({ cwd: tmp, plugin: PLUGIN, env: RUN_ENV },
+    ['end', root, '--inputs', stageInputs({ reviewers: 'reviewers' })]);
+  assert.equal(result.status, 1);
+  assert.match(result.lines.at(-1), /At check 3, the run ends with points\.$/);
+  const plain = end(root);
+  assert.match(plain.lines.at(-1), /At check 3, the run ends with the verdict escalate\.$/);
+});
+
+test('end: a session that is ready in a stage with reviewers exits 0 and runs no verdict', () => {
+  const root = fixture();
+  const { args, env } = stub();
+  const result = call({ cwd: tmp, plugin: PLUGIN, env },
+    ['end', root, '--inputs', stageInputs({ reviewers: 'reviewers' })]);
+  passes(result);
+  assert.deepEqual(verdicts(args), []);
+});
+
+test('end: an end through points.json in a stage with reviewers runs no verdict on the next check', () => {
+  const inputs = stageInputs({ reviewers: 'reviewers' });
+  const { run, args, root } = endThrice(inputs);
+  assert.equal(run().status, 0);
+  assert.equal(fs.existsSync(path.join(root, 'points.json')), true);
+  const again = run();
+  assert.match(again.lines.at(-1), /^Checked points\.json: the run ended with it, and no verdict command runs, because the stage has reviewers/);
+  assert.deepEqual(verdicts(args), []);
+});
+
+// linked returns the path of a link to an inputs.json that has the flag, and padded the path of
+// a regular file over 1 MB that has it: end reads neither.
+function linked() {
+  const real = stageInputs({ reviewers: 'reviewers' });
+  const link = path.join(tmp, `inputs-${++folders}.json`);
+  fs.symlinkSync(real, link);
+  return link;
+}
+function padded() {
+  const file = path.join(tmp, `inputs-${++folders}.json`);
+  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'reviewers' } },
+    pad: 'a'.repeat(1024 * 1024) }));
+  return file;
+}
+
+test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs', () => {
+  // The flag is read from qory's inputs.json only: a member reviewers of index.json, which an
+  // agent can write, a flag of another form, or an inputs.json that cannot be read changes
+  // nothing.
+  const bad = path.join(tmp, `inputs-${++folders}.json`);
+  fs.writeFileSync(bad, 'not json');
+  const forged = (root) => fs.writeFileSync(path.join(root, 'index.json'),
+    JSON.stringify({ artifacts: [], stage: { reviewers: 'reviewers' } }));
+  for (const inputs of [null, stageInputs({}), stageInputs({ reviewers: false }),
+    stageInputs({ reviewers: '' }), stageInputs({ reviewers: 1 }), stageInputs({ reviewers: ['a'] }),
+    stageInputs(null), bad, path.join(tmp, 'no-inputs.json'),
+    ...['false', 'no', '0', 'null', 'off', 'none', 'Reviewers', 'a b', 'x'.repeat(65), '-a']
+      .map((reviewers) => stageInputs({ reviewers })), linked(), padded()]) {
+    const { third, args, root } = endThrice(inputs);
+    forged(root);
+    passes(third);
+    assert.match(third.lines.at(-1), /, and qory run verdict escalate exited with 0: Recorded/);
+    assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`],
+      String(inputs));
+  }
+});
+
+test('end: an inputs.json of exactly 1 MB with the flag counts, and a role name of 64 characters', () => {
+  const file = path.join(tmp, `inputs-${++folders}.json`);
+  const head = JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } }, pad: '' });
+  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } },
+    pad: 'b'.repeat(1024 * 1024 - head.length) }));
+  assert.equal(fs.statSync(file).size, 1024 * 1024);
+  const { third, args } = endThrice(file);
+  passes(third);
+  assert.deepEqual(verdicts(args), []);
 });
 
 test('end: an end.json that cannot be read counts as the last check', () => {
@@ -7073,7 +7149,6 @@ test('registry: starts, begin, panel, fixes and end outside a run do not load it
   const deps = { cwd: tmp, artifacts: [root], plugin };
   assert.equal(call(deps, ['begin']).status, 0);
   assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '2']).status, 0);
-  assert.equal(call(deps, ['starts', 'local', 'questions-reviewer', '--subject', 'change']).status, 0);
   const panelled = panelSetup({ members: [['a-reviewer']] });
   assert.equal(call({ ...panelled.deps, plugin }, ['panel', '--names', 'a-reviewer', '--files', 'files.txt']).status, 0);
   const unread = call({ ...deps, env: { ...process.env, PATH: path.join(tmp, 'no-such-folder') } },
@@ -7759,14 +7834,11 @@ test('first lines: a long agent name and long paths keep each first line to 100 
   while (deep.length < 200) deep = path.join(deep, 'd'.repeat(40));
   const root = path.join(deep, 'artifacts');
   fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
-  // The agent reports as reviewing-changes lists, as the agents of findings add do.
   const plugin = path.join(deep, 'plugin');
   fs.cpSync(PLUGIN, plugin, { recursive: true });
-  fs.cpSync(path.join(MODULES, 'core', 'skills', 'reviewing-changes'),
-    path.join(plugin, 'skills', 'reviewing-changes'), { recursive: true });
   fs.writeFileSync(path.join(plugin, 'agents', `${agent}.md`), ['---', `name: ${agent}`, '---',
     '', '## Expected output', '',
-    'Report as `reviewing-changes` lists in its section "The report".', ''].join('\n'));
+    'Report as `reviewing-drafts` lists in its section "The report".', ''].join('\n'));
   const file = path.join(root, '.reports', `${agent}-1.md`);
   fs.writeFileSync(file, ['What you read:', '- notes.md', '', 'Findings:', '1. Quote: "x"',
     '   Problem: The notes break a rule.', '', 'changes-needed', ''].join('\n'));
@@ -7777,8 +7849,7 @@ test('first lines: a long agent name and long paths keep each first line to 100 
   const panel = panelSetup({ members: [[agent]], free: 0, under: deep }).deps;
   for (const [given, argv, status] of [
     [deps, ['starts', 'r1', agent, '1'], 1],
-    [deps, ['findings', 'add', '1', agent, file], 1],
-    [deps, ['findings', 'close', agent, file], 3],
+    [deps, ['findings', 'open', file], 3],
     [deps, ['check', 'spec', path.join(root, 'spec.md')], 1],
     [deps, ['lock', path.join(root, 'acceptance-lock.json')], 3],
     [panel, ['panel', '--names', agent, '--files', path.join(panel.cwd, 'files.txt')], 1],
