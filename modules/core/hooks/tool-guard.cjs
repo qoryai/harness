@@ -305,9 +305,9 @@ const inPlace = (tool, words) => IN_PLACE.test(tool) && plainWords(words).some((
 // as Codex trims it, after one space.
 const PATCH_ADD = new RegExp(`^\\*\\*\\* Add File: ([^${PATCH_SPACE}](?:[^]*[^${PATCH_SPACE}])?)$`);
 
-// reportPatch returns the path that patch adds, when patch is exactly the form below, else null.
-// The form is a patch of the tool apply_patch, split at line feeds, with no carriage return
-// and no NUL: the line `*** Begin Patch`, the line `*** Add File: <path>`, lines that each
+// reportPatch returns the path that patch adds, when patch has the form of this comment, else
+// null. The form is a patch of the tool apply_patch, split at line feeds, with no carriage
+// return and no NUL: the line `*** Begin Patch`, the line `*** Add File: <path>`, lines that each
 // start with +, and the line `*** End Patch`, with at most one line feed after it. Each line is
 // compared as it is, with no white space trimmed. <path> is absolute, has no . or .. part, no
 // empty part and no trailing slash, and has at most PATH_MAX characters. A second header, an
@@ -2555,16 +2555,30 @@ const FIND_TEXT = new Set(['name', 'iname', 'path', 'ipath', 'type', 'maxdepth',
   'newer', 'regex']);
 const FIND_NUMBER = new Set(['size', 'mtime', 'mmin']);
 // The files that diff does not read in a reviewer's shell: BSD diff copies a device or system
-// file to a temporary file without a limit.
-const REVIEW_DEVICES = /^\/(?:dev|proc|sys)(?:\/|$)/;
+// file to a temporary file without a limit. The compare ignores case, as macOS reads a path.
+const REVIEW_DEVICES = /^\/(?:dev|proc|sys)(?:\/|$)/i;
+
+// reviewDiffRefused reports whether word, an operand of diff, is a file that diff does not
+// read: / itself, a path under /dev, /proc or /sys, in the text or through links, or a file
+// that is neither a regular file nor a folder. The file may change between this read and the
+// read of diff.
+function reviewDiffRefused(folder, word) {
+  const full = path.resolve(folder, word);
+  if (REVIEW_DEVICES.test(full) || full === path.parse(full).root) return true;
+  const stat = disk.stat(full);
+  if (stat && !stat.isFile() && !stat.isDirectory()) return true;
+  const real = disk.realpath(full);
+  return real !== null && (REVIEW_DEVICES.test(real) || real === path.parse(real).root);
+}
 
 // reviewWords splits command into simple commands, each a list of words, as the shell does for
 // a command of plain words. Commands are separated by |, ||, &&, ; and line feeds. It returns
 // the reason, as text, for a command with anything else: a control character, an open quote,
 // more than 20000 characters, a background &, a |&, or outside single quotes a $, a backtick or
-// a backslash. Outside quotes it also refuses < > ( ) { } ! #, the characters * ? [ ^ ~ that
-// the shell expands to file names (also to names that start with -), and a word that starts
-// with =.
+// a backslash. Outside quotes it also refuses < > ( ) { } ! #, the characters * ? [ ^ that
+// the shell expands to file names (also to names that start with -), a word that starts with
+// =, and a ~ at the start of a word or after = or :, which the shell expands to a home path.
+// An empty quote does not start a word: word is the text of the word so far.
 function reviewWords(command) {
   const text = String(command);
   if (text.length > 20000) return 'a command of more than 20000 characters';
@@ -2611,9 +2625,11 @@ function reviewWords(command) {
       if (text[at + 1] !== '&') return 'a background &';
       at += 1;
       endCommand();
-    } else if ('`$<>(){}\\!#*?[^~'.includes(char)) {
+    } else if ('`$<>(){}\\!#*?[^'.includes(char)) {
       return `the character ${char} outside quotes`;
-    } else if (!started && char === '=') {
+    } else if (char === '~' && (word === '' || /[=:]$/.test(word))) {
+      return 'a ~ that starts a word or follows = or : outside quotes';
+    } else if (char === '=' && word === '') {
       return 'a word that starts with = outside quotes';
     } else {
       word += char;
@@ -2726,9 +2742,10 @@ function reviewShell(command, git, folder) {
     } else {
       refused = reviewArgs(args, REVIEW_OPTIONS[name]);
       if (refused !== null) return `the option ${reviewShown(refused)} of ${name}`;
-      const device = name === 'diff' && args.find((one) => REVIEW_DEVICES.test(
-        path.resolve(folder, one)));
-      if (device) return `the file ${reviewShown(device)} of diff`;
+      const device = name === 'diff' ? args.find((one) => !one.startsWith('-') &&
+        reviewDiffRefused(folder, one))
+        : undefined;
+      if (device !== undefined) return `the file ${reviewShown(device)} of diff`;
     }
   }
   return null;
@@ -2741,9 +2758,9 @@ const reviewShellDeny = (git, refused) => 'Run only read commands: cat, head, ta
   `Refused: ${refused}.\n` +
   'A reviewer session writes only its report file, so each other command is denied, and so ' +
   'is an option that the command does not list, a redirect, $( ), a backtick, a variable and ' +
-  'a * ? [ ^ ~ outside quotes. The commands are cat, head, tail, ls, wc, grep, rg, find, ' +
-  `sort, cut, diff and pwd${git ? ', and git diff, show, log, status, blame, ls-files, ' +
-  'rev-parse and grep' : ''}. For unique lines use sort -u.`;
+  'a * ? [ ^ outside quotes, and a ~ that starts a word. The commands are cat, head, tail, ' +
+  `ls, wc, grep, rg, find, sort, cut, diff and pwd${git ? ', and git diff, show, log, ' +
+  'status, blame, ls-files, rev-parse and grep' : ''}. For unique lines use sort -u.`;
 
 // reviewDeny returns the deny of a write from a reviewer, or null for the one write that the
 // main session of a reviewer may make: a Write, with one path, or an apply_patch of the form

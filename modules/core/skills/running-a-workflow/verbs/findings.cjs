@@ -109,7 +109,7 @@ module.exports = {
         } catch (error) {
           if (!(error instanceof Printed)) throw error;
           const [fix, ...cause] = error.lines;
-          io.out.write(`${[plainLine(fix), ...cause.map((line) => `  ${line}`),
+          io.out.write(`${[fix, ...cause.map((line) => `  ${line}`),
             'Checked nothing: the findings could not read its input.'].join('\n')}\n`);
           return 3;
         }

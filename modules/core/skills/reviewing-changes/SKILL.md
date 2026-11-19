@@ -18,22 +18,41 @@ ${qory:skills/simple-communication} before you write a finding.
 - Write one file, the report, to the path in `qory.review.report` of `inputs.json`, with
   Write or, on Codex, with `apply_patch` that adds that one file. A write to any other path
   is denied.
-- If your session has a shell, run only commands that read: `cat`, `head`, `tail`, `ls`,
-  `wc`, `grep`, `rg`, `find`, `pwd`, `sort`, `cut`, the tool that compares two files, and
-  the version control tool in a folder under version control. Each command takes only the
-  options that the guard lists for it. The second line of a deny is `Refused:` and the
-  word that the guard refused. Chain commands with `|`, `&&` or `;`. The guard denies:
+- If your session has a shell, run only commands that read, with only these options. The
+  second line of a deny is `Refused:` and the word that the guard refused.
+  - `cat`: `-n -b -s -A -E -T -v`.
+  - `head`, `tail`: `-q -v`, `-<number>`, `-n <number>`, `-c <number>`. `tail` takes no word
+    that starts with `+`.
+  - `ls`: `-l -a -A -1 -R -h -d -t -r -S -F -p`. `wc`: `-l -w -c -m`. `pwd`: `-L -P`.
+  - `grep`: `-n -i -v -w -x -F -E -r -R -l -L -c -o -H -h -s`, `-e -A -B -C <value>`,
+    `--include=<glob>`, `--exclude=<glob>`.
+  - `rg`: `-i -n -N -S -s -F -w -x -c -l -o -v -H -I -q`, `-e -g -t -T -m -A -B -C <value>`,
+    and the long options `--files`, `--hidden`, `--no-ignore`, `--files-with-matches`,
+    `--count`, `--line-number`, `--ignore-case`, `--smart-case`, `--fixed-strings`,
+    `--word-regexp`, `--only-matching`, `--glob`, `--type`, `--max-count`, `--context`
+    and `--regexp`.
+  - `find`: `-name -iname -path -ipath -type -maxdepth -mindepth -newer -regex <value>`,
+    `-size -mtime -mmin <number>`, `-print -print0 -prune -empty -not -o -a`.
+  - `sort`: `-u -r -n -f -k <value> -t <value>`. `cut`: `-s -f -d -c -b`.
+  - The tool that compares two files: `-u -r -q -w -b`, on no file under `/dev`, `/proc` or
+    `/sys`.
+  - The version control tool, in a folder under version control, with a subcommand that
+    shows a change, its history or the state of the folder, and the options that show
+    them, such as `--stat`, `--name-only`, `-U <number>`, `--cached`, `--oneline`,
+    `-n <number>` and `-L <range>`. It takes no option before the subcommand.
+  Chain commands with `|`, `&&` or `;`. The guard denies:
   - a redirect (`>`, `<`), `$`, a backtick, parentheses and braces;
-  - a `*`, `?`, `[`, `^` or `~` outside quotes, because the shell expands it to file
-    names, among them names that start with `-`. Quote the pattern: `find . -name '*.js'`,
-    `grep -n '^start' file`;
+  - a `*`, `?`, `[` or `^` outside quotes, because the shell expands it to file names,
+    among them names that start with `-`. Quote the pattern: `find . -name '*.js'`,
+    `grep -n '^start' file`. A `~` that starts a word or follows `=` or `:` is denied too;
   - `uniq`, `sed`, `awk`, `echo` and `cd`, and the options `-C` and `--no-pager` of the
     version control tool. Use `sort -u` for the unique lines of a file;
+  - `--help` and each option that this list does not have;
   - a version control command in a folder with no version control. To see a change between
-    two revisions, write them with two dots between them, as in `A..B`, and quote a revision
-    that has a `~` or `^`.
-  The guard denies each other command and each tool but Read, Grep, Glob, Skill and the
-  report write.
+    two revisions, write them with two dots between them, as in `A..B`.
+  The guard allows Read, Grep, Glob, Skill, TodoWrite, update_plan, the report write and,
+  on Codex, the tools `mcp__qory_review__read_file`, `mcp__qory_review__list_directory` and
+  `mcp__qory_review__search_in_files`. It denies each other tool.
 - Start no agent and use no network. Your report is the only output of your review.
 
 You start with no memory of other reviews. The run passes you values in the member
@@ -97,8 +116,9 @@ The skill you review against may list these forms in the words of its kind of wo
 
 ## The report
 
-Write the report with Write or `apply_patch`, as one file at the path in `qory.review.report`. The run reads
-the file after your session ends. The file is JSON, in this shape:
+Write the report with Write or `apply_patch`, as one file at the path in
+`qory.review.report`. The run reads the file after your session ends. The file is JSON, in
+this shape:
 
 ```json
 {

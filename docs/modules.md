@@ -982,7 +982,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   check and for a `points.json` that ended the run, and keeps every status and file: qory
   sends the verdict, and its push check fails a verdict command from inside the
   container. The stage has reviewers when `qory.stage.reviewers`, in the `inputs.json` that
-  `--inputs` names, is `true` or the name of a group role: lower-case letters, digits and
+  `--inputs` takes, is `true` or the name of a group role: lower-case letters, digits and
   hyphens, and not `false`, `no`, `null`, `off`, `none` or `0`. The file must be a regular
   file of at most 1 MB, the same test as the tool guard makes, and no link. The hook passes
   the copy that qory writes at `$QORY_HARNESS_HOME/inputs.json`, not the `index.json` of the
@@ -1288,76 +1288,82 @@ tool's error. The first line of each reason starts with what to do. The guard de
   denied; `pwd` `-L -P`; `sort` `-u -r -n -f -k <value> -t <value>`, so `-o`, `--output`,
   `-T`, `-S`, `-c`, `--compress-program`, `--random-source` and `--files0-from` are denied;
   `cut` `-s -f -d -c -b`; `diff` `-u -r -q -w -b`, so `-l`, `--paginate`, `-D`, `-y`,
-  `--to-file`, `--from-file` and `-` are denied, and so is a file under `/dev`, `/proc` or
-  `/sys`, which BSD `diff` copies to a temporary file without a limit. An option as the
-  start of a long name, as `--out`, is denied. `uniq` is denied: use `sort -u`. `git` is
-  allowed only when the working folder, or a folder above it, has a `.git` folder or file
-  (the guard looks for the name and runs no `git`); in a folder with no `.git`, `git` is
-  denied like any unknown command, and the fixed text of the deny does not contain `git`.
-  The subcommand follows `git` with no option before it, and `git` takes these options: `git
-  diff` `-w -b -p`, `-U <number>`, `--stat`, `--name-only`, `--name-status`, `--shortstat`,
-  `--numstat`, `--no-color`, `--cached`, `--staged`, `--exit-code`, `--quiet` and
-  `--diff-filter=<value>`; `git show` `-w -s -p`, `-U <number>`, `--stat`, `--name-only`,
-  `--name-status`, `--shortstat`, `--numstat`, `--no-color`, `--oneline`, `--no-patch`,
-  `--format=<value>` and `--pretty=<value>`; `git log` `-p`, `-<number>`, `-n <number>`, `-U
+  `--to-file`, `--from-file` and `-` are denied, and so is `/`, a path under `/dev`, `/proc`
+  or `/sys` (in any case, also through a link), and a file that is neither a regular file
+  nor a folder, such as a device or a pipe: BSD `diff` copies it to a temporary file without
+  a limit. The guard reads the operand when it decides, and the file can change before
+  `diff` opens it. An option as the start of a long name, as `--out`, is denied. `uniq` is
+  denied: use `sort -u`. `git` is allowed only when the working folder, or a folder above
+  it, has a `.git` folder or file (the guard looks for the name and runs no `git`); in a
+  folder with no `.git`, `git` is denied like any unknown command, and the fixed text of the
+  deny does not contain `git`. The subcommand follows `git` with no option before it, and
+  `git` takes these options: `git diff` `-w -b -p`, `-U <number>`, `--stat`, `--name-only`,
+  `--name-status`, `--shortstat`, `--numstat`, `--no-color`, `--cached`, `--staged`,
+  `--exit-code`, `--quiet` and `--diff-filter=<value>`; `git show` `-w -s -p`, `-U
   <number>`, `--stat`, `--name-only`, `--name-status`, `--shortstat`, `--numstat`,
-  `--no-color`, `--oneline`, `--graph`, `--all`, `--no-merges`, `--merges`, `--follow`,
-  `--patch`, `--reverse`, `--max-count=`, `--since=`, `--until=`, `--author=`, `--grep=`,
-  `--diff-filter=`, `--format=`, `--pretty=` and `--skip=`; `git status` `-s -b --short
-  --porcelain`; `git blame` `-w -e` and `-L <range>`; `git ls-files` `-c -m -o -d --cached
-  --others --modified --deleted --exclude-standard`; `git rev-parse` `--show-toplevel
-  --abbrev-ref --is-inside-work-tree`; `git grep` `-n -i -v -w -F -E -c -l -L -o -H -h -q
-  -I`, and `-e -A -B -C` with a value. A `--format` or `--pretty` value that matches `%G`,
-  `%+G`, `%-G` or `% G` starts gpg and is denied. The guard denies each other option, such
-  as `--output`, `--ext-diff`, `--textconv`, `--no-index`, `-O`, `--open-files-in-pager`,
-  `--show-signature`, `--help` and `-h`. The guard also denies each command with a redirect
-  (`>`, `>>`, `<`, a heredoc), `$` or a backtick outside single quotes, `( )`, `{ }`, `!`,
-  `#`, a backslash, a background `&`, a `*`, `?`, `[`, `^` or `~` outside quotes (zsh
-  expands them to file names, also to names that start with `-`: with a file named `-o`,
-  `sort ^zzz` runs `sort -o`; a quoted one, as in `grep -n '^foo' f` or `git diff 'HEAD~1'`,
-  is allowed), a word that starts with `=` outside quotes, a variable setting before the
-  command, a path in the command name, a control character, an open quote or more than 20000
-  characters, and each other command, such as `cp`, `sed -i`, `python3 -c`, `node -e`,
-  `xargs`, `env`, `sh -c` and `eval`. Each of the lists above is a constant in
-  `tool-guard.cjs`: `REVIEW_OPTIONS`, `REVIEW_GIT` and the `FIND_*` sets. Limits of the
-  guard: it runs only on Claude Code and on Codex. On Cursor, Copilot CLI and Gemini CLI
-  only the `reports-guard` hooks exist, so the rule on the report path does not run there,
-  and a reviewer agent on those runtimes is not confined by it. The rules of a reviewer
-  session apply only when the runtime runs the core hooks and sets `QORY_RUN_ID` and
-  `QORY_HARNESS_HOME` in the session. (1) The git configuration of the reviewed folder can
-  start a program for a git command that is allowed: `core.fsmonitor` runs on `git status`,
-  `git diff`, `git blame`, `git ls-files` and `git grep`; `diff.<driver>.textconv`,
-  `diff.<driver>.command` and `diff.external` run for `git diff`, `git log -p`, `git show`
-  and `git blame`; a hook such as `post-index-change` runs on `git status`; `core.pager`
-  runs for `git log` when the output is a terminal. A nested `.git` at a path that the index
-  lists as a submodule can run `core.fsmonitor` from the configuration of the submodule for `git status`
-  and `git diff`. A partial clone fetches missing objects over the network. `git status`
-  writes the index file. The guard does not read the git configuration. A reviewer session
-  whose working folder is a copy with an empty git configuration and no attributes file does
-  not have these limits. (2) When `inputs.json` cannot be read (it is missing, unreadable,
-  over 1 MB, a link or not valid JSON, `qory.review` is null, a list, a string or `true`, or
-  `QORY_HARNESS_HOME` is unset or relative), the guard treats the session as an ordinary
-  session, and the rules of a reviewer session do not apply. A `qory.review` of `{}` or with
-  a bad `report` is a reviewer session that writes no file. A runtime that removes the shell
-  and network tools of a reviewer from the start does not depend on the file: the guard is
-  the second layer, and it cannot add a tool that the runtime does not provide. (3) The
-  `Skill` tool is allowed, and the guard does not read the front matter of a skill, such as
-  allowed tools and hooks, or a command that a skill file tells the session to run. The
-  skills of this harness have none. (4) Two servers whose ids give the same namespace after
-  the replacement of characters rename the tools of both, and the guard then denies them. In
-  a run with a wall, the hooks file is mounted read-only as `/etc/codex/hooks.json`, a
-  managed source that Codex registers without trust. In a run without a wall, the trusted
-  hash of the hooks file is written. `--dangerously-bypass-hook-trust` is refused. Whether
-  MCP calls made through the code mode of Codex reach the `PreToolUse` hook is not checked.
-  (5) The guard sets no run-time limit on an allowed command. A very large number as an
-  option value hangs BSD `cut`, `tail` and `grep` until the tool timeout (`cut -b
-  99999999999`); a pattern of `grep -E`, `find -regex` or `rg` can take unbounded time; `cat
-  /dev/zero` never ends; and `sort` may write temporary files under the system temporary
-  folder for large input, which the guard allows. (6) The report schema limits `file` of a
-  finding to 500 characters, and `findings open` prints the `file` of a finding whole,
-  without a cut. The glob rule covers a word that the shell expands, not a pattern that a
-  command expands itself: `grep -e` and `find -name` take a pattern, so a quoted `*` stays a
-  pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard denies both.
+  `--no-color`, `--oneline`, `--no-patch`, `--format=<value>` and `--pretty=<value>`; `git
+  log` `-p`, `-<number>`, `-n <number>`, `-U <number>`, `--stat`, `--name-only`,
+  `--name-status`, `--shortstat`, `--numstat`, `--no-color`, `--oneline`, `--graph`,
+  `--all`, `--no-merges`, `--merges`, `--follow`, `--patch`, `--reverse`, `--max-count=`,
+  `--since=`, `--until=`, `--author=`, `--grep=`, `--diff-filter=`, `--format=`, `--pretty=`
+  and `--skip=`; `git status` `-s -b --short --porcelain`; `git blame` `-w -e` and `-L
+  <range>`; `git ls-files` `-c -m -o -d --cached --others --modified --deleted
+  --exclude-standard`; `git rev-parse` `--show-toplevel --abbrev-ref --is-inside-work-tree`;
+  `git grep` `-n -i -v -w -F -E -c -l -L -o -H -h -q -I`, and `-e -A -B -C` with a value. A
+  `--format` or `--pretty` value that matches `%G`, `%+G`, `%-G` or `% G` starts gpg and is
+  denied. The guard denies each other option, such as `--output`, `--ext-diff`,
+  `--textconv`, `--no-index`, `-O`, `--open-files-in-pager`, `--show-signature`, `--help`
+  and `-h`. The guard also denies each command with a redirect (`>`, `>>`, `<`, a heredoc),
+  `$` or a backtick outside single quotes, `( )`, `{ }`, `!`, `#`, a backslash, a background
+  `&`, a `*`, `?`, `[` or `^` outside quotes (zsh expands them to file names, also to names
+  that start with `-`: with a file named `-o`, `sort ^zzz` runs `sort -o`; a quoted one, as
+  in `grep -n '^foo' f`, is allowed), a `~` outside quotes at the start of a word or after
+  `=` or `:`, which the shell expands to a home path (a `~` inside a word, as in `HEAD~1`,
+  stays text and is allowed), a word that starts with `=` outside quotes or after an empty
+  quote, a variable setting before the command, a path in the command name, a control
+  character, an open quote or more than 20000 characters, and each other command, such as
+  `cp`, `sed -i`, `python3 -c`, `node -e`, `xargs`, `env`, `sh -c` and `eval`. Each option
+  list in this bullet is a constant in `tool-guard.cjs`: `REVIEW_OPTIONS`, `REVIEW_GIT` and
+  the `FIND_*` sets. Limits of the guard: it runs only on Claude Code and on Codex. On
+  Cursor, Copilot CLI and Gemini CLI only the `reports-guard` hooks exist, so the rule on
+  the report path does not run there, and a reviewer agent on those runtimes is not confined
+  by it. The rules of a reviewer session apply only when the runtime runs the core hooks and
+  sets `QORY_RUN_ID` and `QORY_HARNESS_HOME` in the session. (1) The git configuration of
+  the reviewed folder can start a program for a git command that is allowed:
+  `core.fsmonitor` runs on `git status`, `git diff`, `git blame`, `git ls-files` and `git
+  grep`; `diff.<driver>.textconv`, `diff.<driver>.command` and `diff.external` run for `git
+  diff`, `git log -p`, `git show` and `git blame`; a hook such as `post-index-change` runs
+  on `git status`; `core.pager` runs for `git log` when the output is a terminal. A nested
+  `.git` at a path that the index lists as a submodule can run `core.fsmonitor` from the
+  configuration of the submodule for `git status` and `git diff`. A partial clone fetches
+  missing objects over the network. `git status` writes the index file. The guard does not
+  read the git configuration. A reviewer session whose working folder is a copy with an
+  empty git configuration and no attributes file does not have these limits. (2) When
+  `inputs.json` cannot be read (it is missing, unreadable, over 1 MB, a link or not valid
+  JSON, `qory.review` is null, a list, a string or `true`, or `QORY_HARNESS_HOME` is unset
+  or relative), the guard treats the session as an ordinary session, and the rules of a
+  reviewer session do not apply. A `qory.review` of `{}` or with a bad `report` is a
+  reviewer session that writes no file. A runtime that removes the shell and network tools
+  of a reviewer from the start does not depend on the file: the guard is the second layer,
+  and it cannot add a tool that the runtime does not provide. (3) The `Skill` tool is
+  allowed, and the guard does not read the front matter of a skill, such as allowed tools
+  and hooks, or a command that a skill file contains and the session runs. The skills of
+  this harness have none. (4) Two servers whose ids give the same namespace after the
+  replacement of characters rename the tools of both, and the guard then denies them. In a
+  run with a wall, the hooks file is mounted read-only as `/etc/codex/hooks.json`, a managed
+  source that Codex registers without trust. In a run without a wall, the trusted hash of
+  the hooks file is written. `--dangerously-bypass-hook-trust` is refused. Whether MCP calls
+  made through the code mode of Codex reach the `PreToolUse` hook is not checked. (5) The
+  guard sets no run-time limit on an allowed command. A very large number as an option value
+  hangs BSD `cut`, `tail` and `grep` until the tool timeout (`cut -b 99999999999`); a
+  pattern of `grep -E`, `find -regex` or `rg` can take unbounded time; a command that reads
+  an endless file, such as `cat /dev/zero`, runs until the tool times out; and `sort` may
+  write temporary files under the system temporary folder for large input, which the guard
+  allows. (6) The report schema limits `file` of a finding to 500 characters, and `findings
+  open` prints the `file` of a finding whole, without a cut. The glob rule covers a word
+  that the shell expands, not a pattern that a command expands itself: `grep -e` and `find
+  -name` take a pattern, so a quoted `*` stays a pattern. `diff -l` starts `pr` and `--help`
+  starts `man`, so the guard denies both.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,

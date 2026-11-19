@@ -300,12 +300,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Cursor, Copilot CLI and Gemini CLI the rule on the report path does not run.
 - The shell of a reviewer session allows only the options that `docs/modules.md` lists for
   each command. The guard denies any other word that starts with `-`, also after `--`, in a
-  cluster and as the value of an option, and a `diff` of a file under `/dev`, `/proc` or
-  `/sys`. It denies `uniq`; use `sort -u`. It denies a `*`, `?`, `[`, `^` or `~` outside
-  quotes, which zsh expands to file names that can start with `-`, and a word that starts
-  with `=`. `git` is allowed only when the working folder or a folder above it has a `.git`
-  folder or file; otherwise the fixed text of the deny does not contain `git`. A deny of a
-  shell command has the fix on the first line and `Refused: <word>` on the second.
+  cluster and as the value of an option, and a `diff` operand that is `/`, a path under
+  `/dev`, `/proc` or `/sys` (in any case, also through a link), or a file that is neither a
+  regular file nor a folder. It denies `uniq`; use `sort -u`. It denies a `*`, `?`, `[` or
+  `^` outside quotes, which zsh expands to file names that can start with `-`, a `~` that
+  starts a word or follows `=` or `:`, which the shell expands to a home path, and a word
+  that starts with `=` or has an empty quote before the `=`. `git` is allowed only when the
+  working folder or a folder above it has a `.git` folder or file; otherwise the fixed text
+  of the deny does not contain `git`. A deny of a shell command has the fix on the first
+  line and `Refused: <word>` on the second.
 - `docs/modules.md` lists the limits of the guard in a reviewer session: programs that the
   git configuration of the reviewed folder starts, an unreadable `inputs.json` (the guard
   then treats the session as an ordinary session), the `Skill` tool, the MCP tool names

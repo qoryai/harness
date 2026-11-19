@@ -5669,7 +5669,7 @@ function padded() {
   return file;
 }
 
-test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs, as before', () => {
+test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs', () => {
   // The flag is read from qory's inputs.json only: a member reviewers of index.json, which an
   // agent can write, a flag of another form, or an inputs.json that cannot be read changes
   // nothing.

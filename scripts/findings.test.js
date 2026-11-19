@@ -94,7 +94,10 @@ test('the schema fails a result word, an unknown member and each bad finding', (
 test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
   assert.match(REVIEWING, /Write one file, the report, to the path in `qory\.review\.report` of `inputs\.json`/);
   assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
-  assert.match(REVIEWING, /If your session has a shell, run only commands that read: `cat`/);
+  assert.match(REVIEWING, /If your session has a shell, run only commands that read, with only\s+these options\./);
+  assert.match(REVIEWING, /`cat`: `-n -b -s -A -E -T -v`/);
+  assert.match(REVIEWING, /The guard allows Read, Grep, Glob, Skill, TodoWrite, update_plan/);
+  assert.match(REVIEWING, /`mcp__qory_review__read_file`/);
   assert.match(REVIEWING, /Start no agent and use no network\./);
   assert.match(REVIEWING, /with\s+Write or, on Codex, with `apply_patch`/);
   // The report has no result word, no list of unverified claims and no closing of a finding.
@@ -454,6 +457,41 @@ test('readOpen: the name of the file in a fault line has no control or hidden ch
     assert.equal(error.message.split('\n')[1], 'x [31m ]0;t Y z is a list, not an object.');
     return true;
   });
+});
+
+// The invisible characters that findings open removes, one name each, besides the tag
+// characters and the joiners that HOSTILE has.
+const INVISIBLE = {
+  'variation selector supplement': '\u{E0100}',
+  'variation selector supplement end': '\u{E01EF}',
+  'halfwidth Hangul filler': '\uFFA0',
+  'deprecated format 206A': '\u206A',
+  'deprecated format 206F': '\u206F',
+  'Khmer inherent vowel 17B4': '\u17B4',
+  'Khmer inherent vowel 17B5': '\u17B5',
+  'object replacement character': '\uFFFC',
+  'musical format 1D173': '\u{1D173}',
+  'musical format 1D17A': '\u{1D17A}',
+  'shorthand format 1BCA0': '\u{1BCA0}',
+  'shorthand format 1BCA3': '\u{1BCA3}',
+};
+
+test('findings open: each invisible character is removed from a file name and a finding file', () => {
+  for (const [what, char] of Object.entries(INVISIBLE)) {
+    const missing = path.join(tmp, `in${char}visible-${files}.json`);
+    const result = call(['findings', 'open', missing]);
+    assert.equal(result.out, `Checked nothing: "${tmp}/invisible-${files}.json" does not exist, so ` +
+      'no finding is open.\n', what);
+    const named = put(many(1, () => ({ file: `src/a${char}b.ts` })));
+    assert.equal(call(['findings', 'open', named]).lines[0],
+      'Fix first: f1 (blocking, src/ab.ts:12): Fix the point 1.', what);
+  }
+  // A lone surrogate cannot be in a file name, which the disk stores as UTF-8: it is in a finding
+  // file, as the escape \ud800 of JSON.
+  const lone = put('{"round":1,"reviewers":[{"reviewer":"code-reviewer","findings":[' +
+    JSON.stringify({ ...FINDING }).replace('src/main.ts', 'src/a\\ud800b.ts') + ']}]}');
+  assert.equal(call(['findings', 'open', lone]).lines[0],
+    'Fix first: f3 (blocking, src/ab.ts:12): <what is wrong in the first finding>');
 });
 
 test('findings open: a path with spaces at either end shows them inside the quotes', () => {

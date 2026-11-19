@@ -11,7 +11,7 @@ passes you.
 
 ## A blocking finding
 
-A finding is `blocking` when the definition below covers it:
+A finding is `blocking` when the definition in the next line covers it:
 
 > a bug, a security hole, data loss, a broken acceptance criterion or a failing test; every other finding is non-blocking
 

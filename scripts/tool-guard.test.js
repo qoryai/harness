@@ -2132,10 +2132,11 @@ const SHELL_ALLOWED = ['cat f', 'cat -n file', 'head -5 f', 'head -n 5 f', 'tail
   'rg -e x -g y', 'rg -l x', 'pwd', 'sort f', 'sort -u f', 'sort -k2 -t, f', 'sort -u -k 2 f',
   'cut -d, -f1 file', 'diff a b', 'diff -u a b', "find . -name '*.js' -type f",
   'find src -type f -newer a', 'find . -mtime -1 -print', 'find . -size +1 -name x -o -name y',
-  "grep -n '^foo' f", "grep -n 'a~b' f", '', '   ', ';',
+  "grep -n '^foo' f", "grep -n 'a~b' f", 'cat a~b', 'ls a~b', 'cat x~', '', '   ', ';',
   'cat a; cat b', 'cat a && cat b', 'cat a || cat b', 'cat a\ncat b', "cat 'a b'", 'cat "a b"',
   'sort f | head -n 5'];
-const SHELL_GIT_ALLOWED = ["git diff 'HEAD~1'", 'git diff --stat', "git diff -U3 'HEAD~1'",
+const SHELL_GIT_ALLOWED = ['git diff HEAD~1', "git diff 'HEAD~1'", 'git show HEAD~2 -- f',
+  'git log HEAD~3..HEAD', 'git diff --stat', "git diff -U3 'HEAD~1'",
   'git diff -U 3', 'git diff --name-only', 'git diff --cached --name-status',
   "git diff 'HEAD~1' -- src/a.ts", 'git log --oneline -5', 'git log --oneline -n 5',
   'git log -p -n 1', 'git log --stat -3', 'git log --since=2.days --author=x --oneline',
@@ -2174,8 +2175,10 @@ const SHELL_DENIED = [
   'grep --help', 'ls --help', 'cat --help', 'cat -- -x', 'cat a -- -x', 'cut --output-delimiter=x f',
   'cat -', 'git', 'git --version', 'git help',
   'cat *.log', 'sort *', 'find *', 'rg PRE *', 'cat a?', 'cat [ab]', 'cat ~/x', 'cat ~', 'cat =ls',
-  'sort ^zzz', 'cat ^zzz', 'find ^zzz', 'rg ^x', 'ls a~b', 'cat a^b', 'grep -n ^foo f',
-  'git diff HEAD~1', 'cat -- -n f', 'grep -- -x f', 'sort -- -u f', 'cat -- -',
+  'sort ^zzz', 'cat ^zzz', 'find ^zzz', 'rg ^x', 'cat a^b', 'grep -n ^foo f',
+  "cat ''~/f", 'cat ""~/x', "cat ''~root", "cat ''~+", "diff a.txt ''~/../../../dev/zero",
+  'rg x --glob=~/x', 'cat a:~/f', 'cat x=~', "''=ls", '""=cat', "cat ''=x", "cat x ''=y",
+  'cat -- -n f', 'grep -- -x f', 'sort -- -u f', 'cat -- -',
   'rg --pre-glob=x x', 'rg --pre-glob x x', 'rg --files=x', 'rg -L x', 'wc --files0-from f',
   'wc --files0-from=f', 'find . -exec touch {} ;', "find . -exec touch '{}' ';'",
   "find . -execdir touch '{}' +", 'find . -size -delete', 'find . -mtime -exec',
@@ -2264,9 +2267,40 @@ test("a reviewer session's shell, of the main session and of each agent, may onl
     fs.writeFileSync(path.join(odd, name), '');
   }
   for (const command of ['sort *', 'find *', 'rg PRE *', 'cat *', 'cat -*', 'git log *',
-    'sort ^zzz', 'cat ^zzz', 'find ^zzz', 'rg ^x', 'ls a~b']) {
+    'sort ^zzz', 'cat ^zzz', 'find ^zzz', 'rg ^x']) {
     firstLine(guard(run(command, odd), env), READ_SHELL);
   }
+});
+
+test('a reviewer shell refuses a diff operand that is no regular file or folder', () => {
+  const { env } = reviewSetup();
+  const dir = next('diff-dir');
+  fs.mkdirSync(path.join(dir, 'd'), { recursive: true });
+  for (const name of ['a', 'b']) fs.writeFileSync(path.join(dir, name), name);
+  fs.symlinkSync('/dev/zero', path.join(dir, 'z'));
+  fs.symlinkSync('/', path.join(dir, 'r'));
+  fs.symlinkSync('/dev', path.join(dir, 'ld'));
+  const fifo = childProcess.spawnSync('mkfifo', [path.join(dir, 'f')]);
+  const run = (command, cwd = dir) => guard({ ...claude('Bash', { command }), cwd }, env);
+  const refused = ['diff a /DEV/zero', 'diff a /Dev/zero', 'diff a /dev', 'diff a //dev//zero',
+    'diff a z', 'diff a r', 'diff -r r d', 'diff -r ld d', 'diff a /', 'diff -r / .',
+    'diff -r . /', 'diff a /proc/self/environ', 'diff a /sys/kernel'];
+  if (fifo.status === 0) refused.push('diff a f');
+  const volumes = '/Volumes/Macintosh HD/dev/zero';
+  if (fs.existsSync(volumes)) refused.push(`diff a "${volumes}"`);
+  for (const command of refused) firstLine(run(command), READ_SHELL);
+  for (const command of ['diff a b', 'diff -u a b', 'diff -r d d', 'diff a nofile', "diff a ''",
+    'diff -q a b | head -n 1']) {
+    assert.equal(run(command), null, command);
+  }
+  // An empty operand is the working folder, which is refused when it is /dev.
+  firstLine(run("diff a ''", '/dev'), READ_SHELL);
+  firstLine(run("diff -r '' ''", '/dev'), READ_SHELL);
+  // A path under /dev, /proc or /sys is refused by its text in any case, also when it is absent.
+  for (const command of ['diff a /DEV/absent', 'diff a /Proc/absent', 'diff a /SYS/absent']) {
+    firstLine(run(command), READ_SHELL);
+  }
+  firstLine(run('diff -r a .', '/dev'), READ_SHELL);
 });
 
 test('the deny of a reviewer shell names the word that it refused', () => {
@@ -2288,7 +2322,12 @@ test('the deny of a reviewer shell names the word that it refused', () => {
   assert.equal(second('find . -delete'), 'Refused: the word -delete of find.');
   assert.equal(second('echo $HOME'), 'Refused: the character $ outside quotes.');
   assert.equal(second('cat ^x'), 'Refused: the character ^ outside quotes.');
-  assert.equal(second('cat a~b'), 'Refused: the character ~ outside quotes.');
+  assert.equal(second('cat ~/x'),
+    'Refused: a ~ that starts a word or follows = or : outside quotes.');
+  assert.equal(second("cat ''~/x"),
+    'Refused: a ~ that starts a word or follows = or : outside quotes.');
+  assert.equal(second('cat a:~/x'),
+    'Refused: a ~ that starts a word or follows = or : outside quotes.');
   assert.equal(second('cat =x'), 'Refused: a word that starts with = outside quotes.');
   assert.equal(second('cat "$x"'), 'Refused: the character $ in double quotes.');
   assert.equal(second('cat a &'), 'Refused: a background &.');
