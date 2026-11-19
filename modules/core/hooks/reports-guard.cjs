@@ -9,7 +9,7 @@
 //   .json, or whose name has .json.lock: the locks of checks.cjs findings, starts and report
 //   and their .break files; in any argument of the tool except the text that it writes.
 //   decide also reads an argument as one path that the disk resolves from cwd, with each `..`
-//   and each link: `.reports/a b/../end.json` is denied once `.reports/a b/` exists;
+//   and each link: `.reports/a b/../end.json` is denied, with or without the folder a b;
 // - a shell command that reaches .reports, unless it runs the harness's checks.cjs and
 //   nothing else: the first word, after node, is a path to checks.cjs, or to a copy with the
 //   same bytes, and the command has no ; & | < > ` $( or line break, except a 2>&1 at its
@@ -74,30 +74,31 @@ function reportsJson(text) {
   return false;
 }
 
-// A path can have at most this many characters on the disks that the guard knows.
+// A path has at most this many characters on the disks that the guard knows, and a disk follows
+// at most this many links in one path.
 const PATH_MAX = 4096;
-// The most readlink calls that onDisk makes for all the paths of one call, which also ends a
-// loop of links. About 3 microseconds each, so a call that spends them all takes 50 ms.
+const MAX_LINKS = 40;
+// The most parts, `.` and empty ones too, that onDisk takes from all the paths of one call: 16,384
+// parts of 8 paths of 2,000 names took 0.32 s at load average 44 on macOS.
 const MAX_STEPS = 16384;
 // A line of a patch that adds, changes, deletes or moves to a file, up to its path.
 const PATCH_LINE = /^\s*\*\*\* (?:Add File|Update File|Delete File|Move to): ?/;
 
-// onDisk returns file, read from cwd, as the disk resolves it: a `..` goes to the parent of the
-// folder that the parts before it reach, with each link followed, also one to a file that does
-// not exist yet. A part that does not exist is kept, and a `..` after it is read as text. Each
-// part costs one step of budget.steps; onDisk returns null when none is left.
-function onDisk(file, cwd, budget) {
-  const todo = (path.isAbsolute(file) ? file : `${cwd}/${file}`).split('/').reverse();
-  let real = '/';
+// Stop is the error that onDisk throws for a path that it cannot read; its message is the deny.
+class Stop extends Error {}
+
+// onDisk returns file as the disk resolves it, from start for a relative file: it follows each
+// link with readlink, also one to a file that is not there, and goes up for `..`. Each part
+// costs a step of budget.steps. It throws Stop for a path with no steps left or too many links.
+function onDisk(file, start, budget) {
+  const todo = file.split('/').reverse();
+  let real = path.isAbsolute(file) ? '/' : start;
+  let links = 0;
   while (todo.length > 0) {
     const part = todo.pop();
-    if (budget.steps <= 0) return null;
+    if (budget.steps <= 0) throw new Stop(PATH_REASON);
     budget.steps -= 1;
     if (part === '' || part === '.') continue;
-    if (part === '..') {
-      real = path.dirname(real);
-      continue;
-    }
     const at = path.join(real, part);
     let link = null;
     try {
@@ -107,37 +108,43 @@ function onDisk(file, cwd, budget) {
     }
     if (link === null) {
       real = at;
-    } else {
-      if (path.isAbsolute(link)) real = '/';
-      todo.push(...link.split('/').reverse());
+      continue;
     }
+    links += 1;
+    if (links > MAX_LINKS) throw new Stop(LOOP_REASON);
+    if (path.isAbsolute(link)) real = '/';
+    todo.push(...link.split('/').reverse());
   }
   return real;
 }
 
 // reportsOnDisk returns the reason to deny a write of text, which reading the words misses, or
-// null: a path that is a file .reports/*.json once the disk resolves it from cwd, as one with
-// a space before a `..` or one through a link. It reads text as one path, and each header line
-// of a patch as one. budget is the one of onDisk, for all the strings of a call.
-function reportsOnDisk(text, cwd, budget) {
+// null: a path that is a file .reports/*.json once the disk resolves it from the folder cwd, as
+// one with a space before a `..` or one through a link. A text is one path, or the header lines
+// of a patch. state has the budget of the call, and cwd as the disk resolves it.
+function reportsOnDisk(text, cwd, state) {
   const paths = [];
   for (const line of text.split('\n')) {
     const header = PATCH_LINE.exec(line);
     if (header !== null) paths.push(line.slice(header[0].length).trim());
   }
-  // A text with no patch header is one path, and a line break in it is part of a part's name.
+  // A text with no patch header line is one path, and a line break in it is part of a part's name.
   if (paths.length === 0) paths.push(text);
-  for (let one of paths) {
-    if (one === '' || one.includes('\0')) continue;
-    // No disk takes a path this long, but a tool may cut each `..` out of it as text first.
-    if (one.length > PATH_MAX) {
-      one = path.posix.normalize(one);
-      if (pathJson(one)) return WRITE_REASON;
-      if (one.length > PATH_MAX) continue;
+  try {
+    for (let one of paths) {
+      if (one === '' || one.includes('\0')) continue;
+      // No disk takes a path this long, but a tool may cut each `..` out of it as text first.
+      if (one.length > PATH_MAX) {
+        one = path.posix.normalize(one);
+        if (pathJson(one)) return WRITE_REASON;
+        if (one.length > PATH_MAX) continue;
+      }
+      if (state.start === undefined) state.start = onDisk(path.resolve(cwd), '/', state);
+      if (pathJson(onDisk(one, state.start, state))) return WRITE_REASON;
     }
-    const full = onDisk(one, cwd, budget);
-    if (full === null) return PATH_REASON;
-    if (pathJson(full)) return WRITE_REASON;
+  } catch (error) {
+    if (error instanceof Stop) return error.message;
+    throw error;
   }
   return null;
 }
@@ -160,6 +167,9 @@ const SHELL_REASON = 'Write to .reports/ only through checks.cjs.\nOnly ' +
 // The deny of a call whose paths cost more than MAX_STEPS readlink calls to resolve.
 const PATH_REASON = 'Write fewer files in one call, each with a short path and no link.\n' +
   'The guard follows each `..` and each link of a path, and stopped after 16,384 steps.';
+// The deny of a path that goes through more than MAX_LINKS links.
+const LOOP_REASON = 'Remove the link loop from the path.\n' +
+  'The path goes through more than 40 links, or through a link that leads back to itself.';
 // The first line of a deny for a command that reaches .reports in a way its text does not
 // show; the second line contains the part of the command that does.
 const HIDDEN_REASON = 'Leave .reports/ to checks.cjs, and name other files with no `$`, ' +
@@ -473,11 +483,11 @@ function decide({ kind, args, env = process.env, script = process.argv[1], cwd,
   if (!env.QORY_RUN_ID) return null;
   if (kind === 'write') {
     const from = typeof cwd === 'string' && fs.existsSync(cwd) ? cwd : process.cwd();
-    const budget = { steps: MAX_STEPS };
+    const state = { steps: MAX_STEPS, start: undefined };
     let reason = null;
     for (const [key, text] of strings(args)) {
       if (TEXT_KEYS.has(key)) continue;
-      reason = reportsJson(text) ? WRITE_REASON : reportsOnDisk(text, from, budget);
+      reason = reportsJson(text) ? WRITE_REASON : reportsOnDisk(text, from, state);
       if (reason !== null) break;
     }
     return reason;
@@ -514,4 +524,4 @@ function safeDecide(call) {
 }
 
 module.exports = { readInput, decide, safeDecide, runsChecks, withoutRedirect, reportsJson, REPORTS,
-  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, FAILED_REASON, SPECIAL_REASON };
+  HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON, SPECIAL_REASON };

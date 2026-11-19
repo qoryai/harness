@@ -1383,17 +1383,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   macOS does, U+017F (long s) is `s` and U+212A (Kelvin sign) is `k`, so these are the paths
   of the report files. The expressions that match `.reports`, `.json` and `.json.lock` had
   the `i` flag and no `u` flag, which folds neither letter. They have both flags.
-- The reports guard denies a write to `.reports/a b/../report.json` when the folder
-  `.reports/a b/` exists, and a write through a link to a `.reports` folder or to a file in
-  it. The guard split the path at the space and never resolved `..` or links, so it saw no
-  `.reports/` path. The guard also reads each path of a write, and each header line of a
-  patch, as the disk resolves it from the working folder of the call; a line break in a path
-  is part of a folder name, unless the text is a patch with header lines. A path of more
-  than 4,096 characters is read with each `..` cut out as text, because a tool may cut them
-  out before it writes: `x/../` 1,000 times and then `.reports/a b/../report.json` is
-  denied. A call whose paths
-  need more than 16,384 steps of that is denied with "Write fewer files in one call, each
-  with a short path and no link."
+- The reports guard denies a write to `.reports/a b/../report.json` and a write through a link
+  to a `.reports` folder or to a file in it. It split the path at the space and never
+  resolved `..` or links, so it saw no `.reports/` path. The guard reads each path of a
+  write, and each header line of a patch, as the disk resolves it from the working folder of
+  the call: where the folder `.reports/a b/` exists, the disk reads `a b/..` as `.reports`;
+  where it does not exist, the write fails, and the guard still reads the `..` as text and
+  denies. A line break in a path is part of a folder name, unless the text is a patch with
+  header lines. A path of more than 4,096 characters is read with each `..` cut out as text,
+  because a tool may cut them out before it writes: `x/../` 1,000 times and then
+  `.reports/a b/../report.json` is denied. The paths of one call share 16,384 steps, one for
+  each part of a path, `.` and `..` too; a call that needs more is denied with "Write fewer
+  files in one call, each with a short path and no link." A path through more than 40 links,
+  or through a link loop, is denied with "Remove the link loop from the path."
 - The tool guard and the reports guard read a line of 250,000 spaces in under 5 ms (0.2 ms
   for the patch line and 4 ms for the shell command, measured). Three regular expressions
   took time in the square of the length of such a line or path. The one that reads the header

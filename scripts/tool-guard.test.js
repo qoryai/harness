@@ -1663,9 +1663,10 @@ test('the first line of each deny has at most 100 characters and says what to do
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const texts = { ...guardModule.REASONS, WRITE_REASON: reports.WRITE_REASON,
     SHELL_REASON: reports.SHELL_REASON, HIDDEN_REASON: reports.HIDDEN_REASON,
-    PATH_REASON: reports.PATH_REASON, SPECIAL_REASON: reports.SPECIAL_REASON,
+    PATH_REASON: reports.PATH_REASON, LOOP_REASON: reports.LOOP_REASON,
+    SPECIAL_REASON: reports.SPECIAL_REASON,
     STEPS: steps.REASON, UNWRITABLE: steps.UNWRITABLE };
-  assert.ok(Object.keys(texts).length >= 21, Object.keys(texts).join(' '));
+  assert.ok(Object.keys(texts).length >= 22, Object.keys(texts).join(' '));
   for (const [name, text] of Object.entries(texts)) {
     const [first, ...rest] = text.split('\n');
     assert.ok(first.length <= 100, `${name}: ${first.length} characters: ${first}`);
@@ -2538,4 +2539,57 @@ test('each part of a path costs a step, also `.` and an empty part, and a call o
   const dots = `${'./'.repeat(2000)}x.md`;
   assert.equal(timed({ paths: Array(7).fill(dots) }), null);
   assert.equal(timed({ paths: Array(10).fill(dots) }), reports.PATH_REASON);
+});
+
+test('the working folder is read once per call, and a link loop is denied with its own text', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const base = next('loops');
+  const deep = path.join(base, ...Array(108).fill('d'));
+  fs.mkdirSync(path.join(deep, '.reports'), { recursive: true });
+  const timed = (args, cwd = deep) => {
+    const begun = process.hrtime.bigint();
+    const reason = reports.decide({ kind: 'write', args, env: RUN, cwd });
+    assert.ok(Number(process.hrtime.bigint() - begun) / 1e6 < 1000);
+    return reason;
+  };
+  // The folder has 108 parts. 400 relative paths of 1 part pass: each costs its own part, and
+  // the folder costs its parts once. Read for each path they would need 43,000 steps.
+  const names = Array.from({ length: 400 }, (_, at) => `f${at}.md`);
+  assert.equal(timed({ paths: names }), null);
+  assert.equal(timed(`*** Begin Patch\n${names.map((one) => `*** Add File: ${one}\n`).join('')}`),
+    null);
+  assert.equal(timed({ paths: [...names, '.reports/end.json'] }), reports.WRITE_REASON);
+  // A link that leads back to itself, two links that lead to each other, and a link that
+  // contains itself 250 times are denied, not called a call with too many files.
+  fs.symlinkSync('self', path.join(deep, 'self'));
+  fs.symlinkSync('b', path.join(deep, 'a'));
+  fs.symlinkSync('a', path.join(deep, 'b'));
+  fs.symlinkSync(Array(250).fill('l').join('/'), path.join(deep, 'l'));
+  for (const file of ['self', 'a', 'b/x.json', 'l', 'l/x.md']) {
+    const reason = timed({ file_path: file });
+    assert.equal(reason, reports.LOOP_REASON, file);
+    firstLine(reason, 'Remove the link loop from the path.');
+  }
+  // A path of 40 links in a row passes, and 41 do not.
+  const chain = (count) => {
+    for (let at = 0; at < count; at += 1) {
+      fs.symlinkSync(at === count - 1 ? 'end.md' : `c${count}-${at + 1}`,
+        path.join(deep, `c${count}-${at}`));
+    }
+    return `c${count}-0`;
+  };
+  assert.equal(timed({ file_path: chain(40) }), null);
+  assert.equal(timed({ file_path: chain(41) }), reports.LOOP_REASON);
+});
+
+test('a shared folder part of globs is expanded once for all the words that have it', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('shared');
+  fs.mkdirSync(path.join(work, 'a1'), { recursive: true });
+  const shell = (command) => reports.decide({ kind: 'shell', args: { command }, env: RUN,
+    cwd: work });
+  // 200 words a*/f<n> need 201 different expansions, as the folder part `a*` is shared, and
+  // the limit is 256. Each expanded for its own word, they need 400.
+  const words = Array.from({ length: 200 }, (_, at) => `a*/f${at}`).join(' ');
+  assert.equal(shell(`ls ${words}`), null);
 });
