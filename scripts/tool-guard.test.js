@@ -2460,3 +2460,21 @@ test('the first word of a command is read only as a file of the size of checks.c
     fs.readSync = readSync;
   }
 });
+
+test('a line break in a path is part of a folder name, and a patch has one path per header', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('newline');
+  fs.mkdirSync(path.join(work, '.reports', 'a\nb'), { recursive: true });
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  for (const file of ['.reports/a\nb/../report.json', `${work}/.reports/a\nb/../end.json.lock`,
+    '.reports/a\nb/../a\nb/../x.json']) {
+    assert.equal(write({ file_path: file }), reports.WRITE_REASON, JSON.stringify(file));
+    assert.equal(guard({ ...claude('Write', { file_path: file, content: '{}' }, 'implementer'),
+      cwd: work }), reports.WRITE_REASON, JSON.stringify(file));
+  }
+  // A patch with a header is read by its header lines: the line break ends the path.
+  assert.equal(write('*** Update File: .reports/a b/../x.json\n@@\n-1\n+0\n'),
+    reports.WRITE_REASON);
+  assert.equal(write('*** Update File: a\nb/../x.json\n@@\n'), null);
+  assert.equal(write({ file_path: '.reports/a\nb/../note.md' }), null);
+});

@@ -120,11 +120,13 @@ function onDisk(file, cwd, budget) {
 // a space before a `..` or one through a link. It reads text as one path, and each header line
 // of a patch as one. budget is the one of onDisk, for all the strings of a call.
 function reportsOnDisk(text, cwd, budget) {
-  const paths = text.includes('\n') ? [] : [text];
+  const paths = [];
   for (const line of text.split('\n')) {
     const header = PATCH_LINE.exec(line);
     if (header !== null) paths.push(line.slice(header[0].length).trim());
   }
+  // A text with no patch header is one path, and a line break in it is part of a part's name.
+  if (paths.length === 0) paths.push(text);
   for (const one of paths) {
     if (one === '' || one.length > PATH_MAX || one.includes('\0')) continue;
     const full = onDisk(one, cwd, budget);
