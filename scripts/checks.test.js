@@ -1579,6 +1579,14 @@ test('decision record: each diagram has 150 free words, and each word after them
   // 40 lines of diagram syntax and labels stay in the free words.
   passes(push(fixture(cost(exact), drawn(DIAGRAM_40)), 'decision-record'));
   passes(push(fixture(cost(exact), drawn(CLASS_40)), 'decision-record'));
+  // 30 classDef and style lines add 0.
+  const styled = `flowchart LR\n  A --> B\n${Array.from({ length: 15 }, (_, at) =>
+    `  classDef c${at} fill:#f9f,stroke:#333,color:white,${many(40, 'x')}`).join('\n')}\n${
+    Array.from({ length: 15 }, (_, at) => `  style A${at} fill:#f9f,${many(40, 'y')}`).join('\n')}`;
+  passes(push(fixture(cost(exact), drawn(styled)), 'decision-record'));
+  // A click tooltip of 200 words adds 50, as the text that it shows.
+  const click = `flowchart LR\n  A --> B\n  click A call cb() "${many(200)}"`;
+  assert.equal(totalWords(cost(exact), drawn(click)), 450 + 50);
   // 150 label words add 0, and 151 add 1.
   passes(push(fixture(cost(exact), label(150)), 'decision-record'));
   fails(push(fixture(cost(exact), label(151)), 'decision-record'), COUNT);
@@ -1623,6 +1631,15 @@ test('decision record: the words of a diagram that are no syntax, by form', () =
   assert.equal(words(DIAGRAM_40) <= 150, true);
   // Syntax counts 0: node ids, link tokens, keywords and the brackets of a shape.
   assert.equal(words('flowchart LR\n  A\n  B[x]\n  C & D --> E\n  subgraph s\n  direction TB\n  end'), 2);
+  // Style lines, class shorthands and the target of a click are syntax. A tooltip is text.
+  const styles = ['  classDef default fill:#f9f,stroke:#333,font-family:"Arial Black"',
+    '  class A,B warn', '  linkStyle 0 stroke:red', '  cssClass "A,B" warn', '  style A fill:#f9f'];
+  assert.equal(words(`flowchart LR\n  A --> B\n${styles.join('\n')}`), 0);
+  assert.equal(words('flowchart LR\n  A:::warn --> B:::cls\n  C:::d'), 0);
+  assert.equal(words('flowchart LR\n  A[one]:::warn --> B[two]:::cls'), 2);
+  assert.equal(words('classDiagram\n  class Animal["My Animal"]\n  class Plain'), 2);
+  assert.equal(words('flowchart LR\n  A --> B\n  click A call cb() "one two three"'), 3);
+  assert.equal(words('flowchart LR\n  A --> B\n  click A "https://example.com/a"'), 1);
   assert.equal(words('flowchart LR\n  A --> B\n  A -.-> B\n  A ==> B\n  A --- B\n  A ~~~ B'), 0);
   // Text counts: labels, link texts, messages, notes, titles, comments, members, attributes
   // and state texts, with a plain split on white space.

@@ -240,13 +240,16 @@ const KEYWORDS = new Set([
   'end', 'direction', 'activate', 'deactivate', 'autonumber', 'rect', 'namespace', 'create',
   'destroy', 'interface', 'link', 'links', 'callback', 'click', 'state', 'note', 'Note',
   'participant', 'actor', 'title', 'accTitle', 'accDescr', 'box', 'loop', 'alt', 'else', 'opt',
-  'par', 'and', 'critical', 'option', 'break', 'subgraph', 'style', 'classDef', 'class',
-  'linkStyle',
+  'par', 'and', 'critical', 'option', 'break', 'subgraph', 'class',
 ]);
+// The keywords whose line is syntax: its words are node ids, class names and CSS properties,
+// which no reader sees. In a class diagram, "class" starts a class with a label, so it is no
+// such keyword there.
+const STYLE_KEYWORDS = new Set(['style', 'classDef', 'class', 'linkStyle', 'cssClass']);
 // The keywords whose line has no text but a label that brackets or quotes hold.
 const NO_TEXT = new Set([
   'end', 'direction', 'activate', 'deactivate', 'autonumber', 'rect', 'namespace', 'create',
-  'destroy', 'interface', 'link', 'links', 'callback', 'click', 'state',
+  'destroy', 'interface', 'link', 'links', 'callback', 'click', 'state', 'class',
 ]);
 const BLOCK_TYPES = ['classDiagram', 'classDiagram-v2', 'erDiagram'];
 const ID_TYPES = ['flowchart', 'graph', 'stateDiagram', 'stateDiagram-v2'];
@@ -359,6 +362,8 @@ function diagramWords(text) {
       total += count(trimmed.slice(2));
       continue;
     }
+    const first = trimmed.split(/[\s:;]/)[0];
+    if (STYLE_KEYWORDS.has(first) && (first !== 'class' || !BLOCK_TYPES.includes(type))) continue;
     if (!header && trimmed.split(/[\s;]/)[0] === type) {
       header = true;
       trimmed = trimmed.replace(HEADER, '').trim();
@@ -374,7 +379,7 @@ function diagramWords(text) {
     }
     const split = labels(trimmed, options);
     total += count(split.text);
-    let rest = split.rest;
+    let rest = split.rest.replace(/:::[\w-]+/g, ' ');
     const comment = rest.indexOf('%%');
     if (comment !== -1) {
       total += count(rest.slice(comment + 2));
