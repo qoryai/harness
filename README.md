@@ -110,10 +110,11 @@ The `software` stack composes the `core` module and the `software-factory` modul
 checkout in a workspace set up as a software factory extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read`, and the workflow `plan-the-build`, with `tier: thinking` and
-`access: write`. The `software-factory` module ships the process
-template, seven workflows' skills, seventeen other skills, fifteen agents and the settings
-for a run of those workflows:
+with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
+`access: write`, and the workflow `write-acceptance-checks`, with `tier: balanced` and
+`access: write`. The `software-factory` module ships the process template, eight workflows'
+skills, nineteen other skills, seventeen agents and the settings for a run of those
+workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
@@ -298,6 +299,23 @@ for a run of those workflows:
   the deliverables over the limit of 7.
 - `plan-reviewer`: an agent that reviews a build plan by `reviewing-drafts` against
   `checking-build-plans`, read-only, and reports findings as text.
+- `workflow-write-acceptance-checks`: orchestrate the acceptance checks of one ticket. When
+  the acceptance criteria have a live criterion with `check` set to `Tests` and the build
+  plan has a check path for it, the session starts `acceptance-check-writer` and
+  `check-reviewer`, commits the checks, locks them with `acceptance-lock`, and runs each
+  locked check on the start commit, where it must fail. It runs the app check only when a
+  demo script exists. A locked check that does not fail in two runs ends with
+  `qory run verdict escalate` and one question to a member.
+- `writing-acceptance-checks`: load it before you write the acceptance checks. The skill
+  contains where each check goes, its command, the run on the start commit, the support
+  files and the draft of the lock.
+- `checking-acceptance-checks`: load it before you report or review the acceptance checks.
+  The skill contains the steps of a review and the check list.
+- `acceptance-check-writer`: an agent that writes the checks by `writing-acceptance-checks`,
+  runs each with `checks.cjs run targeted`, and drafts `acceptance-lock.json`.
+- `check-reviewer`: an agent that reviews the checks and the lock draft by
+  `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
+  as text. The session passes it the changed paths of the working folder.
 - `settings/claude/settings.json`: the run may load the skills of this module, start its
   agents, search the web and fetch public pages.
   `env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is set to `"1"`, which the compose moves to the

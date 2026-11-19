@@ -301,7 +301,7 @@ module.exports = (lib) => {
     type: TYPE,
     file: `${TYPE}.json`,
     id: ID,
-    ids: 'plan, deliverable:d-1 or fix:f1',
+    ids: 'plan, checks, deliverable:d-1 or fix:f1',
     check: (data) => schema.errors(LOADED, data, `${TYPE}.json`),
     flags: {
       '--script-sha256': {
