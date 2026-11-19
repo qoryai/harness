@@ -1506,7 +1506,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   glob word with a separate `fs.globSync` call, and the hook outlasted its timeout of 10 s,
   which lets the call run on Cursor and Copilot CLI. Equal globs share one call, and a
   command whose globs need more than 256 different calls, match more than 100,000 paths in
-  all, or take more than 600 ms in all is denied with the first line "Leave .reports/ to
+  all, or take more than 600 ms between two calls is denied with the first line "Leave .reports/ to
   checks.cjs, and name other files with no `$`, backtick, eval or glob." and the limit on the
   second line. A command of 256 different globs `a<n>*` in a folder of 1,000 files takes
   0.36 s at load 19. A brace is counted before `fs.globSync` runs, as the patterns that it
@@ -1574,6 +1574,25 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   is. This replaces the
   denial of a part with 2 or more `*` after a `/` inside braces: `{src/*a*a*c,lib}` and
   `{x,y/}*a*c` pass in a normal folder.
+
+- The reports guard of Gemini CLI, Cursor and Copilot CLI stops a glob that stalls: it runs the
+  `fs.globSync` calls of one command in a child process that it kills after 2.5 s, and denies
+  the call with "Use a narrower glob:" when the child is killed, cannot start, exits with a code
+  other than 0, or prints bad output. `ls \*\*\*\*\*\*\*\*\*\*` (a backslash and a star, 10 times)
+  never returned, because `fs.globSync` reads a backslash as a path separator: a glob with a
+  backslash and a glob character is denied before any call. 76 of the patterns of 6 characters of
+  `\ { } , * a` hung. `{a}2,}` repeated 30 times, followed by `*`, made 2^29 words for
+  `fs.globSync` and counted 1 for the guard, so a `; echo x > .rep*/x.json` after it ran at the
+  hook timeout of 10 s; the count of braces is now the larger of the guard's reading and the one
+  of minimatch (in 60,000 random strings of 4 alphabets, none counted below minimatch). A
+  word of braces that builds `.reports` (`mkdir -p .{rep,x}orts`, `echo x > {.reports,y}/x.json`)
+  passed where the folder was not there; the guard tests each word of the braces. `{*,}/*/*/*/*`
+  made a relative and an absolute word, and the guard scanned only the working folder; it scans
+  each word, the absolute one from `/`. Normal commands (`ls {*.ts,*.js}`, `cat src/{a,b}.ts`,
+  `cat {src/*,lib/*}`, `*.txt`) pass; a command with a `*` costs a child of 37 to 40 ms at load 41.
+  The first line of the deny of a backslash is "Leave .reports/ to checks.cjs, and name other
+  files with no `$`, backtick, eval or glob."; the second starts with "Remove the backslash
+  before the glob character".
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini
