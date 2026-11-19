@@ -1305,10 +1305,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   The one that strips a trailing `2>&1` from a shell command took 33 s on a command with
   250,000 spaces and then `x`. The one that checks a write for a path `.reports/*.json` took
   5 to 11 s on 250,000 characters of repeated `.reports/`. The tests assert 1 s for each.
-  A guard cannot stop a regular expression at its time limit. A hook that outlasts its timeout
-  lets the call run on Codex and on Claude Code before 2.1.295 (the entry about
-  `onFailure: "block"` in this file), and on Cursor and Copilot CLI (`docs/modules.md`, where
-  the paragraph about the 10-second hook timeout says so). The Codex hook timeout is 120 s in
+  A guard cannot stop a regular expression at its time limit, and a hook that outlasts its
+  timeout lets the call run. In Codex 0.169.0 a hook that times out marks the hook run as
+  failed and the tool call continues
+  ([`codex-rs/hooks/src/engine/command_runner.rs:369-379`](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/hooks/src/engine/command_runner.rs#L369-L379),
+  [`codex-rs/hooks/src/events/pre_tool_use.rs:205-218`](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/hooks/src/events/pre_tool_use.rs#L205-L218)
+  and [`codex-rs/core/src/hook_runtime.rs:239-247`](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/core/src/hook_runtime.rs#L239-L247),
+  all at tag `rust-v0.169.0`). Claude Code before 2.1.295 runs the call too (the entry about
+  `onFailure: "block"` in this file), as do Cursor and Copilot CLI (`docs/modules.md`, in the
+  paragraph about the 10-second hook timeout). The Codex hook timeout is 120 s in
   `modules/core/settings/codex/config.toml`. By extrapolation, the patch header expression
   passes 120 s at about 500,000 characters of spaces, and the `.reports/` expression at about
   850,000 characters. Each expression is one scan of the line or of the words of the text,
