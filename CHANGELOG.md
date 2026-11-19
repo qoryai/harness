@@ -1622,6 +1622,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   8 * 1024 * 1024, before it reads the text, with the first line
   "Send fewer or smaller arguments in one tool call." A call that makes the count throw is
   denied in a run too.
+- In a run, the reports guards of Gemini CLI, Cursor and Copilot CLI and the tool guard of Claude
+  Code and Codex deny an input of more than 16 MiB on stdin before they parse it, with the first
+  line "Send fewer or smaller arguments in one tool call." Before, the hook parsed such an input
+  in full. The reports guards also deny an input that is not a JSON object (text, an empty input,
+  an array), with the first line "Send the call again."; before, it was read as no call and the
+  call ran. Outside a run, nothing changes.
 - The reports guards of Gemini CLI, Cursor and Copilot CLI deny a call that they cannot read,
   and read a call nested 3,000 levels deep. Such a call overflowed the stack of the function
   that collects the strings of the arguments, and the adapter exited 1. On Cursor and Gemini

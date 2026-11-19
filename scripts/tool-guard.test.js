@@ -4725,3 +4725,76 @@ test('the entries of an object and the items of an array count toward the 8 MiB 
   assert.equal(empty.error, undefined, 'the hook ran past 10 s');
   assert.match(JSON.parse(empty.stdout).permissionDecisionReason, line);
 });
+
+test('a guard hook denies an input over 16 MiB before it parses it, and an input it cannot read, in a run', () => {
+  const work = next('pass14');
+  const home = harnessHome();
+  const MIB = 1024 * 1024;
+  const size = /^Send fewer or smaller arguments in one tool call\.\nThe arguments of this call are more than 8 MiB of text/;
+  const unreadable = /^Send the call again\.\nThe guard of \.reports\/ could not read the input of this call, and blocks it\.$/;
+  // For each runtime: the hook file, a valid input with a harmless command and a padding field
+  // that makes its length exactly bytes, and what the hook prints on a deny and on a pass.
+  const runtimes = {
+    gemini: {
+      file: 'reports-guard-gemini.cjs',
+      make: (pad) => `{"tool_name":"run_shell_command","tool_input":{"command":"echo x"},"cwd":${JSON.stringify(work)},"pad":"${pad}"}`,
+      deny: (out) => JSON.parse(out).reason, pass: (out) => out.trim() === '{}',
+    },
+    cursor: {
+      file: 'reports-guard-cursor.cjs',
+      make: (pad) => `{"hook_event_name":"beforeShellExecution","command":"echo x","cwd":${JSON.stringify(work)},"pad":"${pad}"}`,
+      deny: (out) => JSON.parse(out).agent_message, pass: (out) => out === '',
+    },
+    copilot: {
+      file: 'reports-guard-copilot.cjs',
+      make: (pad) => `{"toolName":"bash","toolArgs":"{\\"command\\":\\"echo x\\"}","cwd":${JSON.stringify(work)},"pad":"${pad}"}`,
+      deny: (out) => JSON.parse(out).permissionDecisionReason, pass: (out) => out.trim() === '{}',
+    },
+  };
+  const exact = (runtime, bytes) => {
+    const empty = runtime.make('');
+    return runtime.make('a'.repeat(bytes - Buffer.byteLength(empty)));
+  };
+  const hook = (runtime, input, run) => {
+    const env = { ...process.env, QORY_HARNESS_HOME: home };
+    delete env.QORY_RUN_ID;
+    if (run) env.QORY_RUN_ID = 'run-1';
+    const begun = Date.now();
+    const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', runtime.file)], {
+      input, env, encoding: 'utf8', timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+    return { ran, ms: Date.now() - begun, out: ran.stdout };
+  };
+  for (const [name, runtime] of Object.entries(runtimes)) {
+    // 16 MiB exactly passes in a run; one byte more is denied, whether or not it is JSON, and
+    // the check does not parse it (an input that is not JSON gets the size reason, not the other).
+    const edge = hook(runtime, exact(runtime, 16 * MIB), true);
+    assert.equal(edge.ran.error, undefined, name);
+    assert.ok(runtime.pass(edge.out), `${name}: ${edge.out.slice(0, 200)}`);
+    for (const [what, input] of [['valid JSON', exact(runtime, 16 * MIB + 1)], ['text', 'x'.repeat(17 * MIB)]]) {
+      const over = hook(runtime, input, true);
+      assert.equal(over.ran.error, undefined, `${name} ${what}`);
+      assert.match(runtime.deny(over.out), size, `${name} ${what}`);
+      assert.ok(over.ms < 3000, `${name} ${what}: ${over.ms} ms`);
+    }
+    // Outside a run, the cap does not apply.
+    assert.ok(runtime.pass(hook(runtime, exact(runtime, 17 * MIB), false).out), `${name} outside a run`);
+    // An input that is not a JSON object is denied in a run, and passes as before outside it.
+    for (const input of ['not json', '{"a":', '', '[]', 'null', '7']) {
+      assert.match(runtime.deny(hook(runtime, input, true).out), unreadable, `${name} ${JSON.stringify(input)}`);
+      assert.ok(runtime.pass(hook(runtime, input, false).out), `${name} ${JSON.stringify(input)} outside a run`);
+    }
+  }
+  // The guard of Claude Code and Codex denies an input over 16 MiB in a run too.
+  for (const script of ['tool-guard-claude.cjs', 'tool-guard-codex.cjs']) {
+    for (const input of [`{"pad":"${'a'.repeat(17 * MIB)}"}`, 'x'.repeat(17 * MIB)]) {
+      const ran = childProcess.spawnSync(process.execPath, [path.join(home, 'hooks', script)], {
+        input, env: { ...process.env, QORY_RUN_ID: 'run-1' }, encoding: 'utf8', timeout: 10000,
+        killSignal: 'SIGKILL', maxBuffer: 1 << 26 });
+      assert.equal(ran.error, undefined, script);
+      assert.match(JSON.parse(ran.stdout).hookSpecificOutput.permissionDecisionReason, size, script);
+    }
+  }
+  const left = childProcess.spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf8' })
+    .stdout.split('\n').filter((one) => one.includes(home));
+  assert.deepEqual(left, []);
+});

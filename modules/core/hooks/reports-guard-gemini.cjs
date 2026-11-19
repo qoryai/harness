@@ -7,14 +7,14 @@
 
 const path = require('node:path');
 
-const { readInput, safeDecide } = require('./reports-guard.cjs');
+const { readGuardInput, safeDecide } = require('./reports-guard.cjs');
 
 const KINDS = { write_file: 'write', replace: 'write', run_shell_command: 'shell' };
 
-const input = readInput();
+const { input, reason: unreadable } = readGuardInput();
 const base = typeof input.cwd === 'string' ? input.cwd : undefined;
 const dir = input.tool_input !== null && typeof input.tool_input === 'object'
   ? input.tool_input.dir_path : undefined;
 const cwd = typeof dir === 'string' ? path.resolve(base || process.cwd(), dir) : base;
-const reason = safeDecide({ kind: KINDS[input.tool_name], args: input.tool_input, cwd });
+const reason = unreadable || safeDecide({ kind: KINDS[input.tool_name], args: input.tool_input, cwd });
 process.stdout.write(`${JSON.stringify(reason ? { decision: 'deny', reason } : {})}\n`);

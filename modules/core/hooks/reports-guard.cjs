@@ -50,8 +50,9 @@
 // process also denies the call that takes its size past 8 MiB, before it reads any text: the
 // size is the length of each string, the length of each key plus 16 for each entry of an object,
 // 8 for each item of an array, and the length of cwd, a measure of the work and not an exact
-// count. The clock is read once for each call. A backslash at the end of a word or command is
-// dropped by the shell: .reports\ is .reports.
+// count. In a run, the adapters deny an input of more than 16 MiB on stdin before they parse it,
+// and an input that is not a JSON object. The clock is read once for each call. A backslash at
+// the end of a word or command is dropped by the shell: .reports\ is .reports.
 // QORY_REPORTS_GUARD_TEST (globMs, stall, fail) can only lower the limit of the child or deny
 // a call: a file of the workspace can reach the environment of a hook, so no field turns off a
 // check, and the options noCaps and waitMs belong to decide, which the adapters call with fixed
@@ -78,8 +79,6 @@ const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { performance } = require('node:perf_hooks');
-
-const { readInput } = require('./end-gate.cjs');
 
 // The keys of a write tool's arguments that contain the text it writes, not a path.
 const TEXT_KEYS = new Set(['content', 'contents', 'file_text', 'new_string', 'old_string',
@@ -1411,6 +1410,48 @@ const SIZE_REASON = `${SEND_LESS}The arguments of this call are more than 8 MiB 
   'guard of .reports/ does not read that much in the 10 seconds of its hook, so it blocks the call.';
 let hookChars = 0;
 
+// The stdin of a hook in a run is denied before it is parsed when it is over INPUT_BYTES.
+// shortcut: the whole of stdin is read before the length is compared, so an input of several
+// GB still uses that memory, replace with a read that stops at INPUT_BYTES + 1 if a runtime
+// sends such an input.
+const INPUT_BYTES = 16 * 1024 * 1024;
+const UNREADABLE_REASON = 'Send the call again.\n' +
+  'The guard of .reports/ could not read the input of this call, and blocks it.';
+
+// readStdin returns { text, reason } for the stdin of a hook: the text, or, in a run (QORY_RUN_ID
+// is set) with an input of more than INPUT_BYTES bytes, no text and the reason SIZE_REASON, so
+// that the caller denies the call before it parses or resolves a path from the input. Outside
+// a run, any size is read. A stdin that cannot be read gives the text ''.
+function readStdin(env = process.env) {
+  let data;
+  try {
+    data = fs.readFileSync(0);
+  } catch {
+    return { text: '', reason: null };
+  }
+  if (env.QORY_RUN_ID && data.length > INPUT_BYTES) return { text: '', reason: SIZE_REASON };
+  return { text: data.toString('utf8'), reason: null };
+}
+
+// readGuardInput returns { input, reason } for the adapters: input is the JSON object on stdin,
+// or {} when there is none. In a run, reason is SIZE_REASON for an input over the limit and
+// UNREADABLE_REASON for stdin that is not a JSON object, and the adapter denies the call with
+// it. Outside a run, reason is null and an input that cannot be read is {}.
+function readGuardInput(env = process.env) {
+  const { text, reason } = readStdin(env);
+  if (reason) return { input: {}, reason };
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = null;
+  }
+  if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
+    return { input: data, reason: null };
+  }
+  return { input: {}, reason: env.QORY_RUN_ID ? UNREADABLE_REASON : null };
+}
+
 // textChars returns the size of value for the limit HOOK_CHARS, from lengths only, with no scan
 // of any text: the length of each string, the length of each key of an object plus 16 for the
 // entry, and 8 for each item of an array, whatever the item is (the guard walks the keys and
@@ -1468,6 +1509,6 @@ function safeDecide(call) {
   }
 }
 
-module.exports = { readInput, decide, safeDecide, globsChild, braces, runsChecks, withoutRedirect, reportsJson, flat,
+module.exports = { readStdin, readGuardInput, SIZE_REASON, decide, safeDecide, globsChild, braces, runsChecks, withoutRedirect, reportsJson, flat,
   REPORTS, HIDDEN_REASON, WRITE_REASON, SHELL_REASON, PATH_REASON, LOOP_REASON, FAILED_REASON,
   SPECIAL_REASON };

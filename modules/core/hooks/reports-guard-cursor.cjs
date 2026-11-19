@@ -13,9 +13,9 @@
 // runs past its timeout. A call for which decide throws is denied by safeDecide.
 'use strict';
 
-const { readInput, safeDecide } = require('./reports-guard.cjs');
+const { readGuardInput, safeDecide } = require('./reports-guard.cjs');
 
-const input = readInput();
+const { input, reason: unreadable } = readGuardInput();
 let call = { kind: null, args: null };
 if (input.hook_event_name === 'beforeShellExecution') {
   call = { kind: 'shell', args: { command: input.command } };
@@ -26,7 +26,7 @@ if (input.hook_event_name === 'beforeShellExecution') {
 }
 const roots = Array.isArray(input.workspace_roots) ? input.workspace_roots : [];
 const cwd = [input.cwd, roots[0]].find((one) => typeof one === 'string');
-const reason = safeDecide({ ...call, cwd });
+const reason = unreadable || safeDecide({ ...call, cwd });
 if (reason) {
   process.stdout.write(`${JSON.stringify({ permission: 'deny', user_message: reason,
     agent_message: reason })}\n`);
