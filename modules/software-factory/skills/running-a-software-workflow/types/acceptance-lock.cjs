@@ -311,6 +311,16 @@ module.exports = (lib) => {
           `Tests.\nCriteria version ${num(version)} does not plan ${check.criterion} as Tests.`);
       }
     });
+    // Each criterion planned as Tests needs a locked check: a lock with none leaves the
+    // criterion with no check that binds the build. An id has at most 7 characters, so the
+    // first line stays within 100.
+    const locked = new Set(data.checks.map((check) => check.criterion));
+    for (const id of planned) {
+      if (!locked.has(id)) {
+        run.find(`Add a check of ${id} to ${FILE}, then lock again.\nCriteria version ` +
+          `${num(version)} plans ${id} as Tests, and no check of the lock has it.`);
+      }
+    }
   }
 
   // FURTHER is the folder under the working folder where qory run fetches each further

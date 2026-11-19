@@ -816,7 +816,7 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
   const pushed = ['--pushed', 'spec/main/1'];
   const cases = [
     [['step'], /^Give step begin or step end\.\n  nothing is neither\./],
-    [['step', 'begin'], /^Give the id of a step, such as plan, deliverable:d-1 or fix:f1\.\n  nothing is none\./],
+    [['step', 'begin'], /^Give the id of a step, such as plan, checks, deliverable:d-1 or fix:f1\.\n  nothing is none\./],
     [['step', 'begin', 'deliverable:d-0', 'implement-changes', 'x'], /^Give the id of a step.*\.\n  "deliverable:d-0" is none\./],
     [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case\.\n  nothing is none\./],
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],

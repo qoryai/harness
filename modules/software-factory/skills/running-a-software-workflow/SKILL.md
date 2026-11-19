@@ -51,14 +51,16 @@ This line adds to the lines of "Failures" for a "Blocked:" line before the first
 artifact folder: `spec` with `spec.md`, `acceptance-criteria` with
 `acceptance-criteria.json`, `decision-record` with `decision-record.md`, `demo-scenarios`
 with `demo-scenarios.md`, and `build-plan` with `build-plan.md`. A mockup has no checks, and
-its reviewer gets no "Checks:".
+its reviewer gets no "Checks:". Nor does the reviewer of an acceptance lock: its draft has
+no SHA-256 until `checks.cjs lock` fills it and checks it.
 
 ## Types in plain words
 
 In the text of a point and in the last line of "The end", name each type in these words:
 "spec" for `spec`, "acceptance criteria" for `acceptance-criteria`, "technical decision
 record" for `decision-record`, "mockups" for `mockup`, "demo scenarios" for
-`demo-scenarios`, and "build plan" for `build-plan`.
+`demo-scenarios`, "build plan" for `build-plan`, and "acceptance lock" for
+`acceptance-lock`.
 
 ## The build ledger
 
