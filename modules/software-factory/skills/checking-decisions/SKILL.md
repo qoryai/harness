@@ -84,7 +84,8 @@ no syntax that loads an address and no `%%{` line, and that it has at most 20,00
 characters, as Qory Apiary measures them, and, in a flowchart, at most 200 edges, which the
 check counts from every link. It also checks that a decision has at most one block and a
 removed decision none, and that the decisions that are not removed have at most 2 in the
-record, each block that Qory Apiary draws counted, also one in a quote or a list item. It
+record, each block that Qory Apiary draws counted, and that a block in a quote or a list
+item is refused, because the fence must start the line. It
 checks that "Rests on:" lists criteria of the newest acceptance criteria that are not
 removed, or one of its two other lines, and that "Question:" lists a question of this run's
 questions in the state that the decision needs. The push form reads only the newest

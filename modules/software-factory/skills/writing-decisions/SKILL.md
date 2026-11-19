@@ -106,7 +106,8 @@ this skill replaces these rules of the section "Markdown documents" of `artifact
   is a Mermaid diagram.
 - The rule that a document "has no limit on pictures": a decision has at most one diagram,
   and the record at most 2. The record counts each block that Qory Apiary draws, also one
-  in a quote or a list item.
+  in a quote or a list item, and the check refuses a block whose fence is not at the start
+  of the line.
 - The points after a picture: the items of the form replace them.
 - The table of options and the other pictures: the record has no table and no wireframe,
   and no `![` or `<img` anywhere, code blocks and diagrams included. Write `\![` outside

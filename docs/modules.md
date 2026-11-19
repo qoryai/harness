@@ -2269,8 +2269,11 @@ other type changes. A `\![a](address)` is a link, and the check reads its addres
   the count reads each line that starts, after spaces, `>` marks and list marks, with 3 or
   more backticks or tildes and `mermaid` as the first word, in any case: a block in a
   quote, in a list item, nested, or indented. The count is never below Qory Apiary's, and
-  it counts a fence in a code block too. A fence indented 1 to 3 spaces is still refused
-  with the fence line below.
+  it counts a fence in a code block too. Qory Apiary draws such a block without the rules
+  above, which read only a block at the start of the line, so the check refuses each line
+  that opens a block and is not a fence at the start of the line, in a decision or outside
+  the decisions, with the fence line below ("Write the fence of the Mermaid block of
+  decision-record.md as `` ```mermaid `` at the line start." outside a decision).
 
 The 450 words leave out the diagrams, whatever their size: the 20,000 characters and the 200
 edges bound them.

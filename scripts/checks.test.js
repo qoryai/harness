@@ -1158,7 +1158,7 @@ test('decision record: 1 or 2 Mermaid diagrams in the record pass, 3 fail', () =
   fails(push(fixture(withDecisions(true, true), diagram(1)), 'decision-record'), FIX);
 });
 
-test('decision record: every Mermaid block that Qory Apiary draws counts toward the 2', () => {
+test('decision record: every Mermaid block that Qory Apiary draws counts toward the 2, and starts its line', () => {
   const body = 'flowchart LR\n  A --> B';
   const quoted = (mark, info = 'mermaid') => `> ${mark}${info}\n> ${body.replace('\n', '\n> ')}\n> ${mark}`;
   const listed = (indent, mark = '```') => `${indent}${mark}mermaid\n${indent}${body.replace('\n',
@@ -1185,15 +1185,27 @@ test('decision record: every Mermaid block that Qory Apiary draws counts toward 
     fails(push(record(block), 'decision-record'), FIX);
   }
   // A fence with another first word is no Mermaid block, and 2 blocks in all are still 2. The text
-  // after the item list is a finding of its own, so only the finding about the 2 is tested.
-  const cut = /^Cut decision-record\.md to 2 Mermaid diagrams/;
-  const counts = (result) => result.findings.some((line) => cut.test(line));
+  // after the item list is a finding of its own, so only the findings about a block are tested.
+  const about = /^(Cut decision-record\.md to 2 Mermaid diagrams|Write the fence of the Mermaid)/;
+  const found = (result) => result.findings.some((line) => about.test(line));
   for (const block of ['```text\nflowchart LR\n```', '```mermaidx\nflowchart LR\n```',
     '> ```python\n> x = 1\n> ```']) {
-    assert.equal(counts(push(record(block), 'decision-record')), false, block);
+    assert.equal(found(push(record(block), 'decision-record')), false, block);
   }
-  assert.equal(counts(push(fixture(withDecisions(false, false), diagram(1), third(forms['in a quote'])),
-    'decision-record')), false);
+  // A block in a quote or a list item skips the checks of a block, so each one alone in the
+  // record has the fix for a fence that is not at the line start, and a record has none.
+  const RECORD_FENCE = /^Write the fence of the Mermaid block of decision-record\.md as ```mermaid at the line start\.$/;
+  for (const block of Object.values(forms)) {
+    fails(push(fixture(third(block)), 'decision-record'), FENCE);
+    const above = ['decision-record.md', '## Decisions\n', `## Decisions\n\n${block}\n`];
+    fails(push(fixture(above), 'decision-record'), RECORD_FENCE);
+  }
+  // A refused form that Qory Apiary shows as text is not hidden in a quote: the fix comes first.
+  fails(push(fixture(third('> ```mermaid\n> notadiagram\n> ```')), 'decision-record'), FENCE);
+  // A fence at the line start gets every check, and one in another code block is refused too.
+  passes(push(fixture(diagram(1)), 'decision-record'));
+  fails(push(fixture(third('````text\n```mermaid\nflowchart LR\n```\n````')), 'decision-record'),
+    FENCE);
 });
 
 test('decision record: an image is refused', () => {

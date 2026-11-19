@@ -17,7 +17,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   fence), a second diagram in a decision, a diagram that is not the last text of its
   decision after a blank line, a diagram in a removed decision, and a third diagram in the
   record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."), which counts each
-  block that Qory Apiary draws, also one in a quote or a list item. It also refuses a
+  block that Qory Apiary draws, also one in a quote or a list item, and refuses a block
+  whose fence is not at the start of the line. It also refuses a
   block that Qory Apiary does not draw as a diagram: a fence that is not lower case
   `mermaid` at the start of its line with no other word, a first word that is not a type
   that Qory Apiary draws, a syntax that loads an address, more than 20,000 characters as

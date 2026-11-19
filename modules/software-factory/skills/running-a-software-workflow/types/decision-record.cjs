@@ -35,9 +35,10 @@ module.exports = (lib) => {
   // decisions reads decision-record.md: one entry per ### heading, with its items and its
   // Mermaid blocks. A Mermaid block is no item: it ends the item before it. diagrams counts
   // the blocks, drawn counts the lines that open a block that Qory Apiary draws, wherever it
-  // stands, and is at least diagrams, unclosed is the block with no closing fence, else null,
-  // placed is true when each block follows an item after a blank line, and last is true when
-  // nothing but blank lines follows each closed block.
+  // stands, and is at least diagrams, off counts those that no block starts at (a fence in a
+  // quote or a list item, or in another code block), unclosed is the block with no closing
+  // fence, else null, placed is true when each block follows an item after a blank line, and
+  // last is true when nothing but blank lines follows each closed block.
   function decisions(text) {
     return sections(lines(text), 3)
       .slice(1)
@@ -78,6 +79,8 @@ module.exports = (lib) => {
           } else items.push(null);
           continues = items[items.length - 1] !== null;
         });
+        const drawn = part.lines.flatMap((line, index) => (
+          MERMAID_LINE.test(line.text) ? [index] : []));
         const placed = blocks.every((one) => one.end !== null && one.items > 0 &&
           one.start > 0 && blank(part.lines[one.start - 1]));
         const last = blocks.every((one) => one.end === null || part.lines.slice(one.end + 1)
@@ -92,8 +95,8 @@ module.exports = (lib) => {
           id: heading ? heading[1] : null,
           fields,
           diagrams: blocks.length,
-          drawn: Math.max(blocks.length, part.lines.filter((line) => MERMAID_LINE.test(line.text))
-            .length),
+          drawn: Math.max(blocks.length, drawn.length),
+          off: drawn.filter((index) => !blocks.some((one) => one.start === index)).length,
           blocks,
           open: Boolean(decision && decision.value === OPEN_DECISION),
           unclosed: blocks.find((one) => one.end === null) || null,
@@ -104,14 +107,19 @@ module.exports = (lib) => {
       });
   }
 
+  // fenceFix is the fix for a Mermaid block of name (a decision id, or the file for text outside
+  // the decisions) with its fence anywhere but at the start of the line. Qory Apiary draws such
+  // a block too, so the checks of a block, which read only the blocks at the line start, must
+  // never be skipped: the record keeps only blocks at the line start.
+  const fenceFix = (name) =>
+    `Write the fence of the Mermaid block of ${name} as ${'```'}mermaid at the line start.`;
+
   // blockFinding returns the fix for a closed Mermaid block that Qory Apiary does not draw, or
   // null. It draws a block whose info string starts with mermaid (markdown.ex:328-339); a fence
   // indented 1 to 3 spaces may belong to the item above it, so the fence starts its line.
   function blockFinding(id, block) {
     const open = /^( *)(`{3,}|~{3,})(.*)$/.exec(block.open);
-    if (!open || open[1] !== '' || !/^[ \t]*mermaid[ \t]*$/.test(open[3])) {
-      return `Write the fence of the Mermaid block of ${id} as ${'```'}mermaid at the line start.`;
-    }
+    if (!open || open[1] !== '' || !/^[ \t]*mermaid[ \t]*$/.test(open[3])) return fenceFix(id);
     const refused = mermaid.refusal(block.text);
     if (!refused) {
       if (!mermaid.directive(block.text)) return null;
@@ -135,28 +143,35 @@ module.exports = (lib) => {
     return `Cut the Mermaid block of ${id} to ${mermaid.MAX_EDGES} edges: it has ${refused.found}.`;
   }
 
-  // diagramFinding reports the first rule that the Mermaid blocks of a decision break, as
-  // writing-decisions (SKILL.md:120: "Write the diagram in a") lists them.
-  function diagramFinding(run, decision) {
-    const id = idOf(decision.id);
-    if (!decision.diagrams) return;
-    let fix = null;
+  // blocksFinding returns the first rule that the Mermaid blocks of a decision break, as
+  // writing-decisions (SKILL.md:121: "Write the diagram in a") lists them, or null.
+  function blocksFinding(id, decision) {
+    if (!decision.diagrams) return null;
     if (decision.unclosed) {
       const { char, size } = decision.unclosed;
-      fix = `Close the Mermaid block of ${id} with a line of ${size} ` +
+      return `Close the Mermaid block of ${id} with a line of ${size} ` +
         `${char === '~' ? 'tildes' : 'backticks'}.`;
-    } else if (decision.removed) {
-      fix = `Remove the Mermaid diagram of ${id}: the decision is removed.`;
-    } else if (decision.diagrams > 1) {
-      fix = `Cut ${id} to one Mermaid diagram: it has ${decision.diagrams}.`;
-    } else if (!decision.placed) {
-      fix = `Put the Mermaid diagram of ${id} after its last item, with a blank line before it.`;
-    } else if (!decision.last) {
-      fix = `Put the text after the Mermaid diagram of ${id} above it, or delete it.`;
-    } else {
-      fix = blockFinding(id, decision.blocks[0]);
     }
+    if (decision.removed) return `Remove the Mermaid diagram of ${id}: the decision is removed.`;
+    if (decision.diagrams > 1) {
+      return `Cut ${id} to one Mermaid diagram: it has ${decision.diagrams}.`;
+    }
+    if (!decision.placed) {
+      return `Put the Mermaid diagram of ${id} after its last item, with a blank line before it.`;
+    }
+    if (!decision.last) {
+      return `Put the text after the Mermaid diagram of ${id} above it, or delete it.`;
+    }
+    return blockFinding(id, decision.blocks[0]);
+  }
+
+  // diagramFinding reports the rule that the Mermaid blocks of a decision break, and the fix for
+  // a block that Qory Apiary draws and that does not start at the line start.
+  function diagramFinding(run, decision) {
+    const id = idOf(decision.id);
+    const fix = blocksFinding(id, decision);
     if (fix) run.find(fix + whole(decision.id));
+    if (decision.off && fix !== fenceFix(id)) run.find(fenceFix(id) + whole(decision.id));
   }
 
   function decisionRecord(run, files) {
@@ -165,7 +180,7 @@ module.exports = (lib) => {
     // writing-decisions (SKILL.md:32-48, 80-81: "Use this form, in this order"): ## Decisions only,
     // each decision with its items in order, or only its reason when removed. The no-choice line
     // alone only
-    // checking-decisions (SKILL.md:77, 97: "The spec leaves no technical choice open.") has.
+    // checking-decisions (SKILL.md:77, 98: "The spec leaves no technical choice open.") has.
     run.did('sections');
     const parts = topSections(run, 'decision-record.md', list);
     const titles = parts.map((part) => part.title);
@@ -187,6 +202,11 @@ module.exports = (lib) => {
         );
       }
     }
+    // A fence outside the decisions or under a heading that is no decision heading is no block of
+    // a decision, and Qory Apiary draws it too: the record gets the fix.
+    const outside = sections(list, 3)[0].lines.filter((line) => MERMAID_LINE.test(line.text))
+      .length + all.reduce((sum, decision) => sum + (decision.id ? 0 : decision.drawn), 0);
+    if (outside) run.find(fenceFix('decision-record.md'));
     for (const decision of all) {
       if (!decision.id) {
         const shown = brief(decision.heading, 32);
@@ -209,7 +229,7 @@ module.exports = (lib) => {
       }
     }
     wordLimit(run, 'decision-record.md', md, false);
-    // writing-decisions (SKILL.md:146: "a third diagram in the record fail"): the Mermaid
+    // writing-decisions (SKILL.md:147: "a third diagram in the record fail"): the Mermaid
     // blocks of decisions that are not removed, wherever they stand.
     const diagrams = all.reduce((sum, decision) => sum + (decision.removed ? 0 : decision.drawn),
       0);
