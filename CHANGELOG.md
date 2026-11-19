@@ -13,28 +13,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `writing-acceptance-checks` and `checking-acceptance-checks`, and the agents
   `acceptance-check-writer` and `check-reviewer`. The session reads the newest build plan
   and the newest `acceptance-criteria.json`. The agents start only when the JSON has a live
-  criterion whose `check` is `Tests`; with none, the run ends `passed`. When such a criterion
-  is in no row of the plan that has a check path, the run ends with a `run_again` point that
-  asks to plan the build again. A check path is a relative path whose file name has an
-  extension, as `types/build-plan.cjs` reads it; `n/a`, `none`, `-` and `TBD` are none. In
-  the ledger step `checks`, the writer writes each check at its Check path and its new
-  helpers below a folder of the Files of the same row that contains that path, runs each
-  with `checks.cjs run targeted` until it fails with a failed test on the start commit, and
-  drafts `acceptance-lock.json`. Before each review, the session runs `git status
-  --porcelain` and `git diff --name-only <start commit>` and passes both outputs to the
-  reviewer as "Changed paths:". After the review, the session runs `freeze checks`, sets
-  `commit` to the commit of the checks, and runs `checks.cjs lock`, which pushes
-  `acceptance-lock`. Then it runs `checks.cjs preflight`, when the plan starts the app and a
-  demo script exists, and `checks.cjs run locked`; with no demo script, it runs the checks
-  with no app check. A locked check that does not fail with a failed test in two runs ends
-  the run with one question per check, about the criterion, with the check, the criterion
-  and what both runs printed. `check-reviewer` reports, with the mark `break`, which here
-  means that the run must not push the lock, a command or a check that runs or imports a
-  file whose only use is the tests and that the lock lists neither as a check nor under
-  `support[]`, a changed test setup, a skip, xfail or only mark, and each changed path that
-  the writer's "Files:" lacks. `scope` and `freeze` take the step `checks`, with only the
-  Check path of each deliverable with a check path and the folders of its Files that
-  contain that path; the code under test in those Files is outside the scope.
+  criterion whose `check` is `Tests`; with none, the run ends `passed`. When such a
+  criterion is in no row of the plan that has a check path, the run ends with a `run_again`
+  point whose fix is to plan the build again. A check path is a relative path whose file
+  name has an extension, as `types/build-plan.cjs` reads it; `n/a`, `none`, `-` and `TBD`
+  are none. In the ledger step `checks`, the writer writes each check at its Check path and
+  its new helpers below a folder of the Files of the same row that contains that path, runs
+  each with `checks.cjs run targeted` until it fails with a failed test on the start commit,
+  and drafts `acceptance-lock.json`. Before each review, the session runs `git status
+  --porcelain --untracked-files=all` and `git diff --name-only <start commit>` and passes
+  both outputs to the reviewer as "Changed paths:". After the review, the session runs
+  `freeze checks`, sets `commit` to the commit of the checks, and runs `checks.cjs lock`,
+  which pushes `acceptance-lock`. Then it runs `checks.cjs preflight`, when the plan starts
+  the app and `index.json` lists a demo script, and `checks.cjs run locked`; with no demo
+  script, it runs the checks with no app check. A locked check that does not fail with a
+  failed test in two runs ends the run with one question per check, about the criterion,
+  with the check, the criterion and what both runs printed. `check-reviewer` reports, with
+  the mark `break`, which here means that the run must not push the lock, a command or a
+  check that runs or imports a file whose only use is the tests and that the lock lists
+  neither as a check nor under `support[]`, a changed test setup, a skip, xfail or only
+  mark, and each changed path that the writer's "Files:" lacks. `scope` and `freeze` take
+  the step `checks`, with only the Check path of each deliverable with a check path and the
+  folders of its Files that contain that path; the code under test in those Files is outside
+  the scope.
 - `checks.cjs lock`, `check acceptance-lock` and its push check fail on a lock with no check
   of a criterion that its criteria version plans as Tests, with the fix line "Add a check
   of <id> to acceptance-lock.json, then lock again."
