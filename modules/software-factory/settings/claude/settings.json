@@ -34,6 +34,7 @@
       "Skill(harness:checking-code)",
       "Skill(harness:checking-tests)",
       "Skill(harness:checking-acceptance)",
+      "Skill(harness:writing-submissions)",
       "Skill(harness:checking-proposals)",
       "Skill(harness:writing-proposals)",
       "Skill(harness:exploring-code)",
@@ -59,6 +60,7 @@
       "Agent(harness:code-reviewer)",
       "Agent(harness:test-reviewer)",
       "Agent(harness:acceptance-reviewer)",
+      "Agent(harness:submission-writer)",
       "WebSearch",
       "WebFetch"
     ],

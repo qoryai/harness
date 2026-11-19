@@ -323,12 +323,12 @@ workflows:
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
   `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
   as text. The session passes it the changed paths of the working folder.
-- `workflow-review-changes`: check a Build run before its review round. The session starts
-  no agent. With no build plan, it ends with a `run_again` point. While a planned change is
-  not built, or a locked file differs from the acceptance lock, it ends with
-  `qory run verdict changes-requested`. When every check passes, it ends ready: in a stage
-  that has reviewers, qory then runs the review round, and in a stage with none, the run
-  ends with `qory run verdict passed`.
+- `workflow-review-changes`: check a Build run before its review round. With no build plan,
+  it ends with a `run_again` point. While a planned change is not built, or a locked file
+  differs from the acceptance lock, it ends with `qory run verdict changes-requested`. When
+  every check passes, it starts `submission-writer`, runs `checks.cjs report-build`, and
+  ends ready: in a stage that has reviewers, qory then runs the review round, and in a
+  stage with none, the run ends with `qory run verdict passed`.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.
@@ -339,6 +339,14 @@ workflows:
   criteria and build plan, after `reviewing-changes` and `judging-findings`. The skill
   contains what the review reads, the area it covers, the steps, what is blocking in that
   area, and the check list.
+- `writing-submissions`: load it before you write the title and the description of the
+  draft pull request of a Build run. The skill contains the file, the title, the four
+  parts, their limits, what `## Disclosed` contains and the check list.
+- `submission-writer`: an agent that writes `.reports/submission.md` of the artifact
+  folder by `writing-submissions`: the title and the parts `## Problem`, `## Change`,
+  `## Tests` and `## Disclosed`, from the build plan, the build ledger and the records of
+  the checks. It types no result. `workflow-review-changes` starts it when every check
+  passed.
 - `code-reviewer`: an agent that reviews the code of a change, apart from its tests, by
   `reviewing-changes`, `judging-findings` and `checking-code`, and writes one report file.
   It also reports a security hole, data loss or a secret in a test. qory starts it in the

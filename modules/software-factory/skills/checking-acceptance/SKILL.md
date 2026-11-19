@@ -22,10 +22,12 @@ falls under the definition of `blocking` in `judging-findings`.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists: what the session that made the change states
   that it did.
+- `.qory/handoff/submission.json` in the copy at `qory.review.commit`, when it exists: the
+  title and the description of the change, which the session that made the change wrote.
 
 The review also reads the newest version of the acceptance criteria, the spec and the
 build plan of the work item, from `<start>`, the folder in `qory.start_artifacts` of the
-input file. The copy at `commit` contains no `.qory` folder, so do not look for them there.
+input file. The copy at `commit` has no artifacts folder under `.qory`, so do not look for them there.
 Read `<start>/index.json`. Then, for each of the types `acceptance-criteria`, `spec` and
 `build-plan`:
 
@@ -82,7 +84,8 @@ them. The shape of `previous_findings` is not in a contract of qory yet.
    breaks a `Stays:` point of the spec.
 5. A changed path that no Files cell of the build plan lists: a deliverable that is not
    built as planned.
-6. The build report, when it exists: a claim in it that the diff does not show.
+6. The build report, and the description in `.qory/handoff/submission.json`, when they
+   exist: a claim in either that the diff or the records of the run do not show.
 7. A criterion whose `check` is `Demo: <title>`: check its code path only. The Verify stage
    runs the demo.
 8. A change that meets every criterion and builds every deliverable gets an empty

@@ -246,8 +246,9 @@ An agent that the table does not list sets no `model` key.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
-  `scenario-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
-  and WebSearch. A reviewer of a change, such as `code-reviewer`, which qory starts as the
+  `scenario-writer`'s add Write and Edit, `submission-writer`'s adds Write alone, and
+  `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A reviewer of a change,
+  such as `code-reviewer`, which qory starts as the
   main agent of a separate session, lists Write beside the four read tools and writes at one
   path, its report: the body has the line `Tool exception: Write, because it writes the one
   report file of a review round.` The tool guard denies each other write of that session,
@@ -2476,8 +2477,9 @@ of the criterion is cut in both to its first 8 words and "...".
 
 `workflow-review-changes`, process entry `review-changes`, checks a Build run and ends it
 ready, for the review round when the stage has reviewers. The stack lists the workflow with
-`tier: thinking` and `access: write`. The session starts no agent and runs no ledger step.
-It pulls and runs `checks.cjs resume`. Then it reads the build plan of the run's start: the
+`tier: thinking` and `access: write`. The session starts no agent before its end, and runs
+no ledger step. It pulls and runs `checks.cjs resume`. Then it reads the build plan of the
+run's start: the
 version that `newest_version` of `build-plan` lists in the `index.json` of the folder of
 `qory.start_artifacts`, as `lib/plan.cjs` of `running-a-software-workflow` reads it. It also
 reads `.reports/build-ledger.json` of the artifact folder, which `resume` writes from the
@@ -2490,10 +2492,22 @@ are not built: d-2, "<Change cell>".", cut to 500 characters. It writes no `poin
 then, because qory sends `escalate` or `answer` from that file. Otherwise, in a run, it runs
 `checks.cjs lock --verify`, and ends the same way with the paths of the locked files that
 differ. Outside a run it skips the verify, because the verify would read the local artifact
-folder. With every check passed, it ends with "The change is ready: each planned change is
-built." In a stage that has reviewers, it runs no verdict command, and qory then runs the
-review round. In a stage with none, such as when `inputs.json` has no
-`qory.stage.reviewers`, it runs `qory run verdict passed` first.
+folder. With every check passed, it starts `submission-writer`, which writes
+`.reports/submission.md` of the artifact folder: the title, then `## Problem`, `## Change`,
+`## Tests` and `## Disclosed`, in the order of the check of `submission`, from the build
+plan, the build ledger and the records of the checks, with no result typed. Then it runs
+`checks.cjs report-build`, which renders `build-report.md` in the artifact folder and
+writes the hand-off file at the value of `QORY_SUBMISSION_HANDOFF`, under
+`.qory/handoff/`. The ledger's edit check skips `.qory/`. A runtime with no tool that
+starts an agent, a start that fails and a `blocked` report of the writer end the run as
+"Failures" of `running-a-workflow` lists. An exit of `report-build` of 1 ends it with "The change is not
+ready, because `report-build` failed: <the first line it printed>." and no verdict.
+Otherwise it ends with "The change is ready: each planned change is built." In a stage
+that has reviewers, it runs no verdict command, and qory then runs the review round. In a
+stage with none, such as when `inputs.json` has no `qory.stage.reviewers`, it runs
+`qory run verdict passed` first.
+`acceptance-reviewer` also reads `.qory/handoff/submission.json` in the copy of the change,
+when it exists, and reports a claim in it that the diff or the records do not show.
 
 - **The reviewers.** qory starts `code-reviewer`, `test-reviewer` and
   `acceptance-reviewer`, each as a separate session, as "The review of a change" lists.

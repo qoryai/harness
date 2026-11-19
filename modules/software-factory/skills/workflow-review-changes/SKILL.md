@@ -1,15 +1,13 @@
 ---
 name: workflow-review-changes
-description: Check a Build run: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, and end ready, for the review round when the stage has reviewers. Use in a headless run of the workflow review-changes.
+description: Check a Build run: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, write the submission text, and end ready, for the review round when the stage has reviewers. Use in a headless run of the workflow review-changes.
 ---
 
 # Review changes
 
-This workflow requires subagents. The subagents are the three reviewers that qory starts
-after the session.
-
-This session starts no agent, so the case of "Failures" of `running-a-workflow` for a
-runtime with no tool that starts an agent does not apply to it: on such a runtime, go on.
+This workflow requires subagents. At the end of a run whose checks all passed, the
+session starts ${qory:agents/submission-writer}. After the session, qory starts the three
+reviewers.
 
 When the session ends ready in a stage that has reviewers, qory runs the review round: it
 starts ${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and
@@ -31,9 +29,18 @@ Each command of this skill that starts with `<skill folder>/checks.cjs` is the c
 of `running-a-workflow`. The input file is the file whose path the prompt contains, which
 ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull prints.
 
-Run only `<qory>` commands, the checks script and the read forms of `run-artifacts`. Write
-no file but `points.json`, and change no file of the working folder: a change there has no
-row in the build ledger, and `step begin` of the next session exits with 1 on it.
+Run only `<qory>` commands, the checks script and the read forms of `run-artifacts`. The
+session writes the files that "What you do" of `running-a-workflow` lists, such as
+`points.json`, and these:
+
+- `build-report.md` in `<folder>`, which `report-build` writes;
+- `.reports/submission.md` in `<folder>`, which the submission writer writes;
+- the hand-off file at the value of `QORY_SUBMISSION_HANDOFF`, under `.qory/handoff/`,
+  which `report-build` writes.
+
+Change no file of the working folder: a change there has no row in the build ledger,
+and `step begin` of the next session exits with 1 on it. The ledger's edit check skips
+`.qory/`, so the hand-off file causes no such exit.
 
 ## The order of the run
 
@@ -107,17 +114,31 @@ same line, and the run ends with no verdict.
 
 ## The end
 
-When every check passed, write no `points.json` and run no `findings open`: the open
-findings of a round go to the next Build session, and the reviewers of the next round get
-them. Then:
+When every check passed, write no `points.json` for open findings and run no
+`findings open`: the open findings of a round go to the next Build session, and the
+reviewers of the next round get them. Then, in this order:
 
-- In a stage that has reviewers, as "Open findings of a review" of `running-a-workflow`
-  lists, run no verdict command, so that qory runs the review round after the session ends.
-- In a stage with no reviewers, such as when the input file has no `qory.stage.reviewers`,
-  run `<qory> run verdict passed`, as "The end" of `running-a-workflow` lists. When the
-  command fails, the run ends with no verdict.
+1. Start ${qory:agents/submission-writer} in the foreground, as "Starting agents" of
+   `running-a-workflow` lists, with the input file's path, `<folder>` and the path of the
+   build plan that item 1 of "The ledger check" read. Write its report to
+   `<folder>/.reports/submission-writer-1.md` and check it, as "Check each report" lists.
+   A runtime with no tool that starts an agent, a start that fails, a report that still
+   fails its check after two fixes and a report whose last word is `blocked` end the run as
+   "Failures" of `running-a-workflow` lists.
+2. Run `<skill folder>/checks.cjs report-build`. It writes `build-report.md` in `<folder>`
+   and the hand-off file at the value of `QORY_SUBMISSION_HANDOFF`. With exit 2, 3 or 4,
+   end as "Failures" lists for the checks script. With exit 1, or any other status, end
+   with "The change is not ready, because `report-build` failed: <the first line it
+   printed>."
+3. Handle the verdict:
+   - In a stage that has reviewers, as "Open findings of a review" of `running-a-workflow`
+     lists, run no verdict command, so that qory runs the review round after the session
+     ends.
+   - In a stage with no reviewers, such as when the input file has no
+     `qory.stage.reviewers`, run `<qory> run verdict passed`, as "The end" of
+     `running-a-workflow` lists. When the command fails, the run ends with no verdict.
 
-In both cases, end with "The change is ready: each planned change is built."
+   In both cases, end with "The change is ready: each planned change is built."
 
 ## Failures
 

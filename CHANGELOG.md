@@ -8,6 +8,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The agent `submission-writer` and the skill `writing-submissions` in `software-factory`.
+  When every check of the `review-changes` workflow passed, the session starts the agent,
+  which writes the title and the four-part description (`## Problem`, `## Change`,
+  `## Tests`, `## Disclosed`) of the draft pull request to `.reports/submission.md`, then
+  runs `checks.cjs report-build`. A runtime with no agent tool, a start that fails and a
+  `blocked` report end the run as "Failures" of `running-a-workflow` lists, and an exit of
+  `report-build` other than 0 ends it not ready.
+  `acceptance-reviewer` also reads `.qory/handoff/submission.json` in the copy of the
+  change.
 - The `review-changes` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-review-changes`, `checking-code`, `checking-tests`
   and `checking-acceptance`, and the agents `code-reviewer`, `test-reviewer` and
