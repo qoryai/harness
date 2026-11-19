@@ -166,20 +166,23 @@ its change and ends, and qory runs the round of review afterwards: each reviewer
 separate session, with the tools Read, Grep, Glob, Skill and Write, no shell and no network.
 The values of the round are in the member `qory.review` of the `inputs.json` that qory
 writes: `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and `report`,
-the path where the reviewer writes its report. The skill `reviewing-changes` of `core` lists
-the report: one JSON file with a `reviewer` and a list of findings, each with a `severity`
-of `blocking` or `non-blocking`, `quote`, `problem`, `fix`, `proof`, `point`, and `file`,
-`line` and `id` when they apply. The report has no result word and no list of unverified
-claims, and nobody closes a finding. The skill `judging-findings` of `software-factory`
-defines `blocking` and lists the values of `qory.review`: `core` cannot contain those words, as
-rule 11 of `scripts/check.sh` lists. A reviewer that cannot finish stops and writes no
-file. qory reads the report against its schema; the harness checks no report of a change
-with a verb. The test of the example report in `reviewing-changes` reads
-`contracts/harness/v1/review-report.schema.json` of qory at the commit
-`QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder `QORY_SOURCE`.
-After a round with a `blocking` finding, the next session of the stage reads
-`open-findings.json`, which `checks.cjs findings open` prints as lines to fix first, as its
-bullet in the section "Small workflows" lists. qory writes `qory.review`, `qory.stage` and
+the path where the reviewer writes its report. The reviewers of Build in `software-factory`
+are `code-reviewer`, `test-reviewer` and `acceptance-reviewer`. The skill
+`reviewing-changes` of `core` lists the report: one JSON file with a `reviewer` and a list
+of findings, each with a `severity` of `blocking` or `non-blocking`, `quote`, `problem`,
+`fix`, `proof`, `point`, and `file`, `line` and `id` when they apply. The report has no
+result word and no list of unverified claims, and nobody closes a finding. The skill
+`judging-findings` of `software-factory` defines `blocking` and lists the values of
+`qory.review`: `core` cannot contain those words, as rule 11 of `scripts/check.sh` lists. A
+reviewer that cannot finish stops and writes no file. qory reads the report against its
+schema; the harness checks no report of a change with a verb. The test of the example report
+in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
+commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
+`QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
+example reports of `code-reviewer`, `test-reviewer` and `acceptance-reviewer`. After a round
+with a `blocking` finding, the next session of the stage reads `open-findings.json`, which
+`checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
+workflows" lists. qory writes `qory.review`, `qory.stage` and
 `open-findings.json`; this harness only reads them. The tool guard denies a write to a
 report path below `.git` or `.claude` of the working folder. When the harness home is below
 the working folder, the deny of a write below the harness home applies to the report path
@@ -2468,6 +2471,60 @@ of the criterion is cut in both to its first 8 words and "...".
   build go on. The run ends with `escalate` and one `answer` point per check. The ledger
   step stays `done`, so a new criteria version starts a new pass of `checks`, and an
   unchanged one replays it.
+
+`workflow-review-changes`, process entry `review-changes`, checks a Build run and ends it
+ready, for the review round when the stage has reviewers. The stack lists the workflow with
+`tier: thinking` and `access: write`. The session starts no agent and runs no ledger step.
+It pulls and runs `checks.cjs resume`. Then it reads the build plan of the run's start: the
+version that `newest_version` of `build-plan` lists in the `index.json` of the folder of
+`qory.start_artifacts`, as `lib/plan.cjs` of `running-a-software-workflow` reads it. It also
+reads `.reports/build-ledger.json` of the artifact folder, which `resume` writes from the
+version of the ledger that counts. A deliverable is built when the ledger row of
+`deliverable:<id>` with the highest `pass` has the `state` `done`. With no build plan, or
+one that is withdrawn, the session ends with a `run_again` point whose fix is "Plan the
+build, so that a run pushes the build plan." While a deliverable is not built, it runs
+`qory run verdict changes-requested` with no point and ends with "<k> of <n> planned changes
+are not built: d-2, "<Change cell>".", cut to 500 characters. It writes no `points.json`
+then, because qory sends `escalate` or `answer` from that file. Otherwise, in a run, it runs
+`checks.cjs lock --verify`, and ends the same way with the paths of the locked files that
+differ. Outside a run it skips the verify, because the verify would read the local artifact
+folder. With every check passed, it ends with "The change is ready: each planned change is
+built." In a stage that has reviewers, it runs no verdict command, and qory then runs the
+review round. In a stage with none, such as when `inputs.json` has no
+`qory.stage.reviewers`, it runs `qory run verdict passed` first.
+
+- **The reviewers.** qory starts `code-reviewer`, `test-reviewer` and
+  `acceptance-reviewer`, each as a separate session, as "The review of a change" lists.
+  Each loads `reviewing-changes`, `judging-findings` and its checking skill,
+  `checking-code`, `checking-tests` or `checking-acceptance`. A finding in another area is
+  left out: its reviewer writes it. Only `code-reviewer` reports bugs in each file that is
+  not a test, and security holes, data loss and secrets in every file of the change, tests
+  and fixtures too. Only `test-reviewer` reports a failing test that the change skips,
+  deletes or loosens, with the old test traced through the new code; it also reports code
+  with no test and tests that show nothing. `code-reviewer` reports the bug behind such a
+  failing test. Only `acceptance-reviewer` reports a criterion that the change does not
+  meet; it also reports a planned change that is not in the diff, a changed path that no
+  Files cell of the build plan lists, and work that no rule of the spec requires. It reads
+  the acceptance criteria, the spec and the build plan from the folder of
+  `qory.start_artifacts`, each at the `newest_version` of its entry `main`, or of its one
+  entry, in `index.json`, with withdrawn entries left out. A bug that also breaks a
+  criterion gets two findings: the cause from `code-reviewer`, and the criterion from
+  `acceptance-reviewer`. A red suite and a red locked check are findings that qory writes.
+  A `failing check` proof cites the lines of `output_tail` of `suite_result`.
+- **Earlier findings.** Each reviewer re-reads each finding of `previous_findings`, as
+  `reviewing-changes` and `judging-findings` list, and repeats with its id each finding of
+  its area that is still true.
+- **Not built yet.** The group role `reviewers` and the `reviewers` key of Build follow in
+  a later change. These parts of qory are not built yet:
+  - `qory.stage.reviewers` in `inputs.json`: qory does not write it yet, so the
+    `review-changes` session runs `qory run verdict passed` in every stage;
+  - how qory takes `changes-requested` from the `review-changes` session in a stage with
+    reviewers;
+  - `qory.start_artifacts` in the `inputs.json` of a reviewer, so `acceptance-reviewer`
+    stops with no report;
+  - `output_tail` of `suite_result`, the last lines of the output of the suite, so
+    `suite_result` has counts only;
+  - the shape of `previous_findings`.
 
 ## The high-level workflow, shape-a-ticket
 

@@ -8,6 +8,35 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The `review-changes` workflow in the `software` stack, with `tier: thinking` and
+  `access: write`: the skills `workflow-review-changes`, `checking-code`, `checking-tests`
+  and `checking-acceptance`, and the agents `code-reviewer`, `test-reviewer` and
+  `acceptance-reviewer`. The session reads the build plan of the run's start and
+  `.reports/build-ledger.json`. With no build plan, it ends with a `run_again` point. While
+  a planned deliverable has no `done` row at its highest pass, the session runs
+  `qory run verdict changes-requested` with no point and ends with a line that lists those
+  deliverables. Otherwise it runs `checks.cjs lock --verify` in a run, and ends the same way
+  when a locked file differs. With every check passed, it ends ready: in a stage with
+  reviewers, it runs no verdict command, so that qory runs the review round, and in a stage
+  with none, it runs `qory run verdict passed`. It starts no reviewer. Each reviewer runs as
+  the main agent of a session that qory starts, with the tools Read, Grep, Glob, Skill and
+  Write. It loads `reviewing-changes`, `judging-findings` and its checking skill, and writes
+  one JSON report. `code-reviewer` reports bugs, security holes and data loss in the code,
+  and security holes, data loss and secrets in the tests and fixtures. `test-reviewer`
+  reports a failing test that the change skips, deletes or loosens, and code with no test;
+  `code-reviewer` reports the bug behind that failing test. `acceptance-reviewer`
+  reports a criterion that the change does not meet, a planned change that it does not
+  build, and a changed path that no Files cell of the build plan lists; it reads the
+  acceptance criteria, the spec and the build plan from the folder of
+  `qory.start_artifacts`, and stops with no report when it cannot read them. A `failing
+  check` proof cites `output_tail` of the suite result. Each reviewer re-reads the earlier
+  findings and repeats those of its area that are still true. The group role `reviewers` and
+  the `reviewers` key of Build follow in a later change. Not built yet in qory:
+  `qory.stage.reviewers`, which qory does not write yet, so the session runs `qory run
+  verdict passed` in every stage until it does; how qory takes `changes-requested` from the
+  session in a stage with reviewers; `qory.start_artifacts` in the input file of a
+  reviewer, so `acceptance-reviewer` stops with no report until qory writes it;
+  `output_tail` of the suite result; and the shape of the earlier findings.
 - The review report is checked against qory's
   `contracts/harness/v1/review-report.schema.json`, not a copy in this repository.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
