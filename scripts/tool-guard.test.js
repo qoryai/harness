@@ -4617,6 +4617,11 @@ test('no field of QORY_REPORTS_GUARD_TEST, and none that the environment can add
         cwd: normal, args: { command } }));
       assert.equal(typeof reason, 'string', `${command.slice(0, 40)} with ${JSON.stringify(hooks)}`);
     }
+    // The checks of backslashes stay on for the child process too: a field noCaps that reached
+    // the child would deny this command only after the child stalled, with another text.
+    const slashes = withGuardTest(hooks, () => reports.decide({ kind: 'shell', env: RUN,
+      cwd: normal, args: { command: denied[6] } }));
+    assert.match(slashes, /Remove the backslash before the glob character/, JSON.stringify(hooks));
   }
   const jobs = [];
   env.forEach((hooks, at) => {
