@@ -21,6 +21,15 @@ The run passes no "Checks:": the draft has no `sha256` until `lock` fills it, so
 script reads it before the review. This document is no Markdown document of
 `artifact-text`: skip the section "A Markdown document" of `reviewing-drafts`.
 
+The reviewer reads files only, so the run passes the real changes under "Changed paths:":
+the output of `git status --porcelain` and of `git diff --name-only <start commit>`, run in
+the working folder before each review. A path of a `git status --porcelain` line is the text
+after its two status characters and a space, and a rename lists both of its paths.
+
+`reviewing-drafts` defines the mark `break` as a break of the person's words. In this
+review, every finding is marked `break`, and the mark means that the run must not push the
+lock while the finding is left.
+
 ## Review of the checks
 
 1. Before you read the checks, list what a person asked for in the ticket, the notes, a
@@ -30,11 +39,17 @@ script reads it before the review. This document is no Markdown document of
    `checks`, and each entry has such a criterion. A missing or extra entry is a finding
    marked `writer`, `no direction` and `break`.
 3. Each entry's `path` is the Check cell of a row of the build plan whose Criteria cell
-   lists the criterion. Each other file that the writer's report lists under "Files:", but
-   `acceptance-lock.json`, is a new helper or fixture below a path of the Files of such a
-   row. The scope check of the run takes every path of those Files, code included, so a
-   change to code under test, to a file of another row or to a file that exists and is no
-   check is a finding marked `writer`, `no direction` and `break`.
+   lists the criterion. A check path is a relative path with no space and no `.` or `..`
+   part, whose file name has an extension, such as `tests/export.test.ts`; `n/a`, `none`,
+   `-`, `TBD` and a scenario id are none. The check scope of that row is its Check path and
+   each folder of its Files that contains that path. Each other file that the writer's
+   report lists under "Files:", but `acceptance-lock.json`, is a new helper or fixture below
+   a folder of the check scope of such a row. A change to code under test, also one that the
+   Files of the row list, to a file of another row, or to a file that exists and is no check
+   is a finding marked `writer`, `no direction` and `break`. So is each path of "Changed
+   paths:" that the writer's "Files:" does not list, except a path under `.qory/` and a
+   Result file of a row of `## Commands` in the build plan: the report lacks a change that
+   exists.
 4. Each check states the outcome of its criterion as an assertion. A test of another
    outcome, a test that passes whatever the code does, and a test that a later change that
    meets the criterion would fail, such as one that reads a private detail, are findings.
@@ -68,8 +83,10 @@ script reads it before the review. This document is no Markdown document of
 ## Check list
 
 - Each criterion planned as `Tests` has a check, and each check has such a criterion.
-- Each check is at its Check path, and each new helper or fixture is below the Files of the
-  same row.
+- Each check is at its Check path, and each new helper or fixture is below a folder of the
+  check scope of the same row.
+- The report's "Files:" lists each file that the writer wrote, so each path of "Changed
+  paths:" of the reviewer is in it.
 - Each check states its criterion's outcome as an assertion, and calls the code as its users
   do.
 - Each check failed on the start commit with a failed test, and its `failed_with` is the

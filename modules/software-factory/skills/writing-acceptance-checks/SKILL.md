@@ -16,17 +16,23 @@ commit of the checkout at the start of the run, and passes once the code meets i
 ## Where each check goes
 
 Read the newest build plan, `build-plan/main/v<N>/build-plan.md` of the artifact folder with
-the largest `<N>`, and the newest approved acceptance criteria. Each row of
-`## Deliverables` whose Check is a path, not `n/a` and not a scenario id such as
-`scenario-1`, has one check: the file at that path. Its criteria are the ones of the
-Criteria cell of that row.
+the largest `<N>`, and the newest approved acceptance criteria. A check path is a relative
+path with no space and no `.` or `..` part, whose file name has an extension, such as
+`tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are none. Each row of
+`## Deliverables` whose Check is a check path has one check: the file at that path. Its
+criteria are the ones of the Criteria cell of that row.
+
+The check scope of a row is its Check path, and each folder of its Files that contains that
+path, such as `tests/`. The scope check of the run fails on each changed path outside the
+check scope of every row.
 
 - Write the check at its Check path, and nowhere else.
-- Write a new helper or fixture of the check only below a path of the Files of the same row.
-  The scope check of the run fails on each other changed path.
+- Write a new helper or fixture of the check only below a folder of the check scope of the
+  same row. A folder of the Files that does not contain the Check path is not in it.
 - When the Check path already exists, as after an earlier round, edit it in place.
-- Change no other file. Code under test, a file of another row and a file that sets up the
-  tests, such as a config of the test runner or a global setup file, stay as they are.
+- Change no other file. Code under test, also when the Files of the row list it, a file of
+  another row and a file that sets up the tests, such as a config of the test runner or a
+  global setup file, stay as they are.
 - Write checks only in the working folder, the run's repository.
 
 ## What a check tests

@@ -29,41 +29,70 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
 1. Pull, then run `<qory> work-item show`. Run the `find` of "Further repositories" of
    `running-a-software-workflow`. Then run `<skill folder>/checks.cjs resume` once, as "The
    build ledger" of that skill lists.
-2. Read the newest build plan: take `<N>`, the `newest_version` of `build-plan` in
-   `index.json`, and read `<folder>/build-plan/main/v<N>/build-plan.md` with
-   `grep -a -n -- '' <path>`, as `run-artifacts` lists. Take three facts from it:
-   - the paths of the checks: each Check cell of `## Deliverables` that is neither `n/a`
-     nor a scenario id, such as `scenario-1`. The criteria of those rows are planned as
-     `Tests`;
-   - the Files of each row with such a path;
-   - whether the app starts: `## Commands` has a `serve` row with a command, and
-     `## Summary` has a line that starts with `App address:`.
+2. Read the newest build plan and the newest acceptance criteria:
+   - The plan: take `<N>`, the `newest_version` of `build-plan` in `index.json`, and read
+     `<folder>/build-plan/main/v<N>/build-plan.md` with `grep -a -n -- '' <path>`, as
+     `run-artifacts` lists.
+   - The criteria: take `<M>`, the `newest_version` of `acceptance-criteria` in
+     `index.json`, and read
+     `<folder>/acceptance-criteria/main/v<M>/acceptance-criteria.json` the same way.
 
-   When `index.json` lists no version of `build-plan`, start no agent, push nothing, and end
-   as "Points" lists, with "The work item has no build plan, so the run wrote no acceptance
-   checks." When the plan has no path of a check, do "No check to write", and go no further
-   in this list.
+   A check path is a relative path with no space and no `.` or `..` part, whose file name
+   has an extension, such as `tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a
+   scenario id are none. Take these facts:
+   - the Tests criteria: each entry of `criteria` in the JSON whose `check` is `Tests` and
+     that has no `removed` member set to `true`;
+   - the check paths: each Check cell of `## Deliverables` that is a check path. The
+     criteria of that row are the ones of its Criteria cell;
+   - the check scope of each row with a check path: its Check path, and each folder of its
+     Files that contains that path, such as `tests/`. Its other Files, such as the code
+     under test, are not in it;
+   - whether the app starts: `## Commands` has a `serve` row with a command, and
+     `## Summary` has a line that starts with `App address:`;
+   - whether a demo script exists: `index.json` lists an artifact of type `demo-script`.
+
+   Then decide, in this order, and go no further in this list when a case ends the run:
+   - When `index.json` lists no version of `build-plan`, start no agent, push nothing, and
+     end as "Points" lists, with "The work item has no build plan, so the run wrote no
+     acceptance checks."
+   - When `index.json` lists no version of `acceptance-criteria`, start no agent, push
+     nothing, and end the same way, with "The work item has no acceptance criteria, so the
+     run wrote no acceptance checks."
+   - When the JSON has no live Tests criterion, do "No check to write", whatever the build
+     plan lists.
+   - When a live Tests criterion is in the Criteria cell of no row with a check path, start
+     no agent, push nothing, and do not end the run as `passed`. End as "Points" lists, with
+     one `run_again` point for each such criterion. Its text is "The build plan has no check
+     path for <criterion>, a criterion planned as Tests, so the run wrote no acceptance
+     checks." and its `fix` is "Plan the build again, with a check path for <criterion>.",
+     where `<criterion>` is as "A locked check that does not fail" lists it.
+
 3. Run `step begin` for the step `checks` of the workflow `write-acceptance-checks`, as "The
    build ledger" lists. Its files are the `acceptance-criteria.json` of the newest version
    that the pull wrote, the build plan of step 2, the `SKILL.md` of this skill and the agent
    file of ${qory:agents/acceptance-check-writer}. With "Replay checks", start no agent and
    push nothing: the checks are locked, so go to "The end".
-4. Write the Files of step 2 to `<folder>/.notes/acceptance-check-writer-files.txt`, one
-   path per line, and run `notes` for the writer with `--files`, as "Notes in a start" of
-   `running-a-workflow` lists. Start ${qory:agents/acceptance-check-writer} with the input
-   file's path, the artifact folder, the run's number, the notes, the "Further repositories"
-   line, the paths of the checks, and any finding or line to fix. It writes the checks and
-   their support files in the working folder, runs each check on the start commit, and
-   drafts `acceptance-lock.json` at the top of the artifact folder.
+4. Write the check scope of step 2 to `<folder>/.notes/acceptance-check-writer-files.txt`,
+   one path per line, and run `notes` for the writer with `--files`, as "Notes in a start"
+   of `running-a-workflow` lists. Start ${qory:agents/acceptance-check-writer} with the
+   input file's path, the artifact folder, the run's number, the notes, the "Further
+   repositories" line, the paths of the checks, and any finding or line to fix. It writes
+   the checks and their support files in the working folder, runs each check on the start
+   commit, and drafts `acceptance-lock.json` at the top of the artifact folder.
 5. Run `<skill folder>/checks.cjs scope checks --inputs <inputs>`. When it exits with 1,
    start the writer with every line that it printed, quoted, at most twice, and run `scope`
    again. When it still exits with 1, end as "Failures" lists.
-6. Start ${qory:agents/check-reviewer} with the input file's path, the artifact folder, the
-   run's number, the notes and the writer's newest report, unchanged. Give it no "Checks:":
-   the draft has no `sha256` until `lock` fills it, so you run no `check` on it. Decide on
-   each report as "Findings" lists. After a start of the writer for a finding, do step 5
-   again before the next review. A finding left that fails a push ends the run with no lock,
-   as "Findings" lists.
+6. Run these two commands in the working folder, each in a Bash call of its own: `git status
+   --porcelain`, and `git diff --name-only <start commit>`. `<start commit>` is the `commit`
+   of the entry of `qory.start_commits` in the input file whose `path` is the working
+   folder. Run them again before each later review. The reviewer reads files only, so it
+   judges the changes by these lists. Start ${qory:agents/check-reviewer} with the
+   input file's path, the artifact folder, the run's number, the notes, the writer's newest
+   report, unchanged, and the two outputs under "Changed paths:", unchanged. Give it no
+   "Checks:": the draft has no `sha256` until `lock` fills it, so you run no `check` on it.
+   Decide on each report as "Findings" lists. After a start of the writer for a finding, do
+   step 5 again before the next review. A finding left that fails a push ends the run with
+   no lock, as "Findings" lists.
 7. Run `<skill folder>/checks.cjs freeze checks --inputs <inputs>`. It commits the checks
    and prints a line that starts with "Froze checks as commit <commit>:". Set `commit` in
    `<folder>/acceptance-lock.json` to that `<commit>`, and change nothing else in the file:
@@ -87,15 +116,20 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
 Each locked check must fail on the start commit: the code of the run's start, with only the
 checks added. This section runs only after a `lock` of this run stored the lock.
 
-1. When step 2 found that the app starts, run
-   `<skill folder>/checks.cjs preflight --inputs <inputs>` once, before the first
-   `run locked`, because a check may open the app:
+1. When step 2 of "The order of the run" found that the app starts and that a demo script
+   exists, run `<skill folder>/checks.cjs preflight --inputs <inputs>` once, before the
+   first `run locked`, because a check may open the app:
    - With 0, go on.
    - With 1, `preflight` wrote `points.json` with a `run_again` point and its fix for each
      missing part. Change no code and start no agent: run `check points` on `points.json`,
      and end the run with those points, as "Points" of `running-a-workflow` lists.
    - With 3, take the cause from the line that starts with `Cause:`, and end as "Points"
      lists, with "The run stopped at the app check, because <cause>."
+
+   When step 2 of "The order of the run" found that the app starts and no demo script
+   exists, run no `preflight`: it exits 3 for the missing demo script and would end a run
+   that has locked its checks. Go on to the next item with no app check. A check that needs
+   the app then runs against no app in `run locked`, as any other check runs.
 2. Run `<skill folder>/checks.cjs run locked --inputs <inputs>`. It runs every locked
    check once and prints one finding for each check that is red. A check fails right only
    when its finding starts with "Fix the code until the locked check of <criterion>
@@ -160,7 +194,7 @@ criteria opens a new lock.
 
 ## No check to write
 
-When the build plan has no path of a check, no criterion is planned as `Tests`: run no
+When the newest acceptance criteria have no live criterion whose `check` is `Tests`, run no
 `step begin`, start no agent, and push nothing. When the run is alone, run
 `<qory> run verdict passed`, and end with "No criterion is planned as Tests, so the run
 wrote no acceptance checks." Under a higher workflow, return that line as the report.

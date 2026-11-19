@@ -51,12 +51,15 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   read forms.
 
-You get the paths of the input file and the artifact folder, the run's number, the notes and
-the writer's newest report, unchanged. The draft is `acceptance-lock.json` at the top of the
-artifact folder, and the checks are the files that its `checks` and `support` list, in the
-working folder. The records of the runs are in `.reports/runs/` of the artifact folder. The
-newest version of a type is the folder `<type>/main/v<N>/` with the largest `<N>`: read
-those of `acceptance-criteria` and `build-plan`. You fetch no web page. A refused tool call
+You get the paths of the input file and the artifact folder, the run's number, the notes,
+the writer's newest report, unchanged, and "Changed paths:", the output of `git status
+--porcelain` and of `git diff --name-only <start commit>` that the run ran in the working
+folder. You run neither command: use that list for the changes. The draft is
+`acceptance-lock.json` at the top of the artifact folder, and the checks are the files that
+its `checks` and `support` list, in the working folder. The records of the runs are in
+`.reports/runs/` of the artifact folder. The newest version of a type is the folder
+`<type>/main/v<N>/` with the largest `<N>`: read those of `acceptance-criteria` and
+`build-plan`. You fetch no web page. A refused tool call
 stays refused. Read through no link.
 
 ## Stop conditions
@@ -64,6 +67,8 @@ stays refused. Read through no link.
 - If a skill you need cannot be loaded, report `blocked` with its name and no findings.
 - If the input file, the artifact folder or the draft is missing or cannot be read, report
   `blocked` with the path. Do not guess what it contains.
+- If you get no "Changed paths:", report `blocked` with "Changed paths: missing". Do not
+  take the writer's "Files:" for the changes.
 - If the newest acceptance criteria or the newest build plan cannot be read, report
   `blocked` with the path.
 - If a check, a support file or a record that the draft or the report lists cannot be read,

@@ -2236,40 +2236,58 @@ workflow with `tier: thinking` and `access: write`.
 locks the acceptance checks of one ticket, after its build plan and before any step changes
 code. The stack lists the workflow with `tier: balanced` and `access: write`, and both
 agents run on the tier `thinking`. The session pulls, runs `checks.cjs resume`, and reads
-the newest build plan. Each Check cell that is a path, not `n/a` and not a scenario id, is a
-check, and the criteria of its row are planned as `Tests`. With no such path, the session
-runs no ledger step, starts no agent, pushes nothing and ends `passed`, with "No criterion
-is planned as Tests, so the run wrote no acceptance checks." With no build plan, it ends
-with a `run_again` point.
+the newest build plan and the newest `acceptance-criteria.json`. A check path is a relative
+path with no space and no `.` or `..` part, whose file name has an extension, such as
+`tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are none. It is the
+`isPath` of `lib/plan.cjs`, which `types/build-plan.cjs` uses too. Each Check cell of the
+plan that is a check path is a check, and the criteria of its row are planned as `Tests`.
+The agents start only when the JSON has a live criterion whose `check` is `Tests`, one with
+no `removed` member set to `true`. With none, the session runs no ledger step, starts no
+agent, pushes nothing and ends `passed`, with "No criterion is planned as Tests, so the run
+wrote no acceptance checks." With no build plan or no acceptance criteria, it ends with a
+`run_again` point. When a live `Tests` criterion is in the Criteria cell of no row with a
+check path, the session starts no agent, pushes nothing and ends with one `run_again` point
+for each such criterion, not `passed`: "The build plan has no check path for AC-3, "<first
+sentence>", a criterion planned as Tests, so the run wrote no acceptance checks." Its fix is
+to plan the build again.
 
 - **The step `checks`.** The session starts the ledger step `checks` and then
   `acceptance-check-writer`, which writes each check at its Check path, writes new helpers
-  and fixtures only below the Files of the same row, and runs each check with `checks.cjs
-  run targeted <path> --inputs <path>` until it fails with a failed test. The command of a
-  check is the `targeted` command of the plan, a space and the path. The writer drafts
-  `acceptance-lock.json`, with `failed_with` set to the `exit` of the record of the last
-  run, each support file under `support`, and no `sha256`. The session runs `scope checks`,
-  then starts `check-reviewer`, which reads the checks, the draft and the records read-only
-  by `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no "Checks:",
-  because the draft has no `sha256` before `lock`. After a review with no finding left that
-  fails a push, the session runs `freeze checks`, sets `commit` in the draft to the commit
-  that `freeze` printed, runs `checks.cjs lock`, and ends the step as `done` with
-  `--pushed acceptance-lock/main/<N>`.
+  and fixtures only below a folder of the Files of the same row that contains that path, and
+  runs each check with `checks.cjs run targeted <path> --inputs <path>` until it fails with
+  a failed test. The command of a check is the `targeted` command of the plan, a space and
+  the path. The writer drafts `acceptance-lock.json`, with `failed_with` set to the `exit`
+  of the record of the last run, each support file under `support`, and no `sha256`. The
+  session runs `scope checks`, which allows only the check scope of each row with a check
+  path: its Check path, and each folder of its Files that contains that path. The code under
+  test in those Files is outside it. Then the session starts `check-reviewer`, which reads
+  the checks, the draft and the records read-only by `reviewing-drafts` and
+  `checking-acceptance-checks`. The reviewer gets no "Checks:", because the draft has no
+  `sha256` before `lock`. It gets "Changed paths:" instead, the output of `git status
+  --porcelain` and of `git diff --name-only <start commit>`, which the session runs in the
+  working folder before each start, because the reviewer reads files only. After a review
+  with no finding left that fails a push, the session runs `freeze checks`, sets `commit` in
+  the draft to the commit that `freeze` printed, runs `checks.cjs lock`, and ends the step
+  as `done` with `--pushed acceptance-lock/main/<N>`.
 - **The reviewer's findings.** `check-reviewer` reports each of these as a finding marked
   `writer`, `no direction` and `break`, so the run locks nothing while one is left: a
   criterion planned as `Tests` with no check; a check that did not fail on the start
   commit with a failed test, by its record and log; a command that runs, or a check that
   imports, a file of the repository whose only use is the tests, such as a helper, a
   fixture, a setup file or a config of the test runner, that the draft lists neither as a
-  check nor under `support`; a check or a command that changes the setup of the tests; and
-  a skip, xfail or only mark, or the runtime's equivalent. The reviewer reads files: no
-  script reads imports.
+  check nor under `support`; a check or a command that changes the setup of the tests; a
+  skip, xfail or only mark, or the runtime's equivalent; and each path of "Changed paths:"
+  that the writer's "Files:" does not list. Here `break` means that the run must not push
+  the lock while the finding is left. `reviewing-drafts` defines `break` as a break of the
+  person's words. The reviewer reads files: no script reads imports.
 - **The run on the start commit.** After the lock, the session runs `checks.cjs preflight
-  --inputs <path>` first when the plan has a `serve` row with a command and an
-  `App address:` line, and then `checks.cjs run locked --inputs <path>`. A point of the
-  preflight ends the session with that point. An exit 3 of the preflight ends it with "The
-  run stopped at the app check, because <cause>.", such as "no demo script exists for the
-  app". A locked check fails right only when its finding starts with "Fix the code until the
+  --inputs <path>` first when the plan has a `serve` row with a command and an `App
+  address:` line, and `index.json` lists a demo script. Then it runs `checks.cjs run locked
+  --inputs <path>`. When the plan starts the app and `index.json` lists no demo script, the
+  preflight would exit 3, so the session runs no preflight and runs the checks with no app
+  check. A point of the preflight ends the session with that point. An exit 3 of the
+  preflight ends it with "The run stopped at the app check, because <cause>.". A locked
+  check fails right only when its finding starts with "Fix the code until the
   locked check of <criterion> passes.". A check that is green, or red for another reason,
   runs once more with `run locked <criterion>`. When it is wrong again, the session pushes
   one question per such check to a member, with `about` set to
@@ -2470,8 +2488,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
   for `fix:f<N>` and for `--plan`. For `checks`, the step of `write-acceptance-checks`, they
-  count against the Files of each deliverable whose Check is the path of a test file, not
-  `n/a` or a scenario id. Exactly one of `<step>` and `--plan` is given. No file
+  count against the check scope of each deliverable whose Check is a check path: that path,
+  and each folder of its Files that contains it. A Check cell such as `n/a`, `none` or a
+  scenario id is no check path. Exactly one of `<step>` and `--plan` is given. No file
   has a separate rule: `qory.yaml`, a hook program and a module count as any path. A path
   under `.qory` counts as none, as qory leaves `.qory` out of every commit, and so does an
   untracked result file. A path that the index marks skip-worktree or assume-unchanged

@@ -78,11 +78,36 @@ test('the skill starts the writer, the reviewer and, for a wrong check, question
   // The agents start only when the build plan has a path of a check, a criterion planned as
   // Tests: else the run starts no agent and ends passed.
   const none = section(WORKFLOW, 'No check to write');
-  says(none, 'no criterion is planned as `Tests`: run no `step begin`, start no agent, ' +
-    'and push nothing');
+  says(none, 'When the newest acceptance criteria have no live criterion whose `check` is ' +
+    '`Tests`, run no `step begin`, start no agent, and push nothing');
   says(none, '"No criterion is planned as Tests, so the run wrote no acceptance checks."');
   assert.match(oneLine(section(WORKFLOW, 'The order of the run')),
-    /When the plan has no path of a check, do "No check to write", and go no further/);
+    /When the JSON has no live Tests criterion, do "No check to write", whatever the build plan/);
+});
+
+test('the skill reads the criteria, and ends with run_again for a Tests criterion with no path', () => {
+  const order = oneLine(section(WORKFLOW, 'The order of the run'));
+  says(order, 'The criteria: take `<M>`, the `newest_version` of `acceptance-criteria` in ' +
+    '`index.json`, and read `<folder>/acceptance-criteria/main/v<M>/acceptance-criteria.json`');
+  says(order, 'each entry of `criteria` in the JSON whose `check` is `Tests` and that has no ' +
+    '`removed` member set to `true`');
+  // A live Tests criterion that no row with a check path lists: no agent, no push, no passed.
+  says(order, 'When a live Tests criterion is in the Criteria cell of no row with a check ' +
+    'path, start no agent, push nothing, and do not end the run as `passed`. End as "Points" ' +
+    'lists, with one `run_again` point for each such criterion.');
+  says(order, '"The build plan has no check path for <criterion>, a criterion planned as ' +
+    'Tests, so the run wrote no acceptance checks."');
+  says(order, '"Plan the build again, with a check path for <criterion>."');
+  // The point has the shape that the check of points accepts.
+  const w = work();
+  const call = session(w);
+  const file = path.join(w.artifacts, 'points.json');
+  fs.writeFileSync(file, JSON.stringify([{ text: 'The build plan has no check path for ' +
+    'AC-3, "The export has a footer line", a criterion planned as Tests, so the run wrote no ' +
+    'acceptance checks.', action: 'run_again',
+  fix: 'Plan the build again, with a check path for AC-3, "The export has a footer line".' }]));
+  const checked = call('check', 'points', file);
+  assert.equal(checked.status, 0, checked.out + checked.err);
 });
 
 test('each new agent has guardrails, stop conditions, expected output and tier thinking', () => {
@@ -102,7 +127,8 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
   // The writer runs only run targeted, and writes only in the Files of its rows.
   says(section(writer, 'Guardrails'), 'You run no command, except ' +
     '`<skill folder>/checks.cjs run targeted <path>... --inputs <path>`');
-  says(section(writer, 'Guardrails'), 'below a path of the Files cell of that row');
+  says(section(writer, 'Guardrails'), 'below a folder of the Files cell of that row that ' +
+    "contains the check's path");
 });
 
 test('the stack declares write-acceptance-checks with tier balanced and access write', () => {
@@ -120,14 +146,20 @@ test('the stack declares write-acceptance-checks with tier balanced and access w
     "which orchestrates one ticket's acceptance checks");
 });
 
-test('the skill runs the preflight before the first run locked, only when the app starts', () => {
+test('the skill runs the preflight before run locked, only with an app and a demo script', () => {
   const text = oneLine(section(WORKFLOW, 'The run on the start commit'));
   const preflight = text.indexOf('checks.cjs preflight --inputs <inputs>');
   const locked = text.indexOf('checks.cjs run locked --inputs <inputs>');
   assert.ok(preflight > 0 && locked > preflight, 'the preflight comes before run locked');
-  assert.match(text, /When step 2 found that the app starts, run/);
+  assert.match(text, /found that the app starts and that a demo script exists, run/);
   says(section(WORKFLOW, 'The order of the run'), '`## Commands` has a `serve` row with a ' +
     'command, and `## Summary` has a line that starts with `App address:`');
+  says(section(WORKFLOW, 'The order of the run'), 'whether a demo script exists: `index.json` ' +
+    'lists an artifact of type `demo-script`');
+  // With no demo script, the preflight exits 3: the skill runs none and runs the checks.
+  says(text, 'found that the app starts and no demo script exists, run no `preflight`: it ' +
+    'exits 3 for the missing demo script and would end a run that has locked its checks. Go on ' +
+    'to the next item with no app check.');
   // A point of the preflight ends the session with that point.
   assert.match(text, /run `check points` on `points\.json`, and end the run with those points/);
 });
@@ -757,13 +789,85 @@ test('scope checks takes the Files of the rows with a check, and refuses another
   assert.equal(refused.status, 1, refused.out);
   assert.equal(refused.lines[0], 'Undo the change to "docs/export.md", or end the step as ' +
     'failed: it is outside the scope.');
-  assert.equal(refused.lines[2], '  src/orders.cjs, tests/, tests/header.check.cjs.');
+  assert.equal(refused.lines[2], '  tests/lines.check.cjs, tests/, tests/header.check.cjs.');
   const frozen = call('freeze', 'checks', '--inputs', w.inputs);
   assert.equal(frozen.status, 1, frozen.out);
   assert.equal(frozen.lines.at(-1), 'Froze nothing: 1 changed path is outside the files of ' +
     'the acceptance checks.');
   // A step id that the ledger does not have is refused.
   assert.equal(call('scope', 'check', '--inputs', w.inputs).status, 2);
+});
+
+test('scope checks refuses the code under test of a row with a check, and any Files cell', () => {
+  const w = work();
+  const call = session(w);
+  writeFile(w, 'tests/lines.check.cjs', CHECK_1);
+  // A helper below the folder of the Files of d-1, which contains its Check path, is in.
+  writeFile(w, 'tests/fixtures/orders.json', '[]\n');
+  assert.equal(call('scope', 'checks', '--inputs', w.inputs).status, 0);
+  // src/orders.cjs is in the Files of d-1 and d-2, rows with a check, but it is code under test.
+  writeFile(w, 'src/orders.cjs', `${ORDERS}// changed\n`);
+  const refused = call('scope', 'checks', '--inputs', w.inputs);
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[0], 'Undo the change to "src/orders.cjs", or end the step as ' +
+    'failed: it is outside the scope.');
+  assert.ok(!refused.lines.join('\n').includes('  src/orders.cjs,'), refused.out);
+  const frozen = call('freeze', 'checks', '--inputs', w.inputs);
+  assert.equal(frozen.status, 1, frozen.out);
+  assert.equal(frozen.lines.at(-1), 'Froze nothing: 1 changed path is outside the files of ' +
+    'the acceptance checks.');
+  // The step of a deliverable still takes the whole Files cell.
+  const deliverable = call('scope', 'deliverable:d-1', '--inputs', w.inputs);
+  assert.equal(deliverable.status, 0, deliverable.out);
+  assert.match(deliverable.out, /^Passed: 3 changed paths in the files of d-1/m);
+});
+
+test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay out', () => {
+  for (const cell of ['none', 'N/A', '-', 'TBD', 'docs/', 'scenario-1']) {
+    const plan = PLAN.replace('| `docs/export.md` | n/a |', `| \`docs/export.md\` | ${cell} |`);
+    assert.notEqual(plan, PLAN);
+    const w = work({ plan });
+    const call = session(w);
+    writeFile(w, 'tests/lines.check.cjs', CHECK_1);
+    assert.equal(call('scope', 'checks', '--inputs', w.inputs).status, 0, cell);
+    writeFile(w, 'docs/export.md', 'The export.\n');
+    const refused = call('scope', 'checks', '--inputs', w.inputs);
+    assert.equal(refused.status, 1, `${cell}\n${refused.out}`);
+    assert.equal(refused.lines[0], 'Undo the change to "docs/export.md", or end the step as ' +
+      'failed: it is outside the scope.', cell);
+  }
+  // A path with a file name that has an extension is a check path, with or without a folder.
+  const plan = PLAN.replace('| `docs/export.md` | n/a |', '| `docs/export.md` | `docs/export.md` |');
+  const w = work({ plan });
+  writeFile(w, 'docs/export.md', 'The export.\n');
+  assert.equal(session(w)('scope', 'checks', '--inputs', w.inputs).status, 0);
+  // The skills and the docs state the same definition of a check path.
+  const phrase = 'A check path is a relative path with no space and no `.` or `..` part, ' +
+    'whose file name has an extension, such as `tests/export.test.ts`; `n/a`, `none`, `-`, ' +
+    '`TBD` and a scenario id are none.';
+  for (const text of [WORKFLOW, skill('writing-acceptance-checks'),
+    skill('checking-acceptance-checks'), read(ROOT, 'docs/modules.md')]) says(text, phrase);
+});
+
+test('check-reviewer gets the changed paths, stays read-only and marks each missing path', () => {
+  const order = oneLine(section(WORKFLOW, 'The order of the run'));
+  says(order, 'Run these two commands in the working folder, each in a Bash call of its own: ' +
+    '`git status --porcelain`, and `git diff --name-only <start commit>`.');
+  says(order, 'Run them again before each later review.');
+  says(order, 'the writer\'s newest report, unchanged, and the two outputs under "Changed ' +
+    'paths:", unchanged');
+  const reviewer = agent('check-reviewer');
+  assert.match(reviewer, /\ntools: Read, Grep, Glob, Skill\n/);
+  says(reviewer, '"Changed paths:", the output of `git status --porcelain` and of `git diff ' +
+    '--name-only <start commit>`');
+  says(reviewer, 'You run neither command');
+  const checking = oneLine(skill('checking-acceptance-checks'));
+  says(checking, 'So is each path of "Changed paths:" that the writer\'s "Files:" does not ' +
+    'list');
+  says(checking, 'is a finding marked `writer`, `no direction` and `break`');
+  // What break means in this review.
+  says(checking, 'In this review, every finding is marked `break`, and the mark means that ' +
+    'the run must not push the lock while the finding is left.');
 });
 
 // ---- The reports of the agents -------------------------------------------------------------
@@ -839,8 +943,8 @@ test('preflight before run locked: an app that does not start ends the session',
   assert.equal(point.fix, `Make ${command} start the app in the dev container, then run ` +
     'another round.');
   assert.equal(call('check', 'points', points).status, 0);
-  // With no demo script, the preflight of a plan that starts the app exits 3, and the skill
-  // ends the run with the line of its cause.
+  // With no demo script, the preflight of a plan that starts the app exits 3: the skill runs
+  // no preflight then, and says that it runs the checks with no app check.
   const bare = work({ plan });
   const none = session(bare, { preflight: { browsers: [process.execPath], startMs: 5000 } });
   const missing = none('preflight', '--inputs', bare.inputs);
@@ -848,5 +952,10 @@ test('preflight before run locked: an app that does not start ends the session',
   assert.match(missing.out + missing.err, /Cause: no demo script exists for the app\./);
   assert.match(oneLine(section(WORKFLOW, 'The run on the start commit')),
     /With 3, take the cause from the line that starts with `Cause:`, and end as "Points" lists/);
+  says(section(WORKFLOW, 'The run on the start commit'), 'run no `preflight`: it exits 3 for ' +
+    'the missing demo script');
   says(WORKFLOW, '"The run stopped at the app check, because <cause>."');
+  // The docs say the same.
+  says(read(ROOT, 'docs/modules.md'), 'the session runs no preflight and runs the checks with ' +
+    'no app check');
 });
