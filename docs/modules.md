@@ -245,16 +245,18 @@ An agent that the table does not list sets no `model` key.
   and WebSearch. A reviewer of a change, such as `code-reviewer`, which qory starts as the
   main agent of a separate session, lists Write beside the four read tools and writes at one
   path, its report: the body has the line `Tool exception: Write, because it writes the one
-  report file of a review round.` The tool guard denies each other write of that session, and
-  each write of an agent of that session; an agent whose type ends in `-reviewer` writes no
-  file in any session. The name in the front matter of an agent that lists Write equals its
-  file name without `.md`, because the guard reads that name. A subagent keeps the
-  session's `dontAsk` mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and
-  `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and `grep` still
-  run in the main session, so "only `qory` commands and the read forms" is a rule in the
-  skill's text, not an enforced limit. On Claude Code's native build, a `tools` key that
-  lists Bash removes Grep and Glob, so an exception for Bash also drops those two tools or
-  states how the agent searches. Copilot keeps the key, untested.
+  report file of a review round.` The tool guard denies each other write of that session,
+  and each write of an agent of that session. For an agent whose type ends in `-reviewer` it
+  denies the write tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `apply_patch`) in
+  any session; it does not limit the shell commands of that agent outside a reviewer
+  session. The name in the front matter of an agent that lists Write equals its file name
+  without `.md`, because the guard reads that name. A subagent keeps the session's `dontAsk`
+  mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that
+  folder, and `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and
+  `grep` still run in the main session, so "only `qory` commands and the read forms" is a
+  rule in the skill's text, not an enforced limit. On Claude Code's native build, a `tools`
+  key that lists Bash removes Grep and Glob, so an exception for Bash also drops those two
+  tools or states how the agent searches. Copilot keeps the key, untested.
 - On Codex, the `tools` key only turns the shell off: at qory `0e02282`, the compose writes
   `name`, `description` and `developer_instructions` into an agent's file, and
   `shell_tool = false` under `[features]` when the key lists neither `Bash` nor `PowerShell`
@@ -1242,15 +1244,17 @@ tool's error. The first line of each reason starts with what to do. The guard de
   read through the links of the folders above it with no `..` after a folder that does not
   exist, when no link, folder or file with more than one link is at the path, and when it
   lies neither below `.git` nor below `.claude` of the working folder. The compare ignores
-  case on a disk that ignores case. An agent writes no file, the report path included, when
+  case on a disk that ignores case. The guard denies the write tools (`Write`, `Edit`,
+  `MultiEdit`, `NotebookEdit` and `apply_patch`) of an agent, the report path included, when
   its type ends in `-reviewer`, in any session, and when it runs in a session of a reviewer,
-  whatever its type: only the main session of a reviewer writes the report. An agent of any
-  other type in a session that is no reviewer's writes as it does outside a review. The main
-  session of a reviewer starts no agent (`Agent`, `Task` and `spawn_agent`, also for an
-  agent of that session). In a reviewer session, the main session and each agent deny by
-  default. They may use only: the tools `Read`, `Grep`, `Glob` and `Skill`; the planning
-  tools `TodoWrite` and `update_plan`, which change no file and run no program; the one
-  report write; on Codex, the three tools of the qory review server,
+  whatever its type: only the main session of a reviewer writes the report. Outside a
+  reviewer session the guard does not limit the shell commands of a `-reviewer` agent. An
+  agent of any other type in a session that is no reviewer's writes as it does outside a
+  review. The main session of a reviewer starts no agent (`Agent`, `Task` and `spawn_agent`,
+  also for an agent of that session). In a reviewer session, the main session and each agent
+  deny by default. They may use only: the tools `Read`, `Grep`, `Glob` and `Skill`; the
+  planning tools `TodoWrite` and `update_plan`, which change no file and run no program; the
+  one report write; on Codex, the three tools of the qory review server,
   `mcp__qory_review__read_file`, `mcp__qory_review__list_directory` and
   `mcp__qory_review__search_in_files`, by these exact names; and a shell that only reads.
   The guard denies each other tool, such as `Edit`, `MultiEdit`, `NotebookEdit`, `WebFetch`,

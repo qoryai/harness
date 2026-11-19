@@ -315,27 +315,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   overwrites the file. A path that is not absolute, has a `.` or `..` part, a double or
   trailing slash, a NUL or more than 4096 characters, a link, a folder, a file with more
   than one link, or a path below `.git` or `.claude` of the working folder, is no report
-  path. An agent writes no file, the report path included, when its type ends in
-  `-reviewer`, in any session, and when it runs in a session of a reviewer, whatever its
-  type. The main session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`).
-  A reviewer session denies by default, for the main session and each agent. It allows
-  `Read`, `Grep`, `Glob`, `Skill`, `TodoWrite`, `update_plan`, the one report write, and a
-  shell of plain words that only reads. On Codex it also allows exactly
-  `mcp__qory_review__read_file`, `mcp__qory_review__list_directory` and
-  `mcp__qory_review__search_in_files`. Any other tool, such as `Edit`, `WebFetch`, each other
-  `mcp__*` name, each `mcp__*` name on Claude Code, and a name that the guard does not know,
-  is denied there. In a session that is no reviewer's the guard allows an unknown tool name.
-  The denies for `.qory/build/`, a locked file and the harness home come first: when the
-  harness home is below the working folder, a report path in it is denied, so the report
-  folder must be outside the home; when the home is outside the working folder, a write to a
-  report path in it is allowed. A Codex reviewer writes its report with an `apply_patch`
-  that adds that one file. The main session of a reviewer may use the tool `apply_patch`
-  only for a patch of exactly the lines `*** Begin Patch`, `*** Add File: <report path>`,
-  zero or more lines that start with `+`, and `*** End Patch`, with the same path rules as
-  for `Write`. An update, a delete, a move, a second file, a second add of the same file,
-  white space around a header, a carriage return, any other line and the shell form
-  `apply_patch <<'EOF'` are denied. The guard runs only on Claude Code and Codex: on
-  Cursor, Copilot CLI and Gemini CLI the rule on the report path does not run.
+  path. The guard denies the write tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and
+  `apply_patch`) of an agent, the report path included, when its type ends in `-reviewer`,
+  in any session, and when it runs in a session of a reviewer, whatever its type. Outside a
+  reviewer session it does not limit the shell commands of a `-reviewer` agent. The main
+  session of a reviewer starts no agent (`Agent`, `Task`, `spawn_agent`). A reviewer session
+  denies by default, for the main session and each agent. It allows `Read`, `Grep`, `Glob`,
+  `Skill`, `TodoWrite`, `update_plan`, the one report write, and a shell of plain words that
+  only reads. On Codex it also allows exactly `mcp__qory_review__read_file`,
+  `mcp__qory_review__list_directory` and `mcp__qory_review__search_in_files`. Any other
+  tool, such as `Edit`, `WebFetch`, each other `mcp__*` name, each `mcp__*` name on Claude
+  Code, and a name that the guard does not know, is denied there. In a session that is no
+  reviewer's the guard allows an unknown tool name. The denies for `.qory/build/`, a locked
+  file and the harness home come first: when the harness home is below the working folder, a
+  report path in it is denied, so the report folder must be outside the home; when the home
+  is outside the working folder, a write to a report path in it is allowed. A Codex reviewer
+  writes its report with an `apply_patch` that adds that one file. The main session of a
+  reviewer may use the tool `apply_patch` only for a patch of exactly the lines `*** Begin
+  Patch`, `*** Add File: <report path>`, zero or more lines that start with `+`, and `***
+  End Patch`, with the same path rules as for `Write`. An update, a delete, a move, a second
+  file, a second add of the same file, white space around a header, a carriage return, any
+  other line and the shell form `apply_patch <<'EOF'` are denied. The guard runs only on
+  Claude Code and Codex: on Cursor, Copilot CLI and Gemini CLI the rule on the report path
+  does not run.
 - The shell of a reviewer session allows only the options that `docs/modules.md` lists for
   each command. The guard denies any other word that starts with `-`, also after `--`, in a
   cluster and as the value of an option, and a `diff` operand that is `/`, a path under

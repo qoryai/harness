@@ -18,9 +18,10 @@
 //   main session writes one path, qory.review.report, with a Write or an apply_patch that adds
 //   it, and no other file, the artifact folder included. It denies by default, for the main
 //   session and each agent: REVIEW_TOOLS, the report write and the commands of reviewShell
-//   are all it allows, and it starts no agent. An agent of that session, whatever its type,
-//   and an agent whose type ends in -reviewer in any session, write no file, the report
-//   path included.
+//   are all it allows, and it starts no agent. The guard denies the write tools (Write, Edit,
+//   MultiEdit, NotebookEdit and apply_patch) to each agent of that session, whatever its type,
+//   and to each agent whose type ends in -reviewer in any session, the report path included.
+//   Outside a reviewer session it does not run reviewShell for such an agent.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -2012,9 +2013,9 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   if (agent) {
-    // An agent that a session starts writes no file when its type ends in -reviewer, such as a
-    // reviewer of a draft, which reads and reports in its text, and when the session is a
-    // reviewer's, whatever the type. Any other agent writes.
+    // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
+    // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
+    // writes. The shell of the first kind is not limited here.
     return /-reviewer$/.test(String(input.agent_type)) || reviewReport(env) ? reviewDeny({
       call, input, paths, env, root, nocase, agent: true }) : null;
   }
@@ -2502,7 +2503,7 @@ const REVIEW_ONLY = 'Write only qory.review.report, with Write or apply_patch: a
   'one link and a path below .git or .claude of the working folder are denied. ';
 const REVIEW_NONE = 'Stop the review and write no file: qory.review.report cannot be used.\n' +
   'It must be an absolute path with no . or .. part, no double or trailing slash. ';
-const REVIEW_AGENT = 'Report in your text and write no file: a reviewer agent writes no file.\n' +
+const REVIEW_AGENT = 'Report in your text: the write tools are denied to a reviewer agent.\n' +
   'It applies to each agent of a reviewer session and to each agent whose type ends in ' +
   '-reviewer. ';
 const REVIEW_NO_AGENT = 'Start no agent: a reviewer reads the change and writes its report ' +

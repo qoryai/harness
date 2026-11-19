@@ -2252,7 +2252,7 @@ test('a reviewer writes exactly the path in qory.review.report, and the guard de
   firstLine(guard(claude('Write', { content: '{}' }), env), ONLY);
 });
 
-test('a reviewer session writes no file of the artifact folder, a subagent of a reviewer type none', () => {
+test('a reviewer session writes no file of the artifact folder; a reviewer type has no write tool', () => {
   const { env, file } = reviewSetup();
   const folder = path.join(WORK, '.qory', 'artifacts');
   const points = path.join(folder, 'points.json');
@@ -2267,10 +2267,10 @@ test('a reviewer session writes no file of the artifact folder, a subagent of a 
       ONLY);
   }
   assert.equal(guard(write(file), env), null);
-  // An agent whose type ends in -reviewer writes no file, in any session, the report path
-  // included: only the main session of a reviewer writes the report.
+  // The write tools are denied to an agent whose type ends in -reviewer, in any session, the
+  // report path included: only the main session of a reviewer writes the report.
   const sub = (target, type) => claude('Write', { file_path: target, content: '{}' }, type);
-  const NOT = 'Report in your text and write no file';
+  const NOT = 'Report in your text: the write tools are denied';
   for (const type of ['spec-reviewer', 'code-reviewer']) {
     firstLine(guard(sub(points, type), RUN), NOT);
     firstLine(guard(sub(points, type), env), NOT);
@@ -2282,11 +2282,11 @@ test('a reviewer session writes no file of the artifact folder, a subagent of a 
   assert.equal(guard(sub(points, 'reviewer-notes'), RUN), null);
 });
 
-test('in a reviewer session each agent, of any type, writes no file and starts no agent', () => {
+test('in a reviewer session each agent, of any type, has no write tool and starts no agent', () => {
   const { env, file } = reviewSetup();
   const victim = path.join(WORK, 'src', 'victim.ts');
   const folder = path.join(WORK, '.qory', 'artifacts');
-  const NOT = 'Report in your text and write no file';
+  const NOT = 'Report in your text: the write tools are denied';
   const calls = {
     'Write': (agent) => claude('Write', { file_path: victim, content: 'x' }, agent),
     'Write to the report path': (agent) => claude('Write', { file_path: file, content: '{}' }, agent),
