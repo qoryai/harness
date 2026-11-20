@@ -686,6 +686,9 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
 
 // An unreadable list `Left out:` in the report fails step end done, with the cause of each
 // list on its own line; a list that leftOut reads, and a report with no such line, pass.
+const LINE = 'a line that is not an item in the list `Left out:`';
+const HEADER = 'a header that is not `Left out:` or `**Left out:**` at column 0';
+
 test('ledger: step end done refuses a report with a list Left out: that cannot be read', () => {
   const w = work();
   const call = resumed(w);
@@ -699,6 +702,14 @@ test('ledger: step end done refuses a report with a list Left out: that cannot b
     ['text after the header', 'Left out: the cache\n', 'text after `Left out:` on its line ' +
       'that is not none'],
     ['a header with no item', 'Left out:\n\nBuilt it.\n', 'no item and no none after `Left out:`'],
+    ['a line after an item', 'Left out:\n- the cache: slow\nBuilt it.\n', LINE],
+    ['a paragraph after a blank line', 'Left out:\n- the cache: slow\n\nBuilt it.\n', LINE],
+    ['a paragraph after two items', 'Left out:\n- a: r\n\n- b: r\n\nBuilt it.\n', LINE],
+    ['bold with the colon outside', '**Left out**:\n- the cache: slow\n', HEADER],
+    ['lower case', 'left out:\n- the cache: slow\n', HEADER],
+    ['leading spaces', '  Left out:\n- the cache: slow\n', HEADER],
+    ['a heading', '## Left out\n- the cache: slow\n', HEADER],
+    ['a heading with a colon', '### Left out:\n- the cache: slow\n', HEADER],
   ];
   for (const [name, text, problem] of cases) {
     const refused = call('step', 'end', 'plan', 'done', '--report',
@@ -725,6 +736,9 @@ test('ledger: step end done accepts each list Left out: that can be read, or non
     'Left out:\n- the cache: slow\n- the docs: stale\n',
     'Left out:\n* the cache: slow\n',
     'Left out:\n\n\n- the cache: slow\n',
+    'Left out:\n- the cache: slow\n\n- the docs: stale\n\n\n',
+    'Left out:\n- the cache: slow\n\n## Next\n\nBuilt it.\n',
+    'Nothing was left out: the plan is built.\n',
     '**Left out:**\n- the cache: slow\n',
     'Left out: none\n',
     'Built it.\n',

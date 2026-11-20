@@ -3028,7 +3028,7 @@ const withHandoff = (file) => ({ env: { QORY_SUBMISSION_HANDOFF: file } });
 const reportOf = (dir) => fs.readFileSync(path.join(dir, '.qory/artifacts/build-report.md'), 'utf8');
 
 test('report-build: a change and two fixes write a hand-off whose steps map the three commits', () => {
-  const left = 'Built it.\n\nLeft out:\n- Export of dates: nobody reads them yet.\n- Retry: the call never fails.\n\nDone.';
+  const left = 'Built it.\n\nLeft out:\n- Export of dates: nobody reads them yet.\n- Retry: the call never fails.\n\n## Next\n\nDone.';
   const { dir, commits } = buildRepo(left);
   const file = handoffPath(dir);
   const got = call(dir, ['report-build'], withHandoff(file));
@@ -3449,7 +3449,7 @@ test('report-build: text between the title and ## Problem is a finding', () => {
 });
 
 test('report-build: Left out accepts * bullets, blank lines after the header and **Left out:**', () => {
-  const { dir } = buildRepo('Built it.\n\nLeft out:\n\n* Dates: nobody reads them.\n- Retry: it never fails.\n\nDone.');
+  const { dir } = buildRepo('Built it.\n\nLeft out:\n\n* Dates: nobody reads them.\n- Retry: it never fails.\n\n## Next\n\nDone.');
   assert.equal(call(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\n- deliverable:d-1: Dates: nobody reads them.\n- deliverable:d-1: Retry: it never fails.\n'));
   setReport(dir, 'Built it.\n\n**Left out:**\n- Dates: nobody reads them.\n');
@@ -3506,8 +3506,35 @@ test('report-build: text after Left out: that is not none, and a header with no 
 });
 
 test('report-build: a readable list beside an unreadable one keeps its items', () => {
-  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\nMore.\n\nLeft out:\n  - Retry: it never fails.\n',
+  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\n## More\n\nLeft out:\n  - Retry: it never fails.\n',
     ['Dates: nobody reads them.']);
+});
+
+test('report-build: Left out skips blank lines between items and before a heading or the end', () => {
+  const { dir } = buildRepo('Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\n- Retry: it never fails.\n\n## Next\n\nText.\n');
+  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.ok(reportOf(dir).endsWith('## Left out\n\n- deliverable:d-1: Dates: nobody reads them.\n- deliverable:d-1: Retry: it never fails.\n'));
+  setReport(dir, 'Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\n\n');
+  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.ok(reportOf(dir).endsWith('## Left out\n\n- deliverable:d-1: Dates: nobody reads them.\n'));
+});
+
+test('report-build: a line that is not an item after an item renders the placeholder line', () => {
+  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads them.\nMore.\n');
+  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\nA plain paragraph.\n');
+  unreadable('Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\n- Retry: it never fails.\n\nDone.\n');
+});
+
+test('report-build: a header in another spelling renders the placeholder line', () => {
+  for (const header of ['**Left out**:', 'left out:', '  Left out:', '## Left out', '### Left out:']) {
+    unreadable(`Built it.\n\n${header}\n- Dates: nobody reads them.\n`);
+  }
+});
+
+test('report-build: a sentence with the words left out is not a header', () => {
+  const { dir } = buildRepo('Nothing was left out: the plan is built.\n');
+  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.ok(reportOf(dir).endsWith('## Left out\n\nnone\n'));
 });
 
 test('report-build: a hand-off over 262144 bytes drops the oldest commits of steps until it fits', () => {

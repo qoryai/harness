@@ -93,7 +93,16 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    `script:`, `--script-sha256 <sha256>`. When `step end done` exits with 1, the step made
    an edit that no commit of the step has, or the report has a list `Left out:` that
    `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
-   with the writer of the report, then run `step end done` again. Else end as "Failures"
-   lists. `step end failed`
+   with the writer of the report, then run `step end done` again once. If it exits 1 on
+   the list again, run `step end <id> failed --report <file>` with the cause. Else end as
+   "Failures" lists. `step end failed`
    records the row and exits 0, also when it prints a line that it left the report out:
    go on to the next step.
+
+   The only valid list in a step report is a line `Left out:` (or `**Left out:**`) at the
+   start of a line, then one line `- <item>: <risk>` per item (`*` also works as the
+   bullet), each at the start of its line. Blank lines are skipped. The list ends at the
+   next heading (a line that starts with `#`) or at the end of the report: write it
+   last, or follow it with a heading. Any other line in it, and any other spelling of
+   the header, such as `## Left out` or `left out:`, makes the list unreadable.
+   `Left out: none` is the empty list.

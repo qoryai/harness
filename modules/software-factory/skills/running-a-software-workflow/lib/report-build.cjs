@@ -146,8 +146,9 @@ module.exports = (lib) => {
     .some((line) => cells(line)[2] === 'yes');
 
   // leftOut reads each list `Left out:` of report as { items, problems }: the lines `- <item>:
-  // <risk>` or `* <item>: <risk>` after the header and its blank lines, or none. A list that
-  // it cannot read adds a problem, the cause in words.
+  // <risk>` or `* <item>: <risk>` after the header, blank lines skipped, up to the next
+  // heading or the end. A list that it cannot read adds a problem, the cause in words. A
+  // line that reads as a header in another spelling is a problem, not an absent list.
   function leftOut(report) {
     const rows = report.replace(/\r\n?/g, '\n').split('\n');
     const items = [];
@@ -155,7 +156,13 @@ module.exports = (lib) => {
     const bullet = /^[-*] /;
     rows.forEach((row, at) => {
       const head = /^(?:\*\*)?Left out:(?:\*\*)?[ \t]*(.*)$/.exec(row.trimEnd());
-      if (!head) return;
+      if (!head) {
+        const bare = row.replace(/^[#*\s]+|[#*\s]+$/g, '');
+        if (/^left out\**:?\**(?:\s*none\.?)?$/i.test(bare)) {
+          problems.push('a header that is not `Left out:` or `**Left out:**` at column 0');
+        }
+        return;
+      }
       const none = /^(?:\*\*)?none\.?$/i.test(head[1]);
       if (head[1] && !none) {
         problems.push('text after `Left out:` on its line that is not none');
@@ -168,14 +175,20 @@ module.exports = (lib) => {
         return;
       }
       const found = [];
-      for (; next < rows.length && bullet.test(rows[next]); next += 1) {
-        found.push(rows[next].slice(2).trim());
-        if (/^\s+\S/.test(rows[next + 1] || '')) {
-          problems.push('an item that continues on an indented line');
-          return;
+      let flaw = '';
+      for (; next < rows.length && !rows[next].startsWith('#'); next += 1) {
+        if (rows[next].trim() === '') continue;
+        if (bullet.test(rows[next])) found.push(rows[next].slice(2).trim());
+        else {
+          if (found.length) {
+            flaw = /^\s/.test(rows[next]) ? 'an item that continues on an indented line'
+              : 'a line that is not an item in the list `Left out:`';
+          }
+          break;
         }
       }
       if (none && found.length) problems.push('items after `Left out: none`');
+      else if (flaw && !none) problems.push(flaw);
       else if (!none && !found.length) problems.push('no item and no none after `Left out:`');
       else items.push(...found);
     });
@@ -259,11 +272,9 @@ module.exports = (lib) => {
     const open = rows.filter((row) => row.state !== 'done');
     out.push(['Not run', open.length
       ? open.map((row) => `- ${row.id}, pass ${row.pass}: ${row.state}`) : ['None.']]);
-    // An item goes through plainText and the cut of a point. An item that the check of the
-    // report refuses, such as a path of the machine or a link that is not https://, is
-    // replaced, so that the report never breaks the check.
-    // A row with a list that leftOut cannot read adds one line, after the items that it
-    // could read, and the report goes on: a done row never changes, so a stop would loop.
+    // An item that the check of the report refuses, such as a path of the machine or a link
+    // that is not https://, is replaced. A list that leftOut cannot read adds one line and
+    // the report goes on: a done row never changes, so a stop would loop.
     const left = rows.flatMap((row) => {
       const read = leftOut(row.report || '');
       return [...read.items
