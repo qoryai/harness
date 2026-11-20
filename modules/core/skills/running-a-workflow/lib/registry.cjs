@@ -37,14 +37,16 @@ const reviewComments = require('../types/review-comments.cjs');
 //   adds them.
 const FILE = 'workflow-checks.cjs';
 
-// What a workflow-checks.cjs gets: everything that the lib files base, context, markdown and
-// plugin export, the reports' file name and check results, the rule of lib/drafts.cjs for a
-// file given to check or push, the reader of the lock of verbs/lock.cjs, and the check of a
-// point of points.json, for a verb that writes points.
+// What a workflow-checks.cjs gets: the exports of base, context, markdown and plugin, and the
+// other exports below.
 const LIBRARY = Object.freeze({
   ...base, ...context, ...markdown, ...plugin, REPORT_FILE, results,
+  // markdown.cjs exports another plain, which replaces plain of base.cjs above.
+  plainText: base.plain,
   draftFile: require('./drafts.cjs').draftFile,
   lockReader: require('../verbs/lock.cjs').lockReader,
+  readOpen: require('./findings.cjs').readOpen,
+  POINT_TEXT: require('./findings.cjs').POINT_TEXT,
   pointCheck: points.pointCheck, pointRules: points.pointRules, MAX_POINTS: points.MAX_POINTS,
 });
 

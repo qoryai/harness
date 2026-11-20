@@ -77,6 +77,7 @@ process:
       sequence: []
       outputs: []
       gate: {kind: person, approvers: members}
+submit: {type: submission, send: end_of_run}
 artifact_types:
   - name: acceptance-criteria
   - name: verification
@@ -142,8 +143,7 @@ artifact_types:
             "required": [
               "system",
               "path",
-              "commit",
-              "draft"
+              "commit"
             ],
             "additionalProperties": false,
             "properties": {
@@ -168,6 +168,58 @@ artifact_types:
                 "type": "string",
                 "maxLength": 2048,
                 "pattern": "^https://\\S+$"
+              },
+              "base": {
+                "type": "object",
+                "required": [
+                  "commit"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "commit": {
+                    "$ref": "#/$defs/commit"
+                  },
+                  "branch": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
+                    "not": {
+                      "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
+                    }
+                  },
+                  "commit_url": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^https://\\S+$"
+                  }
+                }
+              },
+              "commits": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "commit",
+                    "step"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "commit": {
+                      "$ref": "#/$defs/commit"
+                    },
+                    "step": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[^\\x00]*$"
+                    },
+                    "commit_url": {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "pattern": "^https://\\S+$"
+                    }
+                  }
+                }
               },
               "draft": {
                 "oneOf": [
@@ -213,7 +265,9 @@ artifact_types:
               "state": {
                 "enum": [
                   "draft",
-                  "open"
+                  "open",
+                  "closed",
+                  "merged"
                 ]
               },
               "action": {
@@ -238,10 +292,87 @@ artifact_types:
                   "not-passed",
                   "no-text",
                   "escalated",
-                  "no-program"
+                  "no-program",
+                  "program-failed",
+                  "program-timeout",
+                  "login-needed"
+                ]
+              },
+              "exit": {
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  3
                 ]
               }
-            }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "none": {
+                      "const": "program-failed"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "exit"
+                  ],
+                  "properties": {
+                    "exit": {
+                      "enum": [
+                        0,
+                        1,
+                        2
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "none": {
+                      "const": "login-needed"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "exit"
+                  ],
+                  "properties": {
+                    "exit": {
+                      "const": 3
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "none": {
+                      "enum": [
+                        "not-passed",
+                        "no-text",
+                        "escalated",
+                        "no-program",
+                        "program-timeout"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "not": {
+                    "required": [
+                      "exit"
+                    ]
+                  }
+                }
+              }
+            ]
           },
           "text": {
             "type": "object",
@@ -255,12 +386,20 @@ artifact_types:
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 256,
-                "pattern": "^[^\\n]+$"
+                "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]+$",
+                "allOf": [
+                  {
+                    "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
+                  }
+                ]
               },
               "description": {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 16384
+                "maxLength": 20000,
+                "pattern": "^[^\\x00]*$",
+                "not": {
+                  "pattern": "(^|\\n)<!-- qory:(start|end) -->"
+                }
               }
             }
           },

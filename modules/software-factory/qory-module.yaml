@@ -28,12 +28,15 @@ description: >-
   plan-reviewer; the workflow-write-acceptance-checks skill, which orchestrates one ticket's
   acceptance checks and their lock; the skills writing-acceptance-checks and
   checking-acceptance-checks; the agents acceptance-check-writer and check-reviewer; the
-  workflow-review-changes skill, which checks one ticket's Build run before its review round;
-  the skills checking-code, checking-tests and checking-acceptance; the agents code-reviewer,
-  test-reviewer and acceptance-reviewer, the reviewers of that round; the skills
-  checking-security, checking-data-changes and checking-failure-handling; the agents
-  security-reviewer, data-reviewer and failure-reviewer, the members of the group role
-  reviewers, which start only for a change in their paths; and live web search off on Codex.
+  workflow-review-changes skill, which checks one ticket's Build run before its review round
+  and, when every check passed, starts submission-writer; the skills checking-code,
+  checking-tests, checking-acceptance and writing-submissions; the agents code-reviewer,
+  test-reviewer and acceptance-reviewer, the reviewers of that round; the agent
+  submission-writer, which writes the title and the description of the draft pull request;
+  the skills checking-security, checking-data-changes and checking-failure-handling; the
+  agents security-reviewer, data-reviewer and failure-reviewer, the members of the group
+  role reviewers, which start only for a change in their paths; and live web search off on
+  Codex.
 roles:
   agents:
     reviewers: many
