@@ -4617,6 +4617,11 @@ test('no field of QORY_REPORTS_GUARD_TEST, and none that the environment can add
         cwd: normal, args: { command } }));
       assert.equal(typeof reason, 'string', `${command.slice(0, 40)} with ${JSON.stringify(hooks)}`);
     }
+    // The checks of backslashes stay on for the child process too: a field noCaps that reached
+    // the child would deny this command only after the child stalled, with another text.
+    const slashes = withGuardTest(hooks, () => reports.decide({ kind: 'shell', env: RUN,
+      cwd: normal, args: { command: denied[6] } }));
+    assert.match(slashes, /Remove the backslash before the glob character/, JSON.stringify(hooks));
   }
   const jobs = [];
   env.forEach((hooks, at) => {
@@ -4798,9 +4803,13 @@ waiting('the guard denies a call when its hook process has used 8 s, also for th
   assert.ok(huge.ms < 3000, `${huge.ms} ms`);
   const real = await realRun;
   assert.equal(real.ran.error, undefined, `the hook ran past 10 s: ${real.ms} ms`);
-  const reason = JSON.parse(real.ran.stdout).permissionDecisionReason;
-  assert.ok(typeof reason === 'string' && reason !== '', 'the call is denied');
-  assert.ok(real.ms < 9800, `${real.ms} ms`);
+  // The text of the deny says 8 seconds: the limit of the real guard is the constant of 8,000 ms.
+  assert.match(fs.readFileSync(path.join(HOOKS, 'reports-guard.cjs'), 'utf8'),
+    /^const HOOK_MS = 8000;$/m);
+  // The deny is the one of the clock, from 8 s after the start of the process: a limit of 4 s
+  // denies at 4 s, and one of 20 s lets the hook run into the kill at 10 s above.
+  assert.match(JSON.parse(real.ran.stdout).permissionDecisionReason, time);
+  assert.ok(real.ms >= 7900 && real.ms < 9800, `${real.ms} ms`);
 });
 
 test('the deadlines and budgets of the reports guard use a monotonic clock', () => {
@@ -5093,6 +5102,389 @@ test('the child that reads the input of a hook runs without NODE_OPTIONS', () =>
     assert.equal(hooked.killed, false, runtime);
     assert.equal(hooked.denied, true, `${runtime} with NODE_OPTIONS`);
   }
+});
+
+// hookCommands returns each command that a fragment of modules/core/settings/ registers as a
+// hook, as { file, command }: read from the five files, so that a command that is added or
+// changed there is read too. scripts/hook-commands.js reads them for scripts/check.sh.
+const hookCommands = () => require('./hook-commands.js').hookCommands(
+  path.join(MODULES, 'core', 'settings'));
+
+const UNSET = ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_AUDIT'];
+
+test('each hook command of the five runtimes starts node through /usr/bin/env -u of the four names', () => {
+  const commands = hookCommands();
+  assert.equal(commands.length, 13, JSON.stringify(commands.map((one) => one.file)));
+  for (const { file, command } of commands) {
+    const start = /(?:^|[ (])\/usr\/bin\/env((?: -u [A-Z_]+)+) node "\$QORY_HARNESS_HOME\/hooks\/[a-z-]+\.cjs"/
+      .exec(command);
+    assert.ok(start, `${file}: ${command}`);
+    assert.deepEqual(start[1].split(' -u ').slice(1), UNSET, `${file}: ${command}`);
+    // No second node runs outside the wrapper, as in `node a.cjs || node b.cjs`.
+    assert.equal(command.match(/\bnode "/g).length, 1, `${file}: ${command}`);
+  }
+});
+
+test('Gemini CLI settings list the names in excludedEnvVars and clear BASH_ENV and ENV in each hook', () => {
+  const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
+    'core/settings/gemini/settings.json'), 'utf8'));
+  assert.deepEqual(settings.advanced.excludedEnvVars,
+    [...UNSET, 'BASH_ENV', 'ENV']);
+  const hooks = Object.values(settings.hooks).flatMap((groups) => groups.flatMap((group) =>
+    group.hooks));
+  assert.equal(hooks.length, 2);
+  for (const hook of hooks) assert.deepEqual(hook.env, { BASH_ENV: '', ENV: '' }, hook.name);
+});
+
+test('a preload in NODE_OPTIONS loads in a registered hook command only without /usr/bin/env -u', () => {
+  const home = harnessHome();
+  const work = next('preload');
+  fs.mkdirSync(work);
+  const preload = path.join(work, 'preload.cjs');
+  const marker = path.join(work, 'marker');
+  fs.writeFileSync(preload, `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'x');\n`);
+  const env = { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home, HOME: work,
+    NODE_OPTIONS: `--require ${preload}` };
+  const registered = hookCommands().filter(({ file }) => ['gemini/settings.json',
+    'claude/settings.json', 'codex/config.toml'].includes(file));
+  const guards = registered.filter(({ command }) =>
+    /reports-guard-gemini|tool-guard-claude|tool-guard-codex/.test(command));
+  assert.deepEqual(guards.map(({ file }) => file.split('/')[0]).sort(),
+    ['claude', 'claude', 'codex', 'codex', 'gemini']);
+  for (const { file, command } of guards) {
+    const input = file.startsWith('gemini')
+      ? { tool_name: 'run_shell_command', cwd: work, tool_input: { command: 'ls' } }
+      : (file.startsWith('codex') ? codex : claude)('Bash', { command: 'ls' });
+    // The command as registered, then the command with the wrapper cut out.
+    for (const [text, loads] of [[command, false],
+      [command.replace(/\/usr\/bin\/env(?: -u [A-Z_]+)+ node/, 'node'), true]]) {
+      fs.rmSync(marker, { force: true });
+      const ran = childProcess.spawnSync('/bin/sh', ['-c', text], { input: JSON.stringify(input),
+        env, cwd: work, encoding: 'utf8', timeout: 20000, killSignal: 'SIGKILL' });
+      assert.equal(ran.error, undefined, `${file}: ${ran.error}`);
+      assert.equal(fs.existsSync(marker), loads, `${file}: ${text}`);
+    }
+  }
+});
+
+// The tests of the guard of a file named .env: a write by a tool or a shell command.
+const ENV_START = 'Write no file named .env, such as .gemini/.env.';
+const ENV_SHELL_START = 'Name no .env file in the command, such as .gemini/.env.';
+
+test('the guard denies a write to .env and .gemini/.env, and lets .env.example and the like pass', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('envfile');
+  fs.mkdirSync(path.join(work, '.gemini'), { recursive: true });
+  fs.symlinkSync('.env', path.join(work, 'alias'));
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  const shell = (command) => reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd: work,
+    inline: true });
+  const at = (input) => ({ ...input, cwd: work });
+  for (const file of ['.env', '.gemini/.env', `${work}/.env`, './.ENV', 'a/../.env', 'src/.env',
+    'alias', 'x/../.gemini/.Env']) {
+    assert.equal(write({ file_path: file, content: 'A=1' }), reports.ENV_REASON, file);
+    assert.equal(write({ paths: ['notes.md', file] }), reports.ENV_REASON, file);
+    assert.equal(write(`*** Add File: ${file}\n+A=1\n`), reports.ENV_REASON, file);
+    assert.equal(guard(at(claude('Write', { file_path: file, content: 'A=1' }, 'implementer'))),
+      reports.ENV_REASON, file);
+    assert.equal(guard(at(codex('apply_patch', patch(file), 'default'))), reports.ENV_REASON, file);
+  }
+  firstLine(reports.ENV_REASON, ENV_START);
+  firstLine(reports.ENV_SHELL_REASON, ENV_SHELL_START);
+  // A text with more than one path, where the last part of the whole text is no .env.
+  for (const text of ['notes.md .env', '.env notes.md', "notes.md '.gemini/.env'"]) {
+    assert.equal(write({ paths: text }), reports.ENV_REASON, text);
+  }
+  // The text that a tool writes is no path.
+  assert.equal(write({ file_path: 'notes.md', content: '.env', new_string: '.gemini/.env' }), null);
+  for (const command of ['echo A=1 > .env', 'echo A=1>.gemini/.env', 'tee -a ./.ENV < a',
+    "cp a '.gemini/.env'", 'cp a .e"n"v', 'cp a .e\\nv', "cp a $'\\x2eenv'", 'X=.env', 'cp a .env;',
+    'cp a .env\\', 'cat a > "$PWD/.env"']) {
+    const reason = shell(command);
+    assert.ok(reason && reason.startsWith(reports.ENV_SHELL_REASON), `${command}: ${reason}`);
+  }
+  // The tool guard of Claude Code and Codex reads a shell command that writes a file, too.
+  for (const command of ['echo A=1 > .env', "cp a '.gemini/.env'", 'cp a .e"n"v']) {
+    for (const make of [claude, codex]) {
+      const reason = guard(at(make('Bash', { command }, 'implementer')));
+      assert.ok(reason && reason.startsWith(reports.ENV_SHELL_REASON), `${command}: ${reason}`);
+    }
+  }
+  // Near misses pass: another name, a name with .env inside, a glob, and a word of text.
+  for (const file of ['.env.example', '.envrc', '.venv', 'a.env', 'env', '.env/x', '.gemini/envs']) {
+    assert.equal(write({ file_path: file }), null, file);
+  }
+  for (const command of ['cat .env.example', 'ls .envrc .venv', 'echo process.env.HOME',
+    "grep a --exclude='.env*' -r .", 'cp a b/env', 'echo ".env.local"', 'git add -- env.d.ts',
+    "cat 'x'.env"]) {
+    assert.equal(shell(command), null, command);
+  }
+});
+
+test('the guard denies Edit, MultiEdit and NotebookEdit of .env and .gemini/.env, and lets .env.example pass', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('envedit');
+  fs.mkdirSync(path.join(work, '.gemini'), { recursive: true });
+  const at = (input) => ({ ...input, cwd: work });
+  const calls = (file) => [
+    ['Edit', { file_path: file, old_string: 'A=1', new_string: 'A=2' }],
+    ['MultiEdit', { file_path: file, edits: [{ old_string: 'A=1', new_string: 'A=2' }] }],
+    ['NotebookEdit', { notebook_path: file, new_source: 'A=2' }],
+  ];
+  for (const file of ['.env', '.gemini/.env']) {
+    for (const [tool, args] of calls(file)) {
+      assert.equal(guard(at(claude(tool, args, 'implementer'))), reports.ENV_REASON,
+        `${tool} ${file}`);
+    }
+  }
+  // Near misses pass: another file name, and a file that only has the text .env in its edit.
+  for (const [tool, args] of [...calls('.env.example'), ...calls('notes.md').map(([name, one]) =>
+    [name, { ...one, new_string: '.gemini/.env', new_source: '.env' }])]) {
+    assert.equal(guard(at(claude(tool, args, 'implementer'))), null, tool);
+  }
+  // The edit tools of the other runtimes that have a hook: Gemini replace, and Copilot CLI edit,
+  // create and str_replace_editor. The Cursor hook and Codex take only Write and apply_patch.
+  const home = harnessHome();
+  const run = (runtime, input) => childProcess.spawnSync(process.execPath,
+    [path.join(home, 'hooks', `reports-guard-${runtime}.cjs`)], { input: JSON.stringify(input),
+      env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_HARNESS_HOME: home }, cwd: WORK,
+      encoding: 'utf8', timeout: 20000, killSignal: 'SIGKILL' });
+  const denies = (runtime, input) => {
+    const ran = run(runtime, input);
+    assert.equal(ran.error, undefined, `${runtime}: ${ran.error}`);
+    return (JSON.parse(ran.stdout || '{}').reason || JSON.parse(ran.stdout || '{}')
+      .permissionDecisionReason || '').startsWith(ENV_START);
+  };
+  for (const [file, denied] of [['.gemini/.env', true], ['.env.example', false]]) {
+    assert.equal(denies('gemini', { tool_name: 'replace', cwd: work, tool_input: { file_path: file,
+      old_string: 'A=1', new_string: 'A=2' } }), denied, `replace ${file}`);
+    for (const toolName of ['edit', 'create', 'str_replace_editor']) {
+      assert.equal(denies('copilot', { toolName, cwd: work, toolArgs: JSON.stringify({ path: file,
+        old_str: 'A=1', new_str: 'A=2' }) }), denied, `${toolName} ${file}`);
+    }
+  }
+});
+
+test('a write that names .env as text passes, and a patch that writes the file .env is denied', () => {
+  const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
+  const work = next('gitignore');
+  const write = (args) => reports.decide({ kind: 'write', args, env: RUN, cwd: work });
+  const at = (input) => ({ ...input, cwd: work });
+  // A patch in the form of Codex, and one as a unified diff, that put .env in .gitignore: the
+  // line is added, kept as context and removed.
+  const ignore = (line) => [
+    `*** Begin Patch\n*** Update File: .gitignore\n@@\n node_modules\n${line}\n*** End Patch\n`,
+    `--- a/.gitignore\n+++ b/.gitignore\n@@ -1,2 +1,2 @@\n node_modules\n${line}\n`];
+  for (const line of ['+.env', ' .env', '-.env', '+.gemini/.env', '+ .env']) {
+    for (const text of ignore(line)) {
+      assert.equal(write(text), null, JSON.stringify(text));
+      assert.equal(write({ input: text }), null, JSON.stringify(text));
+    }
+    assert.equal(guard(at(codex('apply_patch', { command: ignore(line)[0] }, 'default'))), null, line);
+  }
+  // The text of a write tool of each runtime: Claude Code, Gemini CLI, Cursor, Copilot CLI.
+  for (const args of [{ file_path: '.gitignore', content: 'node_modules\n.env\n' },
+    { file_path: '.gitignore', old_string: 'node_modules', new_string: 'node_modules\n.env',
+      instruction: 'Ignore .env' },
+    { file_path: '.gitignore', contents: '.env\n' }, { path: '.gitignore', file_text: '.env\n' },
+    { path: '.gitignore', old_str: 'a', new_str: '.env' }]) {
+    assert.equal(write(args), null, JSON.stringify(args));
+  }
+  for (const make of [claude, codex]) {
+    assert.equal(guard(at(make('Write', { file_path: '.gitignore', content: '.env\n' },
+      'implementer'))), null);
+  }
+  assert.equal(guard(at(claude('Edit', { file_path: '.gitignore', old_string: 'a',
+    new_string: '.env' }, 'implementer'))), null);
+  // By design, as for .reports, a shell command with the word .env is denied, also when it only
+  // adds the line to .gitignore; a patch or a write tool of .gitignore is the way to do that.
+  for (const command of ['echo .env >> .gitignore', "printf '.env\\n' >> .gitignore",
+    'git commit -m "ignore .env"']) {
+    const reason = reports.decide({ kind: 'shell', args: { command }, env: RUN, cwd: work });
+    assert.equal(reason && reason.split('\n')[0], ENV_SHELL_START, command);
+  }
+  // A patch with a header for the file .env, or .gemini/.env, is denied, in each header.
+  for (const file of ['.env', '.gemini/.env', 'a/.env']) {
+    for (const header of ['Add File', 'Update File', 'Delete File', 'Move to']) {
+      const text = `*** Begin Patch\n*** ${header}: ${file}\n+A=1\n*** End Patch\n`;
+      assert.equal(write(text), reports.ENV_REASON, JSON.stringify(text));
+      assert.equal(guard(at(codex('apply_patch', { command: text }, 'default'))),
+        reports.ENV_REASON, JSON.stringify(text));
+    }
+    for (const text of [`--- /dev/null\n+++ b/${file}\n@@ -0,0 +1 @@\n+A=1\n`,
+      `--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-A=1\n+A=2\n`]) {
+      assert.equal(write(text), reports.ENV_REASON, JSON.stringify(text));
+    }
+    // A unified diff that deletes the file names it in the --- header only, and +++ is /dev/null.
+    const stamp = '\t2026-11-20 10:00:00.000000000 +0000';
+    for (const text of [`--- a/${file}\n+++ /dev/null\n@@ -1 +0,0 @@\n-A=1\n`,
+      // A header can end with a tab and a time, which is no part of the path.
+      `--- a/${file}${stamp}\n+++ b/${file}${stamp}\n@@ -1 +1 @@\n-A=1\n+A=2\n`,
+      `--- /dev/null${stamp}\n+++ b/${file}${stamp}\n@@ -0,0 +1 @@\n+A=1\n`]) {
+      assert.equal(write(text), reports.ENV_REASON, JSON.stringify(text));
+    }
+  }
+  const stamp = '\t2026-11-20 10:00:00.000000000 +0000';
+  for (const line of ['+.env', ' .env', '-.env']) {
+    const text = `--- a/.gitignore${stamp}\n+++ b/.gitignore${stamp}\n@@ -1,2 +1,2 @@\n node_modules\n${line}\n`;
+    assert.equal(write(text), null, JSON.stringify(text));
+  }
+  // Codex apply_patch reads only its own headers and rejects a unified diff, so the tool guard
+  // reads none of the --- and +++ lines of one. A patch run through the shell, as Codex does
+  // with `apply_patch <<'EOF'`, is read by its headers.
+  const diff = (file, line) => `--- a/${file}\n+++ b/${file}\n@@ -1,2 +1,2 @@\n node_modules\n${line}\n`;
+  for (const line of ['+.env', ' .env', '-.env']) {
+    assert.equal(guard(at(codex('apply_patch', { command: diff('.gitignore', line) }, 'default'))),
+      null, line);
+    assert.equal(guard(at(codex('Bash', { command: `apply_patch <<'EOF'\n${ignore(line)[0]}EOF` },
+      'default'))), null, line);
+  }
+  for (const file of ['.env', '.gemini/.env']) {
+    assert.equal(guard(at(codex('Bash', { command: `apply_patch <<'EOF'\n*** Begin Patch\n` +
+      `*** Add File: ${file}\n+A=1\n*** End Patch\nEOF` }, 'default'))), reports.ENV_REASON, file);
+  }
+});
+
+test('the guard of each runtime that has a hook denies a write to .gemini/.env and a command with .env', () => {
+  const home = harnessHome();
+  const work = next('envadapter');
+  fs.mkdirSync(path.join(work, '.gemini'), { recursive: true });
+  for (const runtime of ['gemini', 'cursor', 'copilot']) {
+    const wrote = adapter(home, runtime, 'write', { file_path: '.gemini/.env', content: 'A=1' },
+      work);
+    assert.equal(wrote.denied, true, runtime);
+    if (runtime !== 'cursor') assert.ok(wrote.reason.startsWith(ENV_START), wrote.reason);
+    const ran = adapter(home, runtime, 'shell', 'echo A=1 > .env', work);
+    assert.equal(ran.denied, true, runtime);
+    if (runtime !== 'cursor') assert.ok(ran.reason.startsWith(ENV_SHELL_START), ran.reason);
+    assert.equal(adapter(home, runtime, 'shell', 'cat .env.example', work).denied, false, runtime);
+    // A write of .gitignore with the line .env passes.
+    const ignore = adapter(home, runtime, 'write', { file_path: '.gitignore',
+      content: 'node_modules\n.env\n', contents: '.env\n', file_text: '.env\n' }, work);
+    assert.equal(ignore.denied, false, runtime);
+  }
+  // Copilot CLI sends a patch as text: a context line .env of a patch of .gitignore passes.
+  const patchText = '*** Begin Patch\n*** Update File: .gitignore\n@@\n node_modules\n .env\n' +
+    '*** End Patch\n';
+  assert.equal(adapter(home, 'copilot', 'write', patchText, work).denied, false);
+  assert.equal(adapter(home, 'copilot', 'write', patchText.replace('.gitignore', '.env'), work)
+    .denied, true);
+  // Added and removed lines .env of a patch of .gitignore pass, and a header for the file
+  // .env is denied in each header of a Codex patch and in a unified diff.
+  for (const line of ['+.env', '-.env', '+.gemini/.env']) {
+    assert.equal(adapter(home, 'copilot', 'write', patchText.replace(' .env', line), work).denied,
+      false, line);
+  }
+  const diffText = (file) => `--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-A=1\n+A=2\n`;
+  assert.equal(adapter(home, 'copilot', 'write', diffText('.gitignore').replace('-A=1', '-.env'),
+    work).denied, false);
+  for (const header of ['Add File', 'Delete File', 'Move to']) {
+    const text = `*** Begin Patch\n*** ${header}: .env\n*** End Patch\n`;
+    assert.equal(adapter(home, 'copilot', 'write', text, work).denied, true, header);
+  }
+  assert.equal(adapter(home, 'copilot', 'write', diffText('.env'), work).denied, true);
+  // The matcher of the Cursor hook for a shell command passes a command with .env, in each case.
+  const cursor = JSON.parse(fs.readFileSync(path.join(MODULES,
+    'core/settings/cursor/hooks.json'), 'utf8')).hooks.beforeShellExecution[0].matcher;
+  for (const command of ['echo A=1 > .env', 'cp a .gemini/.ENV']) {
+    assert.ok(new RegExp(cursor).test(command), command);
+  }
+  assert.equal(new RegExp(cursor).test('ls -la'), false);
+});
+
+// geminiRun starts the real Gemini CLI 0.68.0 with a hook that the fragment of core registers for
+// AfterAgent, but for SessionStart, which fires at the start of a session before any model call.
+// The call that follows goes to a proxy at 127.0.0.1:9, where nothing listens, so the run
+// needs no login and sends nothing. The hook runs a probe in place of end-gate-gemini.cjs: the
+// probe writes the six variables that it finds in its environment. The fragment's settings
+// stand in for the system settings file that qory points GEMINI_CLI_SYSTEM_SETTINGS_PATH at,
+// which Gemini CLI reads only from a folder that root owns. `plain` cuts the hook down to the
+// bare command with no wrapper and no env field; `advanced` false leaves out excludedEnvVars;
+// `envFile` is the file with the variables: .env or .gemini/.env. It returns what the
+// probe wrote, and whether the script of BASH_ENV ran.
+async function geminiRun({ plain, advanced, envFile }) {
+  const names = [...UNSET, 'BASH_ENV', 'ENV'];
+  const dir = next('gemini');
+  const [proj, home, qory] = ['proj', 'home', 'qory'].map((name) => path.join(dir, name));
+  fs.mkdirSync(path.join(proj, '.gemini'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.gemini'), { recursive: true });
+  fs.mkdirSync(path.join(qory, 'hooks'), { recursive: true });
+  const probe = path.join(dir, 'probe.json');
+  const ran = path.join(dir, 'bash-env-ran');
+  fs.writeFileSync(path.join(qory, 'hooks', 'end-gate-gemini.cjs'),
+    `const names = ${JSON.stringify(names)};\n` +
+    'const seen = {};\n' +
+    'for (const name of names) if (name in process.env) seen[name] = process.env[name];\n' +
+    `require('node:fs').writeFileSync(${JSON.stringify(probe)}, JSON.stringify(seen));\n` +
+    "process.stdout.write('{}');\n");
+  const script = path.join(dir, 'bash-env.sh');
+  fs.writeFileSync(script, `echo ran >> ${JSON.stringify(ran)}\n`);
+  const fragment = JSON.parse(fs.readFileSync(path.join(MODULES,
+    'core/settings/gemini/settings.json'), 'utf8'));
+  const registered = fragment.hooks.AfterAgent[0].hooks[0];
+  const hook = plain ? { type: 'command',
+    command: registered.command.replace(/\/usr\/bin\/env(?: -u [A-Z_]+)+ node/, 'node') } : registered;
+  const settings = { ...fragment, hooks: { SessionStart: [{ hooks: [hook] }] } };
+  if (!advanced) delete settings.advanced;
+  fs.writeFileSync(path.join(home, '.gemini', 'settings.json'), JSON.stringify(settings));
+  fs.writeFileSync(path.join(proj, envFile), [`BASH_ENV=${script}`, `ENV=${script}`,
+    'NODE_OPTIONS=--no-warnings', `NODE_PATH=${path.join(dir, 'none')}`,
+    `LD_PRELOAD=${path.join(dir, 'none.so')}`, `LD_AUDIT=${path.join(dir, 'none.so')}`,
+    ''].join('\n'));
+  const child = childProcess.spawn('gemini', ['-p', 'hi'], { cwd: proj, stdio: 'ignore',
+    env: { PATH: process.env.PATH, HOME: home, GEMINI_CLI_HOME: home,
+      GEMINI_CLI_TRUST_WORKSPACE: 'true', GEMINI_API_KEY: 'test-key-not-real',
+      HTTPS_PROXY: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9',
+      QORY_HARNESS_HOME: qory } });
+  const closed = new Promise((resolve) => child.on('close', resolve));
+  child.on('error', () => {});
+  // Poll for the probe's file: the session starts, runs the hook, and goes on to the model call.
+  const until = Date.now() + 90000;
+  while (!fs.existsSync(probe) && child.exitCode === null && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const killer = setTimeout(() => child.kill('SIGKILL'), 3000);
+  child.kill('SIGTERM');
+  await closed;
+  clearTimeout(killer);
+  assert.ok(fs.existsSync(probe), 'the hook of Gemini CLI did not run');
+  return { seen: JSON.parse(fs.readFileSync(probe, 'utf8')), ran: fs.existsSync(ran), script };
+}
+
+test('Gemini CLI 0.68.0 runs a registered hook with no preload and no BASH_ENV from a .env file', async (t) => {
+  const version = childProcess.spawnSync('gemini', ['--version'], { encoding: 'utf8',
+    timeout: 60000 });
+  if (version.error !== undefined && version.error.code === 'ENOENT') {
+    t.skip('no gemini on PATH');
+    return;
+  }
+  // The field env of a hook is not in the hooks reference of Gemini CLI: it was read from the
+  // source of 0.68.0 (executeCommandHook spreads hookConfig.env after the sanitised environment).
+  // Nothing in this repository pins the version, so another version fails here, not skips.
+  const found = version.error !== undefined ? String(version.error) : version.stdout.trim();
+  assert.equal(found, '0.68.0', `gemini --version prints ${found}, not 0.68.0. Read ` +
+    'executeCommandHook in the bundle of that version of Gemini CLI to see that the field env ' +
+    'of a hook still reaches the hook, then run this test with that version and change 0.68.0 ' +
+    'here and in docs/modules.md.');
+  const [bare, both, project, projectBoth] = await pooled([
+    // The hook as registered, with the variables in .gemini/.env, which excludedEnvVars skips.
+    () => geminiRun({ advanced: true, envFile: '.gemini/.env' }),
+    // The hook with no wrapper and no env field: the variables reach it, and BASH_ENV runs.
+    () => geminiRun({ plain: true, advanced: true, envFile: '.gemini/.env' }),
+    // A project .env with excludedEnvVars of the fragment, and the same with no list.
+    () => geminiRun({ plain: true, advanced: true, envFile: '.env' }),
+    () => geminiRun({ plain: true, advanced: false, envFile: '.env' }),
+  ]);
+  const all = [...UNSET, 'BASH_ENV', 'ENV'].sort();
+  assert.deepEqual(bare.seen, { BASH_ENV: '', ENV: '' });
+  assert.equal(bare.ran, false);
+  assert.deepEqual(Object.keys(both.seen).sort(), all);
+  assert.equal(both.seen.BASH_ENV, both.script);
+  assert.equal(both.ran, true);
+  assert.deepEqual(project.seen, {});
+  assert.equal(project.ran, false);
+  assert.deepEqual(Object.keys(projectBoth.seen).sort(), all);
+  assert.equal(projectBoth.ran, true);
 });
 
 test('the checks that wait for a clock of the guard', { concurrency: true }, async (t) => {

@@ -71,5 +71,13 @@ jobs:
           ' "$RUNNER_TEMP/qory-contracts.json")
           echo "QORY_SOURCE=$dir" >> "$GITHUB_ENV"
 
+      # scripts/hook-commands.js runs shellcheck on the hook commands of core. The step fails
+      # when shellcheck is missing, because GitHub Actions sets CI=true. The checks pass on
+      # shellcheck 0.9.0 and 0.11.0.
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
       - name: Check
         run: QORY="$RUNNER_TEMP/qory/qory" sh scripts/check.sh
