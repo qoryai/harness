@@ -441,7 +441,8 @@ reads those files and finds:
   to itself: the finding names the cause;
 - a member whose schema type is `integer` and that is written with a fraction or an
   exponent, such as `34.0` or `3E1`, or has a value above 9223372036854775807 or below
-  -9223372036854775808. A member of type `number` may be written `2.0` or `1e3`, but not `1e400`, which is no finite number;
+  -9223372036854775808. A member of type `number` may be written `2.0` or `1e3`, but not
+  `1e400`, which is no finite number;
 - a null anywhere that no schema of type `null` applies, also in a member that the schema
   does not list;
 - a pattern check that runs longer than 10 seconds in all: the check stops it in a child

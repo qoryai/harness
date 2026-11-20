@@ -1035,8 +1035,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
     reads no file. The point says that the setup of the run must set it;
   - a required output with no file;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
-    finding is "Remove the link <path>.", and a link above the parent of the outbox folder is
-    followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
+    finding is "Remove the link <path>.", and a link above the parent of the outbox folder
+    is followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
     cause line for each of these;
   - a file that is no JSON;
   - a member that qory sets or fills after the push, which the session writes none of:
@@ -2760,8 +2760,8 @@ in this order:
 2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
    in the artifact folder and writes the outbox file
    `$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
-   the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text broke:
-   the session starts `submission-writer` again with the lines that `report-build` printed,
+   the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text
+   broke: the session starts `submission-writer` again with the lines that `report-build` printed,
    at most twice.
    When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
    because the text of the change still breaks the rules for it." With exit 3 and the first
