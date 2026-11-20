@@ -138,7 +138,7 @@ reviewers of the next round get them. Then, in this order:
      of `running-a-workflow` lists, with one `run_again` point: "The change is not ready,
      because the text of the change still breaks the rules for it." Print the first
      line of `report-build` in your output.
-   - With exit 3 and the first line `Split the work into fewer commits`, the list of steps
+   - With exit 3 and the first line `Build the change in fewer commits`, the list of steps
      is too long for the output. Start no agent: end as "Failures" lists, with that line as
      the cause.
    - With exit 2, 3 or 4, end as "Failures" lists for the checks script.

@@ -3,12 +3,10 @@
 // forms of a secret that no text contains.
 'use strict';
 
+const TITLE_REFUSED = require('./refused.cjs');
+
 module.exports = (lib) => {
   const { lines, sections } = lib;
-
-  // The characters that qory refuses in a title and that the schema refuses too: each Cc,
-  // U+2028, U+2029, and each Cf but U+200C and U+200D (the emoji joiners).
-  const TITLE_REFUSED = /[\p{Cc}\u2028\u2029]|(?![\u200C\u200D])\p{Cf}/u;
 
   // titleFindings returns the finding of a title that has such a character, with its code
   // point in the fix, or none. where is the words for the title in the fix.

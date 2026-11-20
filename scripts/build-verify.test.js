@@ -435,9 +435,44 @@ function passes(result, type) {
 
 // ---- The template, the schemas and the push checks ----------------------------------------
 
+// decodeSchema returns JSON for text, a json_schema block of process.yaml: indented JSON in
+// which each string is a YAML double-quoted scalar. Node has no YAML library, so this reads the
+// one escape that YAML has and JSON lacks, \UXXXXXXXX, as qory's YAML reader does (the library
+// gopkg.in/yaml.v3). It throws for a backslash outside a double-quoted scalar and for an escape
+// that JSON does not have. An escaped backslash before a U stays as it is: it is no \U escape.
+function decodeSchema(text) {
+  let out = '';
+  let quoted = false;
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at];
+    if (char === '"') quoted = !quoted;
+    if (char !== '\\') {
+      out += char;
+      continue;
+    }
+    if (!quoted) throw new Error(`a backslash outside a double-quoted scalar at ${at}`);
+    const next = text[at + 1];
+    if (next === 'U') {
+      const hex = text.slice(at + 2, at + 10);
+      if (!/^[0-9a-fA-F]{8}$/.test(hex) || parseInt(hex, 16) < 0x10000
+        || parseInt(hex, 16) > 0x10ffff) throw new Error(`a bad \\U escape at ${at}`);
+      const code = parseInt(hex, 16) - 0x10000;
+      const pair = [0xd800 + (code >> 10), 0xdc00 + (code & 0x3ff)];
+      out += pair.map((unit) => `\\u${unit.toString(16)}`).join('');
+      at += 9;
+    } else if (next !== undefined && '"\\/bfnrtu'.includes(next)) {
+      out += char + next;
+      at += 1;
+    } else {
+      throw new Error(`an escape that JSON lacks at ${at}`);
+    }
+  }
+  return out;
+}
+
 // artifactEntries returns each entry of artifact_types in process.yaml, with its keys, and its
 // json_schema parsed: the template writes each schema as indented JSON, with YAML's escape
-// \UXXXXXXXX for a character above U+FFFF.
+// \UXXXXXXXX for a character above U+FFFF (decodeSchema).
 function artifactEntries() {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   const list = yaml.slice(yaml.indexOf('\nartifact_types:\n'));
@@ -451,12 +486,7 @@ function artifactEntries() {
       if (match) entry[match[1]] = /^[0-9]+$/.test(match[2]) ? Number(match[2]) : match[2];
     }
     if (schemaAt >= 0) {
-      // YAML writes a character above U+FFFF as \UXXXXXXXX, which JSON has as a surrogate pair.
-      const json = rest.slice(schemaAt + 1).join('\n').replace(/\\U([0-9a-fA-F]{8})/g, (_, hex) => {
-        const code = parseInt(hex, 16) - 0x10000;
-        return `\\u${(0xd800 + (code >> 10)).toString(16)}\\u${(0xdc00 + (code & 0x3ff)).toString(16)}`;
-      });
-      entry.json_schema = JSON.parse(json);
+      entry.json_schema = JSON.parse(decodeSchema(rest.slice(schemaAt + 1).join('\n')));
     }
     return entry;
   });
@@ -830,15 +860,15 @@ test('pull-request: a step has 1 to 128 characters, and the commits have no uppe
 test('pull-request: the title is one line, with no control, bidi or invisible character', () => {
   const title = (value) => pullRequestErrors((d) => { d.title = value; });
   assert.deepEqual(title('Add export to CSV'), []);
-  for (const bad of ['Add\texport', 'Add\u0085export', 'Add‮export', 'Add export',
-    'Add​export', 'Add\u007fexport', '', '   ', ' 　']) {
+  for (const bad of ['Add\texport', 'Add\u0085export', 'Add\u202eexport', 'Add\u2028export',
+    'Add\u200bexport', 'Add\u007fexport', '', '   ', ' 　']) {
     assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
   }
   // Each character of the class Cf but U+200C and U+200D is refused by the pattern.
   for (const bad of ['Add\u00adexport', 'Add\u0600export', 'Add\u{110bd}export']) {
     assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
     fails(push(fixture(), 'pull-request', [PR_FILE, { ...clone(PULL_REQUEST), title: bad }]),
-      /^Write \/title of /);
+      /^Remove U\+[0-9A-F]{4,5} from \/title of /);
   }
 });
 
@@ -854,7 +884,7 @@ test('pull-request: a title keeps an emoji joiner and refuses a tag or bidi char
   for (const [title, code] of [['Add\u202Eexport', '202E'],
     ['Add\u{E0041}export', 'E0041']]) {
     const got = run(title);
-    fails(got, /^Write \/title of /);
+    fails(got, new RegExp(`^Remove U\\+${code} from /title of `));
     assert.ok(!got.out.includes(title.charAt(3)), `${code}: the raw character is in a finding`);
   }
 });
@@ -3212,7 +3242,7 @@ test('the character lists of the schemas are the one rule, for each code point',
     }
     assert.deepEqual(wrong, [], `${place}: the list differs from Node's Unicode ` +
       `${process.versions.unicode} at these code points; it was made for Unicode ${UNICODE}`);
-    assert.equal(regexp.test('a\u{1F468}‍\u{1F469}b'), true, `${place}: an emoji`);
+    assert.equal(regexp.test('a\u{1F468}\u200d\u{1F469}b'), true, `${place}: an emoji`);
   }
 });
 
@@ -3238,8 +3268,8 @@ test('pull-request: no member has a tag character or U+200B, and each keeps emoj
   const errors = (set, value) => pullRequestErrors((d) => set(d, value));
   for (const [member, set] of Object.entries(members)) {
     assert.deepEqual(errors(set, 'ab'), [], member);
-    assert.deepEqual(errors(set, 'a\u{1F468}‍\u{1F469}b'), [], `${member}: emoji`);
-    for (const bad of ['a\u{E0041}b', 'a​b', 'a­b', 'a؀b', 'a b', 'a\u0085b']) {
+    assert.deepEqual(errors(set, 'a\u{1F468}\u200d\u{1F469}b'), [], `${member}: emoji`);
+    for (const bad of ['a\u{E0041}b', 'a\u200bb', 'a\u00adb', 'a\u0600b', 'a\u2028b', 'a\u0085b']) {
       assert.notDeepEqual(errors(set, bad), [], `${member}: ${JSON.stringify(bad)}`);
     }
     const lines = member !== 'text';
@@ -3254,13 +3284,13 @@ test('pull-request: no member has a tag character or U+200B, and each keeps emoj
 
 test('pull-request: a title of spaces and joiners alone is refused', () => {
   const title = (value) => pullRequestErrors((d) => { d.title = value; });
-  for (const bad of ['‌', '‍', ' ‌ ‍', '‍　 ']) {
+  for (const bad of ['\u200c', '\u200d', ' \u200c \u200d', '\u200d　 ']) {
     assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
   }
-  assert.deepEqual(title('‍a'), []);
+  assert.deepEqual(title('\u200da'), []);
 });
 
-test('demo-script and demo-evidence: a title or an expected result has one line, no U+E0041', () => {
+test('demo-script and demo-evidence: a title and an expected result have one line, no tag', () => {
   for (const [type, doc] of [['demo-script', SCRIPT_DOC], ['demo-evidence', EVIDENCE_DOC]]) {
     const errors = (set, value) => {
       const copy = clone(doc);
@@ -3272,16 +3302,70 @@ test('demo-script and demo-evidence: a title or an expected result has one line,
       'step title': (d, v) => { d.steps[0].title = v; },
       expected: (d, v) => { d.steps[0].expected = v; },
     })) {
-      assert.deepEqual(errors(set, 'ab \u{1F468}‍\u{1F469}'), [], `${type} ${member}`);
-      for (const bad of ['a\u{E0041}b', 'a​b', 'a\tb', 'a\nb', 'a\rb', 'a\u001bb']) {
+      assert.deepEqual(errors(set, 'ab \u{1F468}\u200d\u{1F469}'), [], `${type} ${member}`);
+      for (const bad of ['a\u{E0041}b', 'a\u200bb', 'a\tb', 'a\nb', 'a\rb', 'a\u001bb']) {
         assert.notDeepEqual(errors(set, bad), [], `${type} ${member}: ${JSON.stringify(bad)}`);
       }
     }
   }
 });
 
-test('process.yaml writes a character above U+FFFF as \\U00XXXXXX, as qory reads no surrogate escape', () => {
+test('process.yaml writes a character above U+FFFF as \\UXXXXXXXX, no surrogate pair', () => {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   assert.equal(/\\u[dD][89abAB][0-9a-fA-F]{2}/.test(yaml), false);
   assert.match(yaml, /\\U000e0041|\\U000e0020-\\U000e007f/);
+});
+
+test('the decoder of the json_schema blocks reads YAML escapes as a YAML reader does', () => {
+  assert.equal(decodeSchema('"a\\U000e0041b"'), '"a\\udb40\\udc41b"');
+  assert.equal(JSON.parse(decodeSchema('"\\U0001F468"')), '\u{1F468}');
+  // An escaped backslash before U is a backslash and a letter, not an escape.
+  assert.equal(JSON.parse(decodeSchema('"\\\\U000e0041"')), '\\U000e0041');
+  assert.equal(JSON.parse(decodeSchema('"\\"\\U000e0041"')), '"\u{e0041}');
+  for (const bad of ['\\U000e0041', '"\\x41"', '"\\e"', '"\\U0000e041"', '"\\U000e00"', '"a" \\n',
+    '"\\U00110000"']) {
+    assert.throws(() => decodeSchema(bad), bad);
+  }
+  // Each block of process.yaml decodes, so each of its escapes is in a double-quoted string.
+  const blocks = artifactEntries().filter((entry) => entry.json_schema);
+  assert.equal(blocks.length, CUSTOM_JSON_TYPES.length);
+});
+
+test('pull-request: a refused character in a finding has its code point and the rule', () => {
+  const found = (change) => pullRequestErrors(change).map((one) => one.split('\n'));
+  const line = 'One line of text: no control character, no U+2028 or U+2029, and no Cf ' +
+    'character but U+200C and U+200D (emoji joiners).';
+  const [text] = found((d) => { d.text = 'a\r\nb\nc\u0001d'; });
+  assert.equal(text[0], 'Remove U+0001 from line 3 of /text of pull-request.json.');
+  assert.match(text[1], /^Markdown: of the control characters only tab, line feed and /);
+  const [title] = found((d) => { d.title = 'a\u0600'; });
+  assert.deepEqual(title, ['Remove U+0600 from /title of pull-request.json.', line]);
+  const [step] = found((d) => { d.steps = [{ commit: C1, step: 'x\u{E0041}' }]; });
+  assert.deepEqual(step, ['Remove U+E0041 from /steps/0/step of pull-request.json.', line]);
+  const [lineBreak] = found((d) => { d.text = 'a\nb\u2028'; });
+  assert.equal(lineBreak[0], 'Remove U+2028 from line 2 of /text of pull-request.json.');
+  // A title of spaces and joiners has no character to remove: the rule is the cause.
+  assert.deepEqual(found((d) => { d.title = ' \u200d'; }), [[
+    'Write /title of pull-request.json so that it matches its pattern.',
+    'A title has a character other than spaces and joiners (U+200C, U+200D). ' +
+      'It is " \\u200d".']]);
+});
+
+test('open.url of demo-script and path of acceptance-lock refuse the one rule too', () => {
+  const script = (url) => {
+    const doc = clone(SCRIPT_DOC);
+    doc.setup[0].url = url;
+    return schema.errors(schema.load('demo-script'), doc, 'scenario-1.json');
+  };
+  const lock = (file) => {
+    const doc = clone(LOCK_DOC);
+    doc.checks[0].path = file;
+    return schema.errors(schema.load('acceptance-lock'), doc, 'acceptance-lock.json');
+  };
+  assert.deepEqual(script('/sign-in?a=\u{1F468}\u200d\u{1F469}'), []);
+  assert.deepEqual(lock('tests/a\u{1F468}\u200d\u{1F469}.test.ts'), []);
+  for (const bad of ['\u202e', '\u{E0041}', '\u200b', '\u0600', '\u0001']) {
+    assert.notDeepEqual(script(`/sign${bad}-in`), [], `url ${JSON.stringify(bad)}`);
+    assert.notDeepEqual(lock(`tests/a${bad}.test.ts`), [], `path ${JSON.stringify(bad)}`);
+  }
 });

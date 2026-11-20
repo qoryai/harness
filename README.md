@@ -353,7 +353,7 @@ workflows:
   criteria and build plan, after `reviewing-changes` and `judging-findings`. The skill
   contains what the review reads, the area it covers, the steps, what is blocking in that
   area, and the check list.
-- `writing-submissions`: load it before you write the title and the description of the
+- `writing-submissions`: load it before you write the title and the text of the
   draft pull request of a Build run. The skill contains the file, the title, the four
   parts, their limits, what `## Disclosed` contains and the check list.
 - `submission-writer`: an agent that writes `.reports/submission.md` of the artifact

@@ -2896,11 +2896,11 @@ in this order:
    in the artifact folder and writes the outbox file
    `$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
    the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text
-   broke: the session starts `submission-writer` again with the lines that `report-build` printed,
-   at most twice.
+   broke: the session starts `submission-writer` again with the lines that `report-build`
+   printed, at most twice.
    When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
    because the text of the change still breaks the rules for it." With exit 3 and the first
-   line `Split the work into fewer commits`, the list of steps makes the output larger than
+   line `Build the change in fewer commits`, the list of steps makes the output larger than
    786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
    the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists
    for the checks script.
@@ -3442,7 +3442,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   it, or the folder of the type is a link, as core's end check reads it, the verb exits 3
   with the fix "Remove the link in the path of the outbox." and writes no file. A file that
   would have more than 786432 bytes, the `size_limit` of the type `pull-request`, exits 3
-  with the fix "Split the work into fewer commits", because only the list of `steps` can
+  with the fix "Build the change in fewer commits", because only the list of `steps` can
   make it that large (the text has at most 20,000 characters), and the verb writes no
   file. The links that the rule reads are those of the outbox folder, its parent and the
   folder of the type; a link above them is followed.

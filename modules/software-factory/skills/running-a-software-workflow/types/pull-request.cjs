@@ -5,8 +5,7 @@
 const { sizeLimit } = require('../lib/template.cjs');
 
 module.exports = (lib) => {
-  const { checkTrack, isObject, jsonFile, parseJson, partFindings, secretFindings,
-    titleFindings } = lib;
+  const { checkTrack, isObject, jsonFile, parseJson, partFindings, secretFindings } = lib;
 
   const FILE = 'pull-request.json';
 
@@ -19,9 +18,6 @@ module.exports = (lib) => {
       : parseJson(text, FILE);
     if (!isObject(data)) return;
     const place = (member) => `/${member} of ${FILE}`;
-    if (typeof data.title === 'string') {
-      titleFindings(data.title, `/title of ${FILE}`).forEach((line) => run.find(line));
-    }
     if (typeof data.text !== 'string') return;
     run.did('text');
     partFindings(data.text, place('text')).forEach((line) => run.find(line));

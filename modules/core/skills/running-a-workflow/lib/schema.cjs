@@ -168,6 +168,22 @@ function load(folder, type) {
   return { file, schema, patterns: compile(schema, file) };
 }
 
+// A pattern of one list of characters, ^[^...]* or ^[^...]+, that a string fails by one character
+// of the list.
+const CHARACTER_LIST = /^\^\[\^[^\]]*\][*+]\$$/;
+
+// refusedAt returns the first character of text that pattern, a CHARACTER_LIST, refuses, and its
+// index, or null for another form of pattern or when no single character fails.
+function refusedAt(text, pattern, regexp) {
+  if (!CHARACTER_LIST.test(pattern)) return null;
+  let index = 0;
+  for (const char of text) {
+    if (!regexp.test(char)) return { char, index };
+    index += char.length;
+  }
+  return null;
+}
+
 // nullPointers returns the JSON pointer of each null in value, which MAX_DEPTH bounds.
 function nullPointers(value) {
   const found = [];
@@ -277,8 +293,23 @@ function errors(loaded, value, file, def, extra = {}) {
       }
       if (schema.pattern && mark) mark(at);
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
-        add('Write', 'so that it matches its pattern',
-          `The pattern is ${clip(visible(schema.pattern), 120)}. It is ${shown(node)}`);
+        const refused = refusedAt(node, schema.pattern, patterns.get(schema.pattern));
+        const rule = schema.description && schema.description.replace(/\.$/, '');
+        if (refused) {
+          // The first refused character, with its line in a text of more than one line.
+          const code = refused.char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+          const row = /[\r\n]/.test(node)
+            ? ` line ${node.slice(0, refused.index).split(/\r\n|\n|\r/).length} of` : '';
+          found.push(`Remove U+${code} from${row} ${where}.\n` +
+            `${rule ? clip(rule, 150) : `The pattern is ${clip(visible(schema.pattern), 120)}`}.` +
+            `${whole}`);
+        } else if (rule) {
+          add('Write', 'so that it matches its pattern',
+            `${clip(rule, 120)}. It is ${shown(node)}`);
+        } else {
+          add('Write', 'so that it matches its pattern',
+            `The pattern is ${clip(visible(schema.pattern), 120)}. It is ${shown(node)}`);
+        }
       }
     }
     if (actual === 'integer' || actual === 'number') {

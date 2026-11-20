@@ -717,12 +717,18 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
     // The schema refuses a line break or a control character in a name or a pattern.
-    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or invisible character: "pay\\nments"\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or invisible character: "\*\*\/pay\\tments\/\*\*"\.$/],
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] },
+      new RegExp('^Write name of area 1 of add_sensitive_areas in qory\\.yaml on one line\\. ' +
+        'It has a line break, tab, control or invisible character: "pay\\\\nments"\\.$')],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] },
+      new RegExp('^Write pattern 1 of area 1 of add_sensitive_areas in qory\\.yaml ' +
+        'on one line\\. It has a line break, tab, control or invisible character: ' +
+        '"\\*\\*\\/pay\\\\tments\\/\\*\\*"\\.$')],
     // C1 controls, the line and paragraph separators, the bidirectional controls and each other
     // Cf character but U+200C and U+200D too.
     ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069', '\u200e',
-      '\u200f', '\u061c', '\u200b', '\u00ad', '\u0600', '\u{e0041}', '\u{110bd}'].flatMap((char) => [
+      '\u200f', '\u061c', '\u200b', '\u00ad', '\u0600', '\u{e0041}',
+      '\u{110bd}'].flatMap((char) => [
       [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. /],
       [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. /]]),
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
@@ -1432,11 +1438,11 @@ test('decision record: Qory Apiary strips characters before it draws, and so doe
   const loads = /^Remove the syntax that loads an address from the Mermaid block of decision-1\./;
   const body = (middle) => `flowchart LR\n  A --> B\n  style A fill:url${middle}(x.png)`;
   fails(push(fixture(drawn(body('͏'))), 'decision-record'), loads);
-  fails(push(fixture(drawn(body('­'))), 'decision-record'), loads);
-  fails(push(fixture(drawn(body(' '))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('\u00ad'))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('\u2028'))), 'decision-record'), loads);
   fails(push(fixture(drawn(body('᠋'))), 'decision-record'), loads);
   // A join control stays, so the text is not an address. A control character becomes U+FFFD.
-  const kept = push(fixture(drawn(body('‍'))), 'decision-record');
+  const kept = push(fixture(drawn(body('\u200d'))), 'decision-record');
   assert.ok(!kept.findings.some((line) => loads.test(line)), kept.out);
   const control = push(fixture(drawn(body('\u0001'))), 'decision-record');
   assert.ok(!control.findings.some((line) => loads.test(line)), control.out);
@@ -2077,7 +2083,7 @@ test('decision record: a Mermaid block with a %%{ line is refused', () => {
   // The size leaves out a %% comment line, and a directive line is dropped before.
   assert.equal(mermaid.size(mermaid.source('flowchart LR\n%%{ init }%%\n  A')),
     'flowchart LR\n  A\n'.length);
-  assert.equal(mermaid.directive('flowchart LR\n%​%{ init }%%'), true);
+  assert.equal(mermaid.directive('flowchart LR\n%\u200b%{ init }%%'), true);
 });
 
 test('decision record: a time limit for text that made a pattern slow', () => {
@@ -2636,7 +2642,8 @@ test('criteria: a file that breaks a rule of the type check gets the fix line of
     'Write the summary of acceptance-criteria.json in 1 to 3 sentences: it has 4.');
   refused((data) => { at('ac-1')(data).id = 'ac-01'; },
     'Write /criteria/0/id of acceptance-criteria.json so that it matches its pattern.',
-    'The pattern is ^ac-[1-9][0-9]{0,3}$. It is "ac-01".');
+    'A criterion\'s id: ac- and a number from 1 to 9999 with no leading zero, such as ac-3. ' +
+      'It is "ac-01".');
   refused((data) => { data.criteria.push(row('ac-3', 'The reply states the hours.')); },
     'Give each criterion of acceptance-criteria.json a different id.', 'ac-3 is there twice.');
   refused((data) => { data.criteria.splice(1, 1); },
@@ -5527,7 +5534,8 @@ test('each finding of the sections and files fires on a draft that breaks it', (
     /^Add at least one ### part under ## Changes in spec.md/);
   fails(push(fixture(setCriterion('ac-4', { id: 'criterion-4' })), 'acceptance-criteria'),
     new RegExp('^Write /criteria/3/id of acceptance-criteria\\.json so that it matches its ' +
-      'pattern\\. The pattern is \\^ac-\\[1-9\\]\\[0-9\\]\\{0,3\\}\\$\\. It is "criterion-4"\\.$'));
+      'pattern\\. A criterion\'s id: ac- and a number from 1 to 9999 with no leading zero, ' +
+      'such as ac-3\\. It is "criterion-4"\\.$'));
   fails(push(fixture(['demo-scenarios.md', /^### .*$/gm, 'A line.']), 'demo-scenarios'),
     /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
   fails(push(fixture(['demo-scenarios.md', /Starting state: the support member `sam@example.com` signs in with a password\. The account is in the support team, which has the saved reply for delayed orders\. The list of saved replies is open\.\n\n\| Step \| Action \| What the viewer sees \| Screen \|\n\|---\|---\|---\|---\|\n\| 1 \| Open the saved reply for delayed orders\. \| The reply states[^\n]*\n\nShows: ac-3/, 'Removed, because it ended.\n\nA second line.']), 'demo-scenarios'),

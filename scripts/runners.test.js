@@ -3454,8 +3454,8 @@ test('report-build: a title that qory drops, with U+0600 or U+E0041, exits 1 wit
     const got = bcall(dir, ['report-build']);
     assert.equal(got.status, 1, `${code}: ${got.out}${got.err}`);
     assert.equal(got.lines[0], `Remove U+${code} from the title of submission.md.`);
-    assert.equal(got.lines[1],
-      '  qory drops the whole text when its title has a control, invisible or separator character.');
+    assert.equal(got.lines[1], '  qory drops the whole text when its title has a control, ' +
+      'invisible or separator character.');
     assert.equal(got.lines.at(-1), 'Wrote no file: 1 finding on submission.md.');
     assert.equal(fs.existsSync(file), false);
   }
@@ -3748,7 +3748,7 @@ test('report-build: an output over 786432 bytes exits 3 with the split fix, writ
   const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 3, got.out.slice(0, 300) + got.err.slice(0, 300));
   assert.match(got.lines[0],
-    /^Split the work into fewer commits: steps has \d+ entries and the output \d{6,} bytes\.$/);
+    /^Build the change in fewer commits: steps has \d+ entries and the output \d{6,} bytes\.$/);
   assert.equal(got.lines[1], '  $QORY_OUTBOX/pull-request/pull-request.json has at most 786432 ' +
     'bytes, and no step of the session can shorten the list of commits.');
   assert.equal(fs.existsSync(file), false);

@@ -10,16 +10,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+// A character that no name or pattern of an area contains: the one rule of the characters of a
+// string, as extensions.schema.json writes it.
+const REFUSED = require('./refused.cjs');
+
 module.exports = (lib) => {
   const {
     blank, extensionsFix, factoryExtensions, isObject, jsonKind, lines, Missing, quote, sections,
   } = lib;
-
-  // A character that no name or pattern of an area contains: a control character (C0, C1 and
-  // DEL), a line or paragraph separator, or a bidirectional control or mark, as
-  // extensions.schema.json refuses them.
-  const CONTROL =
-    /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c]/;
 
   const FILE = path.join(__dirname, '..', 'short-path.json');
 
@@ -155,14 +153,14 @@ module.exports = (lib) => {
     if (!isObject(value)) return `it is ${jsonKind(value)}, not an object`;
     const other = Object.keys(value).find((key) => !['name', 'patterns'].includes(key));
     if (other !== undefined) return `it has the key ${quote(other)}, besides name and patterns`;
-    if (typeof value.name !== 'string' || !value.name.trim() || CONTROL.test(value.name)) {
+    if (typeof value.name !== 'string' || !value.name.trim() || REFUSED.test(value.name)) {
       return 'it has no name: a text on one line';
     }
     if (!Array.isArray(value.patterns) || !value.patterns.length) {
       return `the area ${quote(value.name)} has no patterns: a list of at least one`;
     }
     for (const pattern of value.patterns) {
-      if (typeof pattern !== 'string' || CONTROL.test(pattern)) {
+      if (typeof pattern !== 'string' || REFUSED.test(pattern)) {
         return `a pattern of ${quote(value.name)} is ${jsonKind(pattern)}, not a text on one line`;
       }
       try {
@@ -189,7 +187,7 @@ module.exports = (lib) => {
   // listOfTexts returns why value is no list of texts on one line, with at least min of them,
   // or null.
   const listOfTexts = (value, min = 1) => (!Array.isArray(value) || value.length < min ||
-    !value.every((item) => typeof item === 'string' && !CONTROL.test(item))
+    !value.every((item) => typeof item === 'string' && !REFUSED.test(item))
     ? 'is no list of texts on one line' : null);
 
   // filePatterns returns why the list of file patterns cannot be read by globRegExp, with

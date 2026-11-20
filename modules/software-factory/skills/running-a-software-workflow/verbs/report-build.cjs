@@ -226,7 +226,7 @@ module.exports = (lib) => {
     const limit = sizeLimit(TYPE);
     const bytes = Buffer.byteLength(body);
     if (bytes > limit) {
-      throw new Missing('Split the work into fewer commits: steps has ' +
+      throw new Missing('Build the change in fewer commits: steps has ' +
         `${steps.length} entries and the output ${bytes} bytes.\n${SHOWN} has at most ` +
         `${limit} bytes, and no step of the session can shorten the list of commits.`);
     }

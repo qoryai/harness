@@ -289,6 +289,32 @@ test('outbox: a schema that the checker cannot run is a finding with its cause',
   assert.match(loop.text, /Fix the schema of the reply output\.\n.*refers to itself without end/);
 });
 
+test('outbox: a refused character is named by its code point, with the description as cause', () => {
+  const RULE = 'One line of text: no control character, no U+2028 or U+2029.';
+  const made = (member) => ({ type: 'object', required: ['t'], additionalProperties: false,
+    properties: { t: { type: 'string', ...member } } });
+  const run = (member, value) => end(session([{ type: 'reply', required: true,
+    schema: made(member) }], { reply: JSON.stringify({ t: value }) })).text.split('\n');
+  const list = { pattern: '^[^\\u0000-\\u0009\\u000b\\u000c\\u000e-\\u001f\\u2028\\u2029]*$' };
+  // A text of several lines names the line, and the description is the cause line.
+  const text = run({ ...list, description: RULE }, 'a\r\nb\nc\u0001d');
+  assert.equal(text[1], 'Remove U+0001 from line 3 of /t of $QORY_OUTBOX/reply/reply.json.');
+  assert.equal(text[2], `  ${RULE}`);
+  // A value of one line has no line in the finding.
+  const one = run({ ...list, description: RULE }, 'ab\u2028');
+  assert.equal(one[1], 'Remove U+2028 from /t of $QORY_OUTBOX/reply/reply.json.');
+  // Without a description, the cause is the pattern.
+  const bare = run(list, 'a\u0001');
+  assert.equal(bare[1], 'Remove U+0001 from /t of $QORY_OUTBOX/reply/reply.json.');
+  assert.match(bare[2], /^ {2}The pattern is \^\[\^\\u0000-\\u0009/);
+  // A pattern that is not one list of characters gives no code point, and the description
+  // replaces the pattern in the cause.
+  const blank = run({ pattern: '[^ ]',
+    description: 'A title has a character other than spaces.' }, '  ');
+  assert.equal(blank[1], 'Write /t of $QORY_OUTBOX/reply/reply.json so that it matches its pattern.');
+  assert.equal(blank[2], '  A title has a character other than spaces. It is "  ".');
+});
+
 test('outbox: a link, a folder in place of the file and a file over 1 MiB name their cause', () => {
   const linked = session(OUT, { reply: reply() });
   const file = path.join(linked.outbox, 'reply/reply.json');
