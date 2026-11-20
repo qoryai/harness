@@ -1383,10 +1383,14 @@ script before a hook command. So `settings/gemini/settings.json` does two things
 The guard denies a write to a file named `.env`, which includes `.gemini/.env`. For the
 write tools it reads paths with the rules of `.reports/`: links, `..` and patch headers. It
 denies a shell command in which a word is `.env`, or becomes `.env` after the shell removes
-quotes and backslashes. `.env.example`, `.envrc` and `.venv` pass.
+quotes and backslashes. `.env.example`, `.envrc` and `.venv` pass. The guards of Gemini CLI,
+Cursor and Copilot CLI read the headers of a unified diff. The Codex tool guard reads only the
+Codex headers, because Codex rejects a unified diff and writes nothing.
 
 A command still reaches `.env` past the guard through a glob or braces such as `.en?` and
-`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same. In
+`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same. A command
+that applies a diff from a file, such as `git apply fix.diff` or `patch`, has no `.env` in its
+text, as with a glob. The heredoc form is denied. In
 a run on Claude Code and Codex, a command of read-only programs is not read, as for
 `.reports/`, so `cat .env` passes there.
 
