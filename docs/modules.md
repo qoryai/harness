@@ -143,14 +143,16 @@ Before each start of an agent, the session runs `checks.cjs notes <agent>`, with
 include a role of the agent and whose paths match a file of the work. It takes at most 3,
 the nearest layer first and, in one layer, in the order of `role-notes.json`, and lists the
 others as left out. A role note has at most 256 KB, and none of the invisible or control
-characters that the draft checks list. The script writes the text of each picked role note, in a
+characters that the draft checks list. The script writes the text of each picked role note,
+in a
 code fence, to `.notes/<agent>-<k>.md` of the artifact folder, where `<k>` is 1 more than
 the starts of the agent that the script recorded in the run. The session passes that file to
 the agent. The file is outside `.reports`, because the guard of `.reports` denies a shell
 command that reads it on some runtimes.
 
 The script records each start in `.reports/note-starts.json`, under the run, with the names
-of its role notes and the SHA-256 of its notes file. The guard of `.reports` keeps the agents
+of its role notes and the SHA-256 of its notes file. The guard of `.reports` keeps the
+agents
 from writing that record, and the SHA-256 shows a change of the notes file: `.notes/` has no
 guard. When a report passes, `checks.cjs report` adds a mark to the agent's list in the
 record. The agent lists the name of each role note under `Role notes read:` in its report.
@@ -999,7 +1001,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   file of at most 1 MB, the same test as the tool guard makes, and no link. The hook passes
   the copy that qory writes at `$QORY_HARNESS_HOME/inputs.json`, not the `index.json` of the
   artifact folder, which an agent can write. With no `--inputs`, a file that cannot be read
-  or another value, the stage has none and `end` runs the command. It writes one point `run_again` for each kind of problem. Each point is
+  or another value, the stage has none and `end` runs the command. It writes one point
+  `run_again` for each kind of problem. Each point is
   one sentence: what failed, why, and another round as the step, with each agent in plain
   words and no step for the session, such as "The draft of the spec breaks 2 format rules,
   which the output of the run on the Run page lists, and another round starts the writer of
@@ -1143,7 +1146,8 @@ It reads a shell command without the body of a here-document that it reads as te
 reads each path of a write as the disk resolves it from the working folder of the call, with
 each `..` and each link: it denies `.reports/a b/../end.json` whether or not the folder
 `.reports/a b/` exists, and a path through more than 40 links or a link loop, with the first
-line "Remove the link loop from the path." It matches `.reports`, `.json` and `.lock` as a disk
+line "Remove the link loop from the path." It matches `.reports`, `.json` and `.lock` as a
+disk
 that ignores case does, so U+017F (long s) reads as `s` and U+212A (Kelvin sign) as `k`:
 `.reportſ/end.json` is `.reports/end.json`. The tool guard does not run `fs.globSync`,
 which has no limit on its work: it reads a word after brace expansion, and a word with a
@@ -1171,121 +1175,212 @@ shell. A command reaches `.reports` when:
 `fs.globSync` expands a glob from the working folder of the command, which the hook's
 input contains: `cwd`, and on Gemini CLI also `tool_input.dir_path`. A `**` counts as `*`,
 as in bash without `globstar`, so no glob walks a whole tree. The guard denies a word with
-a glob when `fs.globSync` throws on it, and when the word starts with another `~name`, such as `~alex`. It denies a word
+a glob when `fs.globSync` throws on it, and when the word starts with another `~name`, such
+as `~alex`. It denies a word
 that starts with `~-` when `OLDPWD` is not set. `fs.globSync` exists from Node 22; on an
 older Node, the guard denies each word with a glob. Equal globs share one expansion. The
 guard denies a command whose globs need more than 256 different `fs.globSync` calls, match
-more than 100,000 paths in all, or take more than 600 ms in all, checked between the calls, because a hook
-that outlasts its timeout lets the call run on Cursor and Copilot CLI. At commit 5c25e957, 62,500
-words of `***` took 70 s, one expansion at a time. The second line of the deny names the limit,
+more than 100,000 paths in all, or take more than 600 ms in all, checked between the calls,
+because a hook
+that outlasts its timeout lets the call run on Cursor and Copilot CLI. At commit 5c25e957,
+62,500
+words of `***` took 70 s, one expansion at a time. The second line of the deny names the
+limit,
 as "The command has more than 256 different globs, and the guard expands at most 256."
 
 The guard counts the patterns that the braces of a glob make before it calls `fs.globSync`,
-which cannot be stopped: `{a,b}` is 2, `{1..N}` is N, and nested or adjacent braces multiply.
+which cannot be stopped: `{a,b}` is 2, `{1..N}` is N, and nested or adjacent braces
+multiply.
 It denies a command whose braces make more than 4,096 patterns in all, where a pattern with
 `*`, `?` or `[` counts 256 (`f{1..16}*` is at the limit), and a glob with more than 5 parts
-that have a glob character, as `*/*/*/*/*/*`. The count of a range `{1..N}` is the difference
+that have a glob character, as `*/*/*/*/*/*`. The count of a range `{1..N}` is the
+difference
 of its numbers, as numbers: zeros before them change nothing, and a step of 0 counts as 1,
 so `{000000000000000000000000000000001..0000000000000000000000000000100000}` is 100,000.
 
 `fs.globSync` matches a path part with a regular expression that takes time in the power of
 the number of `*` in it, for each name of each folder that it scans. On a name of 254
 characters (`a` and then `!`), `*a*c` (2 `*`) takes 0.016 ms, `*a*a*c` (3 `*`) takes 1.0 ms,
-`*aa*aa*aa*c` (4 `*`) 0.5 s, and `*a*a*a*a*c` (5 `*`) more than 8 s; on a name of 100 characters,
+`*aa*aa*aa*c` (4 `*`) 0.5 s, and `*a*a*a*a*c` (5 `*`) more than 8 s; on a name of 100
+characters,
 `*a*a*c` takes 0.06 ms.
-So a folder of 12,000 such names takes 12 s with `*a*a*c`, 1,000 of them 1.07 s and 50,000 more
-than 25 s, and the hook outlasts its timeout of 10 seconds, which lets the call run on Cursor and
-Copilot CLI. The guard denies a glob with more than 3 `*` in one path part, more than 8 in all,
-more than 16 `*` and `?` in one path part, or more than 32 in all, and a glob with a `(` after `*`,
+So a folder of 12,000 such names takes 12 s with `*a*a*c`, 1,000 of them 1.07 s and 50,000
+more
+than 25 s, and the hook outlasts its timeout of 10 seconds, which lets the call run on
+Cursor and
+Copilot CLI. The guard denies a glob with more than 3 `*` in one path part, more than 8 in
+all,
+more than 16 `*` and `?` in one path part, or more than 32 in all, and a glob with a `(`
+after `*`,
 `?`, `+`, `@` or `!`, an extended glob, which bash reads from a quoted `(` as text and
-`fs.globSync` reads as a group. It counts each pair of braces as its largest alternative, with
+`fs.globSync` reads as a group. It counts each pair of braces as its largest alternative,
+with
 each alternative counted from the text before the braces: `{src/*,lib/*}` and
 `{*.ts,*.js,*.md,*.json}` have 1 `*`, and `x{*a,*b}y{*c,*d}*e*` has 4. A `/` inside an
-alternative starts a new path part. It denies braces that can put two `*` side by side in one
-expansion, as `*{*,}` (`**` and `*`), `{*,}*`, `*{,}*` and `{*,*}{*,*}` do, with the second line
-"A glob of the command has a brace that can put two * side by side, ...": the guard reads `**`
-as `*`, as bash does without globstar, but `fs.globSync` expands the braces itself and reads a
-path part `**` as a globstar. `ls /*{*,}` made it walk the whole disk, and the hook timeout of
-10 s lets the call run on Cursor and Copilot CLI. A `*` next to a brace with no `*` at its edge
-(`{a,b}*`, `*.{ts,js}`, `{*.ts,*.js}`) is not denied. The guard reads the braces as minimatch
-does, with a `,` and a `}` after `{}` making its `}` text, and denies braces nested more than
-32 deep and more than 4,096 expansions. It denies a glob word of more than 4,096 characters, and
+alternative starts a new path part. It denies braces that can put two `*` side by side in
+one
+expansion, as `*{*,}` (`**` and `*`), `{*,}*`, `*{,}*` and `{*,*}{*,*}` do, with the second
+line
+"A glob of the command has a brace that can put two * side by side, ...": the guard reads
+`**`
+as `*`, as bash does without globstar, but `fs.globSync` expands the braces itself and reads
+a
+path part `**` as a globstar. `ls /*{*,}` made it walk the whole disk, and the hook timeout
+of
+10 s lets the call run on Cursor and Copilot CLI. A `*` next to a brace with no `*` at its
+edge
+(`{a,b}*`, `*.{ts,js}`, `{*.ts,*.js}`) is not denied. The guard reads the braces as
+minimatch
+does, with a `,` and a `}` after `{}` making its `}` text, and denies braces nested more
+than
+32 deep and more than 4,096 expansions. It denies a glob word of more than 4,096 characters,
+and
 checks the time before each folder part of a word.
 
-A glob word with a `/` inside braces, as `{src/*,lib/*}` or `{l1/,l2/}*`, has path parts that
-differ between its expansions. The guard expands its braces (at most 16 words for a word with a
+A glob word with a `/` inside braces, as `{src/*,lib/*}` or `{l1/,l2/}*`, has path parts
+that
+differ between its expansions. The guard expands its braces (at most 16 words for a word
+with a
 `*`, `?` or `[`, and 4,096 for one with none), and scans each word as a glob, in the
-folders that the word reaches, so that `fs.globSync` expands no braces of it. A word with no `*`, `?`
-or `[` is a path, and the guard tests its text for `.reports`. `ls {l1/,l2/,...,l15/}*`, with 15
-links to one folder of 200,000 files, took 14.9 s before the guard denied it, and is denied in
+folders that the word reaches, so that `fs.globSync` expands no braces of it. A word with no
+`*`, `?`
+or `[` is a path, and the guard tests its text for `.reports`. `ls {l1/,l2/,...,l15/}*`,
+with 15
+links to one folder of 200,000 files, took 14.9 s before the guard denied it, and is denied
+in
 0.05 s as a folder of 83,334 names or more.
 
-Limits on the number of `*` cannot bound the time of a call that cannot be stopped, so the guard
-bounds it by its input. Before `fs.globSync` runs for a path part with a `*`, `?` or `[`, the
-guard reads the names of the folders that the part scans (the folder of the part for the first
-glob part, else all the folders among the matches of the part before it, at most 2,000, found by
-a check of each match, which takes 0.26 s for 100,000 files), and adds up the work of the call.
+Limits on the number of `*` cannot bound the time of a call that cannot be stopped, so the
+guard
+bounds it by its input. Before `fs.globSync` runs for a path part with a `*`, `?` or `[`,
+the
+guard reads the names of the folders that the part scans (the folder of the part for the
+first
+glob part, else all the folders among the matches of the part before it, at most 2,000,
+found by
+a check of each match, which takes 0.26 s for 100,000 files), and adds up the work of the
+call.
 For a part with 2 or more `*` (the most that any alternative has), each name costs 3
 microseconds and `length^stars` times 0.5 ns for 2 `*` or 0.08 ns for 3 `*`, for each
-alternative of the braces of the part. For a part with fewer, each name costs 2.2 microseconds
+alternative of the braces of the part. For a part with fewer, each name costs 2.2
+microseconds
 and 0.6 microseconds for each alternative after the first. The constants are 5 to 100 % more
-than the times measured at load 12 (`*` in 50,000 names 107 ms, 17 alternatives followed by `*`
-520 ms). A call whose sum passes 250 ms, which took under 500 ms at load 30, is denied, so is a
-part with 3 `*` whose folders have more than 20,000 names, and so is a folder of 83,334 names or
+than the times measured at load 12 (`*` in 50,000 names 107 ms, 17 alternatives followed by
+`*`
+520 ms). A call whose sum passes 250 ms, which took under 500 ms at load 30, is denied, so
+is a
+part with 3 `*` whose folders have more than 20,000 names, and so is a folder of 83,334
+names or
 more. The second line of the deny starts with "Use a narrower glob:". The guard checks
-the time of all the calls of one command, 600 ms in all, between the calls, so that each word of
+the time of all the calls of one command, 600 ms in all, between the calls, so that each
+word of
 a `/` inside braces is one call; a call that runs on is stopped by the limit of the child
 process (below). `ls {a..p}*` in
 50,000 names took 0.67 s and is denied in 0.04 s; `*`, `.r*`, `*/*.json`, `a*c`, `f*` and
 `a*b*c` pass in a folder of 50,000 short names, and `*` in 12,000 names of 254 characters.
 
 A glob with a backslash and a `*`, `?` or `[` is denied, with the second
-line "Remove the backslash before the glob character, or write the path without a glob: ...".
+line "Remove the backslash before the glob character, or write the path without a glob:
+...".
 `fs.globSync` reads a backslash as a path separator, and the guard reads `\*` as text:
 `ls \*\*\*\*\*\*\*\*\*\*` (10 times a backslash and a star) walked the whole disk and
 never returned, and 76 of the patterns of 6 characters of `\ { } , * a` do. A word with a
-backslash and none of `*`, `?` and `[` passes: `a\b` is a file name, and `echo a\{b,c}` and `ls {x,y}\` are words of braces only, which never reach `fs.globSync`, so the rules for `.reports` decide them; bash reads `\{` as text, so `.rep\{orts,y}/x.json` is the name `.rep{orts,y}/x.json`. The count of the braces
+backslash and none of `*`, `?` and `[` passes: `a\b` is a file name, and `echo a\{b,c}` and
+`ls {x,y}\` are words of braces only, which never reach `fs.globSync`, so the rules for
+`.reports` decide them; bash reads `\{` as text, so `.rep\{orts,y}/x.json` is the name
+`.rep{orts,y}/x.json`. The count of the braces
 reads them as minimatch does, so that `{a}2,}` repeated is counted: each repeat doubles the
-words that `fs.globSync` makes, where a count that skips the `2,}` read 1; 30 repeats followed
+words that `fs.globSync` makes, where a count that skips the `2,}` read 1; 30 repeats
+followed
 by `*` stalled the guard. The count is the larger of the two readings. The guard tests every
 word that the braces of a glob make, up to 16 words for a glob with a wildcard and 4,096 for
-one with none, for `.reports`: `mkdir -p .{rep,x}orts` and `echo x > {.reports,y}/x.json` are
+one with none, for `.reports`: `mkdir -p .{rep,x}orts` and `echo x > {.reports,y}/x.json`
+are
 denied where the folder is not there. A first path part that can be empty, as `{*,}` in
 `{*,}/*/*/*/*`, makes a relative and an absolute word, and the guard scans each as one glob,
 the absolute word from `/`; 9 words of this kind pass the limit of 4,096.
 
-The calls of `fs.globSync` for the globs of one command, those with a `*`, `?` or `[`, run in
-one child process of Node (`node -e`) that `spawnSync` kills with SIGKILL after 2.5 s for all
+The calls of `fs.globSync` for the globs of one command, those with a `*`, `?` or `[`, run
+in
+one child process of Node (`node -e`) that `spawnSync` kills with SIGKILL after 2.5 s for
+all
 the globs of the command, because no check of the input can promise that a call that cannot
-be stopped returns. The caps above (backslash, braces, stars, depth, units, length) run for a word with a
-wildcard inside the child, so a command that one of them denies starts a child first, for 37 to
-40 ms; a word of braces only, with no `*`, `?` or `[`, is checked in the guard's own process, and
-a command with only such words, or with no glob, starts no child. When the child is killed or cannot start, exits with a code
+be stopped returns. The caps above (backslash, braces, stars, depth, units, length) run for
+a word with a
+wildcard inside the child, so a command that one of them denies starts a child first, for 37
+to
+40 ms; a word of braces only, with no `*`, `?` or `[`, is checked in the guard's own
+process, and
+a command with only such words, or with no glob, starts no child. When the child is killed
+or cannot start, exits with a code
 other than 0, prints text that is no JSON, a deny that is no text, or more than 1 MiB, the
-guard denies the call with the second line "Use a narrower glob: the globs of the command did
-not finish in 2,500 ms, or could not run, and the guard blocks the call." A hook has 10 s. All the children
-of one hook process share one deadline, 2.5 s after the first call of the guard: each child has
-the time that is left, and a call that begins when none is left is denied with the same line.
-Copilot CLI calls the guard once for each string argument of `write_bash` and `write_powershell`,
-and 250 arguments of `ls *.txt`, one child each, took more than 10 s before the deadline was shared;
-they are denied in 2.5 s now. The in-process work of those calls is bounded too: from 8 s after the start of the hook process, the guard denies each further call, without reading it, with the first line "Send fewer or smaller arguments in one tool call." (14,000 arguments of 4,096 brace words each, and a deny argument last, took more than 10 s before). One hook process also denies a call that takes the text of its arguments past 8 MiB (8 * 1024 * 1024, summed over all the calls of the hook: the length of each string, nested ones included, the length of each key plus 16 for each entry of an object, 8 for each item of an array whatever the item is, and the length of the working folder). The sum is a measure of the work of the guard and not an exact count of characters: 4,000,000 entries of `"<base36>":""` in the arguments of a Gemini CLI write took 9.4 s before the keys and entries counted. The guard adds up lengths only, before it reads any text, whatever the text is: a call of 80 MB (Cursor) or a field of 40 MB before a `.reports` write (Copilot CLI) ran past the 10 s of the hook although the 8 s clock was read before the call. The second line of the deny is "The arguments of this call are more than 8 MiB of text, and ...", and the first line is the one of the 8 s deny. This covers writes too. In a run, the reports guard of Gemini CLI, Cursor and Copilot CLI and the tool guard of Claude Code and Codex also deny an input of more than 16 MiB on stdin, before they parse it or resolve a path from it, with the first line of the 8 s deny and the second line "The input of this call is more than 16 MiB, and the guard of .reports/ does not read that much in the 10 seconds of its hook, so it blocks the call." A child process, started without NODE_OPTIONS in its environment (as the child of the glob check is), reads stdin in chunks and stops at 16 MiB + 1 byte, so the memory stays near 16 MiB, and the parent kills it at 8 s after the start of the hook process: a writer that sends little or nothing and does not end its input gets the 8 s deny, not the kill of the runtime at 10 s. The child is one more process start for each hook in a run. The three reports guards also deny an input that is not a JSON object (text that is not JSON, an empty input, an array), with the lines "Send the call again." and "The guard of .reports/ could not read the input of this call, and blocks it." (the tool guard already denied it). Outside a run, the size is not limited and such an input lets the call run, as before. The deadlines and the 600 ms budget use a monotonic clock (`performance.now()`), so a step of the system clock changes none of them. Gemini CLI and Cursor call the guard once, and `tool-guard.cjs`
+guard denies the call with the second line "Use a narrower glob: the globs of the command
+did
+not finish in 2,500 ms, or could not run, and the guard blocks the call." A hook has 10 s.
+All the children
+of one hook process share one deadline, 2.5 s after the first call of the guard: each child
+has
+the time that is left, and a call that begins when none is left is denied with the same
+line.
+Copilot CLI calls the guard once for each string argument of `write_bash` and
+`write_powershell`,
+and 250 arguments of `ls *.txt`, one child each, took more than 10 s before the deadline was
+shared;
+they are denied in 2.5 s now. The in-process work of those calls is bounded too: from 8 s
+after the start of the hook process, the guard denies each further call, without reading it,
+with the first line "Send fewer or smaller arguments in one tool call." (14,000 arguments of
+4,096 brace words each, and a deny argument last, took more than 10 s before). One hook
+process also denies a call that takes the text of its arguments past 8 MiB (8 * 1024 * 1024,
+summed over all the calls of the hook: the length of each string, nested ones included, the
+length of each key plus 16 for each entry of an object, 8 for each item of an array whatever
+the item is, and the length of the working folder). The sum is a measure of the work of the
+guard and not an exact count of characters: 4,000,000 entries of `"<base36>":""` in the
+arguments of a Gemini CLI write took 9.4 s before the keys and entries counted. The guard
+adds up lengths only, before it reads any text, whatever the text is: a call of 80 MB
+(Cursor) or a field of 40 MB before a `.reports` write (Copilot CLI) ran past the 10 s of
+the hook although the 8 s clock was read before the call. The second line of the deny is
+"The arguments of this call are more than 8 MiB of text, and ...", and the first line is the
+one of the 8 s deny. This covers writes too. In a run, the reports guard of Gemini CLI,
+Cursor and Copilot CLI and the tool guard of Claude Code and Codex also deny an input of
+more than 16 MiB on stdin, before they parse it or resolve a path from it, with the first
+line of the 8 s deny and the second line "The input of this call is more than 16 MiB, and
+the guard of .reports/ does not read that much in the 10 seconds of its hook, so it blocks
+the call." A child process, started without NODE_OPTIONS in its environment (as the child of
+the glob check is), reads stdin in chunks and stops at 16 MiB + 1 byte, so the memory stays
+near 16 MiB, and the parent kills it at 8 s after the start of the hook process: a writer
+that sends little or nothing and does not end its input gets the 8 s deny, not the kill of
+the runtime at 10 s. The child is one more process start for each hook in a run. The three
+reports guards also deny an input that is not a JSON object (text that is not JSON, an empty
+input, an array), with the lines "Send the call again." and "The guard of .reports/ could
+not read the input of this call, and blocks it." (the tool guard already denied it). Outside
+a run, the size is not limited and such an input lets the call run, as before. The deadlines
+and the 600 ms budget use a monotonic clock (`performance.now()`), so a step of the system
+clock changes none of them. Gemini CLI and Cursor call the guard once, and `tool-guard.cjs`
 (Claude Code and Codex) expands no glob and starts no child. The child
 costs 37 to 40 ms to start at load 41: `ls *.ts` takes 40 ms with the child and under 1 ms
-without it, and `a*b*c`, `*.txt` and `*` in a folder of 50,000 names take 177, 209 and 196 ms with
+without it, and `a*b*c`, `*.txt` and `*` in a folder of 50,000 names take 177, 209 and 196
+ms with
 it, and 140, 134 and 148 ms without it. The child needs a POSIX system.
 
 The environment variable `QORY_REPORTS_GUARD_TEST` is a JSON object for the checks of the
-guard, with 3 fields: `globMs` (a lower limit for the child), `stall` (a text in a word that makes
-the child never return) and `fail` (a child that exits, prints bad JSON, a deny that is no text,
+guard, with 3 fields: `globMs` (a lower limit for the child), `stall` (a text in a word that
+makes
+the child never return) and `fail` (a child that exits, prints bad JSON, a deny that is no
+text,
 or 2 MiB). Each field can only lower the limit or deny a call, and the guard reads no other
 field. A file of the workspace can reach the environment of a hook (Gemini CLI 0.68.0 loads
-`.env` into its environment, and the guard does not deny a write to it), so no field turns off a
-check: `{"noCaps":true}` and any other field change nothing. The options `noCaps` (no early deny
-of backslashes and braces, so that only the limit of the child decides), `waitMs` (a limit for
-the time of all the calls instead of 600 ms) and `inline` (no child) belong to `decide`, and the
+`.env` into its environment, and the guard does not deny a write to it), so no field turns
+off a
+check: `{"noCaps":true}` and any other field change nothing. The options `noCaps` (no early
+deny
+of backslashes and braces, so that only the limit of the child decides), `waitMs` (a limit
+for
+the time of all the calls instead of 600 ms) and `inline` (no child) belong to `decide`, and
+the
 adapters build their call from fixed fields, so no adapter sets them. The checks reach the
 wrappers with these options through a copy of the hooks that the check patches. The 600 ms
-limit counts from the start of the child's work, so the 40 ms to start the child do not count;
+limit counts from the start of the child's work, so the 40 ms to start the child do not
+count;
 it is wall time, which a loaded machine can pass for a folder of 50,000 names.
 
 To tell whether the first word of a command is a copy of `checks.cjs`, the guard reads that
@@ -1310,13 +1405,22 @@ edited file runs. A shell command that writes through an existing link to `.repo
 followed to the target: the write tools follow links, the shell kind does not. A path with
 backslash separators is read as POSIX, so `art\.reports\x.json` is one name, which a tool of
 Windows reads as a path under `.reports`. The guard reads a `}2,}` after a group of braces
-differently from bash in about 1 % of 5,000 random strings; the words that bash makes there are
-`.reports/` followed by text that does not end in `.json` or contain `.json.lock`. A backslash at the end of a word or of the command is dropped by the shell, so `mkdir .reports\`, `echo x > .reports\` and `mkdir -p {.reports,y}\` make the folder or file `.reports`, and the guard reads them as `.reports`; `ls {x,y}\` and `echo a\{b,c}` pass. A glob `a\{b,c}*` is expanded by `fs.globSync` as `a{b,c}*`, with more words than bash makes, and matches no ledger file. Each hook has
+differently from bash in about 1 % of 5,000 random strings; the words that bash makes there
+are
+`.reports/` followed by text that does not end in `.json` or contain `.json.lock`. A
+backslash at the end of a word or of the command is dropped by the shell, so
+`mkdir .reports\`, `echo x > .reports\` and `mkdir -p {.reports,y}\` make the folder or file
+`.reports`, and the guard reads them as `.reports`; `ls {x,y}\` and `echo a\{b,c}` pass. A
+glob `a\{b,c}*` is expanded by `fs.globSync` as `a{b,c}*`, with more words than bash makes,
+and matches no ledger file. Each hook has
 a timeout of 10 seconds. A hook that runs past its timeout
-lets the call run on Cursor and on Copilot CLI ([Cursor](https://cursor.com/docs/agent/hooks),
+lets the call run on Cursor and on Copilot CLI
+([Cursor](https://cursor.com/docs/agent/hooks),
 [Copilot CLI](https://docs.github.com/en/copilot/reference/hooks-reference)). Of a hook that
-fails, the pages say this. Cursor: a crash and an exit code other than 0 and 2 let the call run
-unless `failClosed` is true, and exit code 2 blocks it. Gemini CLI: an exit code other than 0
+fails, the pages say this. Cursor: a crash and an exit code other than 0 and 2 let the call
+run
+unless `failClosed` is true, and exit code 2 blocks it. Gemini CLI: an exit code other than
+0
 and 2 is a warning, and the CLI continues ([hooks](https://geminicli.com/docs/hooks/)).
 Copilot CLI: a command hook of `preToolUse` that errors denies the call, with "Denied by
 preToolUse hook (hook errored)". Each adapter of Gemini CLI, Cursor and Copilot CLI calls
@@ -1648,7 +1752,8 @@ path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
 matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
 of zsh, such as `GLOB_DOTS` or `set -4`, or `GLOBIGNORE`, so `rm -rf */build` passes and
-`rm -rf .q*` does not; `rm -rf node_mod*` passes. The guard matches a wildcard part by part with no regular expression, in time that
+`rm -rf .q*` does not; `rm -rf node_mod*` passes. The guard matches a wildcard part by part
+with no regular expression, in time that
 grows with the length of the part times the length of the name, and a bracket with a range
 such as `[z-a]` matches nothing. A `cp`, `install`, `ln` or `rsync` into a folder above a
 locked file or above `.qory/build/`, as in `cp /tmp/a.ts checks/` or `cp -t checks a.ts`,
@@ -1726,7 +1831,8 @@ counts as 12. Beside the count, the step limit writes the marker file
 `<session_id>--<agent_id>.seen`; a missing count file of an agent with a marker counts as
 12, and a new agent, with neither file, starts at 0. An error while the end of a step reads
 its calls still counts the step, as one that wrote nothing. `PostToolBatch` saves that count
-before it reads the calls and sets it to 0 after a write, so a hook process that ends while it
+before it reads the calls and sets it to 0 after a write, so a hook process that ends while
+it
 reads them, as when it runs out of memory, leaves the step counted. On Codex, a `PreToolUse`
 that ends before it appends its line leaves the step with no line, which counts as a step
 that wrote nothing. Only the end of a step changes
@@ -2702,8 +2808,10 @@ starts `code-explorer` first, with the question of "For a build plan" in `explor
 for each approved criterion, the files that the change touches, the tests of that area and
 the commands that run the tests, the linter, the type check, the build and the app. Then it
 starts `build-planner`, which drafts `build-plan.md` by `planning-builds`, and
-`plan-reviewer`, which reviews it read-only by `reviewing-drafts` and `checking-build-plans`.
-Both agents run on the tier `thinking`, and `code-explorer` on `balanced`. The stack lists the
+`plan-reviewer`, which reviews it read-only by `reviewing-drafts` and
+`checking-build-plans`.
+Both agents run on the tier `thinking`, and `code-explorer` on `balanced`. The stack lists
+the
 workflow with `tier: thinking` and `access: write`.
 
 - **The form of the plan.** Each Criteria cell is `AC-<N>, "<the criterion's first
@@ -2719,8 +2827,10 @@ workflow with `tier: thinking` and `access: write`.
   `types/build-plan.cjs` does not check it.
 - **The limit of 7.** A build plan has at most 7 deliverables. The check `build-plan`
   refuses more, with a finding that starts "Cut build-plan.md to". The session then sends
-  the finding to no writer, starts no reviewer, pushes no build plan and ends the ledger step
-  as `failed`. `build-planner` lists every deliverable under "Over the limit:" in its report.
+  the finding to no writer, starts no reviewer, pushes no build plan and ends the ledger
+  step
+  as `failed`. `build-planner` lists every deliverable under "Over the limit:" in its
+  report.
   The session passes that list to `questions-writer` for one question with fixed texts: the
   context has the number of changes, that 7 are for the criteria of the first 7
   deliverables and the others for the criteria that only the later deliverables list, each
@@ -2732,7 +2842,8 @@ workflow with `tier: thinking` and `access: write`.
   the last item of the list with the most items, and the list ends with "and <m> more",
   where `<m>` counts the items removed. The run pushes the question
   and ends with `qory run verdict escalate --points <folder>/points.json`, where the one
-  point has the action `answer`. Nothing records the member's answer in the build report yet,
+  point has the action `answer`. Nothing records the member's answer in the build report
+  yet,
   although the second option says so, and the planner of the next round does not read it.
   The ledger step is `failed`, with no escalation reason.
 - **Blocks.** A criterion that cannot be built as written ends the planner's report with
@@ -3247,7 +3358,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   as the system interpreter of a `.venv`, stays a link in the copy. A test still runs as
   the same user: full isolation needs another user or a mount namespace.
 
-- `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`: proves the commits from
+- `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`: proves the commits
+  from
   the start commit to HEAD against the kind of the fast track (see [The proof of the fast
   track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
   proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
@@ -3675,13 +3787,15 @@ The proofs, in order:
      a capital letter and ends with `Error`, so `setError` is no such name. The first name
      that matches sets the index. Today: the message methods of `console` (`log`, `info`,
      `warn`, `error`, `debug`, `trace`) in JavaScript, `print` in Python, and the message
-     functions of `logging` (`debug`, `info`, `warning`, `warn`, `error`, `critical`, `fatal`,
+     functions of `logging` (`debug`, `info`, `warning`, `warn`, `error`, `critical`,
+     `fatal`,
      `exception`) in Python take the message, argument 0; `logging.log` takes it as argument
      1. `console.time`, `console.count` and `logging.getLogger` take no text.
      `error_calls` take the message, argument 0, of `new X(...)` and `throw X(...)` with a
      bare name `X` ending in `Error` in JavaScript, and of `raise X(...)` with `X` ending in
      `Error` or `Exception` in Python. An error that none of these makes is code, such as
-     `RunError("ls")` outside a `throw`, a decorator, `x.Error("a")` and `new net.Error("a")`. `t` and
+     `RunError("ls")` outside a `throw`, a decorator, `x.Error("a")` and
+     `new net.Error("a")`. `t` and
      `i18n.t` take the default text, argument 1, and never the key, argument 0, as
      i18next does with `t("key", "Default text")`. `gettext` and `_` have `null`: their
      only argument is the text that is also the key, so a change of it changes which
@@ -3691,11 +3805,13 @@ The proofs, in order:
    are code, and a string in one has the standard track: a string bound to a name first
    (`const s = "Save"; <b title={s}>`), a constant, an object value, a list element, a
    concatenation (`"a" + "b"`), a template with a substitution, an f-string, a string in a
-   condition, in parentheses (TypeScript and JavaScript) or in a comparison, an argument after
+   condition, in parentheses (TypeScript and JavaScript) or in a comparison, an argument
+   after
    a spread, any other argument than the listed one, and the text of a call that `kind_data`
    does not list.
    A template with no substitution (`` `Save` ``) and two Python literals that follow each
-   other (`"a" "b"`) are one literal. A message that other code compares or parses, such as an
+   other (`"a" "b"`) are one literal. A message that other code compares or parses, such as
+   an
    error message that a `catch` checks, is no text for a person, and a change of it is
    declared on the standard track. The deny rules stay on top, on the string at the start
    commit and at HEAD alike: a string is no text value when
