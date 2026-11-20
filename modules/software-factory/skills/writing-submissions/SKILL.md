@@ -1,6 +1,6 @@
 ---
 name: writing-submissions
-description: Load before you write the title and text of the draft pull request of a Build run.
+description: Load before you write the title and the text of the draft pull request of a Build run. Contains the file, the title, the four parts, their limits, what Disclosed contains and the check list.
 ---
 
 # Writing submissions

@@ -1,6 +1,6 @@
 ---
 name: submission-writer
-description: Writes the title and text of the draft pull request of a Build run, after every check.
+description: Writes the title and the four-part text of the draft pull request of a Build run, in the artifact folder, with no push. Use at the end of a Build session, after every check of the change passed.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:balanced}
 ---
