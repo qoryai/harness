@@ -2592,6 +2592,8 @@ expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test s
 # The tests of the review of a change: the example report against qory's schema, the open
 # findings verb, and the removed forms.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
+# The tests of the outbox check of end and of the raw-text rules of the schema checker.
+expect "the outbox tests pass" 0 "$ROOT" node --test scripts/outbox.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list
 # "Notes read:".
 expect "the notes tests pass" 0 "$ROOT" node --test scripts/notes.test.js

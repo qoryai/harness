@@ -8,6 +8,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { MAX_INTEGER, integerFault, scan } = require('./raw-json.cjs');
+
 // The keywords that the check applies, and those that only describe.
 const APPLIED = new Set([
   'type', 'required', 'additionalProperties', 'properties', 'enum', 'const', 'pattern',
@@ -15,7 +17,10 @@ const APPLIED = new Set([
   '$ref', 'oneOf', 'allOf', 'if', 'then', 'not',
 ]);
 // format is an annotation in JSON Schema 2020-12: Qory Apiary and this check assert no format.
-const NOTES = new Set(['$schema', '$id', 'title', 'description', 'format', '$defs']);
+// x-qory-fill marks a member that qory fills, which outbox.cjs reads; it asserts nothing.
+const NOTES = new Set([
+  '$schema', '$id', 'title', 'description', 'format', '$defs', 'x-qory-fill',
+]);
 
 const WORDS = {
   object: 'an object', array: 'a list', string: 'text', integer: 'a whole number',
@@ -58,9 +63,9 @@ function brief(text, size) {
 }
 
 // The most levels of objects and lists that a document of a structured type may nest. The
-// deepest schema of the software module needs 5 levels, and the readers of a document, such as canonical,
-// recurse once per level, so 64 leaves room for a schema to grow and keeps every reader far
-// from the limit of the call stack.
+// deepest schema of a module in use needs 5 levels, and the readers of a document, such as
+// canonical, recurse once per level, so 64 leaves room for a schema to grow and keeps every
+// reader far from the limit of the call stack.
 const MAX_DEPTH = 64;
 
 // deepAt returns the first list or object that value nests more than MAX_DEPTH levels deep, the
@@ -178,7 +183,13 @@ function load(folder, type) {
 // the line after it. A pointer that brief cuts on the first line is whole on the last line.
 // A value that nests deeper than MAX_DEPTH gets one finding, before any step that recurses.
 // With def, the name of an entry of $defs, value is checked against that entry alone.
-function errors(loaded, value, file, def) {
+// extra.raw, what scan of lib/raw-json.cjs returns for the text of file, adds the rules of a
+// delivered output that the parsed value cannot show: a whole number has no fraction, no
+// exponent and no value above 2^63-1, and no value is null where the schema gives no type.
+// extra.mark(at), when given, is called with the JSON pointer of a string before its pattern
+// runs, so that a caller that stops a pattern that never returns knows which member it was.
+function errors(loaded, value, file, def, extra = {}) {
+  const { raw = null, mark = null } = extra;
   const deep = depthLine(value);
   if (deep) return [`Cut the nesting of ${file} to ${MAX_DEPTH} levels.\n${deep}`];
   const { schema: root, patterns } = loaded;
@@ -191,8 +202,18 @@ function errors(loaded, value, file, def) {
     }
     return root.$defs[match[1]];
   };
-  const visit = (schema, node, at, found) => {
-    if (schema.$ref) visit(resolve(schema.$ref), node, at, found);
+  // typeOf returns the type of schema, or the type of the entry of $defs that it refers to.
+  const typeOf = (schema) => {
+    let one = schema;
+    for (let hops = 0; one.type === undefined && one.$ref && hops < 8; hops += 1) {
+      one = resolve(one.$ref);
+    }
+    return one.type;
+  };
+  // top is false for a schema that applies to the node of another schema, such as a member of
+  // allOf: the rules of raw run once for the node.
+  const visit = (schema, node, at, found, top = true) => {
+    if (schema.$ref) visit(resolve(schema.$ref), node, at, found, false);
     const pointer = brief(at, POINTER);
     const where = at ? `${pointer} of ${file}` : file;
     const whole = pointer === at ? '' : `\nThe whole JSON pointer is ${at}.`;
@@ -200,6 +221,20 @@ function errors(loaded, value, file, def) {
     const add = (verb, fix, cause) => found.push(`${verb} ${where} ${fix}.` +
       `${cause ? `\n${cause}.` : ''}${whole}`);
     const actual = kind(node);
+    if (raw && top && actual === 'null' && typeOf(schema) === undefined) {
+      add('Write', 'as a value other than null', 'A delivered output has no null');
+      return;
+    }
+    if (raw && top && actual === 'integer' && raw.has(at)) {
+      const token = raw.get(at);
+      const fault = integerFault(token);
+      if (fault === 'form') {
+        add('Write', 'as a whole number with no fraction and no exponent',
+          `It is written ${clip(token, 40)}`);
+      } else if (fault === 'size') {
+        add('Set', `to at most ${MAX_INTEGER}`, `It is ${clip(token, 40)}`);
+      }
+    }
     if (schema.type) {
       const fits = schema.type === actual || (schema.type === 'number' && actual === 'integer');
       if (!fits) {
@@ -222,6 +257,7 @@ function errors(loaded, value, file, def) {
       if (schema.maxLength !== undefined && count > schema.maxLength) {
         add('Cut', `to at most ${characterCount(schema.maxLength)}`, `It has ${count}`);
       }
+      if (schema.pattern && mark) mark(at);
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
         add('Write', 'so that it matches its pattern',
           `The pattern is ${clip(visible(schema.pattern), 120)}. It is ${shown(node)}`);
@@ -269,16 +305,16 @@ function errors(loaded, value, file, def) {
         }
       }
     }
-    for (const sub of schema.allOf || []) visit(sub, node, at, found);
+    for (const sub of schema.allOf || []) visit(sub, node, at, found, false);
     if (schema.if) {
       const trial = [];
-      visit(schema.if, node, at, trial);
-      if (!trial.length && schema.then) visit(schema.then, node, at, found);
+      visit(schema.if, node, at, trial, false);
+      if (!trial.length && schema.then) visit(schema.then, node, at, found, false);
     }
     if (schema.oneOf) {
       const fits = schema.oneOf.filter((sub) => {
         const trial = [];
-        visit(sub, node, at, trial);
+        visit(sub, node, at, trial, false);
         return !trial.length;
       }).length;
       if (fits !== 1) {
@@ -287,7 +323,7 @@ function errors(loaded, value, file, def) {
     }
     if (schema.not) {
       const trial = [];
-      visit(schema.not, node, at, trial);
+      visit(schema.not, node, at, trial, false);
       if (!trial.length) add('Write', 'in another form', `The schema excludes ${shown(node)}`);
     }
   };
@@ -333,4 +369,4 @@ function shown(value, limit = 40) {
   return text ? `"${cutText}"` : cutText;
 }
 
-module.exports = { MAX_DEPTH, load, errors, compile, shown, escaped, depthLine };
+module.exports = { MAX_DEPTH, load, errors, compile, shown, escaped, depthLine, scan };
