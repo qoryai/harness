@@ -38,7 +38,7 @@ module.exports = (lib) => {
     main: FILE,
     words: 'pull request',
     reviewer: null,
-    maxBytes: sizeLimit('pull-request'),
+    get maxBytes() { return sizeLimit('pull-request'); },
     check: pullRequest,
   };
 };
