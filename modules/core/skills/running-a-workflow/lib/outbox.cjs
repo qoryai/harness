@@ -9,7 +9,7 @@ const path = require('node:path');
 
 const { Missing, NAME, isObject, jsonKind, short } = require('./base.cjs');
 const { allowed, checkFiles } = require('./drafts.cjs');
-const { OUTBOX_BROKEN, OUTBOX_NONE } = require('./end.cjs');
+const { OUTBOX_BROKEN, OUTBOX_NONE, OUTBOX_SETUP } = require('./end.cjs');
 
 // The most bytes of the inputs file, and of an output file (the largest structured type).
 const INPUTS_MAX = 1024 * 1024;
@@ -46,21 +46,25 @@ try {
 }
 `;
 
-// readOutputs returns { outputs, faults } for qory.outputs of the inputs file: each entry
-// { type, required, schema } that is well formed, and a line for each part that is not. Only an
-// absent list, or an inputs file that cannot be read, gives neither.
+// readOutputs returns { outputs, faults, setup } for qory.outputs of the inputs file: each entry
+// { type, required, schema } that is well formed, a line for each part that is not, and in
+// setup the cause when the file exists and is no JSON object. A missing file or list gives none.
 function readOutputs(inputs) {
   const none = { outputs: [], faults: [] };
   if (!inputs) return none;
   let data;
   try {
     const stat = fs.lstatSync(inputs);
-    if (!stat.isFile() || stat.size > INPUTS_MAX) return none;
+    if (!stat.isFile() || stat.size > INPUTS_MAX) {
+      return { ...none, setup: 'It is no regular file, or has more than 1 MiB.' };
+    }
     data = JSON.parse(fs.readFileSync(inputs, 'utf8'));
-  } catch {
-    return none;
+  } catch (error) {
+    return error.code === 'ENOENT' ? none
+      : { ...none, setup: `It cannot be read as JSON: ${short(error.message, 100)}.` };
   }
-  if (!isObject(data) || !isObject(data.qory) || !Object.hasOwn(data.qory, 'outputs')) {
+  if (!isObject(data)) return { ...none, setup: `It is ${jsonKind(data)}, not an object.` };
+  if (!isObject(data.qory) || !Object.hasOwn(data.qory, 'outputs')) {
     return none;
   }
   const list = data.qory.outputs;
@@ -170,7 +174,8 @@ function without(schema) {
 const broken = (cause, item) => [{ line: 'Fix qory.outputs in the lines after this one:',
   point: OUTBOX_BROKEN, item }, ...cause.map((line) => ({ line, point: null }))];
 
-// outboxFolder returns the absolute path in io.env.QORY_OUTBOX, or null.
+// outboxFolder returns the absolute path in QORY_OUTBOX of env, or null when it is unset or
+// relative. The software module's report-build reads it the same way, through LIBRARY.
 const outboxFolder = (env) => (typeof env.QORY_OUTBOX === 'string' &&
   path.isAbsolute(env.QORY_OUTBOX) ? path.normalize(env.QORY_OUTBOX) : null);
 
@@ -185,15 +190,19 @@ function fileFault(stat) {
 // outboxDrafts returns the results of the check of the outbox, as endDrafts lists them:
 // { line, point, item }. io is the io of end, with cwd, env, home, inputs, plugin, registry().
 function outboxDrafts(io) {
-  const { outputs, faults } = readOutputs(io.inputs);
+  const { outputs, faults, setup } = readOutputs(io.inputs);
   const env = io.env || process.env;
+  if (setup) {
+    return [{ line: `Fix the inputs file of the run.\n${setup}`,
+      point: OUTBOX_SETUP, item: 'inputs' }];
+  }
   const results = faults.length ? broken(faults, 'outputs') : [];
   if (!outputs.length) return results;
   const folder = outboxFolder(env);
   if (!folder) {
-    return [...results, ...broken(['Set QORY_OUTBOX to the absolute path of the outbox folder.\n' +
-      `qory sets it when it starts the session. It is ${env.QORY_OUTBOX === undefined ? 'not set'
-        : 'no absolute path'}.`], 'outputs')];
+    return [...results, { line: 'Set QORY_OUTBOX in the setup of the run to the absolute path of ' +
+      `the outbox folder.\nIt is ${env.QORY_OUTBOX === undefined ? 'not set' :
+        'not an absolute path'}.`, point: OUTBOX_SETUP, item: 'QORY_OUTBOX' }];
   }
   const total = limit(env);
   const clock = { total, until: Date.now() + total };
@@ -226,7 +235,9 @@ function outboxDrafts(io) {
     } else if (why) {
       lines = [`Write ${file} as a regular file of at most ${OUTBOX_MAX} bytes.\n${why}`];
     } else {
-      lines = checkOutput({ io, types, type, schema, full, file, dir, clock });
+      const real = fs.realpathSync(dir);
+      lines = checkOutput({ io, types, type, schema, file, dir: real,
+        full: path.join(real, `${type}.json`), clock });
     }
     if (lines.length) {
       const count = lines.length === 1 ? 'finding' : `${lines.length} findings`;

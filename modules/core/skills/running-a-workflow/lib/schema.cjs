@@ -1,8 +1,5 @@
-// The check of a JSON document against a JSON Schema, for the type of any module: the schema
-// that a module ships in a folder of schema files, or that qory gives in the inputs file. It
-// reads the keywords that those schemas use, in the forms that they use, and throws for any
-// other keyword or form, so that a schema that the check would skip or misread never passes a
-// document by mistake.
+// The check of a JSON document against a JSON Schema, for the type of any module. It throws for a
+// keyword or form that it does not read, so that no schema it would misread passes a document.
 'use strict';
 
 const fs = require('node:fs');
@@ -62,20 +59,13 @@ function brief(text, size) {
   return `${chars.slice(0, head).join('')}...${chars.slice(head - size + 3).join('')}`;
 }
 
-// The most levels of objects and lists that a document of a structured type may nest. The
-// deepest schema of a module in use needs 5 levels, and the readers of a document, such as
-// canonical, recurse once per level, so 64 leaves room for a schema to grow and keeps every
-// reader far from the limit of the call stack.
+// The most levels of objects and lists that a document may nest: the readers of a document
+// recurse once per level, so 64 keeps them far from the limit of the call stack.
 const MAX_DEPTH = 64;
 
-// deepAt returns the first list or object that value nests more than MAX_DEPTH levels deep, the
-// value itself being level 1: { node, at }, with at its JSON pointer, such as /0/0/0. The walk
-// takes the members of an object in the order of Object.keys: the keys that look like integers
-// first, from the lowest, then the other keys in the order of the document. Each key in at is
-// escaped as JSON Pointer escapes it, ~ as ~0 and / as ~1, and then as shown writes text, so
-// that a line feed or a bidirectional mark in a key shows as its escape. deepAt returns null
-// when value nests no deeper. It walks with a list in place of recursion, so that it returns
-// for a document of any depth, with no stack overflow.
+// deepAt returns the first list or object nested more than MAX_DEPTH levels deep, as { node, at },
+// at being its JSON pointer with each key escaped. It walks with a list, so that a document of
+// any depth gives no stack overflow, and returns null when value nests no deeper.
 function deepAt(value) {
   const nested = (node) => node !== null && typeof node === 'object';
   const open = nested(value) ? [{ node: value, level: 1, parent: null, key: '' }] : [];
@@ -194,17 +184,9 @@ function nullPointers(value) {
   return found;
 }
 
-// errors returns the findings of value, the JSON of file, against the schema: each with the fix
-// on its first line, the member as its JSON pointer, such as /steps/0/pass, and the cause on
-// the line after it. A pointer that brief cuts on the first line is whole on the last line.
-// A value that nests deeper than MAX_DEPTH gets one finding, before any step that recurses.
-// With def, the name of an entry of $defs, value is checked against that entry alone.
-// extra.raw, what scan of lib/raw-json.cjs returns for the text of file, adds the rules of a
-// delivered output that the parsed value cannot show: a member of type integer has no
-// fraction, no exponent and a value from -2^63 to 2^63-1, and a null is refused wherever the
-// schema gives no type null, including a member that it does not list.
-// extra.mark(at), when given, is called with the JSON pointer of a string before its pattern
-// runs, so that a caller that stops a pattern that never returns knows which member it was.
+// errors returns the findings of value, the JSON of file, against the schema; def names an entry
+// of $defs to check alone. extra.raw (scan of lib/raw-json.cjs) adds the rules of a delivered
+// output; extra.mark(at) gets the pointer of a string before its pattern runs.
 function errors(loaded, value, file, def, extra = {}) {
   const { raw = null, mark = null } = extra;
   const deep = depthLine(value);
@@ -220,20 +202,24 @@ function errors(loaded, value, file, def, extra = {}) {
     }
     return root.$defs[match[1]];
   };
-  // typeOf returns the type of schema, of the entry of $defs that it refers to, or of the first
-  // member of its allOf that has one.
-  const typeOf = (schema, depth = 0) => {
+  // typesOf returns the types that schema allows: its type, that of the entry of $defs it refers
+  // to, the types of the members of oneOf and anyOf, or those of the first member of allOf.
+  const typesOf = (schema, depth = 0) => {
     let one = schema;
     for (let hops = 0; one.type === undefined && one.$ref && hops < 8; hops += 1) {
       one = resolve(one.$ref);
     }
-    if (one.type === undefined && Array.isArray(one.allOf) && depth < 8) {
-      for (const sub of one.allOf) {
-        const found = typeOf(sub, depth + 1);
-        if (found !== undefined) return found;
-      }
+    if (one.type !== undefined) return new Set([one.type]);
+    const out = new Set();
+    if (depth >= 8) return out;
+    for (const sub of [...(one.oneOf || []), ...(one.anyOf || [])]) {
+      typesOf(sub, depth + 1).forEach((type) => out.add(type));
     }
-    return one.type;
+    for (const sub of one.allOf || []) {
+      const found = typesOf(sub, depth + 1);
+      if (found.size) return found;
+    }
+    return out;
   };
   // top is false for a schema that applies to the node of another schema, such as a member of
   // allOf: the rules of raw run once for the node.
@@ -247,11 +233,15 @@ function errors(loaded, value, file, def, extra = {}) {
       `${cause ? `\n${cause}.` : ''}${whole}`);
     const actual = kind(node);
     if (raw && actual === 'null') nulls.add(at);
-    if (raw && top && actual === 'null' && typeOf(schema) !== 'null') {
+    if (raw && top && actual === 'null' && !typesOf(schema).has('null')) {
       add('Write', 'as a value other than null', 'A delivered output has no null');
       return;
     }
-    if (raw && top && actual === 'integer' && typeOf(schema) === 'integer' && raw.has(at)) {
+    const types = raw && top && raw.has(at) ? typesOf(schema) : new Set();
+    if (types.has('number') && !Number.isFinite(Number(raw.get(at)))) {
+      add('Write', 'as a finite number', `It is written ${clip(raw.get(at), 40)}`);
+    }
+    if (actual === 'integer' && types.has('integer') && !types.has('number')) {
       const token = raw.get(at);
       const fault = integerFault(token);
       if (fault === 'form') {
@@ -368,32 +358,30 @@ function errors(loaded, value, file, def, extra = {}) {
   return out;
 }
 
-// The characters that JSON.stringify leaves as they are and that no text of a finding may
-// have: the controls of C1 and DEL, and the refused characters of core (lib/base.cjs,
-// REFUSED_SET): the bidirectional marks and controls, the invisible characters, and the line
-// and paragraph separators.
-const UNSHOWN = new RegExp('[\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069' +
-  '\\u00AD\\u180E\\u200B\\u2060-\\u2064\\uFEFF\\uFFF9-\\uFFFB\\u2028\\u2029]', 'gu');
+// The characters that JSON.stringify leaves as they are and that no finding may show: each Cf
+// (the bidirectional marks, joiners and tags among them), the C1 controls, DEL, U+2028, U+2029.
+const UNSHOWN = /[\p{Cc}\p{Cf}\u2028\u2029]/gu;
 
-// escaped returns json, as JSON.stringify wrote it, with each character of UNSHOWN as its
-// escape, such as \u202e.
-const escaped = (json) => json.replace(UNSHOWN, (char) =>
-  `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`);
+// escape returns char as an escape: \u202e, or \u{e0041} above U+FFFF.
+const escape = (char) => {
+  const code = char.codePointAt(0);
+  return code > 0xffff ? `\\u{${code.toString(16)}}` : `\\u${code.toString(16).padStart(4, '0')}`;
+};
+
+// escaped returns json, as JSON.stringify wrote it, with each character of UNSHOWN escaped.
+const escaped = (json) => json.replace(UNSHOWN, escape);
 
 // visible returns text with each control character and each character of UNSHOWN as its
 // escape, such as \u0000, so that a pattern on the line of a finding has none of them.
-const visible = (text) => text.replace(/[\u0000-\u001F]/gu, (char) =>
-  `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`).replace(UNSHOWN, (char) =>
-  `\\u${char.codePointAt(0).toString(16).padStart(4, '0')}`);
+const visible = (text) => text.replace(UNSHOWN, escape);
 
-// shown returns a value for a finding as JSON.stringify writes it, cut to limit characters, 40
-// by default, as written: a control character or a refused character counts as its escape,
-// such as \u0002, and a list or an object is cut too. Text keeps its quotes. No escape is cut in
-// two.
+// shown returns value as JSON.stringify writes it, cut to limit characters (40 by default), a
+// refused character counting as its escape, which is never cut. Text keeps its quotes.
 function shown(value, limit = 40) {
   const json = escaped(JSON.stringify(value));
   const text = typeof value === 'string';
-  const units = (text ? json.slice(1, -1) : json).match(/\\u[0-9a-f]{4}|\\.|[^]/gu) || [];
+  const body = text ? json.slice(1, -1) : json;
+  const units = body.match(/\\u[0-9a-f]{4}|\\u\{[0-9a-f]+\}|\\.|[^]/gu) || [];
   const sizes = units.map((unit) => codePoints(unit));
   if (sizes.reduce((sum, one) => sum + one, 0) <= limit) return json;
   const kept = [];

@@ -3144,13 +3144,15 @@ test('report-build: a bad or missing text writes no file and removes the output'
   };
   refused(TEXT.replace('Add the sum', 'Add\tthe sum'),
     /^Write the title of submission\.md so that it matches its pattern\.$/);
-  refused(TEXT.replace('## Disclosed', '## Notes'), /^Write the description of submission\.md in four parts, in their order\./);
-  refused(TEXT.replace('Nothing is left out.', `Key ghp_${'A1b2C3d4E5'.repeat(4)}.`), /^Remove the secret from the description of submission\.md: it has the form of an access token\.$/);
+  refused(TEXT.replace('## Disclosed', '## Notes'),
+    /^Write the text of submission\.md in four parts, in their order\./);
+  refused(TEXT.replace('Nothing is left out.', `Key ghp_${'A1b2C3d4E5'.repeat(4)}.`),
+    /^Remove the secret from the text of submission\.md: it has the form of an access token\.$/);
   refused(TEXT.replace('# Add', 'Add'), /^Start submission\.md with the line # <title>\./);
   refused(`${TEXT}<!-- qory:start -->\n`,
-    /^Write the description of submission\.md in another form\.$/);
+    /^Write the text of submission\.md in another form\.$/);
   refused(`${TEXT}${'x'.repeat(20000)}\n`,
-    /^Cut the description of submission\.md to at most 20000 characters\.$/);
+    /^Cut the text of submission\.md to at most 20000 characters\.$/);
   refused(null, /^Run the agent submission-writer to write \.reports\/submission\.md\./);
 });
 
@@ -3479,7 +3481,7 @@ test('report-build: text between the title and ## Problem is a finding', () => {
   write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('\n## Problem', '\nSome words.\n\n## Problem'));
   const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 1, got.out + got.err);
-  assert.match(got.lines[0], /^Write the description of submission\.md in four parts, in their order\./);
+  assert.match(got.lines[0], /^Write the text of submission\.md in four parts, in their order\./);
   assert.ok(got.lines.includes('  Text comes before the first part.'), got.out);
   assert.equal(fs.existsSync(file), false);
 });
@@ -3699,6 +3701,8 @@ test('report-build: QORY_OUTBOX unset or relative exits 3, writes no file and no
     const got = bcall(dir, ['report-build'], { env: { QORY_OUTBOX: value } });
     assert.equal(got.status, 3, `${value}: ${got.out}${got.err}`);
     assert.equal(got.lines[0], 'Set QORY_OUTBOX to the absolute path of the outbox folder.');
+    assert.equal(got.lines[1], '  qory sets it when it starts the session, and it is ' +
+      `${value === undefined ? 'not set' : 'not an absolute path'} here.`, String(value));
     assert.equal(fs.existsSync(report), false, String(value));
     // The output of the earlier run is at the old place and stays: no variable names it.
     assert.equal(fs.readFileSync(file, 'utf8'), raw, String(value));
@@ -3725,8 +3729,8 @@ test('report-build --drop with QORY_OUTBOX unset removes nothing and exits 0', (
   assert.equal(fs.existsSync(file), true);
 });
 
-test('report-build: an output over 786432 bytes exits 1, writes no file, and removes an earlier ' +
-  'output', () => {
+test('report-build: an output over 786432 bytes exits 3 with the split fix, writes no file, ' +
+  'and removes an earlier output', () => {
   const { dir, commits, ledger } = buildRepo();
   const file = outboxPath(dir);
   const report = path.join(dir, '.qory/artifacts/build-report.md');
@@ -3739,11 +3743,11 @@ test('report-build: an output over 786432 bytes exits 1, writes no file, and rem
   write(dir, '.qory/artifacts/.reports/build-ledger.json',
     JSON.stringify({ steps: [...ledger.steps, big], escalations: [] }));
   const got = bcall(dir, ['report-build']);
-  assert.equal(got.status, 1, got.out.slice(0, 300) + got.err.slice(0, 300));
-  assert.equal(got.lines[0], 'Cut submission.md so that ' +
-    '$QORY_OUTBOX/pull-request/pull-request.json has at most 786432 bytes.');
-  assert.match(got.lines.join('\n'), /The output has \d{6,} bytes/);
-  assert.equal(got.lines.at(-1), 'Wrote no file: 1 finding on the output.');
+  assert.equal(got.status, 3, got.out.slice(0, 300) + got.err.slice(0, 300));
+  assert.match(got.lines[0],
+    /^Split the work into fewer commits: steps has \d+ entries and the output \d{6,} bytes\.$/);
+  assert.equal(got.lines[1], '  $QORY_OUTBOX/pull-request/pull-request.json has at most 786432 ' +
+    'bytes, and no step of the session can shorten the list of commits.');
   assert.equal(fs.existsSync(file), false);
   assert.equal(fs.existsSync(report), false);
   assert.deepEqual(fs.readdirSync(path.join(dir, '.qory/artifacts'))

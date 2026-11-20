@@ -425,21 +425,23 @@ reads those files and finds:
 
 - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
   `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
-  or `false`, or a `schema` is no object. With no `qory.outputs` at all, the check finds
-  nothing;
-- a stage that declares an output while `QORY_OUTBOX` is unset or is no absolute path: the
-  fix is "Set QORY_OUTBOX to the absolute path of the outbox folder.";
+  or `false`, or a `schema` is no object. With no `qory.outputs` or no `inputs.json`, the
+  check finds nothing;
+- an `inputs.json` that exists and is no JSON object, and a stage that declares an output
+  while `QORY_OUTBOX` is unset or is no absolute path ("Set QORY_OUTBOX in the setup of the
+  run ..."). The setup of the run must fix these; no output file does;
 - a required output with no file;
 - a link in the outbox folder, in the folder above it, or in the folder of the type, which
   the fix "Remove the link ..." names, and a file that is a link, is no regular file, or
-  has more than 1 MiB, each with a cause line that says which;
+  has more than 1 MiB, each with a cause line that says which. A link above the parent of
+  the outbox folder is followed;
 - a member that qory sets or fills after the push, such as `target` or a member that the
   schema marks `x-qory-fill`: the session writes none, so remove it;
 - a schema that the check cannot run, such as a leftover `$ref` or a `$ref` that leads back
   to itself: the finding names the cause;
 - a member whose schema type is `integer` and that is written with a fraction or an
   exponent, such as `34.0` or `3E1`, or has a value above 9223372036854775807 or below
-  -9223372036854775808. A member of type `number` may be written `2.0` or `1e3`;
+  -9223372036854775808. A member of type `number` may be written `2.0` or `1e3`, but not `1e400`, which is no finite number;
 - a null anywhere that no schema of type `null` applies, also in a member that the schema
   does not list;
 - a pattern check that runs longer than 10 seconds in all: the check stops it in a child

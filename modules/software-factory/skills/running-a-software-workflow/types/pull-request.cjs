@@ -26,8 +26,7 @@ module.exports = (lib) => {
     run.did('text');
     partFindings(data.text, place('text')).forEach((line) => run.find(line));
     run.did('secrets');
-    secretFindings({ title: data.title, description: data.text }, (member) =>
-      place(member === 'description' ? 'text' : member)).forEach((line) => run.find(line));
+    secretFindings({ title: data.title, text: data.text }, place).forEach((line) => run.find(line));
   }
 
   return {

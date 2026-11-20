@@ -716,6 +716,52 @@ test('end: the output that report-build writes passes the end check', () => {
   }
 });
 
+// aliased moves the outbox of the session to <top>/x/outbox and returns the environment of an
+// end check whose QORY_OUTBOX names it through ALIAS, a link to top: the written path and the
+// real path differ, and the link is above the parent folder of the outbox.
+function aliased(folder) {
+  const top = path.join(tmp, `alias-top-${++count}`);
+  const alias = path.join(tmp, `alias-link-${count}`);
+  fs.mkdirSync(path.join(top, 'x'), { recursive: true });
+  fs.renameSync(outboxOf(folder), path.join(top, 'x', 'outbox'));
+  fs.symlinkSync(top, alias);
+  return { top, alias, env: { QORY_OUTBOX: path.join(alias, 'x', 'outbox') } };
+}
+
+test('end: the check of the module passes when QORY_OUTBOX names the outbox through a link', () => {
+  const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
+  commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  const folder = session(run);
+  const { top, alias, env } = aliased(folder);
+  assert.notEqual(fs.realpathSync(env.QORY_OUTBOX), env.QORY_OUTBOX);
+  passes(end(run, folder, env));
+  passes(end(run, folder, { QORY_OUTBOX: path.join(top, 'x', 'outbox') }));
+  // The module check still runs through the link: a text of three parts fails.
+  fs.writeFileSync(path.join(alias, 'x/outbox/pull-request/pull-request.json'),
+    JSON.stringify({ ...pullRequest(), text: '## Problem\n\nx' }));
+  fails(end(run, folder, env),
+    /^Write \/text of pull-request\.json in four parts, in their order\./);
+});
+
+test('end: a link in the outbox, its parent or the folder of the type is refused through an alias',
+  () => {
+    const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
+    commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+    // Each place in turn is replaced by a link to a copy of itself.
+    for (const place of ['x', 'x/outbox', 'x/outbox/pull-request']) {
+      const folder = session(run);
+      const { top, env } = aliased(folder);
+      const at = path.join(top, place);
+      const copy = path.join(tmp, `alias-copy-${++count}`);
+      fs.cpSync(at, copy, { recursive: true });
+      fs.rmSync(at, { recursive: true });
+      fs.symlinkSync(copy, at);
+      const got = end(run, folder, env);
+      assert.equal(got.status, 1, place);
+      fails(got, /^Remove the link /);
+    }
+  });
+
 test('end: without the parsers, the check leaves the proof to prove', {
   skip: fs.existsSync('/opt/qory/parsers/node_modules') && 'the parsers are installed',
 }, () => {

@@ -1021,19 +1021,23 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   each output of the stage, in the order of the stage, with the primitives of the schema
   resolved. qory sets the environment variable `QORY_OUTBOX` to the absolute path of the
   outbox folder, and the session writes each output to `$QORY_OUTBOX/<type>/<type>.json`.
-  The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or an
-  `inputs.json` that is no regular file of at most 1 MiB, the check finds nothing. It finds:
+  The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or no
+  `inputs.json`, the check finds nothing. It finds:
   - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
     `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
     or `false`, or a `schema` is no object. The finding is "Fix qory.outputs in the lines
     after this one:", with a line for each such part. Only an absent list passes;
+  - an `inputs.json` that is no regular file of at most 1 MiB, or no JSON object: "Fix the
+    inputs file of the run." The point says that the setup of the run must provide it;
   - a stage that declares an output while `QORY_OUTBOX` is unset or is no absolute path.
-    The finding is "Set QORY_OUTBOX to the absolute path of the outbox folder.", and the
-    check reads no file;
+    The finding is "Set QORY_OUTBOX in the setup of the run to the absolute path of the
+    outbox folder.", with the cause "not set" or "not an absolute path", and the check
+    reads no file. The point says that the setup of the run must set it;
   - a required output with no file;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
-    finding is "Remove the link <path>.". A file that is a link, is no regular file, or has
-    more than 1 MiB gets one cause line for each of these;
+    finding is "Remove the link <path>.", and a link above the parent of the outbox folder is
+    followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
+    cause line for each of these;
   - a file that is no JSON;
   - a member that qory sets or fills after the push, which the session writes none of:
     `target`, and each top-level member whose schema has `x-qory-fill`. The finding is
@@ -2755,12 +2759,16 @@ in this order:
    `blocked` report end the run as "Failures" of `running-a-workflow` lists.
 2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
    in the artifact folder and writes the outbox file
-   `$QORY_OUTBOX/pull-request/pull-request.json`. With exit 1, a rule of the text broke, or
-   the output has more than 786432 bytes: the session starts `submission-writer` again with
-   the lines that `report-build` printed, at most twice.
+   `$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
+   the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text broke:
+   the session starts `submission-writer` again with the lines that `report-build` printed,
+   at most twice.
    When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
-   because the description of the change still breaks the rules for it." With exit 2, 3 or
-   4, the run ends as "Failures" of `running-a-workflow` lists for the checks script.
+   because the text of the change still breaks the rules for it." With exit 3 and the first
+   line `Split the work into fewer commits`, the list of steps makes the output larger than
+   786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
+   the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists
+   for the checks script.
 3. It runs `checks.cjs check build-report --inputs <input file>
    <folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The
    change is not ready, because the build report differs from the records of the run.",
@@ -3298,9 +3306,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   folder." It creates the folder of the type first. When the outbox folder, the folder above
   it, or the folder of the type is a link, as core's end check reads it, the verb exits 3
   with the fix "Remove the link in the path of the outbox." and writes no file. A file that
-  would have more than 786432 bytes, the `size_limit` of the type `pull-request`, exits 1
-  with the fix to cut the text of `submission.md` or the commits of the build, and the verb
-  writes no file.
+  would have more than 786432 bytes, the `size_limit` of the type `pull-request`, exits 3
+  with the fix "Split the work into fewer commits", because only the list of `steps` can
+  make it that large (the text has at most 20,000 characters), and the verb writes no
+  file. The links that the rule reads are those of the outbox folder, its parent and the
+  folder of the type; a link above them is followed.
   The session writes no `target` and no member that qory fills (`commits`, `head`,
   `base`, `branch`, `base_branch`, `earlier_commits`): qory sets and fills them after the
   push, and the end check refuses a file that has one. `title` and `text` come from

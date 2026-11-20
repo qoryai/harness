@@ -939,8 +939,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - `report-build` always writes the outbox file
     `$QORY_OUTBOX/pull-request/pull-request.json`, as `{title, text, steps, draft}`. With
     `QORY_OUTBOX` unset or relative, it writes no file and exits 3 with a fix line. An
-    output of more than 786432 bytes, the size limit of the type, exits 1 with a fix line
-    and no file. A link in the outbox folder, in the folder above it, or in the folder of
+    output of more than 786432 bytes, the size limit of the type, exits 3 with the fix to
+    split the work into fewer commits, and writes no file. A link in the outbox folder, in the folder above it, or in the folder of
     the type exits 3. Before, it wrote the
     hand-off file at the value of `QORY_SUBMISSION_HANDOFF` under `.qory/handoff/`, only
     when the variable was set, with at most 262144 bytes. The variable, the folder and that

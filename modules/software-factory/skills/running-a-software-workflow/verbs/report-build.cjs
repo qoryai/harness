@@ -12,10 +12,11 @@
 // base..commit of the row, within <base of the first row>..HEAD, oldest first; a commit in
 // two rows goes to the later row. draft is true when this session records the verdict
 // passed itself, which a stage with no reviewers does, and false when a review round follows.
-// The session writes no target and no member that qory fills. With a text or an output that
-// breaks a rule, or an output of more than the size limit of the type, the verb writes no
-// file and exits 1. A ledger report whose list Left out: it cannot read adds one line to
-// ## Left out and stops nothing. On every non-zero exit, it removes a regular file at the
+// The session writes no target and no member that qory fills. With a text that breaks a rule
+// the verb writes no file and exits 1. With an output of more than the size limit of the type,
+// which only the list of steps can cause and no step of the session can shorten, it exits 3.
+// A ledger report whose list Left out: it cannot read adds one line to ## Left out and stops
+// nothing. On every non-zero exit, it removes a regular file at the
 // path of the output, so that qory never pushes the text of an earlier run. It writes the
 // output file first and build-report.md second, each through a temporary file in its folder
 // that it renames into place; a write that fails, or an outbox with a link in it, leaves
@@ -39,8 +40,8 @@ const TYPE = 'pull-request';
 const SHOWN = `$QORY_OUTBOX/${TYPE}/${TYPE}.json`;
 
 module.exports = (lib) => {
-  const { Context, Missing, artifactFolder, outboxLinked, plural, reviewersStage, schema,
-    short } = lib;
+  const { Context, Missing, artifactFolder, outboxFolder, outboxLinked, plural, reviewersStage,
+    schema, short } = lib;
   const SCHEMA = schema.load(SCHEMAS, 'pull-request');
 
   // readText returns { title, text } of .reports/submission.md in root, or the findings of a
@@ -67,12 +68,12 @@ module.exports = (lib) => {
     const value = { title: first.slice(2).trim(),
       text: (at === -1 ? '' : all.slice(at + 1)).replace(/^\n+/, '').replace(/\s+$/, '') };
     const findings = [...schema.errors(SCHEMA, value.title, `the title of ${TEXT}`, 'title'),
-      ...schema.errors(SCHEMA, value.text, `the description of ${TEXT}`, 'text')];
+      ...schema.errors(SCHEMA, value.text, `the text of ${TEXT}`, 'text')];
     // The shared checks of the text: the characters of a title that qory drops, the four
     // parts, and the forms of a secret.
     findings.push(...lib.titleFindings(value.title, `the title of ${TEXT}`));
-    findings.push(...lib.partFindings(value.text, `the description of ${TEXT}`));
-    findings.push(...lib.secretFindings({ title: value.title, description: value.text },
+    findings.push(...lib.partFindings(value.text, `the text of ${TEXT}`));
+    findings.push(...lib.secretFindings({ title: value.title, text: value.text },
       (member) => `the ${member} of ${TEXT}`));
     return findings.length ? { findings } : { value };
   }
@@ -110,15 +111,11 @@ module.exports = (lib) => {
       .map((commit) => ({ commit, step: owner.get(commit) }));
   }
 
-  // outboxOf returns the absolute path in QORY_OUTBOX, or null when it is unset or relative.
-  const outboxOf = (io) => (typeof io.env.QORY_OUTBOX === 'string' &&
-    path.isAbsolute(io.env.QORY_OUTBOX) ? path.normalize(io.env.QORY_OUTBOX) : null);
-
   // dropOutput removes the regular file of the output, so a failure never leaves the text of
   // an earlier run for qory's push. It removes nothing when the outbox has a link in it, or
   // QORY_OUTBOX is unset. It returns removed, absent, or failed, after it prints the fix.
   function dropOutput(io) {
-    const outbox = outboxOf(io);
+    const outbox = outboxFolder(io.env);
     if (!outbox) return 'absent';
     const link = outboxLinked(outbox, TYPE);
     if (link) {
@@ -190,11 +187,9 @@ module.exports = (lib) => {
     }
   }
 
-  // draftWanted returns whether the output asks for a draft: when this session records the
-  // verdict passed itself, a stage with no reviewers. A stage with reviewers records no verdict
-  // before the review round, so it asks for none.
-  // shortcut: the verdict that follows the review round is unknown here; replace this when the
-  // session can read it.
+  // draftWanted returns true when this session records the verdict itself, a stage with no
+  // reviewers. shortcut: the verdict after the review round is unknown here; replace this when
+  // the session can read it.
   function draftWanted(io, inputs) {
     return !reviewersStage({ inputs: inputs ? path.resolve(io.cwd, inputs) : null });
   }
@@ -202,10 +197,11 @@ module.exports = (lib) => {
   function build(io, what, rest) {
     const { inputs } = takeInputs([what, ...rest].filter((one) => one !== undefined));
     const root = artifactFolder(io);
-    const outbox = outboxOf(io);
+    const outbox = outboxFolder(io.env);
     if (!outbox) {
       throw new Missing('Set QORY_OUTBOX to the absolute path of the outbox folder.\n' +
-        'qory sets it when it starts the session, and it is not set here.');
+        `qory sets it when it starts the session, and it is ${io.env.QORY_OUTBOX === undefined ?
+          'not set' : 'not an absolute path'} here.`);
     }
     const top = git.top(Missing, io.cwd, io.env);
     const context = new Context(root, 'check', io.home, root);
@@ -226,11 +222,11 @@ module.exports = (lib) => {
     const body = `${JSON.stringify({ title: got.value.title, text: got.value.text, steps,
       draft: draftWanted(io, inputs) })}\n`;
     const limit = sizeLimit(TYPE);
-    if (Buffer.byteLength(body) > limit) {
-      io.print([`Cut ${TEXT} so that ${SHOWN} has at most ${limit} bytes.\n` +
-        `The output has ${Buffer.byteLength(body)} bytes, from the text and the commits.`],
-      'Wrote no file: 1 finding on the output.');
-      return 1;
+    const bytes = Buffer.byteLength(body);
+    if (bytes > limit) {
+      throw new Missing('Split the work into fewer commits: steps has ' +
+        `${steps.length} entries and the output ${bytes} bytes.\n${SHOWN} has at most ` +
+        `${limit} bytes, and no step of the session can shorten the list of commits.`);
     }
     const target = makeFolder(outbox);
     const report = { target: written, body: lib.renderReport(data) };

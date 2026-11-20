@@ -73,6 +73,12 @@ const OUTBOX_BROKEN = (types) => (types.length === 1
 const OUTBOX_NONE = (types) => `The stage needs ${named(types)}, which the run did not ` +
   `write, ${AGAIN} writes ${types.length === 1 ? 'it' : 'them'} again.`;
 
+// The point of end when the setup of the run gave the outbox check no usable inputs file or
+// QORY_OUTBOX: the session cannot fix that.
+const OUTBOX_SETUP = 'The setup of the run gave the check of the outputs no usable inputs ' +
+  'file or QORY_OUTBOX, so the run could not check its outputs, the setup of the run must ' +
+  'provide them.';
+
 const RECORDS_UNREAD = 'The run could not read the records of its report checks, so no ' +
   `report of an agent counts as checked, ${AGAIN} checks the reports again.`;
 
@@ -323,6 +329,6 @@ function endList(kept, found) {
 
 module.exports = {
   END_POINT, REPORT_BROKEN, REPORT_NONE, REPORT_UNCHECKED, REPORT_CHANGED, RECORDS_UNREAD,
-  REVIEW_NONE, DRAFT_BROKEN, POINTS_BROKEN, OUTBOX_BROKEN, OUTBOX_NONE, REPORT_FILE,
+  REVIEW_NONE, DRAFT_BROKEN, POINTS_BROKEN, OUTBOX_BROKEN, OUTBOX_NONE, OUTBOX_SETUP, REPORT_FILE,
   VERDICT_UNREAD, unchanged, endDrafts, endList, leftLine, verdictDrafts,
 };

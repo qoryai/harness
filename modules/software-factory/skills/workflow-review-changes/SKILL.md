@@ -42,8 +42,8 @@ these write are:
   writes, and which `report-build --drop` removes.
 
 Change no file of the working folder: a change there has no row in the build ledger,
-and `step begin` of the next session exits with 1 on it. The outbox file causes no such
-exit.
+and `step begin` of the next session exits with 1 on it. The ledger's edit check skips
+`.qory/`, so the outbox file under `.qory/` causes no such exit.
 
 ## The order of the run
 
@@ -136,8 +136,11 @@ reviewers of the next round get them. Then, in this order:
      quoted, at most twice, check its report as step 1 lists, and run `report-build` again
      after each start. When it still exits with 1 after the second start, end as "Points"
      of `running-a-workflow` lists, with one `run_again` point: "The change is not ready,
-     because the description of the change still breaks the rules for it." Print the first
+     because the text of the change still breaks the rules for it." Print the first
      line of `report-build` in your output.
+   - With exit 3 and the first line `Split the work into fewer commits`, the list of steps is
+     too long for the output. Start no agent: end as "Failures" lists, with that line as the
+     cause.
    - With exit 2, 3 or 4, end as "Failures" lists for the checks script.
 3. Run `<skill folder>/checks.cjs check build-report --inputs <input file>
    <folder>/build-report.md`. It renders the tables of `build-report.md` again from the

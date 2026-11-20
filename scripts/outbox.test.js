@@ -14,6 +14,7 @@ const { main } = require(path.join(CORE, 'skills/running-a-workflow/checks.cjs')
 const schema = require(path.join(CORE, 'skills/running-a-workflow/lib/schema.cjs'));
 const { watch } = require('./first-line.js');
 const { limit } = require(path.join(CORE, 'skills/running-a-workflow/lib/outbox.cjs'));
+const { OUTBOX_SETUP } = require(path.join(CORE, 'skills/running-a-workflow/lib/end.cjs'));
 const { scan } = require(path.join(CORE, 'skills/running-a-workflow/lib/raw-json.cjs'));
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'outbox-test-')));
@@ -141,10 +142,14 @@ test('outbox: a qory.outputs that is present and malformed is a finding', () => 
 });
 
 test('outbox: QORY_OUTBOX must be set and absolute when the stage declares an output', () => {
-  for (const value of [undefined, '', 'relative/outbox']) {
+  for (const [value, cause] of [[undefined, 'not set'], ['', 'not an absolute path'],
+    ['relative/outbox', 'not an absolute path']]) {
     const found = end(session(OUT, { reply: reply() }), { QORY_OUTBOX: value });
     assert.equal(found.status, 1, String(value));
-    assert.match(found.text, /^Set QORY_OUTBOX to the absolute path of the outbox folder\./m);
+    assert.match(found.text,
+      /^Set QORY_OUTBOX in the setup of the run to the absolute path of the outbox folder\./m);
+    assert.match(found.text, new RegExp(`It is ${cause}\\.`));
+    assert.doesNotMatch(found.text, /Fix qory\.outputs/);
   }
 });
 
@@ -355,7 +360,8 @@ test('schema: errors without raw keeps the null and the number rules of today', 
 test('shown.cjs of the software module equals shown and escaped of core', () => {
   const copy = require(path.join(MODULES,
     'software-factory/skills/running-a-software-workflow/lib/shown.cjs'));
-  const values = ['a', 'a\u202eb', 'tab\there', 'x'.repeat(100), 'a\u0002'.repeat(30), 'caf\u00e9',
+  const values = ['a', 'a\u202eb', 'a\u{E0041}b', 'a\u0600b', 'a\u200db', 'tab\there',
+    'x'.repeat(100), 'a\u0002'.repeat(30), 'caf\u00e9',
     '\u2028\u2029\ufeff\u00ad', 7, true, null, [1, 'a\u202e', { k: 'v\u200b' }],
     { ['k\u202e']: 'x'.repeat(60) }, '\ud83d\ude00'.repeat(50)];
   for (const value of values) {
@@ -363,4 +369,66 @@ test('shown.cjs of the software module equals shown and escaped of core', () => 
     assert.equal(copy.shown(value, 10), schema.shown(value, 10), JSON.stringify(value));
     assert.equal(copy.escaped(JSON.stringify(value)), schema.escaped(JSON.stringify(value)));
   }
+});
+
+test('outbox: an inputs file that is no JSON object or too large is a finding of the setup', () => {
+  // The point says that the setup of the run must fix it, not that another round writes.
+  assert.match(OUTBOX_SETUP, /the setup of the run must provide them/);
+  assert.doesNotMatch(OUTBOX_SETUP, /another round/);
+  for (const text of ['not json', '[1]', '"x"', 'null']) {
+    const found = end(withInputs(text));
+    assert.equal(found.status, 1, text);
+    assert.match(found.text, /^Fix the inputs file of the run\./m, text);
+  }
+  const large = withInputs(`{"qory":{},"pad":"${'x'.repeat(1024 * 1024)}"}`);
+  assert.equal(end(large).status, 1);
+  const folder = withInputs('{}');
+  fs.rmSync(folder.inputs);
+  fs.mkdirSync(folder.inputs);
+  assert.equal(end(folder).status, 1);
+});
+
+test('outbox: a number must be finite, and -0 passes for an integer', () => {
+  const number = { type: 'object', properties: { m: { type: 'number' } } };
+  const out = [{ type: 'x', required: true, schema: number }];
+  for (const token of ['1e400', '-1e400']) {
+    const found = end(session(out, { x: `{"m":${token}}` }));
+    assert.equal(found.status, 1, token);
+    assert.match(found.text, /\/m of .* as a finite number/, token);
+  }
+  assert.equal(end(session(out, { x: '{"m":1e300}' })).status, 0);
+  const integer = [{ type: 'x', required: true, schema: { type: 'object', properties: {
+    m: { type: 'integer' } } } }];
+  assert.equal(end(session(integer, { x: '{"m":-0}' })).status, 0);
+});
+
+test('outbox: a null that a branch of oneOf with type null allows passes', () => {
+  for (const key of ['oneOf']) {
+    const schema = { type: 'object', properties: { m: { [key]: [{ type: 'string' },
+      { type: 'null' }] } } };
+    const out = [{ type: 'x', required: true, schema }];
+    assert.equal(end(session(out, { x: '{"m":null}' })).status, 0, key);
+    assert.equal(end(session(out, { x: '{"m":"a"}' })).status, 0, key);
+  }
+  // An integer branch keeps the integer rule.
+  const mixed = { type: 'object', properties: { m: { oneOf: [{ type: 'integer' },
+    { type: 'null' }] } } };
+  const found = end(session([{ type: 'x', required: true, schema: mixed }], { x: '{"m":3.0}' }));
+  assert.equal(found.status, 1);
+  assert.match(found.text, /\/m of .* as a whole number with no fraction/);
+});
+
+test('schema: a finding escapes each Cc and Cf character, also above U+FFFF', () => {
+  const loaded = { file: 'x', schema: { type: 'object', properties: { t: { type: 'string',
+    pattern: '^[a-z]+$' } } } };
+  loaded.patterns = schema.compile(loaded.schema, 'x');
+  for (const [char, escape] of [['\u{E0041}', '\\u{e0041}'], ['\u0600', '\\u0600'],
+    ['\u200D', '\\u200d'], ['\u202E', '\\u202e'], ['\u0085', '\\u0085']]) {
+    const text = schema.errors(loaded, { t: `a${char}b` }, 'f.json').join('\n');
+    assert.ok(text.includes(escape.toLowerCase()), `${escape}: ${text}`);
+    assert.ok(!text.includes(char), `raw ${escape} in the finding`);
+  }
+  // An escape is never cut in two.
+  const cut = schema.shown(`${'a'.repeat(36)}\u{E0041}`);
+  assert.ok(!/\\u\{?[0-9a-f]*\.\.\./.test(cut), cut);
 });
