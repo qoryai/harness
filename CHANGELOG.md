@@ -51,7 +51,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `lib/markdown.cjs` makes the check, and `links` calls it, so each type that checks
   Markdown text gets it. It does not count the nesting of inline marks, such as emphasis in
   emphasis, which also reaches the limit of 128 levels. Where the reading of code blocks
-  cannot tell whether a fence starts in a list item, the words count.
+  cannot tell whether a fence starts in a list item, the words count. So do a list mark
+  with no text right after a line of text, which is text and not an empty item, and a number
+  other than 1 right after a line of text.
 - `checks.cjs step end <id> done --report <file>` exits 1, and records nothing, when the
   report has a list `Left out:` that `report-build` cannot read. The first line is "Fix the
   list Left out: of your report.", and a line for each cause follows. `step end failed` is

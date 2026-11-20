@@ -231,6 +231,9 @@ function lines(text) {
       open = null;
       uncertain = true;
     }
+    // A list mark with no text cannot interrupt a paragraph, so after a line of text it is text
+    // and the line after it goes on with the paragraph: the check counts every line from there.
+    if (paragraph && MARK_ONLY.test(line)) uncertain = true;
     // A number other than 1 after a line of text starts no list, unless it goes on the list of
     // the item that its line leaves with the same mark. The check cannot tell the other cases
     // from a list, so it counts every line from there.

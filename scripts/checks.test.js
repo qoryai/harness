@@ -1983,6 +1983,15 @@ test('the end mark of a block of HTML may overlap its start', () => {
   assert.ok(keeps('<?>\n```?>\n```wq6', 'wq6'));
 });
 
+test('a list mark with no text after a line of text is text, so the words after it count', () => {
+  for (const [text, word] of [
+    ['0\n+\n2. ~~~wq1', 'wq1'],
+    ['0\n1.\n2. ```wq1', 'wq1'],
+    ['t\r*\r0.\t~~~wq0', 'wq0'],
+    ['d\n1.\n9. ```wq1', 'wq1'],
+  ]) assert.ok(keeps(text, word), JSON.stringify(text));
+});
+
 test('a numbered list that goes on its own mark is read as a list', () => {
   const { lines } = require(MARKDOWN);
   const fenced = (text) => lines(text).map((line) => (line.uncertain ? '?' : '.')).join('');
