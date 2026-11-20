@@ -8,6 +8,52 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Pictures in the technical decision record. `writing-decisions` follows the picture rule of
+  `artifact-text` and keeps the form of the record: a decision whose chosen way changes how
+  two parts call each other, or a flow of states, may end with one Mermaid diagram, drawn by
+  `visuals`. The check of the type `decision-record` refuses, each with a fix line that
+  starts with the fix: a Mermaid block with no closing fence ("Close the Mermaid block of
+  decision-1 with a line of 3 backticks.", with the length and the mark of the opening
+  fence), a second diagram in a decision, a diagram that is not the last text of its
+  decision after a blank line, a diagram in a removed decision, and a third diagram in the
+  record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3."), which counts each
+  block that Qory Apiary draws, also one in a quote or a list item, and refuses a block
+  whose fence is not at the start of the line. It also refuses a
+  block that Qory Apiary does not draw as a diagram: a fence that is not lower case
+  `mermaid` at the start of its line with no other word, a first word that is not a type
+  that Qory Apiary draws, a syntax that loads an address, more than 20,000 characters as
+  Qory Apiary measures them, a flowchart with more than 200 edges, and a `%%{` line.
+  `lib/mermaid.cjs` reads the text as Qory Apiary draws it, without the characters that Qory
+  Apiary strips, and counts every link of a flowchart, because Qory Apiary sets the limit
+  but has no edge count. The 450 words of a record leave out its diagrams. Qory Apiary
+  strips each `click`, `link`, `callback` and `links` statement line and the front matter,
+  and the check refuses neither. A line that starts with `|` counts toward the 450 words
+  unless it forms a table with a delimiter row. Where the check cannot tell whether a table
+  starts, such as in a quote or a list item, the lines count. In a text with over 50,000
+  table cells (lines times the most `|` on a line plus 1) every such line counts, as Qory
+  Apiary shows that text as written. The check finds a Mermaid fence behind quote or list
+  marks in one pass over the line, where a long run of marks took quadratic time. In every
+  Markdown document, a fence line inside a block of HTML opens no code block, as Qory Apiary
+  does, so the text after the block counts. A line of 3 or more backticks or tildes with
+  text after them closes no code block, and a code block in a list item or a quote ends with
+  the item or quote, so the words after it count, as in Qory Apiary. The decision record has
+  no `![` or `<img` anywhere, code blocks and diagrams included, and you write `\![` outside
+  code for a literal `![`: the new option `everyImage` of `links` in `lib/markdown.cjs`,
+  which no other type sets, refuses each one. `checking-decisions` has the reviewer judge
+  each diagram, and `decision-writer` and `decision-reviewer` load `visuals` when the record
+  has one.
+- The check of every Markdown text refuses a line with 60 or more levels of nesting and a
+  text with U+FFFD, because Qory Apiary shows such a text as plain text. The levels of a
+  line are the larger of its quote and list marks and the depth of the list items that its
+  indentation opens. The fixes are "Remove the deep nesting from <file>: line <L> has <n>
+  levels, and the check allows 59." and "Save <file> as UTF-8: Qory Apiary shows it as plain
+  text.", each with a line that quotes the first line that holds it. `shownAsText` in
+  `lib/markdown.cjs` makes the check, and `links` calls it, so each type that checks
+  Markdown text gets it. It does not count the nesting of inline marks, such as emphasis in
+  emphasis, which also reaches the limit of 128 levels. Where the reading of code blocks
+  cannot tell whether a fence starts in a list item, the words count. So do a list mark
+  with no text right after a line of text, which is text and not an empty item, and a number
+  other than 1 right after a line of text.
 - `checks.cjs step end <id> done --report <file>` exits 1, and records nothing, when the
   report has a list `Left out:` that `report-build` cannot read. The first line is "Fix the
   list Left out: of your report.", and a line for each cause follows. `step end failed` is
@@ -1622,6 +1668,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a
   command with `.env`. On macOS with System Integrity Protection, `/usr/bin/env` drops
   `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` itself, and no `DYLD_` name is on the list.
+  CI runs `shellcheck`, `sh -n`, `bash -n` and `node --check` on the 13 hook commands and
+  the hook files.
 - The reports guard reads the first word of a command, to find out whether it is a copy of
   `checks.cjs`, only when it is a regular file of the size of `checks.cjs`, and then at most
   that size and one byte. It read the whole file, so `/dev/zero` grew the hook to 44.8 GB, a

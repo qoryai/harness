@@ -12,7 +12,12 @@ of a record", then the check list.
 
 A version is one Markdown file, `decision-record.md`. Members read all of it. A decision id
 and an `ac-N` are terms that members read, not words of the system that runs you.
-`declines.md` is no part of a version.
+`declines.md` is no part of a version. The record may have a Mermaid diagram under a
+decision, as `writing-decisions` lists. It has no wireframe and no table, and no `![` or
+`<img` anywhere, code blocks and diagrams included: write `\![` outside code for a
+literal `![`.
+
+Load ${qory:skills/visuals} when the record has a diagram.
 
 ## Review of a record
 
@@ -69,17 +74,27 @@ and an `ac-N` are terms that members read, not words of the system that runs you
 
 When you review, the run gives you the lines of its checks script under "Checks:", as
 `reviewing-drafts` lists. In `decision-record.md`, the script checks the one section
-`## Decisions`, the line "The spec leaves no technical choice open." or at least one decision,
-the heading of each decision, each id once, the items of each decision in order, the form
-of a removed or open decision, and the limit of 450 words. It checks that "Rests on:"
-lists criteria of the newest acceptance criteria that are not removed, or one of its two
-other lines, and that "Question:" lists a question of this run's questions in the state
-that the decision needs. The push form reads only the newest questions version, which does
-not have this run's new questions yet, so it does not report a "Question:" id that is
-missing there; the check before your start reports it. It checks that the ids keep the
-newest version's ids and numbers, and it checks the characters, each link and image,
-`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
-check list.
+`## Decisions`, the line "The spec leaves no technical choice open." or at least one
+decision, the heading of each decision, each id once, the items of each decision in order,
+the form of a removed or open decision, and the limit of 450 words, which leaves out the
+diagrams. It checks each Mermaid block: that it is closed, that it is the last text of its
+decision, after a blank line, that its fence is lower case `mermaid` at the start of the
+line with no other word, that its first word is a type that Qory Apiary draws, that it has
+no syntax that loads an address and no `%%{` line, and that it has at most 20,000
+characters, as Qory Apiary measures them, and, in a flowchart, at most 200 edges, which the
+check counts from every link. It also checks that a decision has at most one block and a
+removed decision none, and that the decisions that are not removed have at most 2 in the
+record, each block that Qory Apiary draws counted, and that a block in a quote or a list
+item, or with an `&` in its info string, is refused, because the fence must start the line
+and say `mermaid`. It checks that "Rests on:" lists criteria of the newest acceptance
+criteria that are not removed, or one of its two other lines, and that "Question:" lists a
+question of this run's questions in the state that the decision needs. The push form reads
+only the newest questions version, which does not have this run's new questions yet, so it
+does not report a "Question:" id that is missing there; the check before your start
+reports it. It checks that the ids keep the newest version's ids and numbers, and it
+checks the characters, each link, `.qory/repositories`,
+each path of the machine the run is on, and each `![` and `<img`, code blocks and diagrams
+included. Judge the rest of the check list.
 
 - The text "The spec leaves no technical choice open." stands only when the spec's
   `## Changes` parts leave no technical choice open, no further choice exists, and no
@@ -97,3 +112,7 @@ check list.
   settle.
 - Nothing in the record comes from no source, and no text contains an assumption.
 - A public page is a link, and a file is its path, with no link.
+- A diagram stands only under a decision whose chosen way changes how two parts call each
+  other, or a flow of states, shows that change and nothing else, matches the decision's
+  items, and follows ${qory:skills/visuals}. A diagram of a system's architecture is a
+  finding.

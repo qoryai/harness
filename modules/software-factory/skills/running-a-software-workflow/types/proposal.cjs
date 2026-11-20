@@ -8,7 +8,7 @@ const path = require('node:path');
 module.exports = (lib) => {
   const {
     address, areaOf, BadQuestions, blank, brief, characters, codeSpans, factoryExtensions,
-    fenceLine, firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind,
+    firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind,
     lines, markdownText, Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
     results, same, sections, sentences, sha256, table, topSections, TRACK_LISTS, trackLine,
     trackLists, trackRecordOf, words,
@@ -305,7 +305,7 @@ module.exports = (lib) => {
   // a proposal: every line but those of a Mermaid block and the fence lines of a code block.
   function proposalText(list) {
     return list
-      .filter((line) => !line.fenced || (line.info !== 'mermaid' && !fenceLine(line.text)))
+      .filter((line) => !line.fenced || (line.info !== 'mermaid' && !line.edge))
       .map((line) => line.text)
       .join('\n');
   }

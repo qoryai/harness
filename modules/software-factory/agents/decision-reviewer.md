@@ -46,6 +46,7 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/artifact-text}, before you work through the check lists: the text rules.
 - ${qory:skills/simple-communication}, before you work through the check lists: the
   sentence rules, which you check in every text that members read.
+- ${qory:skills/visuals}, only when the record has a diagram: how it is drawn.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   read forms.
 

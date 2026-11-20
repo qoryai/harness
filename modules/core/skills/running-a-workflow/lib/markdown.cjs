@@ -11,27 +11,291 @@ const lineList = (text) => text.replace(/\r\n?/g, '\n').split('\n');
 
 const headingLevel = (line) => (/^ {0,3}(#{1,6})(\s|$)/.exec(line) || ['', ''])[1].length;
 
-// fence returns the character, length and first word of a line that opens a code block.
+// fence returns the character, length and first word of a line that opens a code block, and
+// whether its info string has an "&": a parser reads an entity in an info string.
 function fence(line) {
   const match = /^ {0,3}(`{3,}|~{3,})\s*([^\s`]*)/.exec(line);
   if (!match || (match[1][0] === '`' && line.slice(match[0].length).includes('`'))) return null;
-  return { mark: match[1][0], size: match[1].length, info: match[2].toLowerCase() };
+  return {
+    mark: match[1][0], size: match[1].length, info: match[2].toLowerCase(), amp: line.includes('&'),
+  };
 }
 
-// lines returns each line with whether it opens, closes or sits inside a code block, and the
-// first word of that block.
+// The start of a block of HTML kinds 1 to 5 of CommonMark, which ends at a line with an end mark.
+const HTML_ENDS = [
+  [/^<(script|pre|style|textarea)(?=[ \t>]|$)/i, /<\/(script|pre|style|textarea)>/i],
+  [/^<!--/, /-->/],
+  [/^<\?/, /\?>/],
+  [/^<!\[CDATA\[/i, /\]\]>/],
+  [/^<![A-Za-z]/, />/],
+];
+// The start of a block of kind 6, a block-level tag, which ends at a blank line.
+const HTML_BLOCK_TAG = new RegExp('^</?(address|article|aside|base|basefont|blockquote|body|' +
+  'caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|' +
+  'footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|' +
+  'menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|' +
+  'tfoot|th|thead|title|tr|track|ul)(?=[ \\t]|$|/?>)', 'i');
+// Kind 7: a line with only a tag, a superset of the tags of CommonMark, so no HTML block is missed.
+// An attribute value may hold `<` and `>`, so the text between the name and the last `>` is free.
+const HTML_TAG_LINE = /^<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t\v\f].*)?\/?>[ \t\v\f]*$/;
+// The marks of a quote or a list item before the tag that starts a block in it.
+const CONTAINER = /^ {0,3}(?:(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$))[ \t]*)*/;
+
+// widthOf returns the width in columns of text, with tab stops at 4.
+function widthOf(text) {
+  let column = 0;
+  for (const char of text) column += char === '\t' ? 4 - (column % 4) : 1;
+  return column;
+}
+
+// prefixColumn returns the column where the text of a list item starts, for the marks and
+// spaces before a tag: the width of the prefix, or 1 column after the last mark when 5 or more
+// columns of space follow it. It is 2 at least, as an item that is wider keeps its block.
+function prefixColumn(prefix) {
+  const bare = widthOf(prefix.replace(/[ \t]+$/, ''));
+  const full = widthOf(prefix);
+  return Math.max(2, full - bare > 4 ? bare + 1 : full);
+}
+
+// htmlBlocks returns a reader of the lines outside code blocks, in order. step(text) returns
+// whether the line is in a block of HTML, which Qory Apiary shows as HTML: a fence line there
+// opens no code block. A block starts at a tag as CommonMark lists, in a quote or a list item
+// too, and the lines of kinds 6 and 7 go on up to a blank line, those of kinds 1 to 5 up to their
+// end mark. A block in a quote ends at a line with no `>`, and one in a list item at a line
+// that is not blank and not indented 2 columns (the item may be wider, so such a line may still
+// be in the block). Kind 7 starts a block after a line of text too, where CommonMark continues
+// the paragraph: the parsers differ there, so doubtful() then returns true. After a code block,
+// call reset().
+function htmlBlocks() {
+  let end = null;
+  let stays = null;
+  let text = false;
+  let doubt = false;
+  let bare = false;
+  return {
+    reset() {
+      text = false;
+    },
+    doubtful: () => doubt,
+    // begins returns whether the last step started a block of HTML on a line with no quote or
+    // list mark before the tag, so that the check cannot tell where the item that holds it ends.
+    begins: () => bare,
+    step(line) {
+      bare = false;
+      const empty = /^[ \t]*$/.test(line);
+      const before = text;
+      text = !empty;
+      if (end && stays && !stays(line)) end = null;
+      if (end === 'blank') {
+        if (!empty) return true;
+        end = null;
+      } else if (end) {
+        if (end.test(line)) end = null;
+        return true;
+      }
+      if (empty) return false;
+      const prefix = CONTAINER.exec(line)[0];
+      const rest = line.slice(prefix.length);
+      const found = HTML_ENDS.find(([start]) => start.test(rest));
+      const seven = !found && !HTML_BLOCK_TAG.test(rest) && HTML_TAG_LINE.test(rest);
+      if (!found && !seven && !HTML_BLOCK_TAG.test(rest)) return false;
+      if (seven && before) doubt = true;
+      bare = !/\S/.test(prefix);
+      end = 'blank';
+      // The end mark may overlap the start, as in "<!-->", where the block ends on its line.
+      if (found) end = found[1].test(rest) ? null : found[1];
+      stays = null;
+      if (prefix.includes('>')) stays = (one) => /^\s*>/.test(one);
+      else if (/\S/.test(prefix)) {
+        const column = prefixColumn(prefix);
+        stays = (one) => /^[ \t]*$/.test(one) || indentOf(one) >= column;
+      }
+      return true;
+    },
+  };
+}
+
+// A thematic break, such as `***` or `- - -`.
+const BREAK = /^ {0,3}([-*_])( *\1){2,} *$/;
+// A line that starts a quote, a heading, a break or a list item, which no paragraph continues.
+const BLOCK_START =
+  /^ {0,3}(?:>|#{1,6}(?:\s|$)|(?:[-*+]|\d{1,9}[.)])(?:\s|$))|^ {0,3}([-*_])( *\1){2,} *$/;
+// A list mark with nothing after it.
+const MARK_ONLY = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]*$/;
+// startsHtml returns whether text, a line with no marks before it, starts a block of HTML of the
+// kinds 1 to 6, which end a paragraph. A tag alone on a line (kind 7) ends none, so a line that
+// starts with "<" and is no such start is text that goes on with the paragraph.
+function startsHtml(text) {
+  const rest = text.replace(/^[ \t]+/, '');
+  return HTML_ENDS.some(([start]) => start.test(rest)) || HTML_BLOCK_TAG.test(rest);
+}
+
+// itemColumn returns the column where the text of a list item starts, for a line that starts
+// with its list mark, or 0 for any other line. A mark with no text after it, or with 5 or more
+// spaces after it, has its text 1 column after the mark.
+function itemColumn(text) {
+  const found = /^([ \t]*)([-*+]|\d{1,9}[.)])(?=[ \t]|$)([ \t]*)/.exec(text);
+  if (!found || BREAK.test(text)) return 0;
+  const start = indentOf(found[1]) + found[2].length;
+  const gap = indentOf(found[3]);
+  return found[0].length === text.length || gap >= 5 ? start + 1 : start + gap;
+}
+
+// markerFence returns the fence that a list item opens on the line of its list mark, such as
+// "- ```js", or null. It has doubt: true when the mark is a number other than 1 after a line of
+// a paragraph, which no paragraph lets a list start with, so the line may be text, not an item.
+function markerFence(text, paragraph) {
+  const found = /^[ \t]*([-*+]|\d{1,9}[.)])([ \t]+)/.exec(text);
+  if (!found || indentOf(found[2]) > 4 || BREAK.test(text)) return null;
+  const opens = fence(text.slice(found[0].length));
+  if (!opens) return null;
+  return paragraph && /^\d/.test(found[1]) && parseInt(found[1], 10) !== 1
+    ? { ...opens, doubt: true } : opens;
+}
+
+// nesting returns the levels that the quote marks of line and its list items by indentation
+// make, and keeps in state the number of quote marks and the columns of the items inside them,
+// which a change in the number of quote marks empties. A blank line has none.
+function nesting(line, state) {
+  const mark = /[ \t]*>[ \t]?/y;
+  let count = 0;
+  let end = 0;
+  for (let found = mark.exec(line); found; found = mark.exec(line)) {
+    count += 1;
+    end = mark.lastIndex;
+  }
+  const rest = line.slice(end);
+  if (/^[ \t]*$/.test(rest)) return count ? count + state.inside.length : 0;
+  if (count !== state.quotes) {
+    state.inside.length = 0;
+    state.quotes = count;
+  }
+  while (state.inside.length && indentOf(rest) < state.inside[state.inside.length - 1]) {
+    state.inside.pop();
+  }
+  const column = itemColumn(rest);
+  if (column) state.inside.push(column);
+  return count + state.inside.length;
+}
+
+// lines returns each line with whether it opens, closes or sits inside a code block, the first
+// word of that block, whether its info string has an "&", and edge, "open" or "close", for the
+// line that opens or closes the block. A line in a block of HTML opens no code block. A code
+// block in a list item ends at the first line that is not blank and starts left of the text of
+// the item, as the item ends there. A closing line has at least as many marks as the opening
+// line and nothing after them but spaces and tabs.
+// Where the parsers may differ, from the line that shows it, no code block opens and each line
+// has uncertain: true, so that the words count. The parsers may differ where a code block in a
+// list item ends with the item (the list marks that a paragraph lets by are not all known) and
+// where a tag alone on a line follows a line of text.
 function lines(text) {
   const out = [];
+  const html = htmlBlocks();
+  const items = [];
+  // The mark of each item in items, "." or ")" for a number, else "".
+  const delims = [];
+  // The nesting that quote marks and indentation make, to count its levels.
+  const nest = { quotes: 0, inside: [] };
   let open = null;
+  let uncertain = false;
+  let paragraph = false;
+  let bare = false;
   for (const line of lineList(text)) {
-    if (open) {
-      const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
-      out.push({ text: line, fenced: true, info: open.info });
-      if (close && close[1][0] === open.mark && close[1].length >= open.size) open = null;
-      continue;
+    const empty = /^[ \t]*$/.test(line);
+    // A list item that starts with a blank line ends at a second one, so the lines after it are
+    // outside the item, which the stack of items does not know: the check counts every line.
+    if (!open) {
+      if (empty && bare) uncertain = true;
+      bare = !empty && MARK_ONLY.test(line);
     }
-    open = fence(line);
-    out.push({ text: line, fenced: Boolean(open), info: open ? open.info : '' });
+    if (open) {
+      if (empty || indentOf(line) >= open.column) {
+        const close = /^([ \t]*)(`{3,}|~{3,})\s*$/.exec(line);
+        const ends = close && indentOf(close[1]) <= open.column + 3 &&
+          close[2][0] === open.mark && close[2].length >= open.size;
+        // A tab in the indent of a line of a code block in a list item may count as a different
+        // number of columns than the check reads, so it may or may not end the block: count on.
+        if (open.column && /^ *\t/.test(line)) uncertain = true;
+        out.push({
+          text: line,
+          fenced: true,
+          info: open.info,
+          amp: open.amp,
+          ...(ends ? { edge: 'close' } : {}),
+        });
+        if (ends) open = null;
+        paragraph = false;
+        html.reset();
+        continue;
+      }
+      open = null;
+      uncertain = true;
+    }
+    // A list mark with no text cannot interrupt a paragraph, so after a line of text it is text
+    // and the line after it goes on with the paragraph: the check counts every line from there.
+    if (paragraph && MARK_ONLY.test(line)) uncertain = true;
+    // A number other than 1 after a line of text starts no list, unless it goes on the list of
+    // the item that its line leaves with the same mark. The check cannot tell the other cases
+    // from a list, so it counts every line from there.
+    const numbered = /^([ \t]*)(\d{1,9})([.)])(?=[ \t]|$)/.exec(line);
+    if (numbered && paragraph && Number(numbered[2]) !== 1) {
+      let at = items.length;
+      while (at > 0 && indentOf(line) < items[at - 1]) at -= 1;
+      if (at === items.length || delims[at] !== numbered[3]) uncertain = true;
+    }
+    const inHtml = html.step(line);
+    if (html.doubtful()) uncertain = true;
+    // A block of HTML in a list item that starts on a line with no mark has the end of the item
+    // as its end, which the check reads only for a line with a mark: it counts the lines.
+    const top = items.length ? items[items.length - 1] : Infinity;
+    const bareInItem = html.begins() && indentOf(line) >= top;
+    if (bareInItem) uncertain = true;
+    open = !uncertain && !inHtml && !empty ? fence(line) || markerFence(line, paragraph) : null;
+    if (open && open.doubt) {
+      open = null;
+      uncertain = true;
+    }
+    if (empty) {
+      paragraph = false;
+    } else {
+      // A line that follows a paragraph line and starts no block may continue the paragraph
+      // of a list item, where it starts left of the item and leaves it.
+      const lazy = paragraph && !open && !BLOCK_START.test(line) && !startsHtml(line);
+      while (!lazy && items.length && indentOf(line) < items[items.length - 1]) {
+        items.pop();
+        delims.pop();
+      }
+      const column = itemColumn(line);
+      if (column) {
+        items.push(column);
+        delims.push((/^[ \t]*\d{1,9}([.)])/.exec(line) || ['', ''])[1]);
+      }
+      // In a list item, a fence or a tag is indented from the text of the item, not from the
+      // line start, so a line that starts 4 or more columns in may open a block that fence()
+      // and the reading of HTML miss. So may a tag after a list mark and 5 or more columns of
+      // space, where the text of the item starts right after the mark.
+      const deep = items.length && !open && !inHtml && indentOf(line) >= 4;
+      if (deep && /^[ \t]*(`{3,}|~{3,}|<)/.test(line)) uncertain = true;
+      const far = /^[ \t]*(?:[-*+]|\d{1,9}[.)])([ \t]+)</.exec(line);
+      if (far && indentOf(far[1]) >= 5) uncertain = true;
+      paragraph = !open && !inHtml && headingLevel(line) === 0 && !BREAK.test(line) &&
+        !MARK_ONLY.test(line);
+    }
+    if (open) {
+      html.reset();
+      open.column = items.length ? items[items.length - 1] : 0;
+    }
+    const levels = nesting(line, nest);
+    out.push({
+      text: line,
+      fenced: Boolean(open),
+      info: open ? open.info : '',
+      amp: Boolean(open && open.amp),
+      ...(open ? { edge: 'open' } : {}),
+      ...(uncertain ? { uncertain: true } : {}),
+      ...(Math.max(items.length, levels) >= MAX_MARKS
+        ? { levels: Math.max(items.length, levels) } : {}),
+    });
   }
   return out;
 }
@@ -216,26 +480,180 @@ function sentenceParts(text, { abbreviations = ABBREVIATIONS, unlessCapital = ne
 
 const sentences = (text, options) => sentenceParts(text, options).length;
 
-// fenceLine reports whether a line of a code block opens or closes it.
-const fenceLine = (text) => Boolean(fence(text)) || /^ {0,3}(`{3,}|~{3,})\s*$/.test(text);
+// The columns that the white space at the start of a line takes, with a tab as far as the next
+// multiple of 4.
+function indentOf(text) {
+  let column = 0;
+  for (const char of text) {
+    if (char === ' ') column += 1;
+    else if (char === '\t') column += 4 - (column % 4);
+    else break;
+  }
+  return column;
+}
+
+// Qory Apiary trims a table cell of these 4 characters only, not of every white space.
+const SPACE = new Set([' ', '\t', '\v', '\f']);
+// trailing returns how many characters at the end of text are of those 4.
+function trailing(text) {
+  let count = 0;
+  while (count < text.length && SPACE.has(text[text.length - 1 - count])) count += 1;
+  return count;
+}
+// A regular expression with a trim of `[ \t]+$` takes quadratic time on a long run of spaces
+// that no other character ends, so the trim is a loop.
+function trimCell(cell) {
+  let from = 0;
+  let to = cell.length;
+  while (from < to && SPACE.has(cell[from])) from += 1;
+  while (to > from && SPACE.has(cell[to - 1])) to -= 1;
+  return cell.slice(from, to);
+}
+
+// tableCells returns the cells of a table line like cells, trimmed as Qory Apiary trims them. A
+// line with only a `|` has none.
+function tableCells(text) {
+  const line = trimCell(text);
+  if (line === '|') return [];
+  return line
+    .replace(/^\|/, '')
+    .replace(/(^|[^\\])\|$/, '$1')
+    .split(/(?<!\\)\|/)
+    .map(trimCell);
+}
+
+// A line of cells made of dashes, with or without `|` at its ends: the shape of a delimiter row.
+// The match runs on the text without its trailing spaces, as no star of spaces meets another.
+const DELIMITER_BODY = /^[ \t]*(?:\|[ \t]*)?:?-+:?(?:[ \t]*\|[ \t]*:?-+:?)*[ \t]*\|?$/;
+const delimiterShaped = (text) => DELIMITER_BODY.test(text.slice(0, text.length - trailing(text)));
+
+// tableLines returns, for each line of list, whether it is a row of a table as Qory Apiary shows
+// it. A table is a header line that starts with `|` and at most 3 spaces and has a cell, and
+// right after it a delimiter row with as many cells, indented as far. The table goes on over the
+// lines that start with `|` and are indented as far as the header, but not over a line with only
+// a `|`.
+// The check cannot tell whether a table starts in a quote, in a list item, after an HTML block,
+// after a delimiter-shaped line that opened no table, or in the paragraph of a list item, so it
+// starts none there until the next blank line, and the lines count. The lines of an HTML block
+// count too, and so do all lines of a text where lines() is uncertain.
+function tableLines(list) {
+  const rows = new Array(list.length).fill(false);
+  if (list.some((line) => line.uncertain)) return rows;
+  const pipe = (line) => !line.fenced && /^ {0,3}\|/.test(line.text);
+  // A blank line has only spaces and tabs, as in CommonMark: trim also drops \v and \f.
+  const empty = (line) => /^[ \t]*$/.test(line.text);
+  const html = htmlBlocks();
+  let blocked = false;
+  let inTable = false;
+  let poisoned = false;
+  let item = false;
+  let gap = false;
+  let head = 0;
+  // follow tracks the list item at a line that is not blank: a line after a blank line that is no
+  // part of the item ends it, and a marker starts one.
+  const follow = (text) => {
+    const marker = /^\s*([-*+]|\d+[.)])(\s|$)/.test(text);
+    if (item && gap && indentOf(text) < 2 && !marker) item = false;
+    gap = false;
+    if (marker) item = true;
+  };
+  for (let at = 0; at < list.length; at += 1) {
+    const line = list[at];
+    if (line.fenced) {
+      inTable = false;
+      gap = false;
+      html.reset();
+      // A code block that a list mark opens starts the list item that the lines after it are in.
+      if (line.edge === 'open') follow(line.text);
+    } else if (html.step(line.text)) {
+      blocked = true;
+      inTable = false;
+      follow(line.text);
+    } else if (empty(line)) {
+      inTable = false;
+      poisoned = false;
+      gap = true;
+      blocked = false;
+    } else {
+      const here = indentOf(line.text);
+      follow(line.text);
+      if (/^\s*(>|[-*+](\s|$)|\d+[.)](\s|$)|<)/.test(line.text)) {
+        blocked = true;
+        inTable = false;
+      } else if (blocked) {
+        inTable = false;
+      } else {
+        if (inTable && pipe(line) && !/^ *\|[ \t\v\f]*$/.test(line.text) && here >= head) {
+          rows[at] = true;
+          continue;
+        }
+        // The line that ends a table is read as any other line.
+        inTable = false;
+        let opened = false;
+        const shaped = delimiterShaped(line.text);
+        // A delimiter-shaped line in a paragraph that opened no table with the line before it.
+        if (shaped && at > 0 && !empty(list[at - 1]) && !list[at - 1].fenced) poisoned = true;
+        if (!poisoned && pipe(line) && at + 1 < list.length && pipe(list[at + 1])) {
+          const header = tableCells(line.text);
+          const next = tableCells(list[at + 1].text);
+          if (header.length > 0 && delimiter(next) && next.length === header.length &&
+            indentOf(list[at + 1].text) >= here) {
+            rows[at] = true;
+            rows[at + 1] = true;
+            at += 1;
+            inTable = true;
+            head = here;
+            opened = true;
+          }
+        }
+        if (!opened && shaped) poisoned = true;
+        if (!opened && item && here >= 2) blocked = true;
+      }
+    }
+  }
+  return rows;
+}
+
+// tooManyCells reports whether text has more table cells than Qory Apiary formats: it shows such
+// a text as written. Its count is the lines times the most `|` on a line plus 1, and 0 with no
+// `|` (`table_cells` and `@max_cells` of `ArtifactLive.Markdown` in qoryai/apiary).
+function tooManyCells(text) {
+  let lines = 1;
+  let here = 0;
+  let most = 0;
+  for (let at = 0; at < text.length; at += 1) {
+    const code = text.charCodeAt(at);
+    if (code === 124) here += 1;
+    else if (code === 10 || (code === 13 && text.charCodeAt(at + 1) !== 10)) {
+      lines += 1;
+      most = Math.max(most, here);
+      here = 0;
+    }
+  }
+  most = Math.max(most, here);
+  return most > 0 && (most + 1) * lines > 50000;
+}
 
 // counted returns the text whose words count, as
 // artifact-text (SKILL.md:58-60, 84-88: "A picture is a Mermaid diagram") counts a Markdown
 // document: no Mermaid block, image or table line, and with background, no background after its
-// first paragraph. Other code blocks count.
-function counted(text, background) {
+// first paragraph. Other code blocks count. With options.tables, a line that starts with `|`
+// counts unless tableLines shows it as a table row, and every such line counts in a text with
+// more table cells than tooManyCells allows.
+function counted(text, background, options = {}) {
   const kept = [];
   const list = lines(text);
+  const rows = options.tables ? (tooManyCells(text) ? [] : tableLines(list)) : null;
   let section = '';
   let paragraph = 'before';
-  for (const line of list) {
+  for (const [at, line] of list.entries()) {
     const level = line.fenced ? 0 : headingLevel(line.text);
     if (level === 2) {
       section = line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase();
       paragraph = 'before';
     }
     if (line.fenced) {
-      if (line.info !== 'mermaid' && !fenceLine(line.text)) kept.push(line.text);
+      if (line.info !== 'mermaid' && !line.edge) kept.push(line.text);
       continue;
     }
     if (background && section === 'background' && headingLevel(line.text) !== 2) {
@@ -243,7 +661,7 @@ function counted(text, background) {
       else if (paragraph === 'in' && !line.text.trim()) paragraph = 'after';
       if (paragraph === 'after') continue;
     }
-    if (!/^\s*\|/.test(line.text)) kept.push(line.text);
+    if (!(rows ? rows[at] : /^\s*\|/.test(line.text))) kept.push(line.text);
   }
   return kept.join('\n');
 }
@@ -367,17 +785,114 @@ function address(addr) {
   return null;
 }
 
+// imageStarts returns the first image start of each kind on each line of text, as
+// { line, text, mark }: a "![" with an even number of backslashes right before it (an odd number
+// makes it a literal "![", and "\\![" has an even number), and a "<img" in any case, whatever
+// comes before it. It reads no Markdown, so that no form of an image is missed: it also finds a
+// start in a code block, in inline code, in a quote and in a list item.
+function imageStarts(text) {
+  const found = [];
+  lineList(text).forEach((line, index) => {
+    let bang = line.indexOf('![');
+    while (bang !== -1) {
+      let slashes = 0;
+      while (bang - slashes > 0 && line[bang - slashes - 1] === '\\') slashes += 1;
+      if (slashes % 2 === 0) break;
+      bang = line.indexOf('![', bang + 1);
+    }
+    if (bang !== -1) found.push({ line: index + 1, text: line, mark: '![' });
+    if (/<img/i.test(line)) found.push({ line: index + 1, text: line, mark: '<img' });
+  });
+  return found;
+}
+
+// The most quote marks and list marks that a line may start with, and the most levels of
+// nesting by indentation. From 128 levels of nesting, Qory Apiary shows the whole text as plain
+// text. The check refuses 60, to stay far from it.
+const MAX_MARKS = 60;
+const MARK = /[ \t]*(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t]|$))/y;
+
+// marks returns how many quote marks and list marks, each with the spaces before it, a line
+// starts with.
+function marks(line) {
+  MARK.lastIndex = 0;
+  let count = 0;
+  while (MARK.test(line)) count += 1;
+  return count;
+}
+
+// shownAsText checks the text that is the member where of file, as every Markdown text needs
+// it: Qory Apiary shows a text as plain text when a line starts with 60 or more quote and list
+// marks, or sits 60 or more list items deep by its indentation, and when the text has U+FFFD,
+// the character that stands for a byte that is no UTF-8.
+// shortcut: the nesting of inline marks, such as emphasis in emphasis or a link in a link, also
+// reaches the limit of 128 levels and is not counted. Count it when such a text is shown as
+// plain text.
+function shownAsText(run, file, where, text) {
+  const at = where ? `${where} of ${file}` : file;
+  const rows = lineList(text);
+  const refuse = (fix, index) => {
+    const spaced = rows[index].replace(/[ \t]+/g, ' ').trimStart();
+    const shown = [...spaced.slice(0, 160)].slice(0, 40).join('');
+    const whole = fix.brief === at ? '' : `\nThe text is in ${at}.`;
+    run.find(`${fix.line}\nLine ${index + 1} is ${quote(shown)}.${whole}`);
+  };
+  // The first line of a finding stays within 100 characters, so a long place goes to a line
+  // after it.
+  const brief = (room) => short(at, Math.max(12, 100 - room));
+  const nested = lines(text).map((line) => line.levels || 0);
+  const levels = rows.map((line, index) =>
+    Math.max(BREAK.test(line) ? 0 : marks(line), nested[index]));
+  const deep = levels.findIndex((count) => count >= MAX_MARKS);
+  if (deep !== -1) {
+    const tail = `: line ${deep + 1} has ${levels[deep]} levels, and the check allows 59.`;
+    const place = brief(29 + tail.length);
+    refuse({ brief: place, line: `Remove the deep nesting from ${place}${tail}` }, deep);
+  }
+  const broken = rows.findIndex((line) => line.includes('\uFFFD'));
+  if (broken !== -1) {
+    const place = brief(30 + 42);
+    const fix = `Save ${place} as UTF-8: Qory Apiary shows it as plain text.`;
+    refuse({ brief: place, line: fix }, broken);
+  }
+}
+
 // links checks each link and image of Markdown text outside code. images(addr) returns
 // whether the skill for the artifact allows that image, and links whether it allows a link.
-function links(run, file, where, text, { images = () => false, allowLinks = true } = {}) {
+// With everyImage, the check refuses each "![" and "<img", as imageStarts() finds them, and
+// images(addr) decides on none of them.
+function links(
+  run,
+  file,
+  where,
+  text,
+  { images = () => false, allowLinks = true, everyImage = false } = {},
+) {
   run.did('links');
+  shownAsText(run, file, where, text);
   const at = where ? `${where} of ${file}` : file;
+  if (everyImage) {
+    for (const start of imageStarts(text)) {
+      const shown = [...start.text.slice(0, 160)].slice(0, 40).join('');
+      run.find(`Remove \`![\` and \`<img\` from ${short(at)}, also inside code.\n` +
+        `Line ${start.line} is ${quote(shown)}.\n` +
+        'Outside code, write `\\![` for a literal `![`.');
+    }
+  }
   for (const line of lines(text)) {
     if (line.fenced) continue;
     let rest = withoutCode(line.text);
     const found = [];
-    rest = rest.replace(INLINE, (all, bang, _text, _space, addr) => {
-      found.push({ image: bang === '!', addr });
+    rest = rest.replace(INLINE, (all, bang, _text, _space, addr, ...tail) => {
+      // With everyImage, imageStarts() refuses each "![" that an odd number of backslashes does
+      // not escape. A match whose "!" is escaped is a link and gets the checks of a link.
+      let slashes = 0;
+      const offset = tail[tail.length - 2];
+      while (bang && everyImage && offset - slashes > 0 && rest[offset - slashes - 1] === '\\') {
+        slashes += 1;
+      }
+      const image = bang === '!' && !(everyImage && slashes % 2 === 1);
+      if (!everyImage || !image) found.push({ image, addr });
       return ' ';
     });
     rest = rest.replace(/<([a-z][a-z0-9+.-]*:[^<>\s]*)>/gi, (all, addr) => {
@@ -522,10 +1037,11 @@ function summary(run, file, text) {
 
 // wordLimit checks at most 450 words:
 // artifact-text (SKILL.md:84-88: "Keep the Markdown document to at most 450 words"), counted
-// without the background after its first paragraph when background is true.
-function wordLimit(run, file, text, background) {
+// without the background after its first paragraph when background is true. The options are
+// those of counted.
+function wordLimit(run, file, text, background, options) {
   run.did('word limit');
-  const count = words(counted(text, background));
+  const count = words(counted(text, background, options));
   if (count > 450) run.find(`Cut ${file} to 450 words: it has ${count}.`);
 }
 
@@ -547,6 +1063,6 @@ function points(run, file, list, title) {
 module.exports = {
   lineList, headingLevel, fence, lines, sections, blank, isRow, isPoint, cells, table, delimiter,
   firstFilled, same, headings, INLINE, plain, codeSpans, withoutCode, words, ABBREVIATIONS,
-  sentences, sentenceParts, fenceLine, counted, MARKDOWN, characters, address, links,
-  machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId,
+  sentences, sentenceParts, counted, MARKDOWN, characters, address, links,
+  machinePattern, machinePaths, topSections, summary, wordLimit, points, bareId, shownAsText,
 };
