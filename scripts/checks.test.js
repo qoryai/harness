@@ -3685,7 +3685,7 @@ test('report: each agent of the modules has a shape that the script reads', () =
       `${process.env.QORY_SOURCE || 'not set'}.`);
   }
   const schema = require(path.join(MODULES,
-    'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
+    'core/skills/running-a-workflow/lib/schema.cjs'));
   const loaded = { file: REPORT_SCHEMA_FILE,
     schema: JSON.parse(fs.readFileSync(REPORT_SCHEMA_FILE, 'utf8')) };
   loaded.patterns = schema.compile(loaded.schema, REPORT_SCHEMA_FILE);

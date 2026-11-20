@@ -19,7 +19,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const schema = require('./schema.cjs');
+const schema = require('./shown.cjs');
 const secrets = require('./secrets.cjs');
 
 // The words of the file whose path --inputs takes, for a source and a line.

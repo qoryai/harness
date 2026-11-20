@@ -1,8 +1,8 @@
-// The check of a JSON document against a JSON Schema of the folder schemas/: for a custom type,
-// the json_schema of the type in process.yaml, and for the standard types acceptance-criteria
-// and verification, the format of qory's contract. It reads the keywords that those schemas use,
-// in the forms that they use, and throws for any other keyword or form, so that a schema that
-// the check would skip or misread never passes a document by mistake.
+// The check of a JSON document against a JSON Schema, for the type of any module: the schema
+// that a module ships in a folder of schema files, or that qory gives in the inputs file. It
+// reads the keywords that those schemas use, in the forms that they use, and throws for any
+// other keyword or form, so that a schema that the check would skip or misread never passes a
+// document by mistake.
 'use strict';
 
 const fs = require('node:fs');
@@ -58,7 +58,7 @@ function brief(text, size) {
 }
 
 // The most levels of objects and lists that a document of a structured type may nest. The
-// deepest schema of schemas/ needs 5 levels, and the readers of a document, such as canonical,
+// deepest schema of the software module needs 5 levels, and the readers of a document, such as canonical,
 // recurse once per level, so 64 leaves room for a schema to grow and keeps every reader far
 // from the limit of the call stack.
 const MAX_DEPTH = 64;
@@ -122,16 +122,16 @@ const scalar = (value) => value === null || ['string', 'number', 'boolean'].incl
 // wrongly, so compile throws for each other form.
 const FORMS = {
   type: {
-    test: (value) => typeof value === 'string' && Object.hasOwn(WORDS, value),
+    accepts: (value) => typeof value === 'string' && Object.hasOwn(WORDS, value),
     text: 'one type name',
   },
-  additionalProperties: { test: (value) => typeof value === 'boolean', text: 'true or false' },
+  additionalProperties: { accepts: (value) => typeof value === 'boolean', text: 'true or false' },
   enum: {
-    test: (value) => Array.isArray(value) && value.every(scalar),
+    accepts: (value) => Array.isArray(value) && value.every(scalar),
     text: 'a list of text, numbers, true, false or null',
   },
-  const: { test: scalar, text: 'text, a number, true, false or null' },
-  uniqueItems: { test: (value) => value === true, text: 'true' },
+  const: { accepts: scalar, text: 'text, a number, true, false or null' },
+  uniqueItems: { accepts: (value) => value === true, text: 'true' },
 };
 
 // compile checks that each keyword of schema is one that this check reads, in a form that it
@@ -148,7 +148,7 @@ function compile(schema, file) {
           'is one that lib/schema.cjs does not check.');
       }
       const form = Object.hasOwn(FORMS, key) ? FORMS[key] : null;
-      if (form && !form.test(value)) {
+      if (form && !form.accepts(value)) {
         throw new Error(`Fix ${path.basename(file)}.\nWrite ${key} at ${where} of ${file} as ` +
           `${form.text}, the only form that lib/schema.cjs checks.`);
       }
@@ -166,9 +166,9 @@ function compile(schema, file) {
   return patterns;
 }
 
-// load reads schemas/<type>.schema.json of this skill folder.
-function load(type) {
-  const file = path.join(__dirname, '..', 'schemas', `${type}.schema.json`);
+// load reads <folder>/<type>.schema.json.
+function load(folder, type) {
+  const file = path.join(folder, `${type}.schema.json`);
   const schema = JSON.parse(fs.readFileSync(file, 'utf8'));
   return { file, schema, patterns: compile(schema, file) };
 }
@@ -271,24 +271,24 @@ function errors(loaded, value, file, def) {
     }
     for (const sub of schema.allOf || []) visit(sub, node, at, found);
     if (schema.if) {
-      const test = [];
-      visit(schema.if, node, at, test);
-      if (!test.length && schema.then) visit(schema.then, node, at, found);
+      const trial = [];
+      visit(schema.if, node, at, trial);
+      if (!trial.length && schema.then) visit(schema.then, node, at, found);
     }
     if (schema.oneOf) {
       const fits = schema.oneOf.filter((sub) => {
-        const test = [];
-        visit(sub, node, at, test);
-        return !test.length;
+        const trial = [];
+        visit(sub, node, at, trial);
+        return !trial.length;
       }).length;
       if (fits !== 1) {
         add('Write', `in exactly one of its ${schema.oneOf.length} forms`, `It fits ${fits}`);
       }
     }
     if (schema.not) {
-      const test = [];
-      visit(schema.not, node, at, test);
-      if (!test.length) add('Write', 'in another form', `The schema excludes ${shown(node)}`);
+      const trial = [];
+      visit(schema.not, node, at, trial);
+      if (!trial.length) add('Write', 'in another form', `The schema excludes ${shown(node)}`);
     }
   };
   visit(def ? resolve(`#/$defs/${def}`) : root, value, '', out);

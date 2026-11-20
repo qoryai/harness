@@ -27,7 +27,7 @@ const path = require('node:path');
 
 const git = require('../lib/git.cjs');
 const { takeInputs } = require('../lib/limits.cjs');
-const schema = require('../lib/schema.cjs');
+const { SCHEMAS } = require('../lib/template.cjs');
 const { INPUTS_USAGE } = require('./run.cjs');
 
 // The most bytes of the hand-off file and of a step, which qory reads.
@@ -35,14 +35,14 @@ const MAX_FILE = 262144;
 const MAX_STEP = 128;
 
 const TEXT = 'submission.md';
-const SUBMISSION = schema.load('submission');
-// The schema's pattern for a title lets through some characters that qory does not accept in
-// a title: the Unicode class Cf, U+2028 and U+2029 (cmd/submitcontract.go of qory).
-const TITLE_OK = new RegExp(SUBMISSION.schema.$defs.text.properties.title.pattern);
 const TITLE_REFUSED = /[\p{Cf}\u2028\u2029]/u;
 
 module.exports = (lib) => {
-  const { Context, Missing, artifactFolder, plural, short } = lib;
+  const { Context, Missing, artifactFolder, plural, schema, short } = lib;
+  const SUBMISSION = schema.load(SCHEMAS, 'submission');
+  // The schema's pattern for a title lets through some characters that qory does not accept in
+  // a title: the Unicode class Cf, U+2028 and U+2029 (cmd/submitcontract.go of qory).
+  const TITLE_OK = new RegExp(SUBMISSION.schema.$defs.text.properties.title.pattern);
 
   // readText returns { title, description } of .reports/submission.md in root, or the
   // findings of a text that is missing or breaks a rule.

@@ -21,7 +21,9 @@ const TESTDATA = path.join(MODULES, 'software-factory/testdata');
 const PROCESS = path.join(MODULES, 'software-factory/process.yaml');
 const MANIFEST = path.join(MODULES, 'software-factory/qory-module.yaml');
 const SAMPLES = require('./testdata/build-verify-samples.json');
-const schema = require(path.join(SKILL, 'lib/schema.cjs'));
+const core = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/schema.cjs'));
+// schema.load takes the type alone here: the schemas of the software module.
+const schema = { ...core, load: (type) => core.load(path.join(SKILL, 'schemas'), type) };
 const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
 

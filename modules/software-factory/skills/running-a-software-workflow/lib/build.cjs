@@ -7,12 +7,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const schema = require('./schema.cjs');
+const { SCHEMAS } = require('./template.cjs');
 
 module.exports = (lib) => {
   const {
     Missing, cut, headings, isObject, isRow, parseJson, quote, readFile, same, sections, table,
-    topSections, lines, lacks, sentenceParts, short: brief,
+    topSections, lines, lacks, sentenceParts, short: brief, schema,
   } = lib;
 
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
@@ -41,7 +41,7 @@ module.exports = (lib) => {
   function jsonFile(run, type, file, text) {
     const data = parseJson(text, file);
     run.did('schema');
-    const found = schema.errors(schema.load(type), data, file);
+    const found = schema.errors(schema.load(SCHEMAS, type), data, file);
     for (const line of found) run.find(line);
     return found.length ? null : data;
   }
