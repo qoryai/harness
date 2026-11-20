@@ -416,6 +416,25 @@ verdict even when the session recorded none. When the run has `points.json` and 
 already, the hook checks nothing and runs no verdict. When that command fails, the session
 still ends. A runtime with no such hook ends the session with no check.
 
+The end check also checks each output that the stage declares, for a type of any module.
+qory lists them in `qory.outputs` of the `inputs.json` of the session: one entry
+`{type, required, schema}` for each output. The check reads
+`.qory/outbox/<type>/<type>.json` under the top of the working folder, such as
+`.qory/outbox/reply/reply.json`, and finds:
+
+- a required output with no file, a file that is a link, and a file of more than 1 MiB;
+- a member that qory sets or fills after the push, such as `target` or a member that the
+  schema marks `x-qory-fill`: the session writes none, so remove it;
+- a whole number written with a fraction or an exponent, such as `34.0` or `3E1`, a whole
+  number above 9223372036854775807, and a null where the schema gives no type;
+- a pattern check that runs longer than 10 seconds in all: the check stops it in a child
+  process, and the finding names the type and the member;
+- each finding of the check that the module declares for the type, as `check <type>`
+  prints it.
+
+Fix each finding as for a draft: write the output file again, then end again. With no
+`qory.outputs`, the check finds nothing.
+
 In a stage that has reviewers, the hook runs no verdict command: qory runs the round of
 review and sends the verdict. The hook reads that the stage has reviewers from the
 inputs.json that qory wrote for the session, never from a file of the artifact folder. At its

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pull request, version 1",
+  "description": "The change of a Build run: its title and text, its commits and their steps.",
+  "type": "object",
+  "required": [
+    "target",
+    "title",
+    "text",
+    "commits",
+    "head",
+    "base",
+    "branch",
+    "base_branch",
+    "steps",
+    "draft"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "title": "Target",
+      "$ref": "#/$defs/reference"
+    },
+    "title": {
+      "title": "Title",
+      "$ref": "#/$defs/title"
+    },
+    "text": {
+      "title": "Description",
+      "$ref": "#/$defs/text"
+    },
+    "commits": {
+      "title": "Commits",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/commit"
+      },
+      "x-qory-fill": "pushed-commits"
+    },
+    "head": {
+      "title": "Head commit",
+      "$ref": "#/$defs/commit",
+      "x-qory-fill": "pushed-head"
+    },
+    "base": {
+      "title": "Base commit",
+      "$ref": "#/$defs/commit",
+      "x-qory-fill": "pushed-base"
+    },
+    "branch": {
+      "title": "Branch",
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
+      "not": {
+        "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
+      },
+      "x-qory-fill": "pushed-branch"
+    },
+    "base_branch": {
+      "title": "Base branch",
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
+      "not": {
+        "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
+      },
+      "x-qory-fill": "pushed-base-branch"
+    },
+    "earlier_commits": {
+      "title": "Earlier commits",
+      "type": "integer",
+      "minimum": 1,
+      "x-qory-fill": "pushed-commits-left-out"
+    },
+    "steps": {
+      "title": "Steps",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "commit",
+          "step"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "commit": {
+            "type": "string",
+            "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "step": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\x00]*$"
+          }
+        }
+      }
+    },
+    "draft": {
+      "title": "Draft",
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "title": {
+      "description": "One line of text.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]+$",
+      "allOf": [
+        {
+          "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
+        }
+      ]
+    },
+    "text": {
+      "description": "Markdown.",
+      "type": "string",
+      "maxLength": 20000,
+      "pattern": "^[^\\x00]*$",
+      "not": {
+        "pattern": "(^|\\n)<!-- qory:(start|end) -->"
+      }
+    },
+    "reference": {
+      "description": "An object in a system: a collection, and its address when it has one.",
+      "type": "object",
+      "required": [
+        "collection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "collection": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+        },
+        "address": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "system": {
+              "type": "string",
+              "pattern": "^[a-z0-9.-]{1,253}$"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+            }
+          }
+        }
+      }
+    },
+    "commit": {
+      "description": "A commit: the repository as the collection, and the commit id as the path.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/reference"
+        },
+        {
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "properties": {
+                "path": {
+                  "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

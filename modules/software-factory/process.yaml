@@ -56,7 +56,9 @@ process:
         spec. The stage ends with the change committed on one branch in each repository.
       inputs: []
       sequence: []
-      outputs: []
+      outputs:
+        - type: pull-request
+          required: true
       gate: {kind: person, approvers: members}
     - id: st_m1mqbeywdg
       name: Verify
@@ -77,7 +79,6 @@ process:
       sequence: []
       outputs: []
       gate: {kind: person, approvers: members}
-submit: {type: submission, send: end_of_run}
 artifact_types:
   - name: acceptance-criteria
   - name: verification
@@ -94,318 +95,197 @@ artifact_types:
     base_view: document
     size_limit: 1048576
     max_files: 1
-  - name: submission
+  - name: pull-request
     base_view: structured
-    size_limit: 1048576
+    size_limit: 786432
     max_files: 1
-    # The same JSON Schema is in running-a-software-workflow/schemas/submission.schema.json.
+    # The same JSON Schema is in running-a-software-workflow/schemas/pull-request.schema.json.
+    # shortcut: the primitives title, text and reference are written out in $defs, and each
+    # member refers to them there; refer to the harness contract's primitives once it has them.
     json_schema:
       {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Submission, version 1",
-        "description": "A session's branch, commits, draft, text and verdict.",
+        "title": "Pull request, version 1",
+        "description": "The change of a Build run: its title and text, its commits and their steps.",
         "type": "object",
         "required": [
-          "ref",
-          "repositories",
-          "verdict"
+          "target",
+          "title",
+          "text",
+          "commits",
+          "head",
+          "base",
+          "branch",
+          "base_branch",
+          "steps",
+          "draft"
         ],
         "additionalProperties": false,
         "properties": {
-          "ref": {
-            "title": "Branch",
-            "type": "string",
-            "pattern": "^qory/wi_[A-Za-z0-9_-]{1,64}$"
+          "target": {
+            "title": "Target",
+            "$ref": "#/$defs/reference"
           },
-          "verdict": {
-            "enum": [
-              "passed",
-              "changes-requested",
-              "escalate",
-              "none"
-            ]
-          },
-          "repositories": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 20,
-            "items": {
-              "$ref": "#/$defs/repository"
-            }
+          "title": {
+            "title": "Title",
+            "$ref": "#/$defs/title"
           },
           "text": {
+            "title": "Description",
             "$ref": "#/$defs/text"
-          }
-        },
-        "$defs": {
-          "repository": {
-            "type": "object",
-            "required": [
-              "system",
-              "path",
-              "commit"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "system": {
-                "type": "string",
-                "pattern": "^[a-z0-9.-]{0,252}[a-z0-9-]$"
-              },
-              "path": {
-                "type": "string",
-                "maxLength": 200,
-                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
-                "not": {
-                  "pattern": "(^|/)(\\.\\.?|\\.[Gg][Ii][Tt])(/|$)"
+          },
+          "commits": {
+            "title": "Commits",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/commit"
+            },
+            "x-qory-fill": "pushed-commits"
+          },
+          "head": {
+            "title": "Head commit",
+            "$ref": "#/$defs/commit",
+            "x-qory-fill": "pushed-head"
+          },
+          "base": {
+            "title": "Base commit",
+            "$ref": "#/$defs/commit",
+            "x-qory-fill": "pushed-base"
+          },
+          "branch": {
+            "title": "Branch",
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
+            "not": {
+              "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
+            },
+            "x-qory-fill": "pushed-branch"
+          },
+          "base_branch": {
+            "title": "Base branch",
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
+            "not": {
+              "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
+            },
+            "x-qory-fill": "pushed-base-branch"
+          },
+          "earlier_commits": {
+            "title": "Earlier commits",
+            "type": "integer",
+            "minimum": 1,
+            "x-qory-fill": "pushed-commits-left-out"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "commit",
+                "step"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "commit": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+                },
+                "step": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[^\\x00]*$"
                 }
-              },
-              "commit": {
-                "title": "Commit",
-                "$ref": "#/$defs/commit"
-              },
-              "commit_url": {
-                "title": "Commit link",
-                "type": "string",
-                "maxLength": 2048,
-                "pattern": "^https://\\S+$"
-              },
-              "base": {
-                "type": "object",
-                "required": [
-                  "commit"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "commit": {
-                    "$ref": "#/$defs/commit"
-                  },
-                  "branch": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
-                    "not": {
-                      "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
-                    }
-                  },
-                  "commit_url": {
-                    "type": "string",
-                    "maxLength": 2048,
-                    "pattern": "^https://\\S+$"
-                  }
-                }
-              },
-              "commits": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "commit",
-                    "step"
-                  ],
-                  "additionalProperties": false,
-                  "properties": {
-                    "commit": {
-                      "$ref": "#/$defs/commit"
-                    },
-                    "step": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128,
-                      "pattern": "^[^\\x00]*$"
-                    },
-                    "commit_url": {
-                      "type": "string",
-                      "maxLength": 2048,
-                      "pattern": "^https://\\S+$"
-                    }
-                  }
-                }
-              },
-              "draft": {
-                "oneOf": [
-                  {
-                    "$ref": "#/$defs/draft"
-                  },
-                  {
-                    "$ref": "#/$defs/no_draft"
-                  }
-                ]
               }
             }
           },
           "draft": {
-            "type": "object",
-            "required": [
-              "number",
-              "url",
-              "title",
-              "state",
-              "action"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "number": {
-                "title": "Draft",
-                "type": "integer",
-                "minimum": 1
-              },
-              "url": {
-                "title": "Draft link",
-                "type": "string",
-                "maxLength": 2048,
-                "pattern": "^https://\\S+$"
-              },
-              "title": {
-                "title": "Draft title",
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256,
-                "pattern": "^[^\\x00-\\x1f\\x7f]+$"
-              },
-              "state": {
-                "enum": [
-                  "draft",
-                  "open",
-                  "closed",
-                  "merged"
-                ]
-              },
-              "action": {
-                "enum": [
-                  "opened",
-                  "updated",
-                  "kept"
-                ]
-              }
-            }
-          },
-          "no_draft": {
-            "type": "object",
-            "required": [
-              "none"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "none": {
-                "title": "No draft",
-                "enum": [
-                  "not-passed",
-                  "no-text",
-                  "escalated",
-                  "no-program",
-                  "program-failed",
-                  "program-timeout",
-                  "login-needed"
-                ]
-              },
-              "exit": {
-                "enum": [
-                  0,
-                  1,
-                  2,
-                  3
-                ]
-              }
-            },
+            "title": "Draft",
+            "type": "boolean"
+          }
+        },
+        "$defs": {
+          "title": {
+            "description": "One line of text.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]+$",
             "allOf": [
               {
-                "if": {
-                  "properties": {
-                    "none": {
-                      "const": "program-failed"
-                    }
-                  }
-                },
-                "then": {
-                  "required": [
-                    "exit"
-                  ],
-                  "properties": {
-                    "exit": {
-                      "enum": [
-                        0,
-                        1,
-                        2
-                      ]
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "none": {
-                      "const": "login-needed"
-                    }
-                  }
-                },
-                "then": {
-                  "required": [
-                    "exit"
-                  ],
-                  "properties": {
-                    "exit": {
-                      "const": 3
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "none": {
-                      "enum": [
-                        "not-passed",
-                        "no-text",
-                        "escalated",
-                        "no-program",
-                        "program-timeout"
-                      ]
-                    }
-                  }
-                },
-                "then": {
-                  "not": {
-                    "required": [
-                      "exit"
-                    ]
-                  }
-                }
+                "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
               }
             ]
           },
           "text": {
+            "description": "Markdown.",
+            "type": "string",
+            "maxLength": 20000,
+            "pattern": "^[^\\x00]*$",
+            "not": {
+              "pattern": "(^|\\n)<!-- qory:(start|end) -->"
+            }
+          },
+          "reference": {
+            "description": "An object in a system: a collection, and its address when it has one.",
             "type": "object",
             "required": [
-              "title",
-              "description"
+              "collection"
             ],
             "additionalProperties": false,
             "properties": {
-              "title": {
+              "collection": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 256,
-                "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]+$",
-                "allOf": [
-                  {
-                    "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
-                  }
-                ]
+                "maxLength": 200,
+                "pattern": "^[^\\x00-\\x1f\\x7f]+$"
               },
-              "description": {
-                "type": "string",
-                "maxLength": 20000,
-                "pattern": "^[^\\x00]*$",
-                "not": {
-                  "pattern": "(^|\\n)<!-- qory:(start|end) -->"
+              "address": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "system": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9.-]{1,253}$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                  }
                 }
               }
             }
           },
           "commit": {
-            "type": "string",
-            "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+            "description": "A commit: the repository as the collection, and the commit id as the path.",
+            "allOf": [
+              {
+                "$ref": "#/$defs/reference"
+              },
+              {
+                "required": [
+                  "address"
+                ],
+                "properties": {
+                  "address": {
+                    "properties": {
+                      "path": {
+                        "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
           }
         }
       }

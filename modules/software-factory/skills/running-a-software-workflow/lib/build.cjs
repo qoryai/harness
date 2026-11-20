@@ -37,11 +37,13 @@ module.exports = (lib) => {
 
   // jsonFile parses text, the file of a structured type, and checks it against the schema of
   // type. It returns the data when the schema passes, else null. The schema check refuses a
-  // document that nests too deep before any reader walks it.
-  function jsonFile(run, type, file, text) {
+  // document that nests too deep before any reader walks it. With raw, the text of the file as
+  // written, it also refuses a number that JSON.parse rounds (lib/raw-json.cjs of core).
+  function jsonFile(run, type, file, text, raw) {
     const data = parseJson(text, file);
     run.did('schema');
-    const found = schema.errors(schema.load(SCHEMAS, type), data, file);
+    const found = schema.errors(schema.load(SCHEMAS, type), data, file, undefined,
+      raw === undefined ? {} : { raw: schema.scan(raw) });
     for (const line of found) run.find(line);
     return found.length ? null : data;
   }

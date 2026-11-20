@@ -16,7 +16,6 @@ const MODULES = path.join(__dirname, '../modules');
 const { main } = require(path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs'));
 const { watch } = require('./first-line.js');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
-const SAMPLES = require('./testdata/build-verify-samples.json');
 const { LIBRARY } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.cjs'));
 const proofComments = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/proof-comments.cjs'));
 if (process.env.PROOF_TEST_PYTHON) proofComments.TOOLS.python = process.env.PROOF_TEST_PYTHON;
@@ -542,58 +541,73 @@ test('prove: a comment in a file of another language has no proof yet', () => {
 
 // ---- check and end ---------------------------------------------------------------------------
 
-// session makes the artifact folder of a session: the pulled proposal and a draft submission.
-function session(run, submission = SAMPLES.submission.valid[0].doc) {
+// pullRequest is a valid pull-request.json: the text has the four parts, each commit
+// reference has a 40-digit hex path.
+function pullRequest() {
+  const ref = (digit) => ({ collection: 'r1', address: { path: digit.repeat(40) } });
+  return {
+    target: { collection: 'r1' },
+    title: 'Add the sum helper',
+    text: '## Problem\n\nx\n\n## Change\n\ny\n\n## Tests\n\nz\n\n## Disclosed\n\nNothing.',
+    commits: [ref('a')], head: ref('a'), base: ref('b'),
+    branch: 'qory/wi_abc', base_branch: 'main',
+    steps: [{ commit: 'a'.repeat(40), step: 'deliverable:d-1' }],
+    draft: true,
+  };
+}
+
+// session makes the artifact folder of a session: the pulled proposal and a draft pull request.
+function session(run, document = pullRequest()) {
   const folder = path.join(tmp, `session-${++count}`);
   fs.cpSync(run.artifacts, folder, { recursive: true });
-  fs.writeFileSync(path.join(folder, 'submission.json'), JSON.stringify(submission));
+  fs.writeFileSync(path.join(folder, 'pull-request.json'), JSON.stringify(document));
   return folder;
 }
 
-test('check submission: on the fast track the commits are proved, in check and end', () => {
+test('check pull-request: on the fast track the commits are proved, in check and end', () => {
   const run = scene(BASE);
   commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
   const folder = session(run);
   const inputs = run.inputs();
-  const files = [path.join(folder, 'submission.json')];
-  const checked = call(run.dir, ['check', 'submission', '--inputs', inputs, ...files],
+  const files = [path.join(folder, 'pull-request.json')];
+  const checked = call(run.dir, ['check', 'pull-request', '--inputs', inputs, ...files],
     { artifacts: [folder] });
   fails(checked, /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
   const ended = call(run.dir, ['end', folder, '--inputs', inputs],
     { artifacts: [folder], env: { ...ENV, QORY_RUN_ID: 'run_1' } });
   assert.equal(ended.status, 1, ended.out);
   // Without --inputs, the check fails closed.
-  const bare = call(run.dir, ['check', 'submission', ...files], { artifacts: [folder] });
+  const bare = call(run.dir, ['check', 'pull-request', ...files], { artifacts: [folder] });
   fails(bare, /^Give --inputs the inputs\.json that qory wrote for the run\./);
   // A commit of the kind passes both.
   const good = scene(BASE);
   commit(good.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
   const goodFolder = session(good);
-  passes(call(good.dir, ['check', 'submission', '--inputs', good.inputs(),
-    path.join(goodFolder, 'submission.json')], { artifacts: [goodFolder] }));
+  passes(call(good.dir, ['check', 'pull-request', '--inputs', good.inputs(),
+    path.join(goodFolder, 'pull-request.json')], { artifacts: [goodFolder] }));
   // The standard track, and no proposal, add nothing; a push runs no proof.
   const standard = scene(BASE, DOCUMENT, proposal('Standard track.'));
   commit(standard.dir, { 'src/app.js': 'exports.a = 2;\n' });
   const standardFolder = session(standard);
-  passes(call(standard.dir, ['check', 'submission', '--inputs', standard.inputs(),
-    path.join(standardFolder, 'submission.json')], { artifacts: [standardFolder] }));
-  const pushed = call(folder, ['push', 'submission', '--inputs', inputs,
-    path.join(folder, 'submission.json')], { artifacts: [] });
+  passes(call(standard.dir, ['check', 'pull-request', '--inputs', standard.inputs(),
+    path.join(standardFolder, 'pull-request.json')], { artifacts: [standardFolder] }));
+  const pushed = call(folder, ['push', 'pull-request', '--inputs', inputs,
+    path.join(folder, 'pull-request.json')], { artifacts: [] });
   assert.equal(pushed.status, 0, pushed.out + pushed.err);
 });
 
-test('end: a submission that equals its stored version is no draft, so end runs no proof', () => {
+test('end: a pull request that equals its stored version is no draft, so end runs no proof', () => {
   // end checks a draft that differs from the newest stored version only. After the session
-  // pushed the submission, end reads it as unchanged and runs no proof of the commits: prove is
+  // pushed the pull request, end reads it as unchanged and runs no proof of the commits: prove is
   // the proof that binds a push.
   const run = scene(BASE);
   commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
   const folder = session(run);
-  const stored = path.join(folder, 'submission', 'main', 'v1');
+  const stored = path.join(folder, 'pull-request', 'main', 'v1');
   fs.mkdirSync(stored, { recursive: true });
-  fs.copyFileSync(path.join(folder, 'submission.json'), path.join(stored, 'submission.json'));
+  fs.copyFileSync(path.join(folder, 'pull-request.json'), path.join(stored, 'pull-request.json'));
   fs.writeFileSync(path.join(folder, 'index.json'), JSON.stringify({ artifacts: [{
-    type: 'submission', name: 'main', newest_version: 1, approved_version: null,
+    type: 'pull-request', name: 'main', newest_version: 1, approved_version: null,
     versions: [{ id: 'ver_1', number: 1 }] }] }));
   const ended = call(run.dir, ['end', folder, '--inputs', run.inputs()],
     { artifacts: [folder], env: { ...ENV, QORY_RUN_ID: 'run_1' } });
@@ -602,7 +616,7 @@ test('end: a submission that equals its stored version is no draft, so end runs 
   fails(prove(run), /^Take "src\/app\.js" out of the commits since the base: it is not a document file\./);
 });
 
-test('check submission: a proposal that the session wrote counts as none', () => {
+test('check pull-request: a proposal that the session wrote counts as none', () => {
   // The proposal of the run is the one in start_artifacts. A fast track that the session writes
   // into its artifact folder changes nothing.
   const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
@@ -610,24 +624,24 @@ test('check submission: a proposal that the session wrote counts as none', () =>
   const folder = session(run);
   fs.writeFileSync(path.join(folder, 'proposal', 'main', 'v1', 'proposal.md'),
     fastTrack(DOCUMENT));
-  passes(call(run.dir, ['check', 'submission', '--inputs', run.inputs(),
-    path.join(folder, 'submission.json')], { artifacts: [folder] }));
+  passes(call(run.dir, ['check', 'pull-request', '--inputs', run.inputs(),
+    path.join(folder, 'pull-request.json')], { artifacts: [folder] }));
 });
 
-test('check submission: without the parsers, end leaves the proof to prove', {
+test('check pull-request: without the parsers, end leaves the proof to prove', {
   skip: fs.existsSync('/opt/qory/parsers/node_modules') && 'the parsers are installed',
 }, () => {
   const run = scene({ 'src/app.ts': "export const a = 'x';\n" }, 'a text value in a code file');
   commit(run.dir, { 'src/app.ts': "export const a = 'y';\n" });
   const folder = session(run);
-  const file = path.join(folder, 'submission.json');
+  const file = path.join(folder, 'pull-request.json');
   // check and end write no finding for the file that needs a parser, and say on stderr that the
   // push step proves the kind.
   const lines = [];
   const write = process.stderr.write;
   process.stderr.write = (chunk) => { lines.push(String(chunk)); return true; };
   try {
-    passes(call(run.dir, ['check', 'submission', '--inputs', run.inputs(), file],
+    passes(call(run.dir, ['check', 'pull-request', '--inputs', run.inputs(), file],
       { artifacts: [folder] }));
     const ended = call(run.dir, ['end', folder, '--inputs', run.inputs()],
       { artifacts: [folder], env: { ...ENV, QORY_RUN_ID: 'run_1' } });

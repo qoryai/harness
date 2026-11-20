@@ -644,12 +644,13 @@ test('ledger: after a cancelled run, the next session redoes a step whose commit
   assert.notEqual(row.base, lost);
 });
 
-test('ledger: the hand-off file under .qory/handoff is no edit of a step', () => {
+test('ledger: the pull request file under .qory/outbox is no edit of a step', () => {
   const w = work();
   const call = resumed(w);
   assert.equal(begin(call, w, 'plan').status, 0);
-  fs.mkdirSync(path.join(w.repo, '.qory', 'handoff'), { recursive: true });
-  fs.writeFileSync(path.join(w.repo, '.qory', 'handoff', 'submission.json'), '{"steps":{}}');
+  const outbox = path.join(w.repo, '.qory', 'outbox', 'pull-request');
+  fs.mkdirSync(outbox, { recursive: true });
+  fs.writeFileSync(path.join(outbox, 'pull-request.json'), '{"steps":[]}');
   assert.equal(call('step', 'end', 'plan', 'done').status, 0);
   assert.equal(begin(call, w, 'checks').status, 0);
 });

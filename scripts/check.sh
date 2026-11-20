@@ -2677,11 +2677,11 @@ demo-scenarios:software-factory:acceptance-criteria
 demo-script:software-factory:demo-scenarios
 demo-video:software-factory:demo-script
 proposal:software-factory:
+pull-request:software-factory:
 questions:core:
 review-comments:core:questions
 screenshot:software-factory:demo-script
 spec:software-factory:
-submission:software-factory:
 verification:software-factory:acceptance-criteria
 walkthrough:software-factory:verification,acceptance-criteria'
 # The composes of the core stack, earlier, and of the software stack wrote push-checks.json.

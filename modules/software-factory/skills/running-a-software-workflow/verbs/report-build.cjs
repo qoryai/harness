@@ -1,25 +1,24 @@
-// report-build: writes build-report.md, the report of the standard track, from records,
-// and the hand-off file that qory's submit step reads. The tables come from
+// report-build: writes build-report.md, the report of the standard track, from records, and
+// the output pull-request.json, which qory's push reads from the outbox. The tables come from
 // lib/report-build.cjs, so no agent types a result; checks.cjs check build-report renders
-// them again. report-build --drop only removes the hand-off file.
+// them again. report-build --drop only removes the output file.
 //
-// The hand-off file is the path in the environment variable QORY_SUBMISSION_HANDOFF, an
-// absolute path with no .. part, in a folder inside the checkout, as JSON { text: { title,
-// description }, steps: { <commit>: <ledger row id> } }. text comes from
-// .reports/submission.md of the artifact folder, which the agent submission-writer writes:
-// the first line is `# <title>`, and the rest is the description, with the four parts of the
-// type submission. steps maps each commit of a done row, the commits of base..commit of the
-// row, to the id of the row, for the commits in <base of the first row>..HEAD; a commit in
-// two rows goes to the later row. When the file would have more than 262144 bytes, the verb
-// leaves out the oldest commits of steps until it fits. Without the variable, the verb
-// writes build-report.md and no hand-off file, and exits 0. With a text or a hand-off that
-// breaks a rule, it writes no file and exits 1. A ledger report whose list Left out: it
-// cannot read adds one line to ## Left out and stops nothing. On every non-zero exit, it
-// removes a regular file at the path of the variable, whose folder is inside the checkout,
-// so that qory's submit step never reads the text of an earlier run. It writes
-// the hand-off file first and build-report.md second, each through a temporary file in its
-// folder that it renames into place; a write that fails, or a folder that a link moves out
-// of the checkout, leaves neither file and exits 3 with a fix line.
+// The output file is .qory/outbox/pull-request/pull-request.json under the top of the checkout,
+// as JSON { title, text, steps, draft }. title and text come from .reports/submission.md of
+// the artifact folder, which the agent submission-writer writes: the first line is
+// `# <title>`, and the rest is text, with the four parts of the type pull-request. steps lists
+// { commit, step } for each commit of a done row, the commits of base..commit of the row, with
+// step the id of the row, for the commits in <base of the first row>..HEAD, oldest first; a
+// commit in two rows goes to the later row. draft is true when this session records the verdict
+// passed itself, which a stage with no reviewers does, and false when a review round follows.
+// The session writes no target and no member that qory fills. With a text or an output that
+// breaks a rule, the verb writes no file and exits 1. A ledger report whose list Left out: it
+// cannot read adds one line to ## Left out and stops nothing. On every non-zero exit, it removes
+// a regular file at the path of the output, whose folder is inside the checkout, so that qory
+// never pushes the text of an earlier run. It writes the output file first and build-report.md
+// second, each through a temporary file in its folder that it renames into place; a write that
+// fails, or a folder that a link moves out of the checkout, leaves neither file and exits 3
+// with a fix line.
 'use strict';
 
 const fs = require('node:fs');
@@ -30,22 +29,19 @@ const { takeInputs } = require('../lib/limits.cjs');
 const { SCHEMAS } = require('../lib/template.cjs');
 const { INPUTS_USAGE } = require('./run.cjs');
 
-// The most bytes of the hand-off file and of a step, which qory reads.
+// The most bytes of submission.md. A step of the output is a ledger row id, which the ledger
+// schema limits to 64 characters, below the 128 of the type.
 const MAX_FILE = 262144;
-const MAX_STEP = 128;
 
 const TEXT = 'submission.md';
-const TITLE_REFUSED = /[\p{Cf}\u2028\u2029]/u;
+const OUTPUT = ['.qory', 'outbox', 'pull-request', 'pull-request.json'];
 
 module.exports = (lib) => {
-  const { Context, Missing, artifactFolder, plural, schema, short } = lib;
-  const SUBMISSION = schema.load(SCHEMAS, 'submission');
-  // The schema's pattern for a title lets through some characters that qory does not accept in
-  // a title: the Unicode class Cf, U+2028 and U+2029 (cmd/submitcontract.go of qory).
-  const TITLE_OK = new RegExp(SUBMISSION.schema.$defs.text.properties.title.pattern);
+  const { Context, Missing, artifactFolder, plural, reviewersStage, schema, short } = lib;
+  const SCHEMA = schema.load(SCHEMAS, 'pull-request');
 
-  // readText returns { title, description } of .reports/submission.md in root, or the
-  // findings of a text that is missing or breaks a rule.
+  // readText returns { title, text } of .reports/submission.md in root, or the findings of a
+  // text that is missing or breaks a rule.
   function readText(root) {
     const file = path.join(root, '.reports', 'submission.md');
     let stat;
@@ -66,17 +62,15 @@ module.exports = (lib) => {
       return { findings: [`Start ${TEXT} with the line # <title>.\nIts first line is not one.`] };
     }
     const value = { title: first.slice(2).trim(),
-      description: (at === -1 ? '' : all.slice(at + 1)).replace(/^\n+/, '').replace(/\s+$/, '') };
-    const findings = [...schema.errors(SUBMISSION, value, TEXT, 'text')];
-    const refused = TITLE_OK.test(value.title) ? TITLE_REFUSED.exec(value.title) : null;
-    if (refused) {
-      const code = refused[0].codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
-      findings.push(`Remove U+${code} from the title of ${TEXT}.\nqory drops the whole text ` +
-        'when its title has an invisible or separator character.');
-    }
-    // The shared checks of the text: the four parts, and the forms of a secret.
-    findings.push(...lib.partFindings(value.description, `the description of ${TEXT}`));
-    findings.push(...lib.secretFindings(value, (member) => `the ${member} of ${TEXT}`));
+      text: (at === -1 ? '' : all.slice(at + 1)).replace(/^\n+/, '').replace(/\s+$/, '') };
+    const findings = [...schema.errors(SCHEMA, value.title, `the title of ${TEXT}`, 'title'),
+      ...schema.errors(SCHEMA, value.text, `the description of ${TEXT}`, 'text')];
+    // The shared checks of the text: the characters of a title that qory drops, the four
+    // parts, and the forms of a secret.
+    findings.push(...lib.titleFindings(value.title, `the title of ${TEXT}`));
+    findings.push(...lib.partFindings(value.text, `the description of ${TEXT}`));
+    findings.push(...lib.secretFindings({ title: value.title, description: value.text },
+      (member) => `the ${member} of ${TEXT}`));
     return findings.length ? { findings } : { value };
   }
 
@@ -101,38 +95,36 @@ module.exports = (lib) => {
       .split('\n').filter(Boolean);
   }
 
-  // stepsOf returns { <commit>: <ledger row id> } as the header lists.
+  // stepsOf returns [{ commit, step }] as the header lists.
   function stepsOf(io, top, ledger) {
-    if (!ledger.steps.length) return {};
+    if (!ledger.steps.length) return [];
     const kept = revList(io, top, ledger.steps[0].base, 'HEAD').reverse();
     const owner = new Map();
     for (const row of ledger.steps.filter((one) => one.state === 'done')) {
       for (const commit of revList(io, top, row.base, row.commit)) owner.set(commit, row.id);
     }
-    return Object.fromEntries(kept.filter((commit) => owner.has(commit))
-      .map((commit) => [commit, owner.get(commit)]));
+    return kept.filter((commit) => owner.has(commit))
+      .map((commit) => ({ commit, step: owner.get(commit) }));
   }
 
-  // dropHandoff removes a regular file at the absolute path in QORY_SUBMISSION_HANDOFF, so a
-  // failure never leaves the text of an earlier run for qory's submit step. It removes
-  // nothing when the real path of the folder of the file is outside the real path of the
-  // checkout top, the rule of the write. It returns removed, absent, or failed, after it
-  // prints the fix.
-  function dropHandoff(io) {
-    const target = io.env.QORY_SUBMISSION_HANDOFF;
-    if (!target || !path.isAbsolute(target)) return 'absent';
+  // dropOutput removes the regular file of the output under the top of the checkout, so a
+  // failure never leaves the text of an earlier run for qory's push. It removes nothing when
+  // the real path of the folder of the file is outside the real path of the checkout top, the
+  // rule of the write, and nothing when the verb is in no checkout, where it wrote no file. It
+  // returns removed, absent, or failed, after it prints the fix.
+  function dropOutput(io) {
+    let top;
     try {
-      if (outside(git.top(Missing, io.cwd, io.env), path.dirname(target))) {
-        io.err.write(`Remove ${short(target, 30)} by hand: its folder leads outside the ` +
-          'checkout.\n');
-        return 'failed';
-      }
+      top = git.top(Missing, io.cwd, io.env);
     } catch (error) {
-      if (error instanceof Missing) {
-        io.err.write(`Remove ${short(target, 30)} by hand: the verb is in no checkout.\n`);
-        return 'failed';
-      }
+      if (error instanceof Missing) return 'absent';
       throw error;
+    }
+    const target = path.join(top, ...OUTPUT);
+    if (outside(top, path.dirname(target))) {
+      io.err.write(`Remove ${short(target, 30)} by hand: its folder leads outside the ` +
+        'checkout.\n');
+      return 'failed';
     }
     try {
       if (!fs.lstatSync(target).isFile()) return 'absent';
@@ -140,7 +132,7 @@ module.exports = (lib) => {
       return 'removed';
     } catch (error) {
       if (error.code === 'ENOENT') return 'absent';
-      io.err.write(`Remove ${short(target, 60)} by hand.\nIt is the hand-off file of an ` +
+      io.err.write(`Remove ${short(target, 60)} by hand.\nIt is the output file of an ` +
         `earlier run, and the verb could not delete it: ${error.code || error.message}.\n`);
       return 'failed';
     }
@@ -168,12 +160,12 @@ module.exports = (lib) => {
     return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel);
   }
 
-  // makeFolder creates the folder of the hand-off file, and throws Missing when a link
-  // puts it outside the checkout top, before and after it creates the folder.
+  // makeFolder creates the folder of the output file, and throws Missing when a link puts it
+  // outside the checkout top, before and after it creates the folder.
   function makeFolder(top, target) {
     const folder = path.dirname(target);
-    const refuse = () => new Missing('Set QORY_SUBMISSION_HANDOFF to a path inside the ' +
-      `checkout.\nThe folder ${short(folder, 60)} is a link, or is below one, that leads ` +
+    const refuse = () => new Missing('Remove the link in the path of the outbox.\n' +
+      `The folder ${short(folder, 60)} is a link, or is below one, that leads ` +
       `outside ${short(top, 60)}.`);
     if (outside(top, folder)) throw refuse();
     try {
@@ -217,6 +209,15 @@ module.exports = (lib) => {
     }
   }
 
+  // draftWanted returns whether the output asks for a draft: when this session records the
+  // verdict passed itself, a stage with no reviewers. A stage with reviewers records no verdict
+  // before the review round, so it asks for none.
+  // shortcut: the verdict that follows the review round is unknown here; replace this when the
+  // session can read it.
+  function draftWanted(io, inputs) {
+    return !reviewersStage({ inputs: inputs ? path.resolve(io.cwd, inputs) : null });
+  }
+
   function build(io, what, rest) {
     const { inputs } = takeInputs([what, ...rest].filter((one) => one !== undefined));
     const root = artifactFolder(io);
@@ -228,78 +229,44 @@ module.exports = (lib) => {
     if (!data) {
       throw new Missing('Run checks.cjs resume first.\n.reports/build-ledger.json does not exist.');
     }
-    const target = io.env.QORY_SUBMISSION_HANDOFF || undefined;
     const written = path.join(root, lib.BUILD_REPORT_FILE);
-    let handoff = null;
-    let dropped = 0;
-    if (target !== undefined) {
-      if (!path.isAbsolute(target) || target.split(path.sep).includes('..')) {
-        throw new Missing('Set QORY_SUBMISSION_HANDOFF to an absolute path with no .. part.\n' +
-          `It is ${JSON.stringify(target.slice(0, 60))}.`);
-      }
-      const got = readText(root);
-      if (got.findings) {
-        io.print(got.findings, `Wrote no file: ${plural(got.findings.length, 'finding')} ` +
-          `on ${TEXT}.`);
-        return 1;
-      }
-      const entries = Object.entries(stepsOf(io, top, data.ledger));
-      // shortcut: untested, the ledger's ids (64 characters) cannot reach it; test when ids grow
-      const long = entries.map(([, id]) => id).find((id) => id.length > MAX_STEP);
-      const bare = Buffer.byteLength(`${JSON.stringify({ text: got.value, steps: {} })}\n`);
-      const cost = entries.map(([commit, id]) =>
-        Buffer.byteLength(`${JSON.stringify(commit)}:${JSON.stringify(id)}`));
-      let size = bare + cost.reduce((sum, one) => sum + one, 0) + Math.max(entries.length - 1, 0);
-      // A dropped commit has no step, and qory shows it as unreviewed.
-      while (size > MAX_FILE && dropped < entries.length) {
-        size -= cost[dropped] + (dropped < entries.length - 1 ? 1 : 0);
-        dropped += 1;
-      }
-      const body = `${JSON.stringify({ text: got.value, steps: Object.fromEntries(
-        entries.slice(dropped)) })}\n`;
-      const problems = [
-        ...(long ? [`Shorten the id of the ledger row ${JSON.stringify(long.slice(0, 40))}.\n` +
-          `A step of the hand-off has at most ${MAX_STEP} characters.`] : []),
-        // The schema caps the text at 20256 characters, so it cannot reach this.
-        ...(size > MAX_FILE ? [`Cut ${TEXT} so that the hand-off file has at most ` +
-          `${MAX_FILE} bytes.\nThe text alone has ${bare} bytes.`] : []),
-      ];
-      if (problems.length) {
-        io.print(problems, `Wrote no file: ${plural(problems.length, 'finding')} on the hand-off.`);
-        return 1;
-      }
-      makeFolder(top, target);
-      handoff = { target, body };
+    const got = readText(root);
+    if (got.findings) {
+      io.print(got.findings, `Wrote no file: ${plural(got.findings.length, 'finding')} ` +
+        `on ${TEXT}.`);
+      return 1;
     }
+    const steps = stepsOf(io, top, data.ledger);
+    const body = `${JSON.stringify({ title: got.value.title, text: got.value.text, steps,
+      draft: draftWanted(io, inputs) })}\n`;
+    const target = path.join(top, ...OUTPUT);
+    makeFolder(top, target);
     const report = { target: written, body: lib.renderReport(data) };
-    writeAll(handoff ? [handoff, report] : [report]);
-    const note = dropped ? `, without the ${dropped} oldest commits of its steps` : '';
-    io.print([], handoff ? `Wrote ${lib.BUILD_REPORT_FILE} and the hand-off file${note}.`
-      : `Wrote ${lib.BUILD_REPORT_FILE}. QORY_SUBMISSION_HANDOFF is not set, so no hand-off ` +
-        'file is written.');
+    writeAll([{ target, body }, report]);
+    io.print([], `Wrote ${lib.BUILD_REPORT_FILE} and ${OUTPUT.join('/')}.`);
     return 0;
   }
 
-  // run removes an earlier hand-off file on every non-zero exit, a thrown Missing included.
+  // run removes an earlier output file on every non-zero exit, a thrown Missing included.
   function run(io, what, rest) {
     let status;
     try {
       status = build(io, what, rest);
     } catch (error) {
-      dropHandoff(io);
+      dropOutput(io);
       throw error;
     }
-    if (status !== 0) dropHandoff(io);
+    if (status !== 0) dropOutput(io);
     return status;
   }
 
-  // drop removes the hand-off file and nothing else, for an end of a session that is not
+  // drop removes the output file and nothing else, for an end of a session that is not
   // ready, after an earlier report-build wrote the file.
   function drop(io) {
-    const state = dropHandoff(io);
+    const state = dropOutput(io);
     if (state === 'failed') return 3;
-    io.print([], state === 'removed' ? 'Removed the hand-off file.'
-      : 'No hand-off file at QORY_SUBMISSION_HANDOFF to remove.');
+    io.print([], state === 'removed' ? 'Removed the output file.'
+      : `No output file at ${OUTPUT.join('/')} to remove.`);
     return 0;
   }
 
@@ -309,14 +276,14 @@ module.exports = (lib) => {
       args: (io, what, rest) => {
         if (what === '--drop') {
           if (!rest.length) return null;
-          dropHandoff(io);
+          dropOutput(io);
           return 'Give report-build --drop with no other argument.';
         }
         const { inputs, rest: other } = takeInputs([what, ...rest]
           .filter((one) => one !== undefined));
         const why = inputs === null ? INPUTS_USAGE
           : other.length && 'Give report-build only --inputs, with a path, or only --drop.';
-        if (why) dropHandoff(io);
+        if (why) dropOutput(io);
         return why || null;
       },
       run: (io, what, rest) => (what === '--drop' ? drop(io) : run(io, what, rest)),

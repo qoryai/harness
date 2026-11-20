@@ -22,7 +22,8 @@ falls under the definition of `blocking` in `judging-findings`.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists: what the session that made the change states
   that it did.
-- `qory.review.submission`, when it exists: the `title` and the `description` of the draft
+- `qory.review.outputs`, when it exists: each declared output, by type, from
+  `.qory/outbox/`. The entry for `pull-request` has the `title` and the `text` of the draft
   pull request, as qory stores them. Either part can be absent.
 
 The review also reads the newest version of the acceptance criteria, the spec and the

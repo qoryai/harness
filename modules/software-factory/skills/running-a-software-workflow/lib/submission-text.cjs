@@ -1,15 +1,33 @@
-// The rules of the text of a submission that the type submission and the verb report-build
-// share: the four parts of a description, and the forms of a secret that no text contains.
+// The rules of the text of a pull request that the type pull-request and the verb report-build
+// share: the characters of a title that qory drops, the four parts of a description, and the
+// forms of a secret that no text contains.
 'use strict';
 
+const { SCHEMAS } = require('./template.cjs');
+
 module.exports = (lib) => {
-  const { lines, sections } = lib;
+  const { lines, sections, schema } = lib;
+
+  // The pattern of the schema for a title lets through some characters that qory does not
+  // accept in a title: the Unicode class Cf, U+2028 and U+2029.
+  const TITLE_OK = new RegExp(schema.load(SCHEMAS, 'pull-request').schema.$defs.title.pattern);
+  const TITLE_REFUSED = /[\p{Cf}\u2028\u2029]/u;
+
+  // titleFindings returns the finding of a title that passes the pattern of the schema and has
+  // such a character, or none. where is the words for the title in the fix.
+  function titleFindings(title, where) {
+    const refused = TITLE_OK.test(title) ? TITLE_REFUSED.exec(title) : null;
+    if (!refused) return [];
+    const code = refused[0].codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+    return [`Remove U+${code} from ${where}.\nqory drops the whole text when its title has an ` +
+      'invisible or separator character.'];
+  }
 
   // The four parts of a description, as ## headings in this order: the problem, the
   // change, how it was tested, and what is disclosed.
   const PARTS = ['Problem', 'Change', 'Tests', 'Disclosed'];
 
-  // The forms of a secret that no text of a submission contains: a private key, and the
+  // The forms of a secret that no text of a pull request contains: a private key, and the
   // tokens and keys of common services, by their fixed start.
   const SECRETS = [
     [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'a private key'],
@@ -47,5 +65,5 @@ module.exports = (lib) => {
     return out;
   }
 
-  return { PARTS, partFindings, secretFindings };
+  return { PARTS, partFindings, secretFindings, titleFindings };
 };

@@ -26,7 +26,7 @@
 //
 // It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
 // scope, freeze, diff, probe, prove and preflight, each in verbs/, and the verb
-// report-build, which writes build-report.md and the hand-off file of the submission.
+// report-build, which writes build-report.md and the outbox file of the pull request.
 'use strict';
 
 const fs = require('node:fs');
@@ -42,7 +42,7 @@ const STOPS = [
 
 // The types of Build and Verify, each in types/<type>.cjs.
 const BUILD_AND_VERIFY = [
-  'submission', 'build-plan', 'build-report', 'build-ledger', 'acceptance-lock', 'demo-script',
+  'pull-request', 'build-plan', 'build-report', 'build-ledger', 'acceptance-lock', 'demo-script',
   'demo-evidence', 'demo-video', 'screenshot', 'verification', 'walkthrough',
 ];
 

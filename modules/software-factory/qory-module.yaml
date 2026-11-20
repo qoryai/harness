@@ -61,8 +61,8 @@ push_checks:
   - type: demo-scenarios
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-scenarios]
     reads: [acceptance-criteria]
-  - type: submission
-    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, submission]
+  - type: pull-request
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, pull-request]
   - type: build-plan
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-plan]
     reads: [acceptance-criteria]

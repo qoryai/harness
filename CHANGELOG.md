@@ -902,6 +902,48 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The schema checker moved from `software-factory` to
+  `modules/core/skills/running-a-workflow/lib/schema.cjs`, and `end` checks each output
+  that the stage declares. Before, only the software module checked a schema, and `end`
+  checked no output.
+  - `end` reads `qory.outputs` from the `inputs.json` of the session: a list with one
+    entry `{type, required, schema}` for each output of the stage. It checks the file
+    `.qory/outbox/<type>/<type>.json` against the schema, for the type of any module. With
+    no `qory.outputs`, it finds nothing.
+  - A required output with no file, a file that is a link, and a file of more than 1 MiB are
+    findings. So is a member that qory sets or fills after the push, such as `target`.
+  - A pattern check that runs longer than 10 seconds in all is stopped in a child process,
+    and the finding names the type and the member.
+  - For every whole number of an output, core refuses a fraction or an exponent written in
+    the text, such as `34.0` or `3E1`, and a value above 9223372036854775807. It also
+    refuses a null where the schema gives no type.
+  - The check of the module for the type runs too. `check pull-request`, in check mode,
+    leaves the schema to the end check, and `push pull-request` applies the schema with the
+    rules of the raw text.
+- The artifact type `submission` of `software-factory` is now `pull-request`. Before, it
+  was `submission`, and `process.yaml` had `submit: {type: submission, send: end_of_run}`.
+  - `process.yaml` has no `submit:`. The stage Build lists `pull-request` as a required
+    output. The type has `size_limit: 786432`.
+  - `report-build` always writes the outbox file
+    `.qory/outbox/pull-request/pull-request.json` under the top of the checkout, as
+    `{title, text, steps, draft}`. Before, it wrote the
+    hand-off file at the value of `QORY_SUBMISSION_HANDOFF` under `.qory/handoff/`, only
+    when the variable was set, with at most 262144 bytes. The variable, the folder and that
+    limit are gone.
+  - `steps` is a list of `{commit, step}`, oldest first, with no upper limit. `draft` is
+    `true` when the session records the verdict `passed` itself, in a stage with no
+    reviewers, and `false` when a review round follows.
+  - On every non-zero exit, and with `report-build --drop`, the verb removes the outbox
+    file.
+  - The session writes no `target` and no member that qory fills (`commits`, `head`,
+    `base`, `branch`, `base_branch`, `earlier_commits`): qory sets and fills them after
+    the push, and the end check refuses a file that has one. The type has no `verdict`,
+    `ref`, `repositories` or `no_draft` member.
+  - `check submission` is `check pull-request`. `acceptance-reviewer` reads
+    `qory.review.outputs` in place of `qory.review.submission`: the entry for
+    `pull-request` has the `title` and the `text`.
+- A process with `submit:` or the type `submission` delivers nothing until it is updated to
+  the type `pull-request`.
 - The standard type `explainer` of `software-factory` is called `walkthrough`: its entry
   in `artifact_types` of `process.yaml`, its push check in `qory-module.yaml`, and its file
   `walkthrough.md`. The check reads the same sections as before. Before, the type and its

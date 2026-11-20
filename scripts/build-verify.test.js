@@ -27,7 +27,7 @@ const schema = { ...core, load: (type) => core.load(path.join(SKILL, 'schemas'),
 const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
 
-const JSON_TYPES = ['submission', 'build-ledger', 'acceptance-lock', 'demo-script',
+const JSON_TYPES = ['pull-request', 'build-ledger', 'acceptance-lock', 'demo-script',
   'demo-evidence', 'verification'];
 const DOCUMENT_TYPES = ['build-plan', 'build-report'];
 // The JSON types that process.yaml defines with a json_schema: every JSON type but verification,
@@ -462,12 +462,12 @@ function templateEntries() {
 
 test('process.yaml lists the seven custom types of Build and Verify last, with their limits', () => {
   const entries = templateEntries();
-  assert.deepEqual(entries.map((entry) => entry.name), ['submission', 'build-plan',
+  assert.deepEqual(entries.map((entry) => entry.name), ['pull-request', 'build-plan',
     'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence']);
   for (const entry of entries) {
     const structured = CUSTOM_JSON_TYPES.includes(entry.name);
     assert.equal(entry.base_view, structured ? 'structured' : 'document', entry.name);
-    assert.equal(entry.size_limit, 1048576, entry.name);
+    assert.equal(entry.size_limit, entry.name === 'pull-request' ? 786432 : 1048576, entry.name);
     assert.equal(entry.max_files, 1, entry.name);
     assert.equal(Boolean(entry.json_schema), structured, entry.name);
   }
@@ -545,7 +545,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
   const manifest = fs.readFileSync(MANIFEST, 'utf8');
   const program = 'skills/running-a-software-workflow/workflow-checks.cjs';
   const reads = {
-    submission: null, 'build-plan': 'acceptance-criteria', 'build-report': null,
+    'pull-request': null, 'build-plan': 'acceptance-criteria', 'build-report': null,
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
     'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
@@ -586,11 +586,14 @@ test('the schema check throws for a form of a keyword that it does not check', (
   thrown({ uniqueItems: false }, /Write uniqueItems at # of x.json as true, /);
   // The forms that the schemas of schemas/ use.
   for (const type of ['acceptance-criteria', ...JSON_TYPES]) schema.load(type);
+  // The words of x-qory-fill are annotations that core reads, and the check applies none.
+  schema.compile({ type: 'object', properties: { a: { type: 'string', 'x-qory-fill': 'a' } } },
+    'x.json');
   schema.compile({ type: 'object', additionalProperties: true, properties: {
     a: { enum: ['x', 1, true, null] }, b: { const: null } } }, 'x.json');
 });
 
-test('the 50 samples: each valid one passes its schema, each invalid one fails it', () => {
+test('the 56 samples: each valid one passes its schema, each invalid one fails it', () => {
   let count = 0;
   for (const [type, kinds] of Object.entries(SAMPLES)) {
     const loaded = schema.load(type);
@@ -604,7 +607,7 @@ test('the 50 samples: each valid one passes its schema, each invalid one fails i
       count += 1;
     }
   }
-  assert.equal(count, 50);
+  assert.equal(count, 56);
 });
 
 test('the samples of acceptance-criteria and verification pass or fail their schema', () => {
@@ -621,38 +624,35 @@ test('the samples of acceptance-criteria and verification pass or fail their sch
 });
 
 test('each finding of the schema check has the member and the fix of its keyword', () => {
-  const loaded = schema.load('submission');
-  const doc = clone(SAMPLES.submission.valid[0].doc);
+  const loaded = schema.load('pull-request');
+  const doc = clone(SAMPLES['pull-request'].valid[0].doc);
   const found = (change) => {
     const bad = clone(doc);
     change(bad);
-    return schema.errors(loaded, bad, 'submission.json');
+    return schema.errors(loaded, bad, 'pull-request.json');
   };
-  assert.deepEqual(found((d) => { d.verdict = 'failed'; }), ['Set /verdict of submission.json ' +
-    'to a value that the schema lists.\nThe schema lists passed, changes-requested, escalate, ' +
-    'none. It is "failed".']);
-  assert.deepEqual(found((d) => { delete d.ref; }), ['Add the member ref to submission.json.']);
+  assert.deepEqual(found((d) => { d.draft = 'yes'; }),
+    ['Write /draft of pull-request.json as true or false.\nIt is text.']);
+  assert.deepEqual(found((d) => { delete d.title; }),
+    ['Add the member title to pull-request.json.']);
   assert.deepEqual(found((d) => { d.pull_request = 34; }), ['Remove the member "pull_request" ' +
-    'from submission.json.\nThe schema has no such member.']);
-  assert.match(found((d) => { d.repositories[0].commit = 'abc'; })[0],
-    /^Write \/repositories\/0\/commit of submission.json so that it matches its pattern\.\nThe pattern is /);
-  assert.deepEqual(found((d) => { d.repositories[0].draft.none = 'no-text'; }),
-    ['Write /repositories/0/draft of submission.json in exactly one of its 2 forms.\nIt fits 0.']);
-  assert.deepEqual(found((d) => { d.repositories = []; }),
-    ['Give /repositories of submission.json at least 1 entry.\nIt has 0.']);
-  assert.deepEqual(found((d) => { d.text.title = 'x'.repeat(257); }),
-    ['Cut /text/title of submission.json to at most 256 characters.\nIt has 257.']);
-  assert.deepEqual(found((d) => { d.repositories[0].path = 'example/../x'; }),
-    ['Write /repositories/0/path of submission.json in another form.\nThe schema excludes ' +
-      '"example/../x".']);
-  assert.deepEqual(found((d) => { d.repositories = {}; }),
-    ['Write /repositories of submission.json as a list.\nIt is an object.']);
+    'from pull-request.json.\nThe schema has no such member.']);
+  assert.match(found((d) => { d.head.address.path = 'abc'; })[0],
+    /^Write \/head\/address\/path of pull-request.json so that it matches its pattern\.\n/);
+  assert.deepEqual(found((d) => { d.commits = []; }),
+    ['Give /commits of pull-request.json at least 1 entry.\nIt has 0.']);
+  assert.deepEqual(found((d) => { d.title = 'x'.repeat(257); }),
+    ['Cut /title of pull-request.json to at most 256 characters.\nIt has 257.']);
+  assert.deepEqual(found((d) => { d.branch = 'a..b'; }),
+    ['Write /branch of pull-request.json in another form.\nThe schema excludes "a..b".']);
+  assert.deepEqual(found((d) => { d.commits = {}; }),
+    ['Write /commits of pull-request.json as a list.\nIt is an object.']);
   // A long member name and a long pointer keep the first line within 100 characters, and the
   // later lines have the whole pointer and the member name as shown.
   const long = 'a long member name '.repeat(4).trim();
-  const deep = found((d) => { d.repositories[0][long] = { [long]: 1 }; });
-  assert.deepEqual(deep, ['Remove the member "a long member nam..." from /repositories/0 of ' +
-    'submission.json.\nThe schema has no member "a long member name a long member name...".']);
+  const deep = found((d) => { d.head[long] = { [long]: 1 }; });
+  assert.deepEqual(deep, ['Remove the member "a long member nam..." from /head of ' +
+    'pull-request.json.\nThe schema has no member "a long member name a long member name...".']);
   const pointer = schema.errors({ schema: { type: 'object', properties: { [long]: {
     type: 'object', properties: { [long]: { type: 'string' } } } } }, patterns: new Map() },
   { [long]: { [long]: 1 } }, 'acceptance-lock.json');
@@ -702,146 +702,190 @@ test('each JSON type fails each invalid sample in its push', () => {
   }
 });
 
-// ---- submission ---------------------------------------------------------------------------
+// ---- pull-request -------------------------------------------------------------------------
 
-const SUBMISSION = SAMPLES.submission.valid[0].doc;
+const PULL_REQUEST = SAMPLES['pull-request'].valid[0].doc;
+const PR_FILE = 'pull-request.json';
 
-test('submission: both valid samples pass check and push', () => {
-  for (const sample of SAMPLES.submission.valid) {
-    passes(push(fixture(), 'submission', ['submission.json', sample.doc]), 'submission');
-    passes(check(fixture(), 'submission', ['submission.json', sample.doc]), 'submission');
+test('pull-request: both valid samples pass push, and check leaves the schema to end', () => {
+  for (const sample of SAMPLES['pull-request'].valid) {
+    passes(push(fixture(), 'pull-request', [PR_FILE, sample.doc]), 'pull-request');
+    passes(check(fixture(), 'pull-request', [PR_FILE, sample.doc]), 'pull-request');
   }
+  // In check, before qory sets target and fills the marked members, the file has neither.
+  const written = clone(PULL_REQUEST);
+  for (const name of ['target', 'commits', 'head', 'base', 'branch', 'base_branch']) {
+    delete written[name];
+  }
+  passes(check(fixture(), 'pull-request', [PR_FILE, written]), 'pull-request');
+  fails(push(fixture(), 'pull-request', [PR_FILE, written]), /^Add the member target to /);
 });
 
-test('submission: a passed verdict has a text', () => {
-  const doc = clone(SUBMISSION);
-  delete doc.text;
-  fails(push(fixture(), 'submission', ['submission.json', doc]),
-    /^Add the member text to submission.json: a passed verdict has a title and a description\.$/);
+test('pull-request: the text has the four parts in order', () => {
+  const doc = clone(PULL_REQUEST);
+  doc.text = '## Change\n...\n## Problem\n...\n## Tests\n...\n## Disclosed\n...';
+  for (const run of [push, check]) {
+    fails(run(fixture(), 'pull-request', [PR_FILE, doc]),
+      new RegExp('^Write /text of pull-request.json in four parts, in their order\\. ' +
+        'They are ## Problem, ## Change, ## Tests, ## Disclosed\\. It has ## Change, ## Problem'));
+  }
+  doc.text = 'The change.';
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]), / It has no ## heading\.$/);
 });
 
-test('submission: the description has the four parts in order', () => {
-  const doc = clone(SUBMISSION);
-  doc.text.description = '## Change\n...\n## Problem\n...\n## Tests\n...\n## Disclosed\n...';
-  fails(push(fixture(), 'submission', ['submission.json', doc]),
-    /^Write \/text\/description of submission.json in four parts, in their order\. They are ## Problem, ## Change, ## Tests, ## Disclosed\. It has ## Change, ## Problem/);
-  doc.text.description = 'The change.';
-  fails(push(fixture(), 'submission', ['submission.json', doc]), / It has no ## heading\.$/);
-});
-
-test('submission: no secret in the title or the description', () => {
+test('pull-request: no secret in the title or the text', () => {
   const secrets = ['-----BEGIN RSA PRIVATE KEY-----', `AKIA${'A'.repeat(16)}`,
     `ghp_${'a'.repeat(36)}`, `github_pat_${'a'.repeat(22)}`, `glpat-${'a'.repeat(20)}`,
     `xoxb-${'1'.repeat(12)}`, `sk-${'a'.repeat(24)}`];
   for (const secret of secrets) {
-    const doc = clone(SUBMISSION);
-    doc.text.description = doc.text.description.replace('## Change\n...', `## Change\n${secret}`);
-    fails(push(fixture(), 'submission', ['submission.json', doc]),
-      /^Remove the secret from \/text\/description of submission.json: it has the form of /);
+    const doc = clone(PULL_REQUEST);
+    doc.text = doc.text.replace('## Change\n...', `## Change\n${secret}`);
+    for (const run of [push, check]) {
+      fails(run(fixture(), 'pull-request', [PR_FILE, doc]),
+        /^Remove the secret from \/text of pull-request.json: it has the form of /);
+    }
   }
   // A token one character shorter than its form is no secret.
   for (const short of [`github_pat_${'a'.repeat(21)}`, `glpat-${'a'.repeat(19)}`]) {
-    const doc = clone(SUBMISSION);
-    doc.text.description = doc.text.description.replace('## Change\n...', `## Change\n${short}`);
-    passes(push(fixture(), 'submission', ['submission.json', doc]), 'submission');
+    const doc = clone(PULL_REQUEST);
+    doc.text = doc.text.replace('## Change\n...', `## Change\n${short}`);
+    passes(push(fixture(), 'pull-request', [PR_FILE, doc]), 'pull-request');
   }
-  const doc = clone(SUBMISSION);
-  doc.text.title = `Add export ghp_${'a'.repeat(36)}`;
-  fails(push(fixture(), 'submission', ['submission.json', doc]), /^Remove the secret from \/text\/title/);
+  const doc = clone(PULL_REQUEST);
+  doc.title = `Add export ghp_${'a'.repeat(36)}`;
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]), /^Remove the secret from \/title/);
 });
 
-// The schema of submission takes qory's format and the bounds of the change feed of the
-// integration contract: base, commits, more draft states, the reasons with exit, the title
-// rule of a draft, and a description that may be empty and has no marker line.
-const submissionErrors = (change) => {
-  const doc = clone(SUBMISSION);
+// The schema of pull-request takes the bounds of qory's format, and the shape of the members
+// that qory sets and fills: references, a branch, and a count of earlier commits.
+const pullRequestErrors = (change) => {
+  const doc = clone(PULL_REQUEST);
   change(doc);
-  return schema.errors(schema.load('submission'), doc, 'submission.json');
+  return schema.errors(schema.load('pull-request'), doc, PR_FILE);
 };
 
-test('submission: a repository with base and commits, and one with no draft, is valid', () => {
-  assert.deepEqual(submissionErrors((d) => {
-    Object.assign(d.repositories[0], {
-      base: { commit: C2, branch: 'main', commit_url: 'https://example.com/example/shop/commit/1' },
-      commits: [{ commit: C2, step: 'deliverable:d-1' },
-        { commit: C1, step: 'fix:f1', commit_url: 'https://example.com/example/shop/commit/2' }],
-    });
-  }), []);
-  assert.deepEqual(submissionErrors((d) => { delete d.repositories[0].draft; }), []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { branch: 'main' }; }), []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { commit: C1, x: 1 }; }),
-    []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { commit: C1,
-    branch: 'a..b' }; }), []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].commits = [{ commit: C1 }]; }),
-    []);
-});
-
-test('submission: a step has 1 to 128 characters, and the commits have no upper bound', () => {
-  const step = (value) => submissionErrors((d) => {
-    d.repositories[0].commits = [{ commit: C1, step: value }];
-  });
-  assert.deepEqual(step('x'.repeat(128)), []);
-  assert.deepEqual(step('x'.repeat(129)), ['Cut /repositories...mmits/0/step of ' +
-    'submission.json to at most 128 characters.\nIt has 129.\nThe whole JSON pointer is ' +
-    '/repositories/0/commits/0/step.']);
-  assert.notDeepEqual(step(''), []);
-  assert.notDeepEqual(step('a\u0000b'), []);
-  const commits = (count) => submissionErrors((d) => {
-    d.repositories[0].commits = Array.from({ length: count }, () => ({ commit: C1, step: 's' }));
-  });
-  assert.deepEqual(commits(100), []);
-  assert.deepEqual(commits(101), []);
-  // The push check of the type takes 101 commits in one repository, as qory does.
-  const many = clone(SUBMISSION);
-  many.repositories[0].commits = Array.from({ length: 101 }, () => ({ commit: C1, step: 's' }));
-  passes(push(fixture(), 'submission', ['submission.json', many]), 'submission');
-});
-
-test('submission: the title is one line, with no control, bidi or invisible character', () => {
-  const title = (value) => submissionErrors((d) => { d.text.title = value; });
-  assert.deepEqual(title('Add export to CSV'), []);
-  for (const bad of ['Add\texport', 'Add\u0085export', 'Add\u202eexport', 'Add\u2028export',
-    'Add\u200bexport', 'Add\u007fexport', '', '   ', '\u00a0\u3000']) {
-    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+test('pull-request: a null, in any member, is refused at push', () => {
+  for (const member of ['title', 'text', 'draft', 'branch', 'earlier_commits', 'target', 'steps']) {
+    const doc = clone(PULL_REQUEST);
+    doc[member] = null;
+    fails(push(fixture(), 'pull-request', [PR_FILE, doc]), new RegExp(`^Write /${member} of `));
   }
 });
 
-test('submission: the description may be empty, has at most 20000 characters, no marker line', () => {
-  const description = (value) => submissionErrors((d) => { d.text.description = value; });
-  assert.deepEqual(description(''), []);
-  assert.deepEqual(description('x'.repeat(20000)), []);
-  assert.deepEqual(description('See <!-- qory:start --> in a line.'), []);
-  assert.deepEqual(description('x'.repeat(20001)), ['Cut /text/description of ' +
-    'submission.json to at most 20000 characters.\nIt has 20001.']);
+test('pull-request: a commit id has 40 or 64 hex characters, not 41', () => {
+  const id = (value) => pullRequestErrors((d) => { d.commits[0].address.path = value; });
+  assert.deepEqual(id('a'.repeat(40)), []);
+  assert.deepEqual(id('a'.repeat(64)), []);
+  assert.notDeepEqual(id('a'.repeat(41)), []);
+  assert.notDeepEqual(id('A'.repeat(40)), []);
+  const doc = clone(PULL_REQUEST);
+  doc.commits[0].address.path = 'a'.repeat(41);
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]),
+    /^Write \/commits\/0\/address\/path of pull-request.json so that it matches its pattern\./);
+  assert.notDeepEqual(pullRequestErrors((d) => { d.head.address = {}; }), []);
+  assert.notDeepEqual(pullRequestErrors((d) => { delete d.base.address; }), []);
+});
+
+test('pull-request: a step has 1 to 128 characters, and the commits have no upper bound', () => {
+  const step = (value) => pullRequestErrors((d) => { d.steps = [{ commit: C1, step: value }]; });
+  assert.deepEqual(step('x'.repeat(128)), []);
+  assert.deepEqual(step('x'.repeat(129)), ['Cut /steps/0/step of pull-request.json to at ' +
+    'most 128 characters.\nIt has 129.']);
+  assert.notDeepEqual(step(''), []);
+  assert.notDeepEqual(step('a\u0000b'), []);
+  const many = (count) => {
+    const doc = clone(PULL_REQUEST);
+    doc.commits = Array.from({ length: count }, () => doc.head);
+    doc.steps = Array.from({ length: count }, () => ({ commit: C1, step: 's' }));
+    return doc;
+  };
+  assert.deepEqual(schema.errors(schema.load('pull-request'), many(100), PR_FILE), []);
+  assert.deepEqual(schema.errors(schema.load('pull-request'), many(101), PR_FILE), []);
+  // The push check of the type takes 101 commits in one target, as qory does.
+  passes(push(fixture(), 'pull-request', [PR_FILE, many(101)]), 'pull-request');
+});
+
+test('pull-request: the title is one line, with no control, bidi or invisible character', () => {
+  const title = (value) => pullRequestErrors((d) => { d.title = value; });
+  assert.deepEqual(title('Add export to CSV'), []);
+  for (const bad of ['Add\texport', 'Add\u0085export', 'Add‮export', 'Add export',
+    'Add​export', 'Add\u007fexport', '', '   ', ' 　']) {
+    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+  }
+  // A character of the class Cf that the pattern lets through is refused by the check.
+  const doc = clone(PULL_REQUEST);
+  doc.title = 'Add­export';
+  assert.notDeepEqual(title(doc.title), []);
+  doc.title = 'Add؀export';
+  assert.deepEqual(title(doc.title), []);
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]), /^Remove U\+0600 from \/title of /);
+});
+
+test('pull-request: the text may be empty, has at most 20000 characters, no marker line', () => {
+  const text = (value) => pullRequestErrors((d) => { d.text = value; });
+  assert.deepEqual(text(''), []);
+  assert.deepEqual(text('x'.repeat(20000)), []);
+  assert.deepEqual(text('See <!-- qory:start --> in a line.'), []);
+  assert.deepEqual(text('x'.repeat(20001)), ['Cut /text of pull-request.json to at most ' +
+    '20000 characters.\nIt has 20001.']);
   for (const marker of ['<!-- qory:start -->', '<!-- qory:end -->']) {
     for (const bad of [marker, `## Problem\n${marker}\n## Change`, `${marker} \r\nx`]) {
-      assert.notDeepEqual(description(bad), [], JSON.stringify(bad));
+      assert.notDeepEqual(text(bad), [], JSON.stringify(bad));
     }
   }
 });
 
-test('submission: the reasons for no draft, and the exit that goes with each', () => {
-  const none = (draft) => submissionErrors((d) => { d.repositories[0].draft = draft; });
-  for (const exit of [0, 1, 2]) assert.deepEqual(none({ none: 'program-failed', exit }), []);
-  assert.deepEqual(none({ none: 'login-needed', exit: 3 }), []);
-  for (const reason of ['not-passed', 'no-text', 'escalated', 'no-program', 'program-timeout']) {
-    assert.deepEqual(none({ none: reason }), [], reason);
-    assert.notDeepEqual(none({ none: reason, exit: 1 }), [], reason);
+test('pull-request: a branch follows the rules of a name, earlier_commits is optional', () => {
+  const branch = (value) => pullRequestErrors((d) => { d.branch = value; });
+  assert.deepEqual(branch('qory/wi_abc'), []);
+  assert.deepEqual(branch('x'.repeat(255)), []);
+  for (const bad of ['x'.repeat(256), 'a..b', '-a', 'a b', 'a.lock', '@', 'a/']) {
+    assert.notDeepEqual(branch(bad), [], bad);
   }
-  assert.notDeepEqual(none({ none: 'program-failed' }), []);
-  assert.notDeepEqual(none({ none: 'program-failed', exit: 3 }), []);
-  assert.notDeepEqual(none({ none: 'login-needed' }), []);
-  assert.notDeepEqual(none({ none: 'login-needed', exit: 2 }), []);
-  assert.notDeepEqual(none({ none: 'other' }), []);
-  for (const state of ['closed', 'merged']) {
-    assert.deepEqual(submissionErrors((d) => { d.repositories[0].draft.state = state; }), []);
-  }
+  assert.notDeepEqual(pullRequestErrors((d) => { d.base_branch = 'a~b'; }), []);
+  assert.deepEqual(pullRequestErrors((d) => { delete d.earlier_commits; }), []);
+  assert.deepEqual(pullRequestErrors((d) => { d.earlier_commits = 1; }), []);
+  assert.notDeepEqual(pullRequestErrors((d) => { d.earlier_commits = 0; }), []);
+  assert.notDeepEqual(pullRequestErrors((d) => { d.draft = 1; }), []);
 });
 
-test('process.yaml declares the submit step: the type submission, sent at the end of a run', () => {
-  assert.ok(fs.readFileSync(PROCESS, 'utf8').split('\n').includes(
-    'submit: {type: submission, send: end_of_run}'));
+test('pull-request: a whole number with a fraction, an exponent or a huge value is refused', () => {
+  const base = clone(PULL_REQUEST);
+  delete base.earlier_commits;
+  const written = (count) => JSON.stringify(base).replace('"draft":true',
+    `"draft":true,"earlier_commits":${count}`);
+  for (const count of ['34.0', '3.4e1', '3E1', '34e0']) {
+    fails(push(fixture(), 'pull-request', [PR_FILE, written(count)]),
+      /^Write \/earlier_commits of pull-request.json as a whole number with no fraction/);
+  }
+  passes(push(fixture(), 'pull-request', [PR_FILE, written('9223372036854775807')]),
+    'pull-request');
+  fails(push(fixture(), 'pull-request', [PR_FILE, written('9223372036854775808')]),
+    /^Set \/earlier_commits of pull-request.json to at most 9223372036854775807\./);
+  // The same digits in a string are text.
+  const note = JSON.stringify({ ...PULL_REQUEST, title: '34.0' });
+  passes(push(fixture(), 'pull-request', [PR_FILE, note]), 'pull-request');
+});
+
+test('process.yaml has no submit step, lists pull-request as an output of Build', () => {
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  assert.ok(!/^submit:/m.test(yaml));
+  assert.ok(!yaml.includes('submission'));
+  assert.ok(yaml.includes(
+    '      outputs:\n        - type: pull-request\n          required: true\n'));
+  const entry = artifactEntries().find((one) => one.name === 'pull-request');
+  assert.equal(entry.size_limit, 786432);
+  assert.equal(entry.base_view, 'structured');
+});
+
+test('pull-request: every member that qory fills is marked, and no other member is', () => {
+  const { properties } = schema.load('pull-request').schema;
+  const marks = Object.fromEntries(Object.entries(properties)
+    .filter(([, member]) => member['x-qory-fill']).map(([name, member]) =>
+      [name, member['x-qory-fill']]));
+  assert.deepEqual(marks, { commits: 'pushed-commits', head: 'pushed-head', base: 'pushed-base',
+    branch: 'pushed-branch', base_branch: 'pushed-base-branch',
+    earlier_commits: 'pushed-commits-left-out' });
 });
 
 // ---- build-plan ---------------------------------------------------------------------------
