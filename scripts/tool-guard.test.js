@@ -5106,30 +5106,9 @@ test('the child that reads the input of a hook runs without NODE_OPTIONS', () =>
 
 // hookCommands returns each command that a fragment of modules/core/settings/ registers as a
 // hook, as { file, command }: read from the five files, so that a command that is added or
-// changed there is read too.
-function hookCommands() {
-  const dir = path.join(MODULES, 'core', 'settings');
-  const found = [];
-  const walk = (file, value) => {
-    if (Array.isArray(value)) value.forEach((one) => walk(file, one));
-    else if (value !== null && typeof value === 'object') {
-      for (const [key, one] of Object.entries(value)) {
-        if (typeof one === 'string' && (key === 'command' || key === 'bash')) {
-          found.push({ file, command: one });
-        } else walk(file, one);
-      }
-    }
-  };
-  for (const file of ['claude/settings.json', 'gemini/settings.json', 'cursor/hooks.json',
-    'copilot/hooks.json']) {
-    walk(file, JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')).hooks);
-  }
-  const toml = fs.readFileSync(path.join(dir, 'codex/config.toml'), 'utf8');
-  for (const [, quoted] of toml.matchAll(/^command = (".*")$/gm)) {
-    found.push({ file: 'codex/config.toml', command: JSON.parse(quoted) });
-  }
-  return found;
-}
+// changed there is read too. scripts/hook-commands.js reads them for scripts/check.sh.
+const hookCommands = () => require('./hook-commands.js').hookCommands(
+  path.join(MODULES, 'core', 'settings'));
 
 const UNSET = ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_AUDIT'];
 

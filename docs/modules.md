@@ -3753,3 +3753,13 @@ The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.tes
 `scripts/preflight.test.js` and rule 9 with `node`, and exits 1 at its start with an
 instruction to install `node` when `node` is missing. Only the sign-in tests of
 `scripts/preflight.test.js` start a browser, and they skip when the machine has none.
+
+Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the 13
+hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for
+Copilot CLI, 3 for Cursor and 2 for Gemini CLI. Each command must pass `sh -n`, `bash -n` and
+`shellcheck -s sh`. A Gemini CLI command, which Gemini starts through `bash -c`, must also pass
+`shellcheck -s bash`. Each file of `modules/core/hooks/` must pass `node --check`, and each file
+that a command runs must exist there. Without `shellcheck` on the `PATH`, the step prints a line
+that starts with `SKIP` and runs the other checks. When the variable `CI` is set, as on GitHub
+Actions, a missing `shellcheck` fails the step. `scripts/hook-commands.test.js` runs the step on
+a command with an unquoted variable and on a hook file with a syntax error.

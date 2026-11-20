@@ -1388,6 +1388,15 @@ $OUT"
 	pass "$1"
 }
 
+# The hook commands that the settings of core register. Each command passes sh -n, bash -n and
+# shellcheck, and each file of modules/core/hooks passes node --check. This step needs no qory,
+# so it runs before the first qory call. Without shellcheck on the PATH, it skips the shellcheck
+# checks and prints the line SKIP, unless the variable CI is set: there, a missing shellcheck
+# fails the step. scripts/hook-commands.test.js tests the step on a bad command and a bad file.
+expect "the hook commands pass shellcheck, node --check and sh -n/bash -n" 0 "$ROOT" node scripts/hook-commands.js
+printf '%s\n' "$OUT" | grep '^SKIP' >&2
+expect "the tests of the hook command checks pass" 0 "$ROOT" node --test scripts/hook-commands.test.js
+
 run "$ROOT" "$QORY" version
 [ "$RC" -eq 0 ] || fail "qory version exits 0 (exit status $RC)"
 printf '%s\n' "$OUT" | sed -n 1p
