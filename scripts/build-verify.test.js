@@ -834,7 +834,7 @@ test('pull-request: the title is one line, with no control, bidi or invisible ch
   fails(push(fixture(), 'pull-request', [PR_FILE, doc]), /^Remove U\+0600 from \/title of /);
 });
 
-test('pull-request: a title keeps the joiner of an emoji and refuses a tag or bidi character', () => {
+test('pull-request: a title keeps an emoji joiner and refuses a tag or bidi character', () => {
   const run = (title) => {
     const doc = clone(PULL_REQUEST);
     doc.title = title;
@@ -843,7 +843,8 @@ test('pull-request: a title keeps the joiner of an emoji and refuses a tag or bi
   // U+1F468 U+200D U+1F469: the joiner U+200D is inside the emoji.
   passes(run('Add family \u{1F468}\u200D\u{1F469} export'), 'pull-request');
   passes(run('Add\u200Cexport'), 'pull-request');
-  for (const [title, code] of [['Add\u202Eexport', '202E'], ['Add\u{E0041}export', 'E0041']]) {
+  for (const [title, code] of [['Add\u202Eexport', '202E'],
+    ['Add\u{E0041}export', 'E0041']]) {
     const got = run(title);
     fails(got, /^Remove U\+|^Write \/title of /);
     assert.ok(!got.out.includes(title.charAt(3)), 'the raw character is in a finding');

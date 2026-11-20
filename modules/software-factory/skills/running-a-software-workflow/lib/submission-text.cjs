@@ -9,7 +9,7 @@ module.exports = (lib) => {
   const { lines, sections, schema } = lib;
 
   // The pattern of the schema for a title lets through some characters that qory does not
-  // accept: each Cc, U+2028, U+2029 and each Cf but U+200C and U+200D, the joiners of emoji.
+  // accept: each Cc, U+2028, U+2029, and each Cf but U+200C and U+200D (the emoji joiners).
   const TITLE_OK = new RegExp(schema.load(SCHEMAS, 'pull-request').schema.$defs.title.pattern);
   const TITLE_REFUSED = /[\p{Cc}\u2028\u2029]|(?![\u200C\u200D])\p{Cf}/u;
 
