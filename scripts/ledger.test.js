@@ -710,6 +710,9 @@ test('ledger: step end done refuses a report with a list Left out: that cannot b
     ['leading spaces', '  Left out:\n- the cache: slow\n', HEADER],
     ['a heading', '## Left out\n- the cache: slow\n', HEADER],
     ['a heading with a colon', '### Left out:\n- the cache: slow\n', HEADER],
+    ['bold with an item on its line', '**Left out**: the cache\n', HEADER],
+    ['lower case with an item on its line', 'left out: the cache\n', HEADER],
+    ['a heading with an item on its line', '## Left out: the cache\n', HEADER],
   ];
   for (const [name, text, problem] of cases) {
     const refused = call('step', 'end', 'plan', 'done', '--report',

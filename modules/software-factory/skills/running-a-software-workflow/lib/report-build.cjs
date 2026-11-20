@@ -158,7 +158,7 @@ module.exports = (lib) => {
       const head = /^(?:\*\*)?Left out:(?:\*\*)?[ \t]*(.*)$/.exec(row.trimEnd());
       if (!head) {
         const bare = row.replace(/^[#*\s]+|[#*\s]+$/g, '');
-        if (/^left out\**:?\**(?:\s*none\.?)?$/i.test(bare)) {
+        if (/^left out\**:?\**(?:\s*none\.?)?$/i.test(bare) || /^left out\**\s*:/i.test(bare)) {
           problems.push('a header that is not `Left out:` or `**Left out:**` at column 0');
         }
         return;
