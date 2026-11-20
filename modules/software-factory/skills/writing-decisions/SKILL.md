@@ -1,6 +1,6 @@
 ---
 name: writing-decisions
-description: Load before you write a decision record. Contains where it starts, its parts, when you decide and when you ask, decision ids, criterion ids, questions, review comments and notes.
+description: Load before you write a decision record. Contains where it starts, its parts, when you decide and when you ask, decision ids, criterion ids, pictures, questions, review comments and notes.
 ---
 
 # Writing decisions
@@ -47,6 +47,8 @@ Use this form, in this order:
 An open decision, with `- Decision: open until the questions are answered.`, has every
 item except "Cost:".
 
+A decision may end with one Mermaid diagram, as the section "Pictures" lists.
+
 With no target, "Today:" is "The ticket has no target." With a target and no files in the
 code explorer's report, it is "The run has no files of the target." A file of a further
 repository is the folder's name, a colon and the path.
@@ -88,6 +90,65 @@ build the work that differ in what they cost later.
   `Blocked: needs a new criterion: <the change>`.
 - In every start, change or remove a decision that rests only on removed criteria, or that
   no longer meets a criterion it rests on.
+
+## Pictures
+
+The record is a Markdown document and follows the section "Markdown documents" of
+`artifact-text` for its pictures. The record keeps the form of the section "The parts", so
+this skill replaces these rules of the section "Markdown documents" of `artifact-text`:
+
+- The summary, the background and the parts: the record has only `## Decisions`, and each
+  decision starts with its items.
+- The rule "start with one picture" and the reason of a part with no picture: a picture is
+  optional and stands after the last item, and a decision with no picture needs no reason.
+- "Pick the picture by what the part changes": a decision has a picture only when the
+  chosen way changes how two parts call each other, or a flow of states, and the picture
+  is a Mermaid diagram.
+- The rule that a document "has no limit on pictures": a decision has at most one diagram,
+  and the record at most 2. The record counts each block that Qory Apiary draws, also one
+  in a quote or a list item, and the check refuses a block whose fence is not at the start
+  of the line.
+- The points after a picture: the items of the form replace them.
+- The table of options and the other pictures: the record has no table and no wireframe,
+  and no `![` or `<img` anywhere, code blocks and diagrams included. Write `\![` outside
+  code for a literal `![`. The ways that a person compares are the options of the
+  question.
+
+The other rules stay, such as the edit in place of the newest version, and the 450 words.
+
+- A diagram shows the change in how two parts call each other, or in a flow of states, and
+  nothing else, and it is no drawing of the system's architecture.
+- Write the diagram in a ```` ```mermaid ```` block, after a blank line, as the last text of
+  its decision, after the last item. Close the block with its fence line. Draw it by the
+  rules of ${qory:skills/visuals}: load it before you draw or change a diagram. If it
+  cannot be loaded, report `blocked`.
+- Open the block with ```` ```mermaid ```` or `~~~mermaid` at the start of the line, with
+  `mermaid` in lower case and no other word or character after it. Qory Apiary draws a code
+  block as a diagram when the first word of its info string is `mermaid`. A fence indented
+  1 to 3 spaces can belong to the list item above it, and one indented 4 spaces or more is
+  code, so the check requires the fence at the start of the line.
+- Start the diagram with `flowchart`, `graph`, `sequenceDiagram`, `stateDiagram`,
+  `stateDiagram-v2`, `classDiagram`, `classDiagram-v2` or `erDiagram`. Keep it to 20,000
+  characters: the text of a code block ends with a line feed, and Mermaid leaves out its
+  `%%` comment lines, the blank lines before them and the white space at the start. Keep a
+  flowchart to 200 edges: a link between two `&` groups adds one edge for each pair of
+  nodes. Write no `url(`, `image-set(` or `@import`, no node with `img`, and no `properties`
+  or `details` line.
+- Write no `%%{` line. Qory Apiary strips it before it draws, so the check refuses it.
+- Qory Apiary shows a block of another type, with one of those syntaxes, or over 200 edges
+  as text, under a line that says why it failed. It shows a block over 20,000 characters as
+  the size-error diagram of Mermaid, with its source in `<details>`. The check refuses each
+  of them.
+- The 450 words leave out the diagrams. Qory Apiary strips each `click`, `link`, `callback`
+  and `links` statement line and the front matter of a block before it draws, and the check
+  refuses neither.
+- A line that starts with `|` counts toward the 450 words, unless it forms a table with a
+  delimiter row.
+- Write no diagram in a removed decision: when you remove a decision, remove its diagram.
+- A second diagram in a decision, a diagram that is not the last text of its decision, a
+  diagram in a removed decision, an unclosed block, a block that Qory Apiary does not draw
+  and a third diagram in the record fail the check.
+- A diagram that no answer, finding or word concerns stays as it is.
 
 ## Questions
 

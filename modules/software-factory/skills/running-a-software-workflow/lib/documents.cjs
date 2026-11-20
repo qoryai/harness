@@ -9,10 +9,10 @@ module.exports = (lib) => {
   // writing-proposals (SKILL.md:200-201, 334-337, 383-384: "Never write a path of the machine").
   // For the spec and the decision record,
   // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
-  // writing-decisions (SKILL.md:51-52: "A file of a further repository is the folder's name") state
+  // writing-decisions (SKILL.md:53-54: "A file of a further repository is the folder's name") state
   // only the form of a file of a further repository, and only
   // checking-specs (SKILL.md:67-68: "each path of the machine the run is on") and
-  // checking-decisions (SKILL.md:80-81: "each path of the machine the run is on") list paths.
+  // checking-decisions (SKILL.md:96: "each path of the machine the run is on") list paths.
   function paths(run, file, where, text) {
     run.did('paths');
     const at = where ? `${where} of ${file}` : file;
@@ -34,7 +34,7 @@ module.exports = (lib) => {
   // removed id stays removed, and a new id takes a number above the highest:
   // writing-specs (SKILL.md:60-63: "kept in every later version"),
   // writing-demo-scenarios (SKILL.md:67-70: "An id is `scenario-` and a number") and
-  // writing-decisions (SKILL.md:75-78: "An id is `decision-` and a number"). kind is the word for
+  // writing-decisions (SKILL.md:78-79: "An id is `decision-` and a number"). kind is the word for
   // one item, such as "criterion".
   function idHistory(run, file, kind, current, previous) {
     run.did('ids once');

@@ -55,6 +55,7 @@ Load each skill when its step comes, and no other:
   record: the four outcomes.
 - ${qory:skills/exploring-code}, only when a decision or a finding needs a file that the
   code explorer's report does not cover: the search forms.
+- ${qory:skills/visuals}, only when you add a diagram: how to draw it.
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   read forms and the commands you may run.
 

@@ -1379,8 +1379,8 @@ never prints `allow`, for the reason in the paragraph after the list of hooks. T
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
   It denies with `decision: deny` and `reason`.
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
-  hook for a command that the guard can deny: one with `.r`, `.env`, `*`, `?`, `[`, `{`, `$`,
-  a backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
+  hook for a command that the guard can deny: one with `.r`, `.env`, `*`, `?`, `[`, `{`,
+  `$`, a backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
   `ls -la`, starts no hook. It denies with `permission: deny` and exit code 2.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
@@ -1408,50 +1408,50 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 and `HOME` by default.
 
 Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code, Codex,
-Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads
-no preload into a hook process. The path is absolute, so that no `env` earlier in `PATH`
-replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
+`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code,
+Codex, Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets
+then loads no preload into a hook process. The path is absolute, so that no `env` earlier in
+`PATH` replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
 `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
-checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are the
-ones that Linux reads.
+checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are
+the ones that Linux reads.
 
 A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
 cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
-environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks up
-from the working folder to the home folder, and in each folder it takes `.gemini/.env`
+environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks
+up from the working folder to the home folder, and in each folder it takes `.gemini/.env`
 before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
 script before a hook command. So `settings/gemini/settings.json` does two things:
 
 - It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
   field to the environment of the hook after the other variables, and bash reads no file for
-  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it is
-  read from the source of 0.68.0.
+  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it
+  is read from the source of 0.68.0.
 - It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
   `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
   Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list
-  set and no `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before the
-  hook.
+  set and no `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before
+  the hook.
 
 The guard denies a write to a file named `.env`, which includes `.gemini/.env`. For the
 write tools it reads paths with the rules of `.reports/`: links, `..` and patch headers. It
 denies a shell command in which a word is `.env`, or becomes `.env` after the shell removes
 quotes and backslashes. `.env.example`, `.envrc` and `.venv` pass. The guards of Gemini CLI,
-Cursor and Copilot CLI read the headers of a unified diff. The Codex tool guard reads only the
-Codex headers, because Codex rejects a unified diff and writes nothing.
+Cursor and Copilot CLI read the headers of a unified diff. The Codex tool guard reads only
+the Codex headers, because Codex rejects a unified diff and writes nothing.
 
 A command still reaches `.env` past the guard through a glob or braces such as `.en?` and
-`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same. A command
-that applies a diff from a file, such as `git apply fix.diff` or `patch`, has no `.env` in its
-text, as with a glob. The heredoc form is denied. In
-a run on Claude Code and Codex, a command of read-only programs is not read, as for
-`.reports/`, so `cat .env` passes there.
+`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same.
+A command that applies a diff from a file, such as `git apply fix.diff` or `patch`, has no
+`.env` in its text, as with a glob. The heredoc form is denied. In a run on Claude Code and
+Codex, a command of read-only programs is not read, as for `.reports/`, so `cat .env` passes
+there.
 
-By design, as for `.reports/`, the shell rule on all five runtimes also denies a command with
-the word `.env` as text, such as a commit message. It also denies a folder named `.env`.
-So `echo .env >> .gitignore` and `printf '.env\n' >> .gitignore` are denied. A patch or a
-write tool adds the line `.env` to `.gitignore`: the guard reads only the file headers of a
-patch, and the text that a write tool writes is no path.
+By design, as for `.reports/`, the shell rule on all five runtimes also denies a command
+with the word `.env` as text, such as a commit message. It also denies a folder named
+`.env`. So `echo .env >> .gitignore` and `printf '.env\n' >> .gitignore` are denied. A patch
+or a write tool adds the line `.env` to `.gitignore`: the guard reads only the file headers
+of a patch, and the text that a write tool writes is no path.
 
 The test of the real Gemini CLI runs when `gemini` is on `PATH`, and fails when its version
 is not 0.68.0, because the field `env` is read from the source of that version. CI has no
@@ -1920,14 +1920,15 @@ The checks:
   and 15 per "Why not" cell, and at most 450 words with the reasons of the decided
   questions; and the refused phrases of `writing-proposals`, outside `## Sources`, code
   blocks, code spans and text in double quotes;
-- the other limits: at most 450 words in a spec and a decision record, a summary of 1 to 3
-  sentences in a spec, the criteria and the scenarios, at most 3 points per part in a spec,
-  a criterion of 1 sentence and at most 25 words, at most 8 steps per scenario and 12
-  scenarios, in a new question a `question` of one sentence of 1 to 500 characters with no
-  Markdown, a `context` of 1 to 20000 characters and at most 120 words, an option `title`
-  of 1 to 200 characters and an `explanation` of 1 to 2000 characters and at most 2
-  sentences, a `decision.reason` of at most 2 sentences and 40 words when it is new or
-  differs from the newest questions, and a new reply of at most 80 words;
+- the other limits: at most 450 words in a spec and a decision record (a decision record's
+  count leaves out its Mermaid diagrams), a summary of 1 to 3 sentences in a spec, the
+  criteria and the scenarios, at most 3 points per part in a spec, a criterion of 1 sentence
+  and at most 25 words, at most 8 steps per scenario and 12 scenarios, in a new question a
+  `question` of one sentence of 1 to 500 characters with no Markdown, a `context` of 1 to
+  20000 characters and at most 120 words, an option `title` of 1 to 200 characters and an
+  `explanation` of 1 to 2000 characters and at most 2 sentences, a `decision.reason` of at
+  most 2 sentences and 40 words when it is new or differs from the newest questions, and a
+  new reply of at most 80 words;
 - the asks of a new question: an open question with no `context`, or a `context` of only
   spaces; a question that is not decided with no `options` list; and an id of an item with
   no words in quotes beside it, as `check points` reads it, in the `question`, the
@@ -2504,6 +2505,139 @@ that, so the writer lists a question that quotes it, and reports
 `Blocked: no way left`, and the session ends the run with the fixed line in
 `workflow-write-technical-decisions`, as an `answer` point: a question asks whether the
 spec changes.
+
+The record keeps its list of decisions and may add pictures. `writing-decisions` follows the
+section "Markdown documents" of `artifact-text` for them. A decision whose chosen way
+changes how two parts call each other, or a flow of states, may end with one Mermaid
+diagram, drawn by `visuals`. The record has no wireframe or table, and no `![` or `<img`
+anywhere, code blocks and diagrams included, and you write `\![` outside code for a
+literal `![`. `checks.cjs` refuses each one ("Remove `![` and `<img` from
+decision-record.md, also inside code.", then the line number with the first 40 characters
+of the line, then "Outside code, write `\![` for a literal `![`.") through the option
+`everyImage` of `links` in `lib/markdown.cjs`, which only the decision record sets, so no
+other type changes. A `\![a](address)` is a link, and the check reads its address as one.
+
+`checks.cjs` refuses, each with a fix line that starts with the fix:
+
+- a block with no closing fence ("Close the Mermaid block of decision-1 with a line of 3
+  backticks.", or "3 tildes" or another length, as the opening fence is);
+- a second diagram in a decision ("Cut decision-1 to one Mermaid diagram: it has 2.");
+- a diagram that is not the last text of its decision after a blank line ("Put the Mermaid
+  diagram of decision-1 after its last item, with a blank line before it."; "Put the text
+  after the Mermaid diagram of decision-1 above it, or delete it." when text follows it);
+- a diagram in a removed decision ("Remove the Mermaid diagram of decision-1: the decision
+  is removed.");
+- a third diagram in the record ("Cut decision-record.md to 2 Mermaid diagrams: it has 3.");
+  a removed decision's diagram is not in that count. Qory Apiary draws every code block
+  whose info string starts with `mermaid` (`markdown.ex:328-339`) after its parser has
+  decoded the entities in it, wherever the block stands. The count reads each line that
+  starts, after spaces, `>` marks and list marks, with 3 or more backticks or tildes and
+  then `mermaid` as the first word, in any case, or any `&` in the info string, which may
+  decode to `mermaid` (`&#109;ermaid`, `mermaid&#32;x`). It counts a fence in a code block
+  too, and a fence such as `` ```c&x ``. It reads quote marks and list marks only: no other
+  container that the parser opens is known to hide a fence, and no test with the parser
+  exists. Qory Apiary draws such a block without the rules above, which read only a block at
+  the start of the line, so the check refuses each such line, in a decision or outside the
+  decisions, with the fence line below ("Write the fence of the Mermaid block of
+  decision-record.md as `` ```mermaid `` at the line start." outside a decision).
+
+The 450 words leave out the diagrams, whatever their size: the 20,000 characters and the 200
+edges bound them.
+
+A line that starts with `|` counts toward the 450 words, unless it forms a table with a
+delimiter row: `counted` in `lib/markdown.cjs` takes the option `tables` for it, which only
+the decision record sets. A spec, a question and a review reply leave out every such line.
+The check cannot tell whether a table starts in a quote, in a list item or after a block of
+HTML, so it counts those lines. It counts every such line in a text with over 50,000 table
+cells (lines times the most `|` on a line plus 1), which Qory Apiary shows as written.
+
+In every Markdown document that `lines` in `lib/markdown.cjs` reads, a fence line inside a
+block of HTML opens no code block, because Qory Apiary shows it as HTML. A block starts at a
+tag as CommonMark lists, also in a quote or a list item. A block that starts with a known
+block tag such as `<div>`, or with any other tag alone on its line, ends at a blank line. A
+block that starts with `<script>`, `<pre>`, `<style>`, `<textarea>`, `<!--`, `<?`, `<!` and
+a letter, or `<![CDATA[` in any case, ends at its end mark (`</script>`, `-->`, `?>`, `>`,
+`]]>`). A block in a quote ends at a line with no `>`. A block in a list item ends at a line
+that is not blank and starts left of the text of the item. The parsers differ on a tag alone
+on a line right after a line of text: the check then counts every line of the text. The
+check counts every line of a decision record where it cannot tell whether a table starts.
+
+A code block ends at a closing line: 3 or more marks of the same kind as the opening line,
+at least as many as it, and nothing after them but spaces and tabs. A line of marks with
+text after it, such as `` ```wq ``, closes nothing, so its words count. A code block in a
+list item or a quote also ends where the item or quote ends, as Qory Apiary closes it: at a
+line that is not blank and starts left of the text of the item, and the text after it
+counts. A fence that starts on the line of a list mark (`` - ```js ``) is read the same
+way, but a number other than 1 after a line of text starts no list, so no code block opens
+there. Where the check cannot tell whether a line ends the item, from that line no code
+block opens, and every line counts. That is so for a fence line that starts 4 or more
+columns in, inside a list item, which may start a block from the text column of the item;
+and for a block of HTML in a list item that starts on a line with no mark before its tag.
+A line that starts with `<` and is no start of a block of HTML goes on with the paragraph of
+the item, so it does not end the item. The check also counts every line from a line that
+starts with `<` 4 or more columns in, inside a list item, from a list mark that has 5 or
+more columns of space and then `<`, and from a number other than 1 right after a line of
+text, except where it goes on the list of the item that its line leaves with the same mark:
+no paragraph lets a list start with such a number. It counts every line from a list mark
+with no text right after a line of text, because no paragraph lets an empty item start, so
+the mark is text. It counts every line too from a blank line right after a list mark with no
+text, which ends that item, and from a tab in the indent of a line of a code block in a list
+item. The end mark of a block of HTML may overlap its start, as in `<!-->`, which ends on
+its line.
+
+Qory Apiary shows a Markdown text as plain text, not as Markdown, from 128 levels of
+nesting, and when the text has a byte that is no UTF-8. `shownAsText` in `lib/markdown.cjs`
+refuses a line with 60 or more levels, and a text with U+FFFD, which stands for such a byte.
+The levels of a line are the larger of its quote and list marks (each `>` and each list mark
+`-`, `*`, `+`, `1.` or `1)` at the start of the line, with the spaces between them) and the
+depth of the list items that its indentation opens, which `lines` counts, with the quote
+marks of the line as levels too. A line of 60 marks that is a thematic break is no nesting.
+The findings are "Remove the deep nesting from <file>: line <L> has <n> levels, and the
+check allows 59.", where <L> is the first line that reaches 60 and <n> its levels, and "Save
+<file> as UTF-8: Qory Apiary shows it as plain text.", each with the line "Line N is
+\"...\".". `links` calls `shownAsText`, so each Markdown text that a type checks gets the
+check. The check does not count the nesting of inline marks, such as emphasis in emphasis or
+a link in a link, which also reaches the limit of 128 levels.
+
+The check also refuses a block that Qory Apiary does not draw as a diagram.
+`lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
+that, on the text that Qory Apiary draws: without the invisible characters that
+`Apiary.ExternalText.lines` drops (`lib/apiary/external_text.ex:49,114-121`, called at
+`lib/apiary_web/live/artifact_live/markdown.ex:336`), without each line with a directive,
+and without front matter (`mermaid.js:195-202`). It refuses:
+
+- a fence that is not lower case `mermaid` at the start of its line with no other word
+  ("Write the fence of the Mermaid block of decision-1 as `` ```mermaid `` at the line
+  start."). Qory Apiary draws a code block when the first word of its info string is
+  `mermaid` in lower case (`markdown.ex:328-339`), and a fence indented 1 to 3 spaces can
+  belong to the list item above it;
+- a first word that is not a type of `mermaid.js:262-271` ("Start the Mermaid block of
+  decision-1 with a type that Qory Apiary draws.", with the types and the first word on the
+  next line);
+- a syntax that loads an address (`mermaid.js:289-296`): "Remove the syntax that loads an
+  address from the Mermaid block of decision-1.";
+- a block over 20,000 characters ("Cut the Mermaid block of decision-1 to 20000
+  characters: it has N."), measured on the text of the code block, which ends with a line
+  feed, without its `%%` comment lines (not `%%{`), the blank lines before them and the
+  white space at its start. Mermaid then draws its size-error diagram, and Qory Apiary
+  shows the source in `<details>`;
+- a flowchart over 200 edges ("Cut the Mermaid block of decision-1 to 200 edges: it has
+  N."). Qory Apiary shows it as text, under a line that says why it failed;
+- a `%%{` line ("Remove the %%{ line from the Mermaid block of decision-1."), which Qory
+  Apiary strips before it draws.
+
+Qory Apiary also strips each `click`, `link`, `callback` and `links` statement line and the
+front matter before it draws, and the check refuses neither.
+
+`mermaid.js` sets both limits (`:158-159`), but only Mermaid counts edges, and it stops a
+flowchart at the 201st edge. `lib/mermaid.cjs` counts every link, one edge for each
+pair of nodes of its two sides, and joins a link that ends or starts a line with the next or
+previous line. It can count more edges than Mermaid for an unusual line, and it counts none
+fewer in the tests of `scripts/checks.test.js`.
+
+`checking-decisions` has the reviewer judge the rest: a diagram under a decision that
+changes no call or flow, a diagram that does not match its decision, and a drawing of the
+system's architecture.
 
 `workflow-make-mockups`, process entry `make-mockups`, follows the same rules for a
 clickable mockup. `code-explorer` reports the target's styles, and `designer` writes one
@@ -3954,12 +4088,13 @@ The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.tes
 instruction to install `node` when `node` is missing. Only the sign-in tests of
 `scripts/preflight.test.js` start a browser, and they skip when the machine has none.
 
-Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the 13
-hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for
-Copilot CLI, 3 for Cursor and 2 for Gemini CLI. Each command must pass `sh -n`, `bash -n` and
-`shellcheck -s sh`. A Gemini CLI command, which Gemini starts through `bash -c`, must also pass
-`shellcheck -s bash`. Each file of `modules/core/hooks/` must pass `node --check`, and each file
-that a command runs must exist there. Without `shellcheck` on the `PATH`, the step prints a line
-that starts with `SKIP` and runs the other checks. When the variable `CI` is set, as on GitHub
-Actions, a missing `shellcheck` fails the step. `scripts/hook-commands.test.js` runs the step on
-a command with an unquoted variable and on a hook file with a syntax error.
+Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the
+13 hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for
+Copilot CLI, 3 for Cursor and 2 for Gemini CLI. Each command must pass `sh -n`, `bash -n`
+and `shellcheck -s sh`. A Gemini CLI command, which Gemini starts through `bash -c`, must
+also pass `shellcheck -s bash`. Each file of `modules/core/hooks/` must pass `node --check`,
+and each file that a command runs must exist there. Without `shellcheck` on the `PATH`, the
+step prints a line that starts with `SKIP` and runs the other checks. When the variable `CI`
+is set, as on GitHub Actions, a missing `shellcheck` fails the step.
+`scripts/hook-commands.test.js` runs the step on a command with an unquoted variable and on
+a hook file with a syntax error.

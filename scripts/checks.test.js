@@ -1134,6 +1134,1015 @@ test('decision record: each decision has its items in order, and its id in the h
     /decision-<N>/);
 });
 
+// The record of the fixture has decision-1, whose last item is Cost. diagram(count, fence) is
+// the edit that adds count Mermaid blocks of the fence after it, each after a blank line.
+const COST = /^- Cost: .*$/m;
+const BLOCK = (fence = '```', info = 'mermaid') =>
+  `${fence}${info}\nflowchart LR\n  A[Reply] --> B[Hours]\n${fence}`;
+const diagram = (count, fence, info) => ['decision-record.md', COST,
+  (item) => `${item}${`\n\n${BLOCK(fence, info)}`.repeat(count)}`];
+// decision returns decision number with its 6 items and, when diagram is true, a Mermaid block.
+const decision = (number, withDiagram) => `\n\n### \`decision-${number}\`: where the hours go\n\n` +
+  '- Decision: The hours stay in the reply.\n- Rests on: `ac-1`.\n- Today: The ticket has no ' +
+  'target.\n- Why: One reply changes.\n- Question: `q6`.\n- Cost: Support edits the reply.' +
+  `${withDiagram ? `\n\n${BLOCK()}` : ''}`;
+// withDecisions is the edit that adds the decisions numbered from 2, each as decision() shows.
+const withDecisions = (...flags) => ['decision-record.md', COST,
+  (item) => item + flags.map((flag, at) => decision(at + 2, flag)).join('')];
+const FENCE = /^Write the fence of the Mermaid block of decision-1 as ```mermaid at the line start\.$/;
+const FIX = /^Cut decision-record.md to 2 Mermaid diagrams: it has 3\. Keep the diagrams of the decisions that change how two parts call each other or a state flow\.$/;
+
+test('decision record: 1 or 2 Mermaid diagrams in the record pass, 3 fail', () => {
+  passes(push(fixture(diagram(1)), 'decision-record'));
+  passes(push(fixture(withDecisions(true), diagram(1)), 'decision-record'));
+  fails(push(fixture(withDecisions(true, true), diagram(1)), 'decision-record'), FIX);
+});
+
+test('decision record: every Mermaid block that Qory Apiary draws counts toward the 2, and starts its line', () => {
+  const body = 'flowchart LR\n  A --> B';
+  const quoted = (mark, info = 'mermaid') => `> ${mark}${info}\n> ${body.replace('\n', '\n> ')}\n> ${mark}`;
+  const listed = (indent, mark = '```') => `${indent}${mark}mermaid\n${indent}${body.replace('\n',
+    `\n${indent}`)}\n${indent}${mark}`;
+  // decision-1 and decision-2 have a block at column 0, and decision-3 ends with a third block.
+  const third = (block) => ['decision-record.md', /\n*$/, `\n\n${block}\n`];
+  const record = (block) => fixture(withDecisions(true, false), diagram(1), third(block));
+  const forms = {
+    'in a quote': quoted('```'),
+    'in a quote, in tildes and upper case': quoted('~~~', 'Mermaid'),
+    'in a nested quote': '> > ```mermaid\n> > flowchart LR\n> > ```',
+    'in a list item': '- ```mermaid\n  flowchart LR\n  ```',
+    'indented under a list item': listed('  '),
+    'indented 4 spaces under a list item': listed('    '),
+    'in a quote in a list item': '- > ```mermaid\n  > flowchart LR\n  > ```',
+    'in a list item in a quote': '> - ```mermaid\n>   flowchart LR\n>   ```',
+    'in a numbered list item': '1. ```mermaid\n   flowchart LR\n   ```',
+    'with the first word in upper case': '```MERMAID\nflowchart LR\n```',
+    'indented 3 spaces': listed('   '),
+    'indented 3 spaces in tildes': listed('   ', '~~~'),
+    'in tildes, with an "&" in the info string': '~~~ and & stuff\nflowchart LR\n~~~',
+  };
+  // Qory Apiary decodes an entity in the info string and draws the block when the first word is
+  // mermaid, so an "&" in the info string counts, and so does a fence that is no Mermaid block.
+  for (const info of ['&#109;ermaid', 'mer&#x6d;aid', '&#x6D;ermaid', 'mermaid&#32;x', 'mermaid&#x20;',
+    'mermaid&#9;x', 'mermaid&Tab;x', 'mermaid&#10;x', 'mermaid&#13;x', 'c&x']) {
+    forms[`with ${info} as the info string`] = `\`\`\`${info}\nflowchart LR\n\`\`\``;
+    forms[`in a quote with ${info}`] = `> \`\`\`${info}\n> flowchart LR\n> \`\`\``;
+  }
+  passes(push(fixture(withDecisions(true, false), diagram(1)), 'decision-record'));
+  for (const block of Object.values(forms)) {
+    fails(push(record(block), 'decision-record'), FIX);
+  }
+  // A fence with another first word is no Mermaid block, and 2 blocks in all are still 2. The text
+  // after the item list is a finding of its own, so only the findings about a block are tested.
+  const about = /^(Cut decision-record\.md to 2 Mermaid diagrams|Write the fence of the Mermaid)/;
+  const found = (result) => result.findings.some((line) => about.test(line));
+  // The info string of a backtick fence has no backtick: such a line is no fence.
+  for (const block of ['```text\nflowchart LR\n```', '```mermaidx\nflowchart LR\n```',
+    '> ```python\n> x = 1\n> ```', '```code``` & more text', '```code`` and R&D',
+    '> ```x`` & y', '```mermaid x`\nflowchart LR\n```']) {
+    assert.equal(found(push(record(block), 'decision-record')), false, block);
+  }
+  // A block in a quote or a list item skips the checks of a block, so each one alone in the
+  // record has the fix for a fence that is not at the line start, and a record has none.
+  const RECORD_FENCE = /^Write the fence of the Mermaid block of decision-record\.md as ```mermaid at the line start\.$/;
+  for (const block of Object.values(forms)) {
+    fails(push(fixture(third(block)), 'decision-record'), FENCE);
+    const above = ['decision-record.md', '## Decisions\n', `## Decisions\n\n${block}\n`];
+    fails(push(fixture(above), 'decision-record'), RECORD_FENCE);
+  }
+  // A third block right after a Cost line, one in a quote under a list item and one at the line
+  // start with a %%{ line and url( are refused, whatever the entity in the info string.
+  const entity = '```mermaid&#32;x\nflowchart LR\n  A --> B\n```';
+  fails(push(fixture(withDecisions(true, false), diagram(1),
+    ['decision-record.md', /\n*$/, `\n${entity}\n`]), 'decision-record'), FIX);
+  fails(push(fixture(withDecisions(true, false), diagram(1),
+    third(`- item\n  > ${entity.replace(/\n/g, '\n  > ')}`)), 'decision-record'), FIX);
+  fails(push(fixture(third('```&#109;ermaid\nflowchart LR\n  A --> url(x)\n%%{init: {}}%%\n```')),
+    'decision-record'), FENCE);
+  // A refused form that Qory Apiary shows as text is not hidden in a quote: the fix comes first.
+  fails(push(fixture(third('> ```mermaid\n> notadiagram\n> ```')), 'decision-record'), FENCE);
+  // A fence at the line start gets every check, and one in another code block is refused too.
+  passes(push(fixture(diagram(1)), 'decision-record'));
+  fails(push(fixture(third('````text\n```mermaid\nflowchart LR\n```\n````')), 'decision-record'),
+    FENCE);
+});
+
+test('decision record: an image is refused', () => {
+  fails(push(fixture(['decision-record.md', '- Decision: The hours stay',
+    '- Decision: ![Flow](flow.svg) The hours stay']), 'decision-record'),
+    /^Remove `!\[` and `<img` from decision-record\.md, also inside code\. Line /);
+});
+
+test('decision record: a ~~~ fence is a Mermaid block, and an info string after mermaid is not', () => {
+  passes(push(fixture(diagram(1, '~~~')), 'decision-record'));
+  fails(push(fixture(diagram(1, '```', 'mermaid title')), 'decision-record'), FENCE);
+  fails(push(fixture(withDecisions(true, true), diagram(1, '~~~')), 'decision-record'), FIX);
+  fails(push(fixture(diagram(2, '~~~')), 'decision-record'),
+    /^Cut decision-1 to one Mermaid diagram: it has 2\.$/);
+});
+
+test('decision record: a code block that is no Mermaid block is still refused', () => {
+  const code = ['decision-record.md', COST, (item) => `${item}\n\n\`\`\`text\nA --> B\n\`\`\``];
+  fails(push(fixture(code), 'decision-record'),
+    /^Give decision-1 its 6 items in their order, or only "- Removed, because <the reason>\."/);
+});
+
+test('decision record: at most one diagram in a decision', () => {
+  fails(push(fixture(diagram(2)), 'decision-record'),
+    /^Cut decision-1 to one Mermaid diagram: it has 2\.$/);
+});
+
+test('decision record: the diagram is the last text of its decision, after a blank line', () => {
+  const moved = /^Put the Mermaid diagram of decision-1 after its last item, with a blank line before it\.$/;
+  const lastItem = '- Cost: The next change of hours edits this reply again, and support pays that cost.';
+  const after = /^Put the text after the Mermaid diagram of decision-1 above it, or delete it\.$/;
+  // Between items: with no blank line before the diagram, and with one but an item after it.
+  fails(push(fixture(['decision-record.md', '- Rests on:', `${BLOCK()}\n- Rests on:`]), 'decision-record'),
+    moved);
+  fails(push(fixture(['decision-record.md', '- Rests on:', `\n${BLOCK()}\n\n- Rests on:`]), 'decision-record'),
+    after);
+  // Before the first item.
+  fails(push(fixture(['decision-record.md', '- Decision:', `${BLOCK()}\n\n- Decision:`]), 'decision-record'),
+    moved);
+  // Right after the last item, with no blank line.
+  fails(push(fixture(['decision-record.md', lastItem, `${lastItem}\n${BLOCK()}`]), 'decision-record'),
+    moved);
+  // Text after the diagram: the blank line before it is right, so the fix is another.
+  fails(push(fixture(diagram(1), ['decision-record.md', '```\n', '```\n\nMore text.\n']), 'decision-record'),
+    after);
+  fails(push(fixture(diagram(1), ['decision-record.md', '```\n', '```\nMore text.\n']), 'decision-record'),
+    after);
+  // Blank lines after it are no text.
+  passes(push(fixture(diagram(1), ['decision-record.md', /\n*$/, '\n\n\n']), 'decision-record'));
+});
+
+test('decision record: a removed decision has no diagram, and it counts for no limit', () => {
+  const removedAt = (number) =>
+    `\n\n### \`decision-${number}\`: the old way\n\n- Removed, because the rule changed.`;
+  const removed = removedAt(2);
+  const plain = ['decision-record.md', COST, (item) => item + removed];
+  passes(push(fixture(plain), 'decision-record'));
+  const drawn = ['decision-record.md', COST, (item) => `${item}${removed}\n\n${BLOCK()}`];
+  fails(push(fixture(drawn), 'decision-record'),
+    /^Remove the Mermaid diagram of decision-2: the decision is removed\.$/);
+  // Two diagrams and a removed one: the removed diagram is not the third.
+  const two = fixture(withDecisions(true), diagram(1), ['decision-record.md', /\n*$/,
+    `${removedAt(3)}\n\n${BLOCK()}\n`]);
+  const result = push(two, 'decision-record');
+  fails(result, /^Remove the Mermaid diagram of decision-3: the decision is removed\.$/);
+  assert.ok(!result.findings.some((line) => /^Cut decision-record.md to 2 Mermaid/.test(line)),
+    result.out);
+});
+
+test('decision record: an unclosed Mermaid block is refused, and leaves nothing unchecked', () => {
+  const closing = /^Close the Mermaid block of decision-1 with a line of 3 backticks\.$/;
+  const open = (tail) => ['decision-record.md', COST,
+    (item) => `${item}\n\n\`\`\`mermaid\nflowchart LR\n  A --> B\n${tail}`];
+  fails(push(fixture(open(many(2000))), 'decision-record'), closing);
+  fails(push(fixture(open(`### \`decision-2\`: the old way\n\n- Removed, because it changed.`)),
+    'decision-record'), closing);
+  const tildes = (fence) => ['decision-record.md', COST,
+    (item) => `${item}\n\n${fence}mermaid\nA --> B\n`];
+  fails(push(fixture(tildes('~~~')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 3 tildes\.$/);
+  fails(push(fixture(tildes('~~~~~')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 5 tildes\.$/);
+  fails(push(fixture(tildes('````')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 4 backticks\.$/);
+});
+
+test('decision record: how a closing fence ends a Mermaid block', () => {
+  // block returns the edit that adds one Mermaid block with the given opening and closing
+  // lines after the Cost item of decision-1, and crlf changes every line end of the file.
+  const block = (open, close) => ['decision-record.md', COST,
+    (item) => `${item}\n\n${open}\nflowchart LR\n  A --> B\n${close}`];
+  const crlf = ['decision-record.md', /^[\s\S]*$/, (text) => text.replace(/\n/g, '\r\n')];
+  const closing = /^Close the Mermaid block of decision-1 with a line of 3 backticks\.$/;
+  const tildes = /^Close the Mermaid block of decision-1 with a line of 3 tildes\.$/;
+  // A longer closing fence, and spaces or a tab after the closing fence, close the block.
+  passes(push(fixture(block('```mermaid', '````')), 'decision-record'));
+  passes(push(fixture(block('~~~mermaid', '~~~~~')), 'decision-record'));
+  passes(push(fixture(block('```mermaid', '```  ')), 'decision-record'));
+  passes(push(fixture(block('```mermaid', '```\t')), 'decision-record'));
+  passes(push(fixture(block('~~~mermaid', '~~~ \t ')), 'decision-record'));
+  // A shorter closing fence, and text after the closing fence, do not.
+  fails(push(fixture(block('````mermaid', '```')), 'decision-record'),
+    /^Close the Mermaid block of decision-1 with a line of 4 backticks\.$/);
+  fails(push(fixture(block('```mermaid', '``` x')), 'decision-record'), closing);
+  // CRLF line ends, with the block closed and unclosed.
+  passes(push(fixture(block('```mermaid', '```'), crlf), 'decision-record'));
+  passes(push(fixture(block('~~~mermaid', '~~~'), crlf), 'decision-record'));
+  fails(push(fixture(block('```mermaid', 'A --> C'), crlf), 'decision-record'), closing);
+  fails(push(fixture(block('~~~mermaid', 'A --> C'), crlf), 'decision-record'), tildes);
+  // A line of backticks inside a tilde block is a line of the block, not its end.
+  passes(push(fixture(block('~~~mermaid', '```\n  C --> D\n~~~')), 'decision-record'));
+  fails(push(fixture(block('~~~mermaid', '```\n  C --> D')), 'decision-record'), tildes);
+  // A line of tildes inside a backtick block is a line of the block, not its end.
+  passes(push(fixture(block('```mermaid', '~~~\n  C --> D\n```')), 'decision-record'));
+  fails(push(fixture(block('```mermaid', '~~~\n  C --> D')), 'decision-record'), closing);
+});
+
+// drawn returns the edit that adds one closed Mermaid block with the body text, after the Cost
+// item of decision-1. open is its opening fence line.
+const drawn = (body, open = '```mermaid') => ['decision-record.md', COST,
+  (item) => {
+    // The lines after an indented fence keep its indent, or the item that holds the fence ends.
+    const indent = /^ */.exec(open)[0];
+    const inside = body.split('\n').map((line) => indent + line).join('\n');
+    return `${item}\n\n${open}\n${inside}\n${/^\s*[`~]+/.exec(open)[0]}`;
+  }];
+
+test('decision record: the fence is lower case mermaid at the line start, with no other word', () => {
+  const body = 'flowchart LR\n  A --> B';
+  passes(push(fixture(drawn(body)), 'decision-record'));
+  passes(push(fixture(drawn(body, '~~~mermaid')), 'decision-record'));
+  passes(push(fixture(drawn(body, '```mermaid  ')), 'decision-record'));
+  passes(push(fixture(drawn(body, '````mermaid')), 'decision-record'));
+  for (const open of ['```Mermaid', '```MERMAID', '~~~Mermaid', ' ```mermaid', '  ```mermaid',
+    '   ```mermaid', ' ~~~mermaid', '```mermaid title', '~~~mermaid`x', '~~~mermaid x']) {
+    fails(push(fixture(drawn(body, open)), 'decision-record'), FENCE);
+  }
+  // A refused block cannot hide words from the 450.
+  fails(push(fixture(drawn(`flowchart LR\n  A[${many(2000)}] --> B`, '```Mermaid')), 'decision-record'),
+    FENCE);
+});
+
+test('decision record: a block of each type that Qory Apiary draws passes', () => {
+  const bodies = [
+    'flowchart LR\n  A --> B',
+    'graph TD\n  A --> B',
+    'sequenceDiagram\n  A->>B: Ask',
+    'stateDiagram\n  [*] --> Open',
+    'stateDiagram-v2\n  [*] --> Open',
+    'classDiagram\n  class Reply',
+    'classDiagram-v2\n  class Reply',
+    'erDiagram\n  REPLY ||--o{ HOURS : has',
+    '%% A comment first.\n\n  flowchart LR\n  A --> B',
+    'graph TD;A-->B',
+    '---\ntitle: Hours\n---\nflowchart LR\n  A --> B',
+  ];
+  for (const body of bodies) passes(push(fixture(drawn(body)), 'decision-record'));
+});
+
+test('decision record: a block of a type that Qory Apiary does not draw is refused', () => {
+  const type = /^Start the Mermaid block of decision-1 with a type that Qory Apiary draws\. The types are flowchart, graph, sequenceDiagram, stateDiagram, stateDiagram-v2, classDiagram, classDiagram-v2, erDiagram\. The first word is "(\S*)"\.$/;
+  for (const [body, word] of [['pie\n  "A": 1', 'pie'], ['gantt\n  title Hours', 'gantt'],
+    ['Flowchart LR\n  A --> B', 'Flowchart'], ['%% Only a comment.', ''], ['', ''],
+    ['\n  A --> B', 'A']]) {
+    const result = push(fixture(drawn(body)), 'decision-record');
+    fails(result, type);
+    assert.ok(result.findings.some((line) => type.exec(line) && type.exec(line)[1] === word), result.out);
+  }
+  // A directive line is dropped before the front matter is read: the --- that opens it has no
+  // closing line, so it drops the rest of the block.
+  fails(push(fixture(drawn('---\n%%{init: {"theme": "dark"}}%%\nflowchart LR\n  A --> B')), 'decision-record'), type);
+});
+
+test('decision record: a block with syntax that loads an address is refused', () => {
+  const loads = /^Remove the syntax that loads an address from the Mermaid block of decision-1\. Qory Apiary shows such a block as text: url\(\), @import, a node with img, properties or details\.$/;
+  for (const extra of ['  style A fill:url(x.png)', '  classDef a @import "x"', '  A@{ img: "x.png" }',
+    '  A@{ shape: "rect" }\n  B@{ label: "\\x" }']) {
+    fails(push(fixture(drawn(`flowchart LR\n  A --> B\n${extra}`)), 'decision-record'), loads);
+  }
+  fails(push(fixture(drawn('sequenceDiagram\n  A->>B: Ask\n  properties A: {"icon": "x"}')), 'decision-record'),
+    loads);
+  fails(push(fixture(drawn('sequenceDiagram\n  A->>B: Ask\n  details A: x')), 'decision-record'), loads);
+});
+
+test('decision record: a block of at most 20000 characters passes, measured as Qory Apiary does', () => {
+  const size = /^Cut the Mermaid block of decision-1 to 20000 characters: it has (\d+)\.$/;
+  // The text of a code block ends with a line feed. Mermaid compares it without its %% comment
+  // lines (not %%{), the blank lines before them, and the white space at its start.
+  // sized(count) is a block of count characters in that measure, with spaces for 0 words.
+  const head = 'flowchart LR\n  A["';
+  const sized = (count, before = '') => drawn(`${before}${head}${' '.repeat(count - head.length - 3)}"]`);
+  passes(push(fixture(sized(19999)), 'decision-record'));
+  passes(push(fixture(sized(20000)), 'decision-record'));
+  const over = push(fixture(sized(20001)), 'decision-record');
+  fails(over, size);
+  assert.ok(over.findings.some((line) => (size.exec(line) || [])[1] === '20001'), over.out);
+  // A comment line, the blank lines before it and the white space at the start are not in the length.
+  const comment = `%% ${'y'.repeat(400)}\n\n   \n%% z\n\n   `;
+  passes(push(fixture(sized(20000, comment)), 'decision-record'));
+  fails(push(fixture(sized(20001, comment)), 'decision-record'), size);
+});
+
+test('decision record: Qory Apiary strips characters before it draws, and so does the check', () => {
+  const loads = /^Remove the syntax that loads an address from the Mermaid block of decision-1\./;
+  const body = (middle) => `flowchart LR\n  A --> B\n  style A fill:url${middle}(x.png)`;
+  fails(push(fixture(drawn(body('͏'))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('­'))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body(' '))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('᠋'))), 'decision-record'), loads);
+  // A join control stays, so the text is not an address. A control character becomes U+FFFD.
+  const kept = push(fixture(drawn(body('‍'))), 'decision-record');
+  assert.ok(!kept.findings.some((line) => loads.test(line)), kept.out);
+  const control = push(fixture(drawn(body('\u0001'))), 'decision-record');
+  assert.ok(!control.findings.some((line) => loads.test(line)), control.out);
+});
+
+// A flowchart with count links of the form given, one per line, after the type line.
+const flowchart = (...lines) => drawn(['flowchart LR', ...lines].join('\n'));
+const linkLines = (count, form) => Array.from({ length: count }, (_, at) => `  ${form(at)}`);
+const EDGES = /^Cut the Mermaid block of decision-1 to 200 edges: it has (\d+)\.$/;
+
+test('decision record: a flowchart of at most 200 edges passes, whatever the link form', () => {
+  const links = (count) => linkLines(count, (at) => `N${at} --> M${at}`);
+  passes(push(fixture(flowchart(...links(200))), 'decision-record'));
+  passes(push(fixture(drawn(['graph TD', ...links(200)].join('\n'))), 'decision-record'));
+  const many201 = push(fixture(flowchart(...links(201))), 'decision-record');
+  fails(many201, EDGES);
+  assert.ok(many201.findings.some((line) => (EDGES.exec(line) || [])[1] === '201'), many201.out);
+  fails(push(fixture(drawn(['graph TD', ...links(201)].join('\n'))), 'decision-record'), EDGES);
+  // A link between 2 sides adds one edge for each pair of nodes: "A & B --> C & D" is 4, a chain
+  // of 3 nodes is 2, and a link with a label or a bracket text is 1.
+  const sides = ['  A & B --> C & D', '  A --> B --> C', '  A -- text --> B', '  A[x --> y] -->|l| B'];
+  const counts = [4, 2, 1, 1];
+  sides.forEach((line, at) => {
+    const body = [...links(200 - counts[at]), line];
+    passes(push(fixture(flowchart(...body)), 'decision-record'));
+    fails(push(fixture(flowchart(...body, '  X --> Y')), 'decision-record'), EDGES);
+  });
+  // Qory Apiary sets the edge limit for flowcharts: other types have no count.
+  passes(push(fixture(drawn(['sequenceDiagram', ...Array.from({ length: 300 },
+    () => '  A->>B')].join('\n'))), 'decision-record'));
+});
+
+test('decision record: the edge count is never below the count of Mermaid', () => {
+  const edges = require(path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs')).edges;
+  const chain = (nodes, link) => Array.from({ length: nodes }, (_, at) => `n${at}`).join(` ${link} `);
+  // The counts of Mermaid 11.17.2 for these blocks, by the vendored build of Qory Apiary.
+  const cases = [
+    ['n0 --- n1 --- n2 --- n3', 3], ['A --- B --> C', 2], ['A === B === C', 2],
+    ['A -.- B -.-> C', 2], ['A --o B --o C', 2], ['A --> B --- C --- D', 3],
+    ['direction --> B', 1], ['direction TB\n  A --> B', 1],
+    ['subgraph s\n  direction LR\n  A --> B\nend', 1],
+    ['n0 -->\n  m0', 1], ['n0\n  --> m0', 1], ['n0 -->\n\n  m0', 1],
+    ['A -- t1 --- B -- t2 --- C', 2], ['a1--text-->b1', 1], ['a1==text==>b1', 1], ['a1-.text.->b1', 1],
+    ['A["x;y"] --> B[p;q]; C --> D', 2], ['A & B --> C & D', 4], ['A --> B & C --> D & E', 6],
+  ];
+  for (const [body, count] of cases) assert.equal(edges(body), count, body);
+  // The review's blocks: 201 edges in a chain, behind a node called direction, in a link on 2 lines.
+  assert.equal(edges(chain(202, '---')), 201);
+  assert.equal(edges(chain(202, '==>')), 201);
+  assert.equal(edges(Array.from({ length: 201 }, (_, at) => `direction --> n${at}`).join('\n')), 201);
+  assert.equal(edges(Array.from({ length: 201 }, (_, at) => `n${at} -->\n  m${at}`).join('\n')), 201);
+  // A link of text with no spaces is 1 edge: 101 lines are 101 edges, and 100 lines are not refused.
+  assert.equal(edges(Array.from({ length: 101 }, (_, at) => `a${at}--text-->b${at}`).join('\n')), 101);
+});
+
+test('decision record: a flowchart over 200 edges is refused in the forms that the count once missed', () => {
+  const forms = {
+    'a chain of open links': (count) => [`  ${Array.from({ length: count + 1 }, (_, at) => `n${at}`).join(' --- ')}`],
+    'a chain of thick links': (count) => [`  ${Array.from({ length: count + 1 }, (_, at) => `n${at}`).join(' === ')}`],
+    'an open link before an arrow': (count) => ['  A --- B --> C', ...linkLines(count - 2, (at) => `N${at} --> M${at}`)],
+    'a node called direction': (count) => linkLines(count, (at) => `direction --> n${at}`),
+    'a link on 2 lines': (count) => linkLines(count, (at) => `n${at} -->\n    m${at}`),
+    'a link that starts a line': (count) => linkLines(count, (at) => `n${at}\n    --> m${at}`),
+    'a link with a text and no spaces': (count) => linkLines(count, (at) => `a${at}--text-->b${at}`),
+    'a text with ;': (count) => linkLines(count, (at) => `a${at}["x;y"]-->b${at}[p;q]`),
+  };
+  for (const [name, lines] of Object.entries(forms)) {
+    passes(push(fixture(flowchart(...lines(200))), 'decision-record'));
+    const result = push(fixture(flowchart(...lines(201))), 'decision-record');
+    fails(result, EDGES);
+    assert.ok(result.findings.some((line) => (EDGES.exec(line) || [])[1] === '201'), `${name}: ${result.out}`);
+  }
+  // 101 links of text with no spaces are 101 edges, not 202.
+  passes(push(fixture(flowchart(...linkLines(101, (at) => `a${at}--text-->b${at}`))), 'decision-record'));
+});
+
+// scan returns the findings about an image start that links() reports for text in everyImage mode,
+// the mode that only the decision record sets.
+const scanImages = (text) => {
+  const links = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs')).links;
+  const findings = [];
+  links({ did() {}, find: (finding) => findings.push(finding) }, 'decision-record.md', '', text,
+    { images: () => true, everyImage: true });
+  return findings.filter((finding) => finding.startsWith('Remove `![` and `<img` from '));
+};
+
+test('decision record: each "![" and "<img" is refused, in code too', () => {
+  const why = (text) => ['decision-record.md', '- Why: ', `- Why: ${text}`];
+  const fix = 'Remove `![` and `<img` from decision-record.md, also inside code.';
+  const literal = 'Outside code, write `\\![` for a literal `![`.';
+  // The fix line has the form of the other fix lines, and a second line has the line and its start.
+  assert.deepEqual(scanImages('First line\nSee ![a](x) here'), [`${fix}\nLine 2 is "See ![a](x) here".\n${literal}`]);
+  assert.deepEqual(scanImages('<IMG src=x>'), [`${fix}\nLine 1 is "<IMG src=x>".\n${literal}`]);
+  const long = scanImages(`![a](${'x'.repeat(100)})`);
+  assert.equal(long[0].split('\n')[1], `Line 1 is "![a](${'x'.repeat(35)}".`);
+  // Each form is refused, with no reading of Markdown: in a quote, in a list item, in inline
+  // code, in a fenced block of backticks or tildes, in an indented fence, after an even number of
+  // backslashes, as a reference image and in a paragraph that is not closed.
+  for (const text of [
+    '> ![a](x)', '- ![a](x)', '1. ![a](x)', '`![a](x)`', '```\n![a](x)\n```', '~~~\n![a](x)\n~~~',
+    '```mermaid\n![a](x)\n```', '  ```\n![a](x)\n  ```', '> ```\n> ![a](x)\n> ```', '\\\\![a](x)',
+    '\\\\\\\\![a](x)', '![a][r]\n\n[r]: https://e.example/i.png', '![a][]', '![a]',
+    'Use ![a](x without a close', '![a\n\nb](x)', '[a]: ![a]:', '![a](x y)', '```a`![a](x)',
+    // The forms that a reader of fences, HTML blocks and definitions missed.
+    '```\ntext\n```\n![c](d)\n```', '<div>\n```\n\n![c](d)\n```', '<!--\n```\n-->\n![c](d)',
+    "[a]: /u '\n```\n'\n![c](d)", '```\n![a](x)',
+  ]) {
+    assert.equal(scanImages(text).length, 1, JSON.stringify(text));
+    assert.match(scanImages(text)[0], /^Remove `!\[` and `<img` from decision-record\.md, also inside code\./);
+  }
+  // A "<img" is refused whatever comes before it, a backslash or 2 of them too.
+  for (const text of ['<img src=x>', '`<img src=x>`', '\\<img src=x>', '\\\\<img src=x>', '```\n<img>\n```']) {
+    assert.equal(scanImages(text).length, 1, JSON.stringify(text));
+    assert.match(scanImages(text)[0], /^Remove `!\[` and `<img` from decision-record\.md, also inside code\./);
+  }
+  // A "![" and a "<img" on one line are 2 findings, and many on a line are 1 each.
+  assert.equal(scanImages('![a](x) <img src=y> ![b](z)').length, 2);
+  assert.equal(scanImages('![a](x)\n![b](y)').length, 2);
+  assert.equal(scanImages('```\n```x\n![a](x)\n```\n![b](y)').length, 2);
+  // A backslash before "![" makes it literal, and so does any odd number of them.
+  for (const text of ['\\![a](x)', '\\\\\\![a](x)', 'x \\![a](x)', '```mermaid\nflowchart LR\n  A --> B\n```', '']) {
+    assert.deepEqual(scanImages(text), [], JSON.stringify(text));
+  }
+  // The same through the check of the record.
+  fails(push(fixture(why('![Flow](flow.svg) ')), 'decision-record'),
+    /^Remove `!\[` and `<img` from decision-record\.md, also inside code\. Line /);
+  fails(push(fixture(why('<img src="flow.svg"> ')), 'decision-record'),
+    /^Remove `!\[` and `<img` from decision-record\.md, also inside code\. Line /);
+  passes(push(fixture(why('\\![Flow](https://x.example/a.png) ')), 'decision-record'));
+  // A literal "![" with a link after it is a link: it has the checks of a link.
+  for (const address of ['http://x.com/a.png', 'javascript:alert(1)', 'ftp://u:p@h/a.png', 'flow.svg']) {
+    fails(push(fixture(why(`\\![a](${address}) `)), 'decision-record'),
+      /^Fix the link "[^"]+": write /);
+  }
+  fails(push(fixture(why('\\![a](http://x.com/a.png) ')), 'decision-record'),
+    /^Fix the link "http:\/\/x\.com\/a\.png": write it as https:\/\/, never http:\/\/\./);
+  passes(push(fixture(diagram(1)), 'decision-record'));
+});
+
+test('markdown links: a caller without everyImage reads images as before', () => {
+  const links = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs')).links;
+  const run = (text, options) => {
+    const findings = [];
+    links({ did() {}, find: (finding) => findings.push(finding) }, 'f.md', '', text, options);
+    return findings;
+  };
+  assert.deepEqual(run('![a](x.png) and <img src=y>', {}), [
+    'Remove the image "x.png" from f.md.\nThe image is "x.png" in f.md.',
+  ]);
+  assert.deepEqual(run('![a](x.png)', { images: () => true }), []);
+  assert.deepEqual(run('```\n![a](x.png)\n```', {}), []);
+  assert.deepEqual(run('![a](https://e.example/x.png)', { everyImage: true }).length, 1);
+});
+
+test('decision record: the image scan takes linear time', () => {
+  const run = (text) => {
+    const started = Date.now();
+    const findings = scanImages(text);
+    return { findings, took: Date.now() - started };
+  };
+  for (const [name, text, count] of [
+    ['starts on a line', '![a]('.repeat(50000), 1],
+    ['starts and spaces', `${'![a]('.repeat(25000)}${' '.repeat(125000)}`, 1],
+    ['starts on many lines', '![a](x)\n'.repeat(30000), 30000],
+    ['tags on a line', '<img '.repeat(50000), 1],
+    ['backslashes before a start', `${'\\'.repeat(250000)}![a](x)`, 1],
+    ['escaped starts', '\\![a](x) '.repeat(25000), 0],
+    ['backslashes and starts', '\\\\![a]'.repeat(40000), 1],
+    ['backticks', '`'.repeat(250000), 0],
+    ['fence lines', '```\n![a](x)\n```\n'.repeat(20000), 20000],
+    ['tags', '<img>\n'.repeat(30000), 30000],
+    ['nested alt text', `${'![a'.repeat(80000)}${']'.repeat(80000)}`, 1],
+    ['quote marks', `${'> '.repeat(100000)}![a](x)`, 1],
+  ]) {
+    const result = run(text);
+    assert.equal(result.findings.length, count, name);
+    assert.ok(result.took < 1000, `${name} took ${result.took} ms`);
+  }
+});
+
+test('decision record: the 450 words leave out the diagram, whatever its size', () => {
+  const cost = (words) => ['decision-record.md', COST, `- Cost: ${many(words)}.`];
+  const count = /^Cut decision-record.md to 450 words: it has (\d+)\./;
+  const found = count.exec(push(fixture(cost(440)), 'decision-record').out);
+  assert.ok(found);
+  const exact = 440 + 450 - Number(found[1]);
+  passes(push(fixture(cost(exact), diagram(1)), 'decision-record'));
+  fails(push(fixture(cost(exact + 1), diagram(1)), 'decision-record'), count);
+  // A diagram of 5,000 characters, 1,000 of them words, adds no word.
+  const long = `flowchart LR\n${Array.from({ length: 1000 }, (_, at) => `  A${at}[word${at}]`).join('\n')}`;
+  assert.ok(long.length > 5000);
+  passes(push(fixture(cost(exact), drawn(long)), 'decision-record'));
+  fails(push(fixture(cost(exact + 1), drawn(long)), 'decision-record'), count);
+});
+
+// A line that starts with "|" counts toward the 450 words unless it is a row of a table with a
+// delimiter row. over(text) tells whether the record, with 440 words and then text as a last
+// paragraph, fails the word limit. Other findings of the record do not matter here.
+const tail = (text) => ['decision-record.md', /\n*$/, `\n\n${text}\n`];
+const WORDS = /^Cut decision-record.md to 450 words: it has (\d+)\./;
+const piped = (count) => `| ${many(count)} | ${many(count)} |`;
+
+test('decision record: a line that starts with "|" counts unless it is in a table', () => {
+  const cost = (count) => ['decision-record.md', COST, `- Cost: ${many(count)}.`];
+  const exact = 880 - Number(WORDS.exec(push(fixture(cost(440)), 'decision-record').out)[1]);
+  const over = (text) => push(fixture(cost(exact), tail(text)), 'decision-record')
+    .findings.some((line) => WORDS.test(line));
+  assert.ok(!over(many(10)) && over(many(11)));
+  const lines = Array(5).fill(piped(50)).join('\n');
+  // No delimiter row: 500 words in "|" lines fail, in a paragraph of 5 lines.
+  assert.ok(over(lines));
+  // A header, a delimiter row and rows add no word.
+  const table = `${piped(50)}\n|---|:--:|\n${piped(50)}\n${piped(50)}\n${piped(50)}`;
+  assert.ok(!over(table));
+  // A delimiter row with another count of cells: the lines count.
+  assert.ok(over(`${piped(50)}\n|---|---|---|\n${lines}`));
+  assert.ok(over(`${piped(50)}\n|---|\n${lines}`));
+  // A line that is no delimiter row: the lines count.
+  assert.ok(over(`${piped(50)}\n| - | x |\n${lines}`));
+  // A blank line between the header and the delimiter row: no table.
+  assert.ok(over(`${piped(50)}\n\n|---|---|\n${lines}`));
+  // After the table, a line that does not start with "|" ends it, and a later "|" line counts.
+  assert.ok(over(`${table}\nend of the table\n${lines}`));
+  // A line indented 4 spaces is code, not a table.
+  assert.ok(over(table.replace(/^/gm, '    ')));
+  // In a quote, a list item or an HTML block, the check cannot tell whether a table starts.
+  assert.ok(over(`- item\n${table}`));
+  assert.ok(over(`> quote\n${table}`));
+  assert.ok(over(`<div>\n${table}`));
+  assert.ok(over(`<!--\n\n${table}\n\n-->`));
+  assert.ok(!over(`<!-- x -->\n\n${table}`));
+  // A table that follows a paragraph line at once, as GFM reads it: the paragraph line counts,
+  // the table does not. The first "|" line of a paragraph of "|" lines counts too.
+  assert.ok(!over(`A line of text.\n${table}`));
+  assert.ok(over(`${piped(200)}\n${table}`));
+  // A table in a fence of 5 backticks is code: it counts.
+  assert.ok(over(`\`\`\`\`\`text\n${table}\n\`\`\`\`\``));
+});
+
+const MARKDOWN = path.join(MODULES, 'core/skills/running-a-workflow/lib/markdown.cjs');
+
+test('decision record: a line of a table that Qory Apiary shows as prose counts', () => {
+  const { counted } = require(MARKDOWN);
+  const kept = (text) => counted(text, false, { tables: true });
+  // Each text has "wq1" or "wq2" as a word of prose, or of a table that the check cannot tell
+  // from prose, so the check counts it.
+  const cases = {
+    'a line with only a pipe ends a table': ['| wq0 |\n|---|\n|\n| wq1 |\n', 'wq1'],
+    'a line with only a pipe is no header': ['|\n|-|\n| wq1 |\n', 'wq1'],
+    'a no-break space after a header makes a cell': ['| wq0 |  \n|---|\n', 'wq0'],
+    'an em space around dashes is no delimiter row': ['| wq0 |\n|  ---  |\n', 'wq0'],
+    'a row indented less than the header ends the table':
+      ['- x\n\n  | a |\n  |---|\n  | y |\n| wq1 |\n', 'wq1'],
+    'a line that continues the paragraph of a list item': ['* x\n\n  y\n| wq1 |\n|---|\n', 'wq1'],
+    'a line that continues the paragraph of an item with a tab':
+      ['-\tx\n\n\twq5\n| wq1 |\n|---|\n', 'wq1'],
+    'a delimiter-shaped line that opened no table':
+      ['| wq0 | wq1 |\n|---|\n| wq2 |\n|---|\n', 'wq2'],
+    'a delimiter-shaped line after a line that opened no table':
+      ['| wq0 | wq1 |\n|---|\n|---|\n| wq2 |\n', 'wq2'],
+  };
+  for (const [name, [text, word]] of Object.entries(cases)) {
+    assert.ok(kept(text).includes(word), name);
+  }
+  // The same texts without the cause: the table adds no word.
+  assert.equal(kept('| wq0 |\n|---|\n| wq1 |\n').includes('wq'), false);
+  assert.equal(kept('- x\n\n  | wq0 |\n  |---|\n  | wq1 |\n').includes('wq'), false);
+});
+
+test('decision record: every line that starts with "|" counts in over 50,000 cells', () => {
+  const { counted } = require(MARKDOWN);
+  const record = (rows) =>
+    `${'| a '.repeat(300)}|\n|${'---|'.repeat(300)}\n${'| wq9 |\n'.repeat(rows)}`;
+  // Qory Apiary formats a text of lines x (most pipes on a line + 1) cells up to 50,000 and shows
+  // a text with more as written: 100 rows have 102 x 301 = 30,702 cells, 200 have 61,102.
+  assert.equal(counted(record(100), false, { tables: true }).includes('wq9'), false);
+  assert.equal(counted(record(200), false, { tables: true }).includes('wq9'), true);
+  assert.equal(counted(record(200), false, { tables: false }).includes('wq9'), false);
+});
+
+test('a fence line in a block of HTML opens no code block, so the text after it counts', () => {
+  const { lines, counted } = require(MARKDOWN);
+  const kept = (text) => counted(text, false);
+  // Qory Apiary shows the fence line in a block of HTML as HTML, and the prose after the block.
+  const blocks = {
+    '<div>': '<div>\n```mermaid\nx\n\nprose wq1',
+    '<!-- -->': '<!--\n```mermaid\nx\n\nprose wq1\n-->',
+    '<script>': '<script>\n```mermaid\nx\n\nprose wq1\n</script>',
+    '<pre>': '<pre>\n```mermaid\nx\n\nprose wq1\n</pre>',
+    '<?': '<?php\n```mermaid\nx\n\nprose wq1\n?>',
+    '<![CDATA[': '<![CDATA[\n```mermaid\nx\n\nprose wq1\n]]>',
+    '<!X': '<!DOCTYPE\n```mermaid\nx\n\nprose wq1\n>',
+    'a tag alone on a line': '<span>\n```mermaid\nx\n\nprose wq1',
+    'a tag in a list item': '- <div>\n  ```mermaid\n  x\n\nprose wq1',
+  };
+  for (const [name, text] of Object.entries(blocks)) {
+    assert.ok(kept(text).includes('wq1'), name);
+    assert.equal(lines(text).some((line) => line.fenced), false, name);
+  }
+  // A fence after the block has closed is a fence: its Mermaid block counts for nothing.
+  const closed = {
+    'a blank line after <div>': '<div>\n\n```mermaid\nwq2\n```\nwq3',
+    'an end mark of a comment': '<!--\nx\n-->\n```mermaid\nwq2\n```\nwq3',
+    'a blank line after a tag': '<span>\n\n```mermaid\nwq2\n```\nwq3',
+    'a quote that ends after a tag': '> <div>\n```mermaid\nwq2\n```\nwq3',
+  };
+  // After a line of text, the parsers differ on a tag alone on a line: the words count.
+  assert.ok(kept('text\n<span>\n```mermaid\nwq2\n```\nwq3').includes('wq2'));
+  assert.ok(kept('| a |\n|---|\n<span>\n```mermaid\nwq2\n```\nwq3').includes('wq2'));
+  for (const [name, text] of Object.entries(closed)) {
+    assert.equal(kept(text).includes('wq2'), false, name);
+    assert.ok(kept(text).includes('wq3'), name);
+    assert.ok(lines(text).some((line) => line.fenced), name);
+  }
+});
+
+test('a fence line in a block of HTML: a spec counts the text after it, a record refuses', () => {
+  const words = ['spec.md', /\n*$/, `\n\n<div>\n\`\`\`text\n\n${many(500)}\n`];
+  fails(push(fixture(words), 'spec'), /^Cut spec.md to 450 words: it has \d+\./);
+  // A Mermaid fence at the start of a line in a block of HTML is a block that Qory Apiary does
+  // not draw as one, but the check counts the line and refuses it.
+  const html = (item) => `${item}\n\n<div>\n\`\`\`mermaid\nflowchart LR\n  A --> B\n\`\`\``;
+  fails(push(fixture(['decision-record.md', COST, html]), 'decision-record'), FENCE);
+});
+
+test('a fence line in a block of HTML: the reading takes linear time', () => {
+  const { lines } = require(MARKDOWN);
+  for (const [name, text] of [
+    ['tags', '<a b="c">\n'.repeat(30000)],
+    ['long tag lines', `<a ${'b '.repeat(125000)}`],
+    ['long tag lines with more marks', `- > - > <a ${'b="c" '.repeat(40000)}x`],
+    ['blank lines in a comment', `<!--\n${'\n'.repeat(120000)}-->`],
+    ['quote marks', `${'> '.repeat(120000)}<div>`],
+    ['fences', '<div>\n```\n\n'.repeat(20000)],
+  ]) {
+    const started = Date.now();
+    lines(text);
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
+// A code block ends at its closing line: marks at least as long as the opening, then spaces and
+// tabs only. A code block in a list item ends where the item ends. The words after that count.
+test('a line of marks with text is no closing line, and a code block ends with its item', () => {
+  const { lines, counted } = require(MARKDOWN);
+  const kept = (text) => counted(text, false);
+  const fenced = (text) => lines(text)
+    .map((line) => (line.edge ? line.edge[0] : line.fenced ? 'f' : '.')).join('');
+  // A closing line with spaces after it, and a longer closing run, close the block.
+  assert.equal(fenced('```js\nx\n```  \nwq1'), 'ofc.');
+  assert.equal(fenced('```js\nx\n`````\nwq1'), 'ofc.');
+  // A shorter run, another mark and a run with text after it do not close it.
+  assert.equal(fenced('````js\nx\n```\nwq1'), 'offf');
+  assert.equal(fenced('```js\nx\n~~~\nwq1'), 'offf');
+  assert.equal(fenced('```js\nx\n```wq1\nwq2'), 'offf');
+  assert.ok(kept('```js\nx\n```wq1\nwq2\n```').includes('```wq1'));
+  // A list item ends a code block in it, and a line that may continue its paragraph does not.
+  assert.equal(fenced('- x\n  ```js\n  c\n\n  d\nwq1'), '.offf.');
+  assert.equal(fenced('-\n  ```mermaid\n  c\n\nwq1'), '.off.');
+  assert.equal(fenced('- x\n  ```js\n  c\n  ```\n  wq1'), '.ofc.');
+  assert.equal(fenced('- x\nlazy\n  ```js\n  c\n\nwq1'), '..off.');
+  assert.equal(fenced('1. a\n   ```js\n   c\n  d'), '.of.');
+  assert.ok(kept('-\n  ```mermaid\n  c\n\nwq1').includes('wq1'));
+  assert.equal(kept('-\n  ```mermaid\n  c\n\n  wq2').includes('wq2'), false);
+  // A fence line in a quote opens no code block, so the words after the quote count.
+  assert.ok(kept('> ```mermaid\n> c\n\nwq1').includes('wq1'));
+});
+
+test('a code block that a line of marks or a list item ends: the full check counts words', () => {
+  const words = many(600);
+  const refused = /^Cut (decision-record|spec)\.md to 450 words: it has \d+\./;
+  const record = (block) => fixture(['decision-record.md', COST, (item) => `${item}${block}`]);
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  const look = (info) => `\`\`\`${info}\nx\n\`\`\`wq ${words}\n\`\`\``;
+  fails(push(record(`\n${look('js')}`), 'decision-record'), refused);
+  fails(push(record(`\n\n${look('js')}`), 'decision-record'), refused);
+  fails(push(spec(look('js')), 'spec'), refused);
+  fails(push(spec(`-\n  \`\`\`mermaid\n  x\n\n${words}`), 'spec'), refused);
+  fails(push(spec(`-\n  \`\`\`js\n  x\n\n${words}`), 'spec'), refused);
+  fails(push(record(`\n\n-\n  \`\`\`js\n  x\n\n${words}`), 'decision-record'), refused);
+  // Words in the block, and a closing line with spaces after it, are as before.
+  fails(push(spec(`\`\`\`js\n${words}\n\`\`\``), 'spec'), refused);
+  passes(push(spec('```js\nx\n```  \n'), 'spec'));
+  // A proposal counts the words of the line too.
+  const proposal = (block) =>
+    total(push(fixture(beforeSources(`${parts(5)}### Code\n\n${block}\n\n`)), 'proposal'));
+  assert.ok(proposal(look('js')) - proposal('```js\nx\n```') >= 600);
+});
+
+test('a code block in a list item: the reading takes linear time', () => {
+  const { lines } = require(MARKDOWN);
+  for (const [name, text] of [
+    ['items', '- a\n'.repeat(60000)],
+    ['nested items', Array.from({ length: 400 }, (_, at) => `${' '.repeat(at)}- a`).join('\n')],
+    ['code blocks in items', '- a\n  ```js\n  c\n\nb\n'.repeat(15000)],
+    ['lines of marks', `\`\`\`js\n${'```wq\n'.repeat(50000)}`],
+    ['one long line', `- a\n  \`\`\`js\n${'`'.repeat(250000)}`],
+  ]) {
+    const started = Date.now();
+    lines(text);
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
+// The word of each case follows a fence line that a block of HTML or a code block hides from the
+// reading, so a reading that is wrong loses the word and the 450 words do not count it.
+const keeps = (text, word) =>
+  require(MARKDOWN).counted(text, false, { tables: true }).includes(word);
+
+test('a block of HTML in a list item ends at the item column of its tab', () => {
+  assert.ok(keeps('-\t<p\n  ```\n```mermaid\nwq9', 'wq9'));
+});
+
+test('a block of HTML in a numbered list item ends at the item column', () => {
+  assert.ok(keeps('2. <y>\n  ~~~\n```mermaid\nwq6', 'wq6'));
+});
+
+test('a block of HTML after a space and a list mark ends at the item column', () => {
+  assert.ok(keeps(' - <!--\n  ```\n```mermaid\nwq9', 'wq9'));
+});
+
+test('a tag alone on a line with a quoted angle bracket starts a block of HTML', () => {
+  for (const tag of ["<a b='>'>", '<a b=">">', '<a b="<">', '<a\vb>', '<a/>']) {
+    assert.ok(keeps(`${tag}\n\`\`\`mermaid\n\nwq2`, 'wq2'), tag);
+  }
+});
+
+test('a lower case CDATA mark starts a block of HTML that ends at its end mark', () => {
+  assert.ok(keeps('<![cdata[\n```mermaid ]]>\nwq5', 'wq5'));
+});
+
+test('a number other than 1 after a line of text starts no list, so no code block opens', () => {
+  assert.ok(keeps('x\n2. ```mermaid\n    c\n\nwq1\n```\nwq2', 'wq2'));
+  const table = '|---|\n2. | wq0 |\n2. ~~~mermaid\n    | wq3 | wq4 |\n    |---|---|\n    | wq5 |';
+  assert.ok(keeps(table, 'wq5'));
+});
+
+test('a table in a code block of a list item counts its words', () => {
+  const text = '- ```\n\n  | wq0 |\n  |---|\n  | wq1 |\n';
+  assert.ok(keeps(text, 'wq0') && keeps(text, 'wq1'));
+});
+
+test('a long run of spaces is read in linear time, in a line and in a table cell', () => {
+  const { counted } = require(MARKDOWN);
+  for (const [name, text] of [
+    ['spaces and x', `${' '.repeat(1000000)}x`],
+    ['a cell', `| a${' '.repeat(1000000)}b |\n|---|\n`],
+    ['a delimiter row', `| a |\n|---${' '.repeat(1000000)}x\n`],
+    ['tabs', `${'\t'.repeat(1000000)}x`],
+  ]) {
+    const started = Date.now();
+    counted(text, false, { tables: true });
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
+// Qory Apiary shows a text as plain text from 128 levels of nesting and for a byte that is no
+// UTF-8. The check of every Markdown text refuses 60 marks on a line, and U+FFFD.
+test('a line of 60 quote or list marks, and U+FFFD, are refused in every Markdown text', () => {
+  const nested = (mark, count) => `${mark.repeat(count)}wq`;
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  const record = (block) =>
+    fixture(['decision-record.md', COST, (item) => `${item}\n\n${block}`]);
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const finding = (fix, file, shown) => new RegExp(
+    `^${fix.replace('<file>', escaped(file))} Line \\d+ is "${escaped(shown)}"\\.$`);
+  const deep = (file, levels, shown = '.*') => finding(
+    'Remove the deep nesting from <file>: line \\d+ has ' + levels +
+    ' levels, and the check allows 59\\.', file, shown);
+  const save = (file, shown = '.*') => finding(
+    'Save <file> as UTF-8: Qory Apiary shows it as plain text\\.', file, shown);
+  for (const mark of ['> ', '>', '- ', '1. ', '* ', '+ ', '1) ', '> - ']) {
+    const per = mark === '> - ' ? 2 : 1;
+    const under = nested(mark, Math.floor(59 / per));
+    const over = nested(mark, Math.ceil(60 / per));
+    passes(push(spec(under), 'spec'));
+    // A record has other findings for a text after its items, so only this one is looked for.
+    const short = push(record(under), 'decision-record');
+    assert.ok(!short.findings.some((line) => /deep nesting/.test(line)));
+    fails(push(spec(over), 'spec'), deep('spec.md', 60, over.slice(0, 40).trim()));
+    fails(push(record(over), 'decision-record'),
+      deep('decision-record.md', 60, over.slice(0, 40).trim()));
+  }
+  // A line of 60 marks that is a thematic break is no nesting.
+  passes(push(spec('- '.repeat(60).trim()), 'spec'));
+  fails(push(spec('A word \uFFFD here.'), 'spec'), save('spec.md', 'A word \uFFFD here.'));
+  fails(push(record('A word \uFFFD here.'), 'decision-record'),
+    save('decision-record.md', 'A word \uFFFD here.'));
+});
+
+test('nesting by indentation: 60 list items deep is refused with its line and levels', () => {
+  const nest = (count) => Array.from({ length: count }, (_, at) => `${' '.repeat(2 * at)}- a`)
+    .join('\n');
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  passes(push(spec(nest(59)), 'spec'));
+  const result = push(spec(nest(64)), 'spec');
+  fails(result, new RegExp('^Remove the deep nesting from spec\\.md: line \\d+ has 60 levels, ' +
+    'and the check allows 59\\. Line \\d+ is "- a"\\.$'));
+  // The levels of a line are the larger of its marks and its depth by indentation.
+  const mixed = `${nest(10)}\n${'> '.repeat(61)}wq`;
+  fails(push(spec(mixed), 'spec'), /has 61 levels, and the check allows 59\./);
+  const run = { did() {}, find: (text) => run.found.push(text), found: [] };
+  require(MARKDOWN).shownAsText(run, 'spec.md', null, `x\ny\n${nest(60)}`);
+  assert.equal(run.found[0].split('\n')[0],
+    'Remove the deep nesting from spec.md: line 62 has 60 levels, and the check allows 59.');
+});
+
+// The cases that the reading cannot tell apart count every line from there on, so that no
+// word is lost: the word of each case follows a block that the reading may take for a diagram.
+test('a fence 4 columns in, in a list item, may open a code block: the words count', () => {
+  for (const [text, word] of [
+    ['2.\n    ```\n   ```wq0', 'wq0'],
+    ['-\n\t```\n  ~~~wq1', 'wq1'],
+    ['-\n    ```\n  ```wq9', 'wq9'],
+    ['- x\n\n    ```\n    wq1\n   ```wq2\n', 'wq2'],
+    ['-\n    ```\n\n  ||wq1\n  |-|-', 'wq1'],
+    ['-\r    ```\r\r  ||wq4\r  |-|-', 'wq4'],
+  ]) assert.ok(keeps(text, word), JSON.stringify(text));
+});
+
+test('a number other than 1 after text starts no list, even before HTML or a fence', () => {
+  assert.ok(keeps('s\r2.\r   ```\r    ```\r~~~mermaid\rwq3', 'wq3'));
+  assert.ok(keeps('2\n2. <table\n   ```\n~~~mermaid\nwq3', 'wq3'));
+});
+
+test('an item that starts with a blank line ends at a second one: the words count', () => {
+  assert.ok(keeps('-\n\n  ~~~\n    ~~~\n~~~wq3', 'wq3'));
+  assert.ok(keeps('-\n\n  ```\n    ```\n~~~wq3', 'wq3'));
+});
+
+test('a table header after the text of an item that a code block opens is no table', () => {
+  assert.ok(keeps('- ~~~\n  ~~~\n\t|\n|wq3\n|-', 'wq3'));
+});
+
+test('a line after a block of HTML in a list item is no lazy line of the item', () => {
+  assert.ok(keeps('2. <s>\r|\r2.\r2. ```wq2\r  ```', 'wq2'));
+});
+
+test('a tab in the indent of a code block in a list item makes the words after it count', () => {
+  assert.ok(keeps('- >\n0\n  ```\n\t```\n~~~wq3', 'wq3'));
+});
+
+test('the end mark of a block of HTML may overlap its start', () => {
+  assert.ok(keeps('<!-->\n```-->\n```wq5', 'wq5'));
+  assert.ok(keeps('<?>\n```?>\n```wq6', 'wq6'));
+});
+
+test('a list mark with no text after a line of text is text, so the words after it count', () => {
+  for (const [text, word] of [
+    ['0\n+\n2. ~~~wq1', 'wq1'],
+    ['0\n1.\n2. ```wq1', 'wq1'],
+    ['t\r*\r0.\t~~~wq0', 'wq0'],
+    ['d\n1.\n9. ```wq1', 'wq1'],
+  ]) assert.ok(keeps(text, word), JSON.stringify(text));
+});
+
+test('a numbered list that goes on its own mark is read as a list', () => {
+  const { lines } = require(MARKDOWN);
+  const fenced = (text) => lines(text).map((line) => (line.uncertain ? '?' : '.')).join('');
+  assert.equal(fenced('1. a\n2. b\n3. c\n   - d\n4. e'), '.....');
+  assert.equal(fenced('1. a\n\n2. b'), '...');
+  assert.equal(fenced('1. a\n2) b'), '.?');
+});
+
+test('a tag in a list item, 4 columns in or 5 columns after the mark, may start HTML', () => {
+  for (const [text, word] of [
+    ['-\n    <!A\n  ```mermaid >\n  wq0', 'wq0'],
+    ['1.\n    <e>\n   ```mermaid\n\n   wq1', 'wq1'],
+    ['-     <e>\n  ```\n\n  ```wq3', 'wq3'],
+  ]) assert.ok(keeps(text, word), JSON.stringify(text));
+});
+
+test('nesting by indentation inside a quote: the quote marks count as levels', () => {
+  const nest = (count) => Array.from({ length: count },
+    (_, at) => `> ${' '.repeat(2 * at)}- a`).join('\n');
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  passes(push(spec(nest(58)), 'spec'));
+  fails(push(spec(nest(64)), 'spec'), new RegExp('^Remove the deep nesting from spec\\.md: ' +
+    'line \\d+ has 60 levels, and the check allows 59\\. Line \\d+ is "> - a"\\.$'));
+});
+
+test('a line that starts with "<" and is no start of HTML goes on with the paragraph', () => {
+  for (const text of ['- x\n<q\n  ```mermaid\nwq6', '- x\n<a b="\n  ```mermaid\nwq6',
+    '- |\n<e\n  ```mermaid\nwq1']) {
+    assert.ok(keeps(text, /wq\d/.exec(text)[0]), JSON.stringify(text));
+  }
+});
+
+test('a block of HTML in a list item on a line with no mark ends with the item', () => {
+  assert.ok(keeps('+\n  <div\n```\n\n```wq5', 'wq5'));
+});
+
+test('the check of how Qory Apiary shows a text takes linear time', () => {
+  const run = { did() {}, find() { throw new Error('refused'); } };
+  const { shownAsText } = require(MARKDOWN);
+  for (const [name, text, refused] of [
+    ['one line of 500,000 marks', '> '.repeat(500000), true],
+    ['one line of 1,000,000 characters', 'x'.repeat(1000000), false],
+    ['lines of 59 marks', `${'> '.repeat(59)}x\n`.repeat(8000), false],
+    ['spaces before a mark', `${' '.repeat(1000000)}>`, false],
+    ['lines of spaces and marks', `${' > '.repeat(25)}\n`.repeat(20000), false],
+    ['U+FFFD at the end', `${'x'.repeat(999999)}\uFFFD`, true],
+  ]) {
+    const started = Date.now();
+    let threw = false;
+    try {
+      shownAsText(run, 'spec.md', null, text);
+    } catch {
+      threw = true;
+    }
+    assert.equal(threw, refused, name);
+    assert.ok(Date.now() - started < 1000, `${name} took ${Date.now() - started} ms`);
+  }
+});
+
+test('decision record: the table scan takes linear time', () => {
+  for (const [name, text] of [
+    ['a long line', `|${'|'.repeat(250000)}`],
+    ['header rows', `${'| a |\n'.repeat(40000)}`],
+    ['tables', '| a |\n|---|\n| b |\n\n'.repeat(15000)],
+    ['delimiter rows', '| a |\n|-|\n'.repeat(40000)],
+  ]) {
+    const started = Date.now();
+    const result = push(fixture(tail(text)), 'decision-record');
+    assert.ok(Date.now() - started < 5000, `${name} took ${Date.now() - started} ms`);
+    assert.ok([0, 1].includes(result.status), `${name}: ${result.out}`);
+  }
+});
+
+const MERMAID = path.join(MODULES, 'software-factory/skills/running-a-software-workflow/lib/mermaid.cjs');
+
+test('decision record: a Mermaid block with a %%{ line is refused', () => {
+  const directive = /^Remove the %%\{ line from the Mermaid block of decision-1\. Qory Apiary strips it before it draws, and a record needs none\.$/;
+  fails(push(fixture(drawn('flowchart LR\n  A --> B\n%%{init: {"theme": "dark"}}%%')), 'decision-record'),
+    directive);
+  fails(push(fixture(drawn('%%{init: {}}%%\nflowchart LR\n  A --> B')), 'decision-record'), directive);
+  const mermaid = require(MERMAID);
+  // The size leaves out a %% comment line, and a directive line is dropped before.
+  assert.equal(mermaid.size(mermaid.source('flowchart LR\n%%{ init }%%\n  A')),
+    'flowchart LR\n  A\n'.length);
+  assert.equal(mermaid.directive('flowchart LR\n%​%{ init }%%'), true);
+});
+
+test('decision record: a time limit for text that made a pattern slow', () => {
+  const timed = (name, edit) => {
+    const started = Date.now();
+    const result = push(fixture(edit), 'decision-record');
+    const took = Date.now() - started;
+    assert.ok(took < 5000, `${name} took ${took} ms`);
+    assert.ok([0, 1].includes(result.status), `${name}: ${result.out}`);
+  };
+  timed('spaces after a link', drawn(`flowchart LR\n  A --${' '.repeat(19000)}x`));
+  timed('spaces between 2 texts', drawn(`flowchart LR\n  A --${' '.repeat(9000)}a${' '.repeat(9000)}q`));
+  timed('blank lines', drawn(`flowchart LR\n${'\n'.repeat(19000)}  A --> B`));
+  timed('blank lines with a comment', drawn(`flowchart LR\n${' \n'.repeat(9000)}%% a\n  A --> B`));
+  timed('nested brackets', drawn(`flowchart LR\n  A${'['.repeat(9000)}${']'.repeat(9000)} --> B`));
+  timed('nested brackets of 2 kinds', drawn(`flowchart LR\n  A${'[('.repeat(9500)}${')]'.repeat(9500)} --> B`));
+  timed('blank lines in a sequence diagram', drawn(`sequenceDiagram\n${'\n'.repeat(150000)}  A->>B: x`));
+  timed('blank lines before a properties line', drawn(`sequenceDiagram\n${' \n'.repeat(75000)}properties A`));
+  timed('nested image starts', ['decision-record.md', '- Why: ', `- Why: ${'![x'.repeat(30000)}${']'.repeat(30000)} `]);
+  timed('entities', drawn(`flowchart LR\n${'a #32;&nbsp;'.repeat(1500)}`));
+  timed('spaces after an image start', ['decision-record.md', '- Why: ', `- Why: ![a](${' '.repeat(250000)}x `]);
+  timed('image destinations that do not close', ['decision-record.md', '- Why: ', `- Why: ${'![a]('.repeat(15000)} `]);
+  timed('image starts with a long alt', ['decision-record.md', '- Why: ', `- Why: ${'![a b '.repeat(20000)} `]);
+});
+
+test('decision record: a line of 100,000 backticks or tildes takes linear time', () => {
+  for (const mark of ['`', '~']) {
+    for (const end of ['', 'x', ' &', ' mermaid']) {
+      const line = `${mark.repeat(100000)}${end}`;
+      const started = Date.now();
+      push(fixture(['decision-record.md', COST, (item) => `${item}\n\n${line}`]),
+        'decision-record');
+      assert.ok(Date.now() - started < 1500, `${mark}${end} took ${Date.now() - started} ms`);
+    }
+  }
+});
+
+test('decision record: the checks of a diagram take linear time on long runs', () => {
+  const mermaid = require(MERMAID);
+  const timed = (name, run) => {
+    const started = Date.now();
+    run();
+    assert.ok(Date.now() - started < 2000, `${name} took ${Date.now() - started} ms`);
+  };
+  timed('nested brackets', () => {
+    assert.equal(mermaid.edges(`flowchart LR\n  A${'[('.repeat(100000)}${')]'.repeat(100000)} --> B`), 1);
+    assert.equal(mermaid.edges(`flowchart LR\n  A${'['.repeat(200000)}${']'.repeat(200000)} --> B`), 1);
+  });
+  timed('blank lines', () => {
+    assert.equal(mermaid.loads(`sequenceDiagram\n${'\n'.repeat(200000)}properties A`), true);
+  });
+  timed('comments with no end', () => {
+    assert.equal(mermaid.loads(`flowchart LR\n${'/*a'.repeat(150000)}`), false);
+  });
+  timed('lines of front matter', () => {
+    assert.equal(mermaid.source(`${'---\n'.repeat(400000)}flowchart LR`), 'flowchart LR');
+  });
+  timed('lines that end in a link', () => {
+    assert.equal(mermaid.edges(`flowchart LR\n${'A -->\n'.repeat(150000)}`), 150000);
+    assert.equal(mermaid.edges(`flowchart LR\n${'A -->;'.repeat(150000)}`), 150000);
+  });
+  timed('a run of dots', () => {
+    assert.equal(mermaid.edges(`flowchart LR\nA -->${'.'.repeat(300000)}`), 1);
+  });
+});
+
 // ---- Limits -------------------------------------------------------------------------------
 
 test('a summary of 1 to 3 sentences', () => {
@@ -3708,8 +4717,8 @@ test('report: each agent of the modules has a shape that the script reads', () =
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
     assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
-  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, security-reviewer, ' +
-    'data-reviewer and failure-reviewer');
+  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
+    'security-reviewer, data-reviewer and failure-reviewer');
 });
 
 // ---- Time and size ------------------------------------------------------------------------
@@ -3720,6 +4729,9 @@ const HOSTILE = {
   'link starts': '[a]('.repeat(50000),
   'spaces in a link': `[a](${' '.repeat(200000)}`,
   'image starts': '!['.repeat(100000),
+  'image brackets': '![a ['.repeat(40000),
+  'definition starts': '[a]:'.repeat(50000),
+  'list and quote marks': '> - 1. '.repeat(30000),
   backticks: '`'.repeat(200000),
   'backtick runs': Array.from({ length: 600 }, (_, n) => '`'.repeat(n + 1)).join('a'),
   'full stops': '.'.repeat(200000),
@@ -3761,6 +4773,17 @@ test('a hostile line of 200 KB takes less than 5 s in every check', () => {
       assert.ok(took < 5000, `${name} in ${type} took ${took} ms`);
       assert.ok([0, 1].includes(result.status), `${name} in ${type}: ${result.out}`);
       assert.doesNotMatch(result.out, /at most 256 KB/, `${name} in ${type}: ${result.out}`);
+    }
+    // The decision record also reads a definition at the start of a line, of a list item and of
+    // a quote, and a reference image in the text of each.
+    for (const mark of ['', '> ', '- ', '> - ']) {
+      write(root, 'decision-record.md', `## Decisions\n\n### \`decision-1\`: a\n\n- Decision: a\n\n` +
+        `${mark}${cut}\n\n${mark}[f]:\n${mark}${cut}\n\n![${cut}][f]\n`);
+      const started = Date.now();
+      const result = push(root, 'decision-record');
+      const took = Date.now() - started;
+      assert.ok(took < 5000, `${name} after ${JSON.stringify(mark)} in decision-record took ${took} ms`);
+      assert.ok([0, 1].includes(result.status), `${name} in decision-record: ${result.out}`);
     }
   }
 });
