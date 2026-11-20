@@ -175,7 +175,7 @@ const broken = (cause, item) => [{ line: 'Fix qory.outputs in the lines after th
   point: OUTBOX_BROKEN, item }, ...cause.map((line) => ({ line, point: null }))];
 
 // outboxFolder returns the absolute path in QORY_OUTBOX of env, or null when it is unset or
-// relative. The software module's report-build reads it the same way, through LIBRARY.
+// relative. A module that writes the outbox reads it the same way, through LIBRARY.
 const outboxFolder = (env) => (typeof env.QORY_OUTBOX === 'string' &&
   path.isAbsolute(env.QORY_OUTBOX) ? path.normalize(env.QORY_OUTBOX) : null);
 
