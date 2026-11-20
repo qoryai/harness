@@ -3441,11 +3441,10 @@ const setReport = (dir, report) => {
   fs.writeFileSync(file, JSON.stringify(ledger));
 };
 
-test('report-build: a title that qory drops, with U+200D, U+200C, U+0600 or U+E0041, exits 1 with the fix', () => {
+test('report-build: a title that qory drops, with U+0600 or U+E0041, exits 1 with the fix', () => {
   const { dir } = buildRepo();
   const file = outboxPath(dir);
-  for (const [char, code] of [['‍', '200D'], ['‌', '200C'], ['؀', '0600'],
-    ['\u{E0041}', 'E0041']]) {
+  for (const [char, code] of [['\u0600', '0600'], ['\u{E0041}', 'E0041']]) {
     write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('Add the sum', `Add${char} the sum`));
     const got = bcall(dir, ['report-build']);
     assert.equal(got.status, 1, `${code}: ${got.out}${got.err}`);
@@ -3454,6 +3453,12 @@ test('report-build: a title that qory drops, with U+200D, U+200C, U+0600 or U+E0
       '  qory drops the whole text when its title has an invisible or separator character.');
     assert.equal(got.lines.at(-1), 'Wrote no file: 1 finding on submission.md.');
     assert.equal(fs.existsSync(file), false);
+  }
+  // The joiners U+200C and U+200D of emoji are allowed.
+  for (const joiner of ['\u200D', '\u200C']) {
+    write(dir, '.qory/artifacts/.reports/submission.md',
+      TEXT.replace('Add the sum', `Add${joiner} the sum`));
+    assert.equal(bcall(dir, ['report-build']).status, 0);
   }
   // U+2028 is in the schema's pattern too, so it has one finding.
   write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('Add the sum', 'Add  the sum'));

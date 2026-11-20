@@ -3313,7 +3313,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   text before the first part, and neither has the form of a secret. The title also has no
   Cc character, no Cf character but U+200C and U+200D (the joiners of emoji), such as
   U+0600 or U+E0041, and no U+2028 or U+2029, because qory does not accept such a title
-  and drops the whole text; the fix has its code point. The verb removes spaces before and after the title. `steps` is a list of
+  and drops the whole text; the fix has its code point. The verb removes spaces before and
+  after the title. `steps` is a list of
   `{"commit", "step"}`, oldest first: it has each commit of `git rev-list <base>..<commit>`
   of each `done` row, with the id of the row as `step`, for the commits of `git rev-list
   <base of the first row>..HEAD`, and a commit in two rows goes to the later row. `draft`
