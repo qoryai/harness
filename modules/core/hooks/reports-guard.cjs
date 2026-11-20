@@ -134,9 +134,10 @@ function reportsJson(text) {
 // for a value that is no string. A text with one line is read by its words, as a list of paths.
 // A text with more lines is a patch: only its header lines name paths, so that a line `.env` of
 // a patch of .gitignore passes. The headers of Codex (`*** Add File: <path>`) are read by
-// reportsOnDisk; this reads the `--- a/<path>` and `+++ b/<path>` headers of a unified diff.
+// reportsOnDisk; this reads the `--- a/<path>` and `+++ b/<path>` header lines of a patch in the
+// form that the program `patch` reads.
 // The guards of Gemini CLI, Cursor and Copilot CLI call it. The Codex tool guard passes only
-// the Codex headers: Codex rejects a unified diff and writes nothing.
+// the Codex headers: Codex rejects a patch in the form of `patch` and writes nothing.
 function envWord(text) {
   if (typeof text !== 'string') return false;
   if (!PATCH_BREAK.test(text.trim())) {
