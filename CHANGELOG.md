@@ -1666,6 +1666,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a
   command with `.env`. On macOS with System Integrity Protection, `/usr/bin/env` drops
   `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` itself, and no `DYLD_` name is on the list.
+  CI runs `shellcheck`, `sh -n`, `bash -n` and `node --check` on the 13 hook commands and
+  the hook files.
 - The reports guard reads the first word of a command, to find out whether it is a copy of
   `checks.cjs`, only when it is a regular file of the size of `checks.cjs`, and then at most
   that size and one byte. It read the whole file, so `/dev/zero` grew the hook to 44.8 GB, a
