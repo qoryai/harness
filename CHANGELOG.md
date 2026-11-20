@@ -42,7 +42,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   which no other type sets, refuses each one. `checking-decisions` has the reviewer judge
   each diagram, and `decision-writer` and `decision-reviewer` load `visuals` when the record
   has one.
-- - The check of every Markdown text refuses a line with 60 or more levels of nesting and a
+- The check of every Markdown text refuses a line with 60 or more levels of nesting and a
   text with U+FFFD, because Qory Apiary shows such a text as plain text. The levels of a
   line are the larger of its quote and list marks and the depth of the list items that its
   indentation opens. The fixes are "Remove the deep nesting from <file>: line <L> has <n>

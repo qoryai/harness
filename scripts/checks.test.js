@@ -1956,6 +1956,58 @@ test('a fence 4 columns in, in a list item, may open a code block: the words cou
   ]) assert.ok(keeps(text, word), JSON.stringify(text));
 });
 
+test('a number other than 1 after text starts no list, even before HTML or a fence', () => {
+  assert.ok(keeps('s\r2.\r   ```\r    ```\r~~~mermaid\rwq3', 'wq3'));
+  assert.ok(keeps('2\n2. <table\n   ```\n~~~mermaid\nwq3', 'wq3'));
+});
+
+test('an item that starts with a blank line ends at a second one: the words count', () => {
+  assert.ok(keeps('-\n\n  ~~~\n    ~~~\n~~~wq3', 'wq3'));
+  assert.ok(keeps('-\n\n  ```\n    ```\n~~~wq3', 'wq3'));
+});
+
+test('a table header after the text of an item that a code block opens is no table', () => {
+  assert.ok(keeps('- ~~~\n  ~~~\n\t|\n|wq3\n|-', 'wq3'));
+});
+
+test('a line after a block of HTML in a list item is no lazy line of the item', () => {
+  assert.ok(keeps('2. <s>\r|\r2.\r2. ```wq2\r  ```', 'wq2'));
+});
+
+test('a tab in the indent of a code block in a list item makes the words after it count', () => {
+  assert.ok(keeps('- >\n0\n  ```\n\t```\n~~~wq3', 'wq3'));
+});
+
+test('the end mark of a block of HTML may overlap its start', () => {
+  assert.ok(keeps('<!-->\n```-->\n```wq5', 'wq5'));
+  assert.ok(keeps('<?>\n```?>\n```wq6', 'wq6'));
+});
+
+test('a numbered list that goes on its own mark is read as a list', () => {
+  const { lines } = require(MARKDOWN);
+  const fenced = (text) => lines(text).map((line) => (line.uncertain ? '?' : '.')).join('');
+  assert.equal(fenced('1. a\n2. b\n3. c\n   - d\n4. e'), '.....');
+  assert.equal(fenced('1. a\n\n2. b'), '...');
+  assert.equal(fenced('1. a\n2) b'), '.?');
+});
+
+test('a tag in a list item, 4 columns in or 5 columns after the mark, may start HTML', () => {
+  for (const [text, word] of [
+    ['-\n    <!A\n  ```mermaid >\n  wq0', 'wq0'],
+    ['1.\n    <e>\n   ```mermaid\n\n   wq1', 'wq1'],
+    ['-     <e>\n  ```\n\n  ```wq3', 'wq3'],
+  ]) assert.ok(keeps(text, word), JSON.stringify(text));
+});
+
+test('nesting by indentation inside a quote: the quote marks count as levels', () => {
+  const nest = (count) => Array.from({ length: count },
+    (_, at) => `> ${' '.repeat(2 * at)}- a`).join('\n');
+  const spec = (block) => fixture(['spec.md', /\n*$/, `\n\n${block}\n`]);
+  passes(push(spec(nest(58)), 'spec'));
+  fails(push(spec(nest(64)), 'spec'), new RegExp('^Remove the deep nesting from spec\\.md: ' +
+    'line \\d+ has 60 levels, and the check allows 59\\. Line \\d+ is "> - a"\\.$'));
+});
+
 test('a line that starts with "<" and is no start of HTML goes on with the paragraph', () => {
   for (const text of ['- x\n<q\n  ```mermaid\nwq6', '- x\n<a b="\n  ```mermaid\nwq6',
     '- |\n<e\n  ```mermaid\nwq1']) {

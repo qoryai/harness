@@ -102,7 +102,8 @@ function htmlBlocks() {
       if (seven && before) doubt = true;
       bare = !/\S/.test(prefix);
       end = 'blank';
-      if (found) end = found[1].test(rest.slice(found[0].exec(rest)[0].length)) ? null : found[1];
+      // The end mark may overlap the start, as in "<!-->", where the block ends on its line.
+      if (found) end = found[1].test(rest) ? null : found[1];
       stays = null;
       if (prefix.includes('>')) stays = (one) => /^\s*>/.test(one);
       else if (/\S/.test(prefix)) {
@@ -152,6 +153,31 @@ function markerFence(text, paragraph) {
     ? { ...opens, doubt: true } : opens;
 }
 
+// nesting returns the levels that the quote marks of line and its list items by indentation
+// make, and keeps in state the number of quote marks and the columns of the items inside them,
+// which a change in the number of quote marks empties. A blank line has none.
+function nesting(line, state) {
+  const mark = /[ \t]*>[ \t]?/y;
+  let count = 0;
+  let end = 0;
+  for (let found = mark.exec(line); found; found = mark.exec(line)) {
+    count += 1;
+    end = mark.lastIndex;
+  }
+  const rest = line.slice(end);
+  if (/^[ \t]*$/.test(rest)) return count ? count + state.inside.length : 0;
+  if (count !== state.quotes) {
+    state.inside.length = 0;
+    state.quotes = count;
+  }
+  while (state.inside.length && indentOf(rest) < state.inside[state.inside.length - 1]) {
+    state.inside.pop();
+  }
+  const column = itemColumn(rest);
+  if (column) state.inside.push(column);
+  return count + state.inside.length;
+}
+
 // lines returns each line with whether it opens, closes or sits inside a code block, the first
 // word of that block, whether its info string has an "&", and edge, "open" or "close", for the
 // line that opens or closes the block. A line in a block of HTML opens no code block. A code
@@ -166,16 +192,30 @@ function lines(text) {
   const out = [];
   const html = htmlBlocks();
   const items = [];
+  // The mark of each item in items, "." or ")" for a number, else "".
+  const delims = [];
+  // The nesting that quote marks and indentation make, to count its levels.
+  const nest = { quotes: 0, inside: [] };
   let open = null;
   let uncertain = false;
   let paragraph = false;
+  let bare = false;
   for (const line of lineList(text)) {
     const empty = /^[ \t]*$/.test(line);
+    // A list item that starts with a blank line ends at a second one, so the lines after it are
+    // outside the item, which the stack of items does not know: the check counts every line.
+    if (!open) {
+      if (empty && bare) uncertain = true;
+      bare = !empty && MARK_ONLY.test(line);
+    }
     if (open) {
       if (empty || indentOf(line) >= open.column) {
         const close = /^([ \t]*)(`{3,}|~{3,})\s*$/.exec(line);
         const ends = close && indentOf(close[1]) <= open.column + 3 &&
           close[2][0] === open.mark && close[2].length >= open.size;
+        // A tab in the indent of a line of a code block in a list item may count as a different
+        // number of columns than the check reads, so it may or may not end the block: count on.
+        if (open.column && /^ *\t/.test(line)) uncertain = true;
         out.push({
           text: line,
           fenced: true,
@@ -190,6 +230,15 @@ function lines(text) {
       }
       open = null;
       uncertain = true;
+    }
+    // A number other than 1 after a line of text starts no list, unless it goes on the list of
+    // the item that its line leaves with the same mark. The check cannot tell the other cases
+    // from a list, so it counts every line from there.
+    const numbered = /^([ \t]*)(\d{1,9})([.)])(?=[ \t]|$)/.exec(line);
+    if (numbered && paragraph && Number(numbered[2]) !== 1) {
+      let at = items.length;
+      while (at > 0 && indentOf(line) < items[at - 1]) at -= 1;
+      if (at === items.length || delims[at] !== numbered[3]) uncertain = true;
     }
     const inHtml = html.step(line);
     if (html.doubtful()) uncertain = true;
@@ -209,19 +258,31 @@ function lines(text) {
       // A line that follows a paragraph line and starts no block may continue the paragraph
       // of a list item, where it starts left of the item and leaves it.
       const lazy = paragraph && !open && !BLOCK_START.test(line) && !startsHtml(line);
-      while (!lazy && items.length && indentOf(line) < items[items.length - 1]) items.pop();
+      while (!lazy && items.length && indentOf(line) < items[items.length - 1]) {
+        items.pop();
+        delims.pop();
+      }
       const column = itemColumn(line);
-      if (column) items.push(column);
-      // In a list item, a fence is indented from the text of the item, not from the line start,
-      // so a fence line that starts 4 or more columns in may open a block that fence() misses.
+      if (column) {
+        items.push(column);
+        delims.push((/^[ \t]*\d{1,9}([.)])/.exec(line) || ['', ''])[1]);
+      }
+      // In a list item, a fence or a tag is indented from the text of the item, not from the
+      // line start, so a line that starts 4 or more columns in may open a block that fence()
+      // and the reading of HTML miss. So may a tag after a list mark and 5 or more columns of
+      // space, where the text of the item starts right after the mark.
       const deep = items.length && !open && !inHtml && indentOf(line) >= 4;
-      if (deep && /^[ \t]*(`{3,}|~{3,})/.test(line)) uncertain = true;
-      paragraph = !open && headingLevel(line) === 0 && !BREAK.test(line) && !MARK_ONLY.test(line);
+      if (deep && /^[ \t]*(`{3,}|~{3,}|<)/.test(line)) uncertain = true;
+      const far = /^[ \t]*(?:[-*+]|\d{1,9}[.)])([ \t]+)</.exec(line);
+      if (far && indentOf(far[1]) >= 5) uncertain = true;
+      paragraph = !open && !inHtml && headingLevel(line) === 0 && !BREAK.test(line) &&
+        !MARK_ONLY.test(line);
     }
     if (open) {
       html.reset();
       open.column = items.length ? items[items.length - 1] : 0;
     }
+    const levels = nesting(line, nest);
     out.push({
       text: line,
       fenced: Boolean(open),
@@ -229,7 +290,8 @@ function lines(text) {
       amp: Boolean(open && open.amp),
       ...(open ? { edge: 'open' } : {}),
       ...(uncertain ? { uncertain: true } : {}),
-      ...(items.length >= MAX_MARKS ? { levels: items.length } : {}),
+      ...(Math.max(items.length, levels) >= MAX_MARKS
+        ? { levels: Math.max(items.length, levels) } : {}),
     });
   }
   return out;
@@ -498,6 +560,8 @@ function tableLines(list) {
       inTable = false;
       gap = false;
       html.reset();
+      // A code block that a list mark opens starts the list item that the lines after it are in.
+      if (line.edge === 'open') follow(line.text);
     } else if (html.step(line.text)) {
       blocked = true;
       inTable = false;
@@ -765,7 +829,8 @@ function shownAsText(run, file, where, text) {
   const at = where ? `${where} of ${file}` : file;
   const rows = lineList(text);
   const refuse = (fix, index) => {
-    const shown = [...rows[index].trimStart().slice(0, 160)].slice(0, 40).join('');
+    const spaced = rows[index].replace(/[ \t]+/g, ' ').trimStart();
+    const shown = [...spaced.slice(0, 160)].slice(0, 40).join('');
     const whole = fix.brief === at ? '' : `\nThe text is in ${at}.`;
     run.find(`${fix.line}\nLine ${index + 1} is ${quote(shown)}.${whole}`);
   };

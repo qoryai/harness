@@ -2459,21 +2459,28 @@ block opens, and every line counts. That is so for a fence line that starts 4 or
 columns in, inside a list item, which may start a block from the text column of the item;
 and for a block of HTML in a list item that starts on a line with no mark before its tag.
 A line that starts with `<` and is no start of a block of HTML goes on with the paragraph
-of the item, so it does not end the item.
+of the item, so it does not end the item. The check also counts every line from a line that
+starts with `<` 4 or more columns in, inside a list item, from a list mark that has 5 or
+more columns of space and then `<`, and from a number other than 1 right after a line of
+text, except where it goes on the list of the item that its line leaves with the same mark:
+no paragraph lets a list start with such a number. It counts every line too from a blank
+line right after a list mark with no text, which ends that item, and from a tab in the
+indent of a line of a code block in a list item. The end mark of a block of HTML may
+overlap its start, as in `<!-->`, which ends on its line.
 
 Qory Apiary shows a Markdown text as plain text, not as Markdown, from 128 levels of
 nesting, and when the text has a byte that is no UTF-8. `shownAsText` in `lib/markdown.cjs`
 refuses a line with 60 or more levels, and a text with U+FFFD, which stands for such a byte.
 The levels of a line are the larger of its quote and list marks (each `>` and each list mark
 `-`, `*`, `+`, `1.` or `1)` at the start of the line, with the spaces between them) and the
-depth of the list items that its indentation opens, which `lines` counts. A line of 60 marks
-that is a thematic break is no nesting. The findings are "Remove the deep nesting from
-<file>: line <L> has <n> levels, and the check allows 59.", where <L> is the first line that
-reaches 60 and <n> its levels, and "Save <file> as UTF-8: Qory Apiary shows it as plain
-text.", each with the line "Line N is \"...\".". `links` calls `shownAsText`, so each
-Markdown text that a type checks gets the check. The check does not count the nesting of
-inline marks, such as emphasis in emphasis or a link in a link, which also reaches the limit
-of 128 levels.
+depth of the list items that its indentation opens, which `lines` counts, with the quote
+marks of the line as levels too. A line of 60 marks that is a thematic break is no nesting.
+The findings are "Remove the deep nesting from <file>: line <L> has <n> levels, and the
+check allows 59.", where <L> is the first line that reaches 60 and <n> its levels, and "Save
+<file> as UTF-8: Qory Apiary shows it as plain text.", each with the line "Line N is
+\"...\".". `links` calls `shownAsText`, so each Markdown text that a type checks gets the
+check. The check does not count the nesting of inline marks, such as emphasis in emphasis or
+a link in a link, which also reaches the limit of 128 levels.
 
 The check also refuses a block that Qory Apiary does not draw as a diagram.
 `lib/mermaid.cjs` ports the rules of `assets/js/hooks/mermaid.js` of qoryai/apiary for
