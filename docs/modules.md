@@ -1328,8 +1328,8 @@ never prints `allow`, for the reason in the paragraph after the list of hooks. T
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
   It denies with `decision: deny` and `reason`.
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
-  hook for a command that the guard can deny: one with `.r`, `.env`, `*`, `?`, `[`, `{`, `$`,
-  a backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
+  hook for a command that the guard can deny: one with `.r`, `.env`, `*`, `?`, `[`, `{`,
+  `$`, a backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
   `ls -la`, starts no hook. It denies with `permission: deny` and exit code 2.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
