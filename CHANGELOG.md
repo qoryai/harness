@@ -1021,8 +1021,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     refer to. `extensions.schema.json` has no `$ref`, so it has the list in both members.
   - A finding for a string with such a character names the first refused code point, with
     its line in a text, and gives the `description` of the schema as the cause, in place of
-    the pattern. Core does this for every type whose pattern is one list of characters and
-    whose schema has a `description`.
+    the pattern, when the description fits whole (150 characters, or 120 beside the value).
+    Core does this for every type whose schema has a `description`. A string that fails a
+    pattern on a character that the line rule also refuses gets one finding, not two.
   - A title of spaces and U+200C or U+200D alone is refused, as a title of spaces alone was.
   - The Cf set is written out as ranges, to U+E007F, for Unicode 17.0. A test compares each
     list with the sets of Node for every code point.

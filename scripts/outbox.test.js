@@ -289,7 +289,7 @@ test('outbox: a schema that the checker cannot run is a finding with its cause',
   assert.match(loop.text, /Fix the schema of the reply output\.\n.*refers to itself without end/);
 });
 
-test('outbox: a refused character is named by its code point, with the description as cause', () => {
+test('outbox: a refused character is named by its code point, with its rule as cause', () => {
   const RULE = 'One line of text: no control character, no U+2028 or U+2029.';
   const made = (member) => ({ type: 'object', required: ['t'], additionalProperties: false,
     properties: { t: { type: 'string', ...member } } });
@@ -311,8 +311,29 @@ test('outbox: a refused character is named by its code point, with the descripti
   // replaces the pattern in the cause.
   const blank = run({ pattern: '[^ ]',
     description: 'A title has a character other than spaces.' }, '  ');
-  assert.equal(blank[1], 'Write /t of $QORY_OUTBOX/reply/reply.json so that it matches its pattern.');
+  assert.equal(blank[1],
+    'Write /t of $QORY_OUTBOX/reply/reply.json so that it matches its pattern.');
   assert.equal(blank[2], '  A title has a character other than spaces. It is "  ".');
+});
+
+test('outbox: a description is the cause only when it fits whole; a cut ends in one ...', () => {
+  const run = (member, value) => end(session([{ type: 'reply', required: true,
+    schema: { type: 'object', required: ['t'], additionalProperties: false,
+      properties: { t: { type: 'string', ...member } } } }],
+  { reply: JSON.stringify({ t: value }) })).text.split('\n');
+  const long = 'A string of 152 characters, with the point of its rule at the end ' +
+    `${'x'.repeat(70)} the last words.`;
+  assert.equal(long.length, 152);
+  const refused = run({ pattern: '^[^\\u0000-\\u001f]*$', description: long }, 'a\u0001');
+  assert.equal(refused[1], 'Remove U+0001 from /t of $QORY_OUTBOX/reply/reply.json.');
+  assert.match(refused[2], /^ {2}The pattern is \^\[\^\\u0000-\\u001f\]\*\$\.$/);
+  // a rule of 121 characters beside the value: too long, so the pattern is the cause.
+  const wide = run({ pattern: '^a+$', description: `${'w'.repeat(121)}.` }, 'b');
+  assert.equal(wide[2], '  The pattern is ^a+$. It is "b".');
+  // A pattern over 120 characters is cut with one ..., and not inside an escape.
+  const cut = run({ pattern: `^[^${'x'.repeat(112)}${String.fromCodePoint(0xe0041)}]*$` },
+    `a${String.fromCodePoint(0xe0041)}`);
+  assert.match(cut[2], /^ {2}The pattern is \^\[\^x+\.\.\.$/);
 });
 
 test('outbox: a link, a folder in place of the file and a file over 1 MiB name their cause', () => {

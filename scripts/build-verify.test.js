@@ -3337,7 +3337,7 @@ test('pull-request: a refused character in a finding has its code point and the 
     'character but U+200C and U+200D (emoji joiners).';
   const [text] = found((d) => { d.text = 'a\r\nb\nc\u0001d'; });
   assert.equal(text[0], 'Remove U+0001 from line 3 of /text of pull-request.json.');
-  assert.match(text[1], /^Markdown: of the control characters only tab, line feed and /);
+  assert.match(text[1], /^Markdown\. Of the control characters it has only tab, line feed and /);
   const [title] = found((d) => { d.title = 'a\u0600'; });
   assert.deepEqual(title, ['Remove U+0600 from /title of pull-request.json.', line]);
   const [step] = found((d) => { d.steps = [{ commit: C1, step: 'x\u{E0041}' }]; });
@@ -3362,6 +3362,17 @@ test('open.url of demo-script and path of acceptance-lock refuse the one rule to
     doc.checks[0].path = file;
     return schema.errors(schema.load('acceptance-lock'), doc, 'acceptance-lock.json');
   };
+  // A tab, CR or LF fails the \S pattern and the line rule: one finding, with the code point.
+  const open = (url) => schema.errors(schema.load('demo-script'), { do: 'open', url },
+    'scenario-1.json', 'open');
+  for (const [bad, code] of [['\t', '0009'], ['\r', '000D'], ['\n', '000A']]) {
+    assert.equal(open(`/a${bad}b`).length, 1, code);
+    assert.match(open(`/a${bad}b`)[0], new RegExp(`^Remove U\\+${code} from `), code);
+    assert.equal(lock(`tests/a${bad}b.test.ts`).length, 1, code);
+    assert.match(lock(`tests/a${bad}b.test.ts`)[0], new RegExp(`^Remove U\\+${code} from `));
+  }
+  // A space is no refused character: the pattern finding stays.
+  assert.match(open('/a b')[0], /^Write \/url of scenario-1\.json so that it matches its pattern/);
   assert.deepEqual(script('/sign-in?a=\u{1F468}\u200d\u{1F469}'), []);
   assert.deepEqual(lock('tests/a\u{1F468}\u200d\u{1F469}.test.ts'), []);
   for (const bad of ['\u202e', '\u{E0041}', '\u200b', '\u0600', '\u0001']) {

@@ -184,6 +184,34 @@ function refusedAt(text, pattern, regexp) {
   return null;
 }
 
+// sentence returns text with a full stop, unless it ends with ..., which a cut leaves.
+const sentence = (text) => (text.endsWith('...') ? text : `${text}.`);
+
+// clipPattern returns pattern as visible writes it, cut to size characters, with no escape cut.
+function clipPattern(pattern, size) {
+  const text = visible(pattern);
+  if (codePoints(text) <= size) return text;
+  const kept = [];
+  let length = 0;
+  for (const unit of text.match(/\\u\{[0-9a-f]+\}|\\u[0-9a-f]{4}|\\.|[^]/gu)) {
+    if (length + codePoints(unit) > size - 3) break;
+    kept.push(unit);
+    length += codePoints(unit);
+  }
+  return `${kept.join('')}...`;
+}
+
+// dropRepeated returns findings without a "Write ... so that it matches its pattern." whose place
+// also has a "Remove U+XXXX from ..." finding: the code point is the cause of both.
+function dropRepeated(findings) {
+  const places = new Set(findings.map((one) => /^Remove U\+[0-9A-F]+ from (?:line \d+ of )?(.*)\.$/m
+    .exec(one.split('\n')[0])).filter(Boolean).map((match) => match[1]));
+  return findings.filter((one) => {
+    const match = /^Write (.*) so that it matches its pattern\.$/.exec(one.split('\n')[0]);
+    return !(match && places.has(match[1]));
+  });
+}
+
 // nullPointers returns the JSON pointer of each null in value, which MAX_DEPTH bounds.
 function nullPointers(value) {
   const found = [];
@@ -294,21 +322,20 @@ function errors(loaded, value, file, def, extra = {}) {
       if (schema.pattern && mark) mark(at);
       if (schema.pattern && !patterns.get(schema.pattern).test(node)) {
         const refused = refusedAt(node, schema.pattern, patterns.get(schema.pattern));
+        // The description is the cause only when it fits whole: 150 characters alone, 120
+        // beside the value. Else the cause is the pattern.
         const rule = schema.description && schema.description.replace(/\.$/, '');
+        const dump = `The pattern is ${clipPattern(schema.pattern, 120)}`;
         if (refused) {
           // The first refused character, with its line in a text of more than one line.
           const code = refused.char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
           const row = /[\r\n]/.test(node)
             ? ` line ${node.slice(0, refused.index).split(/\r\n|\n|\r/).length} of` : '';
           found.push(`Remove U+${code} from${row} ${where}.\n` +
-            `${rule ? clip(rule, 150) : `The pattern is ${clip(visible(schema.pattern), 120)}`}.` +
-            `${whole}`);
-        } else if (rule) {
-          add('Write', 'so that it matches its pattern',
-            `${clip(rule, 120)}. It is ${shown(node)}`);
+            `${sentence(rule && codePoints(rule) <= 150 ? rule : dump)}${whole}`);
         } else {
           add('Write', 'so that it matches its pattern',
-            `The pattern is ${clip(visible(schema.pattern), 120)}. It is ${shown(node)}`);
+            `${sentence(rule && codePoints(rule) <= 120 ? rule : dump)} It is ${shown(node)}`);
         }
       }
     }
@@ -386,7 +413,7 @@ function errors(loaded, value, file, def, extra = {}) {
         `A delivered output has no null.${whole}`);
     }
   }
-  return out;
+  return dropRepeated(out);
 }
 
 // The characters that JSON.stringify leaves as they are and that no finding may show: each Cf
