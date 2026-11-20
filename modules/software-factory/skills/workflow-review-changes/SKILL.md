@@ -38,12 +38,12 @@ these write are:
 
 - `.reports/submission.md` in `<folder>`, which the submission writer writes;
 - `build-report.md` in `<folder>`, which `report-build` writes;
-- the outbox file `.qory/outbox/pull-request/pull-request.json` under the top of the
-  checkout, which `report-build` writes, and which `report-build --drop` removes.
+- the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, which `report-build`
+  writes, and which `report-build --drop` removes.
 
 Change no file of the working folder: a change there has no row in the build ledger,
-and `step begin` of the next session exits with 1 on it. The ledger's edit check skips
-`.qory/`, so the outbox file causes no such exit.
+and `step begin` of the next session exits with 1 on it. The outbox file causes no such
+exit.
 
 ## The order of the run
 

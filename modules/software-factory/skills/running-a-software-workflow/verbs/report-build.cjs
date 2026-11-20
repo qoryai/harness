@@ -3,22 +3,23 @@
 // lib/report-build.cjs, so no agent types a result; checks.cjs check build-report renders
 // them again. report-build --drop only removes the output file.
 //
-// The output file is .qory/outbox/pull-request/pull-request.json under the top of the checkout,
-// as JSON { title, text, steps, draft }. title and text come from .reports/submission.md of
-// the artifact folder, which the agent submission-writer writes: the first line is
-// `# <title>`, and the rest is text, with the four parts of the type pull-request. steps lists
-// { commit, step } for each commit of a done row, the commits of base..commit of the row, with
-// step the id of the row, for the commits in <base of the first row>..HEAD, oldest first; a
-// commit in two rows goes to the later row. draft is true when this session records the verdict
+// The output file is $QORY_OUTBOX/pull-request/pull-request.json, as JSON
+// { title, text, steps, draft }. qory sets QORY_OUTBOX to the absolute path of the outbox
+// folder; with no such variable the verb writes no file and exits 3. title and text come from
+// .reports/submission.md of the artifact folder, which the agent submission-writer writes:
+// the first line is `# <title>`, and the rest is text, with the four parts of the type
+// pull-request. steps lists { commit, step } for each commit of a done row, the commits of
+// base..commit of the row, within <base of the first row>..HEAD, oldest first; a commit in
+// two rows goes to the later row. draft is true when this session records the verdict
 // passed itself, which a stage with no reviewers does, and false when a review round follows.
 // The session writes no target and no member that qory fills. With a text or an output that
-// breaks a rule, the verb writes no file and exits 1. A ledger report whose list Left out: it
-// cannot read adds one line to ## Left out and stops nothing. On every non-zero exit, it removes
-// a regular file at the path of the output, whose folder is inside the checkout, so that qory
-// never pushes the text of an earlier run. It writes the output file first and build-report.md
-// second, each through a temporary file in its folder that it renames into place; a write that
-// fails, or a folder that a link moves out of the checkout, leaves neither file and exits 3
-// with a fix line.
+// breaks a rule, or an output of more than the size limit of the type, the verb writes no
+// file and exits 1. A ledger report whose list Left out: it cannot read adds one line to
+// ## Left out and stops nothing. On every non-zero exit, it removes a regular file at the
+// path of the output, so that qory never pushes the text of an earlier run. It writes the
+// output file first and build-report.md second, each through a temporary file in its folder
+// that it renames into place; a write that fails, or an outbox with a link in it, leaves
+// neither file and exits 3 with a fix line.
 'use strict';
 
 const fs = require('node:fs');
@@ -26,7 +27,7 @@ const path = require('node:path');
 
 const git = require('../lib/git.cjs');
 const { takeInputs } = require('../lib/limits.cjs');
-const { SCHEMAS } = require('../lib/template.cjs');
+const { SCHEMAS, sizeLimit } = require('../lib/template.cjs');
 const { INPUTS_USAGE } = require('./run.cjs');
 
 // The most bytes of submission.md. A step of the output is a ledger row id, which the ledger
@@ -34,10 +35,12 @@ const { INPUTS_USAGE } = require('./run.cjs');
 const MAX_FILE = 262144;
 
 const TEXT = 'submission.md';
-const OUTPUT = ['.qory', 'outbox', 'pull-request', 'pull-request.json'];
+const TYPE = 'pull-request';
+const SHOWN = `$QORY_OUTBOX/${TYPE}/${TYPE}.json`;
 
 module.exports = (lib) => {
-  const { Context, Missing, artifactFolder, plural, reviewersStage, schema, short } = lib;
+  const { Context, Missing, artifactFolder, outboxLinked, plural, reviewersStage, schema,
+    short } = lib;
   const SCHEMA = schema.load(SCHEMAS, 'pull-request');
 
   // readText returns { title, text } of .reports/submission.md in root, or the findings of a
@@ -107,25 +110,23 @@ module.exports = (lib) => {
       .map((commit) => ({ commit, step: owner.get(commit) }));
   }
 
-  // dropOutput removes the regular file of the output under the top of the checkout, so a
-  // failure never leaves the text of an earlier run for qory's push. It removes nothing when
-  // the real path of the folder of the file is outside the real path of the checkout top, the
-  // rule of the write, and nothing when the verb is in no checkout, where it wrote no file. It
-  // returns removed, absent, or failed, after it prints the fix.
+  // outboxOf returns the absolute path in QORY_OUTBOX, or null when it is unset or relative.
+  const outboxOf = (io) => (typeof io.env.QORY_OUTBOX === 'string' &&
+    path.isAbsolute(io.env.QORY_OUTBOX) ? path.normalize(io.env.QORY_OUTBOX) : null);
+
+  // dropOutput removes the regular file of the output, so a failure never leaves the text of
+  // an earlier run for qory's push. It removes nothing when the outbox has a link in it, or
+  // QORY_OUTBOX is unset. It returns removed, absent, or failed, after it prints the fix.
   function dropOutput(io) {
-    let top;
-    try {
-      top = git.top(Missing, io.cwd, io.env);
-    } catch (error) {
-      if (error instanceof Missing) return 'absent';
-      throw error;
-    }
-    const target = path.join(top, ...OUTPUT);
-    if (outside(top, path.dirname(target))) {
-      io.err.write(`Remove ${short(target, 30)} by hand: its folder leads outside the ` +
-        'checkout.\n');
+    const outbox = outboxOf(io);
+    if (!outbox) return 'absent';
+    const link = outboxLinked(outbox, TYPE);
+    if (link) {
+      io.err.write('Remove the link in the path of the outbox by hand.\n' +
+        `${short(link, 60)} is a link, so the verb removed no file.\n`);
       return 'failed';
     }
+    const target = path.join(outbox, TYPE, `${TYPE}.json`);
     try {
       if (!fs.lstatSync(target).isFile()) return 'absent';
       fs.rmSync(target);
@@ -138,43 +139,23 @@ module.exports = (lib) => {
     }
   }
 
-  // outside reports whether folder, or its nearest parent that exists, resolves through links
-  // to a place outside the checkout top.
-  function outside(top, folder) {
-    let near = folder;
-    for (;;) {
-      try {
-        fs.lstatSync(near);
-        break;
-      } catch {
-        near = path.dirname(near);
-      }
-    }
-    let real;
-    try {
-      real = fs.realpathSync(near);
-    } catch {
-      return true;
-    }
-    const rel = path.relative(fs.realpathSync(top), real);
-    return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel);
-  }
-
-  // makeFolder creates the folder of the output file, and throws Missing when a link puts it
-  // outside the checkout top, before and after it creates the folder.
-  function makeFolder(top, target) {
-    const folder = path.dirname(target);
-    const refuse = () => new Missing('Remove the link in the path of the outbox.\n' +
-      `The folder ${short(folder, 60)} is a link, or is below one, that leads ` +
-      `outside ${short(top, 60)}.`);
-    if (outside(top, folder)) throw refuse();
+  // makeFolder returns the path of the output file, after it makes the folder of the type. It
+  // throws Missing when the outbox has a link in it, before and after it makes the folder.
+  function makeFolder(outbox) {
+    const folder = path.join(outbox, TYPE);
+    const refuse = (link) => new Missing('Remove the link in the path of the outbox.\n' +
+      `${short(link, 60)} is a link.`);
+    let link = outboxLinked(outbox, TYPE);
+    if (link) throw refuse(link);
     try {
       fs.mkdirSync(folder, { recursive: true });
     } catch (error) {
       throw new Missing(`Make ${short(folder, 60)} a folder that you can write.\n` +
         `It could not be created: ${error.code || error.message}.`);
     }
-    if (outside(top, folder)) throw refuse();
+    link = outboxLinked(outbox, TYPE);
+    if (link) throw refuse(link);
+    return path.join(folder, `${TYPE}.json`);
   }
 
   // writeAll writes each of files, { target, body }, through a temporary file in the folder
@@ -221,6 +202,11 @@ module.exports = (lib) => {
   function build(io, what, rest) {
     const { inputs } = takeInputs([what, ...rest].filter((one) => one !== undefined));
     const root = artifactFolder(io);
+    const outbox = outboxOf(io);
+    if (!outbox) {
+      throw new Missing('Set QORY_OUTBOX to the absolute path of the outbox folder.\n' +
+        'qory sets it when it starts the session, and it is not set here.');
+    }
     const top = git.top(Missing, io.cwd, io.env);
     const context = new Context(root, 'check', io.home, root);
     context.workingFolder = top;
@@ -239,11 +225,17 @@ module.exports = (lib) => {
     const steps = stepsOf(io, top, data.ledger);
     const body = `${JSON.stringify({ title: got.value.title, text: got.value.text, steps,
       draft: draftWanted(io, inputs) })}\n`;
-    const target = path.join(top, ...OUTPUT);
-    makeFolder(top, target);
+    const limit = sizeLimit(TYPE);
+    if (Buffer.byteLength(body) > limit) {
+      io.print([`Cut ${TEXT} so that ${SHOWN} has at most ${limit} bytes.\n` +
+        `The output has ${Buffer.byteLength(body)} bytes, from the text and the commits.`],
+      'Wrote no file: 1 finding on the output.');
+      return 1;
+    }
+    const target = makeFolder(outbox);
     const report = { target: written, body: lib.renderReport(data) };
     writeAll([{ target, body }, report]);
-    io.print([], `Wrote ${lib.BUILD_REPORT_FILE} and ${OUTPUT.join('/')}.`);
+    io.print([], `Wrote ${lib.BUILD_REPORT_FILE} and ${SHOWN}.`);
     return 0;
   }
 
@@ -266,7 +258,7 @@ module.exports = (lib) => {
     const state = dropOutput(io);
     if (state === 'failed') return 3;
     io.print([], state === 'removed' ? 'Removed the output file.'
-      : `No output file at ${OUTPUT.join('/')} to remove.`);
+      : `No output file at ${SHOWN} to remove.`);
     return 0;
   }
 

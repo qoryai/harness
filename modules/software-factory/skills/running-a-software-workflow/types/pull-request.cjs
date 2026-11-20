@@ -1,8 +1,5 @@
-// The check of the type pull-request: pull-request.json, and the rules that the schema cannot
-// state: the four parts of the text, the title characters that qory drops, and the secrets.
-// In check, which runs on the outbox file before qory sets target and fills the marked members,
-// the end check of core checks the schema from qory.outputs. In push, after the fill, this
-// check applies schemas/pull-request.schema.json with the raw-text rules of a delivered output.
+// The check of the type pull-request: the rules that the schema cannot state. In check the
+// schema is left to the end check of core; in push this check applies it, with the raw rules.
 'use strict';
 
 const { sizeLimit } = require('../lib/template.cjs');

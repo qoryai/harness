@@ -1019,20 +1019,35 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
   each output of the stage, in the order of the stage, with the primitives of the schema
-  resolved. With no such list, or an `inputs.json` that is no regular file of at most 1 MiB,
-  the check finds nothing. For each entry, it reads `.qory/outbox/<type>/<type>.json` under
-  the top of the checkout: the nearest folder above the working folder that has `.git`,
-  else the nearest that has `.qory`, else the working folder. It finds:
-  - a required output with no file, and a file that is a link, is no regular file, has more
-    than 1 MiB, or has a folder that is a link;
+  resolved. qory sets the environment variable `QORY_OUTBOX` to the absolute path of the
+  outbox folder, and the session writes each output to `$QORY_OUTBOX/<type>/<type>.json`.
+  The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or an
+  `inputs.json` that is no regular file of at most 1 MiB, the check finds nothing. It finds:
+  - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
+    `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
+    or `false`, or a `schema` is no object. The finding is "Fix qory.outputs in the lines
+    after this one:", with a line for each such part. Only an absent list passes;
+  - a stage that declares an output while `QORY_OUTBOX` is unset or is no absolute path.
+    The finding is "Set QORY_OUTBOX to the absolute path of the outbox folder.", and the
+    check reads no file;
+  - a required output with no file;
+  - a link in the outbox folder, in the folder above it, or in the folder of the type. The
+    finding is "Remove the link <path>.". A file that is a link, is no regular file, or has
+    more than 1 MiB gets one cause line for each of these;
   - a file that is no JSON;
   - a member that qory sets or fills after the push, which the session writes none of:
     `target`, and each top-level member whose schema has `x-qory-fill`. The finding is
     "Remove the member <name> from <file>.", and the schema check does not need these
     members;
+  - a schema that the check cannot run, such as a leftover `$ref` or a `$ref` loop. The
+    finding is "Fix the schema of the <type> output.", and it names the cause;
   - a break of the schema, as `lib/schema.cjs` of core finds it, with the rules of the raw
-    text: a whole number written with a fraction or an exponent, such as `34.0` or `3E1`, a
-    whole number above 9223372036854775807, and a null where the schema gives no type;
+    text. The whole-number rule applies only to a member whose schema type is `integer`: it
+    refuses a fraction or an exponent, such as `34.0` or `3E1`, a value above
+    9223372036854775807, and a value below -9223372036854775808. A member of type `number`
+    may be written `2.0` or `1e3`. A null is refused anywhere that no schema of type `null`
+    applies, a member that the schema does not list included. A finding gives the member as
+    a JSON pointer, with `~` written as `~0` and `/` as `~1`;
   - a pattern check that does not finish. The pattern checks of one end check share 10
     seconds and run in a child process, which the check kills when the time is used up.
     The finding names the type and the member whose pattern ran;
@@ -2292,8 +2307,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   left out, with a line that says why, and the verb exits 0.
 
 The chain of `base`, the commit a step started on, holds within one session only, because
-commits outside a step happen between sessions, such as the commit of the submit step, and a
-cancelled run can leave its commits on no branch. A row replays only when its `commit` is an
+commits outside a step happen between sessions, such as a commit that a person makes, and a
+cancelled run can leave its commits on no branch. qory pushes the pull request, so no
+commit of a session is for the push. A row replays only when its `commit` is an
 ancestor of the head, so a step whose commit is lost runs again at its next `pass`. Each row
 of a session takes the `commit` of the session's newest row that has one, else the head at
 which the session started, from the mark, and `step begin` refuses it when the head is
@@ -2739,10 +2755,9 @@ in this order:
    `blocked` report end the run as "Failures" of `running-a-workflow` lists.
 2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
    in the artifact folder and writes the outbox file
-   `.qory/outbox/pull-request/pull-request.json` under the top of the checkout. The
-   ledger's edit check skips `.qory/`. With exit 1, a rule of the text broke: the session
-   starts `submission-writer` again with the lines that `report-build` printed, at most
-   twice.
+   `$QORY_OUTBOX/pull-request/pull-request.json`. With exit 1, a rule of the text broke, or
+   the output has more than 786432 bytes: the session starts `submission-writer` again with
+   the lines that `report-build` printed, at most twice.
    When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
    because the description of the change still breaks the rules for it." With exit 2, 3 or
    4, the run ends as "Failures" of `running-a-workflow` lists for the checks script.
@@ -3233,9 +3248,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `build-report.md` of the standard track to the artifact folder, with every table rendered
   from records, so no agent types a result, and writes the outbox file that qory's push
   reads. A fast-track report is written elsewhere. The second removes the regular file
-  `.qory/outbox/pull-request/pull-request.json` under the top of the checkout and nothing
-  else, prints one line, and exits 0; it exits 3 with a fix line when the file cannot be
-  removed. The sections come from these
+  `$QORY_OUTBOX/pull-request/pull-request.json` and nothing else, prints one line, and
+  exits 0; it exits 3 with a fix line when the file cannot be removed. The sections come
+  from these
   sources:
   - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
   - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
@@ -3276,12 +3291,17 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   The same records give the same bytes, and the file ends with one newline. Without a
   ledger, the verb exits 3.
 
-  The verb always writes the outbox file `.qory/outbox/pull-request/pull-request.json`
-  under the top of the checkout, as JSON `{"title", "text", "steps", "draft"}`. It creates
-  the parent folder first. When the parent folder, or the nearest folder of it that exists,
-  resolves through a symbolic link to a place outside the top folder of the checkout, the
-  verb exits 3 with the fix "Remove the link in the path of the outbox." and writes no
-  file. The session writes no `target` and no member that qory fills (`commits`, `head`,
+  The verb always writes the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, as
+  JSON `{"title", "text", "steps", "draft"}`. qory sets `QORY_OUTBOX` to the absolute path
+  of the outbox folder. When `QORY_OUTBOX` is unset or is no absolute path, the verb writes
+  no file and exits 3 with the fix "Set QORY_OUTBOX to the absolute path of the outbox
+  folder." It creates the folder of the type first. When the outbox folder, the folder above
+  it, or the folder of the type is a link, as core's end check reads it, the verb exits 3
+  with the fix "Remove the link in the path of the outbox." and writes no file. A file that
+  would have more than 786432 bytes, the `size_limit` of the type `pull-request`, exits 1
+  with the fix to cut the text of `submission.md` or the commits of the build, and the verb
+  writes no file.
+  The session writes no `target` and no member that qory fills (`commits`, `head`,
   `base`, `branch`, `base_branch`, `earlier_commits`): qory sets and fills them after the
   push, and the end check refuses a file that has one. `title` and `text` come from
   `.reports/submission.md` of the artifact folder, which `submission-writer` writes: the
@@ -3299,14 +3319,16 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   <base of the first row>..HEAD`, and a commit in two rows goes to the later row. `draft`
   is `true` when the session itself records the verdict `passed`, as in a stage with no
   reviewers, and `false` when a review round follows. A text that is missing or breaks a
-  rule, a `submission.md` that is no regular file or has more than 262,144 bytes, or a step
-  of more than 128 characters exits 1 with the fix, and the verb writes no file. A commit
+  rule, or a `submission.md` that is no regular file or has more than 262,144 bytes (the
+  limit of the text file `.reports/submission.md`, not of the output), exits 1 with the
+  fix, and the verb writes no file. A `step` is the id of a ledger row, which the ledger
+  schema limits to 64 characters, so no step is too long. A commit
   that git does not have is a lost row of a cancelled run and has no entry in `steps`; any
   other failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`,
   the verb removes a regular file at the path of the outbox file, so that qory never reads
-  the text of an earlier run, only when the real path of the folder of the file is inside
-  the real path of the checkout top, the rule of the write. Else it removes nothing, prints
-  one line, and `--drop` exits 3. It writes the outbox file first and `build-report.md`
+  the text of an earlier run. It removes nothing when `QORY_OUTBOX` is unset or relative.
+  When a link is in the path of the outbox, it removes nothing and prints a fix line, and
+  `--drop` exits 3. It writes the outbox file first and `build-report.md`
   second, each through a temporary file in its folder that it renames into place. When a
   write fails, it removes the temporary files, leaves neither file and exits 3 with a fix
   line. `check build-report`, in a session with the ledger in the

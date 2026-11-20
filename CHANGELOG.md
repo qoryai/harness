@@ -907,16 +907,28 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that the stage declares. Before, only the software module checked a schema, and `end`
   checked no output.
   - `end` reads `qory.outputs` from the `inputs.json` of the session: a list with one
-    entry `{type, required, schema}` for each output of the stage. It checks the file
-    `.qory/outbox/<type>/<type>.json` against the schema, for the type of any module. With
-    no `qory.outputs`, it finds nothing.
-  - A required output with no file, a file that is a link, and a file of more than 1 MiB are
-    findings. So is a member that qory sets or fills after the push, such as `target`.
+    entry `{type, required, schema}` for each output of the stage. qory sets the
+    environment variable `QORY_OUTBOX` to the absolute path of the outbox folder, and `end`
+    checks the file `$QORY_OUTBOX/<type>/<type>.json` against the schema, for the type of
+    any module. It searches for no `.git` and no `.qory`. With no `qory.outputs`, it finds
+    nothing.
+  - A `qory.outputs` that is present and malformed is a finding: it is no list, an entry is
+    no object, a `type` is no name of lower-case letters, digits and hyphens, a `required`
+    is not `true` or `false`, or a `schema` is no object. Only an absent list passes.
+  - When the stage declares an output and `QORY_OUTBOX` is unset or is no absolute path,
+    the finding is "Set QORY_OUTBOX to the absolute path of the outbox folder."
+  - A required output with no file is a finding. So is a link in the outbox folder, in the
+    folder above it, or in the folder of the type, and a file that is a link, is no regular
+    file, or has more than 1 MiB. So is a member that qory sets or fills after the push,
+    such as `target`, and a schema that the check cannot run, such as a leftover `$ref`.
   - A pattern check that runs longer than 10 seconds in all is stopped in a child process,
     and the finding names the type and the member.
-  - For every whole number of an output, core refuses a fraction or an exponent written in
-    the text, such as `34.0` or `3E1`, and a value above 9223372036854775807. It also
-    refuses a null where the schema gives no type.
+  - For each member whose schema type is `integer`, core refuses a fraction or an exponent
+    written in the text, such as `34.0` or `3E1`, a value above 9223372036854775807, and a
+    value below -9223372036854775808. A member of type `number` may be written `2.0` or
+    `1e3`. Core refuses a null anywhere that no schema of type `null` applies, a member that
+    the schema does not list included. A finding writes `~` as `~0` and `/` as `~1` in a
+    JSON pointer.
   - The check of the module for the type runs too. `check pull-request`, in check mode,
     leaves the schema to the end check, and `push pull-request` applies the schema with the
     rules of the raw text.
@@ -925,11 +937,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - `process.yaml` has no `submit:`. The stage Build lists `pull-request` as a required
     output. The type has `size_limit: 786432`.
   - `report-build` always writes the outbox file
-    `.qory/outbox/pull-request/pull-request.json` under the top of the checkout, as
-    `{title, text, steps, draft}`. Before, it wrote the
+    `$QORY_OUTBOX/pull-request/pull-request.json`, as `{title, text, steps, draft}`. With
+    `QORY_OUTBOX` unset or relative, it writes no file and exits 3 with a fix line. An
+    output of more than 786432 bytes, the size limit of the type, exits 1 with a fix line
+    and no file. A link in the outbox folder, in the folder above it, or in the folder of
+    the type exits 3. Before, it wrote the
     hand-off file at the value of `QORY_SUBMISSION_HANDOFF` under `.qory/handoff/`, only
     when the variable was set, with at most 262144 bytes. The variable, the folder and that
-    limit are gone.
+    limit of the output are gone. The limit of 262144 bytes of `.reports/submission.md`
+    stays.
   - `steps` is a list of `{commit, step}`, oldest first, with no upper limit. `draft` is
     `true` when the session records the verdict `passed` itself, in a stage with no
     reviewers, and `false` when a review round follows.
@@ -938,7 +954,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - The session writes no `target` and no member that qory fills (`commits`, `head`,
     `base`, `branch`, `base_branch`, `earlier_commits`): qory sets and fills them after
     the push, and the end check refuses a file that has one. The type has no `verdict`,
-    `ref`, `repositories` or `no_draft` member.
+    `ref`, `repositories` or `no_draft` member. In `reference.address`, `system` and `path`
+    are both required.
   - `check submission` is `check pull-request`. `acceptance-reviewer` reads
     `qory.review.outputs` in place of `qory.review.submission`: the entry for
     `pull-request` has the `title` and the `text`.

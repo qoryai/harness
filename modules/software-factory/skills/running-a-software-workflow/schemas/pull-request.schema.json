@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Pull request, version 1",
-  "description": "The change of a Build run: its title and text, its commits and their steps.",
+  "description": "The change of a Build run: title, text, commits and steps.",
   "type": "object",
   "required": [
     "target",
@@ -142,6 +142,7 @@
         "address": {
           "type": "object",
           "required": [
+            "system",
             "path"
           ],
           "additionalProperties": false,
@@ -161,7 +162,7 @@
       }
     },
     "commit": {
-      "description": "A commit: the repository as the collection, and the commit id as the path.",
+      "description": "A commit: the repository is the collection, the commit id is the path.",
       "allOf": [
         {
           "$ref": "#/$defs/reference"

@@ -8,7 +8,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { MAX_INTEGER, integerFault, scan } = require('./raw-json.cjs');
+const { MAX_INTEGER, MIN_INTEGER, integerFault, pointerKey, scan } = require('./raw-json.cjs');
 
 // The keywords that the check applies, and those that only describe.
 const APPLIED = new Set([
@@ -84,7 +84,7 @@ function deepAt(value) {
     if (entry.level > MAX_DEPTH) {
       const keys = [];
       for (let at = entry; at.parent; at = at.parent) keys.push(at.key);
-      const escape = (key) => shown(key.replace(/~/g, '~0').replace(/\//g, '~1'), Infinity)
+      const escape = (key) => shown(pointerKey(key), Infinity)
         .slice(1, -1);
       return { node: entry.node, at: keys.reverse().map((key) => `/${escape(key)}`).join('') };
     }
@@ -178,14 +178,31 @@ function load(folder, type) {
   return { file, schema, patterns: compile(schema, file) };
 }
 
+// nullPointers returns the JSON pointer of each null in value, which MAX_DEPTH bounds.
+function nullPointers(value) {
+  const found = [];
+  const open = [[value, '']];
+  while (open.length) {
+    const [node, at] = open.pop();
+    if (node === null) found.push(at);
+    else if (typeof node === 'object') {
+      for (const [key, child] of Object.entries(node)) {
+        open.push([child, `${at}/${Array.isArray(node) ? key : pointerKey(key)}`]);
+      }
+    }
+  }
+  return found;
+}
+
 // errors returns the findings of value, the JSON of file, against the schema: each with the fix
 // on its first line, the member as its JSON pointer, such as /steps/0/pass, and the cause on
 // the line after it. A pointer that brief cuts on the first line is whole on the last line.
 // A value that nests deeper than MAX_DEPTH gets one finding, before any step that recurses.
 // With def, the name of an entry of $defs, value is checked against that entry alone.
 // extra.raw, what scan of lib/raw-json.cjs returns for the text of file, adds the rules of a
-// delivered output that the parsed value cannot show: a whole number has no fraction, no
-// exponent and no value above 2^63-1, and no value is null where the schema gives no type.
+// delivered output that the parsed value cannot show: a member of type integer has no
+// fraction, no exponent and a value from -2^63 to 2^63-1, and a null is refused wherever the
+// schema gives no type null, including a member that it does not list.
 // extra.mark(at), when given, is called with the JSON pointer of a string before its pattern
 // runs, so that a caller that stops a pattern that never returns knows which member it was.
 function errors(loaded, value, file, def, extra = {}) {
@@ -194,6 +211,7 @@ function errors(loaded, value, file, def, extra = {}) {
   if (deep) return [`Cut the nesting of ${file} to ${MAX_DEPTH} levels.\n${deep}`];
   const { schema: root, patterns } = loaded;
   const out = [];
+  const nulls = new Set();
   const resolve = (ref) => {
     const match = /^#\/\$defs\/([A-Za-z0-9_-]+)$/.exec(ref);
     if (!match || !root.$defs || !root.$defs[match[1]]) {
@@ -202,11 +220,18 @@ function errors(loaded, value, file, def, extra = {}) {
     }
     return root.$defs[match[1]];
   };
-  // typeOf returns the type of schema, or the type of the entry of $defs that it refers to.
-  const typeOf = (schema) => {
+  // typeOf returns the type of schema, of the entry of $defs that it refers to, or of the first
+  // member of its allOf that has one.
+  const typeOf = (schema, depth = 0) => {
     let one = schema;
     for (let hops = 0; one.type === undefined && one.$ref && hops < 8; hops += 1) {
       one = resolve(one.$ref);
+    }
+    if (one.type === undefined && Array.isArray(one.allOf) && depth < 8) {
+      for (const sub of one.allOf) {
+        const found = typeOf(sub, depth + 1);
+        if (found !== undefined) return found;
+      }
     }
     return one.type;
   };
@@ -221,18 +246,21 @@ function errors(loaded, value, file, def, extra = {}) {
     const add = (verb, fix, cause) => found.push(`${verb} ${where} ${fix}.` +
       `${cause ? `\n${cause}.` : ''}${whole}`);
     const actual = kind(node);
-    if (raw && top && actual === 'null' && typeOf(schema) === undefined) {
+    if (raw && actual === 'null') nulls.add(at);
+    if (raw && top && actual === 'null' && typeOf(schema) !== 'null') {
       add('Write', 'as a value other than null', 'A delivered output has no null');
       return;
     }
-    if (raw && top && actual === 'integer' && raw.has(at)) {
+    if (raw && top && actual === 'integer' && typeOf(schema) === 'integer' && raw.has(at)) {
       const token = raw.get(at);
       const fault = integerFault(token);
       if (fault === 'form') {
         add('Write', 'as a whole number with no fraction and no exponent',
           `It is written ${clip(token, 40)}`);
-      } else if (fault === 'size') {
+      } else if (fault === 'large') {
         add('Set', `to at most ${MAX_INTEGER}`, `It is ${clip(token, 40)}`);
+      } else if (fault === 'small') {
+        add('Set', `to at least ${MIN_INTEGER}`, `It is ${clip(token, 40)}`);
       }
     }
     if (schema.type) {
@@ -297,7 +325,7 @@ function errors(loaded, value, file, def, extra = {}) {
       const properties = schema.properties || {};
       for (const [key, member] of Object.entries(node)) {
         if (Object.hasOwn(properties, key)) {
-          visit(properties[key], member, `${at}/${key}`, found);
+          visit(properties[key], member, `${at}/${pointerKey(key)}`, found);
         } else if (schema.additionalProperties === false) {
           const name = shown(key, MEMBER);
           found.push(`Remove the member ${name} from ${where}.\nThe schema has no ` +
@@ -328,6 +356,15 @@ function errors(loaded, value, file, def, extra = {}) {
     }
   };
   visit(def ? resolve(`#/$defs/${def}`) : root, value, '', out);
+  // A null that no schema was applied to, such as a member that the schema does not list.
+  if (raw) {
+    for (const at of nullPointers(value).filter((one) => !nulls.has(one))) {
+      const pointer = brief(at, POINTER);
+      const whole = pointer === at ? '' : `\nThe whole JSON pointer is ${at}.`;
+      out.push(`Write ${at ? `${pointer} of ${file}` : file} as a value other than null.\n` +
+        `A delivered output has no null.${whole}`);
+    }
+  }
   return out;
 }
 

@@ -1,12 +1,12 @@
 ---
 name: writing-submissions
-description: Load before you write the title and the description of the draft pull request of a Build run. Contains the file, the title, the four parts, their limits, what Disclosed contains and the check list.
+description: Load before you write the title and the text of the draft pull request of a Build run. Contains the file, the title, the four parts, their limits, what Disclosed contains and the check list.
 ---
 
 # Writing submissions
 
 Load ${qory:skills/artifact-text} before you write. The submission is the title and the
-description that a reviewer reads first, so state only what a record of the run shows.
+text that a reviewer reads first, so state only what a record of the run shows.
 
 ## The file
 
@@ -21,7 +21,7 @@ parts, as `##` headings, in this order: `## Problem`, `## Change`, `## Tests` an
 - The title is one line of at most 256 characters, with no tab and no control character.
   It is not only spaces, and it has no invisible character, such as U+200B, U+202E or
   U+FEFF.
-- The description, from `## Problem` to the end, has at most 20000 characters and no NUL.
+- The text, from `## Problem` to the end, has at most 20000 characters and no NUL.
   No line of it starts with `<!-- qory:start -->` or `<!-- qory:end -->`.
 - No secret, key or token in either. Write where it is.
 

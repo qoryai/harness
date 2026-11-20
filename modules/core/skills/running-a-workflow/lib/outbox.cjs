@@ -1,89 +1,100 @@
-// The check of the outbox, which end runs: the files of the outputs that the stage declares,
-// .qory/outbox/<type>/<type>.json, against the schema of each type. qory writes the stage's
-// outputs into the inputs file of the run as qory.outputs, a list in the order of the stage's
-// outputs, each { type, required, schema }, with the primitives of the schema resolved. This
-// check resolves no $ref, so it needs no copy of the primitives and knows no kind of work.
+// The check of the outbox, which end runs: the file $QORY_OUTBOX/<type>/<type>.json of each
+// output that the stage declares, against its schema in qory.outputs of the inputs file. The
+// check resolves no $ref and knows no kind of work.
 'use strict';
 
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { Missing, NAME, isObject, short } = require('./base.cjs');
+const { Missing, NAME, isObject, jsonKind, short } = require('./base.cjs');
 const { allowed, checkFiles } = require('./drafts.cjs');
 const { OUTBOX_BROKEN, OUTBOX_NONE } = require('./end.cjs');
 
-// The most bytes of the inputs file that readOutputs reads, as the end check reads it.
+// The most bytes of the inputs file, and of an output file (the largest structured type).
 const INPUTS_MAX = 1024 * 1024;
-
-// The most bytes of an output file: the size of the largest structured type.
 const OUTBOX_MAX = 1024 * 1024;
 
-// The time that all the pattern checks of one end check share. The end hook has 180 s, and the
-// checks of the drafts and reports come before this one, so a pattern that never returns costs
-// at most this much. QORY_OUTBOX_TEST, a JSON object, can only lower it with patternMs: a file
-// of the workspace can reach the environment of a hook, so no field turns the check off.
+// The time that all the pattern checks of one end check share: the end hook has 180 s.
+// QORY_OUTBOX_TEST, a JSON object, can only lower it with patternMs.
 const PATTERN_MS = 10000;
 
-// The keyword that marks a top-level member of a type that qory fills after it pushes the
-// output. The session writes no such member. Its values belong to the module that declares
-// the type, and core reads none of them.
+// The keyword that marks a top-level member that qory fills after the push. Core reads the
+// keyword and none of its values.
 const FILL = 'x-qory-fill';
 
 // The member that qory sets on a delivered output.
 const TARGET = 'target';
 
 // CHILD checks one output in a process that the parent can kill: it writes the JSON pointer of
-// each string, before its pattern runs, then one line with the findings.
+// each string, before its pattern runs, then one line with the findings or the fault.
 const CHILD = `'use strict';
 const fs = require('node:fs');
 const schema = require(process.argv[1]);
 const { scan } = require(process.argv[2]);
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 const out = (value) => fs.writeSync(1, JSON.stringify(value) + '\\n');
-let loaded;
 try {
-  loaded = { file: input.file, schema: input.schema,
+  const loaded = { file: input.file, schema: input.schema,
     patterns: schema.compile(input.schema, input.file) };
+  const value = JSON.parse(input.text);
+  out({ findings: schema.errors(loaded, value, input.file, undefined,
+    { raw: scan(input.text), mark: (at) => out({ at }) }) });
 } catch (error) {
-  out({ fault: String(error && error.message) });
-  process.exit(0);
+  out({ fault: error instanceof RangeError ? 'the schema refers to itself without end'
+    : String(error && error.message) });
 }
-const value = JSON.parse(input.text);
-out({ findings: schema.errors(loaded, value, input.file, undefined,
-  { raw: scan(input.text), mark: (at) => out({ at }) }) });
 `;
 
-// readOutputs returns the outputs of qory.outputs in the inputs file, each { type, required,
-// schema } with a type that is a name of lower-case letters, digits and hyphens, or [] when the
-// file is missing, no regular file of at most INPUTS_MAX bytes, no JSON, or has no such list.
+// readOutputs returns { outputs, faults } for qory.outputs of the inputs file: each entry
+// { type, required, schema } that is well formed, and a line for each part that is not. Only an
+// absent list, or an inputs file that cannot be read, gives neither.
 function readOutputs(inputs) {
-  if (!inputs) return [];
+  const none = { outputs: [], faults: [] };
+  if (!inputs) return none;
   let data;
   try {
     const stat = fs.lstatSync(inputs);
-    if (!stat.isFile() || stat.size > INPUTS_MAX) return [];
+    if (!stat.isFile() || stat.size > INPUTS_MAX) return none;
     data = JSON.parse(fs.readFileSync(inputs, 'utf8'));
   } catch {
-    return [];
+    return none;
   }
-  const list = isObject(data) && isObject(data.qory) ? data.qory.outputs : null;
-  if (!Array.isArray(list)) return [];
-  return list.filter((one) => isObject(one) && typeof one.type === 'string' &&
-    NAME.test(one.type) && isObject(one.schema));
+  if (!isObject(data) || !isObject(data.qory) || !Object.hasOwn(data.qory, 'outputs')) {
+    return none;
+  }
+  const list = data.qory.outputs;
+  if (!Array.isArray(list)) {
+    return { outputs: [], faults: [`Write qory.outputs as a list.\nIt is ${jsonKind(list)}.`] };
+  }
+  const outputs = [];
+  const faults = [];
+  list.forEach((one, place) => {
+    const at = `entry ${place + 1} of qory.outputs`;
+    if (!isObject(one)) faults.push(`Write ${at} as an object.\nIt is ${jsonKind(one)}.`);
+    else if (typeof one.type !== 'string' || !NAME.test(one.type)) {
+      faults.push(`Write the type of ${at} as lower-case letters, digits and hyphens.\n` +
+        'It is no such name.');
+    } else if (typeof one.required !== 'boolean') {
+      faults.push(`Write the required of ${at} as true or false.\nIt is another value.`);
+    } else if (!isObject(one.schema)) {
+      faults.push(`Write the schema of ${at} as an object.\nIt is another value.`);
+    } else outputs.push(one);
+  });
+  return { outputs, faults };
 }
 
-// outboxFolder returns the folder .qory/outbox of the checkout of cwd: under the nearest folder
-// above cwd, cwd included, that has .git, else the nearest that has .qory, else cwd.
-function outboxFolder(cwd) {
-  const start = path.resolve(cwd);
-  for (const marker of ['.git', '.qory']) {
-    for (let at = start; ; at = path.dirname(at)) {
-      if (fs.existsSync(path.join(at, marker))) return path.join(at, '.qory', 'outbox');
-      if (path.dirname(at) === at) break;
+// linked returns the first of the outbox folder, its parent and the folder of the type that is
+// a link, or null. report-build of the software module applies the same rule, through LIBRARY.
+function linked(outbox, type) {
+  for (const part of [path.dirname(outbox), outbox, path.join(outbox, type)]) {
+    try {
+      if (fs.lstatSync(part).isSymbolicLink()) return part;
+    } catch {
+      // The part does not exist yet.
     }
   }
-  return path.join(start, '.qory', 'outbox');
+  return null;
 }
 
 // limit returns the milliseconds that the pattern checks of one end check share.
@@ -100,19 +111,15 @@ function limit(env) {
   return lowest;
 }
 
-// childEnv returns the environment of the child process: that of the hook without
-// NODE_OPTIONS, which a file of the workspace can reach and which would load code.
+// childEnv returns the environment of the hook without NODE_OPTIONS, which would load code.
 function childEnv() {
   const env = { ...process.env };
   delete env.NODE_OPTIONS;
   return env;
 }
 
-// checkSchema runs the schema check of text, the JSON of file, in a child process that is
-// killed with SIGKILL when the time that is left, in the object clock, runs out. It returns the
-// findings. A kill, a crash, a schema that lib/schema.cjs cannot read and output that is not
-// as CHILD writes it are findings too, never a throw: a session that ends on a throw ends
-// without its checks. The finding of a kill names the type and the member whose pattern ran.
+// checkSchema returns the findings of the schema check of text, the JSON of file, which runs
+// in a child process that SIGKILL stops when the shared time runs out. A fault is a finding.
 function checkSchema({ type, schema, text, file }, clock) {
   const left = clock.until - Date.now();
   const refused = (why) => [`Write ${file} again.\nThe check of the ${type} output could not ` +
@@ -159,40 +166,67 @@ function without(schema) {
   return { names, schema: { ...schema, required } };
 }
 
+// broken returns the results of a finding of qory.outputs, which has no file to name.
+const broken = (cause, item) => [{ line: 'Fix qory.outputs in the lines after this one:',
+  point: OUTBOX_BROKEN, item }, ...cause.map((line) => ({ line, point: null }))];
+
+// outboxFolder returns the absolute path in io.env.QORY_OUTBOX, or null.
+const outboxFolder = (env) => (typeof env.QORY_OUTBOX === 'string' &&
+  path.isAbsolute(env.QORY_OUTBOX) ? path.normalize(env.QORY_OUTBOX) : null);
+
+// fileFault returns why the file at full, below the outbox, cannot be read as an output, or
+// null. The cause is the one that holds: a link, no file, or more than OUTBOX_MAX bytes.
+function fileFault(stat) {
+  if (stat.isSymbolicLink()) return 'It is a link.';
+  if (!stat.isFile()) return 'It is not a regular file.';
+  return stat.size > OUTBOX_MAX ? `It has ${stat.size} bytes, more than ${OUTBOX_MAX}.` : null;
+}
+
 // outboxDrafts returns the results of the check of the outbox, as endDrafts lists them:
-// { line, point, item }. io is the io of end, with cwd, home, inputs, plugin and registry().
+// { line, point, item }. io is the io of end, with cwd, env, home, inputs, plugin, registry().
 function outboxDrafts(io) {
-  const outputs = readOutputs(io.inputs);
-  if (!outputs.length) return [];
-  const folder = outboxFolder(io.cwd);
-  const total = limit(io.env || process.env);
+  const { outputs, faults } = readOutputs(io.inputs);
+  const env = io.env || process.env;
+  const results = faults.length ? broken(faults, 'outputs') : [];
+  if (!outputs.length) return results;
+  const folder = outboxFolder(env);
+  if (!folder) {
+    return [...results, ...broken(['Set QORY_OUTBOX to the absolute path of the outbox folder.\n' +
+      `qory sets it when it starts the session. It is ${env.QORY_OUTBOX === undefined ? 'not set'
+        : 'no absolute path'}.`], 'outputs')];
+  }
+  const total = limit(env);
   const clock = { total, until: Date.now() + total };
   const { types } = io.registry();
-  const results = [];
   for (const { type, required, schema } of outputs) {
-    const file = `.qory/outbox/${type}/${type}.json`;
+    const file = `$QORY_OUTBOX/${type}/${type}.json`;
     const dir = path.join(folder, type);
     const full = path.join(dir, `${type}.json`);
+    const link = linked(folder, type);
     let stat = null;
-    try {
-      stat = fs.lstatSync(full);
-    } catch {
-      // No file.
+    if (!link) {
+      try {
+        stat = fs.lstatSync(full);
+      } catch {
+        // No file.
+      }
     }
-    if (!stat) {
+    if (!stat && !link) {
       if (required === true) {
         results.push({ line: `Write ${file}.\nThe stage needs a ${type} output, and the file ` +
           'does not exist.', point: OUTBOX_NONE, item: type });
       }
       continue;
     }
+    const why = link ? null : fileFault(stat);
     let lines = [];
-    if (!stat.isFile() || stat.size > OUTBOX_MAX || fs.lstatSync(dir).isSymbolicLink()) {
-      lines = [`Write ${file} as a regular file of at most ${OUTBOX_MAX / 1024} KB.\n` +
-        'It is a link or no file, or has more bytes, or its folder is a link.'];
+    if (link) {
+      lines = [`Remove the link ${short(link, 80)}.\nThe outbox of ${file} must hold no link: ` +
+        'its folder, the folder above it and the folder of the type are real folders.'];
+    } else if (why) {
+      lines = [`Write ${file} as a regular file of at most ${OUTBOX_MAX} bytes.\n${why}`];
     } else {
-      const real = fs.realpathSync(dir);
-      lines = checkOutput({ io, types, type, schema, full, file, dir: real, clock });
+      lines = checkOutput({ io, types, type, schema, full, file, dir, clock });
     }
     if (lines.length) {
       const count = lines.length === 1 ? 'finding' : `${lines.length} findings`;
@@ -235,4 +269,4 @@ function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
   return lines;
 }
 
-module.exports = { FILL, outboxDrafts, outboxFolder, readOutputs };
+module.exports = { FILL, limit, linked, outboxDrafts, outboxFolder, readOutputs };

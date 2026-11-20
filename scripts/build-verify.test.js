@@ -593,7 +593,7 @@ test('the schema check throws for a form of a keyword that it does not check', (
     a: { enum: ['x', 1, true, null] }, b: { const: null } } }, 'x.json');
 });
 
-test('the 56 samples: each valid one passes its schema, each invalid one fails it', () => {
+test('the 57 samples: each valid one passes its schema, each invalid one fails it', () => {
   let count = 0;
   for (const [type, kinds] of Object.entries(SAMPLES)) {
     const loaded = schema.load(type);
@@ -607,7 +607,7 @@ test('the 56 samples: each valid one passes its schema, each invalid one fails i
       count += 1;
     }
   }
-  assert.equal(count, 56);
+  assert.equal(count, 57);
 });
 
 test('the samples of acceptance-criteria and verification pass or fail their schema', () => {
@@ -784,6 +784,19 @@ test('pull-request: a commit id has 40 or 64 hex characters, not 41', () => {
     /^Write \/commits\/0\/address\/path of pull-request.json so that it matches its pattern\./);
   assert.notDeepEqual(pullRequestErrors((d) => { d.head.address = {}; }), []);
   assert.notDeepEqual(pullRequestErrors((d) => { delete d.base.address; }), []);
+});
+
+test('pull-request: the address of every reference needs a system and a path', () => {
+  const paths = { target: 'example/shop', head: 'a'.repeat(40), base: 'b'.repeat(40) };
+  for (const [member, path] of Object.entries(paths)) {
+    assert.deepEqual(pullRequestErrors((d) => { d[member].address = { system: 'x.org', path }; }),
+      [], member);
+    assert.notDeepEqual(pullRequestErrors((d) => { d[member].address = { path }; }), [], member);
+    assert.notDeepEqual(pullRequestErrors((d) => { d[member].address = { system: 'x.org' }; }),
+      [], member);
+  }
+  const system = pullRequestErrors((d) => { d.commits[0].address = { path: 'a'.repeat(40) }; });
+  assert.deepEqual(system, ['Add the member system to /commits/0/address of pull-request.json.']);
 });
 
 test('pull-request: a step has 1 to 128 characters, and the commits have no upper bound', () => {

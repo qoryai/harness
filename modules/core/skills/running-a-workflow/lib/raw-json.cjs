@@ -1,29 +1,29 @@
 // The numbers of a JSON text as written, which JSON.parse rounds: 34.0 and 34 are one number
-// to it, and so are 9223372036854775807 and 9223372036854775808. scan reads the text once,
-// skips the strings, and lists each number token with its JSON pointer, written as
-// lib/schema.cjs writes the place of a value.
+// to it. scan lists each number token with its JSON pointer, in one pass over the text.
 'use strict';
 
-// The largest integer of a delivered output: 2^63 - 1, which a 64-bit signed integer holds.
+// The range of an integer of a delivered output: a 64-bit signed integer.
 const MAX_INTEGER = 9223372036854775807n;
+const MIN_INTEGER = -9223372036854775808n;
 
-// scan returns a map from the pointer of each number of text, which JSON.parse accepted, to
-// its token. A member that an object repeats counts once, as its last value, as JSON.parse
-// reads it. It reads with a list of open objects and lists, so that a deep text needs no
-// recursion.
+// The most levels that scan follows. A text that nests deeper gets the depth finding of
+// lib/schema.cjs before any number rule, so scan lists nothing for it.
+const MAX_LEVELS = 256;
+
+// pointerKey returns key as a JSON pointer writes a member name: ~ as ~0 and / as ~1.
+const pointerKey = (key) => key.replace(/~/g, '~0').replace(/\//g, '~1');
+
+// scan returns a map from the JSON pointer of each number of text, which JSON.parse accepted,
+// to its token. A repeated member counts once, as its last value, as JSON.parse reads it.
+// The tree has one slot per member, so a repeated key replaces its slot in constant time.
 function scan(text) {
-  const numbers = new Map();
   const open = [];
-  const drop = (prefix) => {
-    for (const key of [...numbers.keys()]) {
-      if (key === prefix || key.startsWith(`${prefix}/`)) numbers.delete(key);
-    }
-  };
-  // The pointer of the value that starts next.
-  const here = () => {
-    const top = open.at(-1);
-    if (!top) return '';
-    return top.list ? `${top.at}/${top.index}` : `${top.at}/${top.key}`;
+  let top = null;
+  const attach = (node) => {
+    const parent = open.at(-1);
+    if (!parent) top = node;
+    else if (parent.list) parent.kids[parent.index] = node;
+    else parent.kids.set(parent.key, node);
   };
   let place = 0;
   while (place < text.length) {
@@ -31,45 +31,63 @@ function scan(text) {
     if (/\s/.test(char) || char === ':') {
       place += 1;
     } else if (char === '{' || char === '[') {
-      open.push({ at: here(), list: char === '[', index: 0, key: '', keys: new Set(),
-        wantKey: char === '{' });
+      if (open.length >= MAX_LEVELS) return new Map();
+      const list = char === '[';
+      const node = { list, kids: list ? [] : new Map(), index: 0, key: '', wantKey: !list };
+      attach(node);
+      open.push(node);
       place += 1;
     } else if (char === '}' || char === ']') {
       open.pop();
       place += 1;
     } else if (char === ',') {
-      const top = open.at(-1);
-      if (top.list) top.index += 1;
-      else top.wantKey = true;
+      const parent = open.at(-1);
+      if (parent.list) parent.index += 1;
+      else parent.wantKey = true;
       place += 1;
     } else if (char === '"') {
       let end = place + 1;
       while (text[end] !== '"') end += text[end] === '\\' ? 2 : 1;
-      const top = open.at(-1);
-      if (top && !top.list && top.wantKey) {
-        top.key = JSON.parse(text.slice(place, end + 1));
-        top.wantKey = false;
-        if (top.keys.has(top.key)) drop(here());
-        top.keys.add(top.key);
+      const parent = open.at(-1);
+      if (parent && !parent.list && parent.wantKey) {
+        parent.key = JSON.parse(text.slice(place, end + 1));
+        parent.wantKey = false;
+      } else {
+        attach({});
       }
       place = end + 1;
     } else {
       let end = place;
       while (end < text.length && !/[\s,\]}]/.test(text[end])) end += 1;
       const token = text.slice(place, end);
-      if (!['null', 'true', 'false'].includes(token)) numbers.set(here(), token);
+      attach(['null', 'true', 'false'].includes(token) ? {} : { token });
       place = end;
+    }
+  }
+  const numbers = new Map();
+  const walk = [[top, '']];
+  while (walk.length) {
+    const [node, at] = walk.pop();
+    if (!node) continue;
+    if (node.token !== undefined) {
+      numbers.set(at, node.token);
+    } else if (node.kids) {
+      const kids = node.list ? node.kids.map((kid, index) => [kid, `${at}/${index}`])
+        : [...node.kids].map(([key, kid]) => [kid, `${at}/${pointerKey(key)}`]);
+      walk.push(...kids.reverse());
     }
   }
   return numbers;
 }
 
 // integerFault returns why the number token, written for a whole number, is refused, or null:
-// 'form' for a fraction or an exponent, such as 34.0 or 3E1, and 'size' for a value above
-// MAX_INTEGER.
+// 'form' for a fraction or an exponent, such as 34.0 or 3E1, 'large' above MAX_INTEGER and
+// 'small' below MIN_INTEGER.
 function integerFault(token) {
   if (/[.eE]/.test(token)) return 'form';
-  return BigInt(token) > MAX_INTEGER ? 'size' : null;
+  const value = BigInt(token);
+  if (value > MAX_INTEGER) return 'large';
+  return value < MIN_INTEGER ? 'small' : null;
 }
 
-module.exports = { MAX_INTEGER, integerFault, scan };
+module.exports = { MAX_INTEGER, MIN_INTEGER, integerFault, pointerKey, scan };

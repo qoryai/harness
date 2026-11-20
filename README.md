@@ -330,7 +330,7 @@ workflows:
   1. It starts `submission-writer`; a start that fails, a report that fails its check
      after two fixes and a `blocked` report end the run as Failures.
   2. It runs `checks.cjs report-build`, which writes `build-report.md` and the outbox file
-     `.qory/outbox/pull-request/pull-request.json`. With exit 1, it starts
+     `$QORY_OUTBOX/pull-request/pull-request.json`. With exit 1, it starts
      `submission-writer` again, at most twice, then ends with one `run_again` point; with
      exit 2, 3 or 4, it ends as Failures.
   3. It runs `checks.cjs check build-report`. With exit 1, it runs `checks.cjs report-build

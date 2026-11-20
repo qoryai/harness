@@ -179,7 +179,8 @@ function checkout(plan = PLAN()) {
 
 const ENV = { PATH: process.env.PATH, HOME: process.env.HOME };
 
-function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'], capMs, proc } = {}) {
+function call(dir, argv, { env = {}, minuteMs, cwd = dir, artifacts = ['.qory/artifacts'], capMs,
+  proc } = {}) {
   let out = '';
   let err = '';
   const first = watch();
@@ -3022,18 +3023,22 @@ function buildRepo(report) {
   return { dir, start, commits, ledger };
 }
 
-// The output file is under .qory/outbox/ of the checkout, where qory's push reads it.
-const outboxPath = (dir) => path.join(dir, '.qory/outbox/pull-request/pull-request.json');
+// The outbox folder is .qory/outbox/ of the checkout. qory gives the verb its absolute path in
+// QORY_OUTBOX, and bcall does the same; a test sets env.QORY_OUTBOX to change or unset it.
+const outboxFolder = (dir) => path.join(dir, '.qory/outbox');
+const outboxPath = (dir) => path.join(outboxFolder(dir), 'pull-request/pull-request.json');
+const bcall = (dir, argv, options = {}) => call(dir, argv,
+  { ...options, env: { QORY_OUTBOX: outboxFolder(dir), ...options.env } });
 const outboxOf = (dir) => JSON.parse(fs.readFileSync(outboxPath(dir), 'utf8'));
 const reportOf = (dir) => fs.readFileSync(path.join(dir, '.qory/artifacts/build-report.md'), 'utf8');
 
 test('report-build: a change and two fixes write an output that lists the three commits', () => {
   const left = 'Built it.\n\nLeft out:\n- Export of dates: nobody reads them yet.\n- Retry: the call never fails.\n\n## Next\n\nDone.';
   const { dir, commits } = buildRepo(left);
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
   assert.equal(got.lines.at(-1),
-    'Wrote build-report.md and .qory/outbox/pull-request/pull-request.json.');
+    'Wrote build-report.md and $QORY_OUTBOX/pull-request/pull-request.json.');
   const raw = fs.readFileSync(outboxPath(dir), 'utf8');
   assert.ok(raw.endsWith('}\n') && raw.split('\n').length === 2, raw);
   const output = JSON.parse(raw);
@@ -3049,14 +3054,14 @@ test('report-build: a change and two fixes write an output that lists the three 
   assert.match(text, /## Review rounds\n\nNone\.\n\nThe result of the last round is in the review in Qory Apiary, not in this report\.\n\n## Checks\n\n\| Check \| Start \| Head \|\n\|---\|---\|---\|\n\| ac-1: tests\/ac1\.test\.js \| red \| unknown \|\n\| ac-2: tests\/ac2\.test\.js \| red \| unknown \|\n\nFull suite: unknown\.\n\n## Counts\n\n\| Count \| Value \|\n\|---\|---\|\n\| Replayed steps \| 0 \|\n\| Review rounds \| 0 \|\n\| Returns \| 0 \|\n\| Tokens \| unknown \|\n\n## Not run\n\nNone\.\n\n/);
   assert.ok(text.endsWith('## Left out\n\n- deliverable:d-1: Export of dates: nobody reads them yet.\n- deliverable:d-1: Retry: the call never fails.\n'));
   // The same records give the same bytes.
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.equal(reportOf(dir), text);
   assert.equal(fs.readFileSync(outboxPath(dir), 'utf8'), raw);
 });
 
 test('report-build: Left out reads none when no row has an item', () => {
   const { dir } = buildRepo('Built it.\n\nLeft out: none\n');
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\nnone\n'));
 });
 
@@ -3070,7 +3075,7 @@ test('report-build: a commit outside base..HEAD gets no entry, a commit in two r
     ended_at: undefined };
   write(dir, '.qory/artifacts/.reports/build-ledger.json',
     JSON.stringify({ steps: [...ledger.steps, row, failed], escalations: [] }));
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
   const { steps } = outboxOf(dir);
   // start is before the first base..HEAD range, and the commit after the rows is in none.
@@ -3083,21 +3088,21 @@ test('report-build: a commit outside base..HEAD gets no entry, a commit in two r
   const lost = { ...ledger.steps[1], id: 'fix:f5', base: 'c'.repeat(40), commit: 'b'.repeat(40) };
   write(dir, '.qory/artifacts/.reports/build-ledger.json',
     JSON.stringify({ steps: [...ledger.steps, lost], escalations: [] }));
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.deepEqual(outboxOf(dir).steps.map((one) => one.step),
     ['deliverable:d-1', 'fix:f1', 'fix:f2']);
   write(dir, '.qory/artifacts/.reports/build-ledger.json',
     JSON.stringify({ steps: [{ ...lost, id: 'plan', kind: 'plan' }, ...ledger.steps], escalations: [] }));
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.deepEqual(outboxOf(dir).steps, []);
 });
 
-test('report-build: with no variable and no inputs file, the output has draft true', () => {
+test('report-build: with no inputs file, the output has draft true', () => {
   const { dir } = buildRepo();
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
   assert.deepEqual(got.lines,
-    ['Wrote build-report.md and .qory/outbox/pull-request/pull-request.json.']);
+    ['Wrote build-report.md and $QORY_OUTBOX/pull-request/pull-request.json.']);
   assert.equal(outboxOf(dir).draft, true);
   assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), true);
 });
@@ -3108,7 +3113,7 @@ test('report-build: draft is false for a stage with reviewers, and true for one 
     count += 1;
     const inputs = path.join(tmp, `in-${count}`, 'inputs.json');
     write(path.dirname(inputs), 'inputs.json', JSON.stringify({ qory }));
-    const got = call(dir, ['report-build', '--inputs', inputs]);
+    const got = bcall(dir, ['report-build', '--inputs', inputs]);
     assert.equal(got.status, 0, got.out + got.err);
     return outboxOf(dir).draft;
   };
@@ -3126,11 +3131,11 @@ test('report-build: a bad or missing text writes no file and removes the output'
   const refused = (body, first) => {
     // A valid text writes the output file; the text that breaks a rule must remove it.
     fs.writeFileSync(text, TEXT);
-    assert.equal(call(dir, ['report-build']).status, 0);
+    assert.equal(bcall(dir, ['report-build']).status, 0);
     assert.equal(fs.existsSync(file), true);
     fs.rmSync(path.join(dir, '.qory/artifacts/build-report.md'));
     if (body === null) fs.rmSync(text); else fs.writeFileSync(text, body);
-    const got = call(dir, ['report-build']);
+    const got = bcall(dir, ['report-build']);
     assert.equal(got.status, 1, got.out + got.err);
     assert.match(got.lines[0], first);
     assert.equal(fs.existsSync(file), false);
@@ -3152,20 +3157,21 @@ test('report-build: a bad or missing text writes no file and removes the output'
 test('report-build: a failure of any exit status removes the output', () => {
   const { dir } = buildRepo();
   const file = outboxPath(dir);
-  assert.equal(call(dir, ['report-build']).status, 0);
-  assert.equal(call(dir, ['report-build', '--bad']).status, 2);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build', '--bad']).status, 2);
   assert.equal(fs.existsSync(file), false);
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   fs.rmSync(path.join(dir, '.qory/artifacts/.reports/build-ledger.json'));
-  assert.equal(call(dir, ['report-build']).status, 3);
+  assert.equal(bcall(dir, ['report-build']).status, 3);
   assert.equal(fs.existsSync(file), false);
 });
 
-test('report-build: an output path that is a directory exits 3 and leaves no report or temporary file', () => {
+test('report-build: an output path that is a directory exits 3 and leaves no report or ' +
+  'temporary file', () => {
   const { dir } = buildRepo();
   const file = outboxPath(dir);
   fs.mkdirSync(file, { recursive: true });
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 3, got.out + got.err);
   assert.match(got.lines[0], /^Make .* a file that you can write, then run report-build again\.$/);
   assert.doesNotMatch(got.err + got.out, /\n\s+at /);
@@ -3178,7 +3184,7 @@ test('report-build: an output path that is a directory exits 3 and leaves no rep
 test('report-build: a title with spaces after it is trimmed', () => {
   const { dir } = buildRepo();
   write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('helper\n', 'helper  \t \n'));
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
   assert.equal(outboxOf(dir).title, 'Add the sum helper');
 });
@@ -3190,7 +3196,7 @@ test('report-build: a commit that git has but cannot walk exits 3 with a fix lin
   const object = path.join(dir, '.git/objects', commits[1].slice(0, 2), commits[1].slice(2));
   fs.chmodSync(object, 0o644);
   fs.rmSync(object);
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 3, got.out + got.err);
   assert.match(got.lines[0], /^Run report-build in a checkout that git can read\.$/);
   assert.match(got.lines[1], /git rev-list failed/);
@@ -3226,7 +3232,7 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   const earlier = '### Round 1\n\nFrozen commit: not rendered by us.\n\n| Finding | Reviewer | Blocking | Proof |\n|---|---|---|---|\n| f1: Old   point | code-reviewer | yes | x |';
   versionOf(dir, 'build-report', 'build-report.md', `## Summary\n\nx\n\n## Review rounds\n\n${earlier}\n\n### Round 2\n\nOld round 2.\n\nThe result of the last round is in the review in Qory Apiary, not in this report.\n\n## Counts\n\nx\n`);
   const inputs = putRound(ROUND(2));
-  const got = call(dir, ['report-build', '--inputs', inputs]);
+  const got = bcall(dir, ['report-build', '--inputs', inputs]);
   assert.equal(got.status, 0, got.out + got.err);
   const text = reportOf(dir);
   const rounds = text.split('## Review rounds\n\n')[1].split('\n\n## Checks')[0];
@@ -3236,7 +3242,7 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   // A later session with no open-findings.json keeps every round of the previous version.
   const none = putRound(ROUND(2));
   fs.rmSync(path.join(path.dirname(none), 'open-findings.json'));
-  assert.equal(call(dir, ['report-build', '--inputs', none]).status, 0);
+  assert.equal(bcall(dir, ['report-build', '--inputs', none]).status, 0);
   assert.match(reportOf(dir), /### Round 2\n\nOld round 2\./);
 });
 
@@ -3246,7 +3252,7 @@ test('check build-report: renders the tables again and refuses a table with one 
   // green on the head.
   assert.equal(call(dir, ['run', 'locked']).status, 0);
   const inputs = putRound(ROUND(1));
-  assert.equal(call(dir, ['report-build', '--inputs', inputs]).status, 0);
+  assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
   const file = path.join(dir, '.qory/artifacts/build-report.md');
   const text = reportOf(dir);
   assert.match(text, /\| ac-1: tests\/ac1\.test\.js \| red \| green \|/);
@@ -3282,7 +3288,7 @@ test('check build-report: renders the tables again and refuses a table with one 
 test('check build-report: compares the raw text, so a CRLF copy, a trailing space, an extra blank line and a changed heading fail', () => {
   const { dir } = buildRepo();
   const inputs = putRound(ROUND(1));
-  assert.equal(call(dir, ['report-build', '--inputs', inputs]).status, 0);
+  assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
   const file = path.join(dir, '.qory/artifacts/build-report.md');
   const text = reportOf(dir);
   const check = () => call(dir, ['check', 'build-report', '--inputs', inputs, file]);
@@ -3304,7 +3310,7 @@ test('check build-report: compares the raw text, so a CRLF copy, a trailing spac
 function reportFor(round, left) {
   const { dir } = buildRepo(left);
   const inputs = putRound(round);
-  const got = call(dir, ['report-build', '--inputs', inputs]);
+  const got = bcall(dir, ['report-build', '--inputs', inputs]);
   assert.equal(got.status, 0, got.out + got.err);
   return { dir, inputs, text: reportOf(dir) };
 }
@@ -3332,7 +3338,7 @@ test('report-build: the closing line of an earlier version is left out of the ea
   const closing = 'The result of the last round is in the review in Qory Apiary, not in this report.';
   versionOf(dir, 'build-report', 'build-report.md', `## Summary\n\nx\n\n## Review rounds\n\n### Round 1\n\nOld round 1.\n\n${closing}\n\n## Counts\n\nx\n`);
   const inputs = putRound({ round: 2, reviewers: [{ reviewer: 'code-reviewer', findings: [] }] });
-  assert.equal(call(dir, ['report-build', '--inputs', inputs]).status, 0);
+  assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
   const text = reportOf(dir);
   assert.equal(text.split(closing).length, 2);
   assert.ok(text.includes(`### Round 1\n\nOld round 1.\n\n### Round 2\n\nReviewers: code-reviewer.\n\nNone.\n\n${closing}\n\n## Checks`), text);
@@ -3341,7 +3347,7 @@ test('report-build: the closing line of an earlier version is left out of the ea
 test('report-build: a left-out item loses hidden characters and is cut like a point, so that check build-report passes', () => {
   const left = `Built it.\n\nLeft out:\n- Export \u202edates: nobody reads them.\n- ${'Long item '.repeat(60)}\n- \u202e\n`;
   const { dir } = buildRepo(left);
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   const text = reportOf(dir);
   assert.ok(!text.includes('\u202e'));
   const items = text.split('## Left out\n\n')[1].trimEnd().split('\n');
@@ -3388,7 +3394,7 @@ test('report-build: no left-out item makes check build-report refuse the report'
   const failed = [];
   for (const [kind, item] of REFUSED_ITEMS) {
     const { dir } = buildRepo(`Built it.\n\nLeft out:\n- ${item}\n- Plain item: it stays.\n`);
-    const made = call(dir, ['report-build']);
+    const made = bcall(dir, ['report-build']);
     assert.equal(made.status, 0, `${kind}: ${made.out}${made.err}`);
     const file = path.join(dir, '.qory/artifacts/build-report.md');
     const got = call(dir, ['check', 'build-report', file]);
@@ -3400,7 +3406,7 @@ test('report-build: no left-out item makes check build-report refuse the report'
 test('report-build: a refused left-out item is replaced, and the items beside it stay', () => {
   const left = 'Built it.\n\nLeft out:\n- Read /Users/jo/app/config.js: it stays.\n- Plain item: it stays.\n- See http://example.com/docs: it stays.\n- See https://example.com/docs: it stays.\n';
   const { dir } = buildRepo(left);
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   const replaced = "- deliverable:d-1: an item that the report cannot contain; see the row's report in the ledger";
   assert.ok(reportOf(dir).endsWith(`## Left out\n\n${replaced}\n- deliverable:d-1: Plain item: it stays.\n${replaced}\n- deliverable:d-1: See https://example.com/docs: it stays.\n`), reportOf(dir));
   assert.equal(call(dir, ['check', 'build-report', path.join(dir, '.qory/artifacts/build-report.md')]).status, 0);
@@ -3419,7 +3425,7 @@ test('report-build: the checks column reads the newest clean record of the head,
   ledger.steps[0].replays = 1;
   ledger.steps[2].replays = 2;
   write(dir, '.qory/artifacts/.reports/build-ledger.json', JSON.stringify(ledger));
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   const text = reportOf(dir);
   assert.ok(text.includes('| ac-1: tests/ac1.test.js | red | green |'), text);
   assert.ok(text.includes('| ac-2: tests/ac2.test.js | red | unknown |'), text);
@@ -3441,7 +3447,7 @@ test('report-build: a title that qory drops, with U+200D, U+200C, U+0600 or U+E0
   for (const [char, code] of [['‍', '200D'], ['‌', '200C'], ['؀', '0600'],
     ['\u{E0041}', 'E0041']]) {
     write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('Add the sum', `Add${char} the sum`));
-    const got = call(dir, ['report-build']);
+    const got = bcall(dir, ['report-build']);
     assert.equal(got.status, 1, `${code}: ${got.out}${got.err}`);
     assert.equal(got.lines[0], `Remove U+${code} from the title of submission.md.`);
     assert.equal(got.lines[1],
@@ -3451,14 +3457,14 @@ test('report-build: a title that qory drops, with U+200D, U+200C, U+0600 or U+E0
   }
   // U+2028 is in the schema's pattern too, so it has one finding.
   write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('Add the sum', 'Add  the sum'));
-  assert.equal(call(dir, ['report-build']).lines.at(-1),
+  assert.equal(bcall(dir, ['report-build']).lines.at(-1),
     'Wrote no file: 1 finding on submission.md.');
 });
 
 test('report-build: spaces after the # of the title are trimmed', () => {
   const { dir } = buildRepo();
   write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('# Add', '#   Add'));
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.equal(outboxOf(dir).title, 'Add the sum helper');
 });
 
@@ -3466,7 +3472,7 @@ test('report-build: text between the title and ## Problem is a finding', () => {
   const { dir } = buildRepo();
   const file = outboxPath(dir);
   write(dir, '.qory/artifacts/.reports/submission.md', TEXT.replace('\n## Problem', '\nSome words.\n\n## Problem'));
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 1, got.out + got.err);
   assert.match(got.lines[0], /^Write the description of submission\.md in four parts, in their order\./);
   assert.ok(got.lines.includes('  Text comes before the first part.'), got.out);
@@ -3475,19 +3481,19 @@ test('report-build: text between the title and ## Problem is a finding', () => {
 
 test('report-build: Left out accepts * bullets, blank lines after the header and **Left out:**', () => {
   const { dir } = buildRepo('Built it.\n\nLeft out:\n\n* Dates: nobody reads them.\n- Retry: it never fails.\n\n## Next\n\nDone.');
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\n- deliverable:d-1: Dates: nobody reads them.\n- deliverable:d-1: Retry: it never fails.\n'));
   setReport(dir, 'Built it.\n\n**Left out:**\n- Dates: nobody reads them.\n');
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\n- deliverable:d-1: Dates: nobody reads them.\n'));
   setReport(dir, 'Built it.\n\n**Left out:** none\n');
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\nnone\n'));
 });
 
 test('report-build: a row whose report has no Left out: line has no item and no finding', () => {
   const { dir } = buildRepo('Built it. Nothing else to say.');
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
   assert.ok(reportOf(dir).endsWith('## Left out\n\nnone\n'));
 });
@@ -3501,10 +3507,10 @@ const UNREAD = "- deliverable:d-1: a list Left out: that the report cannot read;
 function unreadable(report, items = []) {
   const { dir } = buildRepo();
   const file = outboxPath(dir);
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   fs.rmSync(path.join(dir, '.qory/artifacts/build-report.md'));
   setReport(dir, report);
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
   assert.equal(fs.existsSync(file), true);
   const left = reportOf(dir).split('## Left out\n\n')[1];
@@ -3537,10 +3543,10 @@ test('report-build: a readable list beside an unreadable one keeps its items', (
 
 test('report-build: Left out skips blank lines between items and before a heading or the end', () => {
   const { dir } = buildRepo('Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\n- Retry: it never fails.\n\n## Next\n\nText.\n');
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\n- deliverable:d-1: Dates: nobody reads them.\n- deliverable:d-1: Retry: it never fails.\n'));
   setReport(dir, 'Built it.\n\nLeft out:\n- Dates: nobody reads them.\n\n\n');
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\n- deliverable:d-1: Dates: nobody reads them.\n'));
 });
 
@@ -3558,7 +3564,7 @@ test('report-build: a header in another spelling renders the placeholder line', 
 
 test('report-build: a sentence with the words left out is not a header', () => {
   const { dir } = buildRepo('Nothing was left out: the plan is built.\n');
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.ok(reportOf(dir).endsWith('## Left out\n\nnone\n'));
 });
 
@@ -3573,7 +3579,7 @@ test('report-build: a merge commit in the range of a row has an entry, and so do
   assert.equal(sh(dir, 'rev-list', '--parents', '-1', merge).split(' ').length, 3);
   const row = { ...ledger.steps[0], id: 'fix:f9', base: start, commit: merge };
   write(dir, '.qory/artifacts/.reports/build-ledger.json', JSON.stringify({ steps: [row], escalations: [] }));
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   const { steps } = outboxOf(dir);
   assert.deepEqual(steps.map((one) => one.commit).sort(), [...commits, side, merge].sort());
   assert.deepEqual([...new Set(steps.map((one) => one.step))], ['fix:f9']);
@@ -3584,7 +3590,7 @@ test('report-build: a merge commit in the range of a row has an entry, and so do
 test('report-build: after a reset, a commit of a row that HEAD cannot reach has no entry', () => {
   const { dir, commits } = buildRepo();
   sh(dir, 'reset', '-q', '--hard', commits[0]);
-  const got = call(dir, ['report-build']);
+  const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
   assert.deepEqual(outboxOf(dir).steps, [{ commit: commits[0], step: 'deliverable:d-1' }]);
 });
@@ -3594,7 +3600,7 @@ test('report-build: a submission.md that is a symbolic link, or has over 262144 
   const file = outboxPath(dir);
   const text = path.join(dir, '.qory/artifacts/.reports/submission.md');
   const refused = () => {
-    const got = call(dir, ['report-build']);
+    const got = bcall(dir, ['report-build']);
     assert.equal(got.status, 1, got.out + got.err);
     assert.equal(got.lines[0], 'Write submission.md as a file of at most 256 KB.');
     assert.equal(fs.existsSync(file), false);
@@ -3611,55 +3617,146 @@ test('report-build: a submission.md that is a symbolic link, or has over 262144 
   refused();
 });
 
-test('report-build: an outbox folder that is a link out of the checkout exits 3, no file', () => {
-  const { dir } = buildRepo();
-  const outside = path.join(tmp, `outside-${++count}`);
-  fs.mkdirSync(outside);
-  fs.mkdirSync(path.join(dir, '.qory'), { recursive: true });
-  // The link is the outbox folder, then the folder of the type below a folder that exists.
-  for (const link of ['.qory/outbox', '.qory/outbox/pull-request']) {
-    fs.rmSync(path.join(dir, '.qory/outbox'), { recursive: true, force: true });
-    fs.mkdirSync(path.dirname(path.join(dir, link)), { recursive: true });
-    fs.symlinkSync(outside, path.join(dir, link));
-    const got = call(dir, ['report-build']);
-    assert.equal(got.status, 3, `${link}: ${got.out}${got.err}`);
-    assert.equal(got.lines[0], 'Remove the link in the path of the outbox.');
-    assert.deepEqual(fs.readdirSync(outside), []);
-    assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), false);
-    assert.deepEqual(fs.readdirSync(path.join(dir, '.qory/artifacts'))
-      .filter((name) => name.endsWith('.tmp')), []);
+// manyCommits adds count empty commits to dir with git fast-import, moves HEAD to the last one,
+// and returns it. A ledger row over them lists each commit in the output.
+function manyCommits(dir, count) {
+  const parts = [];
+  for (let at = 0; at < count; at += 1) {
+    parts.push('commit refs/heads/many', 'committer t <t@example.com> 1700000000 +0000',
+      'data 1', 'x');
+    if (at === 0) parts.push(`from ${sh(dir, 'rev-parse', 'HEAD')}`);
+    parts.push('');
+  }
+  const ran = childProcess.spawnSync('git', ['-C', dir, 'fast-import', '--quiet'],
+    { input: parts.join('\n'), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  assert.equal(ran.status, 0, ran.stderr);
+  sh(dir, 'reset', '-q', '--hard', 'refs/heads/many');
+  return sh(dir, 'rev-parse', 'HEAD');
+}
+
+test('report-build: a link in the outbox folder, its parent or the folder pull-request exits 3, ' +
+  'no file', () => {
+  for (const where of ['inside', 'outside']) {
+    for (const place of ['outbox', 'parent', 'type']) {
+      const { dir } = buildRepo();
+      const target = where === 'inside' ? path.join(dir, `linked-${place}`)
+        : path.join(tmp, `outside-${++count}`);
+      fs.mkdirSync(target);
+      // The link is the outbox folder, the folder above it, or the folder of the type.
+      let outbox = outboxFolder(dir);
+      if (place === 'outbox') {
+        fs.symlinkSync(target, outbox);
+      } else if (place === 'parent') {
+        fs.symlinkSync(target, path.join(dir, '.qory/box'));
+        outbox = path.join(dir, '.qory/box/outbox');
+      } else {
+        fs.mkdirSync(outbox);
+        fs.symlinkSync(target, path.join(outbox, 'pull-request'));
+      }
+      const name = `${where} ${place}`;
+      const got = bcall(dir, ['report-build'], { env: { QORY_OUTBOX: outbox } });
+      assert.equal(got.status, 3, `${name}: ${got.out}${got.err}`);
+      assert.equal(got.lines[0], 'Remove the link in the path of the outbox.', name);
+      assert.deepEqual(fs.readdirSync(target), [], name);
+      assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), false, name);
+      assert.deepEqual(fs.readdirSync(path.join(dir, '.qory/artifacts'))
+        .filter((file) => file.endsWith('.tmp')), [], name);
+    }
   }
 });
 
-test('report-build --drop and the cleanup on failure remove no file in a folder that a link moves out of the checkout', () => {
+test('report-build --drop and the cleanup on failure remove no file in a folder that a link ' +
+  'moves out of the outbox', () => {
   const { dir } = buildRepo();
   const outside = path.join(tmp, `outside-${++count}`);
   fs.mkdirSync(outside);
   fs.writeFileSync(path.join(outside, 'pull-request.json'), '{}\n');
-  fs.mkdirSync(path.join(dir, '.qory/outbox'), { recursive: true });
-  fs.symlinkSync(outside, path.join(dir, '.qory/outbox/pull-request'));
-  const dropped = call(dir, ['report-build', '--drop']);
+  fs.mkdirSync(outboxFolder(dir), { recursive: true });
+  fs.symlinkSync(outside, path.join(outboxFolder(dir), 'pull-request'));
+  const dropped = bcall(dir, ['report-build', '--drop']);
   assert.equal(dropped.status, 3, dropped.out + dropped.err);
-  assert.deepEqual(dropped.err.split('\n').filter(Boolean).length, 1, dropped.err);
-  assert.match(dropped.err, /leads outside the checkout/);
+  assert.match(dropped.err, /^Remove the link in the path of the outbox by hand\.\n.* is a link/);
   assert.equal(fs.existsSync(path.join(outside, 'pull-request.json')), true);
-  const failed = call(dir, ['report-build', '--bad']);
+  const failed = bcall(dir, ['report-build', '--bad']);
   assert.equal(failed.status, 2, failed.out + failed.err);
   assert.equal(fs.existsSync(path.join(outside, 'pull-request.json')), true);
+});
+
+test('report-build: QORY_OUTBOX unset or relative exits 3, writes no file and no report, and ' +
+  'removes an earlier output only through a valid variable', () => {
+  const { dir } = buildRepo();
+  const file = outboxPath(dir);
+  const report = path.join(dir, '.qory/artifacts/build-report.md');
+  assert.equal(bcall(dir, ['report-build']).status, 0);
+  const raw = fs.readFileSync(file, 'utf8');
+  fs.rmSync(report);
+  for (const value of [undefined, '', '.qory/outbox', 'outbox']) {
+    const got = bcall(dir, ['report-build'], { env: { QORY_OUTBOX: value } });
+    assert.equal(got.status, 3, `${value}: ${got.out}${got.err}`);
+    assert.equal(got.lines[0], 'Set QORY_OUTBOX to the absolute path of the outbox folder.');
+    assert.equal(fs.existsSync(report), false, String(value));
+    // The output of the earlier run is at the old place and stays: no variable names it.
+    assert.equal(fs.readFileSync(file, 'utf8'), raw, String(value));
+    assert.deepEqual(fs.readdirSync(path.dirname(file)), ['pull-request.json']);
+    assert.deepEqual(fs.readdirSync(path.join(dir, '.qory/artifacts'))
+      .filter((name) => name.endsWith('.tmp')), []);
+  }
+  // A relative variable makes no file in the working folder either.
+  assert.equal(fs.existsSync(path.join(dir, 'outbox')), false);
+  assert.equal(fs.existsSync(path.join(dir, '.qory/outbox/.qory')), false);
+  // A call with the valid variable that fails removes the earlier output.
+  assert.equal(bcall(dir, ['report-build', '--bad']).status, 2);
+  assert.equal(fs.existsSync(file), false);
+});
+
+test('report-build --drop with QORY_OUTBOX unset removes nothing and exits 0', () => {
+  const { dir } = buildRepo();
+  const file = outboxPath(dir);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
+  const got = bcall(dir, ['report-build', '--drop'], { env: { QORY_OUTBOX: undefined } });
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.deepEqual(got.lines,
+    ['No output file at $QORY_OUTBOX/pull-request/pull-request.json to remove.']);
+  assert.equal(fs.existsSync(file), true);
+});
+
+test('report-build: an output over 786432 bytes exits 1, writes no file, and removes an earlier ' +
+  'output', () => {
+  const { dir, commits, ledger } = buildRepo();
+  const file = outboxPath(dir);
+  const report = path.join(dir, '.qory/artifacts/build-report.md');
+  assert.equal(bcall(dir, ['report-build']).status, 0);
+  assert.equal(fs.existsSync(file), true);
+  fs.rmSync(report);
+  // One row over 7500 commits: each entry has about 108 bytes, so the output has over 810000.
+  const tip = manyCommits(dir, 7500);
+  const big = { ...ledger.steps[1], id: `fix:${'a'.repeat(40)}`, base: commits[2], commit: tip };
+  write(dir, '.qory/artifacts/.reports/build-ledger.json',
+    JSON.stringify({ steps: [...ledger.steps, big], escalations: [] }));
+  const got = bcall(dir, ['report-build']);
+  assert.equal(got.status, 1, got.out.slice(0, 300) + got.err.slice(0, 300));
+  assert.equal(got.lines[0], 'Cut submission.md so that ' +
+    '$QORY_OUTBOX/pull-request/pull-request.json has at most 786432 bytes.');
+  assert.match(got.lines.join('\n'), /The output has \d{6,} bytes/);
+  assert.equal(got.lines.at(-1), 'Wrote no file: 1 finding on the output.');
+  assert.equal(fs.existsSync(file), false);
+  assert.equal(fs.existsSync(report), false);
+  assert.deepEqual(fs.readdirSync(path.join(dir, '.qory/artifacts'))
+    .filter((name) => name.endsWith('.tmp')), []);
 });
 
 test('report-build --drop removes the output file only, and exits 2 with another argument', () => {
   const { dir } = buildRepo();
   const file = outboxPath(dir);
-  assert.equal(call(dir, ['report-build']).status, 0);
+  assert.equal(bcall(dir, ['report-build']).status, 0);
   const built = reportOf(dir);
-  const got = call(dir, ['report-build', '--drop']);
+  const got = bcall(dir, ['report-build', '--drop']);
   assert.equal(got.status, 0, got.out + got.err);
   assert.deepEqual(got.lines, ['Removed the output file.']);
   assert.equal(fs.existsSync(file), false);
   assert.equal(reportOf(dir), built);
-  assert.deepEqual(call(dir, ['report-build', '--drop']).lines,
-    ['No output file at .qory/outbox/pull-request/pull-request.json to remove.']);
-  assert.equal(call(dir, ['report-build', '--drop']).status, 0);
-  assert.equal(call(dir, ['report-build', '--drop', '--inputs', 'x']).status, 2);
+  assert.deepEqual(bcall(dir, ['report-build', '--drop']).lines,
+    ['No output file at $QORY_OUTBOX/pull-request/pull-request.json to remove.']);
+  assert.equal(bcall(dir, ['report-build', '--drop']).status, 0);
+  assert.equal(bcall(dir, ['report-build', '--drop', '--inputs', 'x']).status, 2);
 });
