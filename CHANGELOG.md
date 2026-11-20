@@ -52,9 +52,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     temporary file that it renames into place. On each non-zero exit it removes an earlier
     hand-off file. When `.reports/submission.md` breaks a rule, it exits with 1 and writes
     no file; when a write fails, it exits with 3.
-  - A title with a character of the Unicode class Cf, U+2028 or U+2029 exits with 1,
-    because qory does not accept such a title and drops the whole text. A description with text
-    before `## Problem` exits with 1.
+  - A title with a Cc character, U+2028, U+2029, or a Cf character other than U+200C and
+    U+200D (the joiners of emoji), exits with 1, because qory does not accept such a title
+    and drops the whole text. A description with text before `## Problem` exits with 1.
   - A list `Left out:` in the `report` of a ledger row is the lines `- <item>: <risk>` or
     `* <item>: <risk>` after the line `Left out:` or `**Left out:**` and its blank lines.
     A list that the verb cannot read adds the item "a list Left out: that the report

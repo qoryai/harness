@@ -9,9 +9,9 @@ module.exports = (lib) => {
   const { lines, sections, schema } = lib;
 
   // The pattern of the schema for a title lets through some characters that qory does not
-  // accept in a title: the Unicode class Cf, U+2028 and U+2029.
+  // accept: each Cc, U+2028, U+2029 and each Cf but U+200C and U+200D, the joiners of emoji.
   const TITLE_OK = new RegExp(schema.load(SCHEMAS, 'pull-request').schema.$defs.title.pattern);
-  const TITLE_REFUSED = /[\p{Cf}\u2028\u2029]/u;
+  const TITLE_REFUSED = /[\p{Cc}\u2028\u2029]|(?![\u200C\u200D])\p{Cf}/u;
 
   // titleFindings returns the finding of a title that passes the pattern of the schema and has
   // such a character, or none. where is the words for the title in the fix.
