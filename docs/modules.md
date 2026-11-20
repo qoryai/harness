@@ -1357,50 +1357,50 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 and `HOME` by default.
 
 Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code, Codex,
-Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads
-no preload into a hook process. The path is absolute, so that no `env` earlier in `PATH`
-replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
+`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code,
+Codex, Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets
+then loads no preload into a hook process. The path is absolute, so that no `env` earlier in
+`PATH` replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
 `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
-checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are the
-ones that Linux reads.
+checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are
+the ones that Linux reads.
 
 A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
 cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
-environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks up
-from the working folder to the home folder, and in each folder it takes `.gemini/.env`
+environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks
+up from the working folder to the home folder, and in each folder it takes `.gemini/.env`
 before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
 script before a hook command. So `settings/gemini/settings.json` does two things:
 
 - It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
   field to the environment of the hook after the other variables, and bash reads no file for
-  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it is
-  read from the source of 0.68.0.
+  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it
+  is read from the source of 0.68.0.
 - It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
   `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
   Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list
-  set and no `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before the
-  hook.
+  set and no `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before
+  the hook.
 
 The guard denies a write to a file named `.env`, which includes `.gemini/.env`. For the
 write tools it reads paths with the rules of `.reports/`: links, `..` and patch headers. It
 denies a shell command in which a word is `.env`, or becomes `.env` after the shell removes
 quotes and backslashes. `.env.example`, `.envrc` and `.venv` pass. The guards of Gemini CLI,
-Cursor and Copilot CLI read the headers of a unified diff. The Codex tool guard reads only the
-Codex headers, because Codex rejects a unified diff and writes nothing.
+Cursor and Copilot CLI read the headers of a unified diff. The Codex tool guard reads only
+the Codex headers, because Codex rejects a unified diff and writes nothing.
 
 A command still reaches `.env` past the guard through a glob or braces such as `.en?` and
-`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same. A command
-that applies a diff from a file, such as `git apply fix.diff` or `patch`, has no `.env` in its
-text, as with a glob. The heredoc form is denied. In
-a run on Claude Code and Codex, a command of read-only programs is not read, as for
-`.reports/`, so `cat .env` passes there.
+`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same.
+A command that applies a diff from a file, such as `git apply fix.diff` or `patch`, has no
+`.env` in its text, as with a glob. The heredoc form is denied. In a run on Claude Code and
+Codex, a command of read-only programs is not read, as for `.reports/`, so `cat .env` passes
+there.
 
-By design, as for `.reports/`, the shell rule on all five runtimes also denies a command with
-the word `.env` as text, such as a commit message. It also denies a folder named `.env`.
-So `echo .env >> .gitignore` and `printf '.env\n' >> .gitignore` are denied. A patch or a
-write tool adds the line `.env` to `.gitignore`: the guard reads only the file headers of a
-patch, and the text that a write tool writes is no path.
+By design, as for `.reports/`, the shell rule on all five runtimes also denies a command
+with the word `.env` as text, such as a commit message. It also denies a folder named
+`.env`. So `echo .env >> .gitignore` and `printf '.env\n' >> .gitignore` are denied. A patch
+or a write tool adds the line `.env` to `.gitignore`: the guard reads only the file headers
+of a patch, and the text that a write tool writes is no path.
 
 The test of the real Gemini CLI runs when `gemini` is on `PATH`, and fails when its version
 is not 0.68.0, because the field `env` is read from the source of that version. CI has no
@@ -4025,12 +4025,13 @@ The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.tes
 instruction to install `node` when `node` is missing. Only the sign-in tests of
 `scripts/preflight.test.js` start a browser, and they skip when the machine has none.
 
-Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the 13
-hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for
-Copilot CLI, 3 for Cursor and 2 for Gemini CLI. Each command must pass `sh -n`, `bash -n` and
-`shellcheck -s sh`. A Gemini CLI command, which Gemini starts through `bash -c`, must also pass
-`shellcheck -s bash`. Each file of `modules/core/hooks/` must pass `node --check`, and each file
-that a command runs must exist there. Without `shellcheck` on the `PATH`, the step prints a line
-that starts with `SKIP` and runs the other checks. When the variable `CI` is set, as on GitHub
-Actions, a missing `shellcheck` fails the step. `scripts/hook-commands.test.js` runs the step on
-a command with an unquoted variable and on a hook file with a syntax error.
+Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the
+13 hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for
+Copilot CLI, 3 for Cursor and 2 for Gemini CLI. Each command must pass `sh -n`, `bash -n`
+and `shellcheck -s sh`. A Gemini CLI command, which Gemini starts through `bash -c`, must
+also pass `shellcheck -s bash`. Each file of `modules/core/hooks/` must pass `node --check`,
+and each file that a command runs must exist there. Without `shellcheck` on the `PATH`, the
+step prints a line that starts with `SKIP` and runs the other checks. When the variable `CI`
+is set, as on GitHub Actions, a missing `shellcheck` fails the step.
+`scripts/hook-commands.test.js` runs the step on a command with an unquoted variable and on
+a hook file with a syntax error.
