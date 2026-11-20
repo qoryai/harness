@@ -85,7 +85,7 @@ function readOutputs(inputs) {
 }
 
 // linked returns the first of the outbox folder, its parent and the folder of the type that is
-// a link, or null. report-build of the software module applies the same rule, through LIBRARY.
+// a link, or null. A module that writes the outbox applies the same rule, through LIBRARY.
 function linked(outbox, type) {
   for (const part of [path.dirname(outbox), outbox, path.join(outbox, type)]) {
     try {
