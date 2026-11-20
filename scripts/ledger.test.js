@@ -644,6 +644,16 @@ test('ledger: after a cancelled run, the next session redoes a step whose commit
   assert.notEqual(row.base, lost);
 });
 
+test('ledger: the hand-off file under .qory/handoff is no edit of a step', () => {
+  const w = work();
+  const call = resumed(w);
+  assert.equal(begin(call, w, 'plan').status, 0);
+  fs.mkdirSync(path.join(w.repo, '.qory', 'handoff'), { recursive: true });
+  fs.writeFileSync(path.join(w.repo, '.qory', 'handoff', 'submission.json'), '{"steps":{}}');
+  assert.equal(call('step', 'end', 'plan', 'done').status, 0);
+  assert.equal(begin(call, w, 'checks').status, 0);
+});
+
 test('ledger: step end done needs a clean checkout and a head that follows the base', () => {
   const w = work();
   // An untracked file is an edit; a file under .qory is none, also from a subfolder.
@@ -672,6 +682,91 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
     'of the step.');
   assert.match(away.lines[1], new RegExp(`^ {2}checks started on ${start.slice(0, 12)}, and the ` +
     'head [0-9a-f]{12} does not follow it\\.$'));
+});
+
+// An unreadable list `Left out:` in the report fails step end done, with the cause of each
+// list on its own line; a list that leftOut reads, and a report with no such line, pass.
+const LINE = 'a line that is not an item in the list `Left out:`';
+const HEADER = 'a header that is not `Left out:` or `**Left out:**` at column 0';
+
+test('ledger: step end done refuses a report with a list Left out: that cannot be read', () => {
+  const w = work();
+  const call = resumed(w);
+  assert.equal(begin(call, w, 'plan').status, 0);
+  const cases = [
+    ['an indented bullet', 'Built it.\n\nLeft out:\n  - the cache: slow\n',
+      'an indented list'],
+    ['an item continued on an indented line', 'Left out:\n- the cache: slow\n  and stale\n',
+      'an item that continues on an indented line'],
+    ['items after none', 'Left out: none\n- the cache: slow\n', 'items after `Left out: none`'],
+    ['text after the header', 'Left out: the cache\n', 'text after `Left out:` on its line ' +
+      'that is not none'],
+    ['a header with no item', 'Left out:\n\nBuilt it.\n', 'no item and no none after `Left out:`'],
+    ['a line after an item', 'Left out:\n- the cache: slow\nBuilt it.\n', LINE],
+    ['a paragraph after a blank line', 'Left out:\n- the cache: slow\n\nBuilt it.\n', LINE],
+    ['a paragraph after two items', 'Left out:\n- a: r\n\n- b: r\n\nBuilt it.\n', LINE],
+    ['bold with the colon outside', '**Left out**:\n- the cache: slow\n', HEADER],
+    ['lower case', 'left out:\n- the cache: slow\n', HEADER],
+    ['leading spaces', '  Left out:\n- the cache: slow\n', HEADER],
+    ['a heading', '## Left out\n- the cache: slow\n', HEADER],
+    ['a heading with a colon', '### Left out:\n- the cache: slow\n', HEADER],
+    ['bold with an item on its line', '**Left out**: the cache\n', HEADER],
+    ['lower case with an item on its line', 'left out: the cache\n', HEADER],
+    ['a heading with an item on its line', '## Left out: the cache\n', HEADER],
+  ];
+  for (const [name, text, problem] of cases) {
+    const refused = call('step', 'end', 'plan', 'done', '--report',
+      report(call, 'software-developer-plan', text));
+    assert.equal(refused.status, 1, `${name}: ${refused.out}`);
+    assert.deepEqual(refused.lines.slice(0, 2),
+      ['Fix the list Left out: of your report.', `  ${problem}`], name);
+    assert.equal(refused.lines.at(-1), 'Checked the step plan: the ledger is unchanged.');
+    assert.deepEqual(stored(w).ledger.steps.map((row) => row.state), ['running'], name);
+  }
+  // Each list that cannot be read adds a line.
+  const two = call('step', 'end', 'plan', 'done', '--report',
+    report(call, 'software-developer-plan', 'Left out:\n\nLeft out: a\n'));
+  assert.equal(two.status, 1, two.out);
+  assert.deepEqual(two.lines.slice(0, 3), ['Fix the list Left out: of your report.',
+    '  no item and no none after `Left out:`', '  text after `Left out:` on its line that is ' +
+    'not none']);
+});
+
+test('ledger: step end done accepts each list Left out: that can be read, or none', () => {
+  const w = work();
+  const call = resumed(w);
+  const texts = [
+    'Left out:\n- the cache: slow\n- the docs: stale\n',
+    'Left out:\n* the cache: slow\n',
+    'Left out:\n\n\n- the cache: slow\n',
+    'Left out:\n- the cache: slow\n\n- the docs: stale\n\n\n',
+    'Left out:\n- the cache: slow\n\n## Next\n\nBuilt it.\n',
+    'Nothing was left out: the plan is built.\n',
+    '**Left out:**\n- the cache: slow\n',
+    'Left out: none\n',
+    'Built it.\n',
+  ];
+  texts.forEach((text, at) => {
+    const id = `deliverable:d-${at + 1}`;
+    assert.equal(begin(call, w, id).status, 0);
+    const ended = call('step', 'end', id, 'done', '--report',
+      report(call, 'software-developer-plan', text));
+    assert.equal(ended.status, 0, `${text}: ${ended.out}`);
+    assert.equal(stored(w).ledger.steps[at].report, text);
+  });
+});
+
+test('ledger: step end failed records a report with a list Left out: that cannot be read', () => {
+  const w = work();
+  const call = resumed(w);
+  assert.equal(begin(call, w, 'plan').status, 0);
+  const text = 'Left out:\n  - the cache: slow\n';
+  const failed = call('step', 'end', 'plan', 'failed', '--report',
+    report(call, 'software-developer-plan', text));
+  assert.equal(failed.status, 0, failed.out);
+  const row = stored(w).ledger.steps[0];
+  assert.equal(row.state, 'failed');
+  assert.equal(row.report, text);
 });
 
 // ---- Replays, rows and reports --------------------------------------------------------------

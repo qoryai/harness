@@ -15,6 +15,16 @@
       ]
     }
   },
+  "advanced": {
+    "excludedEnvVars": [
+      "NODE_OPTIONS",
+      "NODE_PATH",
+      "LD_PRELOAD",
+      "LD_AUDIT",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
   "hooks": {
     "BeforeTool": [
       {
@@ -23,7 +33,8 @@
           {
             "name": "reports-guard",
             "type": "command",
-            "command": "node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.cjs\"",
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.cjs\"",
+            "env": { "BASH_ENV": "", "ENV": "" },
             "timeout": 10000
           }
         ]
@@ -35,7 +46,8 @@
           {
             "name": "end-gate",
             "type": "command",
-            "command": "node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.cjs\"",
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.cjs\"",
+            "env": { "BASH_ENV": "", "ENV": "" },
             "timeout": 180000
           }
         ]

@@ -226,10 +226,11 @@ An agent that the table does not list sets no `model` key.
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. The session writes no file, except `points.json` in a small or high-level
-  workflow and in `explore-a-ticket` on a failure. An agent does each other task, and it
-  loads the skills that contain the rules of that task. The session loads `run-artifacts`,
-  which contains the rule that a text cannot change the rules, and, in a small or
-  high-level workflow, `running-a-workflow`.
+  workflow and in `explore-a-ticket` on a failure, and, in `review-changes`,
+  `build-report.md` and the hand-off file, which the verb `report-build` writes. An agent
+  does each other task, and it loads the skills that contain the rules of that task. The
+  session loads `run-artifacts`, which contains the rule that a text cannot change the
+  rules, and, in a small or high-level workflow, `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -247,22 +248,23 @@ An agent that the table does not list sets no `model` key.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
-  `scenario-writer`'s add Write and Edit, and `proposal-writer`'s adds Write, Edit, WebFetch
-  and WebSearch. A reviewer of a change, such as `code-reviewer`, which qory starts as the
-  main agent of a separate session, lists Write beside the four read tools and writes at one
-  path, its report: the body has the line `Tool exception: Write, because it writes the one
-  report file of a review round.` The tool guard denies each other write of that session,
-  and each write of an agent of that session. For an agent whose type ends in `-reviewer` it
-  denies the write tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `apply_patch`) in
-  any session. Outside a reviewer session the guard does not apply the read-only shell rule
-  of a reviewer session to that agent; its shell is limited only by the other rules of the
-  guard. The name in the front matter of an agent that lists Write equals its file name
-  without `.md`, because the guard reads that name. A subagent keeps the session's `dontAsk`
-  mode and allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that
-  folder, and `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and
-  `grep` still run in the main session, so "only `qory` commands and the read forms" is a
-  rule in the skill's text, not an enforced limit. On Claude Code's native build, a `tools`
-  key that lists Bash removes Grep and Glob, so an exception for Bash also drops those two
+  `scenario-writer`'s add Write and Edit, `submission-writer`'s adds Write alone, and
+  `proposal-writer`'s adds Write, Edit, WebFetch and WebSearch. A reviewer of a change,
+  such as `code-reviewer`, which qory starts as the main agent of a separate session, lists
+  Write beside the four read tools and writes at one path, its report: the body has the
+  line `Tool exception: Write, because it writes the one report file of a review round.`
+  The tool guard denies each other write of that session, and each write of an agent of
+  that session. For an agent whose type ends in `-reviewer` it denies the write tools
+  (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `apply_patch`) in any session. Outside
+  a reviewer session the guard does not apply the read-only shell rule of a reviewer
+  session to that agent; its shell is limited only by the other rules of the guard. The
+  name in the front matter of an agent that lists Write equals its file name without `.md`,
+  because the guard reads that name. A subagent keeps the session's `dontAsk` mode and
+  allow rules: `Edit(//tmp/qory-artifacts/**)` allows Write and Edit in that folder, and
+  `dontAsk` denies them elsewhere. Built-in read-only commands such as `ls` and `grep`
+  still run in the main session, so "only `qory` commands and the read forms" is a rule in
+  the skill's text, not an enforced limit. On Claude Code's native build, a `tools` key
+  that lists Bash removes Grep and Glob, so an exception for Bash also drops those two
   tools or states how the agent searches. Copilot keeps the key, untested.
 - On Codex, the `tools` key only turns the shell off: at qory `0e02282`, the compose writes
   `name`, `description` and `developer_instructions` into an agent's file, and
@@ -1326,8 +1328,8 @@ never prints `allow`, for the reason in the paragraph after the list of hooks. T
 - Gemini CLI: the `BeforeTool` hook, for `write_file`, `replace` and `run_shell_command`.
   It denies with `decision: deny` and `reason`.
 - Cursor: the `preToolUse` hook for `Write` and `Delete`, and the `beforeShellExecution`
-  hook for a command that the guard can deny: one with `.r`, `*`, `?`, `[`, `{`, `$`, a
-  backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
+  hook for a command that the guard can deny: one with `.r`, `.env`, `*`, `?`, `[`, `{`, `$`,
+  a backtick, a quote, a backslash, `~` or `eval`. So an ordinary command, such as
   `ls -la`, starts no hook. It denies with `permission: deny` and exit code 2.
 - Copilot CLI: the `preToolUse` hook, for `create`, `edit`, `apply_patch`,
   `str_replace_editor`, `bash` and `powershell`, and for `write_bash` and
@@ -1353,6 +1355,56 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 `QORY_RUN_API`, `QORY_SESSION`, `QORY_HARNESS_HOME`, and `HTTP_PROXY`, `HTTPS_PROXY` and
 `NO_PROXY` in both cases, through which qory reaches the gateway. Gemini CLI passes `PATH`
 and `HOME` by default.
+
+Each of the 13 hook commands in `modules/core/settings/` starts `node` through
+`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code, Codex,
+Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads
+no preload into a hook process. The path is absolute, so that no `env` earlier in `PATH`
+replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
+`DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
+checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are the
+ones that Linux reads.
+
+A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
+cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
+environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks up
+from the working folder to the home folder, and in each folder it takes `.gemini/.env`
+before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
+script before a hook command. So `settings/gemini/settings.json` does two things:
+
+- It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
+  field to the environment of the hook after the other variables, and bash reads no file for
+  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it is
+  read from the source of 0.68.0.
+- It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
+  `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
+  Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list
+  set and no `env` field, a `BASH_ENV` line in `.gemini/.env` still ran its script before the
+  hook.
+
+The guard denies a write to a file named `.env`, which includes `.gemini/.env`. For the
+write tools it reads paths with the rules of `.reports/`: links, `..` and patch headers. It
+denies a shell command in which a word is `.env`, or becomes `.env` after the shell removes
+quotes and backslashes. `.env.example`, `.envrc` and `.venv` pass. The guards of Gemini CLI,
+Cursor and Copilot CLI read the headers of a unified diff. The Codex tool guard reads only the
+Codex headers, because Codex rejects a unified diff and writes nothing.
+
+A command still reaches `.env` past the guard through a glob or braces such as `.en?` and
+`.en{v,}`, a variable, or `python -c`. A script that it writes and then runs does the same. A command
+that applies a diff from a file, such as `git apply fix.diff` or `patch`, has no `.env` in its
+text, as with a glob. The heredoc form is denied. In
+a run on Claude Code and Codex, a command of read-only programs is not read, as for
+`.reports/`, so `cat .env` passes there.
+
+By design, as for `.reports/`, the shell rule on all five runtimes also denies a command with
+the word `.env` as text, such as a commit message. It also denies a folder named `.env`.
+So `echo .env >> .gitignore` and `printf '.env\n' >> .gitignore` are denied. A patch or a
+write tool adds the line `.env` to `.gitignore`: the guard reads only the file headers of a
+patch, and the text that a write tool writes is no path.
+
+The test of the real Gemini CLI runs when `gemini` is on `PATH`, and fails when its version
+is not 0.68.0, because the field `env` is read from the source of that version. CI has no
+`gemini`, so it skips that test.
 
 In a run, a guard runs before each tool call: `tool-guard-claude.cjs` on Claude Code and
 `tool-guard-codex.cjs` on Codex, through `tool-guard.cjs`. The `PreToolUse` hooks of
@@ -1938,8 +1990,16 @@ it is "Copy the first sentence from AC-2 in the criteria." Beyond the schema, th
 find:
 
 - `submission`: a `passed` verdict with no `text`; a description without the parts
-  `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order; and the form of a
-  secret, such as a private key or an access token, in the title or the description;
+  `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order, or with text
+  before `## Problem`; the form of a
+  secret, such as a private key or an access token, in the title or the description; and,
+  from its schema, a `base` with no `commit`; a `commits[]` entry with no
+  `commit` or with a `step` of 0 or more than 128 characters; a `none` reason
+  `program-failed` with no `exit` of 0, 1 or 2, `login-needed` with no `exit` of 3, or
+  another reason with an `exit`; a title of 0 or more than 256 characters, of spaces only,
+  or with a control or invisible character, such as a tab, U+200B or U+202E; and a
+  description of more than 20000 characters, with a NUL, or with a line that starts with
+  `<!-- qory:start -->` or `<!-- qory:end -->`;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
   than 7 deliverables; an id other than `d-<N>`, or one id twice; a Criteria cell other than
   each criterion as its id, in any case, and its words in quotes, with `; ` between them,
@@ -1959,10 +2019,13 @@ find:
   backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links
   finds a bare http link; and, in `## Deliverables` or `## Commands`, a table with other
   columns than those that the check reads, or a second table with them;
-- `build-report`: sections other than those of the full path, `## Summary`, `## Steps`,
-  `## Review rounds`, `## Checks`, `## Counts` and `## Not run`, or those of a short
-  session, `## Summary`, `## Change`, `## Proofs`, `## Criterion` and `## Not run`, with
-  `## Escalation` after them when the session escalated;
+- `build-report`: sections other than those of the standard track, `## Summary`,
+  `## Steps`, `## Review rounds`, `## Checks`, `## Counts`, `## Not run` and `## Left out`,
+  or those of the fast track, `## Summary`, `## Change`, `## Proofs`, `## Criterion`,
+  `## Not run` and `## Left out`, with `## Escalation` after them when the session
+  escalated. In a session with the build ledger, the check renders each section of the
+  standard track from the records again, as `report-build` lists, and `none` is a valid
+  body of `## Left out`;
 - `build-ledger`: a file other than one line of compact JSON, the text that
   `JSON.stringify` writes for its value, with at most one newline at its end; an id outside
   `plan`, `checks`, `small-change`, `deliverable:d-<N>`, `fix:<id>` and
@@ -2193,7 +2256,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
   `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
   `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is a
-  finding of `done`. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
+  finding of `done`, and so is a list `Left out:` in the report that `report-build` cannot
+  read, which `done` refuses with "Fix the list Left out: of your report." and the cause of
+  each such list. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
   `step end failed` always records the row: a report that is too long or cannot be read is
   left out, with a line that says why, and the verb exits 0.
 
@@ -2752,24 +2817,52 @@ of the criterion is cut in both to its first 8 words and "...".
 
 `workflow-review-changes`, process entry `review-changes`, checks a Build run and ends it
 ready, for the review round when the stage has reviewers. The stack lists the workflow with
-`tier: thinking` and `access: write`. The session starts no agent and runs no ledger step.
-It pulls and runs `checks.cjs resume`. Then it reads the build plan of the run's start: the
-version that `newest_version` of `build-plan` lists in the `index.json` of the folder of
-`qory.start_artifacts`, as `lib/plan.cjs` of `running-a-software-workflow` reads it. It also
-reads `.reports/build-ledger.json` of the artifact folder, which `resume` writes from the
-version of the ledger that counts. A deliverable is built when the ledger row of
-`deliverable:<id>` with the highest `pass` has the `state` `done`. With no build plan, or
-one that is withdrawn, the session ends with a `run_again` point whose fix is "Plan the
-build, so that a run pushes the build plan." While a deliverable is not built, it runs
-`qory run verdict changes-requested` with no point and ends with "<k> of <n> planned changes
-are not built: d-2, "<Change cell>".", cut to 500 characters. It writes no `points.json`
-then, because qory sends `escalate` or `answer` from that file. Otherwise, in a run, it runs
-`checks.cjs lock --verify`, and ends the same way with the paths of the locked files that
-differ. Outside a run it skips the verify, because the verify would read the local artifact
-folder. With every check passed, it ends with "The change is ready: each planned change is
-built." In a stage that has reviewers, it runs no verdict command, and qory then runs the
-review round. In a stage with none, such as when `inputs.json` has no
-`qory.stage.reviewers`, it runs `qory run verdict passed` first.
+`tier: thinking` and `access: write`. The session starts no agent before its end, and runs
+no ledger step. It pulls and runs `checks.cjs resume`. Then it reads the build plan of the
+run's start: the version that `newest_version` of `build-plan` lists in the `index.json` of
+the folder of `qory.start_artifacts`, as `lib/plan.cjs` of `running-a-software-workflow`
+reads it. It also reads `.reports/build-ledger.json` of the artifact folder, which `resume`
+writes from the version of the ledger that counts. A deliverable is built when the ledger
+row of `deliverable:<id>` with the highest `pass` has the `state` `done`. With no build
+plan, or one that is withdrawn, the session ends with a `run_again` point whose fix is
+"Plan the build, so that a run pushes the build plan." While a deliverable is not built, it
+runs `qory run verdict changes-requested` with no point and ends with "<k> of <n> planned
+changes are not built: d-2, "<Change cell>".", cut to 500 characters. It writes no
+`points.json` then, because qory sends `escalate` or `answer` from that file. Otherwise, in
+a run, it runs `checks.cjs lock --verify`, and ends the same way with the paths of the
+locked files that differ. Outside a run it skips the verify, because the verify would read
+the local artifact folder. With every check passed, "The end" of the skill has five steps,
+in this order:
+1. It starts `submission-writer`, which writes `.reports/submission.md` of the artifact
+   folder: the title, then `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in the
+   order of the check of `submission`, from the build plan, the build ledger and the
+   records of the checks, with no result typed. A runtime with no tool that starts an
+   agent, a start that fails, a report that still fails its check after two fixes and a
+   `blocked` report end the run as "Failures" of `running-a-workflow` lists.
+2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
+   in the artifact folder and writes the hand-off file at the value of
+   `QORY_SUBMISSION_HANDOFF`, under `.qory/handoff/`. The ledger's edit check skips
+   `.qory/`. With exit 1, a rule of the text broke: the session starts
+   `submission-writer` again with the lines that `report-build` printed, at most twice.
+   When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
+   because the description of the change still breaks the rules for it." With exit 2, 3 or
+   4, the run ends as "Failures" of `running-a-workflow` lists for the checks script.
+3. It runs `checks.cjs check build-report --inputs <input file>
+   <folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The
+   change is not ready, because the build report differs from the records of the run.",
+   and starts no writer, because the tables are the script's, so a difference is a defect.
+   Before it ends, it runs `checks.cjs report-build --drop`, which removes the hand-off
+   file of step 2. With exit 2, 3 or 4, the run ends as "Failures" lists for the checks
+   script.
+4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
+   again and pushes again, at most twice more, and then runs `checks.cjs report-build
+   --drop` and ends with "The run could not push its build report."
+5. In a stage that has reviewers, it runs no verdict command, and qory then runs the review
+   round. In a stage with none, such as when `inputs.json` has no `qory.stage.reviewers`,
+   it runs `qory run verdict passed` first. It ends with "The change is ready: each planned
+   change is built."
+
+The ends of steps 1 to 4 run no `qory run verdict passed`.
 
 - **The reviewers.** qory starts `code-reviewer`, `test-reviewer` and
   `acceptance-reviewer`, each as a separate session, as "The review of a change" lists.
@@ -2846,7 +2939,10 @@ review round. In a stage with none, such as when `inputs.json` has no
     stops with no report;
   - `output_tail` of `suite_result`, the last lines of the output of the suite, so
     `suite_result` has counts only;
-  - the shape of `previous_findings`.
+  - the shape of `previous_findings`;
+  - `qory.review.submission` in the `inputs.json` of a reviewer, the title and the
+    description of the draft pull request, so `acceptance-reviewer` checks them only once
+    qory writes it.
 
 ## The high-level workflow, shape-a-ticket
 
@@ -3234,6 +3330,93 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   contains the cause for the line that ends the run, as `running-checks` lists it; after a
   check that did not finish, the session ends the run. The session then checks the points
   with `check points` and ends: the end check sends them with the verdict `escalate`.
+- `report-build [--inputs <path>]` and `report-build --drop`: the first writes
+  `build-report.md` of the standard track to the artifact folder, with every table rendered
+  from records, so no agent types a result, and writes the hand-off file that qory's submit
+  step reads. A fast-track report is written elsewhere. The second removes a regular file
+  at the path of `QORY_SUBMISSION_HANDOFF` and nothing else, prints one line, and exits 0;
+  it exits 3 with a fix line when the file cannot be removed. The sections come from these
+  sources:
+  - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
+  - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
+    the columns Step, Pass, Kind, State and Commit;
+  - `## Review rounds`: the latest round from `open-findings.json`, in the folder of the
+    file of `--inputs`, as `### Round <N>`, a line with the frozen commit, when the file
+    has one, and the reviewers, and the table Finding, Reviewer, Blocking and Proof. The
+    earlier rounds are copied byte for byte from the newest version of `build-report`
+    that the session pulled, and a round of that version with the number of the latest
+    round or a higher one is dropped. With no round the section has `None.`. The section
+    ends with the line "The result of the last round is in the review in Qory Apiary, not
+    in this report."; the entry `full-suite` of the file is no reviewer of the line;
+  - `## Checks`: one row for each check of the newest acceptance lock, with its result,
+    `green`, `red` or `unknown`: Start is `red`, because the lock records that the check
+    failed on the start commit, and Head is the result in the newest record of `run locked`
+    on HEAD with no uncommitted change. The line `Full suite:` is `unknown`, because no
+    verb records the full suite;
+  - `## Counts`: the replays of the ledger rows, the review rounds, the rounds with a
+    blocking finding as the returns, and `unknown` for the tokens;
+  - `## Not run`: each ledger row that is not `done`, with its state, or `None.`;
+  - `## Left out`: each item of a list `Left out:` in the `report` of a ledger row, as
+    `- <row id>: <item>: <risk>`, or `none`. The list is the lines `- <item>: <risk>` or
+    `* <item>: <risk>` that start at the first column after the line `Left out:` or
+    `**Left out:**` and the blank lines after it, up to the first line that is no such
+    item. `Left out: none` is an empty list, and a row whose report has no such line has
+    no item. A list that the verb cannot read adds the item `- <row id>: a list Left out:
+    that the report cannot read; see the row's report in the ledger` after the items of
+    that row that it can read, and stops nothing. Unreadable are an indented bullet, an
+    item that continues on an indented line, items after `Left out: none`, text after
+    `Left out:` that is not `none`, and a line `Left out:` with no item. Each item loses
+    its control, refused and hidden characters and is cut to 500 characters, the length of
+    a point of `open-findings.json`. An item that `check build-report` refuses, such as a
+    path of the machine or a link that is not `https://`, becomes `an item that the report
+    cannot contain; see the row's report in the ledger`.
+
+  A `|` in a cell is written `\|`, with each backslash before it doubled. A proof of a
+  finding is cut to 500 characters, and a proof that is empty or only spaces is `none`.
+  The same records give the same bytes, and the file ends with one newline. Without a
+  ledger, the verb exits 3.
+
+  When `QORY_SUBMISSION_HANDOFF` is set, an absolute path with no `..` part, the verb also
+  writes the hand-off file there, as JSON with `text` and `steps`: `{"text": {"title",
+  "description"}, "steps": {"<commit>": "<ledger row id>"}}`. It creates the parent folder
+  first. A path with a `..` part exits 3. When the parent folder, or the nearest folder of
+  it that exists, resolves through a symbolic link to a place outside the top folder of the
+  checkout, the verb exits 3 with the fix "Set QORY_SUBMISSION_HANDOFF to a path inside the
+  checkout." and writes no file. `text` is `.reports/submission.md` of the artifact
+  folder, which `submission-writer` writes: the first line is `# <title>`, and the rest is
+  the description with `## Problem`, `## Change`, `## Tests` and `## Disclosed`. The title
+  and the description pass the rules of `text` in `submission.schema.json` (the title is 1
+  to 256 characters, with no control or invisible character, and is not only spaces; the
+  description has at most 20,000 characters, no NUL and no marker line), the description
+  has the four parts of the type `submission` and no text before the first part, and
+  neither has the form of a secret. The title also has no character of the Unicode class
+  Cf, such as U+200D, U+0600 or U+E0041, and no U+2028 or U+2029, because qory does not
+  accept such a title and drops the whole text; the fix has its code point. The verb removes
+  spaces before and after the title. `steps` maps each commit of `git rev-list
+  <base>..<commit>` of each `done` row to the id of the row, for the commits of `git
+  rev-list <base of the first row>..HEAD`, and a commit in two rows goes to the later row.
+  When the hand-off file would have more than 262,144 bytes, the verb leaves out the oldest
+  commits of `steps` until it fits, and qory shows each of them as unreviewed; the result
+  line shows how many it left out. A text that is missing or breaks a rule, a
+  `submission.md` that is no regular file or has more than 262,144 bytes, or a step of
+  more than 128 characters exits 1 with the fix, and the verb writes no file. A commit that
+  git does not have is a lost row of a cancelled run and has no entry in `steps`; any other
+  failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`, the verb
+  removes a regular file at the path of `QORY_SUBMISSION_HANDOFF`, so that qory never reads
+  the text of an earlier run, only when the real path of the folder of the file is inside
+  the real path of the checkout top, the rule of the write. Else it removes nothing, prints
+  one line, and `--drop` exits 3. It writes the hand-off file first and `build-report.md`
+  second, each through a temporary file in its folder that it renames into place. When a
+  write fails, it removes the temporary files, leaves neither file and exits 3 with a fix
+  line. Without the variable, it writes `build-report.md`, prints one line that it wrote
+  no hand-off file and exits 0. `check build-report`, in a session with the ledger in the
+  artifact folder, renders the sections again from the same records and exits 1 for each
+  section whose text differs from the file byte for byte, line breaks, trailing spaces,
+  blank lines and heading spacing included, with the fix "Run report-build to write ##
+  <section> of build-report.md again." Without `--inputs`, it leaves out `## Summary`,
+  `## Review rounds` and `## Counts`, which need the rounds, and prints a line that says
+  so. With no ledger, it prints a line that the tables were not checked. `push` and
+  `end --offline` check the order of the sections alone.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
@@ -3612,6 +3795,10 @@ template that a software-factory workspace starts with. The file sets these keys
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
   hide, and every other standard type is hidden.
+- `submit: {type: submission, send: end_of_run}`, the submit step of a run. `type` is the
+  custom type `submission`, which has `base_view: structured`, and `send: end_of_run`
+  sends the submission at the end of the run. `qory config` checks that `artifact_types`
+  has the type.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
@@ -3835,3 +4022,13 @@ The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.tes
 `scripts/preflight.test.js` and rule 9 with `node`, and exits 1 at its start with an
 instruction to install `node` when `node` is missing. Only the sign-in tests of
 `scripts/preflight.test.js` start a browser, and they skip when the machine has none.
+
+Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the 13
+hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for
+Copilot CLI, 3 for Cursor and 2 for Gemini CLI. Each command must pass `sh -n`, `bash -n` and
+`shellcheck -s sh`. A Gemini CLI command, which Gemini starts through `bash -c`, must also pass
+`shellcheck -s bash`. Each file of `modules/core/hooks/` must pass `node --check`, and each file
+that a command runs must exist there. Without `shellcheck` on the `PATH`, the step prints a line
+that starts with `SKIP` and runs the other checks. When the variable `CI` is set, as on GitHub
+Actions, a missing `shellcheck` fails the step. `scripts/hook-commands.test.js` runs the step on
+a command with an unquoted variable and on a hook file with a syntax error.

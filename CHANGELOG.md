@@ -52,6 +52,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Markdown text gets it. It does not count the nesting of inline marks, such as emphasis in
   emphasis, which also reaches the limit of 128 levels. Where the reading of code blocks
   cannot tell whether a fence starts in a list item, the words count.
+- `checks.cjs step end <id> done --report <file>` exits 1, and records nothing, when the
+  report has a list `Left out:` that `report-build` cannot read. The first line is "Fix the
+  list Left out: of your report.", and a line for each cause follows. `step end failed` is
+  not checked.
 - The agents `security-reviewer`, `data-reviewer` and `failure-reviewer`, and the skills
   `checking-security`, `checking-data-changes` and `checking-failure-handling`. Each agent
   loads `reviewing-changes`, `judging-findings` and its checking skill, writes one JSON
@@ -70,6 +74,70 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   starts the reviewer of that word. `code-reviewer`, `test-reviewer` and
   `acceptance-reviewer` are no members of the group. The `reviewers` key of Build, which
   makes qory start the group, is not built yet.
+- `acceptance-reviewer` reads `qory.review.submission` of its `inputs.json`, when it
+  exists: the title and the description of the draft pull request, as qory stores them. A
+  claim in them that the diff or the records of the run do not show is a finding.
+- The agent `submission-writer` and the skill `writing-submissions` in `software-factory`.
+  When every check of the `review-changes` workflow passed, the session starts the agent,
+  which writes the title and the four-part description (`## Problem`, `## Change`,
+  `## Tests`, `## Disclosed`) of the draft pull request to `.reports/submission.md`, then
+  runs `checks.cjs report-build`. A runtime with no agent tool, a start that fails and a
+  `blocked` report end the run as "Failures" of `running-a-workflow` lists. An exit 1 of
+  `report-build` starts the agent again, at most twice, and ends the run not ready with
+  one `run_again` point when it stays; so does an exit 1 of `check build-report`, with no
+  restart. Exits 2, 3 and 4 end as "Failures" lists.
+- The verb `checks.cjs report-build [--inputs <path>]` in `software-factory`. It writes
+  `build-report.md` in the artifact folder, with the tables of the standard track rendered
+  from the build ledger and the records of the checks. Only when `QORY_SUBMISSION_HANDOFF`
+  is set, it reads `.reports/submission.md` and writes the hand-off file at that path.
+  - The path is absolute, has no `..` part and leads to a folder inside the checkout: a
+    link that moves the folder outside it exits 3 and writes no file.
+  - It writes the hand-off file first and `build-report.md` second, each through a
+    temporary file that it renames into place. On each non-zero exit it removes an earlier
+    hand-off file. When `.reports/submission.md` breaks a rule, it exits with 1 and writes
+    no file; when a write fails, it exits with 3.
+  - A title with a character of the Unicode class Cf, U+2028 or U+2029 exits with 1,
+    because qory does not accept such a title and drops the whole text. A description with text
+    before `## Problem` exits with 1.
+  - A list `Left out:` in the `report` of a ledger row is the lines `- <item>: <risk>` or
+    `* <item>: <risk>` after the line `Left out:` or `**Left out:**` and its blank lines.
+    A list that the verb cannot read adds the item "a list Left out: that the report
+    cannot read; see the row's report in the ledger" for that row, after the items that it
+    can read, and the verb goes on, so that a row that never changes does not stop every
+    later run.
+  - When the hand-off file would have more than 262144 bytes, it leaves out the oldest
+    commits of `steps` until the file fits; qory shows them as unreviewed.
+  - `report-build --drop` removes the hand-off file and writes nothing else. The session
+    runs it when `check build-report` exits with 1 and when the push of `build-report`
+    fails, so that qory's submit step reads no text of a change that is not ready. It, and
+    the removal on each non-zero exit, remove the file only when the real path of its
+    folder is inside the real path of the checkout top, the rule of the write. Else they
+    remove nothing and print one line, and `--drop` exits 3.
+  - `checks.cjs check build-report` in a session renders the tables again and compares the
+    text of each section with the file byte for byte. With `--inputs`, it also compares
+    Summary, Review rounds and Counts, which need the rounds that sit beside
+    `inputs.json`; without it, the check prints that it did not compare them.
+  - The session `review-changes` runs both at the end, then pushes `build-report` before
+    the verdict.
+- `process.yaml` of `software-factory` has `submit: {type: submission, send:
+  end_of_run}`.
+- The type `build-report` names its two forms by track: the standard track and the fast
+  track. Before, they were the full path and a short session. Both forms end with a
+  section `## Left out`, and a `build-report.md` without it fails `check build-report`.
+  In the standard track, the section lists each item of the lines `Left out:` in the
+  `report` of a row of the build ledger, as `- <row id>: <item>: <risk>`, or `none`.
+- The type `submission` has the values and bounds of qory and of the change feed:
+  - `base` with `commit`, and `branch` and `commit_url` when known;
+  - `commits[]`, with no upper bound, each with `commit` and a `step` of 1 to 128
+    characters;
+  - `draft` is optional, and `draft.state` is `draft`, `open`, `closed` or `merged`;
+  - the `none` reasons `program-failed` with `exit` 0, 1 or 2, `program-timeout`, and
+    `login-needed` with `exit` 3;
+  - a title of 1 to 256 characters that has no control character, such as a tab or a
+    newline, and no invisible character, and that is not only spaces, as the change feed
+    requires, so a title with a tab fails;
+  - a description of at most 20000 characters with no `<!-- qory:start -->` or
+    `<!-- qory:end -->` marker line.
 - The `review-changes` workflow in the `software` stack, with `tier: thinking` and
   `access: write`: the skills `workflow-review-changes`, `checking-code`, `checking-tests`
   and `checking-acceptance`, and the agents `code-reviewer`, `test-reviewer` and
@@ -1586,6 +1654,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A hook process loads no preload from the environment of its session or from a `.env` file.
+  Each of the 13 hook commands in `modules/core/settings/` starts `node` through
+  `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`. The path is
+  absolute, so that no `env` earlier in `PATH` replaces it. This holds on Claude Code,
+  Codex, Gemini CLI, Cursor and Copilot CLI. A shell reads `BASH_ENV` before `env` runs, so
+  each hook of Gemini CLI also sets `env` to `{ "BASH_ENV": "", "ENV": "" }`. The setting
+  `advanced.excludedEnvVars` of Gemini CLI lists the four names, `BASH_ENV` and `ENV`.
+  Gemini CLI applies that list to a project `.env` and not to `.gemini/.env`. So the reports
+  guard of all five runtimes also denies a write to a file named `.env` and a shell command
+  with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a
+  command with `.env`. On macOS with System Integrity Protection, `/usr/bin/env` drops
+  `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` itself, and no `DYLD_` name is on the list.
 - The reports guard reads the first word of a command, to find out whether it is a copy of
   `checks.cjs`, only when it is a regular file of the size of `checks.cjs`, and then at most
   that size and one byte. It read the whole file, so `/dev/zero` grew the hook to 44.8 GB, a

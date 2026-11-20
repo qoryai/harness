@@ -17,7 +17,8 @@
 //   resume, and crashed is the rows that a session of the same run started and left running,
 //   which resume of this session marked failed;
 // - replay(io, row): whether a done row with the same inputs replays;
-// - finish(io, { ledger, place, state }): at step end, { findings, members };
+// - finish(io, { ledger, place, state, report }): at step end, { findings, members }, where
+//   report is the text of --report, or null when the call has none or it is too long;
 // - point(io, { ledger, root }): the point { text, action, fix } that step begin writes at
 //   the 101st row;
 // - pin(io, { inputs, artifacts }): at step begin, before any change, the io that point reads
@@ -544,7 +545,7 @@ function endLocked(io, root, ledger, { id, state, options }) {
     text = report.finding ? null : report.text;
     if (report.finding) notes.push(report.finding);
   }
-  const finish = ledger.finish(io, { ledger: rows, place, state });
+  const finish = ledger.finish(io, { ledger: rows, place, state, report: text });
   const findings = [...finish.findings, ...(state === 'failed' ? [] : notes)];
   if (findings.length) {
     return { status: 1, findings, last: `Checked the step ${id}: the ledger is unchanged.` };

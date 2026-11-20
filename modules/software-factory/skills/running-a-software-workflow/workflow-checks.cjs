@@ -25,7 +25,8 @@
 // demo-scenarios.
 //
 // It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
-// scope, freeze, diff, probe, prove and preflight, each in verbs/.
+// scope, freeze, diff, probe, prove and preflight, each in verbs/, and the verb
+// report-build, which writes build-report.md and the hand-off file of the submission.
 'use strict';
 
 const fs = require('node:fs');
@@ -52,6 +53,8 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/extensions.cjs')(lib));
   Object.assign(lib, require('./lib/short-path.cjs')(lib));
   Object.assign(lib, require('./lib/proof.cjs')(lib));
+  Object.assign(lib, require('./lib/submission-text.cjs')(lib));
+  Object.assign(lib, require('./lib/report-build.cjs')(lib));
   Object.assign(lib, require('./lib/track-record.cjs')(lib));
   const spec = require('./types/spec.cjs')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
@@ -65,6 +68,7 @@ function workflowChecks(core) {
       ...require('./verbs/run.cjs')(lib), ...require('./verbs/scope.cjs')(lib),
       ...require('./verbs/diff.cjs')(lib), ...require('./verbs/probe.cjs')(lib),
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
+      ...require('./verbs/report-build.cjs')(lib),
     },
     types: [
       require('./types/proposal.cjs')(lib),

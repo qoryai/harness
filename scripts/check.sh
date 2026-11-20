@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -1387,6 +1387,15 @@ $OUT"
 	fi
 	pass "$1"
 }
+
+# The hook commands that the settings of core register. Each command passes sh -n, bash -n and
+# shellcheck, and each file of modules/core/hooks passes node --check. This step needs no qory,
+# so it runs before the first qory call. Without shellcheck on the PATH, it skips the shellcheck
+# checks and prints the line SKIP, unless the variable CI is set: there, a missing shellcheck
+# fails the step. scripts/hook-commands.test.js tests the step on a bad command and a bad file.
+expect "the hook commands pass shellcheck, node --check and sh -n/bash -n" 0 "$ROOT" node scripts/hook-commands.js
+printf '%s\n' "$OUT" | grep '^SKIP' >&2
+expect "the tests of the hook command checks pass" 0 "$ROOT" node --test scripts/hook-commands.test.js
 
 run "$ROOT" "$QORY" version
 [ "$RC" -eq 0 ] || fail "qory version exits 0 (exit status $RC)"

@@ -252,6 +252,9 @@ class Run {
     this.findings = [];
     this.checked = [];
     this.told = [];
+    // The text of each file of the check by its name, as read, with its line breaks as
+    // they are: the check reads each file with CRLF changed to LF.
+    this.raw = new Map();
   }
 
   find(text) {

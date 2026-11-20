@@ -76,7 +76,9 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
       large.add(name);
       continue;
     }
-    files.set(name, readFile(real, file).replace(/\r\n/g, '\n'));
+    const raw = readFile(real, file);
+    run.raw.set(name, raw);
+    files.set(name, raw.replace(/\r\n/g, '\n'));
   }
   const mainFile = def.main;
   if (large.has(mainFile)) {
