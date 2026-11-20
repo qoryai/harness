@@ -19,9 +19,11 @@ parts, as `##` headings, in this order: `## Problem`, `## Change`, `## Tests` an
 ## The limits
 
 - The title is one line of at most 256 characters, with no tab and no control character.
-  It is not only spaces, and it has no invisible character, such as U+200B, U+202E or
-  U+FEFF.
-- The text, from `## Problem` to the end, has at most 20000 characters and no NUL.
+  It is not only spaces and joiners (U+200C, U+200D), and it has no invisible character,
+  such as U+200B, U+0600, U+202E, U+FEFF or a tag character. A joiner inside an emoji is
+  fine.
+- The text, from `## Problem` to the end, has at most 20000 characters, no control
+  character but tab, line feed and carriage return, and no invisible character.
   No line of it starts with `<!-- qory:start -->` or `<!-- qory:end -->`.
 - No secret, key or token in either. Write where it is.
 

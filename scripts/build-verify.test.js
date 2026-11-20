@@ -13,6 +13,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const MODULES = path.join(__dirname, '../modules');
 const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs');
@@ -435,7 +436,8 @@ function passes(result, type) {
 // ---- The template, the schemas and the push checks ----------------------------------------
 
 // artifactEntries returns each entry of artifact_types in process.yaml, with its keys, and its
-// json_schema parsed: the template writes each schema as indented JSON.
+// json_schema parsed: the template writes each schema as indented JSON, with YAML's escape
+// \UXXXXXXXX for a character above U+FFFF.
 function artifactEntries() {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   const list = yaml.slice(yaml.indexOf('\nartifact_types:\n'));
@@ -448,7 +450,14 @@ function artifactEntries() {
       const match = /^    ([a-z_]+): (.+)$/.exec(line);
       if (match) entry[match[1]] = /^[0-9]+$/.test(match[2]) ? Number(match[2]) : match[2];
     }
-    if (schemaAt >= 0) entry.json_schema = JSON.parse(rest.slice(schemaAt + 1).join('\n'));
+    if (schemaAt >= 0) {
+      // YAML writes a character above U+FFFF as \UXXXXXXXX, which JSON has as a surrogate pair.
+      const json = rest.slice(schemaAt + 1).join('\n').replace(/\\U([0-9a-fA-F]{8})/g, (_, hex) => {
+        const code = parseInt(hex, 16) - 0x10000;
+        return `\\u${(0xd800 + (code >> 10)).toString(16)}\\u${(0xdc00 + (code & 0x3ff)).toString(16)}`;
+      });
+      entry.json_schema = JSON.parse(json);
+    }
     return entry;
   });
 }
@@ -825,13 +834,12 @@ test('pull-request: the title is one line, with no control, bidi or invisible ch
     'Add​export', 'Add\u007fexport', '', '   ', ' 　']) {
     assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
   }
-  // A character of the class Cf that the pattern lets through is refused by the check.
-  const doc = clone(PULL_REQUEST);
-  doc.title = 'Add­export';
-  assert.notDeepEqual(title(doc.title), []);
-  doc.title = 'Add؀export';
-  assert.deepEqual(title(doc.title), []);
-  fails(push(fixture(), 'pull-request', [PR_FILE, doc]), /^Remove U\+0600 from \/title of /);
+  // Each character of the class Cf but U+200C and U+200D is refused by the pattern.
+  for (const bad of ['Add\u00adexport', 'Add\u0600export', 'Add\u{110bd}export']) {
+    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+    fails(push(fixture(), 'pull-request', [PR_FILE, { ...clone(PULL_REQUEST), title: bad }]),
+      /^Write \/title of /);
+  }
 });
 
 test('pull-request: a title keeps an emoji joiner and refuses a tag or bidi character', () => {
@@ -846,9 +854,8 @@ test('pull-request: a title keeps an emoji joiner and refuses a tag or bidi char
   for (const [title, code] of [['Add\u202Eexport', '202E'],
     ['Add\u{E0041}export', 'E0041']]) {
     const got = run(title);
-    fails(got, /^Remove U\+|^Write \/title of /);
-    assert.ok(!got.out.includes(title.charAt(3)), 'the raw character is in a finding');
-    if (code === 'E0041') assert.match(got.out, /Remove U\+E0041 from \/title of /);
+    fails(got, /^Write \/title of /);
+    assert.ok(!got.out.includes(title.charAt(3)), `${code}: the raw character is in a finding`);
   }
 });
 
@@ -3152,4 +3159,129 @@ test('end takes no file of a scenario at the top of the folder as a draft', () =
     .filter((def) => ['demo-script', 'demo-evidence', 'demo-video', 'screenshot'].includes(def.type));
   assert.equal(types.length, 4);
   assert.deepEqual(endDrafts(root, '/nowhere', types), []);
+});
+
+// ---- the rule of the characters of a string -----------------------------------------------
+// A string refuses each Cc, U+2028, U+2029, and each Cf but U+200C and U+200D (the joiners of
+// emoji). A text keeps tab, line feed and carriage return. The lists in the schemas are those
+// of Unicode 17.0; Node generates the expected set here, so a Node with other tables fails.
+const UNICODE = '17.0';
+const REFUSED = { line: new Uint8Array(0x110000), text: new Uint8Array(0x110000) };
+for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+  const char = String.fromCodePoint(cp);
+  const refused = /\p{Cc}/u.test(char) || cp === 0x2028 || cp === 0x2029
+    || (/\p{Cf}/u.test(char) && cp !== 0x200c && cp !== 0x200d);
+  REFUSED.line[cp] = refused ? 1 : 0;
+  REFUSED.text[cp] = refused && cp !== 9 && cp !== 10 && cp !== 13 ? 1 : 0;
+}
+const isRefused = (cp, text) => REFUSED[text ? 'text' : 'line'][cp] === 1;
+// patternsOf returns the patterns of the one-line rule and of the text rule, with their place:
+// $defs line (and text) of the schemas of pull-request, demo-script and demo-evidence, as the
+// file and as process.yaml has them, and the two patterns of extensions.schema.json.
+function patternsOf() {
+  const found = [];
+  const entries = artifactEntries();
+  for (const type of ['pull-request', 'demo-script', 'demo-evidence']) {
+    const file = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas', `${type}.schema.json`),
+      'utf8'));
+    const yaml = entries.find((entry) => entry.name === type).json_schema;
+    for (const [from, doc] of [['schemas', file], ['process.yaml', yaml]]) {
+      found.push([`${type} ${from} $defs line`, doc.$defs.line.pattern, false]);
+      if (doc.$defs.text) found.push([`${type} ${from} $defs text`, doc.$defs.text.pattern, true]);
+    }
+  }
+  const area = JSON.parse(fs.readFileSync(path.join(SKILL, 'extensions.schema.json'), 'utf8'))
+    .properties.add_sensitive_areas.items.properties;
+  found.push(['extensions name', area.name.pattern, false],
+    ['extensions patterns', area.patterns.items.pattern, false]);
+  return found;
+}
+
+test('the character lists of the schemas are the one rule, for each code point', () => {
+  const found = patternsOf();
+  // pull-request has a line and a text, demo-script and demo-evidence a line, each twice.
+  assert.equal(found.length, 4 + 2 + 2 + 2);
+  for (const [place, pattern, text] of found) {
+    const regexp = new RegExp(pattern, 'u');
+    const wrong = [];
+    for (let cp = 0; cp <= 0x10ffff && wrong.length < 5; cp += 1) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      if (regexp.test(`a${String.fromCodePoint(cp)}b`) === isRefused(cp, text)) {
+        wrong.push(`U+${cp.toString(16).toUpperCase().padStart(4, '0')}`);
+      }
+    }
+    assert.deepEqual(wrong, [], `${place}: the list differs from Node's Unicode ` +
+      `${process.versions.unicode} at these code points; it was made for Unicode ${UNICODE}`);
+    assert.equal(regexp.test('a\u{1F468}‍\u{1F469}b'), true, `${place}: an emoji`);
+  }
+});
+
+test('the extensions pattern in repository-settings.cjs is the pattern of the schema', () => {
+  const source = fs.readFileSync(path.join(SKILL, 'lib/repository-settings.cjs'), 'utf8');
+  const one = vm.runInNewContext(/const ONE_LINE =([^;]*);/.exec(source)[1]);
+  const area = JSON.parse(fs.readFileSync(path.join(SKILL, 'extensions.schema.json'), 'utf8'))
+    .properties.add_sensitive_areas.items.properties;
+  assert.equal(one, area.name.pattern);
+  assert.equal(one, area.patterns.items.pattern);
+});
+
+test('pull-request: no member has a tag character or U+200B, and each keeps emoji joiners', () => {
+  const members = {
+    title: (d, v) => { d.title = v; },
+    text: (d, v) => { d.text = v; },
+    step: (d, v) => { d.steps = [{ commit: C1, step: v }]; },
+    collection: (d, v) => { d.target.collection = v; },
+    path: (d, v) => { d.target.address = { system: 'x.org', path: v }; },
+    branch: (d, v) => { d.branch = v; },
+    base_branch: (d, v) => { d.base_branch = v; },
+  };
+  const errors = (set, value) => pullRequestErrors((d) => set(d, value));
+  for (const [member, set] of Object.entries(members)) {
+    assert.deepEqual(errors(set, 'ab'), [], member);
+    assert.deepEqual(errors(set, 'a\u{1F468}‍\u{1F469}b'), [], `${member}: emoji`);
+    for (const bad of ['a\u{E0041}b', 'a​b', 'a­b', 'a؀b', 'a b', 'a\u0085b']) {
+      assert.notDeepEqual(errors(set, bad), [], `${member}: ${JSON.stringify(bad)}`);
+    }
+    const lines = member !== 'text';
+    for (const bad of ['a\tb', 'a\nb', 'a\rb']) {
+      assert.equal(errors(set, bad).length > 0, lines, `${member}: ${JSON.stringify(bad)}`);
+    }
+  }
+  // A text keeps tab, line feed and carriage return and refuses any other control character.
+  assert.deepEqual(errors(members.text, 'a\tb\r\nc'), []);
+  assert.notDeepEqual(errors(members.text, 'a\u001bb'), []);
+});
+
+test('pull-request: a title of spaces and joiners alone is refused', () => {
+  const title = (value) => pullRequestErrors((d) => { d.title = value; });
+  for (const bad of ['‌', '‍', ' ‌ ‍', '‍　 ']) {
+    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+  }
+  assert.deepEqual(title('‍a'), []);
+});
+
+test('demo-script and demo-evidence: a title or an expected result has one line, no U+E0041', () => {
+  for (const [type, doc] of [['demo-script', SCRIPT_DOC], ['demo-evidence', EVIDENCE_DOC]]) {
+    const errors = (set, value) => {
+      const copy = clone(doc);
+      set(copy, value);
+      return schema.errors(schema.load(type), copy, 'scenario-1.json');
+    };
+    for (const [member, set] of Object.entries({
+      title: (d, v) => { d.title = v; },
+      'step title': (d, v) => { d.steps[0].title = v; },
+      expected: (d, v) => { d.steps[0].expected = v; },
+    })) {
+      assert.deepEqual(errors(set, 'ab \u{1F468}‍\u{1F469}'), [], `${type} ${member}`);
+      for (const bad of ['a\u{E0041}b', 'a​b', 'a\tb', 'a\nb', 'a\rb', 'a\u001bb']) {
+        assert.notDeepEqual(errors(set, bad), [], `${type} ${member}: ${JSON.stringify(bad)}`);
+      }
+    }
+  }
+});
+
+test('process.yaml writes a character above U+FFFF as \\U00XXXXXX, as qory reads no surrogate escape', () => {
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  assert.equal(/\\u[dD][89abAB][0-9a-fA-F]{2}/.test(yaml), false);
+  assert.match(yaml, /\\U000e0041|\\U000e0020-\\U000e007f/);
 });

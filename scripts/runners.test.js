@@ -3143,6 +3143,9 @@ test('report-build: a bad or missing text writes no file and removes the output'
     assert.match(got.lines.at(-1), /^Wrote no file: \d+ findings? on submission\.md\.$/);
   };
   refused(TEXT.replace('Add the sum', 'Add\tthe sum'),
+    /^Remove U\+0009 from the title of submission\.md\.$/);
+  // A title that is blank but for joiners has no character to remove: the pattern refuses it.
+  refused(TEXT.replace(/^# .*/, '# \u200D \u200C'),
     /^Write the title of submission\.md so that it matches its pattern\.$/);
   refused(TEXT.replace('## Disclosed', '## Notes'),
     /^Write the text of submission\.md in four parts, in their order\./);
@@ -3452,7 +3455,7 @@ test('report-build: a title that qory drops, with U+0600 or U+E0041, exits 1 wit
     assert.equal(got.status, 1, `${code}: ${got.out}${got.err}`);
     assert.equal(got.lines[0], `Remove U+${code} from the title of submission.md.`);
     assert.equal(got.lines[1],
-      '  qory drops the whole text when its title has an invisible or separator character.');
+      '  qory drops the whole text when its title has a control, invisible or separator character.');
     assert.equal(got.lines.at(-1), 'Wrote no file: 1 finding on submission.md.');
     assert.equal(fs.existsSync(file), false);
   }

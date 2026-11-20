@@ -161,6 +161,11 @@ artifact_types:
             "not": {
               "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
             },
+            "allOf": [
+              {
+                "$ref": "#/$defs/line"
+              }
+            ],
             "x-qory-fill": "pushed-branch"
           },
           "base_branch": {
@@ -171,6 +176,11 @@ artifact_types:
             "not": {
               "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
             },
+            "allOf": [
+              {
+                "$ref": "#/$defs/line"
+              }
+            ],
             "x-qory-fill": "pushed-base-branch"
           },
           "earlier_commits": {
@@ -196,9 +206,9 @@ artifact_types:
                 },
                 "step": {
                   "type": "string",
+                  "$ref": "#/$defs/line",
                   "minLength": 1,
-                  "maxLength": 128,
-                  "pattern": "^[^\\x00]*$"
+                  "maxLength": 128
                 }
               }
             }
@@ -209,23 +219,30 @@ artifact_types:
           }
         },
         "$defs": {
+          "line": {
+            "description": "One line of text: it has no control character, so no tab and no line break, no U+2028 or U+2029, and no Cf character but U+200C and U+200D, the joiners of emoji.",
+            "type": "string",
+            "pattern": "^[^\u0000-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f]*$"
+          },
           "title": {
-            "description": "One line of text.",
+            "description": "One line of text, 1 to 256 characters, not only spaces and joiners.",
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]+$",
             "allOf": [
               {
-                "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
+                "$ref": "#/$defs/line"
+              },
+              {
+                "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\u200c\u200d]"
               }
             ]
           },
           "text": {
-            "description": "Markdown.",
+            "description": "Markdown. Tab, line feed and carriage return are its only control characters. It has no U+2028 or U+2029 and no Cf character but U+200C and U+200D, the joiners of emoji.",
             "type": "string",
             "maxLength": 20000,
-            "pattern": "^[^\\x00]*$",
+            "pattern": "^[^\u0000-\b\u000b\f\u000e-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f]*$",
             "not": {
               "pattern": "(^|\\n)<!-- qory:(start|end) -->"
             }
@@ -240,9 +257,9 @@ artifact_types:
             "properties": {
               "collection": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 200,
-                "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                "maxLength": 200
               },
               "address": {
                 "type": "object",
@@ -258,9 +275,9 @@ artifact_types:
                   },
                   "path": {
                     "type": "string",
+                    "$ref": "#/$defs/line",
                     "minLength": 1,
-                    "maxLength": 200,
-                    "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+                    "maxLength": 200
                   }
                 }
               }
@@ -738,9 +755,9 @@ artifact_types:
           },
           "title": {
             "type": "string",
+            "$ref": "#/$defs/line",
             "minLength": 1,
-            "maxLength": 500,
-            "pattern": "^[^\\n]+$"
+            "maxLength": 500
           },
           "evidence": {
             "enum": [
@@ -795,15 +812,15 @@ artifact_types:
               },
               "title": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "expected": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "actions": {
                 "type": "array",
@@ -949,6 +966,11 @@ artifact_types:
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          },
+          "line": {
+            "description": "One line of text: it has no control character, so no tab and no line break, no U+2028 or U+2029, and no Cf character but U+200C and U+200D, the joiners of emoji.",
+            "type": "string",
+            "pattern": "^[^\u0000-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f]*$"
           }
         }
       }
@@ -981,9 +1003,9 @@ artifact_types:
           },
           "title": {
             "type": "string",
+            "$ref": "#/$defs/line",
             "minLength": 1,
-            "maxLength": 500,
-            "pattern": "^[^\\n]+$"
+            "maxLength": 500
           },
           "commit": {
             "$ref": "#/$defs/commit"
@@ -1086,15 +1108,15 @@ artifact_types:
               },
               "title": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "expected": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "verdict": {
                 "enum": [
@@ -1169,6 +1191,11 @@ artifact_types:
           "commit": {
             "type": "string",
             "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "line": {
+            "description": "One line of text: it has no control character, so no tab and no line break, no U+2028 or U+2029, and no Cf character but U+200C and U+200D, the joiners of emoji.",
+            "type": "string",
+            "pattern": "^[^\u0000-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f]*$"
           }
         }
       }

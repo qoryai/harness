@@ -56,6 +56,11 @@
       "not": {
         "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
       },
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
       "x-qory-fill": "pushed-branch"
     },
     "base_branch": {
@@ -66,6 +71,11 @@
       "not": {
         "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
       },
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
       "x-qory-fill": "pushed-base-branch"
     },
     "earlier_commits": {
@@ -91,9 +101,9 @@
           },
           "step": {
             "type": "string",
+            "$ref": "#/$defs/line",
             "minLength": 1,
-            "maxLength": 128,
-            "pattern": "^[^\\x00]*$"
+            "maxLength": 128
           }
         }
       }
@@ -104,23 +114,30 @@
     }
   },
   "$defs": {
+    "line": {
+      "description": "One line of text: it has no control character, so no tab and no line break, no U+2028 or U+2029, and no Cf character but U+200C and U+200D, the joiners of emoji.",
+      "type": "string",
+      "pattern": "^[^\u0000-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\ud804\udcbd\ud804\udccd\ud80d\udc30-\ud80d\udc3f\ud82f\udca0-\ud82f\udca3\ud834\udd73-\ud834\udd7a\udb40\udc01\udb40\udc20-\udb40\udc7f]*$"
+    },
     "title": {
-      "description": "One line of text.",
+      "description": "One line of text, 1 to 256 characters, not only spaces and joiners.",
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]+$",
       "allOf": [
         {
-          "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
+          "$ref": "#/$defs/line"
+        },
+        {
+          "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\u200c\u200d]"
         }
       ]
     },
     "text": {
-      "description": "Markdown.",
+      "description": "Markdown. Tab, line feed and carriage return are its only control characters. It has no U+2028 or U+2029 and no Cf character but U+200C and U+200D, the joiners of emoji.",
       "type": "string",
       "maxLength": 20000,
-      "pattern": "^[^\\x00]*$",
+      "pattern": "^[^\u0000-\b\u000b\f\u000e-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\ud804\udcbd\ud804\udccd\ud80d\udc30-\ud80d\udc3f\ud82f\udca0-\ud82f\udca3\ud834\udd73-\ud834\udd7a\udb40\udc01\udb40\udc20-\udb40\udc7f]*$",
       "not": {
         "pattern": "(^|\\n)<!-- qory:(start|end) -->"
       }
@@ -135,9 +152,9 @@
       "properties": {
         "collection": {
           "type": "string",
+          "$ref": "#/$defs/line",
           "minLength": 1,
-          "maxLength": 200,
-          "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+          "maxLength": 200
         },
         "address": {
           "type": "object",
@@ -153,9 +170,9 @@
             },
             "path": {
               "type": "string",
+              "$ref": "#/$defs/line",
               "minLength": 1,
-              "maxLength": 200,
-              "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+              "maxLength": 200
             }
           }
         }

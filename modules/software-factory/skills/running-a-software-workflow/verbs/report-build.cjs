@@ -67,11 +67,13 @@ module.exports = (lib) => {
     }
     const value = { title: first.slice(2).trim(),
       text: (at === -1 ? '' : all.slice(at + 1)).replace(/^\n+/, '').replace(/\s+$/, '') };
-    const findings = [...schema.errors(SCHEMA, value.title, `the title of ${TEXT}`, 'title'),
-      ...schema.errors(SCHEMA, value.text, `the text of ${TEXT}`, 'text')];
-    // The shared checks of the text: the characters of a title that qory drops, the four
-    // parts, and the forms of a secret.
-    findings.push(...lib.titleFindings(value.title, `the title of ${TEXT}`));
+    // The finding for a character of the title that qory drops names its code point, so it
+    // replaces the pattern finding of the schema for the title.
+    const dropped = lib.titleFindings(value.title, `the title of ${TEXT}`);
+    const findings = [...(dropped.length ? dropped
+      : schema.errors(SCHEMA, value.title, `the title of ${TEXT}`, 'title')),
+    ...schema.errors(SCHEMA, value.text, `the text of ${TEXT}`, 'text')];
+    // The shared checks of the text: the four parts, and the forms of a secret.
     findings.push(...lib.partFindings(value.text, `the text of ${TEXT}`));
     findings.push(...lib.secretFindings({ title: value.title, text: value.text },
       (member) => `the ${member} of ${TEXT}`));

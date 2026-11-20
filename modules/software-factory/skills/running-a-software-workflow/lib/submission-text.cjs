@@ -3,24 +3,21 @@
 // forms of a secret that no text contains.
 'use strict';
 
-const { SCHEMAS } = require('./template.cjs');
-
 module.exports = (lib) => {
-  const { lines, sections, schema } = lib;
+  const { lines, sections } = lib;
 
-  // The pattern of the schema for a title lets through some characters that qory does not
-  // accept: each Cc, U+2028, U+2029, and each Cf but U+200C and U+200D (the emoji joiners).
-  const TITLE_OK = new RegExp(schema.load(SCHEMAS, 'pull-request').schema.$defs.title.pattern);
+  // The characters that qory refuses in a title and that the schema refuses too: each Cc,
+  // U+2028, U+2029, and each Cf but U+200C and U+200D (the emoji joiners).
   const TITLE_REFUSED = /[\p{Cc}\u2028\u2029]|(?![\u200C\u200D])\p{Cf}/u;
 
-  // titleFindings returns the finding of a title that passes the pattern of the schema and has
-  // such a character, or none. where is the words for the title in the fix.
+  // titleFindings returns the finding of a title that has such a character, with its code
+  // point in the fix, or none. where is the words for the title in the fix.
   function titleFindings(title, where) {
-    const refused = TITLE_OK.test(title) ? TITLE_REFUSED.exec(title) : null;
+    const refused = TITLE_REFUSED.exec(title);
     if (!refused) return [];
     const code = refused[0].codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
-    return [`Remove U+${code} from ${where}.\nqory drops the whole text when its title has an ` +
-      'invisible or separator character.'];
+    return [`Remove U+${code} from ${where}.\nqory drops the whole text when its title has a ` +
+      'control, invisible or separator character.'];
   }
 
   // The four parts of the text, as ## headings in this order: the problem, the

@@ -717,11 +717,12 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
     // The schema refuses a line break or a control character in a name or a pattern.
-    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "pay\\nments"\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "\*\*\/pay\\tments\/\*\*"\.$/],
-    // C1 controls, the line and paragraph separators and the bidirectional controls too.
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or invisible character: "pay\\nments"\.$/],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or invisible character: "\*\*\/pay\\tments\/\*\*"\.$/],
+    // C1 controls, the line and paragraph separators, the bidirectional controls and each other
+    // Cf character but U+200C and U+200D too.
     ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069', '\u200e',
-      '\u200f', '\u061c'].flatMap((char) => [
+      '\u200f', '\u061c', '\u200b', '\u00ad', '\u0600', '\u{e0041}', '\u{110bd}'].flatMap((char) => [
       [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. /],
       [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. /]]),
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],

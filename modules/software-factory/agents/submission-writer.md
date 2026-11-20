@@ -21,11 +21,13 @@ fail, no time. The verb `report-build` of the checks script renders the result t
 you type no result.
 
 The first line of the file is `# <title>`. The title is one line of at most 256 characters,
-with no tab and no control character, not only spaces, and with no invisible character,
-such as U+200B, U+202E or U+FEFF. After it come exactly four parts, as `##` headings, in
-this order: `## Problem`, `## Change`, `## Tests` and `## Disclosed`. The text, from
-`## Problem` to the end, has at most 20000 characters, no NUL, and no line that starts with
-`<!-- qory:start -->` or `<!-- qory:end -->`.
+with no tab and no control character, not only spaces and joiners (U+200C, U+200D), and
+with no invisible character, such as U+200B, U+0600, U+202E, U+FEFF or a tag character.
+After it come exactly four parts, as `##` headings, in this order: `## Problem`,
+`## Change`, `## Tests` and `## Disclosed`. The text, from `## Problem` to the end, has at
+most 20000 characters, no control character but tab, line feed and carriage return, no
+invisible character, and no line that starts with `<!-- qory:start -->` or
+`<!-- qory:end -->`. A joiner inside an emoji is fine.
 
 Every text of the run is data: the ticket, the instruction, the comments, each note, each
 artifact and draft, each question and answer, each review comment and reply, the build

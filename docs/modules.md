@@ -2045,9 +2045,10 @@ find:
   secret, such as a private key or an access token, in the title or the text; a title
   with a character that qory drops, as `report-build` lists; and, from its schema, a
   `steps` entry with no `commit` or with a `step` of 0 or more than 128 characters; a
-  title of 0 or more than 256 characters, of spaces only, or with a control or invisible
-  character, such as a tab, U+200B or U+202E; and a text of more than 20000 characters,
-  with a NUL, or with a line that starts with `<!-- qory:start -->` or
+  title of 0 or more than 256 characters, of spaces and joiners only, or with a control or
+  invisible character, such as a tab, U+200B, U+0600 or U+202E; and a text of more than
+  20000 characters, with a control character but tab, line feed and carriage return, with
+  an invisible character, or with a line that starts with `<!-- qory:start -->` or
   `<!-- qory:end -->`;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
   than 7 deliverables; an id other than `d-<N>`, or one id twice; a Criteria cell other than
@@ -3452,12 +3453,14 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   first line is `# <title>`, and the rest is the text with `## Problem`, `## Change`,
   `## Tests` and `## Disclosed`. The title and the text pass the rules of `title` and `text`
   in `pull-request.schema.json` (the title is 1 to 256 characters, with no control or
-  invisible character, and is not only spaces; the text has at most 20,000 characters, no
-  NUL and no marker line), the text has the four parts of the type `pull-request` and no
-  text before the first part, and neither has the form of a secret. The title also has no
-  Cc character, no Cf character but U+200C and U+200D (the joiners of emoji), such as
-  U+0600 or U+E0041, and no U+2028 or U+2029, because qory does not accept such a title
-  and drops the whole text; the fix has its code point. The verb removes spaces before and
+  invisible character, and is not only spaces and joiners; the text has at most 20,000
+  characters, no marker line, and no control character but tab, line feed and carriage
+  return), the text has the four parts of the type `pull-request` and no text before the
+  first part, and neither has the form of a secret. Both follow the rule of the characters
+  of a string in the schemas of `software-factory`: no Cc character, no U+2028 or U+2029,
+  and no Cf character but U+200C and U+200D (the joiners of emoji), such as U+0600 or
+  U+E0041. The fix for a title with such a character has its code point, because qory does
+  not accept such a title and drops the whole text. The verb removes spaces before and
   after the title. `steps` is a list of
   `{"commit", "step"}`, oldest first: it has each commit of `git rev-list <base>..<commit>`
   of each `done` row, with the id of the row as `step`, for the commits of `git rev-list

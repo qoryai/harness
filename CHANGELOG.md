@@ -1007,6 +1007,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     `pull-request` has the `title` and the `text`.
 - A process with `submit:` or the type `submission` delivers nothing until it is updated to
   the type `pull-request`.
+- One rule for the characters of a string in the JSON Schemas of `software-factory`: a
+  string refuses each Cc character, U+2028, U+2029, and each Cf character but U+200C and
+  U+200D (the joiners of emoji), and a text keeps tab, line feed and carriage return. Before,
+  each schema had its own list, of characters up to U+FFFF only, so a string with U+0600 or
+  the tag character U+E0041 passed the schema.
+  - It applies to `title`, `text`, `step`, `branch`, `base_branch` and the strings of
+    `reference` in `pull-request`; to the titles and the expected results of `demo-script`
+    and `demo-evidence`, which refused a line feed alone before; and to the names and
+    patterns in `extensions.schema.json`. Each schema has the list once, in `$defs` `line`
+    and, for a text, in `$defs` `text`, which the members refer to. `extensions.schema.json`
+    has no `$ref`, so it has the list in each of its two members.
+  - A title of spaces and U+200C or U+200D alone is refused, as a title of spaces alone was.
+  - The Cf set is written out as ranges, to U+E007F, for Unicode 17.0. A test compares each
+    list with the sets of Node for every code point.
+  - `report-build` and `check pull-request` give the fix with the code point of the character
+    for each such character in a title, a tab included. Before, a tab in a title got the
+    finding of the pattern. A push shows the finding of the pattern for all of them.
+  - A finding for a name or a pattern of `extensions.schema.json` with such a character
+    reads "line break, tab, control or invisible character". Before, "bidirectional".
+  - `acceptance-criteria` and `verification` keep the lists of qory's contract.
 - The standard type `explainer` of `software-factory` is called `walkthrough`: its entry
   in `artifact_types` of `process.yaml`, its push check in `qory-module.yaml`, and its file
   `walkthrough.md`. The check reads the same sections as before. Before, the type and its
