@@ -993,11 +993,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `checks.cjs destinations`, runs one `qory destination clone <id>...`, and gives the lines
   `<id> <folder>` that it prints to each agent; the questions writer and reviewer also get
   "Also search: <folder>". It copies once more at most, for an id that a later report of
-  `code-explorer` needs, within the 100. A copy that fails runs once more, and a second
-  failure ends the run with `escalate`, with the error line of the copy as the first point.
+  `code-explorer` needs, within the 100. When the script refuses the ids, `code-explorer`
+  starts once more, and a second refusal ends the run with `escalate`, with the first line
+  of the refusal as the first point. A copy that fails runs once more, and a second failure
+  ends the run with `escalate`, with the error line of the copy as the first point.
+  `checking-questions` searches the folder of each line "Also search:" also when the input
+  file has no `target`, and the questions writer and reviewer get those lines.
   `exploring-code` searches the folder of each line, and writes a file there as its id, a
   colon and the path, as `sources.json` does with `container`. `reading-the-work` lists
-  `destinations`. Shape and plan-the-build keep `.qory/repositories`.
+  `destinations`, each read only in its copied folder. Shape and plan-the-build keep
+  `.qory/repositories`.
 - A path under `/tmp/qory-destinations` is a path of the machine the run is on, and the
   check of paths of a software document refuses it with the fix to write the destination's
   id, a colon and the path.

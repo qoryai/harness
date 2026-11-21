@@ -319,24 +319,28 @@ permission. Claude Code allows it only when `tools` lists `Agent`, and no agent 
 qory copies no destination before an Explore session: the `destinations` of the input file
 list the places of the workspace, each with an id such as `tg_8k2m4n6p8q0r2s4t`. The first
 start of `code-explorer` reads only the input file and lists the ids that the ticket
-concerns under "Destinations:". The session checks them with
-`checks.cjs destinations --inputs <input file> <id>...`, runs one
-`qory destination clone <id>...` with the ids that it printed, and gives the printed lines
-`<id> <folder>` under "Destinations:" to `code-explorer`, `proposal-writer`,
-`proposal-reviewer`, `questions-writer` and `questions-reviewer`, and the last two one line
-"Also search: <folder>" per folder. It copies once more at most, when a later report of
-`code-explorer` lists an id that the session did not copy, with every id so far and the
-new ones, within the 100 of the script. A copy that fails runs once more. A second failure
-ends the run with `escalate` and the error line of the copy as the text of the first point.
-With no "Destinations:" list, or no input file, the session copies nothing.
+concerns under "Destinations:". The session checks them with `checks.cjs destinations
+--inputs <input file> <id>...`, runs one `qory destination clone <id>...` with the ids that
+it printed, and gives the printed lines `<id> <folder>` under "Destinations:" to
+`code-explorer`, `proposal-writer`, `proposal-reviewer`, `questions-writer` and
+`questions-reviewer`, and the last two one line "Also search: <folder>" per folder. It
+copies once more at most, when a later report of `code-explorer` lists an id that the
+session did not copy, with every id so far and the new ones, within the 100 of the script.
+When the script refuses the ids, `code-explorer` starts once more, and a second refusal ends
+the run with `escalate` and the first line of the refusal as the text of the first point. A
+copy that fails runs once more. A second failure ends the run with `escalate` and the error
+line of the copy as the text of the first point. With no "Destinations:" list, or no input
+file, the session copies nothing.
 
 Shape and plan-the-build keep `.qory/repositories`, which qory creates only when the run has
 further repositories. An agent with only Read, Grep and Glob cannot check for a folder: a
 Glob or Grep on a missing path fails, and one with no path leaves that folder out. An agent
 that follows `exploring-code` searches `.qory/repositories` only with the line "Further
 repositories: yes". An agent that follows `checking-questions` searches a folder under
-`.qory`, other than the artifact folder, only when a line "Also search:" names it. An agent
-with no such line searches only the working folder.
+`.qory`, other than the artifact folder, only when a line "Also search:" names it. It
+searches the working folder when the input file has `target`, and the folder of each line
+"Also search:" also when the input file has no `target`, as with the destinations of
+Explore.
 
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
 `proposal-reviewer` reviews the draft, by the skills `reviewing-drafts` and
