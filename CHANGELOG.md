@@ -16,16 +16,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   lowered state as one `blocking` finding. The verb `matrix --version <N>` writes the draft
   `verification.json` and `.reports/matrix-record.json` from the records of `run locked`,
   the demo evidence and Build's ledger, so no agent types a state, with the line of model
-  families, such as `claude` and `deepseek`, or `unknown`. In a check, `verification` refuses
-  a state above that record, a missing record, and a met demo criterion whose evidence is not
-  `Demo video: scenario-N` or `Pictures: scenario-N`. A test shows that a forged local
-  lock passes Build's early check and fails Verify's `lock --verify --version`. The
-  registry of the checks gains `questionRules`, rules for the questions about an output of a
-  type; `software-factory` registers one for `acceptance-criteria` that refuses a question
-  with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N` unless it has
-  3 options, a `proposal` on the first, the paragraphs `**Why:**` and `**Checked:**` in its
-  `context`, and a lower-case `about.item`. The workflow skill and its stack entry are not
-  built yet.
+  families, such as `claude` and `deepseek`, or `unknown`. In a check, `verification`
+  refuses a state above that record, a missing record, and a met demo criterion whose
+  evidence is not `Demo video: scenario-N` or `Pictures: scenario-N`. A test shows that a
+  forged local lock passes Build's early check and fails Verify's `lock --verify --version`.
+  The registry of the checks gains `questionRules`, rules for the questions about an output
+  of a type; `software-factory` registers one for `acceptance-criteria` that refuses a
+  question with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, or
+  a new question in a check of a folder with the record of `matrix`, unless it has 3
+  options, one of each answer with the number of `about.item`, a `proposal` on the first,
+  the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a lower-case
+  `about.item`. `matrix` counts only the newest record of `run locked` for the lock and
+  commit, and only when it is a full, clean run with results. The workflow skill and its
+  stack entry are not built yet.
 
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how

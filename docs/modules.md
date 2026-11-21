@@ -199,7 +199,7 @@ the artifact folder" lists.
 Two agents of `software-factory` review Verify's work, each as a reviewer session of the
 kind above: `tamper-reviewer` with the skill `checking-tampering`, and
 `verification-reviewer` with the skill `judging-criteria`. Each loads `reviewing-changes`,
-`judging-findings`, its own skill, `reviewing-drafts` and `simple-communication`, lists the
+`judging-findings`, the skill of the agent, `reviewing-drafts` and `simple-communication`, lists the
 tools Read, Grep, Glob, Skill and Write, and runs on the tier `thinking`, which the pattern
 `*-reviewer` of the tier table gives it. Each reads the newest versions of the types that
 it needs from the folder of `qory.start_artifacts`, as `checking-acceptance` does, and
@@ -208,7 +208,8 @@ stops with no report when one cannot be read.
 - `tamper-reviewer` reads the diff against the newest acceptance lock. It reports a changed
   file that a locked check runs or imports and that the lock does not list, and each test
   that the change newly skips or newly marks with skip or xfail, or the runtime's
-  equivalent, because a skipped test does not fail a suite. It reads only the diff and the
+  equivalent, because a skipped test does not fail a suite. Each such mark on a test that
+  exists before the change is a `blocking` finding. It reads only the diff and the
   copy, so a file that a check changes and restores during its run stays unseen, as the
   limit of `run locked` in the section "The check runners" states.
 - `verification-reviewer` reads the verification matrix, the criteria, the lock and the
@@ -2045,14 +2046,19 @@ The checks:
   criterion id that the criteria of the name of `about` have. For `main`, a check reads the
   draft at the top of the artifact folder when it is a file and no link, as for a file given
   to `check`; otherwise the check reads the newest version of that name. The questions check
-  runs each rule of `questionRules` for the type of an output `about`, for a new question
-  and a kept one, and the check reads nothing of what a rule tests. The same skill adds the
-  rule for `acceptance-criteria` that applies to a question with an option titled `Change
-  AC-N`, `Make it met another way` or `Withdraw AC-N`, the three answers that Verify writes
-  for a criterion that cannot be met. It refuses such a question with other than 3
-  options, with no option `Change AC-N` or two, with no `proposal` on that option, with a
-  `context` that has no paragraph starting `**Why:**` or none starting `**Checked:**`, and
-  with an `about.item` that is not the lower-case id, such as `ac-3`. A question about a
+  runs each rule of `questionRules` for the type of an output `about`, with the context of
+  the run and the same question in the newest questions, and the check reads nothing of
+  what a rule tests. The same skill adds the rule for `acceptance-criteria`, which reads a
+  question in two cases: it has an option titled `Change AC-N`, `Make it met another way`
+  or `Withdraw AC-N`, the three answers that Verify writes for a criterion that cannot be
+  met; or, in a check, the question is new and the artifact folder has
+  `.reports/matrix-record.json`, which only Verify writes. It refuses a question with other
+  than 3 options, with other than one option of each of the three titles, with the number
+  of `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on
+  the change option, with a `context` that has no paragraph starting `**Why:**` or none
+  starting `**Checked:**`, and with an `about.item` that is not the lower-case id, such as
+  `ac-3`. A push cannot tell the workflow, so a question of Verify with none of the three
+  titles passes a push. In a push, and in a folder with no such record, a question about a
   criterion with none of those titles, such as a question of the spec, has no such rule;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
@@ -3589,12 +3595,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   approval lists, the one that `lock --verify --version <N>` verified. The matrix has one
   row for each live criterion, in the order of the criteria, from these sources:
   - a criterion whose check is `Tests`: the newest record of `run locked` in
-    `.reports/runs/` that ran every check of lock version `<N>`, with no criterion given, on
-    the commit of HEAD with no uncommitted change. The criterion is `met` when each of its
-    checks is green, with the evidence "Locked check `<path>` passed: exit 0, <n> tests.",
-    and `not_met` when one is red, with the exit status and the counts. It is not verified
-    when the record has no check of it, when its check did not run because the call ran out
-    of time, and when no such record exists;
+    `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria. An
+    older record never stands in for a newer one. The record counts only when it is a full
+    run (no criterion given), with no uncommitted change, with the results of its checks,
+    no `changed` list, and not red with every check green, which is how a call ends when a
+    locked file changed. The criterion is `met` when each of its checks is green, with the
+    evidence "Locked check `<path>` passed: exit 0, <n> tests.", and `not_met` when one is
+    red, with the exit status and the counts. It is not verified when the newest record does
+    not count, when the record has no check of it, and when its check did not run because
+    the call ran out of time;
   - a criterion whose check is `Demo: <title>`: the newest `demo-evidence` of the scenario
     with that title in the store. With a verdict `passed` on the commit of HEAD and film or
     pictures, it is `met`, with the evidence `Demo video: scenario-N` or
