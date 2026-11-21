@@ -136,6 +136,8 @@ test('the session starts only the developer, the debugger and the questions writ
   assert.equal(line.match(/verdict/gi).length, sentences.length, 'a new sentence on a verdict');
   contains(section(WORKFLOW, 'The end'), 'do "The end" of `running-a-workflow`');
   assert.doesNotMatch(WORKFLOW, /stage\.reviewers|has reviewers/);
+  // A reviewer starts in review-changes, after the session, by any name or group role.
+  assert.doesNotMatch(WORKFLOW, /reviewer|group role/i);
   contains(section(WORKFLOW, 'A stop on the build plan'), 'Do no later step, and start no ' +
     'other workflow.');
 });
