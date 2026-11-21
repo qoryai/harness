@@ -139,12 +139,24 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     assert.ok(!/qory\.review\b(?!_)/.test(text), `${name} reads qory.review`);
     assert.ok(flat.includes(`at \`<reports>/${name}.json\`, where \`<reports>\` is ` +
       '`qory.review_session.reports` of the input file'), name);
-    assert.ok(flat.includes('`reports` is missing from `qory.review_session`.'), name);
+    // Each member that qory writes stops the agent when it is missing, and none comes by prompt.
+    assert.ok(flat.includes('- `commit`, `diff`, `open_findings` or `reports` is missing from ' +
+      '`qory.review_session`.'), name);
+    for (const member of ['commit', 'diff', 'open_findings', 'reports']) {
+      assert.ok(flat.includes(`\`${member}\``), `${name} reads ${member}`);
+    }
+    assert.ok(!/in your prompt|in the prompt|from the prompt/.test(flat), `${name} reads the prompt`);
+    assert.ok(flat.includes('The prompt contains the path of the input file.'), name);
     assert.ok(flat.includes('Write it once, as your last step, at `<reports>/' + name + '.json`'),
       name);
   }
   for (const skill of ['checking-tampering', 'judging-criteria']) {
-    assert.ok(!/qory\.review\b(?!_)/.test(read('skills', skill, 'SKILL.md')), skill);
+    const text = read('skills', skill, 'SKILL.md');
+    assert.ok(!/qory\.review\b(?!_)/.test(text), skill);
+    assert.ok(!/your prompt/.test(text), `${skill} reads the prompt`);
+    for (const member of ['diff', 'commit', 'open_findings']) {
+      assert.ok(text.includes(`qory.review_session.${member}\``), `${skill} reads ${member}`);
+    }
   }
 });
 

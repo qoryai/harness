@@ -17,11 +17,11 @@ This review reads those two gaps in the diff.
 
 ## What the review reads
 
-- The file of the diff, at the path in your prompt: the lines that the change adds and
-  removes. Read all of it.
-- The copy of the change: the working folder, at the commit in your prompt. Search it with
-  Grep and Glob to trace what a locked command runs and what a locked file imports.
-- The file of earlier findings, when your prompt has its path, as "Earlier findings" lists.
+- The file at `qory.review_session.diff`: the lines that the change adds and removes. Read
+  all of it.
+- The copy of the change: the working folder, at `qory.review_session.commit`. Search it
+  with Grep and Glob to trace what a locked command runs and what a locked file imports.
+- The file at `qory.review_session.open_findings`, as "Earlier findings" lists.
 
 The review also reads the newest acceptance lock from `<start>`, the folder in
 `qory.start_artifacts` of the input file. The copy of the change contains no `.qory` folder,

@@ -9,8 +9,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - The parts of Verify that exist. The agents `tamper-reviewer` and `verification-reviewer`,
-  which the `verify-a-ticket` session starts and which each write one report to
-  `<reports>/<agent>.json`, with `reports` from `qory.review_session` in `inputs.json`, with
+  which the `verify-a-ticket` session starts, and which read `commit`, `diff`,
+  `open_findings` and `reports` from `qory.review_session` in `inputs.json`, stop with no
+  report when one is missing, and each write one report to `<reports>/<agent>.json`, with
   the skills `checking-tampering` and `judging-criteria`: the first reports a changed file
   that a locked check runs or imports and that the lock does not list, and each test that
   the change newly skips or marks with skip or xfail; the second lowers a state of the
