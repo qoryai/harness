@@ -21,7 +21,8 @@ This review reads those two gaps in the diff.
   all of it.
 - The copy of the change: the working folder, at `qory.review_session.commit`. Search it
   with Grep and Glob to trace what a locked command runs and what a locked file imports.
-- The file at `qory.review_session.previous_findings`, as "Earlier findings" lists.
+- The file at `qory.review_session.previous_findings`, when the member exists, as "Earlier
+  findings" lists. The member is missing in the first round.
 
 The review also reads the newest acceptance lock from `<start>`, the folder in
 `qory.start_artifacts` of the input file. The copy of the change contains no `.qory` folder,

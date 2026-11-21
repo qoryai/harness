@@ -139,13 +139,20 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     assert.ok(!/qory\.review\b(?!_)/.test(text), `${name} reads qory.review`);
     assert.ok(flat.includes(`at \`<reports>/${name}.json\`, where \`<reports>\` is ` +
       '`qory.review_session.reports` of the input file'), name);
-    // Each member that qory writes stops the agent when it is missing, and none comes by prompt.
-    assert.ok(flat.includes('- `commit`, `diff`, `previous_findings` or `reports` is missing ' +
-      'from `qory.review_session`.'), name);
-    assert.ok(!/build_report. (is|or) missing|missing from[^.]*build_report/.test(flat), name);
-    for (const member of ['commit', 'diff', 'previous_findings', 'reports']) {
-      assert.ok(flat.includes(`\`${member}\``), `${name} reads ${member}`);
+    // A missing commit, diff or reports stops the agent; a missing previous_findings is round 1.
+    assert.ok(flat.includes('- `commit`, `diff` or `reports` is missing from `qory.review_session`.'),
+      name);
+    for (const member of ['commit', 'diff', 'reports']) {
+      assert.ok(flat.includes(`\`${member}\` is missing`) || flat.includes(`\`${member}\` or`) ||
+        flat.includes(`\`${member}\`, `), `${name} stops for ${member}`);
     }
+    assert.ok(!/`previous_findings` (is|or) missing|missing from[^.]*previous_findings/.test(flat),
+      `${name} stops for a missing previous_findings`);
+    assert.ok(!/build_report. (is|or) missing|missing from[^.]*build_report/.test(flat), name);
+    assert.ok(flat.includes('With no `previous_findings` in `qory.review_session`, this is the ' +
+      'first round: go on.'), `${name} goes on in the first round`);
+    assert.ok(flat.includes('`previous_findings` is set and its file cannot be read'),
+      `${name} stops for a file that cannot be read`);
     assert.ok(!/in your prompt|in the prompt|from the prompt/.test(flat), `${name} reads the prompt`);
     assert.ok(flat.includes('The prompt contains the path of the input file.'), name);
     assert.ok(flat.includes('Write it once, as your last step, at `<reports>/' + name + '.json`'),

@@ -202,12 +202,13 @@ are agents of the `verify-a-ticket` session, which starts them. They are no revi
 sessions that qory starts, and they read no `qory.review`. The session passes
 `qory.review_session` in `inputs.json`, which qory writes, with `commit`, the pushed head of
 the fresh copy, `diff`, the path of the diff, `previous_findings`, the path of
-`open-findings.json`, `reports`, the report folder, `suite_result` and, when there is one,
-`build_report`. The prompt of each agent has only the path of the input file, so a session
-cannot point its agents at another commit. Each agent writes one report to
-`<reports>/<agent>.json` in the review-report format, such as
-`<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff`,
-`previous_findings` or `reports` is missing from `qory.review_session`. Each loads
+`open-findings.json`, which qory leaves out in the first round, `reports`, the report
+folder, `suite_result` and, when there is one, `build_report`. The prompt of each agent has
+only the path of the input file, so a session cannot point its agents at another commit.
+Each agent writes one report to `<reports>/<agent>.json` in the review-report format, such
+as `<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
+`reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
+file cannot be read. With no `previous_findings`, it goes on as the first round. Each loads
 `reviewing-changes`, `judging-findings`, the skill of the agent, `reviewing-drafts` and
 `simple-communication`, lists the tools Read, Grep, Glob, Skill and Write, and runs on the
 tier `thinking`, which the pattern `*-reviewer` of the tier table gives it. Each reads the
