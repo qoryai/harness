@@ -11,15 +11,17 @@ falls under the definition of `blocking` in `judging-findings`.
 
 ## What the review reads
 
-- `qory.review.diff`: the lines that the change adds and removes. Read all of it.
-- `qory.review.commit`: the read-only copy of the change. Search it with Grep and Glob, with
+Each value is one of "The values of the review" of `judging-findings`.
+
+- `diff`: the lines that the change adds and removes. Read all of it.
+- `commit`: the read-only copy of the change. Search it with Grep and Glob, with
   its path as the folder. Read the migrations that come before the changed one: the rows
   that exist are the rows that the earlier migrations and the code allow.
-- `qory.review.suite_result`: the result of the full suite. Its `output_tail`, the last
+- `suite_result`: the result of the full suite. Its `output_tail`, the last
   lines of the output of the suite, is the source of a `failing check` proof. A red locked
   check is a finding that qory writes.
-- `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
-- `qory.review.build_report`, when it exists. A claim in it, such as "the migration is
+- `previous_findings`, when it exists, as "Earlier findings" lists.
+- `build_report`, when it exists. A claim in it, such as "the migration is
   safe", is no proof. Read the migration.
 
 You run no migration and read no database. Your proof comes from the lines that you read.

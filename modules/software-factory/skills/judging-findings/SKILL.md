@@ -1,13 +1,13 @@
 ---
 name: judging-findings
-description: Load before you review a change to software, together with reviewing-changes. Contains the definition of a blocking finding, the values that the run passes a reviewer in qory.review, and how to read the result of the suite.
+description: Load before you review a change to software, together with reviewing-changes. Contains the definition of a blocking finding, the values of the review that a reviewer reads, from qory.review or from a review session, and how to read the result of the suite.
 ---
 
 # Judging findings
 
 Load ${qory:skills/reviewing-changes} first. It lists the members of a finding and of the
-report. This skill defines which findings are `blocking`, and lists the values that the run
-passes you.
+report. This skill defines which findings are `blocking`, and lists the values of the review
+that you read.
 
 ## A blocking finding
 
@@ -19,12 +19,24 @@ Style, naming, a clearer way to write working code and a missing comment are
 `non-blocking`. Judge each finding against the definition, and write `blocking` only when
 you can show it with a `failing check` or a `failing input`.
 
-## The values of `qory.review`
+## The values of the review
 
-The member `qory.review` of `inputs.json` has these members. All are paths of files that you
-read with Read.
+A reviewer reads its values from one of two places. All are paths of files that you read
+with Read.
 
-- `commit`: a fresh copy of the change at the frozen state, read-only. Review this copy.
+- **A separate session.** When `inputs.json` has the member `qory.review`, qory started
+  you as the main agent of a session for this review. Read each value from `qory.review`.
+- **An agent of a review session.** When `inputs.json` has no `qory.review` and has the
+  member `qory.review_session`, the session of `review-changes` started you as one of its
+  agents. `suite_result` is `qory.review_session.suite_result`, and `report` is
+  `<reports>/<your agent name>.json`, where `<reports>` is `qory.review_session.reports`,
+  such as `<reports>/code-reviewer.json`. The session passes `commit`, `diff` and
+  `previous_findings` in your prompt. It passes no `build_report`.
+
+The values:
+
+- `commit`: a fresh copy of the change at the frozen state, read-only. Review this copy. In
+  a review session, it is the working folder.
 - `diff`: the lines that the change adds and removes, from the state before it to the
   frozen state.
 - `suite_result`: the result of the full suite on the frozen state, as JSON.

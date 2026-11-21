@@ -111,7 +111,10 @@ test('the schema fails a result word, an unknown member and each bad finding', (
 });
 
 test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
-  assert.match(REVIEWING, /Write one file, the report, to the path in `qory\.review\.report` of `inputs\.json`/);
+  assert.match(REVIEWING, /Write one file, the report, with Write or, on Codex, with `apply_patch`/);
+  assert.match(REVIEWING, /the path is `qory\.review\.report` of\s+`inputs\.json`/);
+  // As an agent of a review session, the reviewer writes <reports>/<name>.json.
+  assert.match(REVIEWING, /the path is `<reports>\/<your agent name>\.json`,\s+where `<reports>` is `qory\.review_session\.reports`/);
   assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
   assert.match(REVIEWING, /If your session has a shell, run only commands that read, with only the options in this\s+list\./);
   assert.match(REVIEWING, /`cat`: `-n -b -s -A -E -T -v`/);
@@ -130,7 +133,7 @@ test('reviewing-changes has the steps to write one file and, when the reviewer c
   assert.match(REVIEWING, /Nobody closes a finding/);
 });
 
-test('judging-findings defines a blocking finding word for word, and lists qory.review', () => {
+test('judging-findings defines a blocking finding word for word, and lists the values', () => {
   assert.ok(JUDGING.includes('a bug, a security hole, data loss, a broken acceptance criterion ' +
     'or a failing test; every other finding is non-blocking'));
   for (const name of ['commit', 'diff', 'suite_result', 'previous_findings', 'build_report',
@@ -138,6 +141,9 @@ test('judging-findings defines a blocking finding word for word, and lists qory.
     assert.match(JUDGING, new RegExp(`^- \`${name}\`: `, 'm'), name);
   }
   assert.match(JUDGING, /\$\{qory:skills\/reviewing-changes\}/);
+  // The values come from qory.review, or from a review session and its prompt.
+  assert.match(JUDGING, /Read each value from `qory\.review`\./);
+  assert.match(JUDGING, /`suite_result` is `qory\.review_session\.suite_result`, and `report` is\s+`<reports>\/<your agent name>\.json`/);
   // The words that core may not contain are in this skill, which is why it is in software-factory.
   assert.ok(!fs.existsSync(path.join(SKILLS, 'judging-findings')));
 });
@@ -151,7 +157,7 @@ test('no skill or agent has a step that uses the removed verbs', () => {
       else if (/\.md$/.test(entry.name) && /(?:skills|agents)/.test(full)) {
         const text = fs.readFileSync(full, 'utf8');
         for (const pattern of ['--subject', 'findings add', 'findings close', 'findings show',
-          'checks.cjs panel', '.reports/findings.json']) {
+          '.reports/findings.json']) {
           if (text.includes(pattern)) found.push(`${path.relative(MODULES, full)}: ${pattern}`);
         }
       }
