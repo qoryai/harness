@@ -142,7 +142,7 @@ test('the session starts only the developer, the debugger and the questions writ
     'other workflow.');
 });
 
-test('the session withdraws the demo script of a removed scenario, as vault 0277 allows', () => {
+test('the session withdraws the demo script of a removed scenario, approved ones too', () => {
   const removed = section(WORKFLOW, 'Removed demo scenarios');
   contains(removed, 'Its newest version is the one with the largest `number` of those with no ' +
     '`cancelled` set to `true`. Skip the entry when it has no such version, when that version ' +
