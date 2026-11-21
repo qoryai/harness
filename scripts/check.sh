@@ -1138,6 +1138,17 @@ $OUT"
 	return 1
 }
 
+# rule_review_groups DIR: rule 13, for each workflow of a stack under DIR/stacks with the key
+# review_group: <group>, each -reviewer agent that its skill workflow-<name> starts, as
+# ${qory:agents/<agent>}, is a member of the group: qory expects a report only from a member.
+# Each member of a group, the list <group>: [...] under provides.agents of a module, is an
+# agent file of DIR/modules: qory expects a report from a member that no module defines.
+rule_review_groups() {
+	OUT=$(node "$ROOT/scripts/review-groups.cjs" "$1" 2>&1) || return 1
+	[ -z "$OUT" ] && return 0
+	return 1
+}
+
 # rule_cjs DIR: rule 12, no file under DIR/modules ends in .js. Node loads a .js file as an
 # ES module when the nearest package.json above it sets "type": "module", as a target
 # repository may, and there require is not defined. Node loads a .cjs file as CommonJS under
@@ -2562,6 +2573,28 @@ rule_core_words "$ROOT" || fail "rule 11: no text of core contains a word of sof
 pass "rule 11: no text of core contains a word of software work"
 rule_cjs "$ROOT" || fail "rule 12: each script under modules/ ends in .cjs"
 pass "rule 12: each script under modules/ ends in .cjs"
+rule_review_groups "$ROOT" || fail "rule 13: each reviewer of a workflow with a review group is a defined member of it"
+pass "rule 13: each reviewer of a workflow with a review group is a defined member of it"
+# Rule 13 on a tree whose workflow flow starts b-reviewer outside its group grp, and whose
+# group lists ghost-reviewer, which no module defines; then on the same tree with both fixed.
+R13=$TMP/rule13
+rm -rf "$R13"
+mkdir -p "$R13/modules/m/agents" "$R13/modules/m/skills/workflow-flow" "$R13/stacks/s" || exit 1
+: >"$R13/modules/m/agents/a-reviewer.md"
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer,\n      ghost-reviewer]\n' \
+	>"$R13/modules/m/qory-module.yaml"
+printf 'workflows:\n  flow: {tier: thinking, access: read, review_group: grp}\n' \
+	>"$R13/stacks/s/qory-stack.yaml"
+printf 'Start ${qory:agents/a-reviewer} and ${qory:agents/b-reviewer}.\n' \
+	>"$R13/modules/m/skills/workflow-flow/SKILL.md"
+expect_broken "rule 13 fails on a reviewer that the workflow starts outside its group" \
+	'Add b-reviewer to the group grp' rule_review_groups "$R13"
+expect_broken "rule 13 fails on a group member that no module defines" \
+	'Add the agent ghost-reviewer' rule_review_groups "$R13"
+: >"$R13/modules/m/agents/b-reviewer.md"
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n' \
+	>"$R13/modules/m/qory-module.yaml"
+expect_passes "rule 13 passes when each reviewer is a defined member" rule_review_groups "$R13"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
@@ -2714,15 +2747,19 @@ for runtime in codex gemini cursor copilot claude; do
 	expect "checkout extending software by path: harness compose --no-links --runtime $runtime exits 0" \
 		0 "$TMP/software" "$QORY" harness compose --no-links --runtime "$runtime"
 done
-# The group role reviewers: the compose writes each of its three members, in the order of the
-# provides list of software-factory, with the globs of its paths.
-expect "the software stack's roles.json lists security-reviewer, data-reviewer and failure-reviewer as the members of agents/reviewers, each with paths" \
+# The group role reviewers: the compose writes each of its six members, in the order of the
+# provides list of software-factory. The three reviewers of every change have no paths, and
+# the other three have the globs of theirs.
+expect "the software stack's roles.json lists the six reviewers as the members of agents/reviewers, three with paths" \
 	0 "$TMP/software" node -e '
 const roles = JSON.parse(require("fs").readFileSync(".qory/harness/roles.json", "utf8")).roles;
 const members = roles.filter((row) => row.role === "agents/reviewers");
 const names = members.map((row) => row.agent).join(" ");
-const good = names === "security-reviewer data-reviewer failure-reviewer" &&
-  members.every((row) => row.group === true && Array.isArray(row.paths) && row.paths.length > 0);
+const always = ["code-reviewer", "test-reviewer", "acceptance-reviewer"];
+const good = names === "code-reviewer test-reviewer acceptance-reviewer security-reviewer " +
+  "data-reviewer failure-reviewer" && members.every((row) => row.group === true &&
+  (always.includes(row.agent) ? !("paths" in row) :
+    Array.isArray(row.paths) && row.paths.length > 0));
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"

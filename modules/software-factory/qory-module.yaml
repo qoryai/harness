@@ -35,8 +35,8 @@ description: >-
   test-reviewer and acceptance-reviewer, the reviewers of a change; the agent
   submission-writer, which writes the title and the description of the draft pull request;
   the skills checking-security, checking-data-changes and checking-failure-handling; the
-  agents security-reviewer, data-reviewer and failure-reviewer, the members of the group
-  role reviewers, which start only for a change in their paths; and live web search off on
+  agents security-reviewer, data-reviewer and failure-reviewer, which start only for a
+  change in their paths; the six reviewers are the members of the group role reviewers; and live web search off on
   Codex.
 roles:
   agents:
@@ -45,10 +45,12 @@ provides:
   agents:
     explorer: code-explorer
     spec-review: spec-reviewer
-    # shortcut: the paths of the three agents match path names and case, read no file and
-    # cannot leave one out, so a text file in a listed folder starts a reviewer; replace the
-    # globs when a change shows this costs a review.
-    reviewers: [security-reviewer, data-reviewer, failure-reviewer]
+    # code-reviewer, test-reviewer and acceptance-reviewer have no paths key, so each counts
+    # for every change. shortcut: the paths of the other three match path names and case,
+    # read no file and cannot leave one out, so a text file in a listed folder starts a
+    # reviewer; replace the globs when a change shows this costs a review.
+    reviewers: [code-reviewer, test-reviewer, acceptance-reviewer, security-reviewer,
+      data-reviewer, failure-reviewer]
 push_checks:
   - type: proposal
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, proposal]
