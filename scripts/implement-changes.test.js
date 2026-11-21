@@ -105,7 +105,7 @@ test('the skill reads Verify\'s verdict and verification from the inputs of a re
   assert.doesNotMatch(WORKFLOW, /when the input file has no `qory\.start_artifacts`/);
 });
 
-test('the skill ends ready with no verdict of its own and starts no reviewer', () => {
+test('the skill ends ready with no verdict command and starts no reviewer', () => {
   // The end follows "The end" of running-a-workflow: no verdict command in a stage with
   // reviewers. The skill runs no verdict passed itself, and starts none of the reviewers.
   says(section(WORKFLOW, 'The end'), 'do "The end" of `running-a-workflow`');
@@ -596,10 +596,10 @@ test('step end done reads the list Left out: only as none or as items that end w
   const open = report(w, 'software-developer', writerReport(['src/orders.cjs'], 'The lines.',
     'Left out:\n- The footer: a cut file looks whole.'));
   assert.equal(call('report', 'software-developer', open).status, 0);
-  const refused = call('step', 'end', 'deliverable:d-1', 'done', '--report', open,
+  const unread = call('step', 'end', 'deliverable:d-1', 'done', '--report', open,
     '--attempt', DEVELOPER);
-  assert.equal(refused.status, 1, refused.out);
-  assert.equal(refused.lines[0], 'Fix the list Left out: of your report.');
+  assert.equal(unread.status, 1, unread.out);
+  assert.equal(unread.lines[0], 'Fix the list Left out: of your report.');
   const closed = report(w, 'software-developer', writerReport(['src/orders.cjs'], 'The lines.',
     'Left out:\n- The footer: a cut file looks whole.\n# End'));
   assert.equal(call('report', 'software-developer', closed).status, 0);
