@@ -1005,6 +1005,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     of the module read the file by its `$id` and read no network: `lib/schema.cjs` of core
     writes out a `$ref` to the `$id` of another file of the same folder when it loads a
     schema.
+  - The schemas of `software-factory` write each control range of a pattern as a regex
+    escape in the JSON text (`\\x00-\\x1f`, `\\x7f-\\x9f` and the single `\\x0b`), in the
+    files and in `process.yaml`. Before, they wrote `\\u0000-\\u001f`, which decodes to raw
+    control characters that Apiary's reader refuses. JavaScript with the `u` flag, PCRE and
+    Go RE2 all read `\\xHH`. `acceptance-criteria` and `verification` keep the `\\u` form:
+    they are byte copies of qory's contracts. A test checks that no other schema decodes to
+    a control character but tab, line feed and carriage return.
   - On every non-zero exit, and with `report-build --drop`, the verb removes the outbox
     file.
   - The session writes no `target` and no member that qory fills (`commits`, `head`,

@@ -3385,7 +3385,7 @@ test('open.url of demo-script and path of acceptance-lock refuse the one rule to
   }
 });
 
-test('pull-request: the primitives are $refs to the primitives file, in the file and in process.yaml', () => {
+test('pull-request: the primitives are $refs to the primitives file, twice', () => {
   const ID = 'https://qory.dev/contracts/harness/v1/primitives.schema.json';
   const entry = artifactEntries().find((one) => one.name === 'pull-request');
   assert.deepEqual(entry.deliver, '{send: after_gate}');
@@ -3442,5 +3442,33 @@ test('the schema loader writes out a $ref to the $id of another file of its fold
   for (const ref of ['https://example.org/other.json#/$defs/word', `${ID}#/$defs/none`]) {
     fs.writeFileSync(path.join(dir, 'bad.schema.json'), JSON.stringify({ $ref: ref }));
     assert.throws(() => core.load(dir, 'bad'), /^Error: Fix bad\.schema\.json\.\n\$ref .* matches no /);
+  }
+});
+
+// The schema files and the json_schema blocks of process.yaml hold no control character after
+// they are decoded, but tab, line feed and carriage return: Apiary's reader refuses a file with
+// one, so each range is a regex escape (\x00-\x1f) in the text, which JavaScript with the u
+// flag, PCRE and Go RE2 all read. The two files below are byte copies of qory's contracts; they
+// still write the ranges as \u escapes until qory's copies change.
+test('no schema decodes to a control character, but tab, line feed and carriage return', () => {
+  const COPIES = ['acceptance-criteria.schema.json', 'verification.schema.json'];
+  const CONTROL = /[\p{Cc}]/u;
+  const hold = (node) => {
+    if (typeof node === 'string') {
+      return [...node].filter((c) => CONTROL.test(c) && !'\t\n\r'.includes(c));
+    }
+    if (node === null || typeof node !== 'object') return [];
+    return Object.entries(node).flatMap(([key, value]) => [...hold(key), ...hold(value)]);
+  };
+  const files = [...fs.readdirSync(path.join(SKILL, 'schemas')).map((name) => `schemas/${name}`),
+    'extensions.schema.json'].filter((name) => name.endsWith('.json') &&
+      !COPIES.some((copy) => name.endsWith(copy)));
+  assert.equal(files.length, 7, files.join(' '));
+  for (const name of files) {
+    const doc = JSON.parse(fs.readFileSync(path.join(SKILL, name), 'utf8'));
+    assert.deepEqual(hold(doc), [], name);
+  }
+  for (const entry of artifactEntries()) {
+    assert.deepEqual(hold(entry.json_schema || {}), [], `process.yaml ${entry.name}`);
   }
 });
