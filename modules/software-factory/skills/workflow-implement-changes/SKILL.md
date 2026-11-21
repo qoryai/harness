@@ -1,6 +1,6 @@
 ---
 name: workflow-implement-changes
-description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
+description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. After the steps, the submission writer writes the text of the change, and report-build writes the build report. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
 ---
 
 # Implement changes
@@ -168,7 +168,8 @@ The targeted checks of a step:
 
 Run `step end <id> failed --report <file>`, with the newest report of the debugger and the
 three `--attempt` lines. The row of the step stays `failed`, so its deliverable or finding
-stays open in the build ledger and in the build report. Write no `points.json`, run no
+stays open in the build ledger and in the build report. Then do "The submission". When a
+case of it ends the run, end as that case lists. Otherwise write no `points.json`, run no
 verdict command, and do no later step. `review-changes` runs next and reports the open
 step as `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. End
 with "The run stopped, because the checks still fail after 3 changes to <the step>."
@@ -197,11 +198,40 @@ file, and only a member can change the approved plan.
    full stop and with no backtick: a point is plain text. While the text has more than 500
    characters, cut the Change cell to its first 8 words and "...", then `<the change>` to
    its first 40 words and "...".
-4. End as "Points" lists. Do no later step, and start no other workflow.
+4. End as "Points" lists. Do no later step, and start no other workflow. Skip "The
+   submission": the submission writer writes no text of the change until the build plan
+   changes.
+
+## The submission
+
+Do this section after the last step: at "The end", and in "A step that fails". A stop on the
+build plan, a work item with no build plan, a withdrawal that fails and an end as "Failures"
+lists skip it.
+
+1. Start ${qory:agents/submission-writer} in the foreground, as "Starting agents" of
+   `running-a-workflow` lists, with the input file's path, `<folder>` and the path of the
+   build plan of step 2 of "The order of the run". Write its report to
+   `<folder>/.reports/submission-writer-1.md` and check it, as "Check each report" lists.
+   A runtime with no tool that starts an agent, a start that fails, a report that still
+   fails its check after two fixes and a report whose last word is `blocked` end the run as
+   "Failures" of `running-a-workflow` lists, where the work is "The text of the change".
+2. Run `<skill folder>/checks.cjs report-build --inputs <inputs>`. It writes
+   `build-report.md` in `<folder>` and the hand-off file at the value of
+   `QORY_SUBMISSION_HANDOFF`, which qory's submit step reads. On each non-zero exit it
+   removes an earlier hand-off file.
+   - With 0, go on with the section that sent you here.
+   - With exit 1, a rule of the text broke. Start ${qory:agents/submission-writer} again
+     with each line that `report-build` printed quoted, at most twice, check its report as
+     step 1 lists, and run `report-build` again after each start. When it still exits with
+     1 after the second start, end as "Points" of `running-a-workflow` lists, with one
+     `run_again` point: "The change is not ready, because the description of the change
+     still breaks the rules for it." Print the first line of `report-build` in your output.
+   - With exit 2, 3 or 4, end as "Failures" lists for the checks script.
 
 ## The end
 
-When every step ended done or replayed, do "The end" of `running-a-workflow`. In place of
+When every step ended done or replayed, do "The submission", then "The end" of
+`running-a-workflow`. In place of
 its line of the pushed versions, end with "The change is ready for review: the run built
 <k> planned changes and fixed <m> findings." `<k>` counts the steps `deliverable:` and
 `<m>` the steps `fix:` that this session ended done. Write "1 planned change" and "1

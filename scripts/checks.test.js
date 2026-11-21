@@ -6907,6 +6907,8 @@ test('end: the third failed check writes points.json and records the verdict esc
 
 // workflowInputs returns the path of an inputs.json that qory wrote, with the member
 // qory.workflow of workflow, as given.
+// shortcut: qory writes no qory.workflow.judges yet, so a session runs passed; remove when qory
+// writes it.
 function workflowInputs(workflow) {
   const file = path.join(tmp, `inputs-${++folders}.json`);
   fs.writeFileSync(file, JSON.stringify({ qory: { workflow, harness_extensions: {} } }));
@@ -6971,8 +6973,6 @@ test('end: the third failed check runs the verdict escalate, whatever qory.workf
   assert.match(first.lines.at(-1), /At check 3, the run ends with the verdict escalate\.$/);
 });
 
-// shortcut: qory writes no qory.workflow.judges yet, so a session runs passed; remove when qory
-// writes it.
 test('The end: a workflow runs verdict passed, unless qory.workflow.judges is false', () => {
   const text = fs.readFileSync(path.join(MODULES, 'core/skills/running-a-workflow/SKILL.md'),
     'utf8').replace(/\s+/g, ' ');

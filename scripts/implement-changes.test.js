@@ -89,8 +89,10 @@ test('the session starts the developer twice and the debugger once per step, the
   // A step that fails stays open, and the session starts nothing after it.
   const failed = section(WORKFLOW, 'A step that fails');
   contains(failed, 'The row of the step stays `failed`, so its deliverable or finding stays ' +
-    'open in the build ledger and in the build report. Write no `points.json`, run no verdict ' +
-    'command, and do no later step. `review-changes` runs next and reports the open step as ' +
+    'open in the build ledger and in the build report. Then do "The submission". When a case ' +
+    'of it ends the run, end as that case lists. Otherwise write no `points.json`, run no ' +
+    'verdict command, and do no later step. `review-changes` runs next and reports the open ' +
+    'step as ' +
     '`blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member.');
   assert.doesNotMatch(oneLine(failed), /next round of Build starts the step again/);
   // The order of the steps: the deliverables not built, then the findings, blocking first.
@@ -123,23 +125,42 @@ test('the session reads open-findings.json of the inputs folder, Verify\'s input
   assert.doesNotMatch(WORKFLOW, /when the input file has no `qory\.start_artifacts`/);
 });
 
-test('the session starts only the developer, the debugger and the questions writer', () => {
+test('the session starts only the developer, the debugger, the questions writer and the ' +
+  'submission writer', () => {
   const roles = [...new Set([...WORKFLOW.matchAll(/\$\{qory:agents\/([a-z0-9-]+)\}/g)]
     .map((one) => one[1]))].sort();
-  assert.deepEqual(roles, ['debugger', 'developer', 'questions-writer']);
+  assert.deepEqual(roles, ['debugger', 'developer', 'questions-writer', 'submission-writer']);
   // Each sentence on a verdict, so that no new one, such as a verdict command passed, comes in.
   const line = oneLine(WORKFLOW);
   const sentences = ['the newest `verdict` and `verification` of Verify',
     'Each point of `points` in the verdict is one finding',
-    'Write no `points.json`, run no verdict command, and do no later step.'];
+    'Otherwise write no `points.json`, run no verdict command, and do no later step.'];
   for (const one of sentences) contains(WORKFLOW, one);
   assert.equal(line.match(/verdict/gi).length, sentences.length, 'a new sentence on a verdict');
-  contains(section(WORKFLOW, 'The end'), 'do "The end" of `running-a-workflow`');
+  contains(section(WORKFLOW, 'The end'), 'then "The end" of `running-a-workflow`');
   assert.doesNotMatch(WORKFLOW, /stage\.reviewers|has reviewers/);
   // A reviewer starts in review-changes, after the session, by any name or group role.
   assert.doesNotMatch(WORKFLOW, /reviewer|group role/i);
   contains(section(WORKFLOW, 'A stop on the build plan'), 'Do no later step, and start no ' +
     'other workflow.');
+});
+
+test('the session writes the text of the change after the last step, and not on a stop', () => {
+  const submission = section(WORKFLOW, 'The submission');
+  inOrder(submission, 'Start ${qory:agents/submission-writer} in the foreground',
+    '<folder>/.reports/submission-writer-1.md',
+    'Run `<skill folder>/checks.cjs report-build --inputs <inputs>`',
+    '`build-report.md` in `<folder>` and the hand-off file at the value of ' +
+      '`QORY_SUBMISSION_HANDOFF`',
+    'With exit 1, a rule of the text broke.', 'at most twice',
+    'With exit 2, 3 or 4, end as "Failures" lists for the checks script.');
+  contains(section(WORKFLOW, 'The end'), 'When every step ended done or replayed, do "The ' +
+    'submission", then "The end" of `running-a-workflow`.');
+  inOrder(section(WORKFLOW, 'A step that fails'), 'Run `step end <id> failed',
+    'Then do "The submission".', 'End with "The run stopped, because');
+  const stop = section(WORKFLOW, 'A stop on the build plan');
+  contains(stop, 'Skip "The submission"');
+  assert.doesNotMatch(stop, /report-build|submission-writer/);
 });
 
 test('the session withdraws the demo script of a removed scenario, approved ones too', () => {
@@ -471,7 +492,8 @@ let runs = 0;
 function session(w) {
   const run = `run-${++runs}`;
   const env = { ...w.env, ARTIFACTS: w.artifacts, QORY_RUN_ID: run,
-    PATH: `${w.bin}${path.delimiter}${process.env.PATH}` };
+    PATH: `${w.bin}${path.delimiter}${process.env.PATH}`,
+    QORY_SUBMISSION_HANDOFF: path.join(w.repo, '.qory/handoff', run, 'submission.json') };
   const call = (...argv) => {
     let out = '';
     let err = '';
@@ -575,6 +597,27 @@ function withdrawRemoved(w, call, names, uploaded = []) {
 
 const withdrawals = (w) => logOf(w).filter((line) => line.includes('--withdraw'));
 
+const SUBMISSION = ['# Write the order lines and a header in the export', '', '## Problem', '',
+  'The export of orders has no lines.', '', '## Change', '',
+  'The export writes one line per order.', '', '## Tests', '', 'A locked check covers it.', '',
+  '## Disclosed', '', 'Nothing is left out.', ''].join('\n');
+
+// submit does "The submission" of the skill: the submission writer writes its text and its
+// report, the report check passes, and report-build writes build-report.md and the hand-off
+// file. It returns the paths of the two files.
+function submit(w, call) {
+  fs.writeFileSync(path.join(w.artifacts, '.reports', 'submission.md'), SUBMISSION);
+  const written = path.join(w.artifacts, '.reports', 'submission-writer-1.md');
+  fs.writeFileSync(written, `What you read:\n- ${w.inputs}\n\nFiles:\n- ` +
+    `${path.join(w.artifacts, '.reports', 'submission.md')}\n\ndone\n`);
+  const reported = call('report', 'submission-writer', written);
+  assert.equal(reported.status, 0, reported.out);
+  const built = call('report-build', '--inputs', w.inputs);
+  assert.equal(built.status, 0, built.out + built.err);
+  return { handoff: call.env.QORY_SUBMISSION_HANDOFF,
+    report: path.join(w.artifacts, 'build-report.md') };
+}
+
 // The two steps of the plan: d-1 runs its locked check, d-2 its test file.
 const LOCKED_1 = [['run', 'locked', 'ac-1']];
 const TARGETED_2 = [['run', 'targeted', 'tests/header.test.cjs']];
@@ -627,6 +670,15 @@ test('the session builds two deliverables as two frozen commits with two ledger 
       ['deliverable:d-2', 'implement-changes', 'done', commits[1]]]);
   assert.deepEqual(ledger.steps[0].attempts, [{ agent: 'software-developer', role: 'developer',
     tier: 'thinking', model: 'unknown' }]);
+  // "The submission" leaves the hand-off file with the text and the two commits, and
+  // build-report.md with the two rows.
+  const { handoff, report: built } = submit(w, call);
+  const sent = JSON.parse(fs.readFileSync(handoff, 'utf8'));
+  assert.equal(sent.text.title, 'Write the order lines and a header in the export');
+  assert.deepEqual(sent.steps, { [commits[0]]: 'deliverable:d-1',
+    [commits[1]]: 'deliverable:d-2' });
+  assert.match(fs.readFileSync(built, 'utf8'),
+    /\| deliverable:d-2 \| 1 \| deliverable \| done \|/);
   // The end check passes on the artifact folder after the two steps, with judges false in the
   // inputs; the log of the stub has no verdict call. That the session runs none is the rule
   // of "The end" of running-a-workflow, which checks.test.js checks.
@@ -699,6 +751,11 @@ test('the session ends a step failed after its third red attempt, and starts no 
   const row = newest(w, 'build-ledger', 'build-ledger.json').steps.at(-1);
   assert.equal(row.state, 'failed');
   assert.deepEqual(row.attempts.map((one) => one.role), ['developer', 'developer', 'debugger']);
+  // "The submission" runs after a failed step too: build-report.md lists the open step.
+  const { handoff, report: built } = submit(w, call);
+  assert.deepEqual(JSON.parse(fs.readFileSync(handoff, 'utf8')).steps, {});
+  assert.match(fs.readFileSync(built, 'utf8'),
+    /\| deliverable:d-1 \| 1 \| deliverable \| failed \|/);
   // The step stays open in the ledger, and the session ends with no point and no verdict.
   assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
   const ended = call('end', w.artifacts, '--inputs', w.inputs);
