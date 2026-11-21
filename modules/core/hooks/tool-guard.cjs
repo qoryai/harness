@@ -20,9 +20,16 @@
 //   session and each agent: REVIEW_TOOLS, the report write and the commands of reviewShell
 //   are all it allows, and it starts no agent. The guard denies the write tools (Write, Edit,
 //   MultiEdit, NotebookEdit and apply_patch) to each agent of that session, whatever its type,
-//   and to each agent whose type ends in -reviewer in any session, the report path included.
-//   Outside a reviewer session it does not run reviewShell for such an agent; the other
-//   rules of the guard limit its shell.
+//   and to each agent whose type ends in -reviewer in any session but a review session, the
+//   report path included. Outside a reviewer session it does not run reviewShell for such an
+//   agent; the other rules of the guard limit its shell;
+// - in a review session, when inputs.json has the member qory.review_session as an object and
+//   no qory.review object, as reviewSession reads it: each write of an agent whose type ends
+//   in -reviewer but one, a Write or an apply_patch of reportPatch's form that writes
+//   <reports>/<name>.json, where reports is qory.review_session.reports, outside the working
+//   folder, and name the part of agent_type after the last colon, as sessionReport and
+//   reportName read them. The session starts agents, none in the background; the main session
+//   and every other agent follow the rules of any other session.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -1936,6 +1943,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   spend, runFolder, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
+  const session = reviewSession(env);
   if (call.kind === 'agent') {
     // A reviewer session starts no agent, as reviewReport reads it. Any other session starts
     // one, and an agent in the background is denied.
@@ -2013,6 +2021,10 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const unsure = walked.find((one) => one.unsure);
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
+  // In a review session an agent whose type ends in -reviewer writes its report only.
+  if (agent && session && /-reviewer$/.test(String(input.agent_type))) {
+    return sessionDeny({ call, input, paths, root, cwd, nocase, session });
+  }
   if (agent) {
     // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
     // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
@@ -2481,23 +2493,34 @@ const INPUTS_MAX = 1024 * 1024;
 // . or .. part, no empty part from a double slash, no trailing slash, no NUL and at most
 // PATH_MAX characters; otherwise null, and the session of the reviewer writes no file.
 function reviewReport(env) {
+  const qory = qoryInputs(env);
+  const review = qory && qory.review;
+  if (!member(review)) return null;
+  return { report: normalPath(review.report) ? review.report : null };
+}
+
+// qoryInputs returns the member qory of inputs.json at $QORY_HARNESS_HOME when it is an object,
+// read as reviewReport describes, or null.
+function qoryInputs(env) {
   const file = inputsFile(env);
   if (!file) return null;
-  let review;
   try {
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.size > INPUTS_MAX) return null;
-    review = JSON.parse(fs.readFileSync(file, 'utf8')).qory.review;
+    const qory = JSON.parse(fs.readFileSync(file, 'utf8')).qory;
+    return qory !== null && typeof qory === 'object' ? qory : null;
   } catch {
     return null;
   }
-  if (review === null || typeof review !== 'object' || Array.isArray(review)) return null;
-  const report = review.report;
-  const usable = typeof report === 'string' && report.length <= PATH_MAX &&
-    !report.includes('\0') && path.isAbsolute(report) && path.normalize(report) === report &&
-    !report.endsWith(path.sep);
-  return { report: usable ? report : null };
 }
+
+// member reports whether value is a JSON object: no null and no array.
+const member = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+// normalPath reports whether one is a normalised absolute path, as reviewReport describes.
+const normalPath = (one) => typeof one === 'string' && one.length <= PATH_MAX &&
+  !one.includes('\0') && path.isAbsolute(one) && path.normalize(one) === one &&
+  !one.endsWith(path.sep);
 
 const REVIEW_ONLY = 'Write only qory.review.report, with Write or apply_patch: a reviewer writes ' +
   'no other file.\nThe path is in inputs.json of the harness home; a link, a file with more than ' +
@@ -2841,6 +2864,87 @@ function reviewDeny({ call, input, paths, env, root, nocase, agent = false }) {
   return `${head}The call writes ${paths.join(', ')}.`;
 }
 
+// reviewSession returns { reports } for a review session, or null for any other session. A
+// session is a review session when inputs.json, read as reviewReport reads it, has the member
+// qory.review_session as an object and no qory.review object: with both, the rules of a
+// reviewer session apply. reports is qory.review_session.reports when it is a normalised
+// absolute path, as reviewReport reads qory.review.report; otherwise null.
+function reviewSession(env) {
+  const qory = qoryInputs(env);
+  if (!qory || member(qory.review) || !member(qory.review_session)) return null;
+  const { reports } = qory.review_session;
+  return { reports: normalPath(reports) ? reports : null };
+}
+
+// The form of the name of a report file of a review session.
+const REPORT_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+// reportName returns the name of the report file of the agent of agentType in a review
+// session: the part after the last colon, as Claude Code sends harness:code-reviewer for an
+// agent of a plugin. It returns null for a name that does not match REPORT_NAME, and for
+// full-suite, a name that qory reserves for an entry that it writes.
+function reportName(agentType) {
+  if (typeof agentType !== 'string') return null;
+  const name = agentType.slice(agentType.lastIndexOf(':') + 1);
+  return REPORT_NAME.test(name) && name !== 'full-suite' ? name : null;
+}
+
+const SESSION_NONE = 'Report in your text and write no file: qory.review_session.reports ' +
+  'cannot be used.\nIt must be an absolute path with no . or .. part, no double or trailing ' +
+  'slash. ';
+const SESSION_NAME = 'Report in your text and write no file: the name of this agent is no ' +
+  'report name.\nThe name is the part of agent_type after the last colon; it must match ' +
+  `${REPORT_NAME.source} and must not be full-suite. `;
+const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write or apply_patch: ' +
+  'a reviewer writes one file.\nThe report folder is qory.review_session.reports of inputs.json; ' +
+  'a path with a .. part, a link, a file with more than one link, a linked report folder and ' +
+  'a report folder inside the working folder are denied. ';
+
+// sessionDeny returns the deny of a write of an agent whose type ends in -reviewer in a review
+// session, or null for its report, as sessionReport reads it. paths are the real paths of the
+// call, and the deny reasons that come first were returned before this.
+function sessionDeny({ call, input, paths, root, cwd, nocase, session }) {
+  const writes = `The call writes ${paths.join(', ')}.`;
+  if (session.reports === null) return `${SESSION_NONE}${writes}`;
+  const name = reportName(input.agent_type);
+  if (name === null) {
+    return `${SESSION_NAME}This agent is ${reviewShown(input.agent_type)}. ${writes}`;
+  }
+  const report = path.join(session.reports, `${name}.json`);
+  if (sessionReport({ call, input, cwd, reports: session.reports, name, root, nocase })) {
+    return null;
+  }
+  return `${SESSION_ONLY}The report of this agent is ${report}. ${writes}`;
+}
+
+// sessionReport reports whether call writes exactly <reports>/<name>.json: a Write with one
+// path, or an apply_patch of the form of reportPatch. The path that the call gives has no ..
+// part; the folders above its last part are read through their links, as walkPath reads
+// them, and must lead to the real report folder. The report folder is no link and, when it
+// exists, a folder outside root, the working folder, and the file, when it exists, is a regular
+// file with one link. On a disk that ignores case, the compare ignores it too, as in reviewDeny.
+function sessionReport({ call, input, cwd, reports, name, root, nocase }) {
+  let given = null;
+  if (call.kind === 'write' && input.tool_name === 'Write' && call.paths.length === 1) {
+    given = joined(cwd, call.paths[0]);
+  } else if (call.kind === 'write' && input.tool_name === 'apply_patch') {
+    given = reportPatch((input.tool_input || {}).command);
+  }
+  if (given === null || given.split(path.sep).includes('..')) return false;
+  const top = disk.lstat(reports);
+  if (top && !top.isDirectory()) return false;
+  const base = walkPath(reports);
+  const above = walkPath(path.dirname(given));
+  if (base.unsure || above.unsure) return false;
+  const folded = nocase || caseless(base.real);
+  const fold = (full) => (folded ? full.toLowerCase() : full);
+  if (under(fold(base.real), fold(root))) return false;
+  const target = path.join(base.real, `${name}.json`);
+  if (fold(path.join(above.real, path.basename(given))) !== fold(target)) return false;
+  const stat = disk.lstat(target);
+  return !stat || (stat.isFile() && stat.nlink === 1);
+}
+
 // artifactFolder returns the artifact folder of the run, as end-gate.cjs finds it from root and
 // env, with the folders above it read through their links, or null when the folder itself is
 // a link: an agent that replaces the folder with a link to / would make every write a write
@@ -2967,4 +3071,5 @@ function run({ runtime, before } = {}) {
 const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
   OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON };
 
-module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, REASONS };
+module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
+  REASONS };
