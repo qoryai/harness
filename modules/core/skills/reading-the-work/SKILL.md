@@ -7,8 +7,9 @@ description: Load first in an agent that reads the input file of a run or writes
 
 You get the path of the input file and of the artifact folder when you start. Read the input
 file, the artifact folder, the target's files in the working folder when your agent reads
-them, the files of a skill you load, and what your agent's guardrails and skills list, such
-as public pages. Read nothing else.
+them, the folder of each destination that you get under "Destinations:", the files of a
+skill you load, and what your agent's guardrails and skills list, such as public pages. Read
+nothing else.
 
 ## The input file
 
@@ -41,6 +42,13 @@ Use the members below. Any may be missing and others may exist: never fail on th
   reach that system: never fetch an address on it. Take the place from `target` only, never
   from `ticket.external_ref`, which is opaque, so never parse it, or `ticket.collection`.
   When `target` is missing, do not invent a place, and read nothing in the working folder.
+- `destinations`: the places that the workspace works on. Each has `id`, such as
+  `tg_8k2m4n6p8q0r2s4t`, and `target`: `target.collection`, and `target.address` with
+  `system` and `path` when the place has an address. The run copies the files of a
+  destination only when the session asks for them. You then get one line `<id> <folder>`
+  for each copied destination, under "Destinations:". Read the files of a destination only
+  in its folder, and never fetch its address. Read nothing of a destination with no such
+  line.
 
 ## The newest artifacts
 
