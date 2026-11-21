@@ -60,7 +60,7 @@ function runFiles(types = []) {
 // registryOf returns the registry of plugin, or one with no types and no ids when it cannot
 // load.
 function registryOf(plugin) {
-  const none = { types: [], ids: [], items: [] };
+  const none = { types: [], ids: [], items: [], questionRules: [] };
   if (!plugin) return none;
   try {
     return require('../lib/registry.cjs').loadRegistry(plugin);

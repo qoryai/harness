@@ -63,6 +63,8 @@ function outputs(context, types) {
 // option that has a proposal has an output with an item as about, as the format also requires:
 // writing-questions (SKILL.md:80-84: "for an output"), and
 // writing-questions (SKILL.md:173-174: "has a question with no `about`").
+// For an output, each rule that a module registered for the type of the output, in
+// registry.questionRules, then checks the question, whether or not its about is new.
 function aboutCheck(run, which, question, earlier, readable) {
   run.did('about');
   const { about } = question;
@@ -91,6 +93,11 @@ function aboutCheck(run, which, question, earlier, readable) {
     run.find(`Give about of ${who} an output and its item: an option of it has a proposal.\n` +
       `About is ${workItem ? 'the work item' : 'an output with no item'}.`);
     return;
+  }
+  if (output) {
+    for (const rule of readable().rules.filter((one) => one.type === about.type)) {
+      for (const text of rule.check(question, who)) run.find(text);
+    }
   }
   if (workItem || (earlier && sameJson(about, earlier.about))) return;
   const { outputs: names, known, items } = readable();
@@ -146,8 +153,10 @@ function questionsCheck(run, files) {
   let read = null;
   const readable = () => {
     if (!read) {
-      const { types, items } = require('./points.cjs').registryOf(run.context.plugin);
+      const { types, items, questionRules } = require('./points.cjs')
+        .registryOf(run.context.plugin);
       read = { outputs: outputs(run.context, types), items: items || [],
+        rules: questionRules || [],
         known: new Set(types.filter((one) => one.main).map((one) => one.type)) };
     }
     return read;

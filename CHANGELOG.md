@@ -20,8 +20,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   a state above that record, a missing record, and a met demo criterion whose evidence is not
   `Demo video: scenario-N` or `Pictures: scenario-N`. A test shows that a forged local
   lock passes Build's early check and fails Verify's `lock --verify --version`. The
-  workflow skill, its stack entry and the rule for the question about an unmeetable
-  criterion are not built yet.
+  registry of the checks gains `questionRules`, rules for the questions about an output of a
+  type; `software-factory` registers one for `acceptance-criteria` that refuses a question
+  with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N` unless it has
+  3 options, a `proposal` on the first, the paragraphs `**Why:**` and `**Checked:**` in its
+  `context`, and a lower-case `about.item`. The workflow skill and its stack entry are not
+  built yet.
 
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how

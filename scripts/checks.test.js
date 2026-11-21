@@ -5238,6 +5238,55 @@ test('questions: a proposal is text of 1 to 2000 characters', () => {
   }
 });
 
+const AC3 = 'The reply states that support is closed on 25 December';
+
+// acQuestion returns a new question about the criterion ac-3 that Verify asks, with changes.
+function acQuestion(changes = {}) {
+  return q7({
+    question: 'How should the criterion about 25 December be met?',
+    about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' },
+    context: '**Why:** Support is open on 25 December, so the reply cannot state it is closed.\n\n' +
+      '**Checked:** The opening hours in the settings and the reply of the demo.',
+    options: [
+      { title: `Change AC-3, "${AC3}"`, explanation: 'The criterion states the hours.',
+        proposal: 'The reply states that support is open on 25 December.' },
+      { title: 'Make it met another way', explanation: 'Build changes the settings.' },
+      { title: `Withdraw AC-3, "${AC3}"`, explanation: 'The criterion is kept and marked withdrawn.' },
+    ],
+    ...changes,
+  });
+}
+
+test('questions: a question about a criterion with the answers of Verify has the whole form', () => {
+  const add = (changes) => questionsAfter((byId, data) => { data.questions.push(acQuestion(changes)); });
+  passes(add());
+  const options = acQuestion().options;
+  const first = 'Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N.';
+  exactly(add({ options: options.slice(0, 2) }), `${first}\n  q7 has 2.`);
+  exactly(add({ options: [...options, { title: 'Wait', explanation: 'Wait for a person.' }] }),
+    `${first}\n  q7 has 4.`);
+  const bare = [{ ...options[0], proposal: undefined }, ...options.slice(1)];
+  exactly(add({ options: bare }), 'Write the proposed wording of the criterion in proposal of ' +
+    'option 1 of q7.\n  The option has no proposal.');
+  exactly(add({ context: '**Checked:** The settings.' }), 'Start a paragraph of the context of ' +
+    'q7 with **Why:**, then the reason it cannot be met.\n  The context of q7 ' +
+    'has no paragraph that starts with **Why:**.');
+  exactly(add({ context: '**Why:** Support is open.' }), 'Start a paragraph of the context of ' +
+    'q7 with **Checked:**, then what you checked.\n  The context of q7 has no paragraph that ' +
+    'starts with **Checked:**.');
+  // The label must start a paragraph: a label inside one does not count.
+  fails(add({ context: '**Why:** Open. **Checked:** The settings.' }),
+    /^Start a paragraph of the context of q7 with \*\*Checked:\*\*/);
+  for (const item of ['AC-3', 'ac-03']) {
+    const result = add({ about: { type: 'acceptance-criteria', name: 'main', item } });
+    fails(result, /^(Write about\.item of q7 as the id of the criterion in lower case|Write about\.item of q7 as an id of acceptance-criteria)/);
+  }
+  // A question about a criterion with none of the three answers is not read by the rule.
+  passes(questionsAfter((byId, data) => {
+    data.questions.push(q7({ about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } }));
+  }));
+});
+
 test('questions: an about names an output that the run can read, and a criterion it has', () => {
   const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
   const criteria = { type: 'acceptance-criteria', name: 'main' };
@@ -5646,6 +5695,25 @@ test('registry: only a list of ids adds prefixes', () => {
     assert.deepEqual(loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'notes'))).ids,
       expected);
   }
+});
+
+test('registry: a list of rules of questions is loaded, and none gives an empty list', () => {
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.cjs'));
+  const plugin = corePlugin();
+  assert.deepEqual(loadRegistry(plugin).questionRules, []);
+  fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.cjs'), [
+    'module.exports = () => ({ types: [], questionRules: [{ type: "mockup", check: () => [] }] });',
+    ''].join('\n'));
+  const trusted = trusting(path.join(plugin, 'skills', 'notes'));
+  assert.deepEqual(loadRegistry(plugin, trusted).questionRules.map((rule) => rule.type), ['mockup']);
+  // A value that is no list adds no rule.
+  fs.mkdirSync(path.join(plugin, 'skills', 'other'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'other', 'workflow-checks.cjs'),
+    'module.exports = () => ({ types: [], questionRules: { type: "mockup" } });\n');
+  const other = loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'other'),
+    path.join(plugin, 'skills', 'notes')));
+  assert.deepEqual(other.questionRules.map((rule) => rule.type), ['mockup']);
 });
 
 test('registry: a skill adds a type and a verb', () => {

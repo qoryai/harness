@@ -654,7 +654,9 @@ name, it loads the first. The file exports a function that takes the library of
 the check of a point of `points.json`, and returns `types`, the patterns of "Blocked:"
 lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`,
 the readers of the ids of a type that the questions check reads for the `item` of an
-`about`, `verbs`, and `ledger`, the rules of the build ledger. Only `check`, `push`,
+`about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
+each `{type, check(question, who)}` with `check` returning the findings as lines of two
+lines, `verbs`, and `ledger`, the rules of the build ledger. Only `check`, `push`,
 `report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
 `starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb
 that reads the registry with exit 3. A
@@ -2042,7 +2044,16 @@ The checks:
   `running-a-software-workflow` adds the reader of `acceptance-criteria`: an `item` is a
   criterion id that the criteria of the name of `about` have. For `main`, a check reads the
   draft at the top of the artifact folder when it is a file and no link, as for a file given
-  to `check`; otherwise the check reads the newest version of that name;
+  to `check`; otherwise the check reads the newest version of that name. The questions check
+  runs each rule of `questionRules` for the type of an output `about`, for a new question and
+  a kept one, and the check reads nothing of what a rule tests. The same skill adds the
+  rule for `acceptance-criteria` that applies to a question with an option titled `Change
+  AC-N`, `Make it met another way` or `Withdraw AC-N`, the three answers that Verify writes
+  for a criterion that cannot be met. It refuses such a question with other than 3
+  options, with no option `Change AC-N` or two, with no `proposal` on that option, with a
+  `context` that has no paragraph starting `**Why:**` or none starting `**Checked:**`, and
+  with an `about.item` that is not the lower-case id, such as `ac-3`. A question about a
+  criterion with none of those titles, such as a question of the spec, has no such rule;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:

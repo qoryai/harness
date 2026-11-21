@@ -94,6 +94,8 @@ function workflowChecks(core) {
     // The readers of the items of a type, which the check of an about of a question reads:
     // the criterion ids of the acceptance criteria.
     items: [spec.items],
+    // The rule for the question that Verify asks about a criterion that cannot be met.
+    questionRules: [require('./lib/ac-question.cjs')(lib)],
     // The proof of the fast track, for a test that gives it the folder of the parsers.
     proof: { prove: lib.prove, trackLists: lib.trackLists },
     // The checks of the preflight, for a test that gives it the parts to check.

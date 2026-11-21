@@ -33,6 +33,10 @@ const reviewComments = require('../types/review-comments.cjs');
 // - items: the readers of the ids of a type, each { type, form, example, read(context, name) },
 //   which the questions check reads for the item of an about; read returns the ids of name,
 //   or null when it cannot read them;
+// - questionRules: the rules for the questions whose about has a type, each { type,
+//   check(question, who) }, which the questions check runs for each question whose about is an
+//   output of that type; check returns a list of findings, each text of two lines, the fix
+//   first, or an empty list. The check reads nothing of what a rule checks;
 // - ledger: the rules of the ledger of steps, which verbs/ledger.cjs lists. One skill at most
 //   adds them.
 const FILE = 'workflow-checks.cjs';
@@ -213,7 +217,8 @@ function part(file) {
 // checks, stops the check: it is Missing.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
-    types: [], stops: [], verbs: {}, records: [], ids: [], items: [], ledger: null,
+    types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
+    ledger: null,
   };
   const seen = new Set();
   const files = [];
@@ -240,6 +245,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     // Only a list adds prefixes: the string 'ac' would add a and c.
     if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     if (Array.isArray(added.items)) registry.items.push(...added.items);
+    if (Array.isArray(added.questionRules)) registry.questionRules.push(...added.questionRules);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {
       throw new base.Missing('Remove one of the two rules of the ledger: two skills add them ' +
