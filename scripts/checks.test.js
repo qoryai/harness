@@ -789,6 +789,87 @@ test('proposal: Explore gives proposal-reviewer the report of code-explorer', ()
   }
 });
 
+test('Explore copies only the destinations that the code explorer names, with one retry', () => {
+  const module = path.join(MODULES, 'software-factory');
+  const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
+  const has = (text, ...phrases) => phrases.forEach((one) => assert.ok(text.includes(one), one));
+  const workflow = read('skills/workflow-explore-a-ticket/SKILL.md');
+  // The first start of the code explorer names the destinations, and the session copies those.
+  has(workflow, 'what to settle: "Name the destinations that the ticket concerns."',
+    'You copy only the destinations that the ticket concerns',
+    '<script folder>/checks.cjs destinations --inputs <input file> <id>...',
+    '<qory> destination clone <id>...',
+    'The copies never read a destination that the code explorer did not name, and the ' +
+      'script refuses more than 100 ids.');
+  // One more copy at most, and one retry of a failed copy.
+  has(workflow, 'Copy at most once more. When a later report of the code explorer lists an id',
+    'When it exits with a status other than 0, run the same command once more. When that ' +
+      'call fails too, end the run',
+    'the error line that the second call printed, unchanged');
+  // Explore finds no .qory/repositories; Shape and plan-the-build keep it.
+  assert.doesNotMatch(workflow, /\.qory\/repositories|Further repositories/);
+  has(read('skills/exploring-code/SKILL.md'), 'When you got the line "Further repositories: yes"');
+  has(read('skills/running-a-software-workflow/SKILL.md'),
+    'find . -maxdepth 2 -path ./.qory/repositories -type d');
+  has(read('agents/code-explorer.md'), 'Leave out "Destinations:", "Facts:" or "What the ' +
+    'files cannot show:" when it has no item.');
+});
+
+// The lines that qory destination clone prints when it fails, each with a sample id.
+const CLONE_ERRORS = [
+  "Use an id from destinations in the run's inputs: tg_8k2m4n6p8q0r2s4t is not one of them.",
+  'Clone at most 100 destinations in one run: this call would make clone 101.',
+  'Clone only a destination with an address: tg_8k2m4n6p8q0r2s4t has none, so it has no ' +
+    'repository.',
+  "Run qory destination clone inside a run's session: QORY_RUN_API is not set.",
+  'Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary: the host returned 403 to the ' +
+    'clone.',
+  'Run qory destination clone again: the clone of tg_8k2m4n6p8q0r2s4t failed: the connection ' +
+    'timed out.',
+];
+
+// The report of the code explorer's first start in Explore, which names one destination.
+const PICKED = 'What you searched:\n- nothing: the question names the destinations\n\n' +
+  'Destinations:\n- tg_8k2m4n6p8q0r2s4t\n\ndone\n';
+
+test('end: a copy that fails twice ends Explore with escalate and the line of the copy', () => {
+  const workflow = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-explore-a-ticket/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  const sample = /fails twice in a row, .*?, unchanged, such as "([^"]+)"/.exec(workflow);
+  assert.ok(sample, 'the Explore skill lists no line for a copy that fails twice');
+  assert.ok(CLONE_ERRORS.includes(sample[1]), sample[1]);
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const points = path.join(root, 'points.json');
+  // Each line of the copy passes as the text of the first point.
+  for (const text of CLONE_ERRORS) {
+    write(root, 'points.json', [{ text, action: 'run_again' }]);
+    passes(check(root, 'points', points));
+  }
+  older(root);
+  const { args, env } = stub();
+  const ended = end(root, env);
+  passes(ended);
+  assert.ok(ended.lines.at(-1).startsWith('Checked points.json: the run ended with it, and ' +
+    'qory run verdict escalate exited with 0'), ended.out);
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${points}`]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')),
+    [{ text: CLONE_ERRORS.at(-1), action: 'run_again' }]);
+});
+
+test('end: after one failed copy and one that works, Explore records no escalate', () => {
+  // The second call worked, so the session went on and wrote no points.json: end runs no
+  // verdict.
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const { args, env } = stub();
+  passes(end(root, env));
+  assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
+  assert.deepEqual(verdicts(args), []);
+});
+
 test('spec: its four sections, in order', () => {
   const root = fixture(['spec.md', /^## Background$/m, '## Context']);
   fails(push(root, 'spec'), /in this order\. It has ## Summary, ## Context/);
