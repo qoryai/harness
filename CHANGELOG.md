@@ -8,6 +8,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A tier and a plan for each workflow of the `software` stack. Each entry of `workflows` in
+  `stacks/software/qory-stack.yaml` sets `tier`, the tier whose model and effort the
+  workflow's session runs on: `thinking` for `explore-a-ticket`, `shape-a-ticket`,
+  `write-specs`, `write-technical-decisions`, `plan-the-build` and `review-changes`, and
+  `balanced` for `make-mockups`, `write-demo-scenarios` and `write-acceptance-checks`. Each
+  entry with `access: write` also sets `plan: build-plan`. `software-factory` declares the
+  scope check of `build-plan` under `scope_checks` in its `qory-module.yaml`:
+  `workflow-checks.cjs scope --plan`, after which qory adds `--base` and `--artifacts`.
+  `workflow-checks.cjs` runs `scope` as it runs `push`, and exits 2 on any other verb.
+  `.github/workflows/check.yml` builds qory at `afee80c`, which reads `plan` and
+  `scope_checks`.
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how
   two parts call each other, or a flow of states, may end with one Mermaid diagram, drawn by

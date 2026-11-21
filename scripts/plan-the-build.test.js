@@ -83,15 +83,77 @@ test('each new agent has its guardrails, stop conditions and expected output, an
   assert.match(planner, /\nTool exception: Edit, because /);
 });
 
-test('the stack declares plan-the-build with the tier thinking and the access write', () => {
+test('the stack declares plan-the-build with the tier thinking, the access write and its plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
-  assert.match(stack, /\n {2}plan-the-build: \{tier: thinking, access: write\}\n/);
+  assert.match(stack, /\n {2}plan-the-build: \{tier: thinking, access: write, plan: build-plan\}\n/);
   const settings = JSON.parse(read(SOFTWARE, 'settings/claude/settings.json'));
   for (const rule of ['Skill(harness:workflow-plan-the-build)', 'Skill(harness:planning-builds)',
     'Skill(harness:checking-build-plans)', 'Agent(harness:build-planner)',
     'Agent(harness:plan-reviewer)']) {
     assert.ok(settings.permissions.allow.includes(rule), rule);
   }
+});
+
+// TIERS are the tiers of a workflow's session: `Tiers` in qory's internal/stack/stack.go.
+const TIERS = ['light', 'balanced', 'thinking'];
+
+// workflowProblems returns a line for each workflow of the stack text whose tier is not one of
+// TIERS, and for each workflow with access write and no `plan: build-plan`. Each entry of the
+// workflows key is one line with a flow mapping: an entry in another form is a line too.
+function workflowProblems(text) {
+  const block = /\nworkflows:\n((?: {2}.*\n)+)/.exec(text);
+  if (!block) return ['Add the workflows key to the stack.'];
+  const problems = [];
+  for (const line of block[1].split('\n').filter(Boolean)) {
+    const entry = /^ {2}([a-z0-9-]+): \{([^{}]*)\}$/.exec(line);
+    if (!entry) {
+      problems.push(`Write ${line.trim()} on one line, as <name>: {<key>: <value>, ...}.`);
+      continue;
+    }
+    const keys = Object.fromEntries(entry[2].split(',')
+      .map((pair) => pair.split(':').map((part) => part.trim())));
+    if (!TIERS.includes(keys.tier)) {
+      problems.push(`Set the tier of ${entry[1]} to ${TIERS.join(', ')}: it is ${keys.tier || 'missing'}.`);
+    }
+    if (keys.access === 'write' && keys.plan !== 'build-plan') {
+      problems.push(`Add plan: build-plan to ${entry[1]}: its access is write.`);
+    }
+  }
+  return problems;
+}
+
+test('each workflow of the stack has a tier, and each write workflow the plan build-plan', () => {
+  const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
+  assert.deepEqual(workflowProblems(stack), []);
+  for (const [name, tier] of [['explore-a-ticket', 'thinking'], ['shape-a-ticket', 'thinking'],
+    ['write-specs', 'thinking'], ['write-technical-decisions', 'thinking'],
+    ['make-mockups', 'balanced'], ['write-demo-scenarios', 'balanced']]) {
+    assert.match(stack, new RegExp(`\\n {2}${name}: \\{tier: ${tier}, access: read\\}\\n`), name);
+  }
+  // workflowProblems returns the line of the fault in a changed stack.
+  const changed = (from, to) => {
+    const text = stack.replace(from, to);
+    assert.notEqual(text, stack, from);
+    return workflowProblems(text);
+  };
+  assert.deepEqual(changed('make-mockups: {tier: balanced, ', 'make-mockups: {tier: fast, '),
+    ['Set the tier of make-mockups to light, balanced, thinking: it is fast.']);
+  assert.deepEqual(changed('write-specs: {tier: thinking, ', 'write-specs: {'),
+    ['Set the tier of write-specs to light, balanced, thinking: it is missing.']);
+  assert.deepEqual(changed('review-changes: {tier: thinking, access: write, plan: build-plan}',
+    'review-changes: {tier: thinking, access: write}'),
+  ['Add plan: build-plan to review-changes: its access is write.']);
+  assert.deepEqual(changed('shape-a-ticket: {tier: thinking, access: read}',
+    'shape-a-ticket:\n    tier: thinking'),
+  ['Write shape-a-ticket: on one line, as <name>: {<key>: <value>, ...}.',
+    'Write tier: thinking on one line, as <name>: {<key>: <value>, ...}.']);
+  assert.deepEqual(workflowProblems('name: sample\n'), ['Add the workflows key to the stack.']);
+});
+
+test('software-factory declares the scope check of build-plan, the plan of each write workflow', () => {
+  const manifest = read(SOFTWARE, 'qory-module.yaml');
+  assert.match(manifest, /\nscope_checks:\n {2}build-plan: \[skills\/running-a-software-workflow\/workflow-checks\.cjs, scope, --plan\]\n/);
+  assert.ok(fs.statSync(PUSH).isFile());
 });
 
 test('exploring-code keeps the form of its Report, so checking-proposals still reads it', () => {
@@ -759,6 +821,41 @@ test('scope --plan lets a locked check and its helper in when the Files list the
     refused.out);
   assert.ok(refused.lines.includes('Undo the change to "tests/helpers/orders.ts": it is outside the scope.'),
     refused.out);
+});
+
+// scopeCheck runs the scope check of build-plan in a separate node process, with the command
+// of scope_checks in qory-module.yaml and the two arguments that its caller adds:
+// workflow-checks.cjs scope --plan --base <start commit> --artifacts <folder>. With verb, it
+// runs workflow-checks.cjs with those arguments instead.
+function scopeCheck(w, base, artifacts, ...verb) {
+  const ran = childProcess.spawnSync(process.execPath, [PUSH, ...(verb.length ? verb :
+    ['scope', '--plan', '--base', base, '--artifacts', artifacts])],
+  { cwd: w.repo, env: w.env, encoding: 'utf8' });
+  return { status: ran.status, out: ran.stdout + ran.stderr };
+}
+
+test('the scope check of build-plan exits 0 on a push inside the plan and 1 on one outside it', () => {
+  const pushed = (file) => {
+    const { w } = checkout(EXAMPLE, []);
+    const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    fs.mkdirSync(path.dirname(path.join(w.repo, file)), { recursive: true });
+    fs.writeFileSync(path.join(w.repo, file), 'The change.\n');
+    git(w.repo, w.env, 'add', file);
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Change');
+    return scopeCheck(w, base, path.join(w.repo, '.qory/artifacts'));
+  };
+  const inside = pushed('replies/delayed-order.md');
+  assert.equal(inside.status, 0, inside.out);
+  assert.match(inside.out, /^Passed: 1 changed path in the files of the build plan, 1 commit/);
+  const outside = pushed('src/prices.ts');
+  assert.equal(outside.status, 1, outside.out);
+  assert.match(outside.out, /^Take "src\/prices\.ts" out of the commits since the base: it is /);
+  // Any verb other than push and scope still exits 2.
+  const { w } = checkout(EXAMPLE, []);
+  const other = scopeCheck(w, null, null, 'check', 'build-plan', path.join(w.repo, 'plan.md'));
+  assert.equal(other.status, 2, other.out);
+  assert.equal(other.out, 'Give push <type> <file>... or scope --plan: workflow-checks.cjs runs ' +
+    'only push and scope.\n');
 });
 
 // ---- The reports of the agents -------------------------------------------------------------
