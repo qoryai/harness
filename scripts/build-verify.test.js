@@ -914,14 +914,15 @@ test('pull-request: the text may be empty, has at most 20000 characters, no mark
   }
 });
 
-test('the marker rule is on the text of pull-request, and the primitive text has none', () => {
+test('the marker rule is on the text of pull-request, the primitive text has none', () => {
   const marker = 'a\n<!-- qory:start -->\nb';
   assert.deepEqual(pullRequestErrors((d) => { d.text = marker; }), ['Write /text of ' +
     `pull-request.json in another form.\nThe schema excludes ${JSON.stringify(marker)}.`]);
   for (const doc of [JSON.parse(fs.readFileSync(path.join(SKILL,
     'schemas/pull-request.schema.json'), 'utf8')), artifactEntries()
     .find((entry) => entry.name === 'pull-request').json_schema]) {
-    assert.equal(doc.properties.text.not.pattern, '(^|\\n)<!-- qory:(start|end) -->');
+    assert.equal(doc.$defs.text.not.pattern, '(^|\\n)<!-- qory:(start|end) -->');
+    assert.deepEqual(doc.properties.text, { title: 'Description', $ref: '#/$defs/text' });
   }
   const primitives = JSON.parse(fs.readFileSync(path.join(SKILL,
     'schemas/primitives.schema.json'), 'utf8'));
@@ -3422,7 +3423,10 @@ test('pull-request: the primitives are $refs to the primitives file, twice', () 
     'utf8'));
   for (const doc of [file, entry.json_schema]) {
     for (const name of ['line', 'title', 'text', 'reference']) {
-      assert.deepEqual(doc.$defs[name], { $ref: `${ID}#/$defs/${name}` }, name);
+      const ref = { $ref: `${ID}#/$defs/${name}` };
+      // text is the body of the draft: it has the marker rule beside its $ref.
+      if (name === 'text') ref.not = { pattern: '(^|\\n)<!-- qory:(start|end) -->' };
+      assert.deepEqual(doc.$defs[name], ref, name);
     }
     assert.deepEqual(doc.properties.target, { title: 'Target', $ref: '#/$defs/reference' });
     assert.deepEqual(doc.properties.draft, { title: 'Draft', type: 'boolean', const: true });

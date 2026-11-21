@@ -132,10 +132,7 @@ artifact_types:
           },
           "text": {
             "title": "Description",
-            "$ref": "#/$defs/text",
-            "not": {
-              "pattern": "(^|\\n)<!-- qory:(start|end) -->"
-            }
+            "$ref": "#/$defs/text"
           },
           "commits": {
             "title": "Commits",
@@ -230,7 +227,10 @@ artifact_types:
             "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/title"
           },
           "text": {
-            "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/text"
+            "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/text",
+            "not": {
+              "pattern": "(^|\\n)<!-- qory:(start|end) -->"
+            }
           },
           "reference": {
             "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/reference"
