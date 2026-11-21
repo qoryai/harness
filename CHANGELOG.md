@@ -1040,17 +1040,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     limit or view: Explore and Shape name it as an output and an input, and `qory config`
     refuses a stage type that has no entry. `questions`, `verdict` and `review-comments`
     are named by no stage, so they have no entry.
-  - `primitives.schema.json` is a byte copy of qory's file at `eb4cf241`: its `$defs/text`
-    has no marker rule, and its description lists six primitives. The rule that refuses a
-    line that starts with `<!-- qory:start -->` or `<!-- qory:end -->` is now on `$defs.text`
-    of `pull-request`, which the `text` member and `report-build` use, beside the `$ref` to
-    the primitive, in the file and in `process.yaml`. The finding for a body with a marker
-    is the same as before.
-  - `verification` and `acceptance-criteria` are byte copies of qory's contracts at
-    `ebe63575`, and the same files at `eb4cf241`. Their `$defs/line` and `$defs/text` now
-    also refuse the format characters that the other types refuse: U+0600 to U+0605, U+06DD, U+070F, U+0890 to U+0891, U+08E2,
-    U+206A to U+206F, U+110BD, U+110CD, U+13430 to U+1343F, U+1BCA0 to U+1BCA3, U+1D173 to
-    U+1D17A, U+E0001 and U+E0020 to U+E007F.
+  - `primitives.schema.json` is a byte copy of qory's file at `d3a49958`: its `$defs.text`
+    has no marker rule, and its description lists six primitives. `$defs.text` of
+    `pull-request`, which the `text` member and `report-build` use, has the rule that
+    refuses a line that starts with `<!-- qory:start -->` or `<!-- qory:end -->`, beside
+    its `$ref` to the primitive, in the file and in `process.yaml`. Before, the rule was
+    on the primitive. The finding for a body with a marker is the same as before.
+  - `verification` and `acceptance-criteria` are byte copies of qory's files at `d3a49958`.
+    Their `$defs.line` and `$defs.text` now also refuse the format characters that the
+    other types refuse: U+0600 to U+0605, U+06DD, U+070F, U+0890 to U+0891, U+08E2,
+    U+206A to U+206F, U+110BD, U+110CD, U+13430 to U+1343F, U+1BCA0 to U+1BCA3,
+    U+1D173 to U+1D17A, U+E0001 and U+E0020 to U+E007F.
   - On every non-zero exit, and with `report-build --drop`, the verb removes the outbox
     file.
   - The session writes no `target` and no member that qory fills (`commits`, `head`,
