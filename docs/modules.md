@@ -2045,8 +2045,8 @@ The checks:
   criterion id that the criteria of the name of `about` have. For `main`, a check reads the
   draft at the top of the artifact folder when it is a file and no link, as for a file given
   to `check`; otherwise the check reads the newest version of that name. The questions check
-  runs each rule of `questionRules` for the type of an output `about`, for a new question and
-  a kept one, and the check reads nothing of what a rule tests. The same skill adds the
+  runs each rule of `questionRules` for the type of an output `about`, for a new question
+  and a kept one, and the check reads nothing of what a rule tests. The same skill adds the
   rule for `acceptance-criteria` that applies to a question with an option titled `Change
   AC-N`, `Make it met another way` or `Withdraw AC-N`, the three answers that Verify writes
   for a criterion that cannot be met. It refuses such a question with other than 3
