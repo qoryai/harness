@@ -106,24 +106,36 @@ Then decide, in this order, and go no further when a case ends the run:
 
 ## The reviewers
 
-1. Read the diff of the change, the file at `qory.review_session.diff`, with the file tool
-   of your runtime. For each line that starts with `diff --git a/`, take the path after the
-   last ` b/` of that line. Write those paths, one per line, to
-   `<folder>/.notes/changed-files.txt`. When the diff cannot be read, end as "Failures"
-   lists, with "The review of the change did not start, because its diff could not be read."
-2. Start ${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and
-   ${qory:agents/acceptance-reviewer}, in turn, each in the foreground.
-3. Run `<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files
-   <folder>/.notes/changed-files.txt`. Start each member of a `Start:` line in turn. When
-   panel prints a line "Run panel again with --after <n>", run it again with that
-   `--after` after those members returned, and start the members of its `Start:` lines. A
-   member of a `Skip:` line does not start. With exit 1 or more, end as "Failures" lists for
-   the checks script.
+The reviewers are the members of the group role `reviewers`. ${qory:agents/code-reviewer},
+${qory:agents/test-reviewer} and ${qory:agents/acceptance-reviewer} start for every change;
+each other member starts only when a path of the change matches its paths.
 
-Before each start, run `notes <agent> --files <folder>/.notes/changed-files.txt` and count
-the start, as "Starting agents" and "Count the starts" of `running-a-workflow` list, with
-`review-changes-1-<agent>` as `<name>`. When `starts` exits with 1, start no reviewer for
-that name: its missing report counts in "The round".
+1. Read the diff of the change, the file at `qory.review_session.diff`, with the file tool
+   of your runtime. Take the path of each file of the change from the header lines of the
+   diff, not from its `diff --git` lines, where a path may contain ` b/`:
+   - From each line that starts with `+++ `, take the rest of the line; when that rest is
+     `/dev/null`, the change deletes the file: take the rest of the `--- ` line before it.
+   - Remove one tab at the end, which git adds when the path has a space.
+   - When the rest starts with `"`, git wrote it in quotes: remove the two quotes, and read
+     `\"` as `"`, `\\` as `\`, `\t` as a tab, and each `\` with three octal digits as
+     that byte, so that `\303\251` is `é`.
+   - Remove the `a/` or `b/` in front.
+   - A file with no `+++ ` line, such as a binary file, has its path only in its line
+     `diff --git a/<path> b/<path>`, where both halves are the same: take that path.
+
+   Write those paths, one per line, to `<folder>/.notes/changed-files.txt`, which is
+   `<paths>`. When the diff cannot be read, end as "Failures" lists, with "The review of
+   the change did not start, because its diff could not be read."
+2. Run `<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files <paths>`.
+   Start each member of a `Start:` line in turn, each in the foreground. When panel prints
+   a line "Run panel again with --after <n>", run it again with that `--after` after those
+   members returned, and start the members of its `Start:` lines. A member of a `Skip:`
+   line does not start. With exit 1 or more, end as "Failures" lists for the checks script.
+
+Before each start, run `notes <agent> --files <paths>` and count the start, as "Starting
+agents" and "Count the starts" of `running-a-workflow` list, with `review-changes-1-<agent>`
+as `<name>`. When `starts` exits with 1, start no reviewer for that name: its missing report
+counts in "The round".
 
 Pass each reviewer the path of the input file, `<inputs>`, and nothing else. Each reviewer
 reads every value of the review from `qory.review_session` of the input file, which qory
@@ -134,17 +146,16 @@ reviewer, start no reviewer again, and fix no report: "The round" decides.
 ## The round
 
 Run `<skill folder>/checks.cjs findings round <reports> --reviewers <names> --suite <suite>`
-once. `<names>` is the agent name of each reviewer that "The reviewers" counted to start,
-joined by commas, in the order of their starts, such as
+once. `<names>` is the agent name of each member of a `Start:` line of panel, also one whose
+start `starts` refused, joined by commas, in the order of the `Start:` lines, such as
 `code-reviewer,test-reviewer,acceptance-reviewer,security-reviewer`. It reads each report
 and `<suite>` once. A reviewer that wrote no valid report is one blocking finding, and so is
 a suite that failed or did not run. It prints a line per finding, with its proof on the
 next line.
 
-- With 1, a finding is blocking, and `<reports>/points.json` has a `run_again` point for
-  each one. Run `<qory> run verdict changes-requested --points <reports>/points.json`, and
-  end with the last line of `findings round`. qory writes the findings for the next session
-  of `implement-changes`.
+- With 1, a finding is blocking. Run `<qory> run verdict changes-requested` with no point,
+  and end with the last line of `findings round`. qory writes the findings for the next
+  session of `implement-changes` from the reports.
 - With 0, no finding is blocking. Do "The end".
 - With 2 or 3, end as "Failures" lists for the checks script.
 
@@ -164,8 +175,8 @@ open."
 
 ## Failures
 
-A checks script exit of 2, 3 or 4, a skill that does not load, an input file with no
-review session and a build plan that cannot be read end the run as "Failures" of
-`running-a-workflow` lists. For a build plan that cannot be read, use "The review of the
-change did not start, because the build plan could not be read." The session runs no
-ledger step, so it runs no `step begin` and no `step end`.
+A checks script exit of 2, 3 or 4, a skill that does not load, an input file with no review
+session, a diff that cannot be read and a build plan that cannot be read end the run as
+"Failures" of `running-a-workflow` lists. For a build plan that cannot be read, use "The
+review of the change did not start, because the build plan could not be read." The session
+runs no ledger step, so it runs no `step begin` and no `step end`.

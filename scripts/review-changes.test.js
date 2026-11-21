@@ -60,21 +60,24 @@ const REVIEWERS = ['code-reviewer', 'test-reviewer', 'acceptance-reviewer'];
 // The members of qory.review_session that each reviewer of a review session reads, in the
 // words of judging-findings. Change the names here, and the test shows each text to change.
 const SESSION_VALUES = 'Read each value from `qory.review_session`, which qory writes: ' +
-  '`commit`, `diff`, `suite_result`, `previous_findings` and, when the change has one, ' +
+  '`commit`, `diff`, `suite_result` and, when qory writes them, `previous_findings` and ' +
   '`build_report`.';
+// The members of the group role reviewers with paths; REVIEWERS have none, so they start for
+// every change.
 const GROUP = ['security-reviewer', 'data-reviewer', 'failure-reviewer'];
 
 // ---- The skill, the agents and the stack ----------------------------------------------------
 
-test('the skill starts the three reviewers in turn, then the members that panel starts', () => {
+test('the skill starts the members of the group reviewers that panel starts, in turn', () => {
   assert.match(WORKFLOW, /\nThis workflow requires subagents\. The session is a review session/);
   const reviewers = section(WORKFLOW, 'The reviewers');
   assert.doesNotMatch(WORKFLOW, /`git /);
+  says(reviewers, '${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and ' +
+    '${qory:agents/acceptance-reviewer} start for every change');
   inOrder(reviewers, 'Read the diff of the change, the file at `qory.review_session.diff`',
-    'Start ${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and ' +
-      '${qory:agents/acceptance-reviewer}, in turn',
-    '`<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files ' +
-      '<folder>/.notes/changed-files.txt`');
+    'not from its `diff --git` lines, where a path may contain ` b/`',
+    'Run `<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files <paths>`',
+    'Start each member of a `Start:` line in turn');
   says(reviewers, 'Pass each reviewer the path of the input file, `<inputs>`, and nothing else.');
   says(reviewers, 'reads every value of the review from `qory.review_session` of the input file');
   says(reviewers, 'Read no report of a reviewer, start no reviewer again, and fix no report');
@@ -92,7 +95,8 @@ test('the skill decides the round once and records changes-requested or passed',
   const round = section(WORKFLOW, 'The round');
   says(round, '`<skill folder>/checks.cjs findings round <reports> --reviewers <names> ' +
     '--suite <suite>` once');
-  says(round, 'Run `<qory> run verdict changes-requested --points <reports>/points.json`');
+  says(round, 'Run `<qory> run verdict changes-requested` with no point');
+  assert.doesNotMatch(WORKFLOW, /changes-requested --points/);
   says(round, 'A reviewer that wrote no valid report is one blocking finding');
   says(section(WORKFLOW, 'The end'), 'When no finding is blocking, run `<qory> run verdict ' +
     'passed`.');
@@ -108,8 +112,11 @@ test('the stack lists review-changes read only, with its review group and no pla
     /\n {2}review-changes: \{tier: thinking, access: read, review_group: reviewers\}\n/);
   const manifest = read(SOFTWARE, 'qory-module.yaml');
   assert.match(manifest, /\n {2}agents:\n {4}reviewers: many\n/);
-  assert.match(manifest,
-    /\n {4}reviewers: \[security-reviewer, data-reviewer, failure-reviewer\]\n/);
+  assert.ok(manifest.includes('\n    reviewers: [code-reviewer, test-reviewer, ' +
+    'acceptance-reviewer, security-reviewer,\n      data-reviewer, failure-reviewer]\n'));
+  // A member with no paths key counts for every change; qory refuses paths: [].
+  for (const name of REVIEWERS) assert.doesNotMatch(agent(name), /\npaths:/, name);
+  for (const name of GROUP) assert.match(agent(name), /\npaths: \[\n/, name);
 });
 
 test('each reviewer reads qory.review, or qory.review_session in a review session', () => {
@@ -126,8 +133,9 @@ test('each reviewer reads qory.review, or qory.review_session in a review sessio
     says(text, 'You write one file: the report, at the path `report` that "The values of the ' +
       'review" of `judging-findings` lists');
     says(text, 'has neither `qory.review` nor `qory.review_session`');
-    says(text, 'In a review session, also `previous_findings` or `reports` is missing from ' +
-      '`qory.review_session`.');
+    says(text, 'In a review session, also `reports` is missing from `qory.review_session`.');
+    says(text, '`previous_findings` is given, and the file at its path cannot be read.');
+    says(text, 'With no `previous_findings`, this is the first round: go on.');
     assert.doesNotMatch(text, /`qory\.review\.report`/, name);
   }
 });
@@ -167,12 +175,13 @@ function git(repo, env, ...argv) {
   return ran.stdout.trim();
 }
 
-// groupRows returns the rows of roles.json for the members of the group role reviewers, with
-// the paths that each agent file sets, as qory writes them.
+// groupRows returns the rows of roles.json for the six members of the group role reviewers,
+// as qory writes them: the paths that an agent file sets, and no paths key for one with none.
 function groupRows() {
-  return GROUP.map((name) => {
-    const paths = JSON.parse(/\npaths: (\[[\s\S]*?\n\])\n/.exec(agent(name))[1]);
-    return { role: 'agents/reviewers', agent: name, from: 'software-factory', group: true, paths };
+  return [...REVIEWERS, ...GROUP].map((name) => {
+    const found = /\npaths: (\[[\s\S]*?\n\])\n/.exec(agent(name));
+    return { role: 'agents/reviewers', agent: name, from: 'software-factory', group: true,
+      ...(found ? { paths: JSON.parse(found[1]) } : {}) };
   });
 }
 
@@ -184,8 +193,10 @@ const SUITES = {
 
 // work returns a checkout whose change commits text to src/jobs/export.cjs, an artifact folder
 // with the build plan and a ledger whose one deliverable has the state done, unless given, a
-// harness home with roles.json, a report folder, the suite result suite and a qory stub.
-function work(text, suite = SUITES.passed, done = 'done') {
+// harness home with roles.json, a report folder, the suite result suite and a qory stub. In
+// round 1 the input file has no previous_findings, as qory writes it; in a later round it has
+// the path of open-findings.json beside it, with one finding.
+function work(text, suite = SUITES.passed, done = 'done', round = 1) {
   const w = { repo: fresh('repo'), artifacts: fresh('artifacts'), store: fresh('store'),
     bin: fresh('bin'), home: fresh('home'), reports: fresh('reports') };
   w.env = {
@@ -225,11 +236,16 @@ function work(text, suite = SUITES.passed, done = 'done') {
   w.suite = path.join(fresh('suite'), 'suite-result.json');
   fs.writeFileSync(w.suite, JSON.stringify(suite));
   w.inputs = path.join(fresh('in'), 'inputs.json');
+  const session = { commit: w.head, diff: w.diff, reports: w.reports, suite_result: w.suite };
+  if (round > 1) {
+    session.previous_findings = path.join(path.dirname(w.inputs), 'open-findings.json');
+    fs.writeFileSync(session.previous_findings, JSON.stringify({ round: round - 1,
+      findings: [{ id: 'f1', reviewer: 'code-reviewer', severity: 'blocking',
+        point: DEFECT_FINDING.point }] }));
+  }
   fs.writeFileSync(w.inputs, JSON.stringify({ qory: {
     start_commits: [{ path: w.repo, commit: w.start }], start_artifacts: w.artifacts,
-    review_session: { commit: w.head, diff: w.diff,
-      previous_findings: path.join(path.dirname(w.inputs), 'open-findings.json'),
-      reports: w.reports, suite_result: w.suite } } }));
+    review_session: session } }));
   fs.copyFileSync(w.inputs, path.join(w.home, 'inputs.json'));
   w.log = path.join(w.bin, 'log');
   w.qory = path.join(w.bin, 'qory');
@@ -237,6 +253,10 @@ function work(text, suite = SUITES.passed, done = 'done') {
 printf '%s\\n' "$*" >> '${w.log}'
 case "$1 $2" in
 'run verdict')
+  # qory takes --points only with escalate.
+  case " $* " in
+  *' --points '*) [ "$3" = escalate ] || { echo "qory refuses --points with $3" >&2; exit 2; };;
+  esac
   exit 0;;
 esac
 exit 9
@@ -300,19 +320,57 @@ const DEFECT_FINDING = {
   file: 'src/jobs/export.cjs', line: 2,
 };
 
-// reviewers does "The reviewers" of the skill up to the starts: the paths of the change and
-// panel. It returns the names that the session starts, in the order of the starts.
+// diffPaths returns the paths of the diff text by the rule of step 1 of "The reviewers": the
+// +++ lines, the --- line for a deleted file, git's quotes, and diff --git for a binary file.
+function diffPaths(text) {
+  const unquote = (rest) => {
+    if (!rest.startsWith('"')) return rest;
+    const bytes = [];
+    const body = rest.slice(1, -1);
+    for (let at = 0; at < body.length; at += 1) {
+      if (body[at] !== '\\') {
+        bytes.push(...Buffer.from(body[at]));
+      } else if (/^[0-7]{3}$/.test(body.slice(at + 1, at + 4))) {
+        bytes.push(parseInt(body.slice(at + 1, at + 4), 8));
+        at += 3;
+      } else {
+        at += 1;
+        bytes.push(...Buffer.from({ t: '\t', n: '\n' }[body[at]] || body[at]));
+      }
+    }
+    return Buffer.from(bytes).toString('utf8');
+  };
+  const name = (rest) => unquote(rest.replace(/\t$/, '')).slice(2);
+  const paths = [];
+  let header = false;
+  let before = null;
+  for (const line of text.split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      if (header) paths.push(header);
+      const both = line.slice('diff --git '.length);
+      header = both.slice(2, (both.length - 1) / 2);
+    } else if (line.startsWith('--- ')) {
+      before = line.slice(4);
+    } else if (line.startsWith('+++ ')) {
+      const rest = line.slice(4);
+      paths.push(rest === '/dev/null' ? name(before) : name(rest));
+      header = false;
+    }
+  }
+  if (header) paths.push(header);
+  return paths;
+}
+
+// reviewers does "The reviewers" of the skill up to the starts: the paths of the change, then
+// panel with the names of the six members. It returns the names that panel starts, in order.
 function reviewers(w, call) {
-  const names = read(w.diff).split('\n').filter((line) => line.startsWith('diff --git a/'))
-    .map((line) => line.slice(line.lastIndexOf(' b/') + 3)).join('\n');
   const files = path.join(w.artifacts, '.notes/changed-files.txt');
   fs.mkdirSync(path.dirname(files), { recursive: true });
-  fs.writeFileSync(files, `${names}\n`);
-  const panel = call('panel', '--names', GROUP.join(', '), '--files', files);
+  fs.writeFileSync(files, `${diffPaths(read(w.diff)).join('\n')}\n`);
+  const panel = call('panel', '--names', [...REVIEWERS, ...GROUP].join(', '), '--files', files);
   assert.equal(panel.status, 0, panel.out);
-  const started = panel.lines.map((line) => /^Start: ([a-z-]+),/.exec(line))
+  return panel.lines.map((line) => /^Start: ([a-z-]+),/.exec(line))
     .filter(Boolean).map((match) => match[1]);
-  return [...REVIEWERS, ...started];
 }
 
 // countReads runs body and returns how often it opened or read the file.
@@ -341,7 +399,8 @@ test('a planted defect gives changes-requested with the finding and its proof', 
   const w = work(DEFECT);
   const call = session(w);
   const names = reviewers(w, call);
-  // The change is in src/jobs/, so panel starts failure-reviewer and no other member.
+  // The three with no paths start for every change; of the others, the change in src/jobs/
+  // starts only failure-reviewer.
   assert.deepEqual(names, [...REVIEWERS, 'failure-reviewer']);
   report(w, 'code-reviewer', [DEFECT_FINDING]);
   for (const name of names.slice(1)) report(w, name, []);
@@ -353,8 +412,11 @@ test('a planted defect gives changes-requested with the finding and its proof', 
   const points = path.join(w.reports, 'points.json');
   assert.deepEqual(JSON.parse(read(points)), [{ text: DEFECT_FINDING.point, action: 'run_again',
     fix: DEFECT_FINDING.fix }]);
-  assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested', '--points', points).status, 0);
-  assert.deepEqual(logOf(w), [`run verdict changes-requested --points ${points}`]);
+  // qory refuses --points with changes-requested, and writes the findings from the reports.
+  assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested', '--points', points).status,
+    2);
+  assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested').status, 0);
+  assert.equal(logOf(w).at(-1), 'run verdict changes-requested');
   // The session wrote nothing into the checkout.
   assert.equal(git(w.repo, w.env, 'status', '--porcelain'), '');
 });
@@ -390,6 +452,8 @@ test('a clean change gives passed, reads the suite result once and writes no bui
 
 // unbuilt returns the line of "The ledger check" of the skill for the build plan and the ledger
 // of w: the deliverables of the plan whose newest ledger row is not done, or null when all are.
+// shortcut: the session does the check with its file tool, so no harness code computes the
+// line and this copies the rule of the skill; replace it when a verb prints the line.
 function unbuilt(w) {
   const plan = read(w.artifacts, 'build-plan/main/v1/build-plan.md');
   const rows = plan.split('\n').filter((line) => /^\| d-\d+ \|/.test(line))
@@ -444,4 +508,44 @@ test('a suite that failed is one blocking finding of full-suite', () => {
   const round = roundOf(w, call, names);
   assert.equal(round.status, 1, round.out);
   assert.equal(round.lines[0], 'Blocking finding of full-suite: The full suite failed.');
+});
+
+test('round 1 has no previous_findings, and a later round passes its path the same way', () => {
+  for (const round of [1, 2]) {
+    const w = work(CLEAN, SUITES.passed, 'done', round);
+    const { review_session: given } = JSON.parse(read(w.inputs)).qory;
+    assert.equal(Object.hasOwn(given, 'previous_findings'), round > 1, `round ${round}`);
+    if (round > 1) assert.ok(fs.existsSync(given.previous_findings));
+    const call = session(w);
+    const names = reviewers(w, call);
+    for (const name of names) report(w, name, []);
+    const result = roundOf(w, call, names);
+    assert.equal(result.status, 0, result.out);
+  }
+});
+
+test('the rule of step 1 reads each path of a git diff whole', () => {
+  const repo = fresh('paths');
+  const env = { ...process.env, HOME: fresh('user'), GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Sam Example', GIT_AUTHOR_EMAIL: 'sam@example.com',
+    GIT_COMMITTER_NAME: 'Sam Example', GIT_COMMITTER_EMAIL: 'sam@example.com' };
+  const put = (name, bytes) => {
+    fs.mkdirSync(path.dirname(path.join(repo, name)), { recursive: true });
+    fs.writeFileSync(path.join(repo, name), bytes);
+  };
+  git(repo, env, 'init', '-q');
+  put('src/old.js', 'gone\n');
+  put('img/logo.bin', Buffer.from([0, 1, 2]));
+  git(repo, env, 'add', '-A');
+  git(repo, env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Start');
+  const start = git(repo, env, 'rev-parse', 'HEAD');
+  fs.rmSync(path.join(repo, 'src/old.js'));
+  put('img/logo.bin', Buffer.from([0, 1, 3]));
+  for (const name of ['docs/a b/c.md', 'src/"q".js', 'src/café.js']) put(name, 'x\n');
+  git(repo, env, 'add', '-A');
+  git(repo, env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Change');
+  const text = git(repo, env, 'diff', start, 'HEAD');
+  const want = git(repo, env, 'diff', '--name-only', '-z', start, 'HEAD').split('\0')
+    .filter(Boolean);
+  assert.deepEqual(diffPaths(text).sort(), want.sort());
 });

@@ -29,10 +29,10 @@ with Read.
 - **An agent of a review session.** When `inputs.json` has no `qory.review` and has the
   member `qory.review_session`, the session of `review-changes` started you as one of its
   agents. Read each value from `qory.review_session`, which qory writes: `commit`, `diff`,
-  `suite_result`, `previous_findings` and, when the change has one, `build_report`. `report`
-  is `<reports>/<your agent name>.json`, where `<reports>` is `qory.review_session.reports`,
-  such as `<reports>/code-reviewer.json`. Read no value of the review from your prompt: the
-  session passes none.
+  `suite_result` and, when qory writes them, `previous_findings` and `build_report`.
+  `report` is `<reports>/<your agent name>.json`, where `<reports>` is
+  `qory.review_session.reports`, such as `<reports>/code-reviewer.json`. Read no value of
+  the review from your prompt: the session passes none.
 
 The values:
 
@@ -44,8 +44,8 @@ The values:
 - `suite_result`: the result of the full suite on the frozen state, as JSON: the counts
   `tests`, `failed` and `skipped`, and `output_tail`, the last lines of its output.
 - `previous_findings`: the findings of the round before, as JSON. It is missing in the
-  first round. In a review session, it is set in every round, and in the first round no
-  file may be at its path.
+  first round, also in a review session. When it is given and its file cannot be read, stop
+  and write no report.
 - `build_report`: the newest report of the session that made the change. It is missing
   when that session wrote none. When it is missing, judge the change from the diff alone.
 - `report`: the path where you write your report. Write no other path.

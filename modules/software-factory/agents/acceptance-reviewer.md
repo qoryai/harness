@@ -72,8 +72,9 @@ because you wrote no report.
 - The input file is missing or cannot be read, or has neither `qory.review` nor
   `qory.review_session`.
 - `commit`, `diff` or `report` is missing from the values of the review, or the copy at
-  `commit` or the file at `diff` cannot be read. In a review session, also
-  `previous_findings` or `reports` is missing from `qory.review_session`.
+  `commit` or the file at `diff` cannot be read. In a review session, also `reports` is
+  missing from `qory.review_session`.
+- `previous_findings` is given, and the file at its path cannot be read.
 - The write of the report is denied.
 - `qory.start_artifacts` is missing from the input file, or the newest version of the
   acceptance criteria, the spec or the build plan in its folder cannot be read, as "What the
