@@ -606,11 +606,11 @@ test('a plan of 8 deliverables ends escalate: no plan is pushed, a question and 
   fs.writeFileSync(file, planOf(8));
   const checked = call('check', 'build-plan', file);
   assert.equal(checked.status, 1, checked.out);
-  assert.equal(checked.lines[0],
-    'Cut build-plan.md to 7 deliverables, or end the session with escalate.');
-  assert.equal(checked.lines[1], '  It has 8.');
-  assert.ok(checked.lines[0].startsWith('Cut build-plan.md to'));
-  assert.ok(skill('workflow-plan-the-build').includes('"Cut build-plan.md to"'));
+  assert.equal(checked.lines[0], 'Plan at most 7 separate changes, or ask a member whether to ' +
+    "build all 8: the plan has 8, and no member's answer allows more than 7.");
+  assert.match(checked.lines[1], /^ {2}The notes of the work item could not be read: /);
+  assert.ok(checked.lines[0].startsWith('Plan at most'));
+  assert.ok(skill('workflow-plan-the-build').includes('"Plan at most"'));
   // The session ends the step as failed, asks one question and pushes no plan.
   const step = /Run `step end (\S+) (\S+)`/.exec(section(MORE, 'More than 7 deliverables'));
   assert.ok(step, 'the section "More than 7 deliverables" has no step end');

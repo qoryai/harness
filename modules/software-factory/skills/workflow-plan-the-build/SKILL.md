@@ -43,8 +43,9 @@ not load the rules it needs, so it pushed no build plan."
    start" of `running-a-workflow` lists, and give it the paths that the explorer's report
    lists under "Facts:". It drafts `build-plan.md`.
 5. Run `check build-plan <folder>/build-plan.md`, as "Check before each review" lists. When a
-   line starts with "Cut build-plan.md to", the plan has more than 7 deliverables: do "More
-   than 7 deliverables", and go no further in this list.
+   line starts with "Plan at most", the plan has more deliverables than the check allows,
+   which is 7 unless a member's answer allows more: do "More than 7 deliverables", and go
+   no further in this list.
 6. Start ${qory:agents/plan-reviewer} with the input file's path, the artifact folder, the
    run's number, the notes, the code explorer's report, unchanged, and the lines under
    "Checks:" that "Check before each review" lists. Decide on each report as "Findings"
@@ -61,10 +62,16 @@ not load the rules it needs, so it pushed no build plan."
 
 ## More than 7 deliverables
 
-A build plan has at most 7 deliverables, and `check build-plan` refuses more. Send that
-finding to no writer, cut nothing yourself, start no reviewer, and push no build plan.
+A build plan has at most 7 deliverables, and `check build-plan` fails a plan with more,
+unless a member answered "Build all <n> changes in this work item." with `<n>` of 8 or
+more: then the newest such answer sets the limit, and option 1 of a later question keeps
+it. Send that finding to no writer, cut nothing
+yourself, start no reviewer, and push no build plan.
 
-1. Take `<n>`, the number of deliverables, from the line "It has <n>." after the finding.
+1. Take `<n>`, the number of deliverables, and `<m>`, the limit, from the first line of the
+   finding, "Plan at most <m> separate changes, ... the plan has <n>". With `<m>` above 7,
+   a member allowed `<m>`: after this step and step 2, do "More than a member allowed" in
+   place of steps 3 and 4.
    Take the changes from the planner's list "Over the limit:". When that list is
    `- none`, start the planner once more with the lines of the check quoted, and tell it to
    change nothing but that list.
@@ -121,6 +128,51 @@ finding to no writer, cut nothing yourself, start no reviewer, and push no build
    of the point is "The build plan has <n> separate changes, and one build has at most 7.",
    its action is `answer`, and its `question` is the id that the questions writer lists
    under "Added:". Then end as "Points" lists.
+
+## More than a member allowed
+
+When the finding has `<m>` above 7, a member allowed `<m>` changes for this work item, and
+the plan has `<n>` over it. After steps 1 and 2 of "More than 7 deliverables", do these
+steps in place of its steps 3 and 4:
+
+1. Take `<date>` from two notes of `<qory> work-item show`: the newest with the `kind`
+   `request_changes`, and the newest with the `kind` `answer` whose text is "Build all <m>
+   changes in this work item.". `<date>` is the first 10 characters of the `at` of the
+   newer of the two, as `2026-11-16`: the date of the feedback or the answer that led to
+   this plan. When neither note has an `at` that starts with `YYYY-MM-DD`, push nothing
+   and end the run as "Failures" of `running-a-workflow` lists.
+2. Start ${qory:agents/questions-writer} as in step 3 of "More than 7 deliverables", with
+   this one item under "What only a person can settle", and with `<k>` set to `<m>` and
+   `<j>` set to `<n>` minus `<m>` in the rules there, where "7" stands for `<m>`:
+
+   ```
+   Add: Which changes do you want to build in this work item?
+   Context: A member allowed <m> separate changes for this work item, and the plan after
+   the feedback of <date> has <n>. <k> changes are for <criteria>, and the other <j> are
+   for <other criteria>. Build waits until you pick.
+   Option 1 (recommended): Build the changes for <criteria> here; take in <other criteria>
+   as a new work item. Explanation: This build stays within the <m> changes that a member
+   allowed. Qory Apiary has no action that splits a work item, so you take in the other
+   criteria.
+   Option 2: Build all <n> changes in this work item. Explanation: One build makes all <n>
+   changes, over the <m> that a member allowed, and the build report records your answer
+   and its date.
+   Source: the build plan has <n> deliverables, and the check allows <m>.
+   ```
+
+   When no criterion belongs only to the later changes, option 1 is this text in place of
+   the one above, with the same explanation:
+
+   ```
+   Option 1 (recommended): Build the first <m> changes here; take in the other <j> changes
+   (<short names>) as a new work item.
+   ```
+
+   With `<j>` 1, write "the other 1 change (<short name>)".
+
+3. Push the questions, and write `points.json` with one point, as step 4 of "More than 7
+   deliverables" lists, with this text: "After the feedback of <date>, the build plan has
+   <n> changes; a member allowed <m>." Then end as "Points" lists.
 
 ## Failures
 

@@ -1478,8 +1478,8 @@ done
 
 # A compose for Codex writes the modules' Codex settings into config.toml of the Codex home: the
 # Stop hook of core that runs the end check, the PreToolUse and PreModelRequest hooks of core that
-# run the tool guard and its step limit, and live web search off from software-factory. The core
-# stack gets the hooks alone.
+# run the tool guard and its step limit. No module sets web_search: qory writes
+# web_search = "disabled" into every config.toml it composes, so both stacks have it.
 CODEX_CONFIG="$TMP/software/.qory/harness/codex/config.toml"
 expect "checkout extending software by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/software" "$QORY" harness compose --runtime codex
@@ -1495,15 +1495,13 @@ done
 CORE_CODEX="$TMP/consumer/.qory/harness/codex/config.toml"
 expect "checkout extending core by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/consumer" "$QORY" harness compose --runtime codex
-for line in '[[hooks.Stop]]' 'hooks/end-gate-codex.cjs' '[[hooks.PreToolUse]]' \
-	'matcher = "*"' 'hooks/tool-guard-codex.cjs' '[[hooks.PreModelRequest]]'; do
+for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.cjs' \
+	'[[hooks.PreToolUse]]' 'matcher = "*"' 'hooks/tool-guard-codex.cjs' \
+	'[[hooks.PreModelRequest]]'; do
 	grep -Fq -- "$line" "$CORE_CODEX" 2>/dev/null ||
 		fail "core: harness compose --runtime codex writes $line into $CORE_CODEX"
 	pass "core: harness compose --runtime codex writes $line into config.toml"
 done
-! grep -Fq 'web_search' "$CORE_CODEX" 2>/dev/null ||
-	fail "core: harness compose --runtime codex writes no web_search into $CORE_CODEX"
-pass "core: harness compose --runtime codex writes no web_search into config.toml"
 
 # Gemini CLI and OpenCode have no workflow commands to list. The compose for each of them
 # must still exit 0.
@@ -2589,6 +2587,9 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 # The tests of the types of Build and Verify: their JSON Schemas against process.yaml and the
 # 40 samples, and each rule of each type in check and push.
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
+# The tests of the limit of deliverables in build-plan: 7, or the number that a member's
+# answer allows, read from the notes of the work item in a session and in a push check.
+expect "the build-plan limit tests pass" 0 "$ROOT" node --test scripts/build-plan-limit.test.js
 # The tests of the review of a change: the example report against qory's schema, the open
 # findings verb, and the removed forms.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js

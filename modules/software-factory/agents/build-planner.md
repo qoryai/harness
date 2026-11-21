@@ -111,7 +111,7 @@ Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```
 
-Write `- none` under "Over the limit:" when the plan has 7 deliverables or fewer. With more
-than 7, list every deliverable there, in the order of the plan. Only `blocked` has one
-"Blocked:" line, in one of these six forms. The last line is one word. Put any other line,
-such as a list of sources, before the last line.
+Write `- none` under "Over the limit:" when the plan has 7 deliverables or fewer, or no
+more than a member allowed. With more, list every deliverable there, in the order of the
+plan. Only `blocked` has one "Blocked:" line, in one of these six forms. The last line is
+one word. Put any other line, such as a list of sources, before the last line.
