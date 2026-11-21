@@ -27,9 +27,18 @@
 //   no qory.review object, as reviewSession reads it: each write of an agent whose type ends
 //   in -reviewer but one, a Write or an apply_patch of reportPatch's form that writes
 //   <reports>/<name>.json, where reports is qory.review_session.reports, outside the working
-//   folder, and name the part of agent_type after the last colon, as sessionReport and
-//   reportName read them. The session starts agents, none in the background; the main session
-//   and every other agent follow the rules of any other session.
+//   folder, and name the agent's name, as sessionReport and reportName read them: on Claude
+//   Code from harness:<name>, on Codex a role of <home>/codex/agents/. Such an agent runs
+//   only a shell command that readsOnlyCall passes. No other call, of the main session or an
+//   agent of any type or none, writes in <reports>, by any tool, a shell command included,
+//   and a command whose writes the guard does not read contains no path in it, except the
+//   checks script alone with findings round, which writes <reports>/points.json. The
+//   session starts agents, none in the background; the main session and every other agent
+//   follow the rules of any other session outside <reports>;
+// - in a session with qory.review or qory.review_session, a write of the inputs.json of the
+//   harness home, wherever the home lies. The checks of qory use the bytes that qory wrote,
+//   not the file. The guard reads the writes of a shell command from its text, so a path of
+//   the file or of <reports> that a shell variable makes passes, as the next lines state.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -1997,14 +2006,22 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const walked = call.paths.map((one) => walkPath(joined(cwd, one)));
   const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
+  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
+  const reviewer = agent && /-reviewer$/.test(String(input.agent_type));
+  const kept = keptFiles(env, session, nocase);
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
       .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
     const reason = reportsGlob(call.command, cwd, [...new Set(dirs)], fold);
     if (reason) return reason;
   }
+  // A reviewer agent of a review session writes its report with Write or apply_patch only.
+  if (call.kind === 'shell' && session && reviewer && !reads) {
+    return `${SESSION_SHELL}The command is ${reviewShown(call.command)}.`;
+  }
   if (call.kind === 'shell') {
-    const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend });
+    const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
+      exempt: sessionExempt(call.command, env, script) });
     if (reason || !paths.length) return reason;
   }
   const homed = home && paths.find((full) => inside(full, home));
@@ -2020,11 +2037,14 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   }
   const unsure = walked.find((one) => one.unsure);
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
-  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
-  // In a review session an agent whose type ends in -reviewer writes its report only.
-  if (agent && session && /-reviewer$/.test(String(input.agent_type))) {
-    return sessionDeny({ call, input, paths, root, cwd, nocase, session });
+  const shielded = keptWrite(kept, paths);
+  // In a review session an agent whose type ends in -reviewer writes its report only, and
+  // no other call writes in the report folder.
+  if (session && reviewer) {
+    return shielded && shielded.inputs ? shielded.reason
+      : sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, env });
   }
+  if (shielded) return shielded.reason;
   if (agent) {
     // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
     // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
@@ -2225,7 +2245,7 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }) {
 // harness home below the working folder, or a file of the lock, as its text shows, or an
 // opaque command of it reaches one of them. lockOf returns the files of the lock; with
 // nocase, a name matches in any case. It spends a unit of spend for each comparison.
-function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
+function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [], exempt }) {
   spend(command.length >> 10);
   const all = segments(command, cwd);
   const parts = all.filter(segmentWrites);
@@ -2262,6 +2282,10 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
     return `${BUILT}The command writes .qory/build/.`;
   }
   if (home && hit(home, true)) return `${HOMED}${home}; the command writes in it.`;
+  const shielded = kept.find((one) => hit(one.full, one.folder));
+  if (shielded) {
+    return `${shielded.head}The command writes ${shielded.folder ? 'in ' : ''}${shielded.full}.`;
+  }
   const { files = [], what, problem, type } = lockOf();
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));
@@ -2275,6 +2299,15 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend }) {
     const name = `${fed ? `${fed[2]} ` : ''}${path.basename(dark.words[0])}`;
     return `${reached.file === path.join(root, BUILD) ? BUILT : OPAQUE}The guard cannot tell ` +
       `what ${name} writes, and the call contains ${reached.word}, which reaches ${shown}.`;
+  }
+  // A command whose writes the guard does not read, other than one of sessionExempt, writes
+  // no word that reaches a kept folder, the report folder of a review session.
+  for (const one of dark && !exempt ? kept.filter((each) => each.folder) : []) {
+    const found = reaches(all, [], one.full, root, how);
+    if (found) {
+      return `${one.head}The guard cannot tell what ${path.basename(dark.words[0])} writes, ` +
+        `and the call contains ${found.word}.`;
+    }
   }
   for (const one of parts) {
     if (!one.lost) continue;
@@ -2878,23 +2911,92 @@ function reviewSession(env) {
 
 // The form of the name of a report file of a review session.
 const REPORT_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// The prefix of an agent of the harness's Claude Code plugin in agent_type, as step-limit.cjs
+// reads it.
+const PLUGIN = 'harness:';
 
 // reportName returns the name of the report file of the agent of agentType in a review
-// session: the part after the last colon, as Claude Code sends harness:code-reviewer for an
-// agent of a plugin. It returns null for a name that does not match REPORT_NAME, and for
+// session, on runtime, with home the harness home. On Claude Code the type is harness: and
+// the name, as Claude Code sends an agent of the harness's plugin; a bare name can be an agent
+// of the working folder. On Codex it is the name of a role that the composed home defines, as
+// a regular file <home>/codex/agents/<name>.toml, where qory writes each role. It returns null
+// for any other type or runtime, for a name that does not match REPORT_NAME, and for
 // full-suite, a name that qory reserves for an entry that it writes.
-function reportName(agentType) {
+function reportName(agentType, runtime, home) {
   if (typeof agentType !== 'string') return null;
-  const name = agentType.slice(agentType.lastIndexOf(':') + 1);
-  return REPORT_NAME.test(name) && name !== 'full-suite' ? name : null;
+  let name = null;
+  if (runtime === 'claude' && agentType.startsWith(PLUGIN)) {
+    name = agentType.slice(PLUGIN.length);
+  } else if (runtime === 'codex' && typeof home === 'string' && path.isAbsolute(home)) {
+    name = agentType;
+  }
+  if (name === null || !REPORT_NAME.test(name) || name === 'full-suite') return null;
+  if (runtime === 'claude') return name;
+  const role = disk.stat(path.join(home, 'codex', 'agents', `${name}.toml`));
+  return role && role.isFile() ? name : null;
+}
+
+// keptFiles returns the entries that no call writes, except as decideCall allows: in a session
+// with qory.review or qory.review_session, the file inputs.json of the harness home, wherever
+// the home lies; in a review session, the report folder, read through its links. Each entry
+// is { full, folder, inputs, nocase, head }, with head the first two lines of its deny.
+function keptFiles(env, session, nocase) {
+  const out = [];
+  const qory = qoryInputs(env);
+  const home = env.QORY_HARNESS_HOME;
+  if (qory && (member(qory.review) || member(qory.review_session)) &&
+    typeof home === 'string' && path.isAbsolute(home)) {
+    const full = real(path.join(home, 'inputs.json'));
+    out.push({ full, folder: false, inputs: true, head: INPUTS_KEPT,
+      nocase: nocase || caseless(path.dirname(full)) });
+  }
+  if (session && session.reports) {
+    const full = real(session.reports);
+    out.push({ full, folder: true, inputs: false, head: REPORTS_KEPT,
+      nocase: nocase || caseless(full) || caseless(path.dirname(full)) });
+  }
+  return out;
+}
+
+// keptWrite returns { inputs, reason } for the first of paths, real paths that a call writes,
+// that is an entry of kept or lies in a kept folder, or null.
+function keptWrite(kept, paths) {
+  for (const one of kept) {
+    const fold = (full) => (one.nocase ? full.toLowerCase() : full);
+    const hit = paths.find((full) => (one.folder ? under(fold(full), fold(one.full))
+      : fold(full) === fold(one.full)));
+    if (hit) return { inputs: one.inputs, reason: `${one.head}The call writes ${hit}.` };
+  }
+  return null;
+}
+
+// sessionExempt reports whether command may contain a path in the report folder of a review
+// session although the guard does not read what it writes: the checks script alone with
+// findings round, which writes <reports>/points.json.
+function sessionExempt(command, env, script) {
+  const text = String(command);
+  if (!reportsGuard.runsChecks(text, env, script)) return false;
+  const words = reportsGuard.withoutRedirect(text).split(/\s+/);
+  const at = words[0] === 'node' ? 2 : 1;
+  return words[at] === 'findings' && words[at + 1] === 'round';
 }
 
 const SESSION_NONE = 'Report in your text and write no file: qory.review_session.reports ' +
   'cannot be used.\nIt must be an absolute path with no . or .. part, no double or trailing ' +
   'slash. ';
 const SESSION_NAME = 'Report in your text and write no file: the name of this agent is no ' +
-  'report name.\nThe name is the part of agent_type after the last colon; it must match ' +
+  'report name.\nOn Claude Code the type must be harness:<name>, and on Codex a role in ' +
+  'codex/agents/ of the harness home; the name must match ' +
   `${REPORT_NAME.source} and must not be full-suite. `;
+const SESSION_SHELL = 'Run only read commands, such as cat, grep or ls: a reviewer writes its ' +
+  'report with Write.\nIn a review session, a reviewer agent writes only ' +
+  '<reports>/<agent name>.json, with Write or apply_patch, so each other command is denied. ';
+const REPORTS_KEPT = 'Leave the report folder to the reviewers and checks.cjs findings round.\n' +
+  'Only the reviewer of that name writes <reports>/<agent name>.json, and only checks.cjs ' +
+  'findings round writes points.json in it. ';
+const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
+  'of the run in it.\nA session with qory.review or qory.review_session in it writes no ' +
+  'inputs.json. ';
 const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write or apply_patch: ' +
   'a reviewer writes one file.\nThe report folder is qory.review_session.reports of inputs.json; ' +
   'a path with a .. part, a link, a file with more than one link, a linked report folder and ' +
@@ -2903,10 +3005,10 @@ const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write o
 // sessionDeny returns the deny of a write of an agent whose type ends in -reviewer in a review
 // session, or null for its report, as sessionReport reads it. paths are the real paths of the
 // call, and the deny reasons that come first were returned before this.
-function sessionDeny({ call, input, paths, root, cwd, nocase, session }) {
+function sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, env }) {
   const writes = `The call writes ${paths.join(', ')}.`;
   if (session.reports === null) return `${SESSION_NONE}${writes}`;
-  const name = reportName(input.agent_type);
+  const name = reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME);
   if (name === null) {
     return `${SESSION_NAME}This agent is ${reviewShown(input.agent_type)}. ${writes}`;
   }
@@ -2918,7 +3020,7 @@ function sessionDeny({ call, input, paths, root, cwd, nocase, session }) {
 }
 
 // sessionReport reports whether call writes exactly <reports>/<name>.json: a Write with one
-// path, or an apply_patch of the form of reportPatch. The path that the call gives has no ..
+// path, or an apply_patch of the form of reportPatch. The path in the call has no ..
 // part; the folders above its last part are read through their links, as walkPath reads
 // them, and must lead to the real report folder. The report folder is no link and, when it
 // exists, a folder outside root, the working folder, and the file, when it exists, is a regular
@@ -3069,7 +3171,8 @@ function run({ runtime, before } = {}) {
 
 // The fixed texts that start a deny, for the check of their first lines.
 const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
-  OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON };
+  OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
+  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT };
 
 module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
   REASONS };
