@@ -580,6 +580,17 @@ test('each JSON Schema of schemas/ is the json_schema of its type in process.yam
   }
 });
 
+test('each type that a stage names has an entry in artifact_types, proposal by name only', () => {
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  const stages = yaml.slice(0, yaml.indexOf('\nartifact_types:\n'));
+  const named = new Set([...stages.matchAll(/^\s+- type: ([a-z-]+)$/gm)].map((one) => one[1]));
+  const entries = artifactEntries();
+  const listed = new Set(entries.map((entry) => entry.name));
+  assert.deepEqual([...named].filter((name) => !listed.has(name)), []);
+  assert.ok(named.has('proposal'));
+  assert.deepEqual(entries.find((entry) => entry.name === 'proposal'), { name: 'proposal' });
+});
+
 test('qory-module.yaml has a push check per type, with the types that each check reads', () => {
   const manifest = fs.readFileSync(MANIFEST, 'utf8');
   const program = 'skills/running-a-software-workflow/workflow-checks.cjs';

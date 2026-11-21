@@ -1012,6 +1012,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     JavaScript with the `u` flag, PCRE and Go RE2 all read `\\xHH`. A test checks that none
     of the nine files and none of the blocks decodes to a control character but tab, line
     feed and carriage return.
+  - `process.yaml` lists `proposal` in `artifact_types` by name alone, with no schema, size
+    limit or view: Explore and Shape name it as an output and an input, and `qory config`
+    refuses a stage type that has no entry. `questions`, `verdict` and `review-comments`
+    are named by no stage, so they have no entry.
   - `verification` and `acceptance-criteria` are byte copies of qory's contracts at
     `ebe63575`. Their `$defs/line` and `$defs/text` now also refuse the format characters
     that the other types refuse: U+0600 to U+0605, U+06DD, U+070F, U+0890 to U+0891, U+08E2,

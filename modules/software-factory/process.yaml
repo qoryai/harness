@@ -87,6 +87,7 @@ artifact_types:
   - name: demo-video
   - name: walkthrough
   - name: decision-record
+  - name: proposal
   - name: spec
     base_view: document
     size_limit: 1048576
