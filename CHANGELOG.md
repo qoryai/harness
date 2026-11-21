@@ -10,8 +10,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The parts of Verify that exist. The agents `tamper-reviewer` and `verification-reviewer`,
   which the `verify-a-ticket` session starts, and which read `commit`, `diff`,
-  `open_findings` and `reports` from `qory.review_session` in `inputs.json`, stop with no
-  report when one is missing, and each write one report to `<reports>/<agent>.json`, with
+  `previous_findings` and `reports` from `qory.review_session` in `inputs.json`, stop with
+  no report when one is missing, and each write one report to `<reports>/<agent>.json`, with
   the skills `checking-tampering` and `judging-criteria`: the first reports a changed file
   that a locked check runs or imports and that the lock does not list, and each test that
   the change newly skips or marks with skip or xfail; the second lowers a state of the
@@ -33,7 +33,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   run, because an agent can change the local store, and a criterion that rests on a type
   that cannot be pulled is not verified. `matrix` counts only the newest record of `run
   locked` for the lock and commit, and only when it is a full, clean run with results. The
-  workflow skill and its stack entry are not built yet.
+  two agents are the group role `verify-reviewers` of `software-factory`, with no `paths`.
+  The workflow skill and its stack entry are not built yet.
 
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how

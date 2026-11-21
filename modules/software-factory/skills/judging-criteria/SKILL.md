@@ -30,7 +30,7 @@ shows what the state says.
   read `<start>/demo-evidence/<name>/v<N>/<name>.json`.
 - The file at `qory.review_session.diff`, and the copy of the change, the working folder at
   `qory.review_session.commit`: to read a locked check or the code that a criterion names.
-- The file at `qory.review_session.open_findings`, as "Earlier findings" lists.
+- The file at `qory.review_session.previous_findings`, as "Earlier findings" lists.
 
 A file cannot be read when `<start>/index.json` or its file does not exist or cannot be
 read, when no entry is left, when `newest_version` is null, when more than one entry is left

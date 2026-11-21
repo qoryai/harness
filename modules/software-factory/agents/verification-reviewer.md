@@ -61,9 +61,10 @@ Load each skill when its step comes, and no other:
 The prompt contains the path of the input file. Read `qory.review_session` and
 `qory.start_artifacts` in it, and nothing else tells you which commit, diff or findings to
 read. In `qory.review_session`, `commit` is the commit under review, `diff` is the path of
-the file with the diff of the change, `open_findings` is the path of `open-findings.json`,
-`reports` is the report folder and `suite_result` is the result of the suite. The working
-folder is the read-only copy of the change at `commit`. The report goes to
+the file with the diff of the change, `previous_findings` is the path of
+`open-findings.json`, `reports` is the report folder, `suite_result` is the result of the
+suite and `build_report`, when it exists, is the report of the build. The working folder is
+the read-only copy of the change at `commit`. The report goes to
 `<reports>/verification-reviewer.json`, not to the path that `reviewing-changes` gives. You
 get no summary from another session. You fetch no web page. A refused tool call stays
 refused. Read through no link.
@@ -75,8 +76,8 @@ because your session ended with no report.
 
 - A skill you need cannot be loaded.
 - The input file, or `qory.review_session` in it, is missing or cannot be read.
-- `commit`, `diff`, `open_findings` or `reports` is missing from `qory.review_session`.
-- The copy of the change, the file of the diff or the file of `open_findings` cannot be
+- `commit`, `diff`, `previous_findings` or `reports` is missing from `qory.review_session`.
+- The copy of the change, the file of the diff or the file of `previous_findings` cannot be
   read.
 - The write of the report is denied.
 - `qory.start_artifacts` is missing from the input file, or the newest version of the
@@ -86,8 +87,8 @@ because your session ended with no report.
 
 These cases are no reason to stop:
 
-- With no open finding in the file of `open_findings`, this is the first round: go on. Judge
-  the matrix from the files alone.
+- With no open finding in the file of `previous_findings`, this is the first round: go on.
+  Judge the matrix from the files alone.
 - A finding that only a person can settle is a finding: write it, with the severity that
   the definition of `blocking` sets. A review of a change has no route to a person.
 - A finding outside the area of this review: leave it out, because the reviewer of that

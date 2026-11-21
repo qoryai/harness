@@ -201,17 +201,21 @@ Two agents of `software-factory` review Verify's work: `tamper-reviewer` with th
 are agents of the `verify-a-ticket` session, which starts them. They are no reviewer
 sessions that qory starts, and they read no `qory.review`. The session passes
 `qory.review_session` in `inputs.json`, which qory writes, with `commit`, the pushed head of
-the fresh copy, `diff`, the path of the diff, `open_findings`, the path of
-`open-findings.json`, `reports`, the report folder, and `suite_result`. The prompt of each
-agent has only the path of the input file, so a session cannot point its agents at another
-commit. Each agent writes one report to `<reports>/<agent>.json` in the review-report
-format, such as `<reports>/verification-reviewer.json`, and stops with no report when
-`commit`, `diff`, `open_findings` or `reports` is missing from `qory.review_session`. Each
-loads `reviewing-changes`, `judging-findings`, the skill of the agent, `reviewing-drafts`
-and `simple-communication`, lists the tools Read, Grep, Glob, Skill and Write, and runs on
-the tier `thinking`, which the pattern `*-reviewer` of the tier table gives it. Each reads
-the newest versions of the types that it needs from the folder of `qory.start_artifacts`, as
+the fresh copy, `diff`, the path of the diff, `previous_findings`, the path of
+`open-findings.json`, `reports`, the report folder, `suite_result` and, when there is one,
+`build_report`. The prompt of each agent has only the path of the input file, so a session
+cannot point its agents at another commit. Each agent writes one report to
+`<reports>/<agent>.json` in the review-report format, such as
+`<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff`,
+`previous_findings` or `reports` is missing from `qory.review_session`. Each loads
+`reviewing-changes`, `judging-findings`, the skill of the agent, `reviewing-drafts` and
+`simple-communication`, lists the tools Read, Grep, Glob, Skill and Write, and runs on the
+tier `thinking`, which the pattern `*-reviewer` of the tier table gives it. Each reads the
+newest versions of the types that it needs from the folder of `qory.start_artifacts`, as
 `checking-acceptance` does, and stops with no report when one cannot be read.
+`software-factory` declares them as the group role `verify-reviewers`, with the members
+`tamper-reviewer` and `verification-reviewer`, in `roles.agents` and `provides.agents`, as
+it declares `reviewers`. The members set no `paths`.
 
 - `tamper-reviewer` reads the diff against the newest acceptance lock. It reports a changed
   file that a locked check runs or imports and that the lock does not list, and each test

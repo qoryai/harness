@@ -2720,6 +2720,16 @@ const names = members.map((row) => row.agent).join(" ");
 const good = names === "security-reviewer data-reviewer failure-reviewer" &&
   members.every((row) => row.group === true && Array.isArray(row.paths) && row.paths.length > 0);
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
+# The group role verify-reviewers holds the two reviewers of Verify next to the group role
+# reviewers: both groups are in roles.json, and the members have no paths.
+expect "the software stack's roles.json lists tamper-reviewer and verification-reviewer as the members of agents/verify-reviewers, and keeps agents/reviewers" \
+	0 "$TMP/software" node -e '
+const roles = JSON.parse(require("fs").readFileSync(".qory/harness/roles.json", "utf8")).roles;
+const names = (role) => roles.filter((row) => row.role === role && row.group === true)
+  .map((row) => row.agent).join(" ");
+const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
+  names("agents/reviewers") === "security-reviewer data-reviewer failure-reviewer";
+if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||
