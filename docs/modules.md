@@ -276,7 +276,7 @@ An agent that the table does not list sets no `model` key.
   documentation of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and
   approval settings, so no sandbox per agent exists. A reviewer's read-only rule, a writer's
   limit to the artifact folder and the rule on web tools are only in the agent's text. On
-  Codex, at qory `fce3203`, the compose writes `web_search = "disabled"` into the
+  Codex, at qory `a5ad28c`, the compose writes `web_search = "disabled"` into the
   `config.toml` of the Codex home. The key is reserved: qory stops on a module that sets
   `web_search`, and no module here does.
   The sandbox limits the effects of commands and file changes for
@@ -4073,8 +4073,7 @@ the rule passes on that file.
    and `PreModelRequest` hooks of the tool guard into `config.toml`, which the script
    checks. For both the `core` and the `software` stack, the script checks that the three
    hooks are there and that `config.toml` has `web_search = "disabled"`, which qory at
-   `fce3203` writes. A further check fails if the `settings/codex/config.toml` of a module
-   sets `web_search`. The Claude settings composed for the `core` and `software` stacks
+   `a5ad28c` writes. The Claude settings composed for the `core` and `software` stacks
    have the `Stop` hook, the `PreToolUse` and `PostToolBatch` hooks of the tool guard, the
    six deny rules of `.reports/` and the three allow rules of `running-a-workflow` from the
    settings of `core`: its skill, and its versions and checks scripts.

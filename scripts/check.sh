@@ -1496,17 +1496,12 @@ CORE_CODEX="$TMP/consumer/.qory/harness/codex/config.toml"
 expect "checkout extending core by path: harness compose --runtime codex exits 0" \
 	0 "$TMP/consumer" "$QORY" harness compose --runtime codex
 for line in 'web_search = "disabled"' '[[hooks.Stop]]' 'hooks/end-gate-codex.cjs' \
-	'[[hooks.PreToolUse]]' 'matcher = "*"' 'hooks/tool-guard-codex.cjs' '[[hooks.PreModelRequest]]'; do
+	'[[hooks.PreToolUse]]' 'matcher = "*"' 'hooks/tool-guard-codex.cjs' \
+	'[[hooks.PreModelRequest]]'; do
 	grep -Fq -- "$line" "$CORE_CODEX" 2>/dev/null ||
 		fail "core: harness compose --runtime codex writes $line into $CORE_CODEX"
 	pass "core: harness compose --runtime codex writes $line into config.toml"
 done
-# The key is reserved: qory refuses a module that sets it, so no module of this checkout does.
-for file in "$ROOT"/modules/*/settings/codex/config.toml; do
-	! grep -Eq '^[[:space:]]*web_search[[:space:]]*=' "$file" ||
-		fail "Remove web_search from $file: qory writes it and refuses a module that sets it."
-done
-pass "no settings/codex/config.toml of a module sets web_search"
 
 # Gemini CLI and OpenCode have no workflow commands to list. The compose for each of them
 # must still exit 0.

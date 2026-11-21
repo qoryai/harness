@@ -402,7 +402,7 @@ workflows:
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
   The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, qory at
-  `fce3203` writes `web_search = "disabled"` into the `config.toml` of the Codex home, and
+  `a5ad28c` writes `web_search = "disabled"` into the `config.toml` of the Codex home, and
   no module sets that key. The `Stop` hook of the end check comes from the settings of
   `core`. Codex has no allow list and no rule like `blockReadsOutsideWorkingDirectories`,
   so the Codex sandbox is the limit.
