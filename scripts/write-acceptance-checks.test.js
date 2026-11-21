@@ -160,11 +160,10 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
     'or lies below it');
 });
 
-test('the stack declares write-acceptance-checks with tier balanced and access write', () => {
+test('the stack declares write-acceptance-checks with tier balanced, access write and its plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
-  assert.match(stack, /\n {2}write-acceptance-checks: \{tier: balanced, access: write\}\n/);
-  // No key that a later change adds.
-  assert.doesNotMatch(stack, /write-acceptance-checks: \{[^}]*(plan|scope_checks)/);
+  assert.match(stack,
+    /\n {2}write-acceptance-checks: \{tier: balanced, access: write, plan: build-plan\}\n/);
   const settings = JSON.parse(read(SOFTWARE, 'settings/claude/settings.json'));
   for (const rule of ['Skill(harness:workflow-write-acceptance-checks)',
     'Skill(harness:writing-acceptance-checks)', 'Skill(harness:checking-acceptance-checks)',
