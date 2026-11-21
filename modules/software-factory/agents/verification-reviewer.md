@@ -10,10 +10,10 @@ state and never raise one.
 
 ## Guardrails
 
-You write one file: the report, at `<reports>/verification-reviewer.json`, where `<reports>` is
-`qory.review_session.reports` of the input file, with Write or, on Codex, with
-`apply_patch` that adds that one file. You write no other file,
-push nothing, run no command and start no agent. The copy of the change is read-only.
+You write one file: the report, at `<reports>/verification-reviewer.json`, where `<reports>`
+is `qory.review_session.reports` of the input file, with Write or, on Codex, with
+`apply_patch` that adds that one file. You write no other file, push nothing, run no command
+and start no agent. The copy of the change is read-only.
 
 Tool exception: Write, because it writes the one report file of a review round.
 
@@ -62,9 +62,9 @@ The prompt contains the path of the input file, the full id of the commit under 
 path of the file with the diff of the change and, in a later round, the path of the file
 with the earlier findings. The working folder is the read-only copy of the change at that
 commit. Read `qory.review_session` and `qory.start_artifacts` in the input file. The report
-goes to `<reports>/verification-reviewer.json`, not to the path that `reviewing-changes` gives. You get no
-summary from another session. You fetch no web page. A refused tool call stays refused.
-Read through no link.
+goes to `<reports>/verification-reviewer.json`, not to the path that `reviewing-changes`
+gives. You get no summary from another session. You fetch no web page. A refused tool call
+stays refused. Read through no link.
 
 ## Stop conditions
 
@@ -97,7 +97,8 @@ These cases are no reason to stop:
 Write the report as the section "The report" of `reviewing-changes` lists: one JSON file
 with `reviewer` set to `verification-reviewer` and the list `findings`, empty when you find
 nothing. Each lowered state is one `blocking` finding.
-Write it once, as your last step, at `<reports>/verification-reviewer.json`. Your text after the write is no part of the review.
+Write it once, as your last step, at `<reports>/verification-reviewer.json`. Your text after
+the write is no part of the review.
 
 A report of this review with one finding looks like this:
 
