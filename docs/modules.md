@@ -199,11 +199,11 @@ the artifact folder" lists.
 Two agents of `software-factory` review Verify's work, each as a reviewer session of the
 kind above: `tamper-reviewer` with the skill `checking-tampering`, and
 `verification-reviewer` with the skill `judging-criteria`. Each loads `reviewing-changes`,
-`judging-findings`, the skill of the agent, `reviewing-drafts` and `simple-communication`, lists the
-tools Read, Grep, Glob, Skill and Write, and runs on the tier `thinking`, which the pattern
-`*-reviewer` of the tier table gives it. Each reads the newest versions of the types that
-it needs from the folder of `qory.start_artifacts`, as `checking-acceptance` does, and
-stops with no report when one cannot be read.
+`judging-findings`, the skill of the agent, `reviewing-drafts` and `simple-communication`,
+lists the tools Read, Grep, Glob, Skill and Write, and runs on the tier `thinking`, which
+the pattern `*-reviewer` of the tier table gives it. Each reads the newest versions of the
+types that it needs from the folder of `qory.start_artifacts`, as `checking-acceptance`
+does, and stops with no report when one cannot be read.
 
 - `tamper-reviewer` reads the diff against the newest acceptance lock. It reports a changed
   file that a locked check runs or imports and that the lock does not list, and each test
