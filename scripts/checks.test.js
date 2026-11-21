@@ -841,7 +841,7 @@ const CLONE_FALLBACK = 'Report this run to the instance admin of Qory Apiary: co
   'destinations failed twice.';
 
 // The report of the code explorer's first start in Explore, which lists one destination.
-const PICKED = 'What you searched:\n- nothing: the question is to name the destinations\n\n' +
+const PICKED = 'What you searched:\n- nothing: the question lists the destinations\n\n' +
   'Destinations:\n- tg_8k2m4n6p8q0r2s4t\n\ndone\n';
 
 test('end: a copy that fails twice ends Explore with escalate and the line of the copy', () => {
