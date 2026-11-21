@@ -210,10 +210,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory.start_artifacts`, and stops with no report when it cannot read them. A `failing
   check` proof cites `output_tail` of the suite result. Each reviewer re-reads the earlier
   findings and repeats those of its area that are still true. The `reviewers` key of Build
-  follows in a later change. Not built yet in qory: how qory takes `changes-requested` from
-  the session of `review-changes`; `qory.start_artifacts` in the input file of a reviewer,
-  so `acceptance-reviewer` stops with no report until qory writes it; `output_tail` of the
-  suite result; and the shape of the earlier findings.
+  follows in a later change. Not built yet in qory:
+  `qory.stage.reviewers`, which qory does not write yet, so the session runs `qory run
+  verdict passed` in every stage until it does; how qory takes `changes-requested` from the
+  session in a stage with reviewers; `qory.start_artifacts` in the input file of a
+  reviewer, so `acceptance-reviewer` stops with no report until qory writes it;
+  `output_tail` of the suite result; and the shape of the earlier findings.
 - The review report is checked against qory's
   `contracts/harness/v1/review-report.schema.json`, not a copy in this repository.
 - The `write-acceptance-checks` workflow in the `software` stack, with `tier: balanced` and
