@@ -35,8 +35,11 @@ description: >-
   submission-writer, which writes the title and the description of the draft pull request;
   the skills checking-security, checking-data-changes and checking-failure-handling; the
   agents security-reviewer, data-reviewer and failure-reviewer, the members of the group
-  role reviewers, which start only for a change in their paths; and live web search off on
-  Codex.
+  role reviewers, which start only for a change in their paths; the skills
+  checking-tampering and judging-criteria and the agents tamper-reviewer and
+  verification-reviewer, the reviewers of Verify; the verb matrix of the checks script, which
+  writes the draft verification of Verify from the records of the run; and live web search
+  off on Codex.
 roles:
   agents:
     reviewers: many

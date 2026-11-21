@@ -182,7 +182,7 @@ schema; the harness checks no report of a change with a verb. The test of the ex
 in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
 commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
 `QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
-example reports of the six reviewers. After a round
+example reports of the eight reviewers. After a round
 with a `blocking` finding, the next session of the stage reads `open-findings.json`, which
 `checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
 workflows" lists. qory writes `qory.review`, `qory.stage` and
@@ -193,6 +193,35 @@ too, so the report folder must be outside the home; when the home is outside the
 folder, the report path may be in it. A Codex reviewer writes its report with an
 `apply_patch` that adds that one file, as the bullet "a write from the main session outside
 the artifact folder" lists.
+
+### The reviewers of Verify
+
+Two agents of `software-factory` review Verify's work, each as a reviewer session of the
+kind above: `tamper-reviewer` with the skill `checking-tampering`, and
+`verification-reviewer` with the skill `judging-criteria`. Each loads `reviewing-changes`,
+`judging-findings`, its own skill, `reviewing-drafts` and `simple-communication`, lists the
+tools Read, Grep, Glob, Skill and Write, and runs on the tier `thinking`, which the pattern
+`*-reviewer` of the tier table gives it. Each reads the newest versions of the types that
+it needs from the folder of `qory.start_artifacts`, as `checking-acceptance` does, and
+stops with no report when one cannot be read.
+
+- `tamper-reviewer` reads the diff against the newest acceptance lock. It reports a changed
+  file that a locked check runs or imports and that the lock does not list, and each test
+  that the change newly skips or newly marks with skip or xfail, or the runtime's
+  equivalent, because a skipped test does not fail a suite. It reads only the diff and the
+  copy, so a file that a check changes and restores during its run stays unseen, as the
+  limit of `run locked` in the section "The check runners" states.
+- `verification-reviewer` reads the verification matrix, the criteria, the lock and the
+  copy. It lowers a state and never raises one. A lowered state is one `blocking` finding
+  with a `failing input` proof, and the matrix is not edited. No other part of the report
+  records the lowering. A criterion in a finding has the form `AC-3, "<first sentence>"`.
+
+The written parts of Verify are the skills `checking-tampering` and `judging-criteria`, the
+two agents, and the verb `matrix` of the check runners. The skill `workflow-verify-a-ticket`
+and the stack entry of the workflow are not built, and neither are these parts of qory: the
+`reviewers` key of the workflow, which makes qory start the two agents, and the values of
+`qory.review` in a Verify session. Until qory writes them, each reviewer reads its input as
+a Build reviewer does, and the shape of the input in Verify is not in a contract of qory.
 
 ## Agents
 
@@ -2220,8 +2249,15 @@ find:
   hexadecimal digits, though the format of the contract accepts any version of a target; a
   criterion that is not removed and is in neither `matrix` nor `not_verified`, or in them
   twice, such as in both; a criterion there that the criteria do not have, or have
-  removed; and a text in quotes beside the id of a criterion that the criteria have, other
-  than the criterion's words, in an `evidence` or a `reason`;
+  removed; a text in quotes beside the id of a criterion that the criteria have, other
+  than the criterion's words, in an `evidence` or a `reason`; the `evidence` of a `met`
+  criterion whose check is `Demo: <title>`, unless it starts with `Demo video: scenario-N`
+  or `Pictures: scenario-N`, where `N` is a number from 1 to 99 and the next character is no
+  letter, digit or hyphen, the form that Qory Apiary links to the scenario's evidence; and,
+  in a check, a state above the record of the verb `matrix`, `.reports/matrix-record.json`
+  of the artifact folder: a `met` criterion that the record has as `not_met` or has not at
+  all, a `not_met` criterion that the record has not at all, or a `target_version` that is
+  not the commit of the record. A check with no record, and a push, read no record;
 - `walkthrough`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
   number, with the id in any case and the criterion's words in quotes, then
   `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
@@ -3266,7 +3302,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   runs, or a check that imports, a file whose only use is the tests, such as a helper, that
   the lock lists neither as a check nor under `support[]`. It reads the files before the
   lock and watches no run, so no check here looks at what code under test does to a locked
-  file during a check.
+  file during a check. After the lock, `tamper-reviewer` of Verify reads the diff for such a
+  file that a change edited, and for a test that it newly skips; it reads only the diff, so
+  it does not see a file that a check changes and restores within one run.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
@@ -3531,6 +3569,37 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `## Review rounds` and `## Counts`, which need the rounds, and prints a line that says
   so. With no ledger, it prints a line that the tables were not checked. `push` and
   `end --offline` check the order of the sections alone.
+- `matrix --version <N>`: writes the draft `verification.json` of Verify, and
+  `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
+  exits 3 when `QORY_RUN_ID` is not set, so that no local record counts, and when the
+  criteria have no approved version. `<N>` is the acceptance-lock version that Build's
+  approval lists, the one that `lock --verify --version <N>` verified. The matrix has one
+  row for each live criterion, in the order of the criteria, from these sources:
+  - a criterion whose check is `Tests`: the newest record of `run locked` in
+    `.reports/runs/` that ran every check of lock version `<N>`, with no criterion given, on
+    the commit of HEAD with no uncommitted change. The criterion is `met` when each of its
+    checks is green, with the evidence "Locked check `<path>` passed: exit 0, <n> tests.",
+    and `not_met` when one is red, with the exit status and the counts. It is not verified
+    when the record has no check of it, when its check did not run because the call ran out
+    of time, and when no such record exists;
+  - a criterion whose check is `Demo: <title>`: the newest `demo-evidence` of the scenario
+    with that title in the store. With a verdict `passed` on the commit of HEAD and film or
+    pictures, it is `met`, with the evidence `Demo video: scenario-N` or
+    `Pictures: scenario-N`. With the verdict `failed`, it is `not_met`. It is not verified
+    when the store has no evidence of that title, when the evidence is of another commit and
+    when it has neither film nor pictures;
+  - `model_families`: the family of each model id in the `attempts` of the newest
+    `build-ledger`, and of each Verify reviewer. The family of an id is the text after the
+    last `/`, up to the first `-`, so `claude-sonnet-5` and `openrouter/claude-opus-5` are
+    `claude`. A reviewer's id is the `model:` line of its agent file, which qory writes for
+    the tier, unless it is a `${qory:` name; else the `model` of the `settings.json` beside
+    the plugin folder; else `unknown`. An id that is `unknown`, missing or no 1 to 100
+    printable characters gives `unknown`. No list of families exists, because nothing in
+    qory, the forager or this harness maps a model id to its family.
+
+  `target_version` is the commit of HEAD. The record has the commit, the lock version, each
+  row's state, and the criteria not verified. `check verification` reads it, as the type
+  rules above list. A criterion's evidence is plain text, with no quote of a criterion.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
