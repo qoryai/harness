@@ -18,7 +18,6 @@ const MODULES = path.join(ROOT, 'modules');
 const CORE = path.join(MODULES, 'core');
 const SOFTWARE = path.join(MODULES, 'software-factory');
 const SCRIPT = path.join(CORE, 'skills/running-a-workflow/checks.cjs');
-const PUSH = path.join(SOFTWARE, 'skills/running-a-software-workflow/workflow-checks.cjs');
 const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
 
@@ -79,7 +78,14 @@ test('the skill starts the three reviewers in turn, then the members that panel 
   says(reviewers, 'Pass each reviewer the path of the input file, `<inputs>`, and nothing else.');
   says(reviewers, 'reads every value of the review from `qory.review_session` of the input file');
   says(reviewers, 'Read no report of a reviewer, start no reviewer again, and fix no report');
-  assert.doesNotMatch(WORKFLOW, /submission-writer|QORY_SUBMISSION_HANDOFF|report-build --drop/);
+});
+
+test('the skill starts no submission-writer and writes no build report or submission text', () => {
+  assert.doesNotMatch(WORKFLOW, /submission-writer|QORY_SUBMISSION_HANDOFF|pull-request\.json/);
+  assert.doesNotMatch(WORKFLOW, /report-build|build-report|artifact push/);
+  says(section(WORKFLOW, 'What the session writes'), 'write no hand-off file, no build report ' +
+    'and no submission text. Start no agent that is not a reviewer.');
+  says(WORKFLOW, 'The session pushes no artifact');
 });
 
 test('the skill decides the round once and records changes-requested or passed', () => {
@@ -88,10 +94,8 @@ test('the skill decides the round once and records changes-requested or passed',
     '--suite <suite>` once');
   says(round, 'Run `<qory> run verdict changes-requested --points <reports>/points.json`');
   says(round, 'A reviewer that wrote no valid report is one blocking finding');
-  const end = section(WORKFLOW, 'The end');
-  inOrder(end, '`<skill folder>/checks.cjs report-build --inputs <inputs> --out <reports>`',
-    '<qory> artifact push build-report <reports>/build-report.md',
-    'Run `<qory> run verdict passed`');
+  says(section(WORKFLOW, 'The end'), 'When no finding is blocking, run `<qory> run verdict ' +
+    'passed`.');
   // The suite result and the plan come from the input file; the plan from the start only.
   says(WORKFLOW, '`<suite>` is the result of the full suite, `qory.review_session.suite_result`');
   says(section(WORKFLOW, 'The ledger check'), 'Read `<start>/index.json`');
@@ -172,10 +176,16 @@ function groupRows() {
   });
 }
 
+// The suite results in qory's form {tests, failed, skipped, output_tail}.
+const SUITES = {
+  passed: { tests: 8, failed: 0, skipped: 0, output_tail: '# pass 8' },
+  failed: { tests: 8, failed: 1, skipped: 0, output_tail: 'not ok 3 - first keeps the limit' },
+};
+
 // work returns a checkout whose change commits text to src/jobs/export.cjs, an artifact folder
-// with the build plan and a ledger whose one deliverable is done, a harness home with
-// roles.json, a report folder, a suite result in the state suite, and a qory stub.
-function work(text, suite = 'passed') {
+// with the build plan and a ledger whose one deliverable has the state done, unless given, a
+// harness home with roles.json, a report folder, the suite result suite and a qory stub.
+function work(text, suite = SUITES.passed, done = 'done') {
   const w = { repo: fresh('repo'), artifacts: fresh('artifacts'), store: fresh('store'),
     bin: fresh('bin'), home: fresh('home'), reports: fresh('reports') };
   w.env = {
@@ -207,13 +217,13 @@ function work(text, suite = 'passed') {
     fs.writeFileSync(path.join(root, 'build-plan/main/v1/build-plan.md'), PLAN);
   }
   const ledger = { steps: [{ id: 'deliverable:d-1', pass: 1, kind: 'deliverable',
-    workflow: 'implement-changes', inputs: 'a'.repeat(64), state: 'done', base: w.start,
+    workflow: 'implement-changes', inputs: 'a'.repeat(64), state: done, base: w.start,
     commit: w.head, attempts: [], replays: 0, started_at: T, ended_at: T }], escalations: [] };
   fs.mkdirSync(path.join(w.artifacts, '.reports'), { recursive: true });
   fs.writeFileSync(path.join(w.artifacts, '.reports/build-ledger.json'), JSON.stringify(ledger));
   fs.writeFileSync(path.join(w.home, 'roles.json'), JSON.stringify({ roles: groupRows() }));
   w.suite = path.join(fresh('suite'), 'suite-result.json');
-  fs.writeFileSync(w.suite, JSON.stringify({ state: suite }));
+  fs.writeFileSync(w.suite, JSON.stringify(suite));
   w.inputs = path.join(fresh('in'), 'inputs.json');
   fs.writeFileSync(w.inputs, JSON.stringify({ qory: {
     start_commits: [{ path: w.repo, commit: w.start }], start_artifacts: w.artifacts,
@@ -226,13 +236,6 @@ function work(text, suite = 'passed') {
   fs.writeFileSync(w.qory, `#!/bin/sh
 printf '%s\\n' "$*" >> '${w.log}'
 case "$1 $2" in
-'artifact push')
-  [ "$3" = build-report ] || exit 9
-  out=$('${process.execPath}' '${PUSH}' push "$3" "$4" 2>&1) ||
-    { printf '%s\\n' "$out" >&2; exit 4; }
-  mkdir -p '${w.store}'/"$3"/main/v1 && cp "$4" '${w.store}'/"$3"/main/v1/
-  echo "Pushed $3 version 1."
-  exit 0;;
 'run verdict')
   exit 0;;
 esac
@@ -356,7 +359,15 @@ test('a planted defect gives changes-requested with the finding and its proof', 
   assert.equal(git(w.repo, w.env, 'status', '--porcelain'), '');
 });
 
-test('a clean change gives passed, reads the suite result once and pushes the build report', () => {
+// written returns the files of the session's folders that no reviewer writes: the checkout's
+// changes and each file of the report folder that is no report.
+function written(w, names) {
+  const reports = new Set(names.map((name) => `${name}.json`));
+  return { checkout: git(w.repo, w.env, 'status', '--porcelain'),
+    reports: fs.readdirSync(w.reports).filter((name) => !reports.has(name)) };
+}
+
+test('a clean change gives passed, reads the suite result once and writes no build report', () => {
   const w = work(CLEAN);
   const call = session(w);
   const names = reviewers(w, call);
@@ -366,19 +377,49 @@ test('a clean change gives passed, reads the suite result once and pushes the bu
   assert.equal(count, 1);
   assert.match(round.lines.at(-1),
     /: 0 blocking and 0 non-blocking findings; no blocking finding is open\.$/);
-  assert.equal(fs.existsSync(path.join(w.reports, 'points.json')), false);
-  const built = call('report-build', '--inputs', w.inputs, '--out', w.reports);
-  assert.equal(built.status, 0, built.out + built.err);
-  const file = path.join(w.reports, 'build-report.md');
-  // The push runs the push check of build-report, as qory does.
-  assert.equal(qory(w, call, 'artifact', 'push', 'build-report', file).status, 0);
   assert.equal(qory(w, call, 'run', 'verdict', 'passed').status, 0);
-  assert.deepEqual(logOf(w), [`artifact push build-report ${file}`, 'run verdict passed']);
-  // The report folder has the reports and the build report; the checkout has no change.
-  assert.deepEqual(fs.readdirSync(w.reports).sort(), ['build-report.md',
-    ...names.map((name) => `${name}.json`)].sort());
-  assert.equal(git(w.repo, w.env, 'status', '--porcelain'), '');
+  assert.deepEqual(logOf(w), ['run verdict passed']);
+  // The session wrote no build report, no submission text and nothing into the checkout.
+  assert.deepEqual(written(w, names), { checkout: '', reports: [] });
+  const files = [w.repo, w.artifacts, w.reports].flatMap((dir) =>
+    fs.readdirSync(dir, { recursive: true }).map(String));
+  assert.deepEqual(files.filter((name) => /(?:^|\/)(?:pull-request\.json|build-report\.md)$/
+    .test(name)), []);
   assert.equal(fs.existsSync(path.join(w.repo, '.qory')), false);
+});
+
+// unbuilt returns the line of "The ledger check" of the skill for the build plan and the ledger
+// of w: the deliverables of the plan whose newest ledger row is not done, or null when all are.
+function unbuilt(w) {
+  const plan = read(w.artifacts, 'build-plan/main/v1/build-plan.md');
+  const rows = plan.split('\n').filter((line) => /^\| d-\d+ \|/.test(line))
+    .map((line) => line.split('|').map((cell) => cell.trim()));
+  const { steps } = JSON.parse(read(w.artifacts, '.reports/build-ledger.json'));
+  const left = rows.filter(([, id]) => {
+    const newest = steps.filter((one) => one.id === `deliverable:${id}`)
+      .sort((a, b) => b.pass - a.pass)[0];
+    return !newest || newest.state !== 'done';
+  });
+  if (!left.length) return null;
+  const list = left.map(([, id, change]) => `${id}, "${change}"`).join(', ');
+  return `${left.length} of ${rows.length} planned changes ${left.length === 1 ? 'is' : 'are'} ` +
+    `not built: ${list}.`;
+}
+
+test('a planned deliverable that is not built gives changes-requested with no point', () => {
+  says(section(WORKFLOW, 'The ledger check'), 'When one or more deliverables are not built, ' +
+    'run no `lock --verify`, and end as "Changes requested" lists');
+  says(section(WORKFLOW, 'Changes requested'), 'Run `<qory> run verdict changes-requested` ' +
+    'with no point');
+  const w = work(CLEAN, SUITES.passed, 'failed');
+  const call = session(w);
+  assert.equal(unbuilt(work(CLEAN)), null);
+  assert.equal(unbuilt(w), '1 of 1 planned changes is not built: d-1, "Keep the first rows up ' +
+    'to the limit.".');
+  // The session starts no reviewer and runs no findings round: it records the verdict.
+  assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested').status, 0);
+  assert.deepEqual(logOf(w), ['run verdict changes-requested']);
+  assert.deepEqual(written(w, []), { checkout: '', reports: [] });
 });
 
 test('a reviewer that writes no report gives one blocking finding', () => {
@@ -396,7 +437,7 @@ test('a reviewer that writes no report gives one blocking finding', () => {
 });
 
 test('a suite that failed is one blocking finding of full-suite', () => {
-  const w = work(CLEAN, 'failed');
+  const w = work(CLEAN, SUITES.failed);
   const call = session(w);
   const names = reviewers(w, call);
   for (const name of names) report(w, name, []);

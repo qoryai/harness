@@ -11,10 +11,8 @@ verdict of the round. qory runs the full suite and the locked checks before the 
 
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<workflow>` is
-  `review-changes`, and `<output>` is `build-report`, which the session pushes at "The end"
-  when no blocking finding is open. In the lines of its section "Failures", `<output>`
-  stands for "review of the change", except in "The run could not push its <output>.",
-  where it stands for "build report".
+  `review-changes`. The session pushes no artifact, and in the lines of its section
+  "Failures", `<output>` stands for "review of the change".
 - ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
   `running-a-workflow`.
 
@@ -35,13 +33,12 @@ Write nothing in the checkout: the review changes no file of the change. The fil
 
 - `<reports>/<agent>.json`, the report of each reviewer, which only that reviewer writes;
 - `<reports>/points.json`, which `findings round` writes while a finding is blocking;
-- `<reports>/build-report.md`, which `report-build --out <reports>` writes;
 - `<folder>/.notes/changed-files.txt`, the paths of the change, which you write;
 - the files under `<folder>/.reports/` that the checks script writes.
 
 Write `points.json` in `<folder>` only for an end through "Points" of `running-a-workflow`,
-and write no hand-off file. Start no agent that is not a reviewer. The tool guard lets a
-reviewer write only `<reports>/<agent>.json`.
+and write no hand-off file, no build report and no submission text. Start no agent that is
+not a reviewer. The tool guard lets a reviewer write only `<reports>/<agent>.json`.
 
 ## The order of the run
 
@@ -161,26 +158,9 @@ verdict.
 
 ## The end
 
-When no finding is blocking, in this order:
-
-1. Run `<skill folder>/checks.cjs report-build --inputs <inputs> --out <reports>`. It
-   renders every table of `<reports>/build-report.md` from the records and writes no
-   hand-off file. The guard lets a reviewer write only its report, so no reviewer can
-   change the file. With 1, 2, 3 or 4, end as "Failures" lists for the checks script.
-2. Push `build-report` as "Push only what changed" of `running-a-workflow` lists:
-
-   ```
-   <qory> artifact push build-report <reports>/build-report.md
-   ```
-
-   When the push exits with 4 or fails, run step 1 again, then push again, at most twice
-   more. When the push is still refused after the third attempt, end with "The run could
-   not push its build report." as "Points" of `running-a-workflow` lists. No agent wrote
-   the file, so start no agent to fix it.
-3. Run `<qory> run verdict passed`. When the command fails, the run ends with no verdict.
-   End with "The change passed the review: no blocking finding is open."
-
-The ends of steps 1 and 2 run no `<qory> run verdict passed`.
+When no finding is blocking, run `<qory> run verdict passed`. When the command fails, the
+run ends with no verdict. End with "The change passed the review: no blocking finding is
+open."
 
 ## Failures
 
