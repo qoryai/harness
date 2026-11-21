@@ -36,6 +36,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   two agents are the group role `verify-reviewers` of `software-factory`, with no `paths`.
   The workflow skill and its stack entry are not built yet.
 
+- A tier for each workflow of the `software` stack, and a plan for each write workflow. Each
+  entry of `workflows` in `stacks/software/qory-stack.yaml` sets `tier`, the tier whose
+  model and effort the workflow's session runs on: `thinking` for `explore-a-ticket`,
+  `shape-a-ticket`, `write-specs`, `write-technical-decisions`, `plan-the-build` and
+  `review-changes`, and `balanced` for `make-mockups`, `write-demo-scenarios` and
+  `write-acceptance-checks`. Each entry with `access: write` also sets
+  `plan: build-plan`. `software-factory` declares the scope check of `build-plan` under
+  `scope_checks` in its `qory-module.yaml`: `workflow-checks.cjs scope --plan`. The command
+  takes `--base <start commit>` and `--artifacts <folder>` as its last arguments. With the
+  base, `scope --plan` runs the checks that `freeze` runs on the commits since the base, by
+  the same code, as it did before: one command checks the paths of the commits against the
+  Files of the build plan and scans their files, names, messages and headers for keys and
+  repositories. `workflow-checks.cjs` runs `scope` as it runs `push`, and exits 2 on any
+  other verb. `.github/workflows/check.yml` builds qory at `afee80c`, the merge of
+  qoryai/qory#136, which reads `plan` and `scope_checks`, in place of `0e02282`.
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how
   two parts call each other, or a flow of states, may end with one Mermaid diagram, drawn by
@@ -973,9 +988,24 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   organisation to choose a runtime that starts agents in Workspace settings > Model, then
   run another round." On a runtime whose end hook runs, the end check records the verdict
   through `points.json`, as for every end through "Points".
+- A member's answer can allow more than 7 changes in a build plan. The check of
+  `build-plan` accepts up to `<n>` deliverables when the newest answer "Build all <n>
+  changes in this work item." to "Which changes do you want to build in this work item?"
+  has `<n>` of 8 or more. Option 1 keeps the limit: 7 for the first question, and the
+  number a member allowed for a later one. The check reads `notes[]` of `qory work-item
+  show` in a session and `notes.json` in the working folder of the push check. Over the
+  limit, the finding is "Plan at most <m> separate changes, or ask a member whether to
+  build all <n>: the plan has <n>, and no member's answer allows more than <m>.", and when
+  the notes cannot be read, a later line says why and the limit stays 7.
 
 ### Changed
 
+- `software-factory` has no `settings/codex/config.toml` and no longer sets `web_search`.
+  qory at `a5ad28c` writes `web_search = "disabled"` into the `config.toml` of the Codex
+  home, and the key is reserved, so qory stops on a module that sets it.
+  `scripts/check.sh` checks that the composed `config.toml` of the `core` and `software`
+  stacks has the line. qory at `0e02282` does not write the key, so that qory fails the
+  check.
 - The standard type `explainer` of `software-factory` is called `walkthrough`: its entry
   in `artifact_types` of `process.yaml`, its push check in `qory-module.yaml`, and its file
   `walkthrough.md`. The check reads the same sections as before. Before, the type and its

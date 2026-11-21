@@ -10,9 +10,9 @@ description: >-
   acceptance criteria; the skill running-a-software-workflow, which a small workflow's session
   loads after running-a-workflow of core, and whose workflow-checks.cjs adds the checks of the
   software documents and of the types of Build and Verify, and is the program of each push
-  check; the skill running-checks, with the verbs run, scope, freeze, diff, probe and
-  prove of the checks script, where prove takes --inputs, --base and --artifacts; the skills
-  writing-specs and checking-specs; the agents spec-writer and
+  check and of the scope check of build-plan; the skill running-checks, with the verbs run,
+  scope, freeze, diff, probe and prove of the checks script, where prove takes --inputs,
+  --base and --artifacts; the skills writing-specs and checking-specs; the agents spec-writer and
   spec-reviewer; the workflow-write-technical-decisions skill, which orchestrates one ticket's
   decision record; the skills writing-decisions and checking-decisions; the agents
   decision-writer and decision-reviewer; the workflow-make-mockups skill, which orchestrates
@@ -96,3 +96,9 @@ push_checks:
   - type: walkthrough
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, walkthrough]
     reads: [verification, acceptance-criteria]
+# The check of what a write workflow's session may push, for the stack's `plan: build-plan`.
+# The command takes --base <start commit> and --artifacts <folder> as its last arguments. It
+# checks each path of the commits since the base against the Files of the build plan, and
+# runs the checks of freeze on those commits: the scan for keys and for repositories.
+scope_checks:
+  build-plan: [skills/running-a-software-workflow/workflow-checks.cjs, scope, --plan]

@@ -10,10 +10,14 @@
 //
 //   workflow-checks.cjs push <type> [--inputs <file>] <file>...   the form that `qory
 //                                                                 artifact push` runs
+//   workflow-checks.cjs scope --plan --base <commit> --artifacts <folder>
+//                                         the scope check of build-plan in scope_checks
 //
-// runs `checks.cjs push` of running-a-workflow, beside this skill's folder or in the module
-// core beside this module, with the same arguments, --inputs and the path of the run's
-// inputs.json included.
+// runs `checks.cjs push` or `checks.cjs scope` of running-a-workflow, beside this skill's
+// folder or in the module core beside this module, with the same arguments, --inputs and
+// the path of the run's inputs.json included. Any other verb exits 2. With --base, scope runs
+// the checks that freeze runs on the commits since the base, by the same code: the scan of
+// their files, names, messages and headers for keys and repositories (verbs/scope.cjs).
 //
 // check proposal counts the words of proposal.md with the reason of each decided question:
 // in questions.json at the top of the artifact folder, else in the newest questions version.
@@ -57,6 +61,7 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/submission-text.cjs')(lib));
   Object.assign(lib, require('./lib/report-build.cjs')(lib));
   Object.assign(lib, require('./lib/track-record.cjs')(lib));
+  Object.assign(lib, require('./lib/member-allowance.cjs')(lib));
   const spec = require('./types/spec.cjs')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
   const scenarios = require('./types/demo-scenarios.cjs')(lib);
@@ -122,8 +127,9 @@ if (require.main === module) {
   const argv = process.argv.slice(2);
   try {
     const script = checksScript(process.argv[1]);
-    if (argv[0] !== 'push') {
-      process.stderr.write('Give push <type> <file>...: workflow-checks.cjs runs only push.\n');
+    if (argv[0] !== 'push' && argv[0] !== 'scope') {
+      process.stderr.write('Give push <type> <file>... or scope --plan: workflow-checks.cjs ' +
+        'runs only push and scope.\n');
       process.exitCode = 2;
     } else {
       process.exitCode = require(script).main(argv);

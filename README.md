@@ -291,9 +291,9 @@ workflows:
   `checking-shape`, read-only, and reports findings as text.
 - `workflow-plan-the-build`: orchestrate the build plan of one ticket. The session starts
   `code-explorer`, `build-planner` and `plan-reviewer` in that order, and pushes
-  `build-plan` after a review with no finding left. A plan of more than 7 deliverables ends
-  with `qory run verdict escalate` and one question to a member about the criteria
-  of the first 7 changes and of the others.
+  `build-plan` after a review with no finding left. A plan of more than 7 deliverables,
+  with no member's answer that allows more, ends with `qory run verdict escalate` and one
+  question to a member about the criteria of the first 7 changes and of the others.
 - `planning-builds`: load it before you draft a build plan. The skill contains the three
   sections, the form of each cell, the Files rule for check files, the address of the app
   and an example plan.
@@ -303,7 +303,7 @@ workflows:
   `reviewing-changes`. The skill contains the definition of a blocking finding and the values
   that the run passes a reviewer.
 - `build-planner`: an agent that drafts `build-plan.md` by `planning-builds` and reports
-  the deliverables over the limit of 7.
+  the deliverables over the limit of 7, unless a member allowed more.
 - `plan-reviewer`: an agent that reviews a build plan by `reviewing-drafts` against
   `checking-build-plans`, read-only, and reports findings as text.
 - `workflow-write-acceptance-checks`: orchestrate the acceptance checks of one ticket. When
@@ -401,10 +401,11 @@ workflows:
   a command that contains a path outside the working directories or a link that leads
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
-  The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, the run
-  gets `settings/codex/config.toml`: live web search off. The `Stop` hook of the end check
-  comes from the settings of `core`. Codex has no allow list and no rule like
-  `blockReadsOutsideWorkingDirectories`, so the Codex sandbox is the limit.
+  The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, qory at
+  `a5ad28c` writes `web_search = "disabled"` into the `config.toml` of the Codex home, and
+  no module sets that key. The `Stop` hook of the end check comes from the settings of
+  `core`. Codex has no allow list and no rule like `blockReadsOutsideWorkingDirectories`,
+  so the Codex sandbox is the limit.
 
 The `authoring` stack is for a person who writes agents and skills, and no run composes it.
 It composes the `harness-authoring` module and, from `core`, only `simple-communication`.
