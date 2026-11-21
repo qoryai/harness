@@ -1,8 +1,7 @@
 // Tests of the limit of deliverables in the check of build-plan: 7, unless the newest
-// member's answer in the notes of the work item allows more (vault decision 0272). A check
-// in a session reads the notes from `qory work-item show`, run here as a fake qory first
-// on PATH, and a push check reads notes.json in its working folder. scripts/check.sh runs
-// this file.
+// member's answer in the notes of the work item allows more. A check in a session reads
+// the notes from `qory work-item show`, run here as a fake qory first on PATH, and a push
+// check reads notes.json in its working folder. scripts/check.sh runs this file.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -128,7 +127,8 @@ function call(deps, argv) {
 
 // session runs `check build-plan` as a session does, with a fake qory first on PATH whose
 // `work-item show` prints show, then exits with status, or stops with the signal. A show
-// of null prints nothing.
+// of null prints nothing. The fake qory writes the file called in its folder, and the
+// result has called: whether that file is there.
 function session(count, { show = null, status = 0, raw = null, signal = null } = {}) {
   const root = fixture();
   const file = path.join(root, 'build-plan.md');
@@ -136,13 +136,15 @@ function session(count, { show = null, status = 0, raw = null, signal = null } =
   const bin = fresh('bin');
   const printed = raw !== null ? raw : JSON.stringify(show);
   fs.writeFileSync(path.join(bin, 'qory'),
-    `#!/bin/sh\n[ "$1 $2" = "work-item show" ] || exit 9\ncat <<'EOF'\n${printed}\nEOF\n` +
+    `#!/bin/sh\n: > '${path.join(bin, 'called')}'\n` +
+    `[ "$1 $2" = "work-item show" ] || exit 9\ncat <<'EOF'\n${printed}\nEOF\n` +
     `${signal ? `kill -${signal} $$\n` : ''}exit ${status}\n`,
     { mode: 0o755 });
   const before = process.env.PATH;
   process.env.PATH = `${bin}${path.delimiter}${before}`;
   try {
-    return call({ cwd: tmp, artifacts: [root] }, ['check', 'build-plan', file]);
+    const result = call({ cwd: tmp, artifacts: [root] }, ['check', 'build-plan', file]);
+    return { ...result, called: fs.existsSync(path.join(bin, 'called')) };
   } finally {
     process.env.PATH = before;
   }
@@ -201,7 +203,10 @@ test('9 deliverables with no answer fail with the limit 7', () => {
 });
 
 test('7 deliverables pass with no call of qory and no notes.json', () => {
-  passes(session(7, { show: null, status: 1 }));
+  const checked = session(7, { show: null, status: 1 });
+  passes(checked);
+  assert.equal(checked.called, false);
+  assert.equal(session(9, { show: { notes: [] } }).called, true);
   passes(pushed(7));
 });
 
@@ -325,6 +330,35 @@ test('an answer with option 1 of the allowed number sets the limit back to 7', (
   for (const text of [first, one]) {
     assert.equal(allowance.limitOf([answer(ALL(14)), answer(text)]), 7);
   }
+});
+
+test('end --offline runs no qory and gives the limit 7 with the reason', () => {
+  const bin = fresh('bin');
+  const called = path.join(bin, 'called');
+  fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh\n: > '${called}'\nexit 0\n`,
+    { mode: 0o755 });
+  const before = process.env.PATH;
+  process.env.PATH = `${bin}${path.delimiter}${before}`;
+  try {
+    assert.deepEqual(allowance.memberLimit({ mode: 'check', offline: true }),
+      { limit: 7, why: 'end --offline reads no notes' });
+  } finally {
+    process.env.PATH = before;
+  }
+  assert.equal(fs.existsSync(called), false);
+});
+
+test('a long note that almost matches an option is read in well under a second', () => {
+  const first = 'Build the first 12 changes here; take in the other ';
+  const notes = [
+    answer(ALL(9)),
+    answer(first + ' here; take in the other '.repeat(160000)),
+    answer('Build the changes for ' + ' here; take in '.repeat(260000)),
+    answer('Build all ' + '9'.repeat(4 * 1024 * 1024) + ' changes in this work item'),
+  ];
+  const start = process.hrtime.bigint();
+  assert.equal(allowance.limitOf(notes), 9);
+  assert.ok(process.hrtime.bigint() - start < 1000000000n, 'limitOf took 1 s or more');
 });
 
 test('limitOf reads the newest matching answer of a list', () => {

@@ -20,8 +20,8 @@ const VERBS = new Set(['Add', 'Ask', 'Check', 'Cite', 'Change', 'Close', 'Commit
 // error line of qory start a refusal of qory, which lock prints as it is. The result of the
 // scan for keys of scope and the place of the record of run and probe are lines of
 // information among the findings, with no fix. The first line of the push check of
-// build-plan over its limit, "Plan at most <m> separate changes, ...", has the text that
-// the owner approved in vault decision 0272: it has more than 100 characters.
+// build-plan over its limit, "Plan at most <m> separate changes, ...", has an approved
+// text of more than 100 characters.
 const PASSED = ['Fix first: ', '\u{1F41D} ', '\u2717 ', 'Scanned ',
   'The output and the record are in ', 'Plan at most '];
 

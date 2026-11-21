@@ -2846,8 +2846,9 @@ workflow with `tier: thinking` and `access: write`.
   the work item with the kind `answer` whose text is that option or option 1, in `notes[]`
   of `qory work-item show` in a session, and in `notes.json` in the working folder of the
   push check. A later answer with option 1 sets the limit back to 7, and any other note or
-  answer, such as a typed one, changes nothing. When the notes cannot be read, the limit is
-  7, and a later line of the finding says why. `lib/member-allowance.cjs` reads the notes.
+  answer, such as a typed one, changes nothing. When the notes cannot be read, and in
+  `end --offline`, which runs no command, the limit is 7, and a later line of the finding
+  says why. `lib/member-allowance.cjs` reads the notes.
   The run pushes the question and ends with
   `qory run verdict escalate --points <folder>/points.json`, where the one point has the
   action `answer`. Nothing records the member's answer in the build report yet, although

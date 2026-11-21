@@ -34,14 +34,42 @@ module.exports = (lib) => {
     sharedAllowedOne: shared('<m>', '1 change (<short name>)'),
   };
 
-  // matcher returns a pattern for text in which <n> matches digits, and any other <...>
-  // matches any text.
+  // matcher returns a test of text for the option text, in which <n> matches digits and
+  // any other <...> matches any text. The test returns the digits of each <n>, or null. It
+  // reads the note once from start to end with indexOf, so a long note takes linear time;
+  // a regular expression with several wildcards backtracks for seconds on a 40 KB note.
   function matcher(text) {
-    const escape = (part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`^${text.split(/(<[^>]+>)/).map((part, place) => {
-      if (place % 2 === 0) return escape(part);
-      return part === '<n>' ? '([0-9]+)' : '[\\s\\S]*';
-    }).join('')}$`);
+    const parts = text.split(/(<[^>]+>)/);
+    const head = parts[0];
+    const tail = parts[parts.length - 1];
+    return (note) => {
+      if (note.length < head.length + tail.length || !note.startsWith(head) ||
+        !note.endsWith(tail)) return null;
+      const end = note.length - tail.length;
+      const digits = [];
+      let at = head.length;
+      for (let place = 1; place < parts.length - 1; place += 2) {
+        const next = place + 2 < parts.length - 1 ? parts[place + 1] : null;
+        if (parts[place] === '<n>') {
+          let stop = at;
+          while (stop < end && note[stop] >= '0' && note[stop] <= '9') stop += 1;
+          if (stop === at) return null;
+          digits.push(note.slice(at, stop));
+          at = stop;
+          if (next !== null) {
+            if (!note.startsWith(next, at)) return null;
+            at += next.length;
+          } else if (at !== end) {
+            return null;
+          }
+        } else if (next !== null) {
+          const found = note.indexOf(next, at);
+          if (found < 0 || found + next.length > end) return null;
+          at = found + next.length;
+        }
+      }
+      return parts.length === 1 && note !== text ? null : digits;
+    };
   }
   const ALL = matcher(OPTIONS.all);
   // The options that set the limit back to 7.
@@ -58,14 +86,14 @@ module.exports = (lib) => {
     for (let place = notes.length - 1; place >= 0; place -= 1) {
       const note = notes[place];
       if (!isObject(note) || note.kind !== 'answer' || typeof note.note !== 'string') continue;
-      const all = ALL.exec(note.note);
+      const all = ALL(note.note);
       if (all) {
-        const count = Number(all[1]);
-        if (/^[1-9][0-9]*$/.test(all[1]) && Number.isSafeInteger(count) &&
+        const count = Number(all[0]);
+        if (/^[1-9][0-9]*$/.test(all[0]) && Number.isSafeInteger(count) &&
           count > MAX_DELIVERABLES) {
           return count;
         }
-      } else if (BACK_TO_SEVEN.some((one) => one.test(note.note))) {
+      } else if (BACK_TO_SEVEN.some((one) => one(note.note) !== null)) {
         return MAX_DELIVERABLES;
       }
     }
@@ -111,9 +139,13 @@ module.exports = (lib) => {
   // memberLimit returns { limit, why } for a check of context: the number of deliverables
   // that a member's answer allows, and, when the notes could not be read, why that is, so
   // that the limit is 7. A push check reads notes.json in its working folder, and a check
-  // in a session reads `<qory> work-item show`.
+  // in a session reads `<qory> work-item show`. end --offline runs no command, so there
+  // the limit is 7.
   function memberLimit(context) {
-    const read = context.mode === 'push' ? fromFile(context.workingFolder) : fromShow();
+    let read;
+    if (context.mode === 'push') read = fromFile(context.workingFolder);
+    else if (context.offline) read = { why: 'end --offline reads no notes' };
+    else read = fromShow();
     if (read.why !== undefined) {
       return { limit: MAX_DELIVERABLES, why: plainLine(read.why).replace(/\.+$/, '') };
     }
