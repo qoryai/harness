@@ -901,12 +901,14 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   round, such as `Reviewer code-reviewer wrote no report.`. The suite result has qory's form
   `{tests, failed, skipped, output_tail}`, with counts that are integers of 0 or more. A
   suite with `failed` over 0, a suite whose tests were all skipped, and a result that is
-  missing, over 4 MiB or in another form are one blocking finding of `full-suite`. It prints
-  `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and `Non-blocking finding of
-  ...`, the blocking ones first, each with `Proof: <proof>` on the next line when it has
-  one, then one line on what it checked. While a finding is blocking, it writes
-  `<reports>/points.json`, a `run_again` point with the `point` and the `fix` of each
-  blocking finding, at most 20 with the last one counting the rest, and exits with 1.
+  missing, over 4 MiB or in another form are one blocking finding of `full-suite`. The rule
+  of that form comes from the registry: `lib/suite.cjs` of `running-a-software-workflow`
+  adds it, so core names no member of the file, and with no such rule the suite has no
+  result. It prints `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and
+  `Non-blocking finding of ...`, the blocking ones first, each with `Proof: <proof>` on the
+  next line when it has one, then one line on what it checked. While a finding is blocking,
+  it writes `<reports>/points.json`, a `run_again` point with the `point` and the `fix` of
+  each blocking finding, at most 20 with the last one counting the rest, and exits with 1.
   Otherwise it removes an earlier `points.json` and exits with 0. It exits with 2 for a
   wrong argument and 3 when the report folder is a link or no folder. `points.json` is the
   only file that it writes.

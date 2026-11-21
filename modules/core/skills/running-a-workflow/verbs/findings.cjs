@@ -8,12 +8,12 @@
 // review report format, and the result of the full suite at --suite, once each. A report that
 // is missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, in another format
 // or of another reviewer is one blocking finding of that reviewer, in qory's words. A suite
-// result {tests, failed, skipped, output_tail} with failed over 0 or every test skipped, or a
-// result that cannot be read or has another form, is one blocking finding of full-suite. It
-// prints a line per finding, blocking ones first, with its proof on the next line. While a
-// finding is blocking, it writes <reports>/points.json, the run_again points of the blocking
-// findings, at most 20, and exits 1; otherwise it removes an earlier points.json and exits 0.
-// points.json is the only file it writes.
+// result that failed or did not run, by the rule that a skill adds to the registry, or one
+// that cannot be read, is one blocking finding of full-suite. It prints a line per finding,
+// blocking ones first, with its proof on the next line. While a finding is blocking, it
+// writes <reports>/points.json, the run_again points of the blocking findings, at most 20,
+// and exits 1; otherwise it removes an earlier points.json and exits 0. points.json is the
+// only file it writes.
 'use strict';
 
 const fs = require('node:fs');
@@ -113,7 +113,7 @@ function open(io, file) {
 const SUITE = 'full-suite';
 // The most bytes of a report that round reads, as qory reads it.
 const REPORT_BYTES = 1024 * 1024;
-// The most bytes of a suite result: qory keeps 200 lines of output, with no limit on a line.
+// The most bytes of a suite result, whose output qory keeps with no limit on a line.
 // shortcut: a larger file is a suite with no result; raise it when qory caps a line.
 const SUITE_BYTES = 4 * 1024 * 1024;
 // The most points of a verdict, and the most characters of a point's text and fix.
@@ -204,29 +204,25 @@ function reviewerFindings(dir, name) {
     file: one.file === undefined ? null : plain(one.file), line: one.line ?? null }));
 }
 
-// suiteFindings returns the finding of the result of the full suite at file, read once, in
-// qory's form {tests, failed, skipped, output_tail}: none when the suite ran tests and none
-// failed, else one blocking finding. A file that is missing, over SUITE_BYTES or in no such
-// form is a suite with no result.
-function suiteFindings(file) {
+// suiteFindings returns the finding of the result of the full suite at file, read once, by
+// state, the rule of the suite result that a skill adds to the registry: none for passed, else
+// one blocking finding. With no rule, or a file that is missing or over SUITE_BYTES, the suite
+// has no result.
+function suiteFindings(file, state) {
   const finding = (point) => [{ reviewer: SUITE, severity: 'blocking', point, proof: null }];
-  let data;
+  let found = null;
   try {
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.size > SUITE_BYTES) throw new Error('no file');
-    data = JSON.parse(readLimited(file, 'the suite result', stat.size, SUITE_BYTES));
+    const data = JSON.parse(readLimited(file, 'the suite result', stat.size, SUITE_BYTES));
+    found = state ? state(data) : null;
   } catch {
-    data = undefined;
+    found = null;
   }
-  const count = (key) => (isObject(data) && Number.isSafeInteger(data[key]) && data[key] >= 0 ?
-    data[key] : null);
-  const [tests, failed, skipped] = ['tests', 'failed', 'skipped'].map(count);
-  const usable = tests !== null && failed !== null && skipped !== null &&
-    failed + skipped <= tests && typeof data.output_tail === 'string';
-  if (!usable) return finding('The full suite has no result for the reviewed change.');
-  if (failed > 0) return finding('The full suite failed.');
-  if (tests === skipped) return finding('The full suite did not run.');
-  return [];
+  if (found === 'passed') return [];
+  if (found === 'failed') return finding('The full suite failed.');
+  if (found === 'not_run') return finding('The full suite did not run.');
+  return finding('The full suite has no result for the reviewed change.');
 }
 
 // writePoints writes the run_again points of blocking to points.json in dir, through a new
@@ -279,7 +275,7 @@ function writePoints(dir, blocking) {
 // round prints the findings of the round and writes points.json, and returns its exit.
 function round(io, { reports, names, suite }) {
   const dir = path.resolve(io.cwd, reports);
-  const found = [...suiteFindings(path.resolve(io.cwd, suite)),
+  const found = [...suiteFindings(path.resolve(io.cwd, suite), io.registry().suite),
     ...names.flatMap((name) => reviewerFindings(dir, name))];
   const blocking = found.filter((one) => one.severity === 'blocking');
   const ranked = [...blocking, ...found.filter((one) => one.severity !== 'blocking')];

@@ -84,6 +84,8 @@ function workflowChecks(core) {
     ],
     stops: STOPS,
     ledger: require('./lib/ledger.cjs')(lib),
+    // The state of the result of the full suite, which findings round reads.
+    suite: require('./lib/suite.cjs'),
     // The record of the track at the end of a report of proposal-reviewer, which the report
     // check reads for an agent whose Expected output has the line "Track read:".
     records: [{

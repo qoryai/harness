@@ -24,6 +24,9 @@ const schema = require(path.join(MODULES,
 const quoted = (text) => `"${text}"`;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'findings-test-')));
+// The plugin has the skill that adds the rule of the suite result, which findings round reads.
+fs.cpSync(path.join(__dirname, '../modules/software-factory/skills/running-a-software-workflow'),
+  path.join(tmp, 'plugin/skills/running-a-software-workflow'), { recursive: true });
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 const REVIEWING = fs.readFileSync(path.join(SKILLS, 'reviewing-changes', 'SKILL.md'), 'utf8');
@@ -737,6 +740,18 @@ test('findings round: a suite that failed, did not run or has no result is block
     assert.equal(got.status, 1, JSON.stringify(given));
     assert.equal(got.lines[0], `Blocking finding of full-suite: ${point}`);
   }
+});
+
+test('findings round: with no rule of the suite in the registry, the suite has no result', () => {
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [] } });
+  let out = '';
+  const status = main(['findings', 'round', dir, '--reviewers', 'code-reviewer', '--suite',
+    suite], { cwd: tmp, artifacts: [tmp], plugin: path.join(tmp, 'no-plugin'),
+    out: { write: (text) => { out += text; } }, err: { write: () => {} } });
+  assert.equal(status, 1, out);
+  assert.equal(out.split('\n')[0], 'Blocking finding of full-suite: The full suite has no ' +
+    'result for the reviewed change.');
 });
 
 test('findings round: more than 20 blocking findings write 19 points and one that counts', () => {
