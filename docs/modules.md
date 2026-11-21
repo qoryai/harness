@@ -2107,7 +2107,9 @@ find:
   description of more than 20000 characters, with a NUL, or with a line that starts with
   `<!-- qory:start -->` or `<!-- qory:end -->`;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
-  than 7 deliverables; an id other than `d-<N>`, or one id twice; a Criteria cell other than
+  than 7 deliverables, or more than the number that the newest member's answer on the work
+  item allows (see "The limit of 7"); an id other than `d-<N>`, or one id twice; a Criteria
+  cell other than
   each criterion as its id, in any case, and its words in quotes, with `; ` between them,
   such as `AC-1, "Export saves a CSV file"; AC-2, "One row per item"`, so a cell with an id
   alone, such as `ac-1, ac-2`, is a finding; a text in quotes other than the criterion's
@@ -2825,12 +2827,12 @@ workflow with `tier: thinking` and `access: write`.
   can commit its locked checks and support files only when the plan lists them. The planner
   and `plan-reviewer` apply the rule, and a missing path is a finding marked `writer`.
   `types/build-plan.cjs` does not check it.
-- **The limit of 7.** A build plan has at most 7 deliverables. The check `build-plan`
-  refuses more, with a finding that starts "Cut build-plan.md to". The session then sends
-  the finding to no writer, starts no reviewer, pushes no build plan and ends the ledger
-  step
-  as `failed`. `build-planner` lists every deliverable under "Over the limit:" in its
-  report.
+- **The limit of 7.** A build plan has at most 7 deliverables, unless the newest member's
+  answer on the work item allows more. The check `build-plan` refuses more, with a finding
+  that starts "Plan at most <m> separate changes", where `<m>` is 7 or the allowed number.
+  The session then sends the finding to no writer, starts no reviewer, pushes no build plan
+  and ends the ledger step as `failed`. `build-planner` lists every deliverable under "Over
+  the limit:" in its report.
   The session passes that list to `questions-writer` for one question with fixed texts: the
   context has the number of changes, that 7 are for the criteria of the first 7
   deliverables and the others for the criteria that only the later deliverables list, each
@@ -2840,7 +2842,14 @@ workflow with `tier: thinking` and `access: write`.
   takes in the other changes instead, each by its Change cell. While the title of option 1
   has more than 200 characters or the context has more than 120 words, the session removes
   the last item of the list with the most items, and the list ends with "and <m> more",
-  where `<m>` counts the items removed. The run pushes the question
+  where `<m>` counts the items removed. A member allows more by answering "Build all <n>
+  changes in this work item." with `<n>` of 8 or more: the check reads the newest note of
+  the work item with the kind `answer` whose text is that option or option 1, in `notes[]`
+  of `qory work-item show` in a session, and in `notes.json` in the working folder of the
+  push check. A later answer with option 1 sets the limit back to 7, and any other note or
+  answer, such as a typed one, changes nothing. When the notes cannot be read, the limit is
+  7, and a later line of the finding says why. `lib/member-allowance.cjs` reads the notes.
+  The run pushes the question
   and ends with `qory run verdict escalate --points <folder>/points.json`, where the one
   point has the action `answer`. Nothing records the member's answer in the build report
   yet,

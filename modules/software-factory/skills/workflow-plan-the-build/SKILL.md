@@ -43,8 +43,9 @@ not load the rules it needs, so it pushed no build plan."
    start" of `running-a-workflow` lists, and give it the paths that the explorer's report
    lists under "Facts:". It drafts `build-plan.md`.
 5. Run `check build-plan <folder>/build-plan.md`, as "Check before each review" lists. When a
-   line starts with "Cut build-plan.md to", the plan has more than 7 deliverables: do "More
-   than 7 deliverables", and go no further in this list.
+   line starts with "Plan at most", the plan has more deliverables than the check allows,
+   which is 7 unless the newest member's answer allows more: do "More than 7
+   deliverables", and go no further in this list.
 6. Start ${qory:agents/plan-reviewer} with the input file's path, the artifact folder, the
    run's number, the notes, the code explorer's report, unchanged, and the lines under
    "Checks:" that "Check before each review" lists. Decide on each report as "Findings"
@@ -61,10 +62,13 @@ not load the rules it needs, so it pushed no build plan."
 
 ## More than 7 deliverables
 
-A build plan has at most 7 deliverables, and `check build-plan` refuses more. Send that
-finding to no writer, cut nothing yourself, start no reviewer, and push no build plan.
+A build plan has at most 7 deliverables, unless the newest member's answer on the work
+item is "Build all <n> changes in this work item." with `<n>` of 8 or more, and `check
+build-plan` refuses more. Send that finding to no writer, cut nothing yourself, start no
+reviewer, and push no build plan.
 
-1. Take `<n>`, the number of deliverables, from the line "It has <n>." after the finding.
+1. Take `<n>`, the number of deliverables, from the first line of the finding, "the plan
+   has <n>".
    Take the changes from the planner's list "Over the limit:". When that list is
    `- none`, start the planner once more with the lines of the check quoted, and tell it to
    change nothing but that list.

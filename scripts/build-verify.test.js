@@ -864,7 +864,7 @@ test('build-plan: at most 7 deliverables, each with a different id d-<N>', () =>
     `| d-${place + 1} | Change part ${place + 1}. | ${ALL} | \`a.ts\` | \`tests/a.test.ts\` |`);
   const md = PLAN.replace(/\| d-1 .*\n\| d-2 .*\n/, `${rows.join('\n')}\n`);
   fails(push(fixture(), 'build-plan', planFile(md)),
-    /^Cut build-plan.md to 7 deliverables, or end the session with escalate\. It has 8\.$/);
+    /^Plan at most 7 separate changes, or ask a member whether to build all 8: the plan has 8, and no member's answer allows more than 7\. /);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| d-2 |', '| d-1 |'))),
     /^Give each deliverable of build-plan.md a different id\. d-1 is there twice\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| d-2 |', '| 2 |'))),

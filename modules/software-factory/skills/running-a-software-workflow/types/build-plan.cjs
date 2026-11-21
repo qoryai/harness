@@ -6,7 +6,7 @@
 module.exports = (lib) => {
   const {
     appAddress, brief, criterionList, filesCell, inOrder, isPath, liveCriteria, markdownText,
-    plural, quote, sectionTable, sectionTitles, short, wrongWords,
+    MAX_DELIVERABLES, memberLimit, plural, quote, sectionTable, sectionTitles, short, wrongWords,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -18,8 +18,6 @@ module.exports = (lib) => {
   // The kinds that each plan has: the session runs them after each agent. serve is needed only
   // for a criterion planned as Demo.
   const REQUIRED = KINDS.filter((kind) => kind !== 'serve');
-  // At most this many deliverables: a larger plan ends the session with escalate.
-  const MAX_DELIVERABLES = 7;
 
   const plainCell = (cell) => cell.replace(/`/g, '').trim();
 
@@ -51,8 +49,14 @@ module.exports = (lib) => {
       ({ id: plainCell(id), change, criteria: criterionList(criteria), files, check:
         plainCell(check) }));
     if (rows.length > MAX_DELIVERABLES) {
-      run.find(`Cut ${FILE} to ${MAX_DELIVERABLES} deliverables, or end the session with ` +
-        `escalate.\nIt has ${rows.length}.`);
+      // A plan over 7 deliverables ends the session with escalate, unless the newest answer
+      // of a member on the work item allows its number.
+      const { limit, why } = memberLimit(run.context);
+      if (rows.length > limit) {
+        run.find(`Plan at most ${limit} separate changes, or ask a member whether to build ` +
+          `all ${rows.length}: the plan has ${rows.length}, and no member's answer allows more ` +
+          `than ${limit}.${why ? `\nThe notes of the work item could not be read: ${why}.` : ''}`);
+      }
     }
     const seen = new Set();
     rows.forEach((row, place) => {

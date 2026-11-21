@@ -291,9 +291,9 @@ workflows:
   `checking-shape`, read-only, and reports findings as text.
 - `workflow-plan-the-build`: orchestrate the build plan of one ticket. The session starts
   `code-explorer`, `build-planner` and `plan-reviewer` in that order, and pushes
-  `build-plan` after a review with no finding left. A plan of more than 7 deliverables ends
-  with `qory run verdict escalate` and one question to a member about the criteria
-  of the first 7 changes and of the others.
+  `build-plan` after a review with no finding left. A plan of more than 7 deliverables,
+  with no member's answer that allows more, ends with `qory run verdict escalate` and one
+  question to a member about the criteria of the first 7 changes and of the others.
 - `planning-builds`: load it before you draft a build plan. The skill contains the three
   sections, the form of each cell, the Files rule for check files, the address of the app
   and an example plan.
