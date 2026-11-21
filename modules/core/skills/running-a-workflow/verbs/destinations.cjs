@@ -3,16 +3,20 @@
 
 const path = require('node:path');
 
-const { plainLine, plural, quote, short } = require('../lib/base.cjs');
+const { isObject, plainLine, plural, quote, short } = require('../lib/base.cjs');
 const { DESTINATION_ID, inputsDestinations } = require('../lib/context.cjs');
 
 // The most destinations that one session reads.
 const MOST = 100;
 
 // destinations returns the findings on ids against the destinations of the inputs.json at
-// file: each id of the tg_ form, listed there and given once, and at most MOST ids.
+// file: each id of the tg_ form, listed there with an address and given once, and at most
+// MOST ids.
 function destinations(file, ids) {
-  const listed = new Set(inputsDestinations(file).map((one) => one.id));
+  const entries = inputsDestinations(file);
+  const listed = new Set(entries.map((one) => one.id));
+  const copyable = new Set(entries
+    .filter((one) => isObject(one.target) && isObject(one.target.address)).map((one) => one.id));
   const findings = [];
   if (ids.length > MOST) {
     findings.push(`Give at most ${MOST} ids: a session reads at most ${MOST} destinations.\n` +
@@ -30,6 +34,8 @@ function destinations(file, ids) {
         `has it.\n${quote(short(id))} is not of that form.`);
     } else if (!listed.has(id)) {
       findings.push(`Give only ids from destinations in the inputs: ${id} is not one of them.`);
+    } else if (!copyable.has(id)) {
+      findings.push(`Give only ids of destinations with an address: ${id} has no address.`);
     }
   }
   return findings;

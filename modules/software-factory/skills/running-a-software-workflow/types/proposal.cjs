@@ -39,7 +39,7 @@ module.exports = (lib) => {
   const DESTINATION_LINE = /^Destination: `([^`]*)`$/;
 
   // trackForm checks the form of ## Track that
-  // checking-proposals (SKILL.md:112: "a full stop right after the kind") lists, and returns
+  // checking-proposals (SKILL.md:114: "a full stop right after the kind") lists, and returns
   // the fast track as { kind, change, lines, lists }, or null for another track, a missing
   // section or a form it refuses. lists is what trackLists returns for the check: the track
   // id, the kinds of the fast track and the sensitive areas of short-path.json in this
@@ -600,7 +600,7 @@ module.exports = (lib) => {
     const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:430-432: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:431-433: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -644,6 +644,7 @@ module.exports = (lib) => {
             `${quote(ref)}.`);
         }
         const item = typeof entry.container === 'string' ? `${entry.container}: ${ref}` : ref;
+        unlistedContainer(run, where, entry.container);
         entries.add(item);
         fileEntries.set(item, ref);
       }
@@ -666,12 +667,12 @@ module.exports = (lib) => {
   }
 
   // targetsCheck checks targets.json and the destination line of each part, as
-  // checking-proposals (SKILL.md:56-70: "A proposal of a run whose input file has") lists:
+  // checking-proposals (SKILL.md:57-71: "A proposal of a run whose input file has") lists:
   // required with destinations in the inputs, and their ids only.
   function targetsCheck(run, files, list) {
     const listed = run.context.destinations();
     const json = files.get('targets.json');
-    if (json === undefined && !listed) return;
+    if (json === undefined && !listed?.length) return;
     run.did('targets');
     if (json === undefined) {
       run.find('Add targets.json to the proposal: the run has destinations.\nList in it each ' +
@@ -720,17 +721,43 @@ module.exports = (lib) => {
       characters(run, 'targets.json', `why of ${where}`, why, { oneLine: true });
     });
     const solution = sections(list, 2).slice(1).find((one) => one.title === 'Proposed solution');
-    for (const unit of solution ? sections(solution.lines, 3).slice(1) : []) {
+    if (!solution) return;
+    // A solution with no ### part is one part: it opens with one destination line too.
+    const parts = sections(solution.lines, 3);
+    const units = parts.length > 1 ? parts.slice(1) : parts;
+    for (const unit of units) {
+      const name = unit.title === null ? '## Proposed solution'
+        : `the part ${quote(brief(unit.title))}`;
       const first = unit.lines.find((line) => !blank(line));
       const found = first && !first.fenced && DESTINATION_LINE.exec(first.text.trim());
+      const lines = unit.lines
+        .filter((line) => !line.fenced && DESTINATION_LINE.test(line.text.trim()));
       if (!found) {
-        run.find(`Open the part ${quote(brief(unit.title))} of proposal.md with the line of its ` +
-          'destination.\nWrite "Destination: `<id>`" right under its heading, with an id of ' +
-          'targets.json.');
+        run.find(`Open ${name} of proposal.md with the line of its destination.\nWrite ` +
+          '"Destination: `<id>`" right under its heading, with an id of targets.json.');
       } else if (!ids.has(found[1])) {
+        const whole = unit.title === null;
         run.find(`Add ${quote(brief(found[1], 24))} to targets.json, or change the destination ` +
-          `of its part.\nThe part ${quote(unit.title)} names it, and targets.json does not.`);
+          `of ${whole ? name : 'its part'}.\n${whole ? name : `The part ${quote(unit.title)}`} ` +
+          'names it, and targets.json does not.');
       }
+      if (lines.length > 1) {
+        run.find(`Keep one destination line in ${name} of proposal.md: it has ${lines.length}.` +
+          '\nWrite a change that goes to two destinations as two parts.');
+      }
+    }
+  }
+
+  // unlistedContainer refuses a container that starts with tg_ and that the inputs do not
+  // list, as checking-proposals (SKILL.md:41-42: "A `container` that starts with `tg_`")
+  // lists. With no inputs, it refuses nothing.
+  function unlistedContainer(run, where, container) {
+    if (typeof container !== 'string' || !container.startsWith('tg_')) return;
+    if (!run.context.inputs) return;
+    const listed = run.context.destinations() || [];
+    if (!listed.some((one) => one.id === container)) {
+      run.find(`Write an id of destinations in the inputs as the container of ${where} in ` +
+        `sources.json.\nThe container ${quote(brief(container, 24))} is none of them.`);
     }
   }
 
@@ -740,7 +767,7 @@ module.exports = (lib) => {
   // file has a character of a glob, that no changed file is or may be a folder, as folderRef
   // reads its ref, that no changed file matches a pattern of a sensitive area, and that the
   // newest review read exactly this ## Track and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:204: "refuses the fast track unless") lists. fileEntries
+  // checking-proposals (SKILL.md:206: "refuses the fast track unless") lists. fileEntries
   // maps each file of sources.json, as ## Sources lists it, to its ref, the path from the root
   // of its repository, which the patterns match.
   function fastTrack(run, fast, fileEntries) {

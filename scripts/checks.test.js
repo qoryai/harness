@@ -815,18 +815,30 @@ test('Explore copies only the destinations that the code explorer names, with on
     'files cannot show:" when it has no item.');
 });
 
-// The lines that qory destination clone prints when it fails, each with a sample id.
+// The first line of each error of qory destination clone, as cmd/destination.go of qory
+// writes it, with sample values.
 const CLONE_ERRORS = [
   "Use an id from destinations in the run's inputs: tg_8k2m4n6p8q0r2s4t is not one of them.",
-  'Clone at most 100 destinations in one run: this call would make clone 101.',
+  'Clone at most 100 destinations in one session: this call would make clone 101.',
   'Clone only a destination with an address: tg_8k2m4n6p8q0r2s4t has none, so it has no ' +
     'repository.',
   "Run qory destination clone inside a run's session: QORY_RUN_API is not set.",
+  "Run qory destination clone inside a run's session: QORY_HARNESS_HOME is not set.",
+  'Run qory destination clone only in a run whose inputs list destinations.',
+  'Clone only a repository: the address of tg_8k2m4n6p8q0r2s4t is not a repository path.',
   'Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary: the host returned 403 to the ' +
     'clone.',
-  'Run qory destination clone again: the clone of tg_8k2m4n6p8q0r2s4t failed: the connection ' +
-    'timed out.',
+  ...['its folder is in use', 'git did not start', 'the proxy returned 502',
+    'the host returned 500', 'git was stopped', 'git exited with 128'].map((cause) =>
+    `Run qory destination clone again: the clone of tg_8k2m4n6p8q0r2s4t failed: ${cause}.`),
+  'Report this run to the instance admin of Qory Apiary: inputs.json has malformed ' +
+    'destinations.',
+  'Check /tmp/qory-destinations, then run qory destination clone again.',
 ];
+
+// The point of a line of the copy that check points refuses.
+const CLONE_FALLBACK = 'Report this run to the instance admin of Qory Apiary: the ' +
+  "destinations in this run's inputs are malformed.";
 
 // The report of the code explorer's first start in Explore, which names one destination.
 const PICKED = 'What you searched:\n- nothing: the question names the destinations\n\n' +
@@ -839,15 +851,22 @@ test('end: a copy that fails twice ends Explore with escalate and the line of th
     'unchanged, such as "([^"]+)"').exec(workflow);
   assert.ok(sample, 'the Explore skill lists no line for a copy that fails twice');
   assert.ok(CLONE_ERRORS.includes(sample[1]), sample[1]);
+  const fallback = /check points` exits with 1 on that line, .*?, write in its place "([^"]+)"/
+    .exec(workflow);
+  assert.equal(fallback?.[1], CLONE_FALLBACK);
   const root = fixture();
   started(root, {});
   passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
   const points = path.join(root, 'points.json');
-  // Each line of the copy passes as the text of the first point.
-  for (const text of CLONE_ERRORS) {
+  // Each line of the copy passes as the text of the first point, or check points refuses it
+  // and the fallback passes in its place.
+  const refused = [];
+  for (const text of [...CLONE_ERRORS, CLONE_FALLBACK]) {
     write(root, 'points.json', [{ text, action: 'run_again' }]);
-    passes(check(root, 'points', points));
+    const result = check(root, 'points', points);
+    if (result.status !== 0) refused.push(text);
   }
+  assert.deepEqual(refused, [CLONE_ERRORS[14]]);
   older(root);
   const { args, env } = stub();
   const ended = end(root, env);
@@ -856,12 +875,12 @@ test('end: a copy that fails twice ends Explore with escalate and the line of th
     'qory run verdict escalate exited with 0'), ended.out);
   assert.deepEqual(verdicts(args), [`run verdict escalate --points ${points}`]);
   assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')),
-    [{ text: CLONE_ERRORS.at(-1), action: 'run_again' }]);
+    [{ text: CLONE_FALLBACK, action: 'run_again' }]);
 });
 
-test('end: after one failed copy and one that works, Explore records no escalate', () => {
-  // The second call worked, so the session went on and wrote no points.json: end runs no
-  // verdict.
+test('end: with no points.json, as after a copy that works on its second call, no verdict', () => {
+  // A session whose second copy worked goes on and writes no points.json, so end runs no
+  // verdict. The test runs no copy: qory is not installed here.
   const root = fixture();
   started(root, {});
   passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
@@ -872,16 +891,18 @@ test('end: after one failed copy and one that works, Explore records no escalate
 });
 
 // refusalLines returns the first line of each refusal of the destinations verb, one call per
-// kind of finding, with the ids of an inputs.json of two destinations.
+// kind of finding, with an inputs.json of two destinations, or of one with no address.
 function refusalLines() {
   const inputs = destinationsInputs(2);
   const many = Array.from({ length: 101 }, (_, n) => destinationId(n % 2));
-  return [['tg_8k2m4n6p8q0r2s4t'], [destinationId(0), destinationId(0)], ['tg_IIII'], many]
-    .map((ids) => {
-      const result = call({ cwd: tmp }, ['destinations', '--inputs', inputs, ...ids]);
-      assert.equal(result.status, 1, result.out);
-      return result.stdout.split('\n')[0];
-    });
+  const bare = inputsFile(JSON.stringify({ destinations: [{ id: destinationId(0),
+    target: { collection: 'place-0' } }] }));
+  return [[inputs, 'tg_8k2m4n6p8q0r2s4t'], [inputs, destinationId(0), destinationId(0)],
+    [inputs, 'tg_IIII'], [inputs, ...many], [bare, destinationId(0)]].map(([file, ...ids]) => {
+    const result = call({ cwd: tmp }, ['destinations', '--inputs', file, ...ids]);
+    assert.equal(result.status, 1, result.out);
+    return result.stdout.split('\n')[0];
+  });
 }
 
 test('end: ids refused twice end Explore with escalate and the first line of the refusal', () => {
@@ -912,7 +933,7 @@ test('end: ids refused twice end Explore with escalate and the first line of the
     [{ text: lines[0], action: 'run_again' }]);
 });
 
-test('end: after one refusal of the ids and a list that passes, Explore records no escalate', () => {
+test('destinations: one refusal, then a list that passes; end runs no verdict', () => {
   const inputs = destinationsInputs(2);
   assert.equal(call({ cwd: tmp }, ['destinations', '--inputs', inputs,
     'tg_8k2m4n6p8q0r2s4t']).status, 1);
@@ -1025,6 +1046,59 @@ test('proposal: a part whose destination targets.json does not list, or that nam
   exactly(checkTargets(root, inputs), 'Open the part "Customers who got the old hours" of ' +
     'proposal.md with the line of its destination.\n  Write "Destination: `<id>`" right under ' +
     'its heading, with an id of targets.json.');
+});
+
+test('proposal: one destination line per part, and a solution with no part opens with one', () => {
+  const inputs = destinationsInputs(2);
+  const root = targeted();
+  const text = fs.readFileSync(path.join(root, 'proposal.md'), 'utf8');
+  const opened = `### ${PARTS[2]}\n\nDestination: \`${destinationId(1)}\`\n\n`;
+  write(root, 'proposal.md', text.replace(opened,
+    `${opened}Destination: \`${destinationId(0)}\`\n\n`));
+  exactly(checkTargets(root, inputs), `Keep one destination line in the part "${PARTS[2]}" of ` +
+    'proposal.md: it has 2.\n  Write a change that goes to two destinations as two parts.');
+  // With no ### part, the solution is one part: it opens with its destination line.
+  const whole = fixture();
+  const solution = /## Proposed solution\n\n[\s\S]*?(?=\n## )/;
+  const plain = fs.readFileSync(path.join(whole, 'proposal.md'), 'utf8')
+    .replace(solution, '## Proposed solution\n\nKeep the support hours on 09:00 to 17:00.\n');
+  write(whole, 'proposal.md', plain);
+  write(whole, 'targets.json', { targets: [TWO_TARGETS[0]] });
+  fails(checkTargets(whole, inputs),
+    /^Open ## Proposed solution of proposal\.md with the line of its destination\./);
+  write(whole, 'proposal.md', plain.replace('## Proposed solution\n\n',
+    `## Proposed solution\n\nDestination: \`${destinationId(0)}\`\n\n`));
+  assert.ok(!checkTargets(whole, inputs).out.includes('Destination'), 'a destination finding');
+});
+
+test('proposal: an empty destinations list is none, and a tg_ container must be listed', () => {
+  const none = inputsFile(JSON.stringify({ destinations: [], qory: { harness_extensions: {} } }));
+  passes(checkTargets(fixture(), none, FILES.proposal));
+  const root = targeted();
+  write(root, 'sources.json', { sources: [{ kind: 'file', ref: 'replies/delayed.md',
+    container: destinationId(7), why: 'Contains the text of the reply.' }] });
+  write(root, 'proposal.md', fs.readFileSync(path.join(root, 'proposal.md'), 'utf8')
+    .replace('No public page and no file.', `- ${destinationId(7)}: replies/delayed.md`));
+  exactly(checkTargets(root, destinationsInputs(2)), 'Write an id of destinations in the ' +
+    `inputs as the container of source 1 in sources.json.\n  The container ` +
+    `"${destinationId(7)}" is none of them.`);
+  // With no inputs, a container is not checked against a list.
+  passes(checkTargets(root));
+});
+
+test('machine paths: the core pattern finds the folder of the copied destinations', () => {
+  const { machinePattern, machinePaths } = require(path.join(MODULES,
+    'core/skills/running-a-workflow/lib/markdown.cjs'));
+  // No core type checks paths through documents.cjs, so the core function runs here on a
+  // record of findings, with no skip.
+  const found = [];
+  const run = { context: { machine: machinePattern('/home/sam') }, find: (one) => found.push(one) };
+  machinePaths(run, 'questions.json', 'See /tmp/qory-destinations/host.example.com/a/b.md.');
+  machinePaths(run, 'questions.json', 'See /private/tmp/qory-destinations first.');
+  machinePaths(run, 'questions.json', 'See /tmp/qory-destinations-old/a.md and /tmp/other.');
+  assert.deepEqual(found.map((one) => one.split('\n')[0]), [
+    'Remove the path of the machine the run is on from questions.json.',
+    'Remove the path of the machine the run is on from questions.json.']);
 });
 
 test('proposal: no file ref or text has the folder of the copied destinations', () => {
@@ -6213,6 +6287,14 @@ test('destinations prints the ids that it checks against the inputs, and nothing
   passes(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids.slice(0, 100)]));
   exactly(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids]),
     'Give at most 100 ids: a session reads at most 100 destinations.\n  The call gives 101.');
+  // A listed destination with no address has nothing to copy, so the explorer starts again.
+  const bare = inputsFile(JSON.stringify({ destinations: [{ id: destinationId(0),
+    target: { collection: 'place-0' } }, ...JSON.parse(fs.readFileSync(inputs, 'utf8'))
+    .destinations.slice(1)] }));
+  exactly(call({ cwd: tmp }, ['destinations', '--inputs', bare, destinationId(0),
+    destinationId(1)]), 'Give only ids of destinations with an address: ' +
+    `${destinationId(0)} has no address.`);
+  passes(call({ cwd: tmp }, ['destinations', '--inputs', bare, destinationId(1)]));
   // No id, no --inputs, and an inputs.json with no list destinations.
   assert.equal(call({ cwd: tmp }, ['destinations', '--inputs', inputs]).status, 2);
   assert.equal(call({ cwd: tmp }, ['destinations', destinationId(1)]).status, 2);

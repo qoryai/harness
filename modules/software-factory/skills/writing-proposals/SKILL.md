@@ -373,6 +373,7 @@ in the input file, by its id, such as `tg_8k2m4n6p8q0r2s4t`. When the input file
   `` Destination: `tg_8k2m4n6p8q0r2s4t` ``. Then the part goes on with its picture, or with
   its sentence for a single change.
 - A part has one destination: write a change that goes to two destinations as two parts.
+  A solution with no `###` part opens with that line right under `## Proposed solution`.
 
 ## Public pages and documentation
 

@@ -36,9 +36,10 @@ not read `sources.json`, so a `why` or `ref` may contain a file name.
     from the top of the working folder for a file of the target, or from the top of the
     folder of the further repository or of the destination. For `page`, the page's
     `https://` address, under the link rule of `artifact-text`.
-  - `container`: for a `file` of a further repository, the folder's name, such as `web`,
-    and for a `file` of a destination, its id, such as `tg_8k2m4n6p8q0r2s4t`: one line of 1
-    to 200 characters. Leave it out for a file of the target in the working folder.
+  - `container`: for a `file` of a further repository, the folder's name, such as `web`, and
+    for a `file` of a destination, its id, such as `tg_8k2m4n6p8q0r2s4t`: one line of 1 to
+    200 characters. A `container` that starts with `tg_` is an id of `destinations` in the
+    input file. Leave it out for a file of the target in the working folder.
   - `locator`: the part of the source you used, such as `lines 40-48`, one line of 1 to
     500 characters. Leave it out when it does not help.
   - `why`: why the source matters for the proposal, plain text on one line, 1 to 500
@@ -66,7 +67,8 @@ not read `sources.json`, so a `why` or `ref` may contain a file name.
   entries, each with only `id` and `why`. Each `id` is an id of `destinations`, once.
   `why` is plain text on one line of 1 to 500 characters.
 - Each part of `## Proposed solution` opens with the line `Destination: ` and an id of
-  `targets.json` in a code span, right under its heading.
+  `targets.json` in a code span, right under its heading, and has no second such line. A
+  solution with no `###` part opens with that line right under `## Proposed solution`.
 
 ## Limits
 
@@ -321,8 +323,9 @@ that never repeats the summary.
   that states where a secret is.
 - The sources list every public page and every file you used, except a file whose path has a
   refused character. A page is a Markdown link on words that describe the page. A file is
-  its path, or for a further repository the folder's name, a colon and the path, with no
-  link. The sources list no ticket, instruction, comment, answer, review comment or
+  its path, for a further repository the folder's name, a colon and the path, and for a
+  destination its id, a colon and the path, such as `tg_8k2m4n6p8q0r2s4t: src/cart.ts`, with
+  no link. The sources list no ticket, instruction, comment, answer, review comment or
   wireframe. With no page and no file, the section is only the line "No public page and no
   file."
 - The summary, the background and the proposed solution contain no source, except that

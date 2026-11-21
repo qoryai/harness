@@ -329,8 +329,9 @@ session did not copy, with every id so far and the new ones, within the 100 of t
 When the script refuses the ids, `code-explorer` starts once more, and a second refusal ends
 the run with `escalate` and the first line of the refusal as the text of the first point. A
 copy that fails runs once more. A second failure ends the run with `escalate` and the error
-line of the copy as the text of the first point. With no "Destinations:" list, or no input
-file, the session copies nothing.
+line of the copy as the text of the first point, or, when `check points` refuses that line,
+a line that asks for a report to the instance admin of Qory Apiary. With no "Destinations:"
+list, or no input file, the session copies nothing.
 
 Shape and plan-the-build keep `.qory/repositories`, which qory creates only when the run has
 further repositories. An agent with only Read, Grep and Glob cannot check for a folder: a
@@ -544,12 +545,11 @@ It is in `core`, and uses no word of software work. The small workflows of
 `software-factory` also load `running-a-software-workflow`, which adds the `find` of further
 repositories, the "Blocked:" lines on the spec, and the types that "Check before each
 review" checks. With it, the session runs the `find` for `.qory/repositories` once per run,
-also under a higher workflow, as in Explore. It gives the code explorer, the spec writer,
-and the decision writer and reviewer the line "Further repositories: yes" or "no", and, with
-"yes", the questions writer and reviewer the line "Also search: .qory/repositories". A
-decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
-`run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
-`running-a-workflow`.
+also under a higher workflow. It gives the code explorer, the spec writer, and the decision
+writer and reviewer the line "Further repositories: yes" or "no", and, with "yes", the
+questions writer and reviewer the line "Also search: .qory/repositories". A decision
+reviewer lists that folder only with "yes". Qory Apiary's rules stay in `run-artifacts`.
+`workflow-explore-a-ticket` keeps its text and does not use `running-a-workflow`.
 
 A round that follows a verdict `changes-requested` of the current stage with `run_again`
 points fixes those points first. The session of a run alone runs `checks.cjs fixes` once,
@@ -869,11 +869,11 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
 - `checks.cjs destinations --inputs <file> <id>...`: the session of Explore runs it before
   each `qory destination clone`, on the ids that `code-explorer` names. Each id must be
-  `tg_` and 16 characters, an id of `destinations` in the inputs.json at `--inputs`, and
-  given once, and the call gives at most 100 ids. With no finding, it exits with 0 and
-  prints each id on a line of stdout, in the order given, and the line of what it checked on
-  stderr. Each finding exits with 1, a missing id or `--inputs` with 2, and an inputs.json
-  with no list `destinations` with 3. It writes no file.
+  `tg_` and 16 characters, an id of `destinations` in the inputs.json at `--inputs` with a
+  `target.address`, and given once, and the call gives at most 100 ids. With no finding, it
+  exits with 0 and prints each id on a line of stdout, in the order given, and the line of
+  what it checked on stderr. Each finding exits with 1, a missing id or `--inputs` with 2,
+  and an inputs.json with no list `destinations` with 3. It writes no file.
 - `checks.cjs findings open <file>`: the session of a stage with reviewers runs it at its
   start, on `open-findings.json` in its inputs folder. qory writes that file, read-only,
   from the findings of the latest round of review, `blocking` and `non-blocking`: `{"round":
@@ -2056,8 +2056,10 @@ The checks:
   else only when the proposal has it: only the member `targets`, 1 to 20 entries, each with
   only `id` and `why`; each `id` of the form `tg_` and 16 characters, once, and with
   `destinations`, one of their ids; each `why` plain text on one line of 1 to 500
-  characters. Each `###` part of `## Proposed solution` opens with the line
-  `` Destination: `<id>` `` of an id of `targets.json`;
+  characters. Each `###` part of `## Proposed solution`, or the solution when it has no
+  part, opens with the line `` Destination: `<id>` `` of an id of `targets.json`, and has no
+  second such line. With `--inputs`, a `container` of `sources.json` that starts with `tg_`
+  is an id of `destinations`. An empty `destinations` list counts as none;
 - the refused characters and control characters of `artifact-text`, each link and image,
   `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
   `/tmp/qory-destinations`, where qory copies the destinations, `/qory/`, `/workspace/`, a

@@ -932,12 +932,12 @@ function links(
 }
 
 // machinePattern returns the pattern of the folders of the machine a run is on: the artifact
-// folder, the folder of the copied destinations, qory's folder, the working folder /workspace/ of a run, a folder of .qory, a home
-// folder by ~/, /Users/<name>/, the home folder /home/agent/ of qory's agent image, home (the
-// home folder of the user that runs the script, from HOME) when it has two or more parts or
-// is /root, and the temporary folders of macOS, also by their real path under /private. A
-// general name such as /run/, /lib/ or /tmp/ is no such folder, and neither is any other
-// /home/<name>/, because an app's route can start with it.
+// folder, the folder of the copied destinations, qory's folder, the working folder /workspace/ of
+// a run, a folder of .qory, a home folder by ~/, /Users/<name>/, the home folder /home/agent/ of
+// qory's agent image, home (the home folder of the user that runs the script, from HOME) when it
+// has two or more parts or is /root, and the temporary folders of macOS, also by their real path
+// under /private. A general name such as /run/, /lib/ or /tmp/ is no such folder, and neither is
+// any other /home/<name>/, because an app's route can start with it.
 function machinePattern(home) {
   const folder = typeof home === 'string' && path.isAbsolute(home)
     ? path.posix.normalize(home).replace(/\/+$/, '') : '';
