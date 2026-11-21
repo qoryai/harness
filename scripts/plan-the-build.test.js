@@ -138,10 +138,11 @@ test('each workflow of the stack has a tier, and only each write workflow the pl
   assert.deepEqual(workflowProblems(stack), []);
   for (const [name, tier] of [['explore-a-ticket', 'thinking'], ['shape-a-ticket', 'thinking'],
     ['write-specs', 'thinking'], ['write-technical-decisions', 'thinking'],
-    ['make-mockups', 'balanced'], ['write-demo-scenarios', 'balanced'],
-    ['review-changes', 'thinking']]) {
+    ['make-mockups', 'balanced'], ['write-demo-scenarios', 'balanced']]) {
     assert.match(stack, new RegExp(`\\n {2}${name}: \\{tier: ${tier}, access: read\\}\\n`), name);
   }
+  // review-changes also names its review group, as scripts/review-changes.test.js checks.
+  assert.match(stack, /\n {2}review-changes: \{tier: thinking, access: read, /);
   // workflowProblems returns the line of the fault in a changed stack.
   const changed = (from, to) => {
     const text = stack.replace(from, to);
@@ -156,11 +157,11 @@ test('each workflow of the stack has a tier, and only each write workflow the pl
     'build-plan}', 'write-acceptance-checks: {tier: balanced, access: write}'),
   ['Add plan: build-plan to write-acceptance-checks: its access is write.']);
   // The review session is read only, and qory refuses a plan on a read workflow.
-  assert.deepEqual(changed('review-changes: {tier: thinking, access: read}',
-    'review-changes: {tier: thinking, access: read, plan: build-plan}'),
+  assert.deepEqual(changed('review-changes: {tier: thinking, access: read, ',
+    'review-changes: {tier: thinking, access: read, plan: build-plan, '),
   ['Remove plan from review-changes: its access is read.']);
-  assert.deepEqual(changed('review-changes: {tier: thinking, access: read}',
-    'review-changes: {tier: thinking, plan: build-plan}'),
+  assert.deepEqual(changed('review-changes: {tier: thinking, access: read, ',
+    'review-changes: {tier: thinking, plan: build-plan, '),
   ['Remove plan from review-changes: its access is read.']);
   assert.deepEqual(changed('shape-a-ticket: {tier: thinking, access: read}',
     'shape-a-ticket:\n    tier: thinking'),

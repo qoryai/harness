@@ -27,33 +27,30 @@ of `running-a-workflow`. `<inputs>` is the path of the input file from the promp
 ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull prints. `<start>`
 is the folder in `qory.start_artifacts` of the input file. `<reports>` is the report folder,
 `qory.review_session.reports`, and `<suite>` is the result of the full suite,
-`qory.review_session.suite_result`. `<base>` is the `commit` of the entry of
-`qory.start_commits` whose `path` is the working folder: the commit that the change starts
-from.
+`qory.review_session.suite_result`.
 
 ## What the session writes
 
-The checkout is read-only, and the tool guard denies every write into it. Run only `<qory>`
-commands, the checks script and the read commands that the guard allows. The files are:
+Write nothing in the checkout: the review changes no file of the change. The files are:
 
 - `<reports>/<agent>.json`, the report of each reviewer, which only that reviewer writes;
 - `<reports>/points.json`, which `findings round` writes while a finding is blocking;
 - `<reports>/build-report.md`, which `report-build --out <reports>` writes;
 - `<folder>/.notes/changed-files.txt`, the paths of the change, which you write;
-- the files under `<folder>/.reports/` that the checks script writes, such as the diff.
+- the files under `<folder>/.reports/` that the checks script writes.
 
 Write `points.json` in `<folder>` only for an end through "Points" of `running-a-workflow`,
-and write no hand-off file. Start no agent that is not a reviewer: the guard denies each
-write of such an agent.
+and write no hand-off file. Start no agent that is not a reviewer. The tool guard lets a
+reviewer write only `<reports>/<agent>.json`.
 
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`. Then run `<skill folder>/checks.cjs resume` once,
    as "The build ledger" of `running-a-software-workflow` lists.
 2. When the input file has no `qory.review_session`, or `<reports>`, `<suite>`,
-   `qory.start_artifacts` or `<base>` is missing, start nothing and end as "Failures" lists,
-   with "The review of the change did not start, because the input file has no review
-   session."
+   `qory.review_session.diff` or `qory.start_artifacts` is missing, start nothing and end
+   as "Failures" lists, with "The review of the change did not start, because the input
+   file has no review session."
 3. Do "The ledger check".
 4. When `work-item show` printed a `run.id`, run `<skill folder>/checks.cjs lock --verify`
    from the working folder, as "Locked files" of `running-a-workflow` lists. With no
@@ -112,14 +109,14 @@ Then decide, in this order, and go no further when a case ends the run:
 
 ## The reviewers
 
-1. Run `<skill folder>/checks.cjs diff --from <base>`. It writes the diff of the change
-   under `<folder>/.reports/diff/` and prints `Read <path>.`: that path is `<diff>`. With
-   1, 2 or 3, end as "Failures" lists for the checks script.
-2. Run `git diff --name-only <base>..HEAD` in the working folder, and write its lines to
-   `<folder>/.notes/changed-files.txt`.
-3. Start ${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and
+1. Read the diff of the change, the file at `qory.review_session.diff`, with the file tool
+   of your runtime. For each line that starts with `diff --git a/`, take the path after the
+   last ` b/` of that line. Write those paths, one per line, to
+   `<folder>/.notes/changed-files.txt`. When the diff cannot be read, end as "Failures"
+   lists, with "The review of the change did not start, because its diff could not be read."
+2. Start ${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and
    ${qory:agents/acceptance-reviewer}, in turn, each in the foreground.
-4. Run `<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files
+3. Run `<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files
    <folder>/.notes/changed-files.txt`. Start each member of a `Start:` line in turn. When
    panel prints a line "Run panel again with --after <n>", run it again with that
    `--after` after those members returned, and start the members of its `Start:` lines. A
@@ -131,12 +128,11 @@ the start, as "Starting agents" and "Count the starts" of `running-a-workflow` l
 `review-changes-1-<agent>` as `<name>`. When `starts` exits with 1, start no reviewer for
 that name: its missing report counts in "The round".
 
-Pass each reviewer, quoted, and nothing else: the path `<inputs>`; `commit`, the absolute
-path of the working folder; `diff`, the path `<diff>`; `previous_findings`, the path of
-`open-findings.json` in the folder of `<inputs>`, only when that file exists; and its
-`report`, `<reports>/<agent>.json`, such as `<reports>/code-reviewer.json`. The reviewer
-reads `<suite>` and `qory.start_artifacts` from the input file, as `judging-findings` lists.
-Read no report of a reviewer, start no reviewer again, and fix no report: "The round"
+Pass each reviewer the path of the input file, `<inputs>`, and nothing else. Each reviewer
+reads every value of the review from `qory.review_session` of the input file, which qory
+writes: the commit, the diff, the open findings, `<reports>` and `<suite>`. It writes
+`<reports>/<agent>.json`, such as `<reports>/code-reviewer.json`, as `judging-findings`
+lists. Read no report of a reviewer, start no reviewer again, and fix no report: "The round"
 decides.
 
 ## The round
@@ -168,11 +164,10 @@ verdict.
 
 When no finding is blocking, in this order:
 
-1. Run `<skill folder>/checks.cjs report-build --inputs <inputs> --out <reports>`. It renders
-   every table of `<reports>/build-report.md` from the records and writes no hand-off file.
-   No agent can change the file after it: the guard lets a reviewer write only its report,
-   and the session writes only into the artifact folder. With 1, 2, 3 or 4, end as
-   "Failures" lists for the checks script.
+1. Run `<skill folder>/checks.cjs report-build --inputs <inputs> --out <reports>`. It
+   renders every table of `<reports>/build-report.md` from the records and writes no
+   hand-off file. The guard lets a reviewer write only its report, so no reviewer can
+   change the file. With 1, 2, 3 or 4, end as "Failures" lists for the checks script.
 2. Push `build-report` as "Push only what changed" of `running-a-workflow` lists:
 
    ```
