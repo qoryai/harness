@@ -168,10 +168,10 @@ both:
 
 - **A review session.** Build's workflow `review-changes` is a review session: qory writes
   `qory.review_session` into its `inputs.json`, with `reports`, the report folder, and
-  `suite_result`, the result of the full suite and the locked checks, which qory runs before
-  the session. The session starts each reviewer as one of its agents, and each writes one
-  report, `<reports>/<agent>.json`. Each reviewer reads `commit`, `diff`,
-  `previous_findings`, `build_report` when there is one, and the two other members from
+  `suite_result`, the result of the full suite, which qory runs before the session. The
+  session starts each reviewer as one of its agents, and each writes one report,
+  `<reports>/<agent>.json`. Each reviewer reads `commit`, `diff`, `previous_findings` after
+  the first round, `build_report` when there is one, and the two other members from
   `qory.review_session`, and the prompt passes only the path of the input file, so the
   session cannot point a reviewer at another commit.
 - **A separate session per reviewer.** qory starts the reviewer as the main agent of a
@@ -240,12 +240,11 @@ An agent that the table does not list sets no `model` key.
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. The session writes no file, except `points.json` in a small or high-level
-  workflow and in `explore-a-ticket` on a failure, and, in `review-changes`, the list of
-  the paths of the change and the files that the checks script writes, such as
-  `build-report.md` and `points.json` in the report folder. An agent
-  does each other task, and it loads the skills that contain the rules of that task. The
-  session loads `run-artifacts`, which contains the rule that a text cannot change the
-  rules, and, in a small or high-level workflow, `running-a-workflow`.
+  workflow and in `explore-a-ticket` on a failure, and, in `review-changes`, the list of the
+  paths of the change, and `points.json`, which the checks script writes into the report
+  folder. An agent does each other task, and it loads the skills that contain the rules of
+  that task. The session loads `run-artifacts`, which contains the rule that a text cannot
+  change the rules, and, in a small or high-level workflow, `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -897,18 +896,18 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   of `--reviewers`, agent names joined by commas, each once and none `full-suite`, and the
   result of the full suite at `--suite`, once each. A report that is missing, a link, no
   regular file, over 1 MiB, no UTF-8, no JSON object, outside the review report format or of
-  another reviewer is one blocking finding of that reviewer, in the words of qory's review
-  round, such as `Reviewer code-reviewer wrote no report.`. The suite result has qory's form
-  `{tests, failed, skipped, output_tail}`, with counts that are integers of 0 or more. A
-  suite with `failed` over 0, a suite whose tests were all skipped, and a result that is
-  missing, over 4 MiB or in another form are one blocking finding of `full-suite`. The rule
-  of that form comes from the registry: `lib/suite.cjs` of `running-a-software-workflow`
-  adds it, so core names no member of the file, and with no such rule the suite has no
-  result. It prints `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and
-  `Non-blocking finding of ...`, the blocking ones first, each with `Proof: <proof>` on the
-  next line when it has one, then one line on what it checked. While a finding is blocking,
-  it writes `<reports>/points.json`, a `run_again` point with the `point` and the `fix` of
-  each blocking finding, at most 20 with the last one counting the rest, and exits with 1.
+  another reviewer is one blocking finding of that reviewer, such as `Reviewer code-reviewer
+  wrote no report.`. The suite result has qory's form `{tests, failed, skipped,
+  output_tail}`, with counts that are integers of 0 or more. A suite with `failed` over 0, a
+  suite whose tests were all skipped, and a result that is missing, over 4 MiB or in another
+  form are one blocking finding of `full-suite`. The rule of that form comes from the
+  registry: `lib/suite.cjs` of `running-a-software-workflow` adds it, so core contains no
+  member name of the file, and with no such rule the suite has no result. It prints
+  `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and `Non-blocking finding of
+  ...`, the blocking ones first, each with `Proof: <proof>` on the next line when it has
+  one, then one line on what it checked. While a finding is blocking, it writes
+  `<reports>/points.json`, a `run_again` point with the `point` and the `fix` of each
+  blocking finding, at most 20 with the last one counting the rest, and exits with 1.
   Otherwise it removes an earlier `points.json` and exits with 0. It exits with 2 for a
   wrong argument and 3 when the report folder is a link or no folder. `points.json` is the
   only file that it writes.
@@ -2993,8 +2992,9 @@ the workflow with `tier: thinking`, `access: read` and `review_group: reviewers`
 role whose reports qory checks the verdict against, and no `plan`, because qory refuses a
 `plan` on a workflow that cannot write: the checkout is read-only, and the session writes
 only into the artifact folder and the report folder `qory.review_session.reports`. qory runs
-the full suite and the locked checks before the session, and passes their result in
-`qory.review_session.suite_result`. The session runs no ledger step. In this order:
+the full suite before the session, and passes its result in
+`qory.review_session.suite_result`; qory writes the finding of a locked check that fails.
+The session runs no ledger step. In this order:
 
 1. It pulls and runs `checks.cjs resume`, and stops when the input file has no
    `qory.review_session`.
@@ -3010,42 +3010,46 @@ the full suite and the locked checks before the session, and passes their result
    changes are not built: d-2, "<Change cell>".", cut to 500 characters.
 3. In a run, it runs `checks.cjs lock --verify`, and ends the same way with the paths of
    the locked files that differ.
-4. It writes the paths of the change to `.notes/changed-files.txt` of the artifact folder,
-   and starts `code-reviewer`, `test-reviewer` and `acceptance-reviewer` in turn, then each
-   member of the group role `reviewers` that `checks.cjs panel` starts for those paths. Each
+4. It writes the paths of the change, from the header lines of the diff, to
+   `.notes/changed-files.txt` of the artifact folder, and starts each member of the group
+   role `reviewers` that `checks.cjs panel` starts for those paths, in turn. Each
    reviewer writes `<reports>/<agent>.json`. The session reads no report and starts no
    reviewer again.
 5. It runs `checks.cjs findings round <reports> --reviewers <names> --suite <suite>` once.
    A reviewer with no valid report is one blocking finding, and so is a suite that failed or
    did not run. With a blocking finding, the verb writes `<reports>/points.json`, and the
-   session runs `qory run verdict changes-requested --points <reports>/points.json`. qory
-   then writes `open-findings.json` for the next `implement-changes` from the reports.
+   session runs `qory run verdict changes-requested` with no point: qory takes `--points`
+   only with `escalate`, and writes `open-findings.json` for the next `implement-changes`
+   from the reports.
 6. With no blocking finding, it runs `qory run verdict passed`. The session writes no build
    report and no submission text, starts no `submission-writer` and pushes no artifact:
    its checkout is read-only, so it cannot write `pull-request.json` into the outbox.
 
-- **The reviewers.** The session starts `code-reviewer`, `test-reviewer` and
-  `acceptance-reviewer` as its agents, as "The review of a change" lists.
-  Each loads `reviewing-changes`, `judging-findings` and its checking skill,
-  `checking-code`, `checking-tests` or `checking-acceptance`. A finding in another area is
-  left out: its reviewer writes it. `code-reviewer` reports bugs in each file that is
-  not a test, and security holes, data loss and secrets in every file of the change, tests
-  and fixtures too. Only `test-reviewer` reports a failing test that the change skips,
-  deletes or loosens, with the old test traced through the new code; it also reports code
-  with no test and tests that show nothing. `code-reviewer` reports the bug behind such a
-  failing test. Only `acceptance-reviewer` reports a criterion that the change does not
-  meet; it also reports a planned change that is not in the diff, a changed path that no
-  Files cell of the build plan lists, and work that no rule of the spec requires. It reads
-  the acceptance criteria, the spec and the build plan from the folder of
-  `qory.start_artifacts`, each at the `newest_version` of its entry `main`, or of its one
-  entry, in `index.json`, with withdrawn entries left out. A bug that also breaks a
-  criterion gets two findings: the cause from `code-reviewer`, and the criterion from
-  `acceptance-reviewer`. A red suite and a red locked check are findings that
-  `findings round` writes from `suite_result`. A `failing check` proof cites the lines of
-  `output_tail` of `suite_result`.
+- **The reviewers.** `code-reviewer`, `test-reviewer` and `acceptance-reviewer` start for
+  every change, as "The review of a change" lists. Each loads `reviewing-changes`,
+  `judging-findings` and its checking skill, `checking-code`, `checking-tests` or
+  `checking-acceptance`. A finding in another area is left out: its reviewer writes it.
+  `code-reviewer` reports bugs in each file that is not a test, and security holes, data
+  loss and secrets in every file of the change, tests and fixtures too. Only `test-reviewer`
+  reports a failing test that the change skips, deletes or loosens, with the old test traced
+  through the new code; it also reports code with no test and tests that show nothing.
+  `code-reviewer` reports the bug behind such a failing test. Only `acceptance-reviewer`
+  reports a criterion that the change does not meet; it also reports a planned change that
+  is not in the diff, a changed path that no Files cell of the build plan lists, and work
+  that no rule of the spec requires. It reads the acceptance criteria, the spec and the
+  build plan from the folder of `qory.start_artifacts`, each at the `newest_version` of its
+  entry `main`, or of its one entry, in `index.json`, with withdrawn entries left out. A bug
+  that also breaks a criterion gets two findings: the cause from `code-reviewer`, and the
+  criterion from `acceptance-reviewer`. A red suite is a finding that `findings round`
+  writes from `suite_result`; qory writes the finding of a red locked check. A `failing
+  check` proof cites the lines of `output_tail` of `suite_result`.
 - **The group role `reviewers`.** `software-factory` declares `roles: {agents: {reviewers:
-  many}}` and lists `security-reviewer`, `data-reviewer` and `failure-reviewer` under
-  `provides.agents.reviewers`. Each agent file sets `paths`, a list of globs from the top
+  many}}` and lists all six reviewers under `provides.agents.reviewers`. `code-reviewer`,
+  `test-reviewer` and `acceptance-reviewer` have no `paths` key, so qory expects their
+  reports for every change; qory refuses `paths: []`. Rule 13 of `scripts/check.sh` fails
+  when the skill of a workflow with a `review_group` starts a `-reviewer` agent that is no
+  member of that group, or when a member is no agent that a module defines: qory expects a
+  report from each member. Each other agent file sets `paths`, a list of globs from the top
   of the working folder, which qory writes into `roles.json` and leaves out of the agent
   file for a runtime. `checks.cjs panel` starts a member only when a path of the change
   matches one of its globs, so the reviewers start as follows:
@@ -4170,6 +4174,12 @@ the rule passes on that file.
 12. No file under `modules/` ends in `.js`. The finding of each file starts with its fix,
     "Rename <path> to .cjs.", and the reason follows: a module's scripts must load as
     CommonJS in a repository whose `package.json` sets `"type": "module"`.
+13. For each workflow of a stack with a `review_group`, each `-reviewer` agent that its skill
+    `workflow-<name>` starts as `${qory:agents/<agent>}` is a member of that group, and each
+    member of a group under `provides.agents` of a module is an agent file of a module.
+    qory expects a report from each member and only from a member, also from a member that
+    no module defines. `scripts/review-groups.cjs` prints a finding that starts with its fix,
+    such as "Add b-reviewer to the group grp, or start no b-reviewer in workflow-flow".
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
