@@ -949,11 +949,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - `software-factory` no longer sets `web_search` in `settings/codex/config.toml`, and
-  `scripts/check.sh` no longer expects the line. qory writes `web_search = "disabled"` into
-  every Codex `config.toml` it writes, and the key is reserved, so qory refuses a module
-  that sets it. The file stays, with comments only, because `scripts/hook-commands.js`
-  reads it. The check that the composed `config.toml` has no `web_search` now covers the
-  `software` stack as well as `core`, because qory at `0e02282` does not write the key yet.
+  `scripts/check.sh` no longer expects the line in the module's file. qory at `fce3203`
+  writes `web_search = "disabled"` into the `config.toml` of the Codex home, and the key is
+  reserved, so qory stops on a module that sets it. The file stays, with comments only,
+  because `scripts/hook-commands.js` reads it. `scripts/check.sh` now checks that the
+  composed `config.toml` of the `core` and `software` stacks has the line, and that no
+  `settings/codex/config.toml` of a module sets `web_search`. qory at `0e02282` does not
+  write the key, so that qory fails the first check.
 - The standard type `explainer` of `software-factory` is called `walkthrough`: its entry
   in `artifact_types` of `process.yaml`, its push check in `qory-module.yaml`, and its file
   `walkthrough.md`. The check reads the same sections as before. Before, the type and its

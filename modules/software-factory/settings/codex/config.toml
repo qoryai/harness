@@ -1,4 +1,4 @@
 # The Codex settings of the software-factory module. qory writes them into the run's
 # $CODEX_HOME/config.toml, after those of the core module, which have the end check. The
-# module sets no Codex setting today. qory writes `web_search = "disabled"` itself and
-# refuses a module that sets that key. This file stays because the checks read it.
+# module sets no Codex setting today. qory writes `web_search = "disabled"` itself and stops
+# on a module that sets that key. This file stays because the checks read it.
