@@ -670,7 +670,7 @@ test('findings round: only non-blocking findings exit 0 and remove an earlier po
   assert.equal(fs.existsSync(path.join(dir, 'points.json')), false);
 });
 
-test('findings round: a missing or invalid report is one blocking finding in qory\'s words', () => {
+test('findings round: a missing or invalid report is one blocking finding', () => {
   const name = 'code-reviewer';
   const cases = [
     [undefined, 'Reviewer code-reviewer wrote no report.'],
