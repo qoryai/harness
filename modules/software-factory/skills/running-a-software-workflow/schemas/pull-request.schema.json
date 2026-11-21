@@ -27,7 +27,10 @@
     },
     "text": {
       "title": "Description",
-      "$ref": "#/$defs/text"
+      "$ref": "#/$defs/text",
+      "not": {
+        "pattern": "(^|\\n)<!-- qory:(start|end) -->"
+      }
     },
     "commits": {
       "title": "Commits",

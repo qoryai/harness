@@ -914,6 +914,26 @@ test('pull-request: the text may be empty, has at most 20000 characters, no mark
   }
 });
 
+test('the marker rule is on the text of pull-request, and the primitive text has none', () => {
+  const marker = 'a\n<!-- qory:start -->\nb';
+  assert.deepEqual(pullRequestErrors((d) => { d.text = marker; }), ['Write /text of ' +
+    `pull-request.json in another form.\nThe schema excludes ${JSON.stringify(marker)}.`]);
+  for (const doc of [JSON.parse(fs.readFileSync(path.join(SKILL,
+    'schemas/pull-request.schema.json'), 'utf8')), artifactEntries()
+    .find((entry) => entry.name === 'pull-request').json_schema]) {
+    assert.equal(doc.properties.text.not.pattern, '(^|\\n)<!-- qory:(start|end) -->');
+  }
+  const primitives = JSON.parse(fs.readFileSync(path.join(SKILL,
+    'schemas/primitives.schema.json'), 'utf8'));
+  assert.equal(primitives.$defs.text.not, undefined);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'marker-'));
+  fs.copyFileSync(path.join(SKILL, 'schemas/primitives.schema.json'),
+    path.join(dir, 'primitives.schema.json'));
+  fs.writeFileSync(path.join(dir, 'plain.schema.json'), JSON.stringify({ type: 'object',
+    properties: { body: { $ref: `${primitives.$id}#/$defs/text` } } }));
+  assert.deepEqual(core.errors(core.load(dir, 'plain'), { body: marker }, 'plain.json'), []);
+});
+
 test('pull-request: a branch follows the rules of a name, earlier_commits is optional', () => {
   const branch = (value) => pullRequestErrors((d) => { d.branch = value; });
   assert.deepEqual(branch('qory/wi_abc'), []);
