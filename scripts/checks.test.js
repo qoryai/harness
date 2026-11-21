@@ -3912,6 +3912,80 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
     /^Remove "Blocked:" from the report of spec-writer/);
 });
 
+// A report of software-developer or software-debugger, the writers of a build step.
+const STEP_REPORT = [
+  'What you read:',
+  '- /tmp/qory-artifacts/in/inputs.json',
+  '',
+  'Files:',
+  '- src/orders.cjs',
+  '',
+  'Checks:',
+  '- run targeted tests/orders.test.cjs: green; record r1; "Ran 2 tests."',
+  '',
+  'Change: The export writes one line per order.',
+  '',
+  'Left out: none',
+  '',
+  'done',
+  '',
+].join('\n');
+
+test('report: a writer of a build step has the line Left out:, as none or as items', () => {
+  const debugged = STEP_REPORT.replace('Change:', 'Cause: The export joins the lines with ' +
+    'a comma (`src/orders.cjs:3`).\nChange:');
+  passes(report(STEP_REPORT, 'software-developer'));
+  passes(report(debugged, 'software-debugger'));
+  // Items come on the lines after Left out:, and the line # End closes them.
+  const items = STEP_REPORT.replace('Left out: none', 'Left out:\n- The footer line: a cut ' +
+    'file looks whole.\n- shortcut: all rows load at once (`src/orders.cjs:9`): slow above ' +
+    '5,000 rows.\n# End');
+  passes(report(items, 'software-developer'));
+  for (const agent of ['software-developer', 'software-debugger']) {
+    const text = agent === 'software-developer' ? STEP_REPORT : debugged;
+    fails(report(text.replace('Left out: none\n\n', ''), agent),
+      new RegExp(`^Add the line "Left out:" to the report of ${agent}\\.$`));
+  }
+  fails(report(STEP_REPORT, 'software-debugger'),
+    /^Add the line "Cause:" to the report of software-debugger\.$/);
+  fails(report(STEP_REPORT.replace(/Change: .*\n/, ''), 'software-developer'),
+    /^Add the line "Change:" to the report of software-developer\.$/);
+});
+
+test('report: a writer of a build step stops with a change to the build plan', () => {
+  for (const agent of ['software-developer', 'software-debugger']) {
+    passes(report('Blocked: needs a change to the build plan: the header needs src/csv.cjs, ' +
+      'which no Files cell lists.\nblocked\n', agent));
+    // The line states the change after the colon.
+    fails(report('Blocked: needs a change to the build plan\nblocked\n', agent),
+      /^Start "Blocked:" with a stop line that the skills of the workflow list\./);
+  }
+  const workflow = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-implement-changes/SKILL.md'), 'utf8');
+  assert.match(workflow.replace(/\s+/g, ' '), /reports `Blocked: needs a change to the build plan: <the change>`/);
+});
+
+test('making-small-changes: each writer of code and each code reviewer loads it', () => {
+  const agentText = (name) => fs.readFileSync(path.join(MODULES, 'software-factory', 'agents',
+    `${name}.md`), 'utf8');
+  for (const [name, moment] of [['software-developer', 'before you change code'],
+    ['software-debugger', 'before you change code'], ['code-reviewer', 'before you write a finding'],
+    ['acceptance-reviewer', 'before you write a finding']]) {
+    assert.ok(agentText(name).includes(`\n- \${qory:skills/making-small-changes}, ${moment}:`),
+      `${name} does not load making-small-changes ${moment}`);
+  }
+  // A reviewer reports a broken rule of the skill as non-blocking.
+  for (const name of ['code-reviewer', 'acceptance-reviewer']) {
+    assert.match(agentText(name).replace(/\s+/g, ' '), /A finding on one of these rules is `non-blocking`, unless the finding also breaks a criterion\./);
+  }
+  // The skill has the nine rules, and the first one makes the approved plan the floor.
+  const rules = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/making-small-changes/SKILL.md'), 'utf8');
+  assert.deepEqual([...rules.matchAll(/^([0-9]+)\. \*\*/gm)].map((one) => Number(one[1])),
+    [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.match(rules, /\n1\. \*\*The approved plan is the floor\.\*\* Build everything that the approved plan lists\. "Small"\n {3}decides how you build each part, never whether\./);
+});
+
 test('report: the scenario writer reports a version note only for an empty file', () => {
   const scenarios = WRITER_REPORT.replace('- spec.md', '- demo-scenarios.md')
     .replace('Criteria:\n- ac-1: added', 'Scenarios:\n- scenario-1: removed; none');

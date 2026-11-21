@@ -1,0 +1,200 @@
+---
+name: workflow-implement-changes
+description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
+---
+
+# Implement changes
+
+This workflow requires subagents.
+
+- ${qory:skills/run-artifacts}: before step 1, in every run.
+- ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<workflow>` is
+  `implement-changes`, and `<output>` is the code change, which the session commits step by
+  step and qory pushes after the session. In the lines of its section "Failures",
+  `<output>` stands for "change of the step".
+- ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
+  `running-a-workflow`.
+
+When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
+lists it. When one of the three cannot be loaded, start nothing and end with "The run could
+not load the rules it needs, so it changed no code."
+
+Each command of this skill that starts with `<skill folder>/checks.cjs` is the checks script
+of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
+ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull prints, and
+`<start>` is the folder in `qory.start_artifacts` of the input file. Give each Bash call of
+`run` the timeout 3600000 ms, and run no other command in the same call.
+
+The developer is ${qory:agents/developer}, and the debugger is ${qory:agents/debugger}. In
+a report path, a `notes` call and `--attempt`, `<agent>` is the name of the agent that you
+start.
+
+## The order of the run
+
+1. Pull, then run `<qory> work-item show`. Besides the members that "What you do" of
+   `running-a-workflow` lists, take each entry of `inputs` whose `from` is `return`: the
+   newest `verdict` and `verification` of Verify, after Verify returned the work item to
+   Build. Then run `<skill folder>/checks.cjs resume` once, as "The build ledger" of
+   `running-a-software-workflow` lists.
+2. Read the build plan that the run started with: take `<N>`, the `newest_version` of
+   `build-plan` in `<start>/index.json`, and read
+   `<start>/build-plan/main/v<N>/build-plan.md` with a read form of `run-artifacts`. Take the
+   Id, Change, Criteria, Files and Check cells of each row of `## Deliverables`. When
+   `<start>/index.json` lists no version of `build-plan`, start no agent, push nothing, and
+   end as "Points" lists, with one `run_again` point. Its text is "The work item has no
+   build plan, so the run changed no code." and its `fix` is "Plan the build, so that a run
+   pushes the build plan."
+3. Do "The facts of the steps", then "Removed demo scenarios".
+4. Do "A step" for each step, in this order: each deliverable that is not built, in the
+   order of the build plan, as the step `deliverable:<id>`, such as `deliverable:d-2`; then
+   each finding as the step `fix:<id>`, such as `fix:f3`: the `blocking` findings of the
+   review in the order that `findings open` prints them, then the findings of Verify, then
+   the `non-blocking` findings of the review. When a step ends as "A step that fails" or
+   "A stop on the build plan" lists, do no later step.
+5. Do "The end".
+
+## The facts of the steps
+
+Read each fact with the file tool of your runtime or a read form of `run-artifacts`.
+
+- **Built:** a deliverable `d-<N>` is built when `<folder>/.reports/build-ledger.json`, which
+  `resume` writes, has a row in `steps` with the `id` `deliverable:d-<N>`, and the row of
+  that id with the highest `pass` has the `state` `done`. With no such file, no deliverable
+  is built.
+- **Locked checks:** take `<L>`, the `newest_version` of `acceptance-lock` in
+  `<folder>/index.json`, and read `<folder>/acceptance-lock/main/v<L>/acceptance-lock.json`.
+  Each entry of its `checks` is a locked check, with its `criterion` and its `path`. With no
+  version, no check is locked.
+- **Check paths:** a Check cell is a check path when it is a relative path with no space and
+  no `.` or `..` part, whose file name has an extension, such as `tests/export.test.ts`;
+  `n/a`, `none`, `-`, `TBD` and a scenario id are none.
+- **Findings of the review:** when the prompt contains the path of `open-findings.json`, run
+  `findings open <file>` on it, as "Open findings of a review" of `running-a-workflow`
+  lists. Each line `Fix first: <id> (<severity>, <file>:<line>): <point>` is one finding,
+  with that id. With more than 200, read the rest from the file.
+- **Findings of Verify:** for each entry of `inputs` that step 1 took, find the entry of
+  `artifacts` in `<folder>/index.json` whose `type` is the entry's `type` and whose
+  `versions` have the version's `id`. Read
+  `<folder>/<type>/<name>/v<number>/<type>.json`, where `<name>` is the `name` of that entry
+  and `<number>` the `number` of the version. Each point of `points` in the verdict is one
+  finding: its `text`, and its `fix` when it has one. Each row of `matrix` in the
+  verification whose `state` is `not_met` is one finding: "<criterion> is not met:
+  <evidence>", with the `criterion` in upper case, such as `AC-3`. Give these findings the
+  ids `f<N>`, from one more than the highest number of the review's ids, or from `f1` with
+  none, first the points, then the rows. Each counts as `blocking`.
+
+## Removed demo scenarios
+
+When a rework of Shape removes a demo scenario, its demo script is withdrawn, so that no
+gate and no later stage reads it.
+
+1. Take `<S>`, the `newest_version` of `demo-scenarios` in `<folder>/index.json`, and read
+   `<folder>/demo-scenarios/main/v<S>/demo-scenarios.md`. With no version, skip this
+   section. A scenario is removed when its heading `### <id>: <title>` has the line
+   `Removed, because <the reason>.` after it, or when the file has no heading with its id.
+2. Take each entry of `artifacts` in `<folder>/index.json` whose `type` is `demo-script`,
+   whose `name` is the id of a removed scenario, such as `scenario-2`, and whose version with
+   the largest `number`, of those with no `cancelled` set to `true`, has no `withdrawn` set
+   to `true`.
+3. For each such entry, run `<qory> artifact push demo-script --name <scenario> --withdraw`.
+   When a push exits with a status other than 0, end as "Failures" lists, with "The run
+   could not withdraw the demo script of a removed demo scenario."
+
+## A step
+
+1. Run `step begin <id> implement-changes --inputs <inputs> <file>...`, as "The build
+   ledger" lists. Its files are the build plan of step 2 of "The order of the run", the
+   `SKILL.md` of this skill, the agent files of the developer and the debugger, and, for a
+   fix, the file of its finding: `open-findings.json`, or the file of Verify that step 1
+   took. With "Replay <id>", go on to the next step.
+2. Do the attempts of the step, at most 3. The first and the second start the developer,
+   and the third starts the debugger. For each attempt:
+   1. For a deliverable, write its Files to `<folder>/.notes/<agent>-files.txt`, one path
+      per line, and run `notes <agent> --files <that file>`. For a finding with a file, write
+      that file instead. For a finding with none, run `notes <agent>`.
+   2. Start the agent with the input file's path, the artifact folder, the path of the build
+      plan, the run's number, the notes, the step's id, and the row of the deliverable or
+      the finding, quoted: for a finding of the review, its `Fix first:` line and the path of
+      `open-findings.json`, and for a finding of Verify, its text. From the second attempt
+      on, also pass every line of each red call of the attempt before, quoted, and the last
+      report of each earlier attempt of the step.
+   3. Write its report to `<folder>/.reports/<agent>-<n>.md` and check it, as "Check each
+      report" of `running-a-workflow` lists. A report with the line `Blocked: needs a change
+      to the build plan:` ends the step as "A stop on the build plan" lists. Any other
+      `blocked` report makes the attempt red, and its "Blocked:" line is its red line.
+   4. Otherwise run these calls, each in a separate Bash call, in this order:
+      `<skill folder>/checks.cjs scope <id> --inputs <inputs>`, `run lint --inputs
+      <inputs>`, `run types --inputs <inputs>`, `run build --inputs <inputs>`, and the
+      targeted checks of the step. A call that exits with 1 is red. With 2 or 3, end as
+      "Failures" of `running-a-workflow` lists for the checks script.
+   5. When no call is red, run `<skill folder>/checks.cjs freeze <id> --inputs <inputs>`. It
+      commits the change, or prints that it froze no new commit. With 0, the attempt is
+      green, and the step starts no more attempts. With 1, the attempt is red, and the lines
+      of `freeze` are its red lines.
+3. After a green attempt, run `step end <id> done --report <file>`, as "The build ledger"
+   lists, with the newest report of the agent that made it, and one
+   `--attempt <agent>,<role>,thinking,unknown` per start of an attempt of the step, where
+   `<role>` is `developer` or `debugger`. A start that fixes only its report adds no
+   `--attempt`. Then go on to the next step.
+4. When the third attempt is red, do "A step that fails".
+
+The targeted checks of a step:
+
+- A deliverable whose Check cell is the path of a locked check: `run locked <criterion>
+  --inputs <inputs>`, with the criterion of that check.
+- A deliverable whose Check cell is another check path: `run targeted <path> --inputs
+  <inputs>`, with that path.
+- A deliverable with no check path: none.
+- A fix: one `run targeted <path>... --inputs <inputs>`, with each check path of the build
+  plan that is not the path of a locked check, when the plan has one; and one `run locked
+  --inputs <inputs>`, when the acceptance lock has a check.
+
+## A step that fails
+
+Run `step end <id> failed --report <file>`, with the newest report of the debugger and the
+three `--attempt` lines. Write no `points.json`, run no verdict command, and do no later
+step: the next round of Build starts the step again. End with "The run stopped, because the
+checks still fail after 3 changes to <the step>."
+
+`<the step>` is the planned change and its Change cell in quotes, such as `the planned
+change d-2, "Send the refund"`, for a deliverable, "the fix of a review finding" for a
+finding of the review, and "the fix of a finding of Verify" for a finding of Verify.
+
+## A stop on the build plan
+
+A developer or the debugger reports `Blocked: needs a change to the build plan: <the
+change>` when the step cannot be built as the build plan states it. The agent changed no
+file, and only a member can change the approved plan.
+
+1. Run `step end <id> failed --report <file>`, with that report and one `--attempt` per
+   start of an attempt of the step.
+2. Start ${qory:agents/questions-writer} as "Points" of `running-a-workflow` lists, for one
+   `answer` point, with `none` as the list "Decided", and one item under "What only a
+   person can settle": "Add:", the change that the build plan needs, and the "Blocked:"
+   line, quoted, as the source.
+3. Push the questions, and write `points.json` with one point, as "Points" lists. Its text
+   is "The build plan needs a change before the run can build <the step>: <the change>.",
+   its action is `answer`, and its `question` is the id that the questions writer lists
+   under "Added:". `<the step>` is as "A step that fails" lists it, and `<the change>` is
+   the text after `needs a change to the build plan: `, without its full stop and with no
+   backtick: a point is plain text. While the text
+   has more than 500 characters, cut the Change cell to its first 8 words and "...", then
+   `<the change>` to its first 40 words and "...".
+4. End as "Points" lists. Do no later step, and start no other workflow.
+
+## The end
+
+When every step ended done or replayed, do "The end" of `running-a-workflow`. In place of
+its line of the pushed versions, end with "The change is ready for review: the run built
+<k> planned changes and fixed <m> findings." `<k>` counts the steps `deliverable:` and
+`<m>` the steps `fix:` that this session ended done. Write "1 planned change" and "1
+finding" for one. With no such step, end with "The change is ready for review: each planned
+change was built before this run, and no finding is open."
+
+## Failures
+
+A failure of an agent, a missing report, a report that still fails its check after two
+fixes, and an exit of the checks script with 2, 3 or 4 end the run as "Failures" of
+`running-a-workflow` lists. There, the work is "The change of the step". After
+`step begin` and before `step end`, run `step end <id> failed` before you end the run on a
+failure. When `step begin` prints "Start no new step", end as "The build ledger" lists.

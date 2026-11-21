@@ -35,8 +35,12 @@ description: >-
   submission-writer, which writes the title and the description of the draft pull request;
   the skills checking-security, checking-data-changes and checking-failure-handling; the
   agents security-reviewer, data-reviewer and failure-reviewer, the members of the group
-  role reviewers, which start only for a change in their paths; and live web search off on
-  Codex.
+  role reviewers, which start only for a change in their paths; the
+  workflow-implement-changes skill, which builds one ticket's planned changes and fixes its
+  open findings, one step of the build ledger each, and withdraws the demo script of a
+  removed demo scenario; the skills changing-code, debugging-failures and
+  making-small-changes; the agents software-developer and software-debugger, which fill the
+  roles developer and debugger; and live web search off on Codex.
 roles:
   agents:
     reviewers: many
@@ -44,6 +48,8 @@ provides:
   agents:
     explorer: code-explorer
     spec-review: spec-reviewer
+    developer: software-developer
+    debugger: software-debugger
     # shortcut: the paths of the three agents match path names and case, read no file and
     # cannot leave one out, so a text file in a listed folder starts a reviewer; replace the
     # globs when a change shows this costs a review.
