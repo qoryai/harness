@@ -402,10 +402,11 @@ workflows:
   a command that contains a path outside the working directories or a link that leads
   outside them.
   Two reads still pass through a link: a glob and a recursive read that follows links.
-  The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, the run
-  gets `settings/codex/config.toml`: live web search off. The `Stop` hook of the end check
-  comes from the settings of `core`. Codex has no allow list and no rule like
-  `blockReadsOutsideWorkingDirectories`, so the Codex sandbox is the limit.
+  The search forms of `run-artifacts` and `exploring-code` use neither. On Codex, qory at
+  `a5ad28c` writes `web_search = "disabled"` into the `config.toml` of the Codex home, and
+  no module sets that key. The `Stop` hook of the end check comes from the settings of
+  `core`. Codex has no allow list and no rule like `blockReadsOutsideWorkingDirectories`,
+  so the Codex sandbox is the limit.
 
 The `authoring` stack is for a person who writes agents and skills, and no run composes it.
 It composes the `harness-authoring` module and, from `core`, only `simple-communication`.

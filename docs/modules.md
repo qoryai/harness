@@ -279,7 +279,9 @@ An agent that the table does not list sets no `model` key.
   documentation of Codex 0.162.1 states that subagents inherit the parent turn's sandbox and
   approval settings, so no sandbox per agent exists. A reviewer's read-only rule, a writer's
   limit to the artifact folder and the rule on web tools are only in the agent's text. On
-  Codex, `web_search = "disabled"` in `settings/codex/config.toml` turns live search off.
+  Codex, at qory `a5ad28c`, the compose writes `web_search = "disabled"` into the
+  `config.toml` of the Codex home. The key is reserved: qory stops on a module that sets
+  `web_search`, and no module here does.
   The sandbox limits the effects of commands and file changes for
   every agent alike, and the read-only mount protects the checkout. An Explore run on Codex
   is untested end to end. With no `sandbox_mode`, the default of Codex is read-only, so from
@@ -4139,10 +4141,11 @@ the rule passes on that file.
    `harness compose --dry-run --runtime codex` for the `software` stack lists every skill
    and agent of `core` and `software-factory` (`ENTRY`, `VISUALS_ENTRY`, `SOFTWARE_ENTRY`,
    `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`), and no entry of
-   `AUTHORING_ENTRIES`. A compose for Codex also writes `web_search = "disabled"`, the
-   `Stop` hook and the `PreToolUse` and `PreModelRequest` hooks of the tool guard into
-   `config.toml`, which the script checks. For the `core` stack, it writes the three hooks
-   and no `web_search`. The Claude settings composed for the `core` and `software` stacks
+   `AUTHORING_ENTRIES`. A compose for Codex also writes the `Stop` hook and the `PreToolUse`
+   and `PreModelRequest` hooks of the tool guard into `config.toml`, which the script
+   checks. For both the `core` and the `software` stack, the script checks that the three
+   hooks are there and that `config.toml` has `web_search = "disabled"`, which qory at
+   `a5ad28c` writes. The Claude settings composed for the `core` and `software` stacks
    have the `Stop` hook, the `PreToolUse` and `PostToolBatch` hooks of the tool guard, the
    six deny rules of `.reports/` and the three allow rules of `running-a-workflow` from the
    settings of `core`: its skill, and its versions and checks scripts.

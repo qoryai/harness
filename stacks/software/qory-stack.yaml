@@ -5,15 +5,15 @@ modules:
   - name: core
   - name: software-factory
 workflows:
-  explore-a-ticket: {access: read}
-  write-specs: {access: read}
-  write-technical-decisions: {access: read}
-  make-mockups: {access: read}
-  write-demo-scenarios: {access: read}
-  shape-a-ticket: {access: read}
-  plan-the-build: {tier: thinking, access: write}
-  write-acceptance-checks: {tier: balanced, access: write}
-  review-changes: {tier: thinking, access: write}
+  explore-a-ticket: {tier: thinking, access: read}
+  write-specs: {tier: thinking, access: read}
+  write-technical-decisions: {tier: thinking, access: read}
+  make-mockups: {tier: balanced, access: read}
+  write-demo-scenarios: {tier: balanced, access: read}
+  shape-a-ticket: {tier: thinking, access: read}
+  plan-the-build: {tier: thinking, access: write, plan: build-plan}
+  write-acceptance-checks: {tier: balanced, access: write, plan: build-plan}
+  review-changes: {tier: thinking, access: write, plan: build-plan}
 extending:
   kinds: [skills, agents, commands, output-styles]
   instructions: true

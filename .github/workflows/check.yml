@@ -26,19 +26,24 @@ jobs:
       # modules/software-factory/process.yaml, has no `--points` on
       # `qory run verdict escalate`, which the workflow skills run, has no `--track` on
       # `qory run verdict`, which the Explore session runs, and has no `fix` on a point of a
-      # verdict. This commit, the merge of qoryai/qory#127 into qory's 544-build-verify
-      # branch, not main, has all six, and its middle model tier is `balanced`, the tier of
+      # verdict. The compose of that release, and of qory at 0e02282, also stops on the
+      # `plan` key of a workflow in stacks/software/qory-stack.yaml and on the
+      # `scope_checks` key in modules/software-factory/qory-module.yaml. This commit, the
+      # merge of qoryai/qory#146 into qory's 544-build-verify branch, not main, has all
+      # eight, writes `web_search = "disabled"` into the `config.toml` of a Codex home, and
+      # its middle model tier is `balanced`, the tier of
       # modules/software-factory/agents/code-explorer.md. It also has the contract's
       # acceptance criteria and verification formats and `about` on each question, which
       # modules/software-factory/process.yaml and the questions check follow. Move to a
       # release when one has them.
-      QORY_COMMIT: 0e022820ca3f3725b9a6a31b39d20424f2b33076
+      QORY_COMMIT: a5ad28c2faf07fdc2c1e9f6c582537724fd92881
       # qory's commit that the tests read the contract files from, such as
-      # contracts/harness/v1/review-report.schema.json. It is the merge of qoryai/qory#136
-      # into qory's 544-build-verify branch, which publishes that schema; QORY_COMMIT does
-      # not have it. The step "Fetch qory's contracts" sets QORY_SOURCE to the folder of
+      # contracts/harness/v1/review-report.schema.json. It is the merge of qoryai/qory#146
+      # into qory's 544-build-verify branch, which publishes that schema and writes
+      # `web_search = "disabled"` into the `config.toml` of a Codex home, and the commit of
+      # QORY_COMMIT. The step "Fetch qory's contracts" sets QORY_SOURCE to the folder of
       # that commit. scripts/findings.test.js reads this pin to name the commit in its error.
-      QORY_CONTRACTS_COMMIT: afee80c313bda3e75b8508bf3c6bf7e557a903db
+      QORY_CONTRACTS_COMMIT: a5ad28c2faf07fdc2c1e9f6c582537724fd92881
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
