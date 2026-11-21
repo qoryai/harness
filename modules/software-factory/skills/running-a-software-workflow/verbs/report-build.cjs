@@ -40,8 +40,8 @@ const TYPE = 'pull-request';
 const SHOWN = `$QORY_OUTBOX/${TYPE}/${TYPE}.json`;
 
 module.exports = (lib) => {
-  const { Context, Missing, artifactFolder, outboxFolder, outboxLinked, plural, reviewersStage,
-    schema, short } = lib;
+  const { Context, Missing, artifactFolder, outboxFolder, outboxLinked, plural, schema,
+    short } = lib;
   const SCHEMA = schema.load(SCHEMAS, 'pull-request');
 
   // readText returns { title, text } of .reports/submission.md in root, or the findings of a
@@ -189,13 +189,6 @@ module.exports = (lib) => {
     }
   }
 
-  // draftWanted returns true when this session records the verdict itself, a stage with no
-  // reviewers. shortcut: the verdict after the review round is unknown here; replace this when
-  // the session can read it.
-  function draftWanted(io, inputs) {
-    return !reviewersStage({ inputs: inputs ? path.resolve(io.cwd, inputs) : null });
-  }
-
   function build(io, what, rest) {
     const { inputs } = takeInputs([what, ...rest].filter((one) => one !== undefined));
     const root = artifactFolder(io);
@@ -222,7 +215,7 @@ module.exports = (lib) => {
     }
     const steps = stepsOf(io, top, data.ledger);
     const body = `${JSON.stringify({ title: got.value.title, text: got.value.text, steps,
-      draft: draftWanted(io, inputs) })}\n`;
+      draft: true })}\n`;
     const limit = sizeLimit(TYPE);
     const bytes = Buffer.byteLength(body);
     if (bytes > limit) {

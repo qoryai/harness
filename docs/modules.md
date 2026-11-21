@@ -3564,11 +3564,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `.reports/submission.md` of the artifact folder, which `submission-writer` writes: the
   first line is `# <title>`, and the rest is the text with `## Problem`, `## Change`,
   `## Tests` and `## Disclosed`. The title and the text pass the rules of `title` and `text`
-  in `pull-request.schema.json` (the title is 1 to 256 characters, with no control or
-  invisible character, and is not only spaces and joiners; the text has at most 20,000
-  characters, no marker line, and no control character but tab, line feed and carriage
-  return), the text has the four parts of the type `pull-request` and no text before the
-  first part, and neither has the form of a secret. Both follow the rule of the characters
+  in `pull-request.schema.json`, which refers to them by the `$id` of
+  `primitives.schema.json` (qory's file, beside it in `schemas/`, read with no network). The
+  title is 1 to 256 characters, with no control or invisible character, and is not only
+  spaces and joiners; the text has at most 20,000 characters, no marker line, and no
+  control character but tab, line feed and carriage return. The text has the four parts of
+  the type `pull-request` and no text before the first part, and neither has the form of a
+  secret. Both follow the rule of the characters
   of a string in the schemas of `software-factory`: no Cc character, no U+2028 or U+2029,
   and no Cf character but U+200C and U+200D (the joiners of emoji), such as U+0600 or
   U+E0041. The fix for a title with such a character has its code point, because qory does
@@ -3577,8 +3579,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `{"commit", "step"}`, oldest first: it has each commit of `git rev-list <base>..<commit>`
   of each `done` row, with the id of the row as `step`, for the commits of `git rev-list
   <base of the first row>..HEAD`, and a commit in two rows goes to the later row. `draft`
-  is `true` when the session itself records the verdict `passed`, as in a stage with no
-  reviewers, and `false` when a review round follows. A text that is missing or breaks a
+  is always `true`: qory sends the pull request after the gate of the stage passes
+  (`deliver: {send: after_gate}` in `process.yaml`), so the draft opens after the review
+  passes, and the schema refuses a `draft` of `false`. A text that is missing or breaks a
   rule, or a `submission.md` that is no regular file or has more than 262,144 bytes (the
   limit of the text file `.reports/submission.md`, not of the output), exits 1 with the
   fix, and the verb writes no file. A `step` is the id of a ledger row, which the ledger

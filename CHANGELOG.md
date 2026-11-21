@@ -993,8 +993,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     limit of the output are gone. The limit of 262144 bytes of `.reports/submission.md`
     stays.
   - `steps` is a list of `{commit, step}`, oldest first, with no upper limit. `draft` is
-    `true` when the session records the verdict `passed` itself, in a stage with no
-    reviewers, and `false` when a review round follows.
+    always `true`: qory sends the pull request after the gate of the stage passes, so the
+    draft opens after the review passes. Before, `report-build` wrote `true` for a stage
+    with no reviewers and `false` for one with reviewers.
+  - `process.yaml` sets `deliver: {send: after_gate}` on the type, and the schema has
+    `"const": true` for `draft`: a `pull-request` with `draft: false` is refused. The
+    schema refers to the primitives `line`, `title`, `text` and `reference` of qory's
+    `primitives.schema.json` by its `$id`, as `$ref`s under `$defs`, in the file and in
+    `process.yaml`. Before, it wrote them out. The module has qory's file beside its
+    schemas, and `scripts/check.sh` compares it with the file at `QORY_SOURCE`. The checks
+    of the module read the file by its `$id` and read no network: `lib/schema.cjs` of core
+    writes out a `$ref` to the `$id` of another file of the same folder when it loads a
+    schema.
   - On every non-zero exit, and with `report-build --drop`, the verb removes the outbox
     file.
   - The session writes no `target` and no member that qory fills (`commits`, `head`,

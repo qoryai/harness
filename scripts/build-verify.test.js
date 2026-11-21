@@ -1,7 +1,7 @@
 // Tests of the checks of the types of Build and Verify, which workflow-checks.cjs of
 // running-a-software-workflow adds to the checks script. scripts/check.sh runs them. Each type
 // has a version that passes, and each rule a test that breaks it and watches the check fail.
-// scripts/testdata/build-verify-samples.json has 50 documents of five JSON types, and
+// scripts/testdata/build-verify-samples.json has 58 documents of five JSON types, and
 // MORE_SAMPLES has documents of acceptance-criteria and verification, each valid or invalid
 // against the type's JSON Schema. A push runs on a store with the files that
 // qory mounts for a push check: index.json and the newest version of the type and of each type
@@ -632,7 +632,7 @@ test('the schema check throws for a form of a keyword that it does not check', (
     a: { enum: ['x', 1, true, null] }, b: { const: null } } }, 'x.json');
 });
 
-test('the 57 samples: each valid one passes its schema, each invalid one fails it', () => {
+test('the 58 samples: each valid one passes its schema, each invalid one fails it', () => {
   let count = 0;
   for (const [type, kinds] of Object.entries(SAMPLES)) {
     const loaded = schema.load(type);
@@ -646,7 +646,7 @@ test('the 57 samples: each valid one passes its schema, each invalid one fails i
       count += 1;
     }
   }
-  assert.equal(count, 57);
+  assert.equal(count, 58);
 });
 
 test('the samples of acceptance-criteria and verification pass or fail their schema', () => {
@@ -3206,18 +3206,22 @@ for (let cp = 0; cp <= 0x10ffff; cp += 1) {
 }
 const isRefused = (cp, text) => REFUSED[text ? 'text' : 'line'][cp] === 1;
 // patternsOf returns the patterns of the one-line rule and of the text rule, with their place:
-// $defs line (and text) of the schemas of pull-request, demo-script and demo-evidence, as the
-// file and as process.yaml has them, and the two patterns of extensions.schema.json.
+// $defs line and text of primitives.schema.json, $defs line of the schemas of demo-script and
+// demo-evidence as the file and as process.yaml has them, and the two patterns of
+// extensions.schema.json.
 function patternsOf() {
   const found = [];
   const entries = artifactEntries();
-  for (const type of ['pull-request', 'demo-script', 'demo-evidence']) {
+  const primitives = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/primitives.schema.json'),
+    'utf8'));
+  found.push(['primitives $defs line', primitives.$defs.line.pattern, false],
+    ['primitives $defs text', primitives.$defs.text.pattern, true]);
+  for (const type of ['demo-script', 'demo-evidence']) {
     const file = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas', `${type}.schema.json`),
       'utf8'));
     const yaml = entries.find((entry) => entry.name === type).json_schema;
     for (const [from, doc] of [['schemas', file], ['process.yaml', yaml]]) {
       found.push([`${type} ${from} $defs line`, doc.$defs.line.pattern, false]);
-      if (doc.$defs.text) found.push([`${type} ${from} $defs text`, doc.$defs.text.pattern, true]);
     }
   }
   const area = JSON.parse(fs.readFileSync(path.join(SKILL, 'extensions.schema.json'), 'utf8'))
@@ -3229,8 +3233,8 @@ function patternsOf() {
 
 test('the character lists of the schemas are the one rule, for each code point', () => {
   const found = patternsOf();
-  // pull-request has a line and a text, demo-script and demo-evidence a line, each twice.
-  assert.equal(found.length, 4 + 2 + 2 + 2);
+  // The primitives have a line and a text, demo-script and demo-evidence a line, each twice.
+  assert.equal(found.length, 2 + 2 + 2 + 2);
   for (const [place, pattern, text] of found) {
     const regexp = new RegExp(pattern, 'u');
     const wrong = [];
@@ -3378,5 +3382,65 @@ test('open.url of demo-script and path of acceptance-lock refuse the one rule to
   for (const bad of ['\u202e', '\u{E0041}', '\u200b', '\u0600', '\u0001']) {
     assert.notDeepEqual(script(`/sign${bad}-in`), [], `url ${JSON.stringify(bad)}`);
     assert.notDeepEqual(lock(`tests/a${bad}.test.ts`), [], `path ${JSON.stringify(bad)}`);
+  }
+});
+
+test('pull-request: the primitives are $refs to the primitives file, in the file and in process.yaml', () => {
+  const ID = 'https://qory.dev/contracts/harness/v1/primitives.schema.json';
+  const entry = artifactEntries().find((one) => one.name === 'pull-request');
+  assert.deepEqual(entry.deliver, '{send: after_gate}');
+  const file = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/pull-request.schema.json'),
+    'utf8'));
+  for (const doc of [file, entry.json_schema]) {
+    for (const name of ['line', 'title', 'text', 'reference']) {
+      assert.deepEqual(doc.$defs[name], { $ref: `${ID}#/$defs/${name}` }, name);
+    }
+    assert.deepEqual(doc.properties.target, { title: 'Target', $ref: '#/$defs/reference' });
+    assert.deepEqual(doc.properties.draft, { title: 'Draft', type: 'boolean', const: true });
+  }
+  const primitives = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/primitives.schema.json'),
+    'utf8'));
+  assert.equal(primitives.$id, ID);
+  // The checks of the module resolve the address from that file, and read no network.
+  const loaded = schema.load('pull-request');
+  assert.equal(loaded.schema.$defs.title.type, 'string');
+  assert.equal(loaded.schema.$defs.reference.properties.collection.maxLength, 200);
+  assert.equal(JSON.stringify(loaded.schema).includes('qory.dev'), false);
+});
+
+test('pull-request: draft is true, and a draft of false is refused', () => {
+  assert.deepEqual(pullRequestErrors((d) => { d.draft = true; }), []);
+  const refused = pullRequestErrors((d) => { d.draft = false; });
+  assert.deepEqual(refused, ['Set /draft of pull-request.json to true.\nIt is false.']);
+  fails(push(fixture(), 'pull-request', [PR_FILE, { ...clone(PULL_REQUEST), draft: false }]),
+    /^Set \/draft of pull-request\.json to true\./);
+});
+
+test('the schema loader writes out a $ref to the $id of another file of its folder', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inline-'));
+  const ID = 'https://example.org/schemas/words.schema.json';
+  fs.writeFileSync(path.join(dir, 'words.schema.json'), JSON.stringify({ $id: ID, $defs: {
+    word: { type: 'string', pattern: '^[a-z]+$' },
+    pair: { type: 'array', items: { $ref: '#/$defs/word' }, minItems: 2, maxItems: 2 } } }));
+  fs.writeFileSync(path.join(dir, 'doc.schema.json'), JSON.stringify({ type: 'object',
+    properties: { one: { $ref: `${ID}#/$defs/word` }, two: { $ref: `${ID}#/$defs/pair` },
+      three: { type: 'string', maxLength: 3, $ref: `${ID}#/$defs/word` },
+      four: { $ref: '#/$defs/local' } },
+    $defs: { local: { type: 'integer' } } }));
+  const loaded = core.load(dir, 'doc');
+  assert.deepEqual(loaded.schema.properties.one, { type: 'string', pattern: '^[a-z]+$' });
+  assert.deepEqual(loaded.schema.properties.two.items, { type: 'string', pattern: '^[a-z]+$' });
+  assert.deepEqual(loaded.schema.properties.three, { type: 'string', maxLength: 3,
+    allOf: [{ type: 'string', pattern: '^[a-z]+$' }] });
+  assert.deepEqual(loaded.schema.properties.four, { $ref: '#/$defs/local' });
+  const found = (value) => core.errors(loaded, value, 'doc.json');
+  assert.deepEqual(found({ one: 'a', two: ['b', 'c'], three: 'abc', four: 1 }), []);
+  assert.notDeepEqual(found({ one: 'A' }), []);
+  assert.notDeepEqual(found({ two: ['b', 'C'] }), []);
+  assert.notDeepEqual(found({ three: 'abcd' }), []);
+  // An address that no file of the folder has, or a definition that the file lacks, is a fix.
+  for (const ref of ['https://example.org/other.json#/$defs/word', `${ID}#/$defs/none`]) {
+    fs.writeFileSync(path.join(dir, 'bad.schema.json'), JSON.stringify({ $ref: ref }));
+    assert.throws(() => core.load(dir, 'bad'), /^Error: Fix bad\.schema\.json\.\n\$ref .* matches no /);
   }
 });

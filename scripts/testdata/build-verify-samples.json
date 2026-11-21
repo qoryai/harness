@@ -60,7 +60,7 @@
     }
    },
    {
-    "why": "no draft is wanted, a base branch with a slash",
+    "why": "a draft, a base branch with a slash",
     "doc": {
      "target": {
       "collection": "R_kgDOExample1",
@@ -104,7 +104,7 @@
      "branch": "qory/wi_7k2m9pq4xt3a8b1c",
      "base_branch": "release/1.2",
      "steps": [],
-     "draft": false
+     "draft": true
     }
    }
   ],
@@ -393,6 +393,64 @@
       }
      ],
      "draft": 1
+    }
+   },
+   {
+    "why": "a draft that is false: the type delivers a draft only",
+    "doc": {
+     "target": {
+      "collection": "R_kgDOExample1",
+      "address": {
+       "system": "github.com",
+       "path": "example/shop"
+      }
+     },
+     "title": "Add export to CSV",
+     "text": "## Problem\n...\n## Change\n...\n## Tests\n...\n## Disclosed\n...",
+     "commits": [
+      {
+       "collection": "R_kgDOExample1",
+       "address": {
+        "system": "github.com",
+        "path": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+       }
+      },
+      {
+       "collection": "R_kgDOExample1",
+       "address": {
+        "system": "github.com",
+        "path": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e"
+       }
+      }
+     ],
+     "head": {
+      "collection": "R_kgDOExample1",
+      "address": {
+       "system": "github.com",
+       "path": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e"
+      }
+     },
+     "base": {
+      "collection": "R_kgDOExample1",
+      "address": {
+       "system": "github.com",
+       "path": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+      }
+     },
+     "branch": "qory/wi_7k2m9pq4xt3a8b1c",
+     "base_branch": "main",
+     "steps": [
+      {
+       "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+       "step": "deliverable:d-1"
+      },
+      {
+       "commit": "5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e",
+       "step": "fix:f1"
+      }
+     ],
+     "draft": false,
+     "earlier_commits": 40
     }
    },
    {

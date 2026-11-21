@@ -161,10 +161,52 @@ function compile(schema, file) {
   return patterns;
 }
 
+// inlineExternal returns schema with each $ref to a definition of another schema, written as
+// <$id>#/$defs/<name>, replaced by that definition, which it finds in a *.schema.json file of
+// folder whose $id is the address. The definition may refer to others of its file by
+// #/$defs/<name>; those are written out too. Where the $ref has other keywords beside it, they
+// stay and the definition goes into their allOf. The check reads no address over a network.
+function inlineExternal(schema, folder, file) {
+  let ids = null;
+  const find = (id) => {
+    if (!ids) {
+      ids = new Map();
+      for (const name of fs.readdirSync(folder).filter((one) => one.endsWith('.schema.json'))) {
+        const other = JSON.parse(fs.readFileSync(path.join(folder, name), 'utf8'));
+        if (typeof other.$id === 'string') ids.set(other.$id, other);
+      }
+    }
+    return ids.get(id);
+  };
+  const fix = (reason) => new Error(`Fix ${path.basename(file)}.\n${reason}`);
+  const write = (node, home, depth) => {
+    if (Array.isArray(node)) return node.map((one) => write(one, home, depth));
+    if (typeof node !== 'object' || node === null) return node;
+    const out = {};
+    for (const [key, value] of Object.entries(node)) {
+      out[key] = key === '$ref' ? value : write(value, home, depth);
+    }
+    if (typeof out.$ref !== 'string' || (!home && out.$ref.startsWith('#'))) return out;
+    if (depth > 8) throw fix(`$ref ${out.$ref} of ${file} refers to itself without end.`);
+    const [id, pointer] = out.$ref.startsWith('#') ? [null, out.$ref.slice(1)]
+      : out.$ref.split('#');
+    const other = id === null ? home : find(id);
+    const match = /^\/\$defs\/([^/]+)$/.exec(pointer || '');
+    if (!other || !match || !other.$defs || !Object.hasOwn(other.$defs, match[1])) {
+      throw fix(`$ref ${out.$ref} of ${file} matches no definition of a file in ${folder}.`);
+    }
+    const { $ref, ...rest } = out;
+    const definition = write(other.$defs[match[1]], other, depth + 1);
+    if (!Object.keys(rest).length) return definition;
+    return { ...rest, allOf: [...(rest.allOf || []), definition] };
+  };
+  return write(schema, null, 0);
+}
+
 // load reads <folder>/<type>.schema.json.
 function load(folder, type) {
   const file = path.join(folder, `${type}.schema.json`);
-  const schema = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const schema = inlineExternal(JSON.parse(fs.readFileSync(file, 'utf8')), folder, file);
   return { file, schema, patterns: compile(schema, file) };
 }
 

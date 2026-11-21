@@ -3107,7 +3107,7 @@ test('report-build: with no inputs file, the output has draft true', () => {
   assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), true);
 });
 
-test('report-build: draft is false for a stage with reviewers, and true for one with none', () => {
+test('report-build: draft is true for a stage with reviewers and for one with none', () => {
   const { dir } = buildRepo();
   const draftWith = (qory) => {
     count += 1;
@@ -3117,11 +3117,10 @@ test('report-build: draft is false for a stage with reviewers, and true for one 
     assert.equal(got.status, 0, got.out + got.err);
     return outboxOf(dir).draft;
   };
-  assert.equal(draftWith({}), true);
-  assert.equal(draftWith({ stage: {} }), true);
-  assert.equal(draftWith({ stage: { reviewers: false } }), true);
-  assert.equal(draftWith({ stage: { reviewers: true } }), false);
-  assert.equal(draftWith({ stage: { reviewers: 'code-reviewers' } }), false);
+  for (const qory of [{}, { stage: {} }, { stage: { reviewers: false } },
+    { stage: { reviewers: true } }, { stage: { reviewers: 'code-reviewers' } }]) {
+    assert.equal(draftWith(qory), true, JSON.stringify(qory));
+  }
 });
 
 test('report-build: a bad or missing text writes no file and removes the output', () => {

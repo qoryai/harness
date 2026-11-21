@@ -391,7 +391,6 @@ const OFFLINE_USAGE = 'end --offline --artifacts <dir> --store <dir> --verdict <
   '--out <dir>\n       --run <id> [--continues <id>[,<id>...]] [--inputs <file>]';
 
 module.exports = {
-  reviewersStage,
   verbs: {
     end: {
       usage: ['end <folder> [--inputs <file>]', OFFLINE_USAGE],

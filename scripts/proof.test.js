@@ -558,12 +558,20 @@ function resolve(node, defs) {
     if (key !== '$ref') out[key] = resolve(value, defs);
   }
   if (typeof node.$ref !== 'string') return out;
-  const definition = defs[node.$ref.replace('#/$defs/', '')];
+  // A $ref to the primitives file is resolved in that file, whose members refer to its own
+  // definitions by #/$defs/<name>.
+  const [id, pointer] = node.$ref.startsWith('#') ? [null, node.$ref.slice(1)]
+    : node.$ref.split('#');
+  const home = id === null ? defs : PRIMITIVES.$defs;
+  assert.ok(id === null || id === PRIMITIVES.$id, node.$ref);
+  const definition = home[pointer.replace('/$defs/', '')];
   assert.ok(definition, node.$ref);
-  out.allOf = [...(out.allOf || []), resolve(definition, defs)];
+  out.allOf = [...(out.allOf || []), resolve(definition, home)];
   return out;
 }
 
+const PRIMITIVES = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/primitives.schema.json'),
+  'utf8'));
 const SCHEMA_FILE = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/pull-request.schema.json'),
   'utf8'));
 const { $defs: DEFS, ...WITHOUT_DEFS } = SCHEMA_FILE;
@@ -681,7 +689,11 @@ test('end: the schema of the type as qory sends it checks the output file of a s
   assert.equal(head.title, 'Head commit');
   assert.equal(head.$ref, undefined);
   assert.equal(head.allOf.length, 1);
-  assert.equal(head.allOf[0].allOf[0].allOf[0].required[0], 'collection');
+  // The reference is under allOf, as deep as the $refs of the schema are: commit, reference,
+  // and the primitive.
+  const reached = (node) => node.required ? node.required
+    : (node.allOf || []).map(reached).find((one) => one);
+  assert.equal(reached(head)[0], 'collection');
   assert.equal(JSON.stringify(PULL_REQUEST).includes('$ref'), false);
   assert.equal(PULL_REQUEST.$defs, undefined);
   const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
@@ -703,17 +715,19 @@ test('end: the schema of the type as qory sends it checks the output file of a s
 
 test('end: the output that report-build writes passes the end check', () => {
   // report-build writes { title, text, steps, draft } on one line, with the text of
-  // submission.md after the title. A stage with reviewers has draft false.
+  // submission.md after the title. The draft is always true.
   const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
   commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
   const steps = [{ commit: 'a'.repeat(40), step: 'deliverable:d-1' },
     { commit: 'b'.repeat(40), step: 'fix:f1' }];
-  for (const draft of [true, false]) {
-    const folder = session(run);
-    const body = `${JSON.stringify({ title: 'Add the sum helper', text: PARTS, steps, draft })}\n`;
-    fs.writeFileSync(fileOf(folder), body);
-    passes(end(run, folder));
-  }
+  const folder = session(run);
+  const body = `${JSON.stringify({ title: 'Add the sum helper', text: PARTS, steps,
+    draft: true })}\n`;
+  fs.writeFileSync(fileOf(folder), body);
+  passes(end(run, folder));
+  const refused = session(run);
+  fs.writeFileSync(fileOf(refused), body.replace('"draft":true', '"draft":false'));
+  fails(end(run, refused), /^Set \/draft of \$QORY_OUTBOX\/pull-request\/pull-request\.json to true\./);
 });
 
 // aliased moves the outbox of the session to <top>/x/outbox and returns the environment of an
