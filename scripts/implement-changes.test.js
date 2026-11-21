@@ -171,6 +171,9 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
     contains(section(text, 'Stop conditions'), 'report `Blocked: needs a change to the build plan: ' +
       '<the change>`');
     assert.match(section(text, 'Expected output'), /\nLeft out: none\n<done or blocked>\n```/);
+    // The guardrail forbids a change under .qory/, so no sentence sends a writer there.
+    contains(text, 'the line "Further repositories: yes" or "no"');
+    assert.doesNotMatch(text.replace(/nothing under `\.qory\/`/, ''), /\.qory\//, name);
   }
   assert.match(agent('software-debugger'), /- \$\{qory:skills\/debugging-failures\}, next:/);
   assert.doesNotMatch(agent('software-developer'), /debugging-failures/);
