@@ -1005,13 +1005,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     of the module read the file by its `$id` and read no network: `lib/schema.cjs` of core
     writes out a `$ref` to the `$id` of another file of the same folder when it loads a
     schema.
-  - The schemas of `software-factory` write each control range of a pattern as a regex
-    escape in the JSON text (`\\x00-\\x1f`, `\\x7f-\\x9f` and the single `\\x0b`), in the
-    files and in `process.yaml`. Before, they wrote `\\u0000-\\u001f`, which decodes to raw
-    control characters that Apiary's reader refuses. JavaScript with the `u` flag, PCRE and
-    Go RE2 all read `\\xHH`. `acceptance-criteria` and `verification` keep the `\\u` form:
-    they are byte copies of qory's contracts. A test checks that no other schema decodes to
-    a control character but tab, line feed and carriage return.
+  - All nine schema files of `software-factory` and the `json_schema` blocks of
+    `process.yaml` write each control range of a pattern as a regex escape in the JSON text
+    (`\\x00-\\x1f`, `\\x7f-\\x9f` and the single `\\x0b`). Before, they wrote
+    `\\u0000-\\u001f`, which decodes to raw control characters that Apiary's reader refuses.
+    JavaScript with the `u` flag, PCRE and Go RE2 all read `\\xHH`. A test checks that none
+    of the nine files and none of the blocks decodes to a control character but tab, line
+    feed and carriage return.
+  - `verification` and `acceptance-criteria` are byte copies of qory's contracts at
+    `ebe63575`. Their `$defs/line` and `$defs/text` now also refuse the format characters
+    that the other types refuse: U+0600 to U+0605, U+06DD, U+070F, U+0890 to U+0891, U+08E2,
+    U+206A to U+206F, U+110BD, U+110CD, U+13430 to U+1343F, U+1BCA0 to U+1BCA3, U+1D173 to
+    U+1D17A, U+E0001 and U+E0020 to U+E007F.
   - On every non-zero exit, and with `report-build --drop`, the verb removes the outbox
     file.
   - The session writes no `target` and no member that qory fills (`commits`, `head`,

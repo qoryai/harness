@@ -182,7 +182,10 @@ schema; the harness checks no report of a change with a verb. The test of the ex
 in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
 commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
 `QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
-example reports of the six reviewers. After a round
+example reports of the six reviewers. `scripts/check.sh` compares the three copies
+`primitives`, `verification` and `acceptance-criteria` in `schemas/` of `software-factory`
+byte for byte with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`.
+After a round
 with a `blocking` finding, the next session of the stage reads `open-findings.json`, which
 `checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
 workflows" lists. qory writes `qory.review`, `qory.stage` and

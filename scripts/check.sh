@@ -1403,13 +1403,16 @@ printf '%s\n' "$OUT" | sed -n 1p
 
 expect "qory config exits 0" 0 "$ROOT" "$QORY" config
 
-# The primitives file beside the schemas of software-factory is qory's file at the commit that
-# QORY_SOURCE has, byte for byte: the schema of pull-request refers to its $id.
-PRIMITIVES=contracts/harness/v1/primitives.schema.json
-OUT=$(cmp "$ROOT/modules/software-factory/skills/running-a-software-workflow/schemas/primitives.schema.json" \
-	"${QORY_SOURCE:-/nowhere}/$PRIMITIVES" 2>&1) ||
-	fail "the primitives file of software-factory is qory's $PRIMITIVES at QORY_SOURCE"
-pass "the primitives file of software-factory is qory's $PRIMITIVES at QORY_SOURCE"
+# The primitives, verification and acceptance-criteria files beside the schemas of
+# software-factory are qory's files at the commit that QORY_SOURCE has, byte for byte: the
+# schema of pull-request refers to the $id of primitives.
+SCHEMAS=$ROOT/modules/software-factory/skills/running-a-software-workflow/schemas
+for NAME in primitives verification acceptance-criteria; do
+	QFILE=contracts/harness/v1/$NAME.schema.json
+	OUT=$(cmp "$SCHEMAS/$NAME.schema.json" "${QORY_SOURCE:-/nowhere}/$QFILE" 2>&1) ||
+		fail "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
+	pass "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
+done
 
 # process.yaml sets withdrawable: false for acceptance-lock and build-ledger. Outside a run,
 # qory reads that flag from the exported modules and exits 4 before it writes a file.

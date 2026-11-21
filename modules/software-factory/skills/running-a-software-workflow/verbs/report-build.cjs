@@ -10,8 +10,8 @@
 // the first line is `# <title>`, and the rest is text, with the four parts of the type
 // pull-request. steps lists { commit, step } for each commit of a done row, the commits of
 // base..commit of the row, within <base of the first row>..HEAD, oldest first; a commit in
-// two rows goes to the later row. draft is true when this session records the verdict
-// passed itself, which a stage with no reviewers does, and false when a review round follows.
+// two rows goes to the later row. draft is always true: qory sends the pull request after the
+// gate of the stage passes.
 // The session writes no target and no member that qory fills. With a text that breaks a rule
 // the verb writes no file and exits 1. With an output of more than the size limit of the type,
 // which only the list of steps can cause and no step of the session can shorten, it exits 3.

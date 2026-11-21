@@ -161,24 +161,37 @@ function compile(schema, file) {
   return patterns;
 }
 
-// inlineExternal returns schema with each $ref to a definition of another schema, written as
-// <$id>#/$defs/<name>, replaced by that definition, which it finds in a *.schema.json file of
-// folder whose $id is the address. The definition may refer to others of its file by
-// #/$defs/<name>; those are written out too. Where the $ref has other keywords beside it, they
-// stay and the definition goes into their allOf. The check reads no address over a network.
+// inlineExternal returns schema with each $ref of the form <$id>#/$defs/<name> replaced by that
+// definition of the *.schema.json file of folder whose $id is the address. The definition's own
+// #/$defs/<name> refs are written out too. Keywords beside a $ref stay, and the definition goes
+// into their allOf. The check reads no address over a network.
 function inlineExternal(schema, folder, file) {
   let ids = null;
   const find = (id) => {
     if (!ids) {
       ids = new Map();
       for (const name of fs.readdirSync(folder).filter((one) => one.endsWith('.schema.json'))) {
-        const other = JSON.parse(fs.readFileSync(path.join(folder, name), 'utf8'));
-        if (typeof other.$id === 'string') ids.set(other.$id, other);
+        let doc;
+        try {
+          doc = JSON.parse(fs.readFileSync(path.join(folder, name), 'utf8'));
+        } catch (error) {
+          throw new Error(`Fix ${name}.\nThe file is not JSON: ${error.message}`);
+        }
+        if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) {
+          throw new Error(`Fix ${name}.\nThe file has ${doc === null ? 'null' : 'no object'}, ` +
+            'and a schema is an object.');
+        }
+        if (typeof doc.$id !== 'string') continue;
+        if (ids.has(doc.$id)) {
+          throw new Error(`Fix ${name}.\nIt has the $id ${doc.$id}, which ` +
+            `${ids.get(doc.$id).name} has too.`);
+        }
+        ids.set(doc.$id, { name, doc });
       }
     }
     return ids.get(id);
   };
-  const fix = (reason) => new Error(`Fix ${path.basename(file)}.\n${reason}`);
+  const base = path.basename(file);
   const write = (node, home, depth) => {
     if (Array.isArray(node)) return node.map((one) => write(one, home, depth));
     if (typeof node !== 'object' || node === null) return node;
@@ -187,16 +200,19 @@ function inlineExternal(schema, folder, file) {
       out[key] = key === '$ref' ? value : write(value, home, depth);
     }
     if (typeof out.$ref !== 'string' || (!home && out.$ref.startsWith('#'))) return out;
-    if (depth > 8) throw fix(`$ref ${out.$ref} of ${file} refers to itself without end.`);
-    const [id, pointer] = out.$ref.startsWith('#') ? [null, out.$ref.slice(1)]
-      : out.$ref.split('#');
-    const other = id === null ? home : find(id);
-    const match = /^\/\$defs\/([^/]+)$/.exec(pointer || '');
-    if (!other || !match || !other.$defs || !Object.hasOwn(other.$defs, match[1])) {
-      throw fix(`$ref ${out.$ref} of ${file} matches no definition of a file in ${folder}.`);
+    const at = home ? home.name : base;
+    const fix = (reason) => new Error(`Fix ${at}.\n${reason}`);
+    if (depth > 8) throw fix(`$ref ${out.$ref} refers to itself without end.`);
+    const hash = out.$ref.indexOf('#');
+    const id = hash < 0 ? out.$ref : out.$ref.slice(0, hash);
+    const pointer = hash < 0 ? '' : out.$ref.slice(hash + 1);
+    const other = id === '' ? home : find(id);
+    const match = /^\/\$defs\/([^/]+)$/.exec(pointer);
+    if (!other || !match || !other.doc.$defs || !Object.hasOwn(other.doc.$defs, match[1])) {
+      throw fix(`$ref ${out.$ref} matches no definition of a file in ${folder}.`);
     }
     const { $ref, ...rest } = out;
-    const definition = write(other.$defs[match[1]], other, depth + 1);
+    const definition = write(other.doc.$defs[match[1]], other, depth + 1);
     if (!Object.keys(rest).length) return definition;
     return { ...rest, allOf: [...(rest.allOf || []), definition] };
   };

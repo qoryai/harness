@@ -558,8 +558,8 @@ function resolve(node, defs) {
     if (key !== '$ref') out[key] = resolve(value, defs);
   }
   if (typeof node.$ref !== 'string') return out;
-  // A $ref to the primitives file is resolved in that file, whose members refer to its own
-  // definitions by #/$defs/<name>.
+  // A $ref to the primitives file is resolved in that file, whose members refer to other
+  // definitions of it by #/$defs/<name>.
   const [id, pointer] = node.$ref.startsWith('#') ? [null, node.$ref.slice(1)]
     : node.$ref.split('#');
   const home = id === null ? defs : PRIMITIVES.$defs;
@@ -727,7 +727,8 @@ test('end: the output that report-build writes passes the end check', () => {
   passes(end(run, folder));
   const refused = session(run);
   fs.writeFileSync(fileOf(refused), body.replace('"draft":true', '"draft":false'));
-  fails(end(run, refused), /^Set \/draft of \$QORY_OUTBOX\/pull-request\/pull-request\.json to true\./);
+  fails(end(run, refused),
+    /^Set \/draft of \$QORY_OUTBOX\/pull-request\/pull-request\.json to true\./);
 });
 
 // aliased moves the outbox of the session to <top>/x/outbox and returns the environment of an

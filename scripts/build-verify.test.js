@@ -3205,10 +3205,8 @@ for (let cp = 0; cp <= 0x10ffff; cp += 1) {
   REFUSED.text[cp] = refused && cp !== 9 && cp !== 10 && cp !== 13 ? 1 : 0;
 }
 const isRefused = (cp, text) => REFUSED[text ? 'text' : 'line'][cp] === 1;
-// patternsOf returns the patterns of the one-line rule and of the text rule, with their place:
-// $defs line and text of primitives.schema.json, $defs line of the schemas of demo-script and
-// demo-evidence as the file and as process.yaml has them, and the two patterns of
-// extensions.schema.json.
+// patternsOf returns the patterns of the line and text rules with their place: primitives,
+// demo-script and demo-evidence (file and process.yaml) and extensions.schema.json.
 function patternsOf() {
   const found = [];
   const entries = artifactEntries();
@@ -3441,15 +3439,39 @@ test('the schema loader writes out a $ref to the $id of another file of its fold
   // An address that no file of the folder has, or a definition that the file lacks, is a fix.
   for (const ref of ['https://example.org/other.json#/$defs/word', `${ID}#/$defs/none`]) {
     fs.writeFileSync(path.join(dir, 'bad.schema.json'), JSON.stringify({ $ref: ref }));
-    assert.throws(() => core.load(dir, 'bad'), /^Error: Fix bad\.schema\.json\.\n\$ref .* matches no /);
+    assert.throws(() => core.load(dir, 'bad'),
+      /^Error: Fix bad\.schema\.json\.\n\$ref .* matches no /);
   }
+  // A $ref splits at the first #: a second # is part of the pointer, which no definition has.
+  fs.writeFileSync(path.join(dir, 'bad.schema.json'),
+    JSON.stringify({ $ref: `${ID}#/$defs/word#/x` }));
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix bad\.schema\.json\.\n\$ref .* matches no /);
+  // Two files with one $id, and a file that is not JSON or has null, are fixes that name it.
+  const use = (name, text) => fs.writeFileSync(path.join(dir, name), text);
+  use('bad.schema.json', JSON.stringify({ $ref: `${ID}#/$defs/word` }));
+  use('copy.schema.json', JSON.stringify({ $id: ID, $defs: {} }));
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix \w+\.schema\.json\.\nIt has the \$id \S+, which \w+\.schema\.json has too\.$/);
+  fs.rmSync(path.join(dir, 'copy.schema.json'));
+  use('broken.schema.json', '{ not json');
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix broken\.schema\.json\.\nThe file is not JSON: /);
+  use('broken.schema.json', 'null');
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix broken\.schema\.json\.\nThe file has null, and a schema is an object\.$/);
+  fs.rmSync(path.join(dir, 'broken.schema.json'));
+  // A definition that refers to itself without end names the file that has the $ref.
+  use('loop.schema.json', JSON.stringify({ $id: 'https://example.org/loop.schema.json',
+    $defs: { a: { $ref: '#/$defs/b' }, b: { $ref: '#/$defs/a' } } }));
+  use('bad.schema.json', JSON.stringify({ $ref: 'https://example.org/loop.schema.json#/$defs/a' }));
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix loop\.schema\.json\.\n\$ref #\/\$defs\/[ab] refers to itself without end\.$/);
 });
 
-// The schema files and the json_schema blocks of process.yaml hold no control character after
-// they are decoded, but tab, line feed and carriage return: Apiary's reader refuses a file with
-// one, so each range is a regex escape (\x00-\x1f) in the text, which JavaScript with the u
-// flag, PCRE and Go RE2 all read. This includes primitives, verification and acceptance-criteria,
-// the byte copies of qory's contracts.
+// No schema file and no json_schema block decodes to a control character but tab, LF or CR:
+// Apiary's reader refuses one, so each range is a regex escape (\x00-\x1f) that JavaScript
+// with the u flag, PCRE and Go RE2 read.
 test('no schema decodes to a control character, but tab, line feed and carriage return', () => {
   const CONTROL = /[\p{Cc}]/u;
   const hold = (node) => {
