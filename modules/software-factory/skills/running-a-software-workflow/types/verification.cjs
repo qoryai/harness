@@ -65,7 +65,7 @@ module.exports = (lib) => {
     run.did('demo evidence');
     data.matrix.forEach((row, place) => {
       const criterion = byId.get(row.criterion);
-      if (!criterion || !criterion.check.startsWith('Demo:') || row.state !== 'met' ||
+      if (!criterion || !criterion.check.startsWith('Demo: ') || row.state !== 'met' ||
         DEMO.test(row.evidence)) return;
       run.find(`Write the evidence of ${row.criterion} as "Demo video: scenario-N" or ` +
         `"Pictures: scenario-N".\n/matrix/${place}/evidence of ${FILE} is ` +

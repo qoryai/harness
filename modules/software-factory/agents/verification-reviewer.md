@@ -73,9 +73,9 @@ because your session ended with no report.
   file at `diff` cannot be read.
 - The write of the report is denied.
 - `qory.start_artifacts` is missing from the input file, or the newest version of the
-  verification, the acceptance criteria or the acceptance lock in its folder cannot be read,
-  as "What the review reads" of `judging-criteria` lists: without them, this review has
-  nothing to compare the evidence with.
+  verification, the acceptance criteria, the acceptance lock or the `demo-evidence` of a
+  scenario that a row names cannot be read, as "What the review reads" of `judging-criteria`
+  lists: without them, this review has nothing to compare the evidence with.
 
 These cases are no reason to stop:
 

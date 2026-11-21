@@ -24,11 +24,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of a type; `software-factory` registers one for `acceptance-criteria` that refuses a
   question with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, or
   a new question in a check of a folder with the record of `matrix`, unless it has 3
-  options, one of each answer with the number of `about.item`, a `proposal` on the first,
-  the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a lower-case
-  `about.item`. `matrix` counts only the newest record of `run locked` for the lock and
-  commit, and only when it is a full, clean run with results. The workflow skill and its
-  stack entry are not built yet.
+  options, one of each answer with the number of `about.item`, a `proposal` on the Change
+  option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a lower-case
+  `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
+  run, because an agent can change the local store, and a criterion that rests on a type
+  that cannot be pulled is not verified. `matrix` counts only the newest record of `run
+  locked` for the lock and commit, and only when it is a full, clean run with results. The
+  workflow skill and its stack entry are not built yet.
 
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how

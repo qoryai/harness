@@ -61,11 +61,12 @@ another area is left out: its reviewer writes it.
    there can turn a locked check green with no change to the code under test.
 4. A changed path that the lock lists is no finding: `run locked` refuses it by its hash.
 5. Each test that the change newly skips, or newly marks with a skip or an xfail mark, or
-   the runtime's equivalent, is a finding. The marks are `test.skip`, `it.only`, `xit`,
-   `@pytest.mark.skip`, `@pytest.mark.xfail`, `t.Skip()` and `@Disabled`. A skipped test
-   does not fail a suite, so no red result shows it. Find each such test in the added lines
-   of the diff, and in a changed line that adds a mark to an existing test. A mark that
-   exists in the state before the change is no finding.
+   the runtime's equivalent, is a finding. The marks are `test.skip`, `xit`,
+   `@pytest.mark.skip`, `@pytest.mark.xfail`, `t.Skip()` and `@Disabled`. `it.only` is no
+   skip mark, but it skips every other test of its file, so it is blocking like a skip mark.
+   A skipped test does not fail a suite, so no red result shows it. Find each such test in
+   the added lines of the diff, and in a changed line that adds a mark to an existing test.
+   A mark that exists in the state before the change is no finding.
 6. A change that touches no unlisted file that a locked check uses and adds no mark gets an
    empty `findings` list. Write no finding to show that you reviewed.
 

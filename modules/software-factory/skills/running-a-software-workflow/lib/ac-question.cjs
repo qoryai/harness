@@ -79,15 +79,15 @@ module.exports = (lib) => {
     for (const [label, what] of [['**Why:**', 'the reason it cannot be met'],
       ['**Checked:**', 'what you checked']]) {
       if (!paragraph(question.context, label)) {
-        finds.push(`Start a paragraph of the context of ${who} with ${label}, then ${what}.\n` +
-          `The context of ${who} has no paragraph that starts with ${label}.`);
+        finds.push(`Add a paragraph that starts with ${label} to the context of ${who}.\n` +
+          `Write ${what} in it. The context has no such paragraph.`);
       }
     }
     const item = question.about && question.about.item;
     const found = typeof item === 'string' ? ITEM.exec(item) : null;
     if (!found) {
-      finds.push(`Write about.item of ${who} as the id of the criterion in lower case, such ` +
-        `as ac-3.\nIt is ${valueOf(item)}.`);
+      finds.push(`Write about.item of ${who} as a lower-case criterion id, such as ac-3.\n` +
+        `It is ${valueOf(item)}.`);
       return finds;
     }
     for (const { place, number } of [...kinds.Change, ...kinds.Withdraw]) {

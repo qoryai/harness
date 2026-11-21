@@ -85,6 +85,17 @@ test('checking-tampering reads the files outside the lock and each new skip mark
   assert.match(text, /A mark that\s+exists in the state before the change is no finding\./);
 });
 
+test('checking-tampering sorts it.only as blocking, and judging-criteria reads demo-evidence', () => {
+  const flat = (...parts) => read(...parts).replace(/\s+/g, ' ');
+  assert.match(flat('skills', 'checking-tampering', 'SKILL.md'),
+    /`it\.only` is no skip mark, but it skips every other test of its file, so it is blocking/);
+  const skill = flat('skills', 'judging-criteria', 'SKILL.md');
+  assert.match(skill, /the newest `demo-evidence` of the scenario that it names/);
+  assert.match(skill, /or the `demo-evidence` of a scenario that a row names, cannot be read/);
+  assert.match(flat('agents', 'verification-reviewer.md'),
+    /the `demo-evidence` of a scenario that a row names cannot be read/);
+});
+
 test('judging-criteria lowers a state, never raises one, and states the quote form', () => {
   const text = read('skills', 'judging-criteria', 'SKILL.md');
   assert.match(text, /You lower a state and never raise one\./);
@@ -139,6 +150,27 @@ test('the example report of tamper-reviewer has a helper and a new skip mark, ea
   assert.ok(!skill.includes('fails on the code in the copy'));
 });
 
+test('each finding of the rule for the question about a criterion has a first line within 100', () => {
+  const lib = { MATRIX_RECORD: 'm', isObject: (v) => v !== null && typeof v === 'object' &&
+    !Array.isArray(v), short: (text) => text };
+  const rule = require(path.join(FACTORY,
+    'skills/running-a-software-workflow/lib/ac-question.cjs'))(lib);
+  const who = `"${'x'.repeat(24)}"`;
+  const change = { title: 'Change AC-3, "x"', explanation: 'e' };
+  const questions = [
+    { options: [change, { title: 'Withdraw AC-4, "x"' }], about: { item: 5 }, context: '' },
+    { options: [change, change, { title: 'Make it met another way' }, { title: 'Withdraw AC-4' }],
+      about: { item: 'ac-3' }, context: 'x' },
+    { options: [{ title: 'Other' }], about: {} },
+  ];
+  const lines = questions.flatMap((question) => rule.check(question, who,
+    { context: { mode: 'check', root: tmp }, earlier: undefined }));
+  assert.ok(lines.length >= 8, lines.join('\n'));
+  for (const line of lines.map((one) => one.split('\n')[0])) {
+    assert.ok([...line].length <= 100, `${[...line].length}: ${line}`);
+  }
+});
+
 // ---- The family line --------------------------------------------------------------------------
 
 test('familyOf: the text after any router, before the first hyphen, and unknown for no id', () => {
@@ -183,10 +215,14 @@ const check = (criterion, state, extra = {}) => ({ criterion, path: `tests/${cri
   timed_out: false, seconds: 1, log: 'x.log',
   counts: { tests: 2, failed: state === 'green' ? 0 : 1, skipped: 0 }, ...extra });
 
-// work returns { dir, store, commit, plugin }: a checkout with one commit, the store of the
-// run with the approved criteria of the testdata, and a plugin folder. Each option adds one
-// part to the store: records, ledger, evidence, and the layout of the plugin folder.
-function work({ records = [], ledger = null, evidence = {}, plugin = layout() } = {}) {
+// work returns { dir, store, server, bin, commit, plugin }: a checkout with one commit, the
+// local store of the run with the approved criteria of the testdata, a copy of it that stands
+// for the run API, a folder with a fake qory whose pull prints that copy, and a plugin
+// folder. Each option adds one part: records, ledger, evidence, and the layout of the plugin
+// folder. forge changes the local store after the copy, as an agent can, and down lists the
+// types that the fake qory cannot pull.
+function work({ records = [], ledger = null, evidence = {}, plugin = layout(), forge = null,
+  down = [] } = {}) {
   const dir = next('work');
   fs.mkdirSync(dir, { recursive: true });
   const git = (...args) => childProcess.execFileSync('git', ['-C', dir, ...args]);
@@ -207,11 +243,25 @@ function work({ records = [], ledger = null, evidence = {}, plugin = layout() } 
     write(path.join(store, 'demo-evidence', scenario, 'v1', `${scenario}.json`), {
       scenario, commit, planned: 'film', evidence: 'film', verdict: 'passed', steps: [], ...doc });
   }
+  const server = next('server');
+  fs.cpSync(store, server, { recursive: true });
+  const bin = next('bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
+case "$1 $2" in
+'artifact pull')
+  case "$3" in ${down.map((type) => `${type}) exit 1;;`).join(' ')} esac
+  echo '${server}'
+  exit 0;;
+esac
+exit 1
+`, { mode: 0o755 });
+  if (forge) forge(store, commit);
   records.forEach((record, at) => write(path.join(store, '.reports', 'runs',
     `2026-11-21T10-00-0${at}-1-aaaaaa.json`), {
     verb: 'run', kind: 'locked', criteria: [], lock: 1, commit, clean: true, build_plan: 1,
     at: '2026-11-21T10:00:00Z', state: 'green', reasons: [], ...record }));
-  return { dir, store, commit, plugin };
+  return { dir, store, server, bin, commit, plugin };
 }
 
 function call(wk, argv, env = { QORY_RUN_ID: 'run_1' }) {
@@ -224,7 +274,7 @@ function call(wk, argv, env = { QORY_RUN_ID: 'run_1' }) {
     plugin: wk.plugin,
     cwd: wk.dir,
     artifacts: [wk.store],
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env },
+    env: { PATH: `${wk.bin}:${process.env.PATH}`, HOME: process.env.HOME, ...env },
     firstLine: first.firstLine,
   });
   first.check(status, err);
@@ -356,6 +406,54 @@ test('matrix: two families, and unknown for no model', () => {
   assert.deepEqual(verification(unknown).model_families, ['unknown']);
 });
 
+test('matrix: a forged local store gives no state: it reads the criteria, demo evidence and ledger from the run', () => {
+  const forged = work({ records: [{ checks: [check('ac-4', 'green')] }],
+    forge: (store, commit) => {
+      // The agent writes demo evidence that passed with a film, a ledger of two families, and
+      // criteria with ac-4 removed, into the local store.
+      for (const scenario of ['scenario-1', 'scenario-2']) {
+        write(path.join(store, 'demo-evidence', scenario, 'v1', `${scenario}.json`), {
+          scenario, commit, planned: 'film', evidence: 'film', verdict: 'passed', steps: [],
+          title: DEMO_1[scenario].title });
+      }
+      write(path.join(store, 'build-ledger', 'main', 'v1', 'build-ledger.json'), { steps: [
+        { id: 'x', attempts: [{ agent: 'a', role: 'r', tier: 'thinking', model: 'claude-x' },
+          { agent: 'a', role: 'r', tier: 'thinking', model: 'deepseek-x' }] }] });
+      const file = path.join(store, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json');
+      const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+      doc.criteria = doc.criteria.filter((one) => one.id !== 'ac-4');
+      write(file, doc);
+    } });
+  assert.equal(matrix(forged).status, 0);
+  const doc = verification(forged);
+  assert.deepEqual(doc.matrix.map((row) => [row.criterion, row.state]), [['ac-4', 'met']]);
+  assert.deepEqual(doc.not_verified.map((one) => [one.criterion, one.reason]),
+    ['ac-1', 'ac-2', 'ac-3'].map((id) => [id, 'The run has no demo evidence of its scenario.']));
+  assert.deepEqual(doc.model_families, ['unknown']);
+  // The run API has the evidence that passed, so the same call gives met, whatever the local
+  // store has.
+  const served = work({ evidence: DEMO_1, records: [{ checks: [check('ac-4', 'green')] }],
+    forge: (store) => fs.rmSync(path.join(store, 'demo-evidence'), { recursive: true }) });
+  assert.equal(matrix(served).status, 0);
+  assert.deepEqual(verification(served).matrix.map((row) => row.state), ['met', 'met', 'met', 'met']);
+});
+
+test('matrix: a type that cannot be pulled gives no state to what rests on it, and no criteria exits 3', () => {
+  const wk = work({ evidence: DEMO_1, records: [{ checks: [check('ac-4', 'green')] }],
+    ledger: { steps: [{ id: 'x', attempts: [{ agent: 'a', role: 'r', tier: 'thinking',
+      model: 'claude-x' }] }] }, down: ['demo-evidence', 'build-ledger'] });
+  assert.equal(matrix(wk).status, 0);
+  const doc = verification(wk);
+  assert.deepEqual(doc.matrix.map((row) => row.criterion), ['ac-4']);
+  assert.deepEqual(doc.not_verified.map((one) => one.reason),
+    Array(3).fill('The demo evidence cannot be pulled from the run, so it shows nothing.'));
+  assert.deepEqual(doc.model_families, ['unknown']);
+  const none = work({ down: ['acceptance-criteria'] });
+  const result = matrix(none);
+  assert.equal(result.status, 3, result.out + result.err);
+  assert.match(result.lines[0], /^Run `qory artifact pull acceptance-criteria`, then matrix again\./);
+});
+
 test('matrix: it needs a run, the flag --version with a number, and approved criteria', () => {
   const wk = work();
   const outside = matrix(wk, { QORY_RUN_ID: '' });
@@ -367,6 +465,7 @@ test('matrix: it needs a run, the flag --version with a number, and approved cri
     const bad = call(wk, argv);
     assert.equal(bad.status, 2, argv.join(' '));
   }
-  fs.rmSync(path.join(wk.store, 'index.json'));
+  // The run API has no index.json, so the criteria have no approved version.
+  fs.rmSync(path.join(wk.server, 'index.json'));
   assert.equal(matrix(wk).status, 3);
 });

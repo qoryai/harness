@@ -24,6 +24,10 @@ shows what the state says.
   empty, else the one entry left. `<N>` is its `newest_version`, and `<name>` is its `name`,
   or `main` when it has none. Read `<start>/<type>/<name>/v<N>/<file>`, where `<file>` is
   `verification.json`, `acceptance-criteria.json` or `acceptance-lock.json`.
+- For each row whose `evidence` starts with `Demo video: ` or `Pictures: `, the newest
+  `demo-evidence` of the scenario that it names, `scenario-N`. Read `<start>/index.json` as
+  above, for the entry whose `type` is `demo-evidence` and whose `name` is the scenario, and
+  read `<start>/demo-evidence/<name>/v<N>/<name>.json`.
 - `qory.review.diff` and `qory.review.commit`: the change and the read-only copy of the
   submitted commit, to read a locked check or the code that a criterion names.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
@@ -32,7 +36,8 @@ A file cannot be read when `<start>/index.json` or its file does not exist or ca
 read, when no entry is left, when `newest_version` is null, when more than one entry is left
 and none has the name `main`, or when `<name>` is no folder name. A folder name has only
 letters, digits, `.`, `_` and `-`, and is not `.` or `..`. When `qory.start_artifacts` is
-missing, or one of the three files cannot be read, stop and write no file.
+missing, or one of the three files, or the `demo-evidence` of a scenario that a row names,
+cannot be read, stop and write no file.
 
 ## Lowering a state
 

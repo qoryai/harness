@@ -1,13 +1,17 @@
 // matrix: writes the draft verification.json of Verify from records, so that no agent types a
 // state, and .reports/matrix-record.json, which check verification reads. matrix --version
-// <N> takes the newest record of `run locked` with no criterion that ran every check of
-// acceptance-lock version N on the commit of HEAD with no uncommitted change; a criterion with
-// a locked check is met when each of its checks is green, not met when one is red, and not
-// verified when the record has no result for it. A criterion with a demo check reads the
-// newest demo-evidence of the scenario with that title. The model families are those of the
-// models in Build's ledger, and of the Verify reviewers: the model: line of their agent
+// <N> takes the newest record of `run locked` for lock version N on the commit of HEAD,
+// whatever its criteria, and uses it only when it is a full, clean run with results; a
+// criterion with a locked check is met when each of its checks is green, not met when one is
+// red, and not verified when the record has no result for it. A criterion with a demo check
+// reads the newest demo-evidence of the scenario with that title. The criteria, the
+// demo-evidence and the build ledger are pulled from the run API, as lock --verify pulls the
+// lock, because an agent can change the local store; a type that cannot be pulled gives no
+// state to a criterion that rests on it. The records of `run locked` are read from the
+// artifact folder, where the guard denies an agent's write. The model families are those of
+// the models in Build's ledger, and of the Verify reviewers: the model: line of their agent
 // files, else the model of the settings.json beside the plugin folder, else unknown.
-// It exits 3 outside a run, with no QORY_RUN_ID, so that no local record counts.
+// It exits 3 outside a run, with no QORY_RUN_ID, where nothing can be pulled.
 'use strict';
 
 const fs = require('node:fs');
@@ -33,6 +37,7 @@ function familyOf(id) {
 }
 
 module.exports = (lib) => {
+  const { pull } = lib.lockReader;
   const { Context, MATRIX_RECORD, Missing, artifactFolder, cut, isObject, liveCriteria,
     parseJson, plural, writeJson } = lib;
 
@@ -65,14 +70,16 @@ module.exports = (lib) => {
   }
 
   // families returns the families of the models of Build's ledger, in the newest
-  // version of build-ledger of context, and of the agents of Verify, once each.
+  // version of build-ledger of context, and of the agents of Verify, once each. With no
+  // context, because the ledger could not be pulled, the family of its models is unknown.
   function families(context, plugin) {
-    const ledger = context.newest('build-ledger', 'build-ledger.json');
+    const ledger = context ? context.newest('build-ledger', 'build-ledger.json') : null;
     const data = ledger ? parseJson(ledger.text, `build-ledger version ${ledger.number}`) : null;
     const steps = data && Array.isArray(data.steps) ? data.steps.filter(isObject) : [];
     const models = steps.flatMap((step) => (Array.isArray(step.attempts) ? step.attempts : []))
       .filter(isObject).map((attempt) => attempt.model);
     const settings = sessionModel(plugin);
+    if (!context) models.push('unknown');
     models.push(...REVIEWERS.map((agent) => modelOf(plugin, agent, settings)));
     return [...new Set(models.map(familyOf))];
   }
@@ -135,8 +142,12 @@ module.exports = (lib) => {
   }
 
   // byDemo returns { state, text } of a criterion with the check `Demo: <title>` from the
-  // demo-evidence of the scenario with that title on commit, or { reason }.
+  // demo-evidence of the scenario with that title on commit, or { reason }. With no context,
+  // because the demo-evidence could not be pulled, it gives a reason.
   function byDemo(context, title, commit) {
+    if (!context) {
+      return { reason: 'The demo evidence cannot be pulled from the run, so it shows nothing.' };
+    }
     const found = demoNamed(context, title);
     if (!found.length) return { reason: 'The run has no demo evidence of its scenario.' };
     const bad = found.find((one) => one.data.commit !== commit);
@@ -167,19 +178,36 @@ module.exports = (lib) => {
     const top = git.top(Missing, io.cwd, io.env);
     const commit = git.head(top, io.env);
     if (!commit) throw new Missing('Run matrix in the checkout of the work.\ngit has no HEAD.');
-    const context = new Context(root, 'check', io.home, root);
+    // A store that an agent can change counts for nothing: the criteria, the demo evidence and
+    // the ledger come from the run API. Only the criteria are needed to start, so a pull of
+    // them that fails exits 3; the other two give no state when their pull fails.
+    const pulled = (type, need) => {
+      try {
+        return new Context(pull(io, type, null, 'matrix'), 'check', io.home);
+      } catch (error) {
+        if (need || !(error instanceof Missing)) throw error;
+        return null;
+      }
+    };
+    const context = pulled('acceptance-criteria', true);
     const finds = [];
     const probe = { context, did() {}, find: (line) => finds.push(line) };
     const live = liveCriteria(probe, 'the verification');
     if (!live) throw new Missing(finds[0]);
     const number = Number(version);
+    // The demo evidence is pulled once, when a criterion has a demo check.
+    let demos;
+    const evidence = () => {
+      if (demos === undefined) demos = pulled('demo-evidence', false);
+      return demos;
+    };
     const record = locked(root, number, commit);
     const matrix = [];
     const notVerified = [];
     for (const criterion of live) {
       const demo = /^Demo: (.+)$/.exec(criterion.check || '');
       let got;
-      if (demo) got = byDemo(context, demo[1].trim(), commit);
+      if (demo) got = byDemo(evidence(), demo[1].trim(), commit);
       else if (record) got = byTests(record.checks, criterion.id);
       else {
         got = { reason: `The newest record of run locked of version ${number} on ` +
@@ -189,7 +217,7 @@ module.exports = (lib) => {
       else notVerified.push({ criterion: criterion.id, reason: got.reason });
     }
     writeJson(path.join(root, FILE), { target_version: commit, matrix, not_verified: notVerified,
-      model_families: families(context, io.plugin) });
+      model_families: families(pulled('build-ledger', false), io.plugin) });
     writeJson(path.join(root, MATRIX_RECORD), { commit, lock: number,
       matrix: matrix.map(({ criterion, state }) => ({ criterion, state })),
       not_verified: notVerified.map((one) => one.criterion) });

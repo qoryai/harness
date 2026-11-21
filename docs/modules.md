@@ -656,8 +656,9 @@ the check of a point of `points.json`, and returns `types`, the patterns of "Blo
 lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`,
 the readers of the ids of a type that the questions check reads for the `item` of an
 `about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
-each `{type, check(question, who)}` with `check` returning the findings as lines of two
-lines, `verbs`, and `ledger`, the rules of the build ledger. Only `check`, `push`,
+each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
+as lines of two lines, `verbs`, and `ledger`, the rules of the build ledger. Only `check`,
+`push`,
 `report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
 `starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb
 that reads the registry with exit 3. A
@@ -3590,20 +3591,25 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `end --offline` check the order of the sections alone.
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
-  exits 3 when `QORY_RUN_ID` is not set, so that no local record counts, and when the
-  criteria have no approved version. `<N>` is the acceptance-lock version that Build's
-  approval lists, the one that `lock --verify --version <N>` verified. The matrix has one
-  row for each live criterion, in the order of the criteria, from these sources:
-  - a criterion whose check is `Tests`: the newest record of `run locked` in
-    `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria. An
-    older record never stands in for a newer one. The record counts only when it is a full
-    run (no criterion given), with no uncommitted change, with the results of its checks,
-    no `changed` list, and not red with every check green, which is how a call ends when a
-    locked file changed. The criterion is `met` when each of its checks is green, with the
-    evidence "Locked check `<path>` passed: exit 0, <n> tests.", and `not_met` when one is
-    red, with the exit status and the counts. It is not verified when the newest record does
-    not count, when the record has no check of it, and when its check did not run because
-    the call ran out of time;
+  exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
+  criteria cannot be pulled or have no approved version. The criteria, the `demo-evidence`
+  and the `build-ledger` come from `qory artifact pull <type>`, with `lockReader.pull` of
+  core, because an agent can change the local store; the records of `run locked` come from
+  `.reports/runs/`, where the guard denies an agent's write. A criterion whose
+  `demo-evidence` cannot be pulled is not verified, and a ledger that cannot be pulled adds
+  the family `unknown`. `<N>` is the acceptance-lock version that Build's approval lists,
+  the one that `lock --verify --version <N>` verified. The matrix has one row for each live
+  criterion, in the order of the criteria, from these sources:
+  - a criterion whose check does not start with `Demo: `: the newest record of `run locked`
+    in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria.
+    An older record never stands in for a newer one. The record counts only when it is a
+    full run (no criterion given), with no uncommitted change, with the results of its
+    checks, no `changed` list, and not red with every check green, which is how a call ends
+    when a locked file changed. The criterion is `met` when each of its checks is green,
+    with the evidence "Locked check `<path>` passed: exit 0, <n> tests.", and `not_met` when
+    one is red, with the exit status and the counts. It is not verified when the newest
+    record does not count, when the record has no check of it, and when its check did not
+    run because the call ran out of time;
   - a criterion whose check is `Demo: <title>`: the newest `demo-evidence` of the scenario
     with that title in the store. With a verdict `passed` on the commit of HEAD and film or
     pictures, it is `met`, with the evidence `Demo video: scenario-N` or

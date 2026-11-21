@@ -5268,23 +5268,23 @@ test('questions: a question about a criterion with the answers of Verify has the
   const bare = [{ ...options[0], proposal: undefined }, ...options.slice(1)];
   exactly(add({ options: bare }), 'Write the proposed wording of the criterion in proposal of ' +
     'option 1 of q7.\n  The option has no proposal.');
-  exactly(add({ context: '**Checked:** The settings.' }), 'Start a paragraph of the context of ' +
-    'q7 with **Why:**, then the reason it cannot be met.\n  The context of q7 ' +
-    'has no paragraph that starts with **Why:**.');
-  exactly(add({ context: '**Why:** Support is open.' }), 'Start a paragraph of the context of ' +
-    'q7 with **Checked:**, then what you checked.\n  The context of q7 has no paragraph that ' +
-    'starts with **Checked:**.');
+  exactly(add({ context: '**Checked:** The settings.' }), 'Add a paragraph that starts with ' +
+    '**Why:** to the context of q7.\n  Write the reason it cannot be met in it. The context has ' +
+    'no such paragraph.');
+  exactly(add({ context: '**Why:** Support is open.' }), 'Add a paragraph that starts with ' +
+    '**Checked:** to the context of q7.\n  Write what you checked in it. The context has no ' +
+    'such paragraph.');
   // The label must start a paragraph: a label inside one does not count.
   fails(add({ context: '**Why:** Open. **Checked:** The settings.' }),
-    /^Start a paragraph of the context of q7 with \*\*Checked:\*\*/);
+    /^Add a paragraph that starts with \*\*Checked:\*\* to the context of q7\./);
   // The rule reports the item itself, besides the finding of the reader of the criteria.
   for (const [item, shown] of [['AC-3', '"AC-3"'], ['ac-03', '"ac-03"'], [3, 'a number']]) {
     fails(add({ about: { type: 'acceptance-criteria', name: 'main', item } }), new RegExp(
-      `^Write about\\.item of q7 as the id of the criterion in lower case, such as ac-3\\. It is ${shown}\\.$`));
+      `^Write about\\.item of q7 as a lower-case criterion id, such as ac-3\\. It is ${shown}\\.$`));
   }
   // With no item, and so no proposal that core accepts, the rule still names the item.
   fails(add({ about: { type: 'acceptance-criteria', name: 'main' }, options: bare }),
-    /^Write about\.item of q7 as the id of the criterion in lower case, such as ac-3\. It is missing\.$/);
+    /^Write about\.item of q7 as a lower-case criterion id, such as ac-3\. It is missing\.$/);
   // Each answer once, and the number of the title is the number of the item.
   const [change, another, withdraw] = options;
   const once = (title, count) => new RegExp(
