@@ -805,7 +805,7 @@ test('Explore copies only the destinations that the code explorer names, with on
   has(workflow, 'Copy at most once more. When a later report of the code explorer lists an id',
     'When it exits with a status other than 0, run the same command once more. When that ' +
       'call fails too, end the run',
-    'the error line that the second call printed, unchanged');
+    'the error line of the second call, the line that starts with `✗ `, without that mark');
   // Explore finds no .qory/repositories; Shape and plan-the-build keep it.
   assert.doesNotMatch(workflow, /\.qory\/repositories|Further repositories/);
   has(read('skills/exploring-code/SKILL.md'), 'When you got the line "Further repositories: yes"');
@@ -835,7 +835,8 @@ const PICKED = 'What you searched:\n- nothing: the question names the destinatio
 test('end: a copy that fails twice ends Explore with escalate and the line of the copy', () => {
   const workflow = fs.readFileSync(path.join(MODULES,
     'software-factory/skills/workflow-explore-a-ticket/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
-  const sample = /fails twice in a row, .*?, unchanged, such as "([^"]+)"/.exec(workflow);
+  const sample = new RegExp('fails twice in a row, .*?, without that mark and otherwise ' +
+    'unchanged, such as "([^"]+)"').exec(workflow);
   assert.ok(sample, 'the Explore skill lists no line for a copy that fails twice');
   assert.ok(CLONE_ERRORS.includes(sample[1]), sample[1]);
   const root = fixture();

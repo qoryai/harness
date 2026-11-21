@@ -665,11 +665,9 @@ module.exports = (lib) => {
     targetsCheck(run, files, list);
   }
 
-  // targetsCheck checks targets.json, as
-  // checking-proposals (SKILL.md:56-70: "A proposal of a run whose input file has") lists it,
-  // and that each part of ## Proposed solution opens with the line of a destination of it. With destinations in the inputs of --inputs, as
-  // Context.destinations reads them, targets.json is required, and each of its ids is one of
-  // those destinations. With neither destinations nor targets.json, it checks nothing.
+  // targetsCheck checks targets.json and the destination line of each part, as
+  // checking-proposals (SKILL.md:56-70: "A proposal of a run whose input file has") lists:
+  // required with destinations in the inputs, and their ids only.
   function targetsCheck(run, files, list) {
     const listed = run.context.destinations();
     const json = files.get('targets.json');

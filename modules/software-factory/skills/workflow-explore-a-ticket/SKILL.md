@@ -68,8 +68,8 @@ concerns, before the code explorer reads their files:
    0, run the same command once more. When that call fails too, end the run, as the
    section "Failures" lists.
 5. At each start of the code explorer, the proposal writer and the proposal reviewer, give
-   the line "Destinations:" and the lines that the copy printed, unchanged. Give the
-   questions writer and the questions reviewer the same lines, and one line
+   the line "Destinations:" and each line `<id> <folder>` that the copy printed, unchanged.
+   Give the questions writer and the questions reviewer the same lines, and one line
    "Also search: <folder>" for each folder of those lines, at each start.
 
 Copy at most once more. When a later report of the code explorer lists an id under
@@ -263,9 +263,10 @@ work item waits for a member, who can start the run again.
   the destinations, as the section "Destinations" lists: "The run could not name the
   destinations that the ticket concerns, so it pushed no proposal."
 - `<qory> destination clone` fails twice in a row, as the section "Destinations" lists:
-  the error line that the second call printed, unchanged, such as "Check the connection of
-  tg_8k2m4n6p8q0r2s4t in Qory Apiary: the host returned 403 to the clone." It is the one
-  line that starts with a step, because qory wrote it.
+  the error line of the second call, the line that starts with `✗ `, without that mark and
+  otherwise unchanged, such as "Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary:
+  the host returned 403 to the clone." It is the one line that starts with a step, because
+  qory wrote it.
 - A start fails: "The run could not start <the work>, so it pushed no proposal." The work
   is what the agent does, in plain words, such as "the review of the proposal".
 - The proposal still fails the checks of the proposal before a review after the proposal
