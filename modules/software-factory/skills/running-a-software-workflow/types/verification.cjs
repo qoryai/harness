@@ -74,14 +74,27 @@ module.exports = (lib) => {
   }
 
   // aboveRecord finds a state of the file above the record that the verb matrix wrote, in a
-  // check. A criterion that the record lacks counts as not verified.
-  // shortcut: a check with no record finds nothing, so a push or an artifact folder with no
-  // record is unchecked; require the record when the end gate knows the run is Verify.
+  // check, and a record that is missing or that matrix did not write: a verification typed by
+  // hand has no record. A criterion that the record lacks counts as not verified.
   function aboveRecord(run, data) {
-    const file = path.join(run.context.root, MATRIX_RECORD);
-    if (run.context.mode !== 'check' || !fs.existsSync(file)) return;
+    if (run.context.mode !== 'check') return;
     run.did('matrix record');
-    const record = parseJson(fs.readFileSync(file, 'utf8'), MATRIX_RECORD, 'matrix');
+    const file = path.join(run.context.root, MATRIX_RECORD);
+    let record = null;
+    let cause = `${MATRIX_RECORD} does not exist.`;
+    if (fs.existsSync(file)) {
+      cause = `${MATRIX_RECORD} is not a record that matrix writes.`;
+      try {
+        record = JSON.parse(fs.readFileSync(file, 'utf8'));
+      } catch {
+        record = null;
+      }
+    }
+    if (!isObject(record) || typeof record.commit !== 'string' || !Array.isArray(record.matrix)) {
+      run.find(`Run matrix --version <N> to write ${MATRIX_RECORD}.\n${cause} A state in ` +
+        `${FILE} needs the record of matrix.`);
+      return;
+    }
     if (record.commit !== data.target_version) {
       run.find(`Run matrix again, or set target_version of ${FILE} to the commit of its record.` +
         `\nThe record of matrix is of ${short(record.commit, 40)}.`);

@@ -2257,7 +2257,9 @@ find:
   in a check, a state above the record of the verb `matrix`, `.reports/matrix-record.json`
   of the artifact folder: a `met` criterion that the record has as `not_met` or has not at
   all, a `not_met` criterion that the record has not at all, or a `target_version` that is
-  not the commit of the record. A check with no record, and a push, read no record;
+  not the commit of the record. A check with a record that is missing or is not a record of
+  `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
+  typed by hand fails. A push reads no record;
 - `walkthrough`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
   number, with the id in any case and the criterion's words in quotes, then
   `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a

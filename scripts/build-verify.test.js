@@ -410,8 +410,28 @@ function push(root, type, ...files) {
     ['push', type, ...files.map(([name]) => path.join(folder, name))]);
 }
 
-// check runs the check form, with root as the artifact folder.
+// check runs the check form, with root as the artifact folder. For a verification it first
+// writes a record of matrix that equals the file, unless root has one, so that the rule of the
+// record finds nothing; checkBare leaves the record as it is.
 function check(root, type, ...files) {
+  for (const [name, value] of files) write(root, name, value);
+  const record = path.join(root, '.reports', 'matrix-record.json');
+  const given = files.find(([name]) => name === 'verification.json');
+  if (type === 'verification' && given && !fs.existsSync(record)) {
+    const doc = typeof given[1] === 'string' || Buffer.isBuffer(given[1])
+      ? JSON.parse(String(given[1])) : given[1];
+    fs.mkdirSync(path.dirname(record), { recursive: true });
+    write(root, '.reports/matrix-record.json', { commit: doc.target_version, lock: 1,
+      // A criterion in two rows takes its best state, so that the record is never below the file.
+      matrix: [...(doc.matrix || []).reduce((best, { criterion, state }) => best.set(criterion,
+        best.get(criterion) === 'met' ? 'met' : state), new Map())]
+        .map(([criterion, state]) => ({ criterion, state })),
+      not_verified: (doc.not_verified || []).map((one) => one.criterion) });
+  }
+  return checkBare(root, type, ...files);
+}
+
+function checkBare(root, type, ...files) {
   for (const [name, value] of files) write(root, name, value);
   return call({ cwd: tmp, artifacts: [root] },
     ['check', type, ...files.map(([name]) => path.join(root, name))]);
@@ -2594,10 +2614,31 @@ test('verification: in a check, no state is above the record of matrix', () => {
   exactly(check(recorded(fixture(), (record) => { record.commit = C1; }), 'verification', file),
     'Run matrix again, or set target_version of verification.json to the commit of its record.' +
     `\nThe record of matrix is of "${C1}".`);
-  // A push has no record to read, and a check with none reads nothing.
+  // A push has no record to read.
   passes(push(recorded(fixture(), (record) => { record.matrix[2].state = 'not_met'; }),
     'verification', file), 'verification');
-  passes(check(fixture(), 'verification', file), 'verification');
+  passes(push(fixture(), 'verification', file), 'verification');
+});
+
+test('verification: a check with no record of matrix, or an unreadable one, is a finding', () => {
+  const file = verificationFile(VERIFICATION);
+  exactly(checkBare(fixture(), 'verification', file),
+    'Run matrix --version <N> to write .reports/matrix-record.json.\n' +
+    '.reports/matrix-record.json does not exist. A state in verification.json needs the record ' +
+    'of matrix.');
+  const unreadable = (text) => {
+    const folder = fixture();
+    fs.mkdirSync(path.join(folder, '.reports'), { recursive: true });
+    write(folder, '.reports/matrix-record.json', text);
+    return checkBare(folder, 'verification', file);
+  };
+  for (const text of ['not json', '[]', '{"commit": 5, "matrix": []}',
+    JSON.stringify({ commit: C2 }), '']) {
+    exactly(unreadable(text),
+      'Run matrix --version <N> to write .reports/matrix-record.json.\n' +
+      '.reports/matrix-record.json is not a record that matrix writes. A state in ' +
+      'verification.json needs the record of matrix.');
+  }
 });
 
 // ---- walkthrough ----------------------------------------------------------------------------

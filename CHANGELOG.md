@@ -16,11 +16,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   lowered state as one `blocking` finding. The verb `matrix --version <N>` writes the draft
   `verification.json` and `.reports/matrix-record.json` from the records of `run locked`,
   the demo evidence and Build's ledger, so no agent types a state, with the line of model
-  families, such as `claude` and `deepseek`, or `unknown`. In a check, `verification` refuses a state
-  above that record, and a met demo criterion whose evidence is not `Demo video: scenario-N`
-  or `Pictures: scenario-N`. A test shows that a forged local lock passes Build's early check
-  and fails Verify's `lock --verify --version`. The workflow skill, its stack entry and the
-  rule for the question about an unmeetable criterion are not built yet.
+  families, such as `claude` and `deepseek`, or `unknown`. In a check, `verification` refuses
+  a state above that record, a missing record, and a met demo criterion whose evidence is not
+  `Demo video: scenario-N` or `Pictures: scenario-N`. A test shows that a forged local
+  lock passes Build's early check and fails Verify's `lock --verify --version`. The
+  workflow skill, its stack entry and the rule for the question about an unmeetable
+  criterion are not built yet.
 
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how
