@@ -1,5 +1,5 @@
-// The check of the type proposal: proposal.md, sources.json and the wireframes, as
-// writing-proposals lists their rules.
+// The check of the type proposal: proposal.md, sources.json, targets.json and the wireframes,
+// as writing-proposals lists their rules.
 'use strict';
 
 const fs = require('node:fs');
@@ -7,7 +7,8 @@ const path = require('node:path');
 
 module.exports = (lib) => {
   const {
-    address, areaOf, BadQuestions, blank, brief, characters, codeSpans, factoryExtensions,
+    address, areaOf, BadQuestions, blank, brief, characters, codeSpans, DESTINATION_ID,
+    factoryExtensions,
     firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind,
     lines, markdownText, Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
     results, same, sections, sentences, sha256, table, topSections, TRACK_LISTS, trackLine,
@@ -29,13 +30,21 @@ module.exports = (lib) => {
 
   const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 
+  // The most targets of targets.json, and the most characters of the why of one target.
+  const MAX_TARGETS = 20;
+
+  const WHY = 500;
+
+  // The line that opens each part of ## Proposed solution when the proposal has targets.json.
+  const DESTINATION_LINE = /^Destination: `([^`]*)`$/;
+
   // trackForm checks the form of ## Track that
-  // checking-proposals (SKILL.md:93: "a full stop right after the kind") lists, and returns
+  // checking-proposals (SKILL.md:112: "a full stop right after the kind") lists, and returns
   // the fast track as { kind, change, lines, lists }, or null for another track, a missing
   // section or a form it refuses. lists is what trackLists returns for the check: the track
   // id, the kinds of the fast track and the sensitive areas of short-path.json in this
   // skill's folder, as
-  // writing-proposals (SKILL.md:248: "whole change is of one of the kinds")
+  // writing-proposals (SKILL.md:250: "whole change is of one of the kinds")
   // and checking-proposals list them, each area with the patterns of its files, as the
   // repository changes them. The form: the line "<Name> track." alone for a track that takes
   // no kind, or, for the track of short-path.json, the line "<Name> track: <kind>. <exact
@@ -111,7 +120,7 @@ module.exports = (lib) => {
   }
 
   // changedFiles returns the text of each code span of the exact change of the fast track,
-  // where writing-proposals (SKILL.md:305-306: "Write each changed file in a code span")
+  // where writing-proposals (SKILL.md:307-308: "Write each changed file in a code span")
   // puts each changed file.
   function changedFiles(change) {
     return codeSpans(change)
@@ -246,7 +255,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:340-343: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:346-349: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -391,7 +400,7 @@ module.exports = (lib) => {
     }
     const kept = list.filter((line) => !skipped.has(line.number));
 
-    // writing-proposals (SKILL.md:119: "in 1 or 2 sentences of at most 40 words"): the summary,
+    // writing-proposals (SKILL.md:121: "in 1 or 2 sentences of at most 40 words"): the summary,
     // up to the next heading of any level.
     const summaryPart = part('Summary');
     let text = '';
@@ -408,7 +417,7 @@ module.exports = (lib) => {
       run.find(`Cut ## Summary of proposal.md to 40 words: it has ${words(text)}.`);
     }
 
-    // writing-proposals (SKILL.md:123-124: "one paragraph of at most 40 words"): the first
+    // writing-proposals (SKILL.md:124-125: "one paragraph of at most 40 words"): the first
     // paragraph of the background, then at most 100 words up to the next ## heading.
     const background = part('Background');
     if (background) {
@@ -531,7 +540,7 @@ module.exports = (lib) => {
       });
     }
 
-    // writing-proposals (SKILL.md:169-171: "It matches each phrase as whole words"): no line of
+    // writing-proposals (SKILL.md:171-173: "It matches each phrase as whole words"): no line of
     // a code block, code span or text in double quotes on one line is checked.
     run.did('phrases');
     let joined = '';
@@ -591,7 +600,7 @@ module.exports = (lib) => {
     const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:405-407: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:430-432: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -653,14 +662,87 @@ module.exports = (lib) => {
       }
     }
     if (fast) fastTrack(run, fast, fileEntries);
+    targetsCheck(run, files, list);
   }
+
+  // targetsCheck checks targets.json, as
+  // checking-proposals (SKILL.md:56-70: "A proposal of a run whose input file has") lists it,
+  // and that each part of ## Proposed solution opens with the line of a destination of it. With destinations in the inputs of --inputs, as
+  // Context.destinations reads them, targets.json is required, and each of its ids is one of
+  // those destinations. With neither destinations nor targets.json, it checks nothing.
+  function targetsCheck(run, files, list) {
+    const listed = run.context.destinations();
+    const json = files.get('targets.json');
+    if (json === undefined && !listed) return;
+    run.did('targets');
+    if (json === undefined) {
+      run.find('Add targets.json to the proposal: the run has destinations.\nList in it each ' +
+        'destination that a change of the proposal goes to.');
+      return;
+    }
+    const data = parseJson(json, 'targets.json', 'targets');
+    for (const key of Object.keys(data).filter((one) => one !== 'targets')) {
+      run.find(`Remove the member ${quote(brief(key, 24))} from targets.json.\nIts one member ` +
+        'is targets.');
+    }
+    const { targets } = data;
+    if (targets.length < 1 || targets.length > MAX_TARGETS) {
+      run.find(`Give targets.json 1 to ${MAX_TARGETS} targets: it has ${targets.length}.`);
+    }
+    const known = listed && new Set(listed.map((one) => one.id));
+    const ids = new Set();
+    targets.forEach((entry, place) => {
+      const where = `target ${place + 1}`;
+      if (!isObject(entry)) {
+        run.find(`Write ${where} of targets.json as an object: it is ${jsonKind(entry)}.`);
+        return;
+      }
+      for (const key of Object.keys(entry).filter((one) => !['id', 'why'].includes(one))) {
+        run.find(`Remove the member ${quote(brief(key, 24))} from ${where} of targets.json.\n` +
+          'A target has only id and why.');
+      }
+      const { id, why } = entry;
+      if (typeof id !== 'string' || !DESTINATION_ID.test(id)) {
+        run.find(`Write the id of ${where} in targets.json as tg_ and 16 characters.\nThe id is ` +
+          `${typeof id === 'string' ? quote(id) : jsonKind(id)}.`);
+      } else if (ids.has(id)) {
+        run.find(`List each destination once in targets.json: ${id} is there more than once.`);
+      } else if (known && !known.has(id)) {
+        run.find(`Name only destinations of the inputs in targets.json: ${id} is none of them.`);
+      }
+      if (typeof id === 'string') ids.add(id);
+      if (typeof why !== 'string' || !why.trim()) {
+        run.find(`Write why ${where} of targets.json matters, in 1 to ${WHY} characters.`);
+        return;
+      }
+      const size = [...why].length;
+      if (size > WHY) {
+        run.find(`Cut the why of ${where} in targets.json to ${WHY} characters: it has ${size}.`);
+      }
+      characters(run, 'targets.json', `why of ${where}`, why, { oneLine: true });
+    });
+    const solution = sections(list, 2).slice(1).find((one) => one.title === 'Proposed solution');
+    for (const unit of solution ? sections(solution.lines, 3).slice(1) : []) {
+      const first = unit.lines.find((line) => !blank(line));
+      const found = first && !first.fenced && DESTINATION_LINE.exec(first.text.trim());
+      if (!found) {
+        run.find(`Open the part ${quote(brief(unit.title))} of proposal.md with the line of its ` +
+          'destination.\nWrite "Destination: `<id>`" right under its heading, with an id of ' +
+          'targets.json.');
+      } else if (!ids.has(found[1])) {
+        run.find(`Add ${quote(brief(found[1], 24))} to targets.json, or change the destination ` +
+          `of its part.\nThe part ${quote(unit.title)} names it, and targets.json does not.`);
+      }
+    }
+  }
+
 
   // fastTrack checks that the exact change of the fast track has each changed file in a code
   // span, that sources.json lists each such file as a `file` entry, that no ref of a changed
   // file has a character of a glob, that no changed file is or may be a folder, as folderRef
   // reads its ref, that no changed file matches a pattern of a sensitive area, and that the
   // newest review read exactly this ## Track and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:185: "refuses the fast track unless") lists. fileEntries
+  // checking-proposals (SKILL.md:204: "refuses the fast track unless") lists. fileEntries
   // maps each file of sources.json, as ## Sources lists it, to its ref, the path from the root
   // of its repository, which the patterns match.
   function fastTrack(run, fast, fileEntries) {
@@ -740,7 +822,8 @@ module.exports = (lib) => {
     check: proposal,
     // proposal finds a missing proposal.md: a proposal version has exactly one.
     mainOptional: true,
-    allowed: (name) => ['proposal.md', 'sources.json'].includes(name) || WIREFRAME.test(name),
+    allowed: (name) => ['proposal.md', 'sources.json', 'targets.json'].includes(name) ||
+      WIREFRAME.test(name),
     // A proposal needs proposal.md or sources.json: its wireframes alone are no draft.
     draft: (names) => names.some((name) => /\.(md|json)$/.test(name)),
     // end and end --offline compare the track of the recorded verdict with proposal.md.

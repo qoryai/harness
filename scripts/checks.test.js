@@ -870,6 +870,107 @@ test('end: after one failed copy and one that works, Explore records no escalate
   assert.deepEqual(verdicts(args), []);
 });
 
+// The parts of the proposal of the testdata.
+const PARTS = ['Support hours', 'Saved reply for delayed orders',
+  'Customers who got the old hours', 'Start date'];
+
+const TWO_TARGETS = [
+  { id: destinationId(0), why: 'The saved replies keep the text of the delayed-order reply.' },
+  { id: destinationId(1), why: 'The mail tool sends the corrected reply to customers.' },
+];
+
+// targeted returns a fixture of Explore whose proposal opens each part with its destination,
+// the first two parts destination 0 and the others destination 1, and whose targets.json has
+// targets.
+function targeted(targets = TWO_TARGETS) {
+  const root = fixture();
+  let text = fs.readFileSync(path.join(root, 'proposal.md'), 'utf8');
+  PARTS.forEach((title, at) => {
+    const line = `Destination: \`${destinationId(at < 2 ? 0 : 1)}\``;
+    assert.ok(text.includes(`### ${title}\n\n`), title);
+    text = text.replace(`### ${title}\n\n`, `### ${title}\n\n${line}\n\n`);
+  });
+  write(root, 'proposal.md', text);
+  write(root, 'targets.json', { targets });
+  return root;
+}
+
+// checkTargets runs check proposal on the files of root and its targets.json, with --inputs
+// when inputs is given.
+function checkTargets(root, inputs, files = [...FILES.proposal, 'targets.json']) {
+  return call({ cwd: tmp, artifacts: [root] }, ['check', 'proposal',
+    ...(inputs ? ['--inputs', inputs] : []), ...files.map((f) => path.join(root, f))]);
+}
+
+test('proposal: each part names its destination, and targets.json lists them', () => {
+  const inputs = destinationsInputs(2);
+  passes(checkTargets(targeted(), inputs));
+  passes(call({ cwd: tmp, artifacts: [] }, ['push', 'proposal', '--inputs', inputs,
+    ...[...FILES.proposal, 'targets.json'].map((f) => path.join(targeted(), f))]));
+  // With no destinations in the inputs, targets.json is checked for its form alone.
+  passes(checkTargets(targeted([{ id: destinationId(9), why: 'A place.' }, ...TWO_TARGETS])));
+  // With destinations, the proposal needs targets.json.
+  fails(checkTargets(fixture(), inputs, FILES.proposal),
+    /^Add targets\.json to the proposal: the run has destinations\. /);
+  passes(checkTargets(fixture(), null, FILES.proposal));
+});
+
+test('proposal: targets.json refuses an unlisted id, 21 targets, a repeat and a bad why', () => {
+  const inputs = destinationsInputs(21);
+  const why = 'The place keeps the reply.';
+  exactly(checkTargets(targeted([...TWO_TARGETS, { id: destinationId(30), why }]), inputs),
+    `Name only destinations of the inputs in targets.json: ${destinationId(30)} is none of ` +
+    'them.');
+  const many = Array.from({ length: 21 }, (_, n) => ({ id: destinationId(n), why }));
+  exactly(checkTargets(targeted(many), inputs), 'Give targets.json 1 to 20 targets: it has 21.');
+  exactly(checkTargets(targeted([...TWO_TARGETS, TWO_TARGETS[0]]), inputs),
+    `List each destination once in targets.json: ${destinationId(0)} is there more than once.`);
+  exactly(checkTargets(targeted([TWO_TARGETS[0], { id: destinationId(1), why: '' }]), inputs),
+    'Write why target 2 of targets.json matters, in 1 to 500 characters.');
+  exactly(checkTargets(targeted([TWO_TARGETS[0], { id: destinationId(1),
+    why: 'a'.repeat(501) }]), inputs),
+  'Cut the why of target 2 in targets.json to 500 characters: it has 501.');
+  passes(checkTargets(targeted([TWO_TARGETS[0], { id: destinationId(1), why: 'a'.repeat(500) }]),
+    inputs));
+});
+
+test('proposal: a part whose destination targets.json does not list, or that names none', () => {
+  const inputs = destinationsInputs(2);
+  exactly(checkTargets(targeted([TWO_TARGETS[0]]), inputs), [PARTS[2], PARTS[3]].map((part) =>
+    `Add "${destinationId(1)}" to targets.json, or change the destination of its part.\n` +
+    `  The part "${part}" names it, and targets.json does not.`).join('\n'));
+  const root = targeted();
+  const text = fs.readFileSync(path.join(root, 'proposal.md'), 'utf8');
+  const opened = `### ${PARTS[2]}\n\nDestination: \`${destinationId(1)}\`\n\n`;
+  assert.ok(text.includes(opened));
+  write(root, 'proposal.md', text.replace(opened, `### ${PARTS[2]}\n\n`));
+  exactly(checkTargets(root, inputs), 'Open the part "Customers who got the old hours" of ' +
+    'proposal.md with the line of its destination.\n  Write "Destination: `<id>`" right under ' +
+    'its heading, with an id of targets.json.');
+});
+
+test('proposal: no file ref or text has the folder of the copied destinations', () => {
+  const root = targeted();
+  write(root, 'sources.json', { sources: [{ kind: 'file',
+    ref: '/tmp/qory-destinations/host.example.com/example-org/place-0/a.md', why: 'A.' }] });
+  write(root, 'proposal.md', fs.readFileSync(path.join(root, 'proposal.md'), 'utf8')
+    .replace('No public page and no file.',
+      '- /tmp/qory-destinations/host.example.com/example-org/place-0/a.md'));
+  const result = checkTargets(root, destinationsInputs(2));
+  assert.ok(result.findings.includes('Remove /tmp/qory-destinations from ref of source 1 of ' +
+    "sources.json. In ref of source 1 of sources.json, write the destination's id, a colon " +
+    'and the path.'), result.out);
+  fails(result, /^Remove \/tmp\/qory-destinations from proposal\.md\./);
+  assert.ok(!result.out.includes('Remove the path of the machine'), result.out);
+  // A destination's file is its id, a colon and the path, as for a further repository.
+  const named = targeted();
+  write(named, 'sources.json', { sources: [{ kind: 'file', ref: 'replies/delayed.md',
+    container: destinationId(0), why: 'Contains the text of the reply.' }] });
+  write(named, 'proposal.md', fs.readFileSync(path.join(named, 'proposal.md'), 'utf8')
+    .replace('No public page and no file.', `- ${destinationId(0)}: replies/delayed.md`));
+  passes(checkTargets(named, destinationsInputs(2)));
+});
+
 test('spec: its four sections, in order', () => {
   const root = fixture(['spec.md', /^## Background$/m, '## Context']);
   fails(push(root, 'spec'), /in this order\. It has ## Summary, ## Context/);
