@@ -2589,8 +2589,8 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 # The tests of the types of Build and Verify: their JSON Schemas against process.yaml and the
 # 40 samples, and each rule of each type in check and push.
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
-# The tests of the limit of deliverables in build-plan: 7, or the number that a member's answer
-# allows, read from the notes of the work item in a session and in a push check.
+# The tests of the limit of deliverables in build-plan: 7, or the number that a member's
+# answer allows, read from the notes of the work item in a session and in a push check.
 expect "the build-plan limit tests pass" 0 "$ROOT" node --test scripts/build-plan-limit.test.js
 # The tests of the review of a change: the example report against qory's schema, the open
 # findings verb, and the removed forms.

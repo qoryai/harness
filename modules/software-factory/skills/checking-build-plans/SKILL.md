@@ -44,9 +44,10 @@ document" of `reviewing-drafts`, with its parts, pictures and word limit. The re
 7. A `serve` row with a command needs the line `App address: <url>` in the Summary, with an
    `http` or `https` address, and the address agrees with what the report shows. A line
    with no such row is a finding too.
-8. When the plan has more than 7 deliverables, and the newest member's answer on the work
-   item is not "Build all <n> changes in this work item." with `<n>` of the plan's number
-   or more, it is no plan to review: the run asks a member and sends it to no reviewer.
+8. When the plan has more than 7 deliverables, and a member's newest answer to "Which
+   changes do you want to build in this work item?" is not "Build all <n> changes in this
+   work item." with `<n>` of the plan's number or more, it is no plan to review: the run
+   asks a member and sends it to no reviewer.
 9. A note or a line that starts with "Fix first:" that concerns the plan is applied. A
    change that nobody asked for is a finding.
 

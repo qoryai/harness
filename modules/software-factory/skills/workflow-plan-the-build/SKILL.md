@@ -44,8 +44,8 @@ not load the rules it needs, so it pushed no build plan."
    lists under "Facts:". It drafts `build-plan.md`.
 5. Run `check build-plan <folder>/build-plan.md`, as "Check before each review" lists. When a
    line starts with "Plan at most", the plan has more deliverables than the check allows,
-   which is 7 unless the newest member's answer allows more: do "More than 7
-   deliverables", and go no further in this list.
+   which is 7 unless a member's answer allows more: do "More than 7 deliverables", and go
+   no further in this list.
 6. Start ${qory:agents/plan-reviewer} with the input file's path, the artifact folder, the
    run's number, the notes, the code explorer's report, unchanged, and the lines under
    "Checks:" that "Check before each review" lists. Decide on each report as "Findings"
@@ -62,14 +62,15 @@ not load the rules it needs, so it pushed no build plan."
 
 ## More than 7 deliverables
 
-A build plan has at most 7 deliverables, unless the newest member's answer on the work
-item is "Build all <n> changes in this work item." with `<n>` of 8 or more, and `check
-build-plan` refuses more. Send that finding to no writer, cut nothing yourself, start no
-reviewer, and push no build plan.
+A build plan has at most 7 deliverables, unless a member's newest answer to the question
+of this section is "Build all <n> changes in this work item." with `<n>` of 8 or more, and
+`check build-plan` fails a plan with more. Send that finding to no writer, cut nothing
+yourself, start no reviewer, and push no build plan.
 
 1. Take `<n>`, the number of deliverables, and `<m>`, the limit, from the first line of the
    finding, "Plan at most <m> separate changes, ... the plan has <n>". With `<m>` above 7,
-   a member allowed `<m>`: do "More than a member allowed" in place of steps 3 and 4.
+   a member allowed `<m>`: after this step and step 2, do "More than a member allowed" in
+   place of steps 3 and 4.
    Take the changes from the planner's list "Over the limit:". When that list is
    `- none`, start the planner once more with the lines of the check quoted, and tell it to
    change nothing but that list.
@@ -130,7 +131,8 @@ reviewer, and push no build plan.
 ## More than a member allowed
 
 When the finding has `<m>` above 7, a member allowed `<m>` changes for this work item, and
-the plan has `<n>` over it. Do steps 1 and 2 of "More than 7 deliverables", then these:
+the plan has `<n>` over it. After steps 1 and 2 of "More than 7 deliverables", do these
+steps in place of its steps 3 and 4:
 
 1. Take `<date>` from the newest note of `<qory> work-item show` with the `kind`
    `request_changes`: the first 10 characters of its `at`, as `2026-11-16`. It is the date

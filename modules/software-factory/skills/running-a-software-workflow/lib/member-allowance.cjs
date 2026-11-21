@@ -1,7 +1,7 @@
 // What a member allowed for the work item: the number of deliverables that the check of
-// build-plan accepts. The limit is 7 unless the newest note of the work item with the kind
-// answer is a member's answer "Build all <n> changes in this work item." with n of 8 or more.
-// The question that asks for that answer is in workflow-plan-the-build/SKILL.md.
+// build-plan accepts. The limit is 7 unless, of the notes of the kind answer with the text
+// of an option of the question in workflow-plan-the-build/SKILL.md, the newest is "Build
+// all <n> changes in this work item." with n of 8 or more.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -14,14 +14,14 @@ module.exports = (lib) => {
   // At most this many deliverables, unless a member's answer allows more.
   const MAX_DELIVERABLES = 7;
 
-  // The most bytes that the check reads from `work-item show` or notes.json, as fixes.cjs of
-  // running-a-workflow reads `work-item show`.
+  // The most bytes that the check reads from `work-item show` or notes.json, as fixes.cjs
+  // of running-a-workflow reads `work-item show`.
   const NOTES_BYTES = 4 * 1024 * 1024;
 
-  // The titles of the options of the question in workflow-plan-the-build/SKILL.md, where each
-  // <...> stands for a value that the session fills in.
-  // The variants of option 1 for a plan whose later changes list no criterion of their own
-  // start with the first 7 changes, or with the first <m> after an answer that allowed <m>.
+  // The titles of the options of the question in workflow-plan-the-build/SKILL.md, where
+  // each <...> stands for a value that the session fills in. When no criterion belongs
+  // only to the later changes, option 1 starts with the first 7 changes, or with the first
+  // <m> after an answer that allowed <m>.
   const SHARED_END = ' as a new work item.';
   const shared = (first, other) => `Build the first ${first} changes here; take in the other ` +
     `${other}${SHARED_END}`;
@@ -49,11 +49,11 @@ module.exports = (lib) => {
     OPTIONS.sharedAllowedOne].map(matcher);
 
   // limitOf returns the limit that notes, the list notes[] of the work item oldest first,
-  // sets. Only a member's act makes a note of the kind answer, with the title of the option
-  // as its text, so the newest note that has the text of one of the two options decides. A
-  // note of another kind, a typed answer and "Build all <n>" with an n that is no whole number
-  // of 8 or more are no answer. The fields id and artifact_version_id of a note may be null,
-  // and the check reads neither.
+  // sets. Only a member's act makes a note of the kind answer, with the title of the
+  // option as its text, so the newest note that has the text of one of the two options
+  // decides. A note of another kind, a typed answer, a review comment or reply, and "Build
+  // all <n>" with an n that is no whole number of 8 or more are no answer. The fields id
+  // and artifact_version_id of a note may be null, and the check reads neither.
   function limitOf(notes) {
     for (let place = notes.length - 1; place >= 0; place -= 1) {
       const note = notes[place];
@@ -78,6 +78,7 @@ module.exports = (lib) => {
     const show = childProcess.spawnSync(qory, ['work-item', 'show'],
       { env: process.env, encoding: 'utf8', timeout: 20000, maxBuffer: NOTES_BYTES });
     if (show.error) return { why: `${qory} work-item show could not run: ${show.error.message}` };
+    if (show.signal) return { why: `${qory} work-item show stopped with ${show.signal}` };
     if (show.status !== 0) return { why: `${qory} work-item show exited with ${show.status}` };
     let item;
     try {
@@ -107,10 +108,10 @@ module.exports = (lib) => {
     return Array.isArray(data) ? { notes: data } : { why: 'notes.json is no list' };
   }
 
-  // memberLimit returns { limit, why } for a check of context: the number of deliverables that
-  // a member's answer allows, and, when the notes could not be read, why that is, so that the
-  // limit is 7. A push check reads notes.json in its working folder, and a check in a session
-  // reads `<qory> work-item show`.
+  // memberLimit returns { limit, why } for a check of context: the number of deliverables
+  // that a member's answer allows, and, when the notes could not be read, why that is, so
+  // that the limit is 7. A push check reads notes.json in its working folder, and a check
+  // in a session reads `<qory> work-item show`.
   function memberLimit(context) {
     const read = context.mode === 'push' ? fromFile(context.workingFolder) : fromShow();
     if (read.why !== undefined) {

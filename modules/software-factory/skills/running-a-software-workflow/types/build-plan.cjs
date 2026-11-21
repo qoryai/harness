@@ -49,8 +49,8 @@ module.exports = (lib) => {
       ({ id: plainCell(id), change, criteria: criterionList(criteria), files, check:
         plainCell(check) }));
     if (rows.length > MAX_DELIVERABLES) {
-      // A plan over 7 deliverables ends the session with escalate, unless the newest answer
-      // of a member on the work item allows its number.
+      // A plan over 7 deliverables ends the session with escalate, unless the newest
+      // answer of a member on the work item allows its number.
       const { limit, why } = memberLimit(run.context);
       if (rows.length > limit) {
         run.find(`Plan at most ${limit} separate changes, or ask a member whether to build ` +

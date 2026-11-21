@@ -1,7 +1,8 @@
-// Tests of the limit of deliverables in the check of build-plan: 7, unless the newest member's
-// answer in the notes of the work item allows more (vault decision 0272). A check in a session
-// reads the notes from `qory work-item show`, run here as a fake qory first on PATH, and a push
-// check reads notes.json in its working folder. scripts/check.sh runs this file.
+// Tests of the limit of deliverables in the check of build-plan: 7, unless the newest
+// member's answer in the notes of the work item allows more (vault decision 0272). A check
+// in a session reads the notes from `qory work-item show`, run here as a fake qory first
+// on PATH, and a push check reads notes.json in its working folder. scripts/check.sh runs
+// this file.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -30,7 +31,7 @@ const fresh = (name) => {
   return dir;
 };
 
-// ---- The notes of a work item ----------------------------------------------------------------
+// ---- The notes of a work item ----------------------------------------------------------
 
 const ALL = (count) => `Build all ${count} changes in this work item.`;
 const ONE = 'Build the changes for "Export saves a CSV file" here; take in "One row per item" ' +
@@ -42,7 +43,7 @@ const note = (kind, text) => ({ kind, stage_id: 'st_1', by: { name: 'Sam Example
   artifact_version_id: null, at: '2026-11-16T10:00:00Z' });
 const answer = (text) => note('answer', text);
 
-// ---- The plan --------------------------------------------------------------------------------
+// ---- The plan --------------------------------------------------------------------------
 
 // The Criteria cells of the criteria in the testdata.
 const CR1 = 'AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00"';
@@ -52,8 +53,8 @@ const CR3 = 'AC-3, "The reply states that support is closed on 25 December"';
 const CR4 = 'AC-4, "Each customer who got the reply with the old hours receives a corrected ' +
   'reply that lists the new hours"';
 
-// planOf returns a build plan with count deliverables, 2 or more: d-1 lists AC-1 to AC-3 with
-// the scenario, d-2 lists AC-4 with its test, and each later one lists AC-4 again.
+// planOf returns a build plan with count deliverables, 2 or more: d-1 lists AC-1 to AC-3
+// with the scenario, d-2 lists AC-4 with its test, and each later one lists AC-4 again.
 function planOf(count) {
   const rows = [
     `| d-1 | Change the hours in the saved reply. | ${CR1}; ${CR2}; ${CR3} | ` +
@@ -126,15 +127,17 @@ function call(deps, argv) {
 }
 
 // session runs `check build-plan` as a session does, with a fake qory first on PATH whose
-// `work-item show` prints show, or exits with status. A show of null prints nothing.
-function session(count, { show = null, status = 0, raw = null } = {}) {
+// `work-item show` prints show, then exits with status, or stops with the signal. A show
+// of null prints nothing.
+function session(count, { show = null, status = 0, raw = null, signal = null } = {}) {
   const root = fixture();
   const file = path.join(root, 'build-plan.md');
   fs.writeFileSync(file, planOf(count));
   const bin = fresh('bin');
   const printed = raw !== null ? raw : JSON.stringify(show);
   fs.writeFileSync(path.join(bin, 'qory'),
-    `#!/bin/sh\n[ "$1 $2" = "work-item show" ] || exit 9\ncat <<'EOF'\n${printed}\nEOF\nexit ${status}\n`,
+    `#!/bin/sh\n[ "$1 $2" = "work-item show" ] || exit 9\ncat <<'EOF'\n${printed}\nEOF\n` +
+    `${signal ? `kill -${signal} $$\n` : ''}exit ${status}\n`,
     { mode: 0o755 });
   const before = process.env.PATH;
   process.env.PATH = `${bin}${path.delimiter}${before}`;
@@ -145,8 +148,9 @@ function session(count, { show = null, status = 0, raw = null } = {}) {
   }
 }
 
-// pushed runs `push build-plan` as the push check does: in a working folder with notes.json
-// when notes is not undefined (text is written as it is), and index.json and the criteria.
+// pushed runs `push build-plan` as the push check does: in a working folder with
+// notes.json when notes is not undefined (text is written as it is), and index.json and
+// the criteria.
 function pushed(count, notes) {
   const root = fixture();
   const cwd = fresh('cwd');
@@ -184,7 +188,7 @@ const unread = (finding, cause) => {
 };
 const readable = (finding) => assert.equal(finding.split('\n').length, 1, finding);
 
-// ---- Each case, in a session and as a push check ---------------------------------------------
+// ---- Each case, in a session and as a push check ---------------------------------------
 
 // Each case runs in a session and as a push check on the same notes.
 const both = (count, notes) => [session(count, { show: { notes } }), pushed(count, notes)];
@@ -253,11 +257,13 @@ test('an answer note with a null id and a null artifact_version_id counts', () =
   for (const result of both(9, [entry])) passes(result);
 });
 
-// ---- Notes that cannot be read ---------------------------------------------------------------
+// ---- Notes that cannot be read ---------------------------------------------------------
 
 test('a failing `work-item show` gives the limit with the cannot-read line', () => {
   unread(limit(session(9, { show: { notes: [answer(ALL(9))] }, status: 1 }), 7, 9),
     /work-item show exited with 1\.$/);
+  unread(limit(session(9, { show: { notes: [answer(ALL(9))] }, signal: 'TERM' }), 7, 9),
+    /work-item show stopped with SIGTERM\.$/);
   unread(limit(session(9, { raw: 'not JSON' }), 7, 9), /printed no JSON object\.$/);
   unread(limit(session(9, { show: { run: {} } }), 7, 9), /printed no list notes\.$/);
   unread(limit(session(9, { show: { notes: { kind: 'answer' } } }), 7, 9),
@@ -276,7 +282,7 @@ test('a note that is no object is skipped, and the others count', () => {
   for (const result of both(9, notes)) passes(result);
 });
 
-// ---- The option texts ------------------------------------------------------------------------
+// ---- The option texts ------------------------------------------------------------------
 
 test('the option texts of the check are in workflow-plan-the-build/SKILL.md', () => {
   const skill = fs.readFileSync(PLAN_SKILL, 'utf8').replace(/\s+/g, ' ');
