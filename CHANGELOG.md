@@ -16,10 +16,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `write-acceptance-checks`. Each entry with `access: write` also sets
   `plan: build-plan`. `software-factory` declares the scope check of `build-plan` under
   `scope_checks` in its `qory-module.yaml`: `workflow-checks.cjs scope --plan`. The command
-  takes `--base <start commit>` and `--artifacts <folder>` as its last arguments.
-  `workflow-checks.cjs` runs `scope` as it runs `push`, and exits 2 on any other verb.
-  `.github/workflows/check.yml` builds qory at `afee80c`, the merge of qoryai/qory#136,
-  which reads `plan` and `scope_checks`, in place of `0e02282`.
+  takes `--base <start commit>` and `--artifacts <folder>` as its last arguments. With the
+  base, `scope --plan` runs the checks that `freeze` runs on the commits since the base, by
+  the same code, as it did before: one command checks the paths of the commits against the
+  Files of the build plan and scans their files, names, messages and headers for keys and
+  repositories. `workflow-checks.cjs` runs `scope` as it runs `push`, and exits 2 on any
+  other verb. `.github/workflows/check.yml` builds qory at `afee80c`, the merge of
+  qoryai/qory#136, which reads `plan` and `scope_checks`, in place of `0e02282`.
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how
   two parts call each other, or a flow of states, may end with one Mermaid diagram, drawn by

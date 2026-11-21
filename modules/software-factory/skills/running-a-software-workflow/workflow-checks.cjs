@@ -15,7 +15,9 @@
 //
 // runs `checks.cjs push` or `checks.cjs scope` of running-a-workflow, beside this skill's
 // folder or in the module core beside this module, with the same arguments, --inputs and
-// the path of the run's inputs.json included. Any other verb exits 2.
+// the path of the run's inputs.json included. Any other verb exits 2. With --base, scope runs
+// the checks that freeze runs on the commits since the base, by the same code: the scan of
+// their files, names, messages and headers for keys and repositories (verbs/scope.cjs).
 //
 // check proposal counts the words of proposal.md with the reason of each decided question:
 // in questions.json at the top of the artifact folder, else in the newest questions version.

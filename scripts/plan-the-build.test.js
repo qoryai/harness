@@ -882,6 +882,48 @@ test('the scope check of build-plan exits 0 on a push inside the plan and 1 on o
     'only push and scope.\n');
 });
 
+test('the scope check of build-plan runs the checks of freeze on the commits since the base', () => {
+  // A GitHub token, built here so that the file has no key in it.
+  const token = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  // committed makes a checkout with the example plan and commits one change inside its Files,
+  // and returns the result of the scope check from the commit before it.
+  const committed = (change) => {
+    const { w } = checkout(EXAMPLE, []);
+    const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    change(w);
+    return scopeCheck(w, base, path.join(w.repo, '.qory/artifacts'));
+  };
+  const commitFile = (w, file, text, message = 'Change') => {
+    fs.mkdirSync(path.dirname(path.join(w.repo, file)), { recursive: true });
+    fs.writeFileSync(path.join(w.repo, file), text);
+    git(w.repo, w.env, 'add', file);
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', message);
+  };
+  // A key in a file of the plan.
+  const inFile = committed((w) => commitFile(w, 'replies/delayed-order.md', `Token ${token}\n`));
+  assert.equal(inFile.status, 1, inFile.out);
+  assert.match(inFile.out, /^Rewrite commit [0-9a-f]{12} without a GitHub token in "replies\/delayed-order\.md", line 1\.$/m);
+  assert.match(inFile.out, /^Scanned 1 commit since [0-9a-f]{12} for keys: 1 finding\.$/m);
+  // A key in the message of a commit whose files are in the plan.
+  const inMessage = committed((w) => commitFile(w, 'replies/delayed-order.md', 'The hours.\n',
+    `Change ${token}`));
+  assert.equal(inMessage.status, 1, inMessage.out);
+  assert.match(inMessage.out, /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/m);
+  assert.ok(!inFile.out.includes(token) && !inMessage.out.includes(token));
+  // A repository committed under a folder of the plan.
+  const nested = committed((w) => {
+    const head = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    git(w.repo, w.env, 'update-index', '--add', '--cacheinfo', `160000,${head},tests/vendor`);
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add a repository');
+  });
+  assert.equal(nested.status, 1, nested.out);
+  assert.match(nested.out, /^Rewrite commit [0-9a-f]{12} without the repository "tests\/vendor": scope scans no repository\.$/m);
+  // The same commit with no key passes.
+  const clean = committed((w) => commitFile(w, 'replies/delayed-order.md', 'The hours.\n'));
+  assert.equal(clean.status, 0, clean.out);
+  assert.match(clean.out, /^Passed: 1 changed path in the files of the build plan, 1 commit with no key\.$/m);
+});
+
 // ---- The reports of the agents -------------------------------------------------------------
 
 test('report: the build planner and the plan reviewer pass with the shapes that their agents list', () => {

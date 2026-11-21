@@ -92,6 +92,8 @@ push_checks:
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, walkthrough]
     reads: [verification, acceptance-criteria]
 # The check of what a write workflow's session may push, for the stack's `plan: build-plan`.
-# The command takes --base <start commit> and --artifacts <folder> as its last arguments.
+# The command takes --base <start commit> and --artifacts <folder> as its last arguments. It
+# checks each path of the commits since the base against the Files of the build plan, and
+# runs the checks of freeze on those commits: the scan for keys and for repositories.
 scope_checks:
   build-plan: [skills/running-a-software-workflow/workflow-checks.cjs, scope, --plan]
