@@ -11,7 +11,7 @@
 //   workflow-checks.cjs push <type> [--inputs <file>] <file>...   the form that `qory
 //                                                                 artifact push` runs
 //   workflow-checks.cjs scope --plan --base <commit> --artifacts <folder>
-//                                         the scope check of build-plan, which qory runs
+//                                         the scope check of build-plan in scope_checks
 //
 // runs `checks.cjs push` or `checks.cjs scope` of running-a-workflow, beside this skill's
 // folder or in the module core beside this module, with the same arguments, --inputs and

@@ -91,7 +91,7 @@ push_checks:
   - type: walkthrough
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, walkthrough]
     reads: [verification, acceptance-criteria]
-# The check of what a write workflow's session may push, for the stack's `plan: build-plan`:
-# qory adds --base <start commit> and --artifacts <folder> after these arguments.
+# The check of what a write workflow's session may push, for the stack's `plan: build-plan`.
+# The command takes --base <start commit> and --artifacts <folder> as its last arguments.
 scope_checks:
   build-plan: [skills/running-a-software-workflow/workflow-checks.cjs, scope, --plan]

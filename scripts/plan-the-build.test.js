@@ -99,23 +99,31 @@ const TIERS = ['light', 'balanced', 'thinking'];
 
 // workflowProblems returns a line for each workflow of the stack text whose tier is not one of
 // TIERS, and for each workflow with access write and no `plan: build-plan`. Each entry of the
-// workflows key is one line with a flow mapping: an entry in another form is a line too.
+// workflows key is one line with a flow mapping: an entry in another form is a line too, on
+// its first line. A blank line inside the key ends no entry. tier, access and plan count only
+// at the top of the entry's mapping, not inside a nested value such as hook_points.
 function workflowProblems(text) {
-  const block = /\nworkflows:\n((?: {2}.*\n)+)/.exec(text);
+  const block = /\nworkflows:\n((?:(?: {2}.*)?\n)+)/.exec(text);
   if (!block) return ['Add the workflows key to the stack.'];
   const problems = [];
-  for (const line of block[1].split('\n').filter(Boolean)) {
-    const entry = /^ {2}([a-z0-9-]+): \{([^{}]*)\}$/.exec(line);
+  for (const line of block[1].split('\n')) {
+    // A blank line, or a member line of an entry written over several lines.
+    if (!line.trim() || /^ {3}/.test(line)) continue;
+    const entry = /^ {2}([a-z0-9-]+): \{(.*)\}$/.exec(line);
     if (!entry) {
-      problems.push(`Write ${line.trim()} on one line, as <name>: {<key>: <value>, ...}.`);
+      const name = /^ {2}([^:]+)/.exec(line)[1].trim();
+      problems.push(`Write ${name} on one line, as <name>: {<key>: <value>, ...}.`);
       continue;
     }
-    const keys = Object.fromEntries(entry[2].split(',')
-      .map((pair) => pair.split(':').map((part) => part.trim())));
-    if (!TIERS.includes(keys.tier)) {
-      problems.push(`Set the tier of ${entry[1]} to ${TIERS.join(', ')}: it is ${keys.tier || 'missing'}.`);
+    let top = entry[2];
+    while (/\{[^{}]*\}/.test(top)) top = top.replace(/\{[^{}]*\}/g, '');
+    const member = (key) => (new RegExp(`(?:^|[{,]\\s*)${key}: ([^,}\\s]+)`).exec(top) || [])[1];
+    const tier = member('tier');
+    if (!TIERS.includes(tier)) {
+      problems.push(`Set the tier of ${entry[1]} to ${TIERS.slice(0, -1).join(', ')} or ` +
+        `${TIERS.at(-1)}: it is ${tier || 'missing'}.`);
     }
-    if (keys.access === 'write' && keys.plan !== 'build-plan') {
+    if (member('access') === 'write' && member('plan') !== 'build-plan') {
       problems.push(`Add plan: build-plan to ${entry[1]}: its access is write.`);
     }
   }
@@ -137,22 +145,38 @@ test('each workflow of the stack has a tier, and each write workflow the plan bu
     return workflowProblems(text);
   };
   assert.deepEqual(changed('make-mockups: {tier: balanced, ', 'make-mockups: {tier: fast, '),
-    ['Set the tier of make-mockups to light, balanced, thinking: it is fast.']);
+    ['Set the tier of make-mockups to light, balanced or thinking: it is fast.']);
   assert.deepEqual(changed('write-specs: {tier: thinking, ', 'write-specs: {'),
-    ['Set the tier of write-specs to light, balanced, thinking: it is missing.']);
+    ['Set the tier of write-specs to light, balanced or thinking: it is missing.']);
   assert.deepEqual(changed('review-changes: {tier: thinking, access: write, plan: build-plan}',
     'review-changes: {tier: thinking, access: write}'),
   ['Add plan: build-plan to review-changes: its access is write.']);
   assert.deepEqual(changed('shape-a-ticket: {tier: thinking, access: read}',
     'shape-a-ticket:\n    tier: thinking'),
-  ['Write shape-a-ticket: on one line, as <name>: {<key>: <value>, ...}.',
-    'Write tier: thinking on one line, as <name>: {<key>: <value>, ...}.']);
+  ['Write shape-a-ticket on one line, as <name>: {<key>: <value>, ...}.']);
+  // A blank line inside the key, and an entry after it.
+  assert.deepEqual(changed('  review-changes: ', '\n  extra-flow: {access: write}\n  review-changes: '),
+    ['Set the tier of extra-flow to light, balanced or thinking: it is missing.',
+      'Add plan: build-plan to extra-flow: its access is write.']);
+  // A nested value: its members are not the entry's.
+  assert.deepEqual(changed('make-mockups: {tier: balanced, access: read}',
+    'make-mockups: {tier: balanced, access: read, hook_points: {x: {at: end}}}'), []);
+  assert.deepEqual(changed('make-mockups: {tier: balanced, access: read}',
+    'make-mockups: {access: write, hook_points: {x: {tier: light, plan: build-plan}}}'),
+  ['Set the tier of make-mockups to light, balanced or thinking: it is missing.',
+    'Add plan: build-plan to make-mockups: its access is write.']);
   assert.deepEqual(workflowProblems('name: sample\n'), ['Add the workflows key to the stack.']);
 });
 
+// SCOPE_CHECK is the command of the scope check of build-plan under scope_checks in the
+// manifest of software-factory, as a list of words, or null when the manifest has none.
+const SCOPE_CHECK = ((match) => match && match[1].split(',').map((word) => word.trim()))(
+  /\nscope_checks:\n {2}build-plan: \[([^\]\n]*)\]\n/.exec(read(SOFTWARE, 'qory-module.yaml')));
+
 test('software-factory declares the scope check of build-plan, the plan of each write workflow', () => {
-  const manifest = read(SOFTWARE, 'qory-module.yaml');
-  assert.match(manifest, /\nscope_checks:\n {2}build-plan: \[skills\/running-a-software-workflow\/workflow-checks\.cjs, scope, --plan\]\n/);
+  assert.deepEqual(SCOPE_CHECK,
+    ['skills/running-a-software-workflow/workflow-checks.cjs', 'scope', '--plan']);
+  assert.equal(path.join(SOFTWARE, SCOPE_CHECK[0]), PUSH);
   assert.ok(fs.statSync(PUSH).isFile());
 });
 
@@ -823,13 +847,13 @@ test('scope --plan lets a locked check and its helper in when the Files list the
     refused.out);
 });
 
-// scopeCheck runs the scope check of build-plan in a separate node process, with the command
-// of scope_checks in qory-module.yaml and the two arguments that its caller adds:
-// workflow-checks.cjs scope --plan --base <start commit> --artifacts <folder>. With verb, it
-// runs workflow-checks.cjs with those arguments instead.
+// scopeCheck runs the scope check of build-plan in a separate node process: the command of
+// SCOPE_CHECK, from the module's folder, then --base <start commit> and --artifacts <folder>,
+// its last arguments. With verb, it runs the program of the command with those arguments.
 function scopeCheck(w, base, artifacts, ...verb) {
-  const ran = childProcess.spawnSync(process.execPath, [PUSH, ...(verb.length ? verb :
-    ['scope', '--plan', '--base', base, '--artifacts', artifacts])],
+  const [program, ...words] = SCOPE_CHECK;
+  const ran = childProcess.spawnSync(process.execPath, [path.join(SOFTWARE, program),
+    ...(verb.length ? verb : [...words, '--base', base, '--artifacts', artifacts])],
   { cwd: w.repo, env: w.env, encoding: 'utf8' });
   return { status: ran.status, out: ran.stdout + ran.stderr };
 }
