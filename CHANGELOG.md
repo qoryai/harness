@@ -515,9 +515,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory run verdict passed` at its end, and the next workflow of the loop judges the change;
   `running-a-workflow` states this in "The end". An end through "Points" still runs
   `escalate`, and so does `checks.cjs end` with `points.json`, whatever `inputs.json`
-  contains. Every other workflow runs `passed`. `review-changes` follows the same rule. Not
-  built yet in qory: `qory.workflow.judges` in `inputs.json`, so a session of
-  `implement-changes` runs `qory run verdict passed` until qory writes it.
+  contains. Every other workflow runs `passed`. Not built yet in qory:
+  `qory.workflow.judges` in `inputs.json`, so a session of `implement-changes` runs
+  `qory run verdict passed` until qory writes it.
 - The tool guard limits the main session of a reviewer of a change. When the `inputs.json`
   that qory writes at `$QORY_HARNESS_HOME` has the member `qory.review`, the session writes
   at one path, `qory.review.report`, with a `Write`, and no other file: not `points.json`, a

@@ -365,9 +365,8 @@ workflows:
   4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
      again and pushes again, at most twice more. When the push is still refused, it runs
      `report-build --drop` first and then ends.
-  5. It ends ready with `qory run verdict passed`, or with no verdict command when
-     `qory.workflow.judges` in `inputs.json` is `false`, as "The end" of
-     `running-a-workflow` lists.
+  5. It ends ready: in a stage that has reviewers, qory then runs the review round, and in
+     a stage with none, the run ends with `qory run verdict passed`.
 
   The ends of steps 1 to 4 run no `qory run verdict passed`.
 - `checking-code`: load it before you review the code of a change, after
