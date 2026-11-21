@@ -6907,8 +6907,10 @@ test('end: the third failed check writes points.json and records the verdict esc
 
 // workflowInputs returns the path of an inputs.json that qory wrote, with the member
 // qory.workflow of workflow, as given.
-// shortcut: qory writes no qory.workflow.judges yet, so a session runs passed; remove when qory
-// writes it.
+// shortcut: qory writes no qory.workflow.judges yet, so a session runs passed. The note covers
+// the sentence on qory.workflow.judges in "The end" of running-a-workflow/SKILL.md. When qory
+// writes the member, remove this note and the CHANGELOG line "Not built yet in qory:
+// `qory.workflow.judges` in `inputs.json`".
 function workflowInputs(workflow) {
   const file = path.join(tmp, `inputs-${++folders}.json`);
   fs.writeFileSync(file, JSON.stringify({ qory: { workflow, harness_extensions: {} } }));

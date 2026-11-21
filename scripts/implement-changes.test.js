@@ -90,7 +90,8 @@ test('the session starts the developer twice and the debugger once per step, the
   const failed = section(WORKFLOW, 'A step that fails');
   contains(failed, 'The row of the step stays `failed`, so its deliverable or finding stays ' +
     'open in the build ledger and in the build report. Then do "The submission". When a case ' +
-    'of it ends the run, end as that case lists. Otherwise write no `points.json`, run no ' +
+    'of "The submission" ends the run, end as that case lists. Otherwise write no ' +
+    '`points.json`, run no ' +
     'verdict command, and do no later step. `review-changes` runs next and reports the open ' +
     'step as ' +
     '`blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member.');
@@ -153,7 +154,21 @@ test('the session writes the text of the change after the last step, and not on 
     '`build-report.md` in `<folder>` and the hand-off file at the value of ' +
       '`QORY_SUBMISSION_HANDOFF`',
     'With exit 1, a rule of the text broke.', 'at most twice',
-    'With exit 2, 3 or 4, end as "Failures" lists for the checks script.');
+    'With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is ' +
+      '"the build report".');
+  // The skip list, and the two ends that "The submission" writes.
+  contains(submission, 'Do this section after the last step: at "The end", and in "A step ' +
+    'that fails". A stop on the build plan, a work item with no build plan, a withdrawal that ' +
+    'fails and an end as "Failures" lists skip it.');
+  contains(submission, 'With 0, go back to "The end" or "A step that fails", whichever ' +
+    'started this section.');
+  contains(submission, 'with one `run_again` point: "The change is not ready, because the ' +
+    'description of the change still breaks the rules for it."');
+  // The steps committed, so a failure of the writer says that qory pushes them with no text.
+  contains(submission, 'in place of the line of its case "Any other case", use "The run wrote ' +
+    'no text of the change, because <the cause>, so qory pushes the commits of the steps ' +
+    'without it."');
+  assert.doesNotMatch(oneLine(submission), /pushed no change/);
   contains(section(WORKFLOW, 'The end'), 'When every step ended done or replayed, do "The ' +
     'submission", then "The end" of `running-a-workflow`.');
   inOrder(section(WORKFLOW, 'A step that fails'), 'Run `step end <id> failed',

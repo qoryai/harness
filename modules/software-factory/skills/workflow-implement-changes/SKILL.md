@@ -169,7 +169,8 @@ The targeted checks of a step:
 Run `step end <id> failed --report <file>`, with the newest report of the debugger and the
 three `--attempt` lines. The row of the step stays `failed`, so its deliverable or finding
 stays open in the build ledger and in the build report. Then do "The submission". When a
-case of it ends the run, end as that case lists. Otherwise write no `points.json`, run no
+case of "The submission" ends the run, end as that case lists. Otherwise write no
+`points.json`, run no
 verdict command, and do no later step. `review-changes` runs next and reports the open
 step as `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. End
 with "The run stopped, because the checks still fail after 3 changes to <the step>."
@@ -214,19 +215,23 @@ lists skip it.
    `<folder>/.reports/submission-writer-1.md` and check it, as "Check each report" lists.
    A runtime with no tool that starts an agent, a start that fails, a report that still
    fails its check after two fixes and a report whose last word is `blocked` end the run as
-   "Failures" of `running-a-workflow` lists, where the work is "The text of the change".
+   "Failures" of `running-a-workflow` lists. Every step before committed its change, and
+   qory pushes those commits, so in place of the line of its case "Any other case", use
+   "The run wrote no text of the change, because <the cause>, so qory pushes the commits of
+   the steps without it."
 2. Run `<skill folder>/checks.cjs report-build --inputs <inputs>`. It writes
    `build-report.md` in `<folder>` and the hand-off file at the value of
    `QORY_SUBMISSION_HANDOFF`, which qory's submit step reads. On each non-zero exit it
    removes an earlier hand-off file.
-   - With 0, go on with the section that sent you here.
+   - With 0, go back to "The end" or "A step that fails", whichever started this section.
    - With exit 1, a rule of the text broke. Start ${qory:agents/submission-writer} again
      with each line that `report-build` printed quoted, at most twice, check its report as
      step 1 lists, and run `report-build` again after each start. When it still exits with
      1 after the second start, end as "Points" of `running-a-workflow` lists, with one
      `run_again` point: "The change is not ready, because the description of the change
      still breaks the rules for it." Print the first line of `report-build` in your output.
-   - With exit 2, 3 or 4, end as "Failures" lists for the checks script.
+   - With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is
+     "the build report".
 
 ## The end
 

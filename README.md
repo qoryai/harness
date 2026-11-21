@@ -337,7 +337,8 @@ workflows:
   demo script of each removed demo scenario. After the last step, and after a step that
   fails, it starts `submission-writer` and runs `checks.cjs report-build`, which writes
   `build-report.md` and the hand-off file. Its stack entry sets `judges: false`, so it ends
-  with no verdict command, and `review-changes` runs next.
+  with no verdict command once qory writes `qory.workflow.judges` (see the `shortcut:` note
+  in `scripts/checks.test.js`), and `review-changes` runs next.
 - `changing-code`: load it before you change code for one step of a build. The skill
   contains the step you get, the paths you may change, the tests of the change, the checks
   you run and the list `Left out:` of the report.
