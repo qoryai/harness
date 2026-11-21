@@ -3098,6 +3098,29 @@ test('report-build: with QORY_SUBMISSION_HANDOFF unset, it writes no hand-off fi
   assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/build-report.md')), true);
 });
 
+test('report-build --out writes build-report.md only into that folder, and keeps the hand-off', () => {
+  const { dir } = buildRepo();
+  const file = handoffPath(dir);
+  assert.equal(call(dir, ['report-build'], withHandoff(file)).status, 0);
+  const before = fs.readFileSync(file, 'utf8');
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'report-out-'));
+  const got = call(dir, ['report-build', '--out', out], withHandoff(file));
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(got.lines.at(-1), `Wrote ${path.join(out, 'build-report.md')}, and no hand-off file.`);
+  assert.equal(fs.readFileSync(path.join(out, 'build-report.md'), 'utf8'), reportOf(dir));
+  assert.deepEqual(fs.readdirSync(out), ['build-report.md']);
+  // A failure with --out leaves the earlier hand-off as it is.
+  assert.equal(call(dir, ['report-build', '--out', path.join(out, 'none')], withHandoff(file))
+    .status, 3);
+  assert.equal(call(dir, ['report-build', '--out'], withHandoff(file)).status, 2);
+  assert.equal(fs.readFileSync(file, 'utf8'), before);
+  // A relative folder and a link are refused.
+  assert.equal(call(dir, ['report-build', '--out', 'relative'], withHandoff(file)).status, 3);
+  const link = `${out}-link`;
+  fs.symlinkSync(out, link);
+  assert.equal(call(dir, ['report-build', '--out', link], withHandoff(file)).status, 3);
+});
+
 test('report-build: a title with a tab, a description with no ## Disclosed, a secret and a missing text write no file, and remove an earlier hand-off', () => {
   const { dir } = buildRepo();
   const file = handoffPath(dir);
