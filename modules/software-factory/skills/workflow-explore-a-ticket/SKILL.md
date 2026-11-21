@@ -263,14 +263,14 @@ work item waits for a member, who can start the run again.
   the destinations, as the section "Destinations" lists: the first line that the second
   call printed, unchanged, such as "Give only ids from destinations in the inputs:
   tg_8k2m4n6p8q0r2s4t is not one of them."
-- `<qory> destination clone` fails twice in a row, as the section "Destinations" lists:
-  the error line of the second call, the line that starts with `✗ `, without that mark and
+- `<qory> destination clone` fails twice in a row, as the section "Destinations" lists: the
+  error line of the second call, the line that starts with `✗ `, without that mark and
   otherwise unchanged, such as "Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary:
   the host returned 403 to the clone." When `check points` exits with 1 on that line, such
   as on the line on malformed destinations, which names a file, write in its place "Report
-  this run to the instance admin of Qory Apiary: the destinations in this run's inputs are
-  malformed." This line and the line of the checks script are the two lines of this list
-  that start with a step, because qory or the script wrote them.
+  this run to the instance admin of Qory Apiary: copying the destinations failed twice."
+  This line and the line of the checks script are the two lines of this list that start with
+  a step, because qory or the script wrote them.
 - A start fails: "The run could not start <the work>, so it pushed no proposal." The work
   is what the agent does, in plain words, such as "the review of the proposal".
 - The proposal still fails the checks of the proposal before a review after the proposal

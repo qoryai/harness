@@ -837,8 +837,8 @@ const CLONE_ERRORS = [
 ];
 
 // The point of a line of the copy that check points refuses.
-const CLONE_FALLBACK = 'Report this run to the instance admin of Qory Apiary: the ' +
-  "destinations in this run's inputs are malformed.";
+const CLONE_FALLBACK = 'Report this run to the instance admin of Qory Apiary: copying the ' +
+  'destinations failed twice.';
 
 // The report of the code explorer's first start in Explore, which names one destination.
 const PICKED = 'What you searched:\n- nothing: the question names the destinations\n\n' +
