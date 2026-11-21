@@ -3448,10 +3448,9 @@ test('the schema loader writes out a $ref to the $id of another file of its fold
 // The schema files and the json_schema blocks of process.yaml hold no control character after
 // they are decoded, but tab, line feed and carriage return: Apiary's reader refuses a file with
 // one, so each range is a regex escape (\x00-\x1f) in the text, which JavaScript with the u
-// flag, PCRE and Go RE2 all read. The two files below are byte copies of qory's contracts; they
-// still write the ranges as \u escapes until qory's copies change.
+// flag, PCRE and Go RE2 all read. This includes primitives, verification and acceptance-criteria,
+// the byte copies of qory's contracts.
 test('no schema decodes to a control character, but tab, line feed and carriage return', () => {
-  const COPIES = ['acceptance-criteria.schema.json', 'verification.schema.json'];
   const CONTROL = /[\p{Cc}]/u;
   const hold = (node) => {
     if (typeof node === 'string') {
@@ -3461,9 +3460,8 @@ test('no schema decodes to a control character, but tab, line feed and carriage 
     return Object.entries(node).flatMap(([key, value]) => [...hold(key), ...hold(value)]);
   };
   const files = [...fs.readdirSync(path.join(SKILL, 'schemas')).map((name) => `schemas/${name}`),
-    'extensions.schema.json'].filter((name) => name.endsWith('.json') &&
-      !COPIES.some((copy) => name.endsWith(copy)));
-  assert.equal(files.length, 7, files.join(' '));
+    'extensions.schema.json'].filter((name) => name.endsWith('.json'));
+  assert.equal(files.length, 9, files.join(' '));
   for (const name of files) {
     const doc = JSON.parse(fs.readFileSync(path.join(SKILL, name), 'utf8'));
     assert.deepEqual(hold(doc), [], name);
