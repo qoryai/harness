@@ -4717,8 +4717,9 @@ test('report: each agent of the modules has a shape that the script reads', () =
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
     assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
-  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
-    'security-reviewer, data-reviewer and failure-reviewer');
+  assert.equal(reviewers, 8, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
+    'security-reviewer, data-reviewer, failure-reviewer, tamper-reviewer and ' +
+    'verification-reviewer');
 });
 
 // ---- Time and size ------------------------------------------------------------------------
