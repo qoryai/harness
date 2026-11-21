@@ -130,10 +130,9 @@ that name: its missing report counts in "The round".
 
 Pass each reviewer the path of the input file, `<inputs>`, and nothing else. Each reviewer
 reads every value of the review from `qory.review_session` of the input file, which qory
-writes: the commit, the diff, the open findings, `<reports>` and `<suite>`. It writes
-`<reports>/<agent>.json`, such as `<reports>/code-reviewer.json`, as `judging-findings`
-lists. Read no report of a reviewer, start no reviewer again, and fix no report: "The round"
-decides.
+writes: the commit, the diff, the earlier findings, `<reports>` and `<suite>`. It writes
+`<reports>/<agent>.json`, such as `<reports>/code-reviewer.json`. Read no report of a
+reviewer, start no reviewer again, and fix no report: "The round" decides.
 
 ## The round
 

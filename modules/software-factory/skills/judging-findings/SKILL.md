@@ -37,7 +37,8 @@ with Read.
 The values:
 
 - `commit`: a fresh copy of the change at the frozen state, read-only. Review this copy. In
-  a review session, it is the pushed head of the fresh copy.
+  a review session, `commit` is the pushed head of the fresh copy, and the working folder
+  is that copy: review the working folder.
 - `diff`: the lines that the change adds and removes, from the state before it to the
   frozen state.
 - `suite_result`: the result of the full suite on the frozen state, as JSON.
