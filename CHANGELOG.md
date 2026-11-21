@@ -23,25 +23,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   repositories. `workflow-checks.cjs` runs `scope` as it runs `push`, and exits 2 on any
   other verb. `.github/workflows/check.yml` builds qory at `afee80c`, the merge of
   qoryai/qory#136, which reads `plan` and `scope_checks`, in place of `0e02282`.
-- The workflow `implement-changes`, with `tier: balanced`, `access: write` and
-  `plan: build-plan` in the `software` stack. Its session builds each planned change of the
-  build plan that the build ledger does not list as done, in the order of the plan, then
-  fixes each open finding: the findings of the review round, the `blocking` ones first, and,
-  after Verify returned the work item, each `not_met` row of the verification and each
+- The workflow `implement-changes`, with `tier: balanced`, `access: write`,
+  `plan: build-plan` and `judges: false` in the `software` stack. Its session builds each
+  planned change of the build plan that the build ledger does not list as done, in the order
+  of the plan, then fixes each open finding: the findings of `open-findings.json` in the
+  inputs folder, which qory writes from the last round of review, the `blocking` ones first,
+  and, after Verify returned the work item, each `not_met` row of the verification and each
   point of the verdict that `work-item show` lists in `inputs` with `"from": "return"`,
   numbered `f<N>` after the highest id of the review. Each is one step of the build ledger,
   `deliverable:d-<N>` or `fix:f<N>`. A step starts `software-developer` at most twice and
   `software-debugger` once; after each start, the session runs `scope`, `run lint`,
   `run types`, `run build` and the targeted checks of the step, and with every check green,
   `freeze` commits the step and `step end done` records it. After a third red attempt,
-  `step end failed` records the step with its 3 attempts, and the session ends with no
-  point, so the next round of Build starts the step again. A writer's line
-  `Blocked: needs a change to the build plan: <the change>` ends the session with one
-  `answer` point, and `checks.cjs report` accepts that line. Before the steps, the session
-  withdraws the demo script of each demo scenario that a rework of Shape removed, with
-  `qory artifact push demo-script --name <scenario> --withdraw`. The session runs no
-  verdict command in a stage that has reviewers, as `running-a-workflow` lists, and starts
-  no reviewer.
+  `step end failed` records the step with its 3 attempts, so it stays open in the build
+  ledger and the build report, and the session ends with no point and starts no later
+  step. A writer's line `Blocked: needs a change to the build plan: <the change>` ends the
+  session with one `answer` point, and `checks.cjs report` accepts that line; any other
+  `blocked` report ends the run as "Failures" of `running-a-workflow` lists. Before the
+  steps, the session withdraws the demo script of each demo scenario that a rework of Shape
+  removed, approved ones too, with
+  `qory artifact push demo-script --name <scenario> --withdraw`. It skips a name with no
+  version outside cancelled runs, one already withdrawn and one that a member uploaded, and
+  writes "<scenario>: removed by Shape, still on the gate" for each such upload and each
+  withdrawal that exits with 4. The session starts no reviewer.
 - The agents `software-developer` and `software-debugger`, which fill the roles `developer`
   and `debugger` of `software-factory`, and the skills `changing-code`,
   `debugging-failures` and `making-small-changes`. `making-small-changes` has nine rules for
@@ -991,6 +995,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The verdict at the end of a session follows `qory.workflow.judges` of `inputs.json`, in
+  place of `qory.stage.reviewers`, which qory no longer writes. A workflow whose stack entry
+  sets `judges: false` runs no `qory run verdict passed` at its end, and the next workflow of
+  the loop judges the change. An end through "Points" still runs `escalate`, and so does the
+  end check of `checks.cjs end` with `points.json`, whatever `inputs.json` contains. Every
+  other workflow runs `passed`, as before. `review-changes` follows the same rule.
 - The standard type `explainer` of `software-factory` is called `walkthrough`: its entry
   in `artifact_types` of `process.yaml`, its push check in `qory-module.yaml`, and its file
   `walkthrough.md`. The check reads the same sections as before. Before, the type and its

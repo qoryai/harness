@@ -1,6 +1,6 @@
 ---
 name: workflow-review-changes
-description: Check a Build run: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, write the submission text, and end ready, for the review round when the stage has reviewers. Use in a headless run of the workflow review-changes.
+description: Check a Build run: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, write the submission text, and end ready for the review round. Use in a headless run of the workflow review-changes.
 ---
 
 # Review changes
@@ -9,8 +9,8 @@ This workflow requires subagents. At the end of a run whose checks all passed, t
 session starts ${qory:agents/submission-writer}. After the session, qory starts the three
 reviewers.
 
-When the session ends ready in a stage that has reviewers, qory runs the review round: it
-starts ${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and
+When qory runs the review round after the session ends ready, it starts
+${qory:agents/code-reviewer}, ${qory:agents/test-reviewer} and
 ${qory:agents/acceptance-reviewer}, each as a separate session. The session starts none of
 them, and writes and reads no report of theirs.
 
@@ -111,9 +111,8 @@ Then decide, in this order, and go no further when a case ends the run:
 
 Write no `points.json`, because qory sends `escalate` or `answer` from that file after the
 session ends. Run `<qory> run verdict changes-requested` with no point, and end with the
-line that the case lists. The next Build session then builds what is missing. In a stage
-that has reviewers, the command fails until Q-35b. When the command fails, end with the
-same line, and the run ends with no verdict.
+line that the case lists. The next Build session then builds what is missing. When the
+command fails, end with the same line, and the run ends with no verdict.
 
 ## The end
 
@@ -164,18 +163,11 @@ reviewers of the next round get them. Then, in this order:
    build report." as "Points" of `running-a-workflow` lists. When `--drop` exits with 3,
    end as "Failures" lists for the checks script instead. No agent wrote the file, so
    start no agent to fix it.
-5. Handle the verdict:
-   - In a stage that has reviewers, as "Open findings of a review" of `running-a-workflow`
-     lists, run no verdict command, so that qory runs the review round after the session
-     ends.
-   - In a stage with no reviewers, such as when the input file has no
-     `qory.stage.reviewers`, run `<qory> run verdict passed`, as "The end" of
-     `running-a-workflow` lists. When the command fails, the run ends with no verdict.
+5. Run `<qory> run verdict passed`, or no verdict command when `qory.workflow.judges` is
+   `false`, as "The end" of `running-a-workflow` lists. When the command fails, the run ends
+   with no verdict. End with "The change is ready: each planned change is built."
 
-   In both cases, end with "The change is ready: each planned change is built."
-
-The ends of steps 1 to 4 run no `<qory> run verdict passed`, whether or not the stage has
-reviewers.
+The ends of steps 1 to 4 run no `<qory> run verdict passed`.
 
 ## Failures
 

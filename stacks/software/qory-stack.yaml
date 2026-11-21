@@ -13,7 +13,7 @@ workflows:
   shape-a-ticket: {tier: thinking, access: read}
   plan-the-build: {tier: thinking, access: write, plan: build-plan}
   write-acceptance-checks: {tier: balanced, access: write, plan: build-plan}
-  implement-changes: {tier: balanced, access: write, plan: build-plan}
+  implement-changes: {tier: balanced, access: write, plan: build-plan, judges: false}
   review-changes: {tier: thinking, access: write, plan: build-plan}
 extending:
   kinds: [skills, agents, commands, output-styles]

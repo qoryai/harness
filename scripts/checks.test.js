@@ -3968,8 +3968,14 @@ test('report: a writer of a build step stops with a change to the build plan', (
 test('making-small-changes: each writer of code and each code reviewer loads it', () => {
   const agentText = (name) => fs.readFileSync(path.join(MODULES, 'software-factory', 'agents',
     `${name}.md`), 'utf8');
-  for (const [name, moment] of [['software-developer', 'before you change code'],
-    ['software-debugger', 'before you change code'], ['code-reviewer', 'before you write a finding'],
+  // A writer of code is each agent of software-factory that loads changing-code; the code
+  // reviewers are those that the card names.
+  const writers = fs.readdirSync(path.join(MODULES, 'software-factory', 'agents'))
+    .map((file) => file.replace(/\.md$/, ''))
+    .filter((name) => agentText(name).includes('${qory:skills/changing-code}'));
+  assert.deepEqual(writers.sort(), ['software-debugger', 'software-developer']);
+  for (const [name, moment] of [...writers.map((one) => [one, 'before you change code']),
+    ['code-reviewer', 'before you write a finding'],
     ['acceptance-reviewer', 'before you write a finding']]) {
     assert.ok(agentText(name).includes(`\n- \${qory:skills/making-small-changes}, ${moment}:`),
       `${name} does not load making-small-changes ${moment}`);
@@ -6899,11 +6905,11 @@ test('end: the third failed check writes points.json and records the verdict esc
   assert.match(end(root, env).lines.at(-1), /^Checked points\.json: the run ended with it, and qory run verdict/);
 });
 
-// stageInputs returns the path of an inputs.json that qory wrote, with the member qory.stage of
-// stage, as given.
-function stageInputs(stage) {
+// workflowInputs returns the path of an inputs.json that qory wrote, with the member
+// qory.workflow of workflow, as given.
+function workflowInputs(workflow) {
   const file = path.join(tmp, `inputs-${++folders}.json`);
-  fs.writeFileSync(file, JSON.stringify({ qory: { stage, harness_extensions: {} } }));
+  fs.writeFileSync(file, JSON.stringify({ qory: { workflow, harness_extensions: {} } }));
   return file;
 }
 
@@ -6923,95 +6929,62 @@ function endThrice(inputs) {
   return { third: run(), args, root, run };
 }
 
-test('end: in a stage with reviewers the third failed check writes points.json and runs no verdict', () => {
-  for (const reviewers of ['reviewers', true]) {
-    const { third, args, root } = endThrice(stageInputs({ reviewers }));
-    passes(third);
-    assert.match(third.lines.at(-1), /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and no verdict command runs, because the stage has reviewers\.$/);
-    assert.deepEqual(verdicts(args), []);
-    const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
-    assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
-    passes(check(root, 'points', path.join(root, 'points.json')));
-  }
-});
-
-test('end: in a stage with reviewers the first checks say that the run ends with points', () => {
-  const root = fixture(['spec.md', '## Background', '## Context']);
-  started(root, { 'write-specs-1-spec-reviewer': 1 });
-  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
-  const result = call({ cwd: tmp, plugin: PLUGIN, env: RUN_ENV },
-    ['end', root, '--inputs', stageInputs({ reviewers: 'reviewers' })]);
-  assert.equal(result.status, 1);
-  assert.match(result.lines.at(-1), /At check 3, the run ends with points\.$/);
-  const plain = end(root);
-  assert.match(plain.lines.at(-1), /At check 3, the run ends with the verdict escalate\.$/);
-});
-
-test('end: a session that is ready in a stage with reviewers exits 0 and runs no verdict', () => {
+test('end: a workflow with judges false that ends with an answer point runs escalate', () => {
   const root = fixture();
+  started(root, {});
+  write(root, 'points.json', [{ text: 'The proposal does not say who sees the new price.',
+    action: 'answer', question: 'q3' }]);
+  older(root);
   const { args, env } = stub();
   const result = call({ cwd: tmp, plugin: PLUGIN, env },
-    ['end', root, '--inputs', stageInputs({ reviewers: 'reviewers' })]);
+    ['end', root, '--inputs', workflowInputs({ judges: false })]);
   passes(result);
+  assert.match(result.lines.at(-1), /^Checked points\.json: the run ended with it, and qory run verdict escalate exited with 0/);
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
+});
+
+test('end: a ready session of a workflow with judges false gets no verdict command', () => {
+  const root = fixture();
+  const { args, env } = stub();
+  passes(call({ cwd: tmp, plugin: PLUGIN, env },
+    ['end', root, '--inputs', workflowInputs({ judges: false })]));
   assert.deepEqual(verdicts(args), []);
 });
 
-test('end: an end through points.json in a stage with reviewers runs no verdict on the next check', () => {
-  const inputs = stageInputs({ reviewers: 'reviewers' });
-  const { run, args, root } = endThrice(inputs);
-  assert.equal(run().status, 0);
-  assert.equal(fs.existsSync(path.join(root, 'points.json')), true);
-  const again = run();
-  assert.match(again.lines.at(-1), /^Checked points\.json: the run ended with it, and no verdict command runs, because the stage has reviewers/);
-  assert.deepEqual(verdicts(args), []);
-});
-
-// linked returns the path of a link to an inputs.json that has the flag, and padded the path of
-// a regular file over 1 MB that has it: end reads neither.
-function linked() {
-  const real = stageInputs({ reviewers: 'reviewers' });
-  const link = path.join(tmp, `inputs-${++folders}.json`);
-  fs.symlinkSync(real, link);
-  return link;
-}
-function padded() {
-  const file = path.join(tmp, `inputs-${++folders}.json`);
-  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'reviewers' } },
-    pad: 'a'.repeat(1024 * 1024) }));
-  return file;
-}
-
-test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs', () => {
-  // The flag is read from qory's inputs.json only: a member reviewers of index.json, which an
-  // agent can write, a flag of another form, or an inputs.json that cannot be read changes
-  // nothing.
+test('end: the third failed check runs the verdict escalate, whatever qory.workflow is', () => {
   const bad = path.join(tmp, `inputs-${++folders}.json`);
   fs.writeFileSync(bad, 'not json');
-  const forged = (root) => fs.writeFileSync(path.join(root, 'index.json'),
-    JSON.stringify({ artifacts: [], stage: { reviewers: 'reviewers' } }));
-  for (const inputs of [null, stageInputs({}), stageInputs({ reviewers: false }),
-    stageInputs({ reviewers: '' }), stageInputs({ reviewers: 1 }), stageInputs({ reviewers: ['a'] }),
-    stageInputs(null), bad, path.join(tmp, 'no-inputs.json'),
-    ...['false', 'no', '0', 'null', 'off', 'none', 'Reviewers', 'a b', 'x'.repeat(65), '-a']
-      .map((reviewers) => stageInputs({ reviewers })), linked(), padded()]) {
+  for (const inputs of [null, workflowInputs({ judges: false }), workflowInputs({ judges: true }),
+    workflowInputs({}), bad, path.join(tmp, 'no-inputs.json')]) {
     const { third, args, root } = endThrice(inputs);
-    forged(root);
     passes(third);
-    assert.match(third.lines.at(-1), /, and qory run verdict escalate exited with 0: Recorded/);
+    assert.match(third.lines.at(-1), /; check 3 of 3, so the run ends: wrote [0-9]+ points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
     assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`],
       String(inputs));
   }
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const first = call({ cwd: tmp, plugin: PLUGIN, env: RUN_ENV },
+    ['end', root, '--inputs', workflowInputs({ judges: false })]);
+  assert.equal(first.status, 1);
+  assert.match(first.lines.at(-1), /At check 3, the run ends with the verdict escalate\.$/);
 });
 
-test('end: an inputs.json of exactly 1 MB with the flag counts, and a role name of 64 characters', () => {
-  const file = path.join(tmp, `inputs-${++folders}.json`);
-  const head = JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } }, pad: '' });
-  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } },
-    pad: 'b'.repeat(1024 * 1024 - head.length) }));
-  assert.equal(fs.statSync(file).size, 1024 * 1024);
-  const { third, args } = endThrice(file);
-  passes(third);
-  assert.deepEqual(verdicts(args), []);
+test('The end: a workflow runs verdict passed, unless qory.workflow.judges is false', () => {
+  const text = fs.readFileSync(path.join(MODULES, 'core/skills/running-a-workflow/SKILL.md'),
+    'utf8').replace(/\s+/g, ' ');
+  assert.ok(text.includes('When the run is alone and no case in this skill ended it, run ' +
+    '`<qory> run verdict passed`, with questions open or not. When `qory.workflow.judges` of ' +
+    '`inputs.json`, the inputs file whose path the prompt contains, is `false`, run no verdict ' +
+    'command: the stack\'s entry of the workflow sets `judges: false`, and the next workflow of ' +
+    'the loop judges the change. A case of "Points" still runs its `escalate` there.'));
+  assert.doesNotMatch(text, /stage\.reviewers|stage that has reviewers/);
+  const review = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-review-changes/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.ok(review.includes('5. Run `<qory> run verdict passed`, or no verdict command when ' +
+    '`qory.workflow.judges` is `false`, as "The end" of `running-a-workflow` lists.'));
+  assert.doesNotMatch(review, /stage\.reviewers|has reviewers/);
 });
 
 test('end: an end.json that cannot be read counts as the last check', () => {

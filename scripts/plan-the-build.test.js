@@ -98,9 +98,10 @@ test('the stack declares plan-the-build with the tier thinking, the access write
 const TIERS = ['light', 'balanced', 'thinking'];
 
 // workflowProblems returns a line for each workflow of the stack text whose tier is not one of
-// TIERS, and for each workflow with access write and no `plan: build-plan`. Each entry of the
-// workflows key is one line with a flow mapping: an entry in another form is a line too, on
-// its first line. A blank line inside the key ends no entry. tier, access and plan count only
+// TIERS, for each workflow with access write and no `plan: build-plan`, and for each workflow
+// whose judges is neither true nor false. Each entry of the workflows key is one line with a
+// flow mapping: an entry in another form is a line too, on its first line. A blank line
+// inside the key ends no entry. tier, access, plan and judges count only
 // at the top of the entry's mapping, not inside a nested value such as hook_points.
 function workflowProblems(text) {
   const block = /\nworkflows:\n((?:(?: {2}.*)?\n)+)/.exec(text);
@@ -125,6 +126,10 @@ function workflowProblems(text) {
     }
     if (member('access') === 'write' && member('plan') !== 'build-plan') {
       problems.push(`Add plan: build-plan to ${entry[1]}: its access is write.`);
+    }
+    const judges = member('judges');
+    if (judges !== undefined && judges !== 'true' && judges !== 'false') {
+      problems.push(`Set judges of ${entry[1]} to true or false: it is ${judges}.`);
     }
   }
   return problems;
@@ -165,6 +170,11 @@ test('each workflow of the stack has a tier, and each write workflow the plan bu
     'make-mockups: {access: write, hook_points: {x: {tier: light, plan: build-plan}}}'),
   ['Set the tier of make-mockups to light, balanced or thinking: it is missing.',
     'Add plan: build-plan to make-mockups: its access is write.']);
+  // judges is true or false; implement-changes records no verdict, so it is false there.
+  assert.match(stack, /\n {2}implement-changes: \{[^\n]*, judges: false\}\n/);
+  assert.deepEqual(changed('judges: false}', 'judges: true}'), []);
+  assert.deepEqual(changed('judges: false}', 'judges: no}'),
+    ['Set judges of implement-changes to true or false: it is no.']);
   assert.deepEqual(workflowProblems('name: sample\n'), ['Add the workflows key to the stack.']);
 });
 

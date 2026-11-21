@@ -28,8 +28,8 @@ those of `changing-code`.
 3. Read the code that the failed test calls, and the code of the last changes. State the
    cause as one sentence that a reader can check against a file and line, such as "The
    export joins the lines with `\r\n`, and the test splits on `\n` (`src/orders.cjs:12`)."
-4. When two causes are possible, add one assert or a test that tells them apart, and run
-   it. Keep that test only when it checks a branch of the change.
+4. When two causes are possible, add one assert or a test whose result differs between
+   them, and run it. Keep that test only when it checks a branch of the change.
 
 Do not change a test so that it passes: a test changes only when the test is wrong, and the
 line `Cause:` states why. Never change a locked check.

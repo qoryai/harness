@@ -11,7 +11,8 @@ This workflow requires subagents.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<workflow>` is
   `implement-changes`, and `<output>` is the code change, which the session commits step by
   step and qory pushes after the session. In the lines of its section "Failures",
-  `<output>` stands for "change of the step".
+  `<output>` stands for "change": such a line means that the step it ends committed no
+  change. Each step that ended done before keeps its commit, and qory pushes it.
 - ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
   `running-a-workflow`.
 
@@ -21,8 +22,9 @@ not load the rules it needs, so it changed no code."
 
 Each command of this skill that starts with `<skill folder>/checks.cjs` is the checks script
 of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
-ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull prints, and
-`<start>` is the folder in `qory.start_artifacts` of the input file. Give each Bash call of
+ends in `/in/inputs.json`, and `<in>` is the folder of that file. `<folder>` is the
+artifact folder that the pull prints, and `<start>` is the folder in
+`qory.start_artifacts` of the input file. Give each Bash call of
 `run` the timeout 3600000 ms, and run no other command in the same call.
 
 The developer is ${qory:agents/developer}, and the debugger is ${qory:agents/debugger}. In
@@ -34,12 +36,12 @@ start.
 1. Pull, then run `<qory> work-item show`. Besides the members that "What you do" of
    `running-a-workflow` lists, take each entry of `inputs` whose `from` is `return`: the
    newest `verdict` and `verification` of Verify, after Verify returned the work item to
-   Build. Then run `<skill folder>/checks.cjs resume` once, as "The build ledger" of
-   `running-a-software-workflow` lists.
+   Build. Run the `find` of "Further repositories" of `running-a-software-workflow`. Then
+   run `<skill folder>/checks.cjs resume` once, as "The build ledger" of that skill lists.
 2. Read the build plan that the run started with: take `<N>`, the `newest_version` of
    `build-plan` in `<start>/index.json`, and read
-   `<start>/build-plan/main/v<N>/build-plan.md` with a read form of `run-artifacts`. Take the
-   Id, Change, Criteria, Files and Check cells of each row of `## Deliverables`. When
+   `<start>/build-plan/main/v<N>/build-plan.md` with a read form of `run-artifacts`. Take
+   the Id, Change, Criteria, Files and Check cells of each row of `## Deliverables`. When
    `<start>/index.json` lists no version of `build-plan`, start no agent, push nothing, and
    end as "Points" lists, with one `run_again` point. Its text is "The work item has no
    build plan, so the run changed no code." and its `fix` is "Plan the build, so that a run
@@ -57,21 +59,25 @@ start.
 
 Read each fact with the file tool of your runtime or a read form of `run-artifacts`.
 
-- **Built:** a deliverable `d-<N>` is built when `<folder>/.reports/build-ledger.json`, which
-  `resume` writes, has a row in `steps` with the `id` `deliverable:d-<N>`, and the row of
-  that id with the highest `pass` has the `state` `done`. With no such file, no deliverable
-  is built.
-- **Locked checks:** take `<L>`, the `newest_version` of `acceptance-lock` in
-  `<folder>/index.json`, and read `<folder>/acceptance-lock/main/v<L>/acceptance-lock.json`.
-  Each entry of its `checks` is a locked check, with its `criterion` and its `path`. With no
-  version, no check is locked.
+- **Built:** a deliverable `d-<N>` is built when `<folder>/.reports/build-ledger.json`,
+  which `resume` writes, has a row in `steps` with the `id` `deliverable:d-<N>`, and the row
+  of that id with the highest `pass` has the `state` `done`. With no such file, no
+  deliverable is built.
+- **Locked checks:** take `<L>`, the largest `number` of the versions of `acceptance-lock`
+  in `<folder>/index.json` with no `cancelled` set to `true`: the lock that no cancelled run
+  wrote, which `run locked` reads. Read
+  `<folder>/acceptance-lock/main/v<L>/acceptance-lock.json`. Each entry of its `checks` is a
+  locked check, with its `criterion` and its `path`. With no such version, no check is
+  locked.
 - **Check paths:** a Check cell is a check path when it is a relative path with no space and
   no `.` or `..` part, whose file name has an extension, such as `tests/export.test.ts`;
   `n/a`, `none`, `-`, `TBD` and a scenario id are none.
-- **Findings of the review:** when the prompt contains the path of `open-findings.json`, run
-  `findings open <file>` on it, as "Open findings of a review" of `running-a-workflow`
-  lists. Each line `Fix first: <id> (<severity>, <file>:<line>): <point>` is one finding,
-  with that id. With more than 200, read the rest from the file.
+- **Findings of the review:** qory writes `<in>/open-findings.json`, read-only, from the
+  report of the last round of review. Run `findings open <in>/open-findings.json`, as "Open
+  findings of a review" of `running-a-workflow` lists. Each line
+  `Fix first: <id> (<severity>, <file>:<line>): <point>` is one finding, with that id. With
+  more than 200, read the rest from the file. When the file does not exist, the review left
+  no finding.
 - **Findings of Verify:** for each entry of `inputs` that step 1 took, find the entry of
   `artifacts` in `<folder>/index.json` whose `type` is the entry's `type` and whose
   `versions` have the version's `id`. Read
@@ -92,13 +98,21 @@ gate and no later stage reads it.
    `<folder>/demo-scenarios/main/v<S>/demo-scenarios.md`. With no version, skip this
    section. A scenario is removed when its heading `### <id>: <title>` has the line
    `Removed, because <the reason>.` after it, or when the file has no heading with its id.
-2. Take each entry of `artifacts` in `<folder>/index.json` whose `type` is `demo-script`,
-   whose `name` is the id of a removed scenario, such as `scenario-2`, and whose version with
-   the largest `number`, of those with no `cancelled` set to `true`, has no `withdrawn` set
-   to `true`.
-3. For each such entry, run `<qory> artifact push demo-script --name <scenario> --withdraw`.
-   When a push exits with a status other than 0, end as "Failures" lists, with "The run
-   could not withdraw the demo script of a removed demo scenario."
+2. Take each entry of `artifacts` in `<folder>/index.json` whose `type` is `demo-script` and
+   whose `name` is the id of a removed scenario, such as `scenario-2`. Its newest version is
+   the one with the largest `number` of those with no `cancelled` set to `true`. Skip the
+   entry when it has no such version, when that version has `withdrawn` set to `true`, and
+   when the `kind` of its `writer` is `person`: a member uploaded that demo script, and it
+   stays. Withdraw an entry whose newest version is approved too.
+3. For each other entry, run
+   `<qory> artifact push demo-script --name <scenario> --withdraw`. When the push exits
+   with 4, qory kept the demo script: go on with the next entry. When it exits with another
+   status other than 0, end as "Failures" lists, with "The run could not withdraw the demo
+   script of a removed demo scenario."
+4. For each entry that a member uploaded and each push that exited with 4, write the line
+   "<scenario>: removed by Shape, still on the gate", such as "scenario-2: removed by Shape,
+   still on the gate", in your output before the last line, so that a member reads it on
+   the Run page.
 
 ## A step
 
@@ -110,18 +124,19 @@ gate and no later stage reads it.
 2. Do the attempts of the step, at most 3. The first and the second start the developer,
    and the third starts the debugger. For each attempt:
    1. For a deliverable, write its Files to `<folder>/.notes/<agent>-files.txt`, one path
-      per line, and run `notes <agent> --files <that file>`. For a finding with a file, write
-      that file instead. For a finding with none, run `notes <agent>`.
+      per line, and run `notes <agent> --files <that file>`. For a finding with a file,
+      write that file instead. For a finding with none, run `notes <agent>`.
    2. Start the agent with the input file's path, the artifact folder, the path of the build
-      plan, the run's number, the notes, the step's id, and the row of the deliverable or
-      the finding, quoted: for a finding of the review, its `Fix first:` line and the path of
+      plan, the run's number, the notes, the line "Further repositories: yes" or "no" as
+      "Further repositories" lists it, the step's id, and the row of the deliverable or the
+      finding, quoted: for a finding of the review, its `Fix first:` line and the path of
       `open-findings.json`, and for a finding of Verify, its text. From the second attempt
       on, also pass every line of each red call of the attempt before, quoted, and the last
       report of each earlier attempt of the step.
    3. Write its report to `<folder>/.reports/<agent>-<n>.md` and check it, as "Check each
       report" of `running-a-workflow` lists. A report with the line `Blocked: needs a change
       to the build plan:` ends the step as "A stop on the build plan" lists. Any other
-      `blocked` report makes the attempt red, and its "Blocked:" line is its red line.
+      `blocked` report ends the run as "Failures" lists.
    4. Otherwise run these calls, each in a separate Bash call, in this order:
       `<skill folder>/checks.cjs scope <id> --inputs <inputs>`, `run lint --inputs
       <inputs>`, `run types --inputs <inputs>`, `run build --inputs <inputs>`, and the
@@ -152,9 +167,11 @@ The targeted checks of a step:
 ## A step that fails
 
 Run `step end <id> failed --report <file>`, with the newest report of the debugger and the
-three `--attempt` lines. Write no `points.json`, run no verdict command, and do no later
-step: the next round of Build starts the step again. End with "The run stopped, because the
-checks still fail after 3 changes to <the step>."
+three `--attempt` lines. The row of the step stays `failed`, so its deliverable or finding
+stays open in the build ledger and in the build report. Write no `points.json`, run no
+verdict command, and do no later step. `review-changes` runs next and reports the open
+step as `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. End
+with "The run stopped, because the checks still fail after 3 changes to <the step>."
 
 `<the step>` is the planned change and its Change cell in quotes, such as `the planned
 change d-2, "Send the refund"`, for a deliverable, "the fix of a review finding" for a
@@ -176,10 +193,10 @@ file, and only a member can change the approved plan.
    is "The build plan needs a change before the run can build <the step>: <the change>.",
    its action is `answer`, and its `question` is the id that the questions writer lists
    under "Added:". `<the step>` is as "A step that fails" lists it, and `<the change>` is
-   the text after `needs a change to the build plan: `, without its full stop and with no
-   backtick: a point is plain text. While the text
-   has more than 500 characters, cut the Change cell to its first 8 words and "...", then
-   `<the change>` to its first 40 words and "...".
+   the first sentence of the text after `needs a change to the build plan: `, without its
+   full stop and with no backtick: a point is plain text. While the text has more than 500
+   characters, cut the Change cell to its first 8 words and "...", then `<the change>` to
+   its first 40 words and "...".
 4. End as "Points" lists. Do no later step, and start no other workflow.
 
 ## The end

@@ -263,14 +263,11 @@ Before you end, write the text of each point left out in your output, one per li
 the member reads it on the Run page. A question whose point is left out is still pushed, and
 the member answers it with the other questions.
 
-When the run is alone and the stage has no reviewers, run
-`<qory> run verdict escalate --points <folder>/points.json`, and end with the text of the
-first point, or with the line that "Findings" lists. In a stage that has reviewers, as "Open
-findings of a review" shows how you know, run no verdict command: qory's push check fails
-it there. Write `points.json`, and end with the text of the first point. After the session
-ends, qory reads `points.json` and sends `escalate` or `answer` from it; the session runs no
-command for that. Under a higher workflow, return that line and the path of `points.json` in
-the report, and that workflow records the verdict.
+When the run is alone, run `<qory> run verdict escalate --points <folder>/points.json`,
+also when its workflow records no other verdict, as "The end" lists, and end with the text
+of the first point, or with the line that "Findings" lists. Under a higher workflow, return
+that line and the path of `points.json` in the report, and that workflow records the
+verdict.
 
 ## The versions script
 
@@ -416,12 +413,6 @@ verdict even when the session recorded none. When the run has `points.json` and 
 already, the hook checks nothing and runs no verdict. When that command fails, the session
 still ends. A runtime with no such hook ends the session with no check.
 
-In a stage that has reviewers, the hook runs no verdict command: qory runs the round of
-review and sends the verdict. The hook reads that the stage has reviewers from the
-inputs.json that qory wrote for the session, never from a file of the artifact folder. At its
-third failed check, it still writes the points to `points.json`, and qory reads them after
-the session ends and sends `escalate` or `answer` from them.
-
 ## Count the starts
 
 Before each start of a reviewer, except a start that fixes only its report, run
@@ -447,8 +438,10 @@ the last start." marks the third start. With 1, start no reviewer, and keep each
 ## The end
 
 When the run is alone and no case in this skill ended it, run `<qory> run verdict passed`,
-with questions open or not. In a stage that has reviewers, run no verdict command: the
-session ends when it has recorded the change, and qory runs the round of review. Then, in a
+with questions open or not. When `qory.workflow.judges` of `inputs.json`, the inputs file
+whose path the prompt contains, is `false`, run no verdict command: the stack's entry of the
+workflow sets `judges: false`, and the next workflow of the loop judges the change. A case
+of "Points" still runs its `escalate` there. Then, in a
 run, end with one line that lists the newest version you pushed of each type, in the order
 of the pushes, in this form: "The run pushed version 3 of the proposal, version 2 of the
 questions, and version 4 of the replies to review comments."
@@ -466,16 +459,11 @@ as a line that ended the run.
 
 ## Open findings of a review
 
-The stage has reviewers when the member `qory.stage.reviewers` of `inputs.json`, the inputs
-file whose path the prompt contains, is `true` or the name of a group role. When the file has no
-such member, the stage has none. The end hook shows it too: its text "no verdict command runs,
-because the stage has reviewers" shows that the stage has reviewers.
-
-In a stage that has reviewers, qory runs the review round after the session. The session
-starts no reviewer of the change: it builds the change, records it and ends. qory then starts
-each reviewer as a separate session, which writes one JSON file in a folder that only that
-session writes, as the reviewer's skill lists. qory reads that file. The session has no
-report to check and no start to count.
+When qory runs a round of review after the session, the session starts no reviewer of the
+change: it builds the change, records it and ends. qory then starts each reviewer as a
+separate session, which writes one JSON file in a folder that only that session writes, as
+the reviewer's skill lists. qory reads that file. The session has no report to check and no
+start to count.
 
 When a round has a `blocking` finding, qory starts the next session of the stage with the
 findings of that round in `open-findings.json` in the inputs folder, read-only. The prompt
