@@ -1,7 +1,4 @@
 # The Codex settings of the software-factory module. qory writes them into the run's
-# $CODEX_HOME/config.toml, after those of the core module, which have the end check. They
-# set no model, no provider and no sandbox or approval mode: the stack's target and the
-# launch set those.
-
-# Live web search stays off. Codex turns it on under full access unless this key is set.
-web_search = "disabled"
+# $CODEX_HOME/config.toml, after those of the core module, which have the end check. The
+# module sets no Codex setting today. qory writes `web_search = "disabled"` itself and
+# refuses a module that sets that key. This file stays because the checks read it.
