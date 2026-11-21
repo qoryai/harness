@@ -799,8 +799,8 @@ test('Explore copies only the destinations that the code explorer names, with on
     'You copy only the destinations that the ticket concerns',
     '<script folder>/checks.cjs destinations --inputs <input file> <id>...',
     '<qory> destination clone <id>...',
-    'The copies never read a destination that the code explorer did not name, and the ' +
-      'script refuses more than 100 ids.');
+    'No copy contains a destination that the code explorer did not name, and the script ' +
+      'exits with 1 for more than 100 ids.');
   // One more copy at most, and one retry of a failed copy.
   has(workflow, 'Copy at most once more. When a later report of the code explorer lists an id',
     'When it exits with a status other than 0, run the same command once more. When that ' +
@@ -840,8 +840,8 @@ const CLONE_ERRORS = [
 const CLONE_FALLBACK = 'Report this run to the instance admin of Qory Apiary: copying the ' +
   'destinations failed twice.';
 
-// The report of the code explorer's first start in Explore, which names one destination.
-const PICKED = 'What you searched:\n- nothing: the question names the destinations\n\n' +
+// The report of the code explorer's first start in Explore, which lists one destination.
+const PICKED = 'What you searched:\n- nothing: the question is to name the destinations\n\n' +
   'Destinations:\n- tg_8k2m4n6p8q0r2s4t\n\ndone\n';
 
 test('end: a copy that fails twice ends Explore with escalate and the line of the copy', () => {
@@ -1001,7 +1001,7 @@ function checkTargets(root, inputs, files = [...FILES.proposal, 'targets.json'])
     ...(inputs ? ['--inputs', inputs] : []), ...files.map((f) => path.join(root, f))]);
 }
 
-test('proposal: each part names its destination, and targets.json lists them', () => {
+test('proposal: each part opens with its destination, and targets.json lists them', () => {
   const inputs = destinationsInputs(2);
   passes(checkTargets(targeted(), inputs));
   passes(call({ cwd: tmp, artifacts: [] }, ['push', 'proposal', '--inputs', inputs,
@@ -1033,11 +1033,11 @@ test('proposal: targets.json refuses an unlisted id, 21 targets, a repeat and a 
     inputs));
 });
 
-test('proposal: a part whose destination targets.json does not list, or that names none', () => {
+test('proposal: a part whose destination targets.json does not list, or that has none', () => {
   const inputs = destinationsInputs(2);
   exactly(checkTargets(targeted([TWO_TARGETS[0]]), inputs), [PARTS[2], PARTS[3]].map((part) =>
     `Add "${destinationId(1)}" to targets.json, or change the destination of its part.\n` +
-    `  The part "${part}" names it, and targets.json does not.`).join('\n'));
+    `  The part "${part}" has that id, and targets.json does not.`).join('\n'));
   const root = targeted();
   const text = fs.readFileSync(path.join(root, 'proposal.md'), 'utf8');
   const opened = `### ${PARTS[2]}\n\nDestination: \`${destinationId(1)}\`\n\n`;
@@ -6286,7 +6286,7 @@ test('destinations prints the ids that it checks against the inputs, and nothing
   const ids = Array.from({ length: 101 }, (_, n) => destinationId(n));
   passes(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids.slice(0, 100)]));
   exactly(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids]),
-    'Give at most 100 ids: a session reads at most 100 destinations.\n  The call gives 101.');
+    'Give at most 100 ids: a session reads at most 100 destinations.\n  The call has 101.');
   // A listed destination with no address has nothing to copy, so the explorer starts again.
   const bare = inputsFile(JSON.stringify({ destinations: [{ id: destinationId(0),
     target: { collection: 'place-0' } }, ...JSON.parse(fs.readFileSync(inputs, 'utf8'))

@@ -11,7 +11,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `checks.cjs destinations --inputs <file> <id>...`, a verb of `running-a-workflow`. It
   checks the ids of the destinations that a session reads against `destinations` of the
   inputs.json at `--inputs`: each id is `tg_` and 16 characters, listed there with a
-  `target.address` and given once, and the call gives at most 100 ids. With no finding, it
+  `target.address` and given once, and the call has at most 100 ids. With no finding, it
   prints the ids alone on stdout, one per line, and exits with 0; each finding exits with 1,
   and an inputs.json with no list `destinations` exits with 3.
 - `targets.json` in a proposal version: `{"targets": [{"id": "<id>", "why": "<text>"}]}`, 1

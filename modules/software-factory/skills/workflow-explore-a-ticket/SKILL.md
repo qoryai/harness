@@ -47,7 +47,7 @@ concerns, before the code explorer reads their files:
 1. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and what
    to settle: "Name the destinations that the ticket concerns." For that start, it reads
    only the input file, and lists their ids under "Destinations:".
-2. When its report has no "Destinations:", or the prompt gives no input file, copy nothing,
+2. When its report has no "Destinations:", or the prompt has no input file, copy nothing,
    and give each agent of step 5 the line "Destinations: none".
 3. Else check the ids, each id of the list as an argument, in the order of the list:
 
@@ -76,9 +76,9 @@ Copy at most once more. When a later report of the code explorer lists an id und
 "Destinations:" that you did not copy, check every id that you copied and each new id, as
 step 3 lists, and copy the ids that the script printed, as step 4 lists. The command prints
 the same line again for an id that it copied already. Then start the code explorer again
-with all the lines. When the script exits with 1 for this copy, copy nothing more, and go
-on with the lines you have. After this copy, copy nothing more. The copies never read a
-destination that the code explorer did not name, and the script refuses more than 100 ids.
+with all the lines. When the script exits with 1 for this copy, copy nothing more, and go on
+with the lines you have. After this copy, copy nothing more. No copy contains a destination
+that the code explorer did not name, and the script exits with 1 for more than 100 ids.
 
 ## The order of the run
 
@@ -267,10 +267,10 @@ work item waits for a member, who can start the run again.
   error line of the second call, the line that starts with `✗ `, without that mark and
   otherwise unchanged, such as "Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary:
   the host returned 403 to the clone." When `check points` exits with 1 on that line, such
-  as on the line on malformed destinations, which names a file, write in its place "Report
-  this run to the instance admin of Qory Apiary: copying the destinations failed twice."
-  This line and the line of the checks script are the two lines of this list that start with
-  a step, because qory or the script wrote them.
+  as on the line on malformed destinations, which contains a file name, write in its place
+  "Report this run to the instance admin of Qory Apiary: copying the destinations failed
+  twice." This line and the line of the checks script are the two lines of this list that
+  start with a step, because qory or the script wrote them.
 - A start fails: "The run could not start <the work>, so it pushed no proposal." The work
   is what the agent does, in plain words, such as "the review of the proposal".
 - The proposal still fails the checks of the proposal before a review after the proposal

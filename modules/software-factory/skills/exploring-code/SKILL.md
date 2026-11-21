@@ -16,8 +16,8 @@ the input file, as `reading-the-work` lists, and search no file: the run copies 
 a destination only after this start. Name each destination with a `target.address` that the
 work may need, by the ticket's words, names and addresses, and no other. Name at most 100,
 each once. List each id under "Destinations:" as `- <id>`, and write
-`- nothing: the question names the destinations` under "What you searched:". When the work
-needs no destination with an address, leave out "Destinations:".
+`- nothing: the question is to name the destinations` under "What you searched:". When the
+work needs no destination with an address, leave out "Destinations:".
 
 In a later start, when the files show that the work needs a destination whose folder you did
 not get, list its id under "Destinations:" too. The run copies more destinations once at

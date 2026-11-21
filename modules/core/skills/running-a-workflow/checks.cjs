@@ -213,7 +213,7 @@
 //
 // destinations checks the ids of the destinations that a session reads against the list
 // destinations of the inputs.json at --inputs: each id is tg_ and 16 characters, listed there
-// and given once, and the call gives at most 100 ids. With no finding, it prints each id on a
+// and given once, and the call has at most 100 ids. With no finding, it prints each id on a
 // line of stdout, in the order given, and the line of what it checked on stderr, and exits 0.
 // Each finding exits 1, and an inputs.json with no list destinations exits 3. It writes nothing.
 //

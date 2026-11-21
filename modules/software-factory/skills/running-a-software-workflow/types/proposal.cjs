@@ -739,7 +739,7 @@ module.exports = (lib) => {
         const whole = unit.title === null;
         run.find(`Add ${quote(brief(found[1], 24))} to targets.json, or change the destination ` +
           `of ${whole ? name : 'its part'}.\n${whole ? name : `The part ${quote(unit.title)}`} ` +
-          'names it, and targets.json does not.');
+          'has that id, and targets.json does not.');
       }
       if (lines.length > 1) {
         run.find(`Keep one destination line in ${name} of proposal.md: it has ${lines.length}.` +

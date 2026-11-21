@@ -20,7 +20,7 @@ function destinations(file, ids) {
   const findings = [];
   if (ids.length > MOST) {
     findings.push(`Give at most ${MOST} ids: a session reads at most ${MOST} destinations.\n` +
-      `The call gives ${ids.length}.`);
+      `The call has ${ids.length}.`);
   }
   const seen = new Set();
   for (const id of ids) {

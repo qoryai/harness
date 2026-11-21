@@ -330,15 +330,15 @@ When the script refuses the ids, `code-explorer` starts once more, and a second 
 the run with `escalate` and the first line of the refusal as the text of the first point. A
 copy that fails runs once more. A second failure ends the run with `escalate` and the error
 line of the copy as the text of the first point, or, when `check points` refuses that line,
-a line that asks for a report to the instance admin of Qory Apiary. With no "Destinations:"
-list, or no input file, the session copies nothing.
+the line "Report this run to the instance admin of Qory Apiary: copying the destinations
+failed twice." With no "Destinations:" list, or no input file, the session copies nothing.
 
 Shape and plan-the-build keep `.qory/repositories`, which qory creates only when the run has
 further repositories. An agent with only Read, Grep and Glob cannot check for a folder: a
 Glob or Grep on a missing path fails, and one with no path leaves that folder out. An agent
 that follows `exploring-code` searches `.qory/repositories` only with the line "Further
 repositories: yes". An agent that follows `checking-questions` searches a folder under
-`.qory`, other than the artifact folder, only when a line "Also search:" names it. It
+`.qory`, other than the artifact folder, only when a line "Also search:" contains it. It
 searches the working folder when the input file has `target`, and the folder of each line
 "Also search:" also when the input file has no `target`, as with the destinations of
 Explore.
@@ -870,7 +870,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
 - `checks.cjs destinations --inputs <file> <id>...`: the session of Explore runs it before
   each `qory destination clone`, on the ids that `code-explorer` names. Each id must be
   `tg_` and 16 characters, an id of `destinations` in the inputs.json at `--inputs` with a
-  `target.address`, and given once, and the call gives at most 100 ids. With no finding, it
+  `target.address`, and given once, and the call has at most 100 ids. With no finding, it
   exits with 0 and prints each id on a line of stdout, in the order given, and the line of
   what it checked on stderr. Each finding exits with 1, a missing id or `--inputs` with 2,
   and an inputs.json with no list `destinations` with 3. It writes no file.

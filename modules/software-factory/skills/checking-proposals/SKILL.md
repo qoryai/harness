@@ -332,7 +332,8 @@ that never repeats the summary.
   sentence.
 - Each entry of `sources.json` has its `why`.
 - Each target of `targets.json` is a destination that a change of the proposal goes to, and
-  its `why` holds. Each part names the destination that its change goes to.
+  its `why` is true. Each part opens with the line of the destination that its change goes
+  to.
 - `sources.json` is next to `proposal.md` at the top of the artifact folder.
 - Each picture and code block is in the proposed solution, under the heading of its part.
 - No diagram is a system architecture, and each follows ${qory:skills/visuals}.

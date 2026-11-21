@@ -46,10 +46,10 @@ Use the members below. Any may be missing and others may exist: never fail on th
 - `destinations`: the places that the workspace works on. Each has `id`, such as
   `tg_8k2m4n6p8q0r2s4t`, and `target`: `target.collection`, and `target.address` with
   `system` and `path` when the place has an address. The run copies the files of a
-  destination only when the session asks for them. You then get one line `<id> <folder>`
-  for each copied destination, under "Destinations:". Read the files of a destination only
-  in its folder, and never fetch its address. Read nothing of a destination with no such
-  line.
+  destination only when the session runs `qory destination clone` with its id. You then get
+  one line `<id> <folder>` for each copied destination, under "Destinations:". Read the
+  files of a destination only in its folder, and never fetch its address. Read nothing of a
+  destination with no such line.
 
 ## The newest artifacts
 
