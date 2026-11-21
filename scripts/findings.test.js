@@ -114,7 +114,8 @@ test('reviewing-changes has the steps to write one file and, when the reviewer c
   assert.match(REVIEWING, /Write one file, the report, with Write or, on Codex, with `apply_patch`/);
   assert.match(REVIEWING, /the path is `qory\.review\.report` of\s+`inputs\.json`/);
   // As an agent of a review session, the reviewer writes <reports>/<name>.json.
-  assert.match(REVIEWING, /the path is `<reports>\/<your agent name>\.json`,\s+where `<reports>` is `qory\.review_session\.reports`/);
+  assert.match(REVIEWING, /the path is\s+`<reports>\/<your agent name>\.json`, where/);
+  assert.match(REVIEWING, /where `<reports>` is `qory\.review_session\.reports`/);
   assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
   assert.match(REVIEWING, /If your session has a shell, run only commands that read, with only the options in this\s+list\./);
   assert.match(REVIEWING, /`cat`: `-n -b -s -A -E -T -v`/);
@@ -141,9 +142,10 @@ test('judging-findings defines a blocking finding word for word, and lists the v
     assert.match(JUDGING, new RegExp(`^- \`${name}\`: `, 'm'), name);
   }
   assert.match(JUDGING, /\$\{qory:skills\/reviewing-changes\}/);
-  // The values come from qory.review, or from a review session and its prompt.
+  // The values come from qory.review, or from qory.review_session in a review session.
   assert.match(JUDGING, /Read each value from `qory\.review`\./);
-  assert.match(JUDGING, /`suite_result` is `qory\.review_session\.suite_result`, and `report` is\s+`<reports>\/<your agent name>\.json`/);
+  assert.match(JUDGING, /Read each value from `qory\.review_session`, which qory writes:/);
+  assert.match(JUDGING, /`report`\s+is `<reports>\/<your agent name>\.json`, where `<reports>` is/);
   // The words that core may not contain are in this skill, which is why it is in software-factory.
   assert.ok(!fs.existsSync(path.join(SKILLS, 'judging-findings')));
 });
@@ -716,8 +718,8 @@ test('findings round: a missing or invalid report is one blocking finding in qor
 test('findings round: a suite that failed, did not run or has no result is blocking', () => {
   for (const [state, point] of [['failed', 'The full suite failed.'],
     ['not_run', 'The full suite did not run.'],
-    [null, 'The full suite has no result for the reviewed commit.'],
-    ['green', 'The full suite has no result for the reviewed commit.']]) {
+    [null, 'The full suite has no result for the reviewed change.'],
+    ['green', 'The full suite has no result for the reviewed change.']]) {
     const { dir, suite } = sessionFolder({
       'code-reviewer': { reviewer: 'code-reviewer', findings: [] } }, state);
     const got = round(dir, suite, ['code-reviewer']);
@@ -727,7 +729,8 @@ test('findings round: a suite that failed, did not run or has no result is block
 });
 
 test('findings round: more than 20 blocking findings write 19 points and one that counts', () => {
-  const many = Array.from({ length: 25 }, (_, at) => ({ ...REVIEWED, point: `Row ${at} is lost.` }));
+  const many = Array.from({ length: 25 },
+    (_, at) => ({ ...REVIEWED, point: `Row ${at} is lost.` }));
   const { dir, suite } = sessionFolder({
     'code-reviewer': { reviewer: 'code-reviewer', findings: many } });
   assert.equal(round(dir, suite, ['code-reviewer']).status, 1);
@@ -737,7 +740,7 @@ test('findings round: more than 20 blocking findings write 19 points and one tha
     'points list.', action: 'run_again' });
 });
 
-test('findings round: wrong arguments exit 2, and a report folder that is no folder exits 3', () => {
+test('findings round: wrong arguments exit 2, and a file as the report folder exits 3', () => {
   const { dir, suite } = sessionFolder({});
   for (const argv of [['findings', 'round'], ['findings', 'round', dir],
     ['findings', 'round', dir, '--reviewers', 'code-reviewer'],

@@ -217,7 +217,7 @@ function suiteFindings(file) {
   if (state === 'passed') return [];
   if (state === 'failed') return finding('The full suite failed.');
   if (state === 'not_run') return finding('The full suite did not run.');
-  return finding('The full suite has no result for the reviewed commit.');
+  return finding('The full suite has no result for the reviewed change.');
 }
 
 // writePoints writes the run_again points of blocking to points.json in dir, through a new

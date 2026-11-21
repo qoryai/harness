@@ -482,8 +482,8 @@ A round of review runs in one of two ways:
   starts each reviewer as one of its agents, as the skill of its workflow lists. Each
   reviewer writes one JSON file, `<reports>/<agent>.json`, where `<reports>` is
   `qory.review_session.reports`. The session decides the round from those files and records
-  the verdict. The tool guard denies the session and its agents every write into the
-  working folder, and lets a reviewer agent write only its report file.
+  the verdict. The tool guard lets the session start agents, and lets a reviewer agent
+  write only its report file.
 
 When a round has a `blocking` finding, qory starts the next session of the stage with the
 findings of that round in `open-findings.json` in the inputs folder, read-only. The prompt
