@@ -334,8 +334,8 @@ workflows:
   records it; after a third red attempt, `step end failed` records it and the session ends
   with no point. A writer's line `Blocked: needs a change to the build plan: <the change>`
   ends the session with one `answer` point. Before the steps, the session withdraws the
-  demo script of each removed demo scenario. It ends as `running-a-workflow` lists, with no
-  verdict command in a stage that has reviewers.
+  demo script of each removed demo scenario. Its stack entry sets `judges: false`, so it
+  ends with no verdict command, and `review-changes` runs next.
 - `changing-code`: load it before you change code for one step of a build. The skill
   contains the step you get, the paths you may change, the tests of the change, the checks
   you run and the list `Left out:` of the report.
@@ -365,8 +365,9 @@ workflows:
   4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
      again and pushes again, at most twice more. When the push is still refused, it runs
      `report-build --drop` first and then ends.
-  5. It ends ready: in a stage that has reviewers, qory then runs the review round, and in
-     a stage with none, the run ends with `qory run verdict passed`.
+  5. It ends ready with `qory run verdict passed`, or with no verdict command when
+     `qory.workflow.judges` in `inputs.json` is `false`, as "The end" of
+     `running-a-workflow` lists.
 
   The ends of steps 1 to 4 run no `qory run verdict passed`.
 - `checking-code`: load it before you review the code of a change, after

@@ -68,10 +68,9 @@ Load each skill when its step comes, and no other:
 You get the paths of the input file, the artifact folder and the build plan, the run's
 number, the notes, the line "Further repositories: yes" or "no", the step's id, and the row
 of the deliverable or the finding to fix. At a later start of the step, you also get the
-lines of each red check and your last report. With "Further repositories: yes", a path of
-the build plan may lie in a further repository, a folder under `.qory/repositories/`. Read
-what the pull wrote, never the memory of an earlier session. A refused tool call stays
-refused. Read through no link, and fetch no web page.
+lines of each red check and your last report. Read what the pull wrote, never the memory of
+an earlier session. A refused tool call stays refused. Read through no link, and fetch no
+web page.
 
 ## Stop conditions
 
