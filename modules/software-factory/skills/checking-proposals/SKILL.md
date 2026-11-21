@@ -1,6 +1,6 @@
 ---
 name: checking-proposals
-description: Load before you write a proposal, and before you review one. Contains what a proposal version contains, sources.json, its limits, the three steps of a review, the check of the track, and the check list for writer and reviewer alike.
+description: Load before you write a proposal, and before you review one. Contains what a proposal version contains, sources.json, targets.json, its limits, the three steps of a review, the check of the track, and the check list for writer and reviewer alike.
 ---
 
 # Checking proposals
@@ -34,29 +34,46 @@ not read `sources.json`, so a `why` or `ref` may contain a file name.
     as `record` or `document`. This skill writes two kinds, `file` and `page`.
   - `ref`: one line of 1 to 2048 characters. For `file`, the path inside its repository:
     from the top of the working folder for a file of the target, or from the top of the
-    further repository's folder. For `page`, the page's `https://` address, under the
-    link rule of `artifact-text`.
-  - `container`: for a `file` of a further repository only, the folder's name, such as
-    `web`, one line of 1 to 200 characters. Leave it out for a file of the target.
+    folder of the further repository or of the destination. For `page`, the page's
+    `https://` address, under the link rule of `artifact-text`.
+  - `container`: for a `file` of a further repository, the folder's name, such as `web`,
+    and for a `file` of a destination, its id, such as `tg_8k2m4n6p8q0r2s4t`: one line of 1
+    to 200 characters. Leave it out for a file of the target in the working folder.
   - `locator`: the part of the source you used, such as `lines 40-48`, one line of 1 to
     500 characters. Leave it out when it does not help.
   - `why`: why the source matters for the proposal, plain text on one line, 1 to 500
     characters.
 
   Write no `system` member.
-- A `file` entry's `ref` never contains `.qory/repositories`, a `..` part or a path of the
-  machine the run is on.
+- A `file` entry's `ref` never contains `.qory/repositories`, `/tmp/qory-destinations`, a
+  `..` part or a path of the machine the run is on.
 - `## Sources` and `sources.json` list the same pages and files: every page and file
   under `## Sources` is an entry of `sources.json`, and every entry is under
   `## Sources`.
 - `## Sources` has only list items, with any line of an item indented to the item's text,
   and blank lines, or only the line "No public page and no file."
 
+## targets.json
+
+- It lists the destinations that the changes of the proposal go to, for the stages after
+  Explore, as the section "Targets" of `writing-proposals` lists. It is JSON in this shape:
+
+  ```json
+  {"targets":[{"id":"tg_8k2m4n6p8q0r2s4t","why":"Keeps the text of the saved reply."}]}
+  ```
+
+- A proposal of a run whose input file has `destinations` has it. `targets` has 1 to 20
+  entries, each with only `id` and `why`. Each `id` is an id of `destinations`, once.
+  `why` is plain text on one line of 1 to 500 characters.
+- Each part of `## Proposed solution` opens with the line `Destination: ` and an id of
+  `targets.json` in a code span, right under its heading.
+
 ## Limits
 
-A proposal version, `proposal.md`, `sources.json` and the wireframes together, has at most
-10 files and 5 MiB in total: exactly one Markdown file, `proposal.md`, at most one
-`sources.json`, and the wireframes, each ending in `.svg`. `sources.json` is at most 1 MiB.
+A proposal version, `proposal.md`, `sources.json`, `targets.json` and the wireframes
+together, has at most 10 files and 5 MiB in total: exactly one Markdown file,
+`proposal.md`, at most one `sources.json`, at most one `targets.json`, and the wireframes,
+each ending in `.svg`. `sources.json` is at most 1 MiB.
 Aim far below that size.
 
 ## Review of a proposal
@@ -70,7 +87,9 @@ A reviewer does these three steps before the check list:
    decided question cites the answer drops and widens nothing.
 2. Check each claim that the direction rests on against its source. A file of a further
    repository, such as `web: src/cart.ts` or a `sources.json` entry with `container` `web`,
-   is at `.qory/repositories/web/src/cart.ts` in the working folder. A claim that its source
+   is at `.qory/repositories/web/src/cart.ts` in the working folder. A file of a
+   destination, such as `tg_8k2m4n6p8q0r2s4t: src/cart.ts`, is at `src/cart.ts` in the
+   folder of that id, which a line under "Destinations:" lists. A claim that its source
    contradicts is a finding. A claim you could not check goes under "Unverified:".
 3. Check for contradictions inside the proposal, and with this run's questions:
    `questions.json` at the top of the artifact folder or, when it is not there, the newest
@@ -207,10 +226,12 @@ the decided questions. It checks the phrases of the section "Refused phrases" of
 version, and each link. It checks that `## Sources` has only list items or only the line
 "No public page and no file.", that `## Sources` and `sources.json` list the same pages and
 files, and that no `file` ref has a `..` part. It checks the characters of each file,
-`.qory/repositories` and each path of the machine the run is on. Judge the rest of the
-check list and of the section "Limits", such as a summary written from the parts, one
-outcome per point, a "Why not" that states a cost or a fact, and a background that never
-repeats the summary.
+`.qory/repositories`, `/tmp/qory-destinations` and each path of the machine the run is on.
+In `targets.json`, it checks the form, the count, each id against `destinations` and each
+`why`, and that each part opens with the line of a destination of `targets.json`. Judge the
+rest of the check list and of the section "Limits", such as a summary written from the
+parts, one outcome per point, a "Why not" that states a cost or a fact, and a background
+that never repeats the summary.
 
 - The proposal follows from the person's words: the ticket, the instruction, the comments,
   the answers and the review comments. It drops, narrows and widens no item they ask, as the
@@ -307,6 +328,8 @@ repeats the summary.
 - The summary, the background and the proposed solution contain no source, except that
   sentence.
 - Each entry of `sources.json` has its `why`.
+- Each target of `targets.json` is a destination that a change of the proposal goes to, and
+  its `why` holds. Each part names the destination that its change goes to.
 - `sources.json` is next to `proposal.md` at the top of the artifact folder.
 - Each picture and code block is in the proposed solution, under the heading of its part.
 - No diagram is a system architecture, and each follows ${qory:skills/visuals}.
