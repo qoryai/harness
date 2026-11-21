@@ -219,16 +219,18 @@ test('10 deliverables with "Build all 9" fail with the limit 9', () => {
   for (const result of both(10, [answer(ALL(9))])) readable(limit(result, 9, 10));
 });
 
-test('a newer answer with option 1 sets the limit back to 7', () => {
-  for (const result of both(9, [answer(ALL(9)), answer(ONE)])) readable(limit(result, 7, 9));
+test('option 1 of the first question keeps 7, and after an allowance keeps it', () => {
+  for (const result of both(9, [answer(ONE)])) readable(limit(result, 7, 9));
+  for (const result of both(9, [answer(ALL(9)), answer(ONE)])) passes(result);
+  for (const result of both(11, [answer(ALL(9)), answer(ONE)])) {
+    readable(limit(result, 9, 11));
+  }
   const shared = 'Build the first 7 changes here; take in the other 2 changes ("Change part 8", ' +
     '"Change part 9") as a new work item.';
   const one = 'Build the first 7 changes here; take in the other 1 change ("Change part 8") ' +
     'as a new work item.';
   for (const text of [shared, one]) {
-    for (const result of both(9, [answer(ALL(9)), answer(text)])) {
-      readable(limit(result, 7, 9));
-    }
+    for (const result of both(9, [answer(text)])) readable(limit(result, 7, 9));
   }
 });
 
@@ -247,7 +249,7 @@ test('"Build all 7", "Build all 09" and a malformed number are no answer', () =>
   for (const result of both(9, [answer(ALL(9)), answer(ALL('07'))])) passes(result);
 });
 
-test('a note of another kind or a typed answer allows nothing, whatever its text', () => {
+test('a note of another kind, or an answer unlike the option text, allows nothing', () => {
   for (const kind of ['request_changes', 'move', 'escalation', 'check']) {
     for (const result of both(9, [note(kind, ALL(9))])) readable(limit(result, 7, 9));
   }
@@ -322,13 +324,13 @@ test('the texts of the question over the allowed number are in SKILL.md', () => 
   }
 });
 
-test('an answer with option 1 of the allowed number sets the limit back to 7', () => {
+test('an answer with option 1 of the allowed number keeps that number', () => {
   const first = 'Build the first 12 changes here; take in the other 2 changes ("Change part 13", ' +
     '"Change part 14") as a new work item.';
   const one = 'Build the first 12 changes here; take in the other 1 change ("Change part 13") ' +
     'as a new work item.';
   for (const text of [first, one]) {
-    assert.equal(allowance.limitOf([answer(ALL(14)), answer(text)]), 7);
+    assert.equal(allowance.limitOf([answer(ALL(12)), answer(text)]), 12);
   }
 });
 

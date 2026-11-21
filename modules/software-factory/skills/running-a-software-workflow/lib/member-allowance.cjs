@@ -1,7 +1,7 @@
 // What a member allowed for the work item: the number of deliverables that the check of
-// build-plan accepts. The limit is 7 unless, of the notes of the kind answer with the text
-// of an option of the question in workflow-plan-the-build/SKILL.md, the newest is "Build
-// all <n> changes in this work item." with n of 8 or more.
+// build-plan accepts. The limit is 7 unless a note of the kind answer is "Build all <n>
+// changes in this work item." with n of 8 or more: then the newest such note sets it.
+// The question that offers that answer is in workflow-plan-the-build/SKILL.md.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -19,7 +19,8 @@ module.exports = (lib) => {
   const NOTES_BYTES = 4 * 1024 * 1024;
 
   // The titles of the options of the question in workflow-plan-the-build/SKILL.md, where
-  // each <...> stands for a value that the session fills in. When no criterion belongs
+  // each <...> stands for a value that the session fills in. A test checks that SKILL.md
+  // has each of them. When no criterion belongs
   // only to the later changes, option 1 starts with the first 7 changes, or with the first
   // <m> after an answer that allowed <m>.
   const SHARED_END = ' as a new work item.';
@@ -72,16 +73,15 @@ module.exports = (lib) => {
     };
   }
   const ALL = matcher(OPTIONS.all);
-  // The options that set the limit back to 7.
-  const BACK_TO_SEVEN = [OPTIONS.one, OPTIONS.shared, OPTIONS.sharedOne, OPTIONS.sharedAllowed,
-    OPTIONS.sharedAllowedOne].map(matcher);
 
   // limitOf returns the limit that notes, the list notes[] of the work item oldest first,
-  // sets. Only a member's act makes a note of the kind answer, with the title of the
-  // option as its text, so the newest note that has the text of one of the two options
-  // decides. A note of another kind, a typed answer, a review comment or reply, and "Build
-  // all <n>" with an n that is no whole number of 8 or more are no answer. The fields id
-  // and artifact_version_id of a note may be null, and the check reads neither.
+  // sets: the n of the newest note of the kind answer whose text is "Build all <n> changes
+  // in this work item." with n a whole number of 8 or more, else 7. Qory Apiary writes a
+  // member's pick of an option, a typed answer, a review comment and a reply as notes of
+  // the kind answer, so each of them counts when its text is exactly that option. Option 1
+  // changes nothing: of the first question it keeps 7, and of the question after an
+  // allowance it keeps the <m> that the member allowed. The fields id and
+  // artifact_version_id of a note may be null, and the check reads neither.
   function limitOf(notes) {
     for (let place = notes.length - 1; place >= 0; place -= 1) {
       const note = notes[place];
@@ -93,8 +93,6 @@ module.exports = (lib) => {
           count > MAX_DELIVERABLES) {
           return count;
         }
-      } else if (BACK_TO_SEVEN.some((one) => one(note.note) !== null)) {
-        return MAX_DELIVERABLES;
       }
     }
     return MAX_DELIVERABLES;

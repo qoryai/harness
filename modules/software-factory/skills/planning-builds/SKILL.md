@@ -72,12 +72,12 @@ explorer's report shows where the tests of that area live and which helpers they
 ## More than 7 deliverables
 
 A build plan has at most 7 deliverables, and the script that checks it fails a plan with
-more, unless a member's newest answer to "Which changes do you want to build in this work
-item?" is "Build all <n> changes in this work item." with `<n>` of 8 or more: then the
-limit is `<n>`. When the work needs more than 7 separate changes, still write each of them
-in the draft, and list each one under "Over the limit:" in your report, with its Criteria
-cell. Never drop a criterion, and never merge unrelated changes to reach 7. The session
-then asks a member which changes to build, and pushes no plan.
+more, unless a member answered "Which changes do you want to build in this work item?" with
+"Build all <n> changes in this work item." with `<n>` of 8 or more: then the newest such
+answer sets the limit to `<n>`. When the work needs more than 7 separate changes, still
+write each of them in the draft, and list each one under "Over the limit:" in your report,
+with its Criteria cell. Never drop a criterion, and never merge unrelated changes to reach
+7. The session then asks a member which changes to build, and pushes no plan.
 
 ## The commands
 

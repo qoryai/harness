@@ -62,9 +62,10 @@ not load the rules it needs, so it pushed no build plan."
 
 ## More than 7 deliverables
 
-A build plan has at most 7 deliverables, unless a member's newest answer to the question
-of this section is "Build all <n> changes in this work item." with `<n>` of 8 or more, and
-`check build-plan` fails a plan with more. Send that finding to no writer, cut nothing
+A build plan has at most 7 deliverables, and `check build-plan` fails a plan with more,
+unless a member answered "Build all <n> changes in this work item." with `<n>` of 8 or
+more: then the newest such answer sets the limit, and option 1 of a later question keeps
+it. Send that finding to no writer, cut nothing
 yourself, start no reviewer, and push no build plan.
 
 1. Take `<n>`, the number of deliverables, and `<m>`, the limit, from the first line of the
@@ -134,10 +135,12 @@ When the finding has `<m>` above 7, a member allowed `<m>` changes for this work
 the plan has `<n>` over it. After steps 1 and 2 of "More than 7 deliverables", do these
 steps in place of its steps 3 and 4:
 
-1. Take `<date>` from the newest note of `<qory> work-item show` with the `kind`
-   `request_changes`: the first 10 characters of its `at`, as `2026-11-16`. It is the date
-   of the feedback that led to this plan. When no such note has an `at` that starts with
-   `YYYY-MM-DD`, push nothing and end the run as "Failures" of `running-a-workflow` lists.
+1. Take `<date>` from two notes of `<qory> work-item show`: the newest with the `kind`
+   `request_changes`, and the newest with the `kind` `answer` whose text is "Build all <m>
+   changes in this work item.". `<date>` is the first 10 characters of the `at` of the
+   newer of the two, as `2026-11-16`: the date of the feedback or the answer that led to
+   this plan. When neither note has an `at` that starts with `YYYY-MM-DD`, push nothing
+   and end the run as "Failures" of `running-a-workflow` lists.
 2. Start ${qory:agents/questions-writer} as in step 3 of "More than 7 deliverables", with
    this one item under "What only a person can settle", and with `<k>` set to `<m>` and
    `<j>` set to `<n>` minus `<m>` in the rules there, where "7" stands for `<m>`:
