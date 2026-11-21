@@ -2590,8 +2590,11 @@ expect "the checks script's tests pass" 0 "$ROOT" node --test scripts/checks.tes
 # 40 samples, and each rule of each type in check and push.
 expect "the checks of Build and Verify pass their tests" 0 "$ROOT" node --test scripts/build-verify.test.js
 # The tests of the review of a change: the example report against qory's schema, the open
-# findings verb, and the removed forms.
+# findings verb, the round of a review session, and the removed forms.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
+# The tests of review-changes: the skill, the stack entry and the reviewers, and scripted
+# review sessions with a planted defect, a clean change and a reviewer with no report.
+expect "the review-changes tests pass" 0 "$ROOT" node --test scripts/review-changes.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list
 # "Notes read:".
 expect "the notes tests pass" 0 "$ROOT" node --test scripts/notes.test.js

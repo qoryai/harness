@@ -471,11 +471,19 @@ file whose path the prompt contains, is `true` or the name of a group role. When
 such member, the stage has none. The end hook shows it too: its text "no verdict command runs,
 because the stage has reviewers" shows that the stage has reviewers.
 
-In a stage that has reviewers, qory runs the review round after the session. The session
-starts no reviewer of the change: it builds the change, records it and ends. qory then starts
-each reviewer as a separate session, which writes one JSON file in a folder that only that
-session writes, as the reviewer's skill lists. qory reads that file. The session has no
-report to check and no start to count.
+A round of review runs in one of two ways:
+
+- In a stage that has reviewers, qory runs the review round after the session. The session
+  starts no reviewer of the change: it builds the change, records it and ends. qory then
+  starts each reviewer as a separate session, with `qory.review` in its `inputs.json`, which
+  writes one JSON file in a folder that only that session writes, as the reviewer's skill
+  lists. qory reads that file. The session has no report to check and no start to count.
+- In a review session, whose `inputs.json` has `qory.review_session`, the session itself
+  starts each reviewer as one of its agents, as the skill of its workflow lists. Each
+  reviewer writes one JSON file, `<reports>/<agent>.json`, where `<reports>` is
+  `qory.review_session.reports`. The session decides the round from those files and records
+  the verdict. The tool guard denies the session and its agents every write into the
+  working folder, and lets a reviewer agent write only its report file.
 
 When a round has a `blocking` finding, qory starts the next session of the stage with the
 findings of that round in `open-findings.json` in the inputs folder, read-only. The prompt
