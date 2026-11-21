@@ -9,9 +9,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - The parts of Verify that exist. The agents `tamper-reviewer` and `verification-reviewer`,
-  with the skills `checking-tampering` and `judging-criteria`: the first reports a changed
-  file that a locked check runs or imports and that the lock does not list, and each test
-  that the change newly skips or marks with skip or xfail; the second lowers a state of the
+  which the `verify-a-ticket` session starts and which each write one report to
+  `<reports>/<agent>.json`, with `reports` from `qory.review_session` in `inputs.json`, with
+  the skills `checking-tampering` and `judging-criteria`: the first reports a changed file
+  that a locked check runs or imports and that the lock does not list, and each test that
+  the change newly skips or marks with skip or xfail; the second lowers a state of the
   verification matrix whose evidence does not show it, never raises one, and writes each
   lowered state as one `blocking` finding. The verb `matrix --version <N>` writes the draft
   `verification.json` and `.reports/matrix-record.json` from the records of `run locked`,

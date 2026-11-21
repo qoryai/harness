@@ -196,9 +196,16 @@ the artifact folder" lists.
 
 ### The reviewers of Verify
 
-Two agents of `software-factory` review Verify's work, each as a reviewer session of the
-kind above: `tamper-reviewer` with the skill `checking-tampering`, and
-`verification-reviewer` with the skill `judging-criteria`. Each loads `reviewing-changes`,
+Two agents of `software-factory` review Verify's work: `tamper-reviewer` with the skill
+`checking-tampering`, and `verification-reviewer` with the skill `judging-criteria`. They
+are agents of the `verify-a-ticket` session, which starts them. They are no reviewer
+sessions that qory starts, and they read no `qory.review`. The session passes
+`qory.review_session` in `inputs.json`, with `reports`, the report folder, and
+`suite_result`. The prompt of each agent has the path of the input file, the full id of the
+commit under review, the path of the file with the diff and, in a later round, the path of
+the file with the earlier findings. Each agent writes one report to `<reports>/<agent>.json`
+in the review-report format, such as `<reports>/verification-reviewer.json`, and stops with
+no report when `qory.review_session.reports` is missing. Each loads `reviewing-changes`,
 `judging-findings`, the skill of the agent, `reviewing-drafts` and `simple-communication`,
 lists the tools Read, Grep, Glob, Skill and Write, and runs on the tier `thinking`, which
 the pattern `*-reviewer` of the tier table gives it. Each reads the newest versions of the
@@ -219,10 +226,9 @@ does, and stops with no report when one cannot be read.
 
 The written parts of Verify are the skills `checking-tampering` and `judging-criteria`, the
 two agents, and the verb `matrix` of the check runners. The skill `workflow-verify-a-ticket`
-and the stack entry of the workflow are not built, and neither are these parts of qory: the
-`reviewers` key of the workflow, which makes qory start the two agents, and the values of
-`qory.review` in a Verify session. Until qory writes them, each reviewer reads its input as
-a Build reviewer does, and the shape of the input in Verify is not in a contract of qory.
+and the stack entry of the workflow are not built, and neither is `qory.review_session` in
+the `inputs.json` of the session, which qory writes. The agents read it as described here;
+its shape is not in a contract of qory yet.
 
 ## Agents
 

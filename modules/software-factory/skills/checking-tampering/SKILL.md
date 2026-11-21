@@ -17,14 +17,14 @@ This review reads those two gaps in the diff.
 
 ## What the review reads
 
-- `qory.review.diff`: the lines that the change adds and removes. Read all of it.
-- `qory.review.commit`: the read-only copy of the submitted commit. Search it with Grep and
-  Glob, with its path as the folder, to trace what a locked command runs and what a locked
-  file imports.
-- `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
+- The file of the diff, at the path in your prompt: the lines that the change adds and
+  removes. Read all of it.
+- The copy of the change: the working folder, at the commit in your prompt. Search it with
+  Grep and Glob to trace what a locked command runs and what a locked file imports.
+- The file of earlier findings, when your prompt has its path, as "Earlier findings" lists.
 
 The review also reads the newest acceptance lock from `<start>`, the folder in
-`qory.start_artifacts` of the input file. The copy at `commit` contains no `.qory` folder,
+`qory.start_artifacts` of the input file. The copy of the change contains no `.qory` folder,
 so do not look for the lock there. Read `<start>/index.json`. Of the entries of `artifacts`
 with the `type` `acceptance-lock`, leave out each withdrawn one: an entry whose version with
 the largest `number` in `versions`, of those with no `cancelled` set to `true`, has

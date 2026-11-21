@@ -131,6 +131,23 @@ test('each reviewer of Verify lists its tools, its tier, its skills and its repo
     /- A row whose state you would raise: write nothing for it\./);
 });
 
+test('each agent of Verify is an agent of the session: it writes <reports>/<agent>.json', () => {
+  for (const name of ['tamper-reviewer', 'verification-reviewer']) {
+    const text = read('agents', `${name}.md`);
+    const flat = text.replace(/\s+/g, ' ');
+    assert.match(frontOf(text), /as an agent of the verify-a-ticket session/, name);
+    assert.ok(!/qory\.review\b(?!_)/.test(text), `${name} reads qory.review`);
+    assert.ok(flat.includes(`at \`<reports>/${name}.json\`, where \`<reports>\` is ` +
+      '`qory.review_session.reports` of the input file'), name);
+    assert.ok(flat.includes('`reports` is missing from `qory.review_session`.'), name);
+    assert.ok(flat.includes('Write it once, as your last step, at `<reports>/' + name + '.json`'),
+      name);
+  }
+  for (const skill of ['checking-tampering', 'judging-criteria']) {
+    assert.ok(!/qory\.review\b(?!_)/.test(read('skills', skill, 'SKILL.md')), skill);
+  }
+});
+
 test('the example report of tamper-reviewer has a helper and a new skip mark, each blocking', () => {
   const text = read('agents', 'tamper-reviewer.md');
   const report = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(text)[1]);

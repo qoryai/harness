@@ -28,9 +28,10 @@ shows what the state says.
   `demo-evidence` of the scenario that it names, `scenario-N`. Read `<start>/index.json` as
   above, for the entry whose `type` is `demo-evidence` and whose `name` is the scenario, and
   read `<start>/demo-evidence/<name>/v<N>/<name>.json`.
-- `qory.review.diff` and `qory.review.commit`: the change and the read-only copy of the
-  submitted commit, to read a locked check or the code that a criterion names.
-- `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
+- The file of the diff, at the path in your prompt, and the copy of the change, the working
+  folder at the commit in your prompt: to read a locked check or the code that a criterion
+  names.
+- The file of earlier findings, when your prompt has its path, as "Earlier findings" lists.
 
 A file cannot be read when `<start>/index.json` or its file does not exist or cannot be
 read, when no entry is left, when `newest_version` is null, when more than one entry is left
