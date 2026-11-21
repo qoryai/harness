@@ -887,6 +887,26 @@ function codexStep(hook, who, calls) {
   return null;
 }
 
+test('the copy of destinations and the reads of their folders pass, unchanged', () => {
+  // The session copies the destinations that the code explorer names, and agents read them.
+  const folder = '/tmp/qory-destinations/host.example.com/example-org/web';
+  for (const command of ['/qory/qory destination clone tg_8k2m4n6p8q0r2s4t',
+    'qory destination clone tg_8k2m4n6p8q0r2s4t tg_9n3p5q7r9s1t3v5w']) {
+    assert.equal(guard(claude('Bash', { command })), null, command);
+    assert.equal(guard(codex('Bash', { command })), null, command);
+  }
+  for (const command of [`ls -A ${folder}`, `grep -r --exclude-dir=.git -- 'hours' ${folder}`,
+    `find ${folder} -name .git -prune -o -type l -print`]) {
+    assert.equal(guard(claude('Bash', { command }, 'code-explorer')), null, command);
+    assert.equal(guard(codex('Bash', { command }, 'code-explorer')), null, command);
+  }
+  assert.equal(guard(claude('Read', { file_path: `${folder}/src/cart.ts` }, 'code-explorer')),
+    null);
+  assert.equal(guard(claude('Grep', { pattern: 'hours', path: folder }, 'proposal-reviewer')),
+    null);
+  assert.equal(guard(claude('Glob', { pattern: '*', path: folder }, 'code-explorer')), null);
+});
+
 test('the step limit reads the writes of a step with the rules of the guard', () => {
   for (const name of ['Write', 'Edit', 'MultiEdit']) {
     assert.equal(countsAsWrite(name, { file_path: 'a.ts' }, PLACE), true, name);
