@@ -674,6 +674,8 @@ test('after a rework that removes scenario-2, the session withdraws its demo scr
 test('a writer\'s stop on the build plan ends the session with one answer point', () => {
   const stop = section(WORKFLOW, 'A stop on the build plan');
   says(stop, 'for one `answer` point, with `none` as the list "Decided"');
+  // A point is plain text, so the change loses its backticks.
+  says(stop, 'without its full stop and with no backtick: a point is plain text.');
   const text = /Its text is "([^"]+)"/.exec(oneLine(stop));
   assert.ok(text, 'the section has no text of the point');
   for (const reviewers of [true, undefined]) {
