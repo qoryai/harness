@@ -14,17 +14,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   paths of the change, as agents of the session. Each writes one report,
   `<reports>/<agent>.json`, where `<reports>` is `qory.review_session.reports` of
   `inputs.json`. qory runs the full suite and the locked checks before the session and
-  passes the result in `qory.review_session.suite_result`. The new verb `checks.cjs
-  findings round <reports> --reviewers <names> --suite <file>` reads each report and the
-  suite result once; a reviewer with no valid report and a suite that failed or did not run
-  are one blocking finding each, in the words of qory's review round. While a finding is
-  blocking, it writes the `run_again` points to `<reports>/points.json` and exits 1, and
-  the session records `changes-requested` with them; otherwise the session pushes the
-  build report and records `passed`. Build is a loop of at most 3 rounds of
-  `implement-changes` and `review-changes`, which Apiary runs.
-- `checks.cjs report-build --out <folder>` writes `build-report.md` into that folder and
-  touches no hand-off file. The review session writes its build report into the report
-  folder with it.
+  passes the result in `qory.review_session.suite_result`, as `{tests, failed, skipped,
+  output_tail}`. The new verb `checks.cjs findings round <reports> --reviewers <names>
+  --suite <file>` reads each report and the suite result once; a reviewer with no valid
+  report and a suite with a failed test, with every test skipped or with no result are one
+  blocking finding each. While a finding is blocking, it writes the `run_again` points to
+  `<reports>/points.json` and exits 1, and the session records `changes-requested` with
+  them; otherwise it records `passed`. The session writes no build report and no submission
+  text. Build is a loop of at most 3 rounds of `implement-changes` and `review-changes`,
+  which Apiary runs.
 - The tool guard knows a review session: a session whose `inputs.json` has
   `qory.review_session` as an object. There it allows agent starts, and an agent whose type
   ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case

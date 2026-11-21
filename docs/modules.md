@@ -898,16 +898,18 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   result of the full suite at `--suite`, once each. A report that is missing, a link, no
   regular file, over 1 MiB, no UTF-8, no JSON object, outside the review report format or of
   another reviewer is one blocking finding of that reviewer, in the words of qory's review
-  round, such as `Reviewer code-reviewer wrote no report.`. A suite whose `state` is
-  `failed` or `not_run`, or a result that cannot be read or has another `state`, is one
-  blocking finding of `full-suite`. It prints `Blocking finding of <reviewer>[, <file>[:
-  <line>]]: <point>` and `Non-blocking finding of ...`, the blocking ones first, each with
-  `Proof: <proof>` on the next line when it has one, then one line on what it checked. While
-  a finding is blocking, it writes `<reports>/points.json`, a `run_again` point with the
-  `point` and the `fix` of each blocking finding, at most 20 with the last one counting the
-  rest, and exits with 1. Otherwise it removes an earlier `points.json` and exits with 0.
-  It exits with 2 for a wrong argument and 3 when the report folder is a link or no folder.
-  `points.json` is the only file that it writes.
+  round, such as `Reviewer code-reviewer wrote no report.`. The suite result has qory's form
+  `{tests, failed, skipped, output_tail}`, with counts that are integers of 0 or more. A
+  suite with `failed` over 0, a suite whose tests were all skipped, and a result that is
+  missing, over 4 MiB or in another form are one blocking finding of `full-suite`. It prints
+  `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and `Non-blocking finding of
+  ...`, the blocking ones first, each with `Proof: <proof>` on the next line when it has
+  one, then one line on what it checked. While a finding is blocking, it writes
+  `<reports>/points.json`, a `run_again` point with the `point` and the `fix` of each
+  blocking finding, at most 20 with the last one counting the rest, and exits with 1.
+  Otherwise it removes an earlier `points.json` and exits with 0. It exits with 2 for a
+  wrong argument and 3 when the report folder is a link or no folder. `points.json` is the
+  only file that it writes.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -3016,14 +3018,9 @@ the full suite and the locked checks before the session, and passes their result
    did not run. With a blocking finding, the verb writes `<reports>/points.json`, and the
    session runs `qory run verdict changes-requested --points <reports>/points.json`. qory
    then writes `open-findings.json` for the next `implement-changes` from the reports.
-6. With no blocking finding, it runs `checks.cjs report-build --inputs <input file> --out
-   <reports>`, which writes `<reports>/build-report.md` and no hand-off file, pushes
-   `build-report`, and runs `qory run verdict passed`. A push that fails three times ends
-   with "The run could not push its build report." The session runs no `check
-   build-report`: `check` reads only a file of the artifact folder, and the guard lets a
-   reviewer write only its report.
-
-`submission-writer` and the hand-off file of `report-build` are not part of the session.
+6. With no blocking finding, it runs `qory run verdict passed`. The session writes no build
+   report and no submission text, starts no `submission-writer` and pushes no artifact:
+   its checkout is read-only, so it cannot write `pull-request.json` into the outbox.
 
 - **The reviewers.** The session starts `code-reviewer`, `test-reviewer` and
   `acceptance-reviewer` as its agents, as "The review of a change" lists.
@@ -3098,10 +3095,7 @@ the full suite and the locked checks before the session, and passes their result
   - the stack key `review_group`: qory at the pinned commit refuses it with "Remove the key,
     or rename it to one qory-stack.yaml reads.", so each compose of the `software` stack
     fails until qory reads the key;
-  - the shape of `suite_result`: `findings round` reads its member `state`, `passed`,
-    `failed` or `not_run`, the states of qory's review round; any other value is one
-    blocking finding;
-  - `output_tail` of `suite_result`, the last lines of the output of the suite;
+  - the file of `suite_result`, in qory's form `{tests, failed, skipped, output_tail}`;
   - the shape of `previous_findings`.
   Build's `sequence` in `process.yaml` stays empty until `implement-changes` is merged.
 
@@ -3492,17 +3486,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   contains the cause for the line that ends the run, as `running-checks` lists it; after a
   check that did not finish, the session ends the run. The session then checks the points
   with `check points` and ends: the end check sends them with the verdict `escalate`.
-- `report-build [--inputs <path>] [--out <folder>]` and `report-build --drop`: the first
-  writes `build-report.md` of the standard track to the artifact folder, with every table
-  rendered from records, so no agent types a result, and writes the hand-off file that
-  qory's submit step reads. A fast-track report is written elsewhere. The second removes a
-  regular file at the path of `QORY_SUBMISSION_HANDOFF` and nothing else, prints one line,
-  and exits 0; it exits 3 with a fix line when the file cannot be removed. With `--out
-  <folder>`, an absolute path of a folder that is no link, the first writes
-  `build-report.md` into that folder and nothing else: it reads no
-  `QORY_SUBMISSION_HANDOFF`, and writes and removes no hand-off file, also on a failure. The
-  review session `review-changes` runs it with its report folder. The sections come from
-  these sources:
+- `report-build [--inputs <path>]` and `report-build --drop`: the first writes
+  `build-report.md` of the standard track to the artifact folder, with every table rendered
+  from records, so no agent types a result, and writes the hand-off file that qory's submit
+  step reads. A fast-track report is written elsewhere. The second removes a regular file
+  at the path of `QORY_SUBMISSION_HANDOFF` and nothing else, prints one line, and exits 0;
+  it exits 3 with a fix line when the file cannot be removed. The sections come from these
+  sources:
   - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
   - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
     the columns Step, Pass, Kind, State and Commit;

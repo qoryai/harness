@@ -334,9 +334,8 @@ workflows:
   change. Each writes one report into the report folder. `checks.cjs findings round`
   decides the round from the reports and the result of the full suite: a blocking finding,
   a reviewer with no report and a red suite end with `qory run verdict changes-requested`.
-  With no blocking finding, the session writes `build-report.md` into the report folder
-  with `checks.cjs report-build --out`, pushes it, and runs `qory run verdict passed`. The
-  session writes nothing into the checkout.
+  With no blocking finding, the session runs `qory run verdict passed`. It writes nothing
+  into the checkout, and no build report or submission text.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.
