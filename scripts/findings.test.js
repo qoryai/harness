@@ -114,7 +114,8 @@ test('the schema fails a result word, an unknown member and each bad finding', (
 });
 
 test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
-  assert.match(REVIEWING, /Write one file, the report, with Write or, on Codex, with `apply_patch`/);
+  assert.match(REVIEWING,
+    /Write one file, the report, with Write or, on Codex, with `apply_patch`/);
   assert.match(REVIEWING, /the path is `qory\.review\.report` of\s+`inputs\.json`/);
   // As an agent of a review session, the reviewer writes <reports>/<name>.json.
   assert.match(REVIEWING, /the path is\s+`<reports>\/<your agent name>\.json`, where/);
@@ -284,6 +285,7 @@ test('findings open: each broken form of the file exits 3 with the fix on line 1
     [{ round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: ['x'] }] }, /as a string/],
     [finding({ id: 'g1' }), /no id of the form f<number>/],
     [finding({ id: undefined }), /no id of the form f<number>/],
+    [finding({ id: ['f1'] }), /no id of the form f<number>/],
     [finding({ severity: 'break' }), /neither blocking nor non-blocking/],
     [finding({ point: 4 }), /point as a number, not text/],
     [finding({ point: undefined }), /point as missing, not text/],
@@ -696,6 +698,9 @@ test('findings round: a missing or invalid report is one blocking finding', () =
     [{ reviewer: name, findings: [{ ...REVIEWED, point: '\u200b' }] }, 'Reviewer ' +
       'code-reviewer wrote a report that does not match the report format: finding 1 has a ' +
       'point that is not one line with a character that shows.'],
+    [{ reviewer: name, findings: [{ ...REVIEWED, id: ['f1'] }] }, 'Reviewer code-reviewer ' +
+      'wrote a report that does not match the report format: finding 1 has an id that is not ' +
+      'of the form f<number>.'],
   ];
   for (const [report, point] of cases) {
     const { dir, suite } = sessionFolder(report === undefined ? {} : { [name]: report });

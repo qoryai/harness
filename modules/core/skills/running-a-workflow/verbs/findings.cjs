@@ -4,16 +4,16 @@
 // reads the file and writes nothing.
 //
 // findings round <reports> --reviewers <names> --suite <file>: the result of the round of a
-// review session. It reads <reports>/<name>.json of each reviewer of --reviewers, in the
-// review report format, and the result of the full suite at --suite, once each. A report that
-// is missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, in another format
-// or of another reviewer is one blocking finding of that reviewer, in qory's words. A suite
-// result that failed or did not run, by the rule that a skill adds to the registry, or one
-// that cannot be read, is one blocking finding of full-suite. It prints a line per finding,
-// blocking ones first, with its proof on the next line. While a finding is blocking, it
-// writes <reports>/points.json, the run_again points of the blocking findings, at most 20,
-// and exits 1; otherwise it removes an earlier points.json and exits 0. points.json is the
-// only file it writes.
+// review session. It reads <reports>/<name>.json of each reviewer of --reviewers, in the review
+// report format, and the result of the full suite at --suite, once each. A report that is
+// missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, in another format or
+// of another reviewer is one blocking finding of that reviewer, such as "Reviewer <name> wrote
+// no report." A suite result that failed or did not run, by the rule that a skill adds to the
+// registry, or one that cannot be read, is one blocking finding of full-suite. It prints a line
+// per finding, blocking ones first, with its proof on the next line. While a finding is
+// blocking, it writes <reports>/points.json, the run_again points of the blocking findings, at
+// most 20, and exits 1; otherwise it removes an earlier points.json and exits 0. points.json is
+// the only file it writes.
 'use strict';
 
 const fs = require('node:fs');
@@ -149,7 +149,7 @@ function roundArgs(rest) {
 }
 
 // reviewerFindings returns the findings of the report of name in the folder dir: those of
-// the report, or one blocking finding of qory's words when the report is missing or invalid.
+// the report, or one blocking finding when the report is missing or invalid.
 function reviewerFindings(dir, name) {
   const file = path.join(dir, `${name}.json`);
   const missing = (point) => [{ reviewer: name, severity: 'blocking', point, proof: null }];

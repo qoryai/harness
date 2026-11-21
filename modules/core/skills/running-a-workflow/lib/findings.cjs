@@ -70,7 +70,8 @@ function reportProblem(data, name) {
     if (/[\n\r]/u.test(finding.point) || !SHOWS.test(finding.point)) {
       return `${which} has a point that is not one line with a character that shows`;
     }
-    if (finding.id !== undefined && !FINDING_ID.test(String(finding.id))) {
+    if (finding.id !== undefined &&
+      (typeof finding.id !== 'string' || !FINDING_ID.test(finding.id))) {
       return `${which} has an id that is not of the form f<number>`;
     }
     if (finding.line !== undefined && !(Number.isInteger(finding.line) && finding.line >= 1)) {
@@ -106,7 +107,7 @@ function readOpen(data, name) {
     one.findings.forEach((finding, place) => {
       const which = `finding ${place + 1} of ${one.reviewer}`;
       if (!isObject(finding)) throw broken(`has ${which} as ${jsonKind(finding)}`);
-      if (!FINDING_ID.test(finding.id || '')) {
+      if (typeof finding.id !== 'string' || !FINDING_ID.test(finding.id)) {
         throw broken(`has ${which} with no id of the form f<number>`);
       }
       if (!SEVERITIES.includes(finding.severity)) {
