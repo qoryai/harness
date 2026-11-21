@@ -960,6 +960,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   organisation to choose a runtime that starts agents in Workspace settings > Model, then
   run another round." On a runtime whose end hook runs, the end check records the verdict
   through `points.json`, as for every end through "Points".
+- A member's answer can allow more than 7 changes in a build plan. The check of
+  `build-plan` accepts up to `<n>` deliverables when the newest answer "Build all <n>
+  changes in this work item." to "Which changes do you want to build in this work item?"
+  has `<n>` of 8 or more. Option 1 keeps the limit: 7 for the first question, and the
+  number a member allowed for a later one. The check reads `notes[]` of `qory work-item
+  show` in a session and `notes.json` in the working folder of the push check. Over the
+  limit, the finding is "Plan at most <m> separate changes, or ask a member whether to
+  build all <n>: the plan has <n>, and no member's answer allows more than <m>.", and when
+  the notes cannot be read, a later line says why and the limit stays 7.
 
 ### Changed
 
