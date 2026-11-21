@@ -260,13 +260,14 @@ work item waits for a member, who can start the run again.
   input file, so it pushed no proposal." Write no path in the line.
 - The first pull fails: "The run could not pull the artifacts of the work item."
 - The checks script still exits with 1 on the ids of the code explorer's second start for
-  the destinations, as the section "Destinations" lists: "The run could not name the
-  destinations that the ticket concerns, so it pushed no proposal."
+  the destinations, as the section "Destinations" lists: the first line that the second
+  call printed, unchanged, such as "Give only ids from destinations in the inputs:
+  tg_8k2m4n6p8q0r2s4t is not one of them."
 - `<qory> destination clone` fails twice in a row, as the section "Destinations" lists:
   the error line of the second call, the line that starts with `✗ `, without that mark and
   otherwise unchanged, such as "Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary:
-  the host returned 403 to the clone." It is the one line that starts with a step, because
-  qory wrote it.
+  the host returned 403 to the clone." This line and the line of the checks script are the
+  two lines of this list that start with a step, because qory or the script wrote them.
 - A start fails: "The run could not start <the work>, so it pushed no proposal." The work
   is what the agent does, in plain words, such as "the review of the proposal".
 - The proposal still fails the checks of the proposal before a review after the proposal

@@ -871,6 +871,64 @@ test('end: after one failed copy and one that works, Explore records no escalate
   assert.deepEqual(verdicts(args), []);
 });
 
+// refusalLines returns the first line of each refusal of the destinations verb, one call per
+// kind of finding, with the ids of an inputs.json of two destinations.
+function refusalLines() {
+  const inputs = destinationsInputs(2);
+  const many = Array.from({ length: 101 }, (_, n) => destinationId(n % 2));
+  return [['tg_8k2m4n6p8q0r2s4t'], [destinationId(0), destinationId(0)], ['tg_IIII'], many]
+    .map((ids) => {
+      const result = call({ cwd: tmp }, ['destinations', '--inputs', inputs, ...ids]);
+      assert.equal(result.status, 1, result.out);
+      return result.stdout.split('\n')[0];
+    });
+}
+
+test('end: ids refused twice end Explore with escalate and the first line of the refusal', () => {
+  const workflow = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-explore-a-ticket/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.doesNotMatch(workflow, /could not name the destinations/);
+  const sample = new RegExp('second start for the destinations, .*?: the first line that ' +
+    'the second call printed, unchanged, such as "([^"]+)"').exec(workflow);
+  assert.ok(sample, 'the Explore skill lists no line for ids refused twice');
+  const lines = refusalLines();
+  assert.equal(lines[0], sample[1]);
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const points = path.join(root, 'points.json');
+  // The first line of each kind of refusal passes as the text of the first point.
+  for (const text of lines) {
+    write(root, 'points.json', [{ text, action: 'run_again' }]);
+    passes(check(root, 'points', points));
+  }
+  write(root, 'points.json', [{ text: lines[0], action: 'run_again' }]);
+  older(root);
+  const { args, env } = stub();
+  const ended = end(root, env);
+  passes(ended);
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${points}`]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')),
+    [{ text: lines[0], action: 'run_again' }]);
+});
+
+test('end: after one refusal of the ids and a list that passes, Explore records no escalate', () => {
+  const inputs = destinationsInputs(2);
+  assert.equal(call({ cwd: tmp }, ['destinations', '--inputs', inputs,
+    'tg_8k2m4n6p8q0r2s4t']).status, 1);
+  const second = call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(1)]);
+  passes(second);
+  assert.equal(second.stdout, `${destinationId(1)}\n`);
+  // The session went on to the copy and wrote no points.json: end runs no verdict.
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const { args, env } = stub();
+  passes(end(root, env));
+  assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
+  assert.deepEqual(verdicts(args), []);
+});
+
 test('the questions agents search the copied folders of destinations, also with no target', () => {
   const core = path.join(MODULES, 'core');
   const read = (file) => fs.readFileSync(path.join(core, file), 'utf8').replace(/\s+/g, ' ');
