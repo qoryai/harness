@@ -20,13 +20,18 @@ module.exports = (lib) => {
 
   // The titles of the options of the question in workflow-plan-the-build/SKILL.md, where each
   // <...> stands for a value that the session fills in.
-  const SHARED_START = 'Build the first 7 changes here; take in the other ';
+  // The variants of option 1 for a plan whose later changes list no criterion of their own
+  // start with the first 7 changes, or with the first <m> after an answer that allowed <m>.
   const SHARED_END = ' as a new work item.';
+  const shared = (first, other) => `Build the first ${first} changes here; take in the other ` +
+    `${other}${SHARED_END}`;
   const OPTIONS = {
     all: 'Build all <n> changes in this work item.',
     one: 'Build the changes for <criteria> here; take in <other criteria> as a new work item.',
-    shared: `${SHARED_START}<j> changes (<short names>)${SHARED_END}`,
-    sharedOne: `${SHARED_START}1 change (<short name>)${SHARED_END}`,
+    shared: shared(7, '<j> changes (<short names>)'),
+    sharedOne: shared(7, '1 change (<short name>)'),
+    sharedAllowed: shared('<m>', '<j> changes (<short names>)'),
+    sharedAllowedOne: shared('<m>', '1 change (<short name>)'),
   };
 
   // matcher returns a pattern for text in which <n> matches digits, and any other <...>
@@ -40,7 +45,8 @@ module.exports = (lib) => {
   }
   const ALL = matcher(OPTIONS.all);
   // The options that set the limit back to 7.
-  const BACK_TO_SEVEN = [OPTIONS.one, OPTIONS.shared, OPTIONS.sharedOne].map(matcher);
+  const BACK_TO_SEVEN = [OPTIONS.one, OPTIONS.shared, OPTIONS.sharedOne, OPTIONS.sharedAllowed,
+    OPTIONS.sharedAllowedOne].map(matcher);
 
   // limitOf returns the limit that notes, the list notes[] of the work item oldest first,
   // sets. Only a member's act makes a note of the kind answer, with the title of the option

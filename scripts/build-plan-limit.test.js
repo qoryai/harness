@@ -281,16 +281,44 @@ test('a note that is no object is skipped, and the others count', () => {
 test('the option texts of the check are in workflow-plan-the-build/SKILL.md', () => {
   const skill = fs.readFileSync(PLAN_SKILL, 'utf8').replace(/\s+/g, ' ');
   const options = allowance.MEMBER_OPTIONS;
-  assert.deepEqual(Object.keys(options), ['all', 'one', 'shared', 'sharedOne']);
-  for (const key of ['all', 'one', 'shared']) {
+  assert.deepEqual(Object.keys(options),
+    ['all', 'one', 'shared', 'sharedOne', 'sharedAllowed', 'sharedAllowedOne']);
+  for (const key of ['all', 'one', 'shared', 'sharedAllowed']) {
     assert.ok(skill.includes(options[key]), `SKILL.md has no "${options[key]}"`);
   }
   // With <j> 1, the skill writes "the other 1 change (<short name>)" in the same sentence.
   assert.ok(skill.includes('the other 1 change (<short name>)'));
-  assert.ok(skill.includes(options.sharedOne.replace('1 change (<short name>)', '<j> changes ' +
-    '(<short names>)')));
   assert.equal(options.sharedOne, options.shared.replace('<j> changes (<short names>)',
     '1 change (<short name>)'));
+  assert.equal(options.sharedAllowedOne, options.sharedAllowed.replace(
+    '<j> changes (<short names>)', '1 change (<short name>)'));
+});
+
+test('the texts of the question over the allowed number are in SKILL.md', () => {
+  const skill = fs.readFileSync(PLAN_SKILL, 'utf8').replace(/\s+/g, ' ');
+  for (const text of [
+    'After the feedback of <date>, the build plan has <n> changes; a member allowed <m>.',
+    'Which changes do you want to build in this work item?',
+    'A member allowed <m> separate changes for this work item, and the plan after the ' +
+      'feedback of <date> has <n>. <k> changes are for <criteria>, and the other <j> are for ' +
+      '<other criteria>. Build waits until you pick.',
+    'Explanation: This build stays within the <m> changes that a member allowed. Qory Apiary ' +
+      'has no action that splits a work item, so you take in the other criteria.',
+    'Explanation: One build makes all <n> changes, over the <m> that a member allowed, and ' +
+      'the build report records your answer and its date.',
+  ]) {
+    assert.ok(skill.includes(text), `SKILL.md has no "${text}"`);
+  }
+});
+
+test('an answer with option 1 of the allowed number sets the limit back to 7', () => {
+  const first = 'Build the first 12 changes here; take in the other 2 changes ("Change part 13", ' +
+    '"Change part 14") as a new work item.';
+  const one = 'Build the first 12 changes here; take in the other 1 change ("Change part 13") ' +
+    'as a new work item.';
+  for (const text of [first, one]) {
+    assert.equal(allowance.limitOf([answer(ALL(14)), answer(text)]), 7);
+  }
 });
 
 test('limitOf reads the newest matching answer of a list', () => {
