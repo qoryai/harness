@@ -4256,6 +4256,11 @@ The script also checks that the compose of the `software` stack writes `roles.js
 `security-reviewer`, `data-reviewer` and `failure-reviewer` as the members of
 `agents/reviewers`, each with `paths`.
 
+The script also checks that each agent of `software-factory` whose description says it is an
+agent of the `verify-a-ticket` session is a member of `verify-reviewers` in
+`qory-module.yaml`, and the reverse. It reads the group name from the script until the stack
+has a `verify-a-ticket` entry, and then from `review_group` of that entry.
+
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
 `scripts/preflight.test.js` and rule 9 with `node`, and exits 1 at its start with an

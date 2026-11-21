@@ -2731,6 +2731,23 @@ const names = (role) => roles.filter((row) => row.role === role && row.group ===
 const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
   names("agents/reviewers") === "security-reviewer data-reviewer failure-reviewer";
 if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
+# Each reviewer agent that the verify-a-ticket session starts is a member of the group role
+# verify-reviewers in qory-module.yaml. The agents are the files of software-factory whose
+# description says so. shortcut: the group name is fixed here because the stack has no
+# verify-a-ticket entry yet; read it from review_group of that entry when it is added.
+expect "each agent of the verify-a-ticket session is a member of verify-reviewers in qory-module.yaml" \
+	0 "$ROOT" node -e '
+const fs = require("fs");
+const dir = "modules/software-factory/";
+const yaml = fs.readFileSync(dir + "qory-module.yaml", "utf8");
+const line = /^\s{4}verify-reviewers: \[([^\]]*)\]/m.exec(yaml);
+const members = line ? line[1].split(",").map((name) => name.trim()) : [];
+const agents = fs.readdirSync(dir + "agents").filter((file) => file.endsWith(".md"))
+  .filter((file) => /as an agent of the verify-a-ticket session/.test(
+    fs.readFileSync(dir + "agents/" + file, "utf8").split("\n---")[0]))
+  .map((file) => file.slice(0, -3)).sort();
+const good = agents.length > 0 && agents.join(" ") === [...members].sort().join(" ");
+if (!good) { console.error("agents: " + agents.join(" ") + "; members: " + members.join(" ")); process.exit(1); }'
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||
