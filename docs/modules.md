@@ -1721,17 +1721,30 @@ tool's error. The first line of each reason starts with what to do. The guard de
   stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard denies
   both.
 - A review session is a session whose `inputs.json` has `qory.review_session` as an object
-  and no `qory.review`. There the guard changes two rules. The session may start agents in
+  and no `qory.review`. There the guard changes these rules. The session may start agents in
   the foreground, as in any run. An agent whose type ends in `-reviewer` writes only
   `<reports>/<agent name>.json`, where `<reports>` is `qory.review_session.reports`, with
-  Write or `apply_patch`; the agent name is the part after the last `:` of its type. The
-  name matches `^[a-z0-9][a-z0-9-]{0,63}$` and is not `full-suite`, the rule of qory's
-  review round. The guard denies a link, a file with more than one link, a `..` part and a
-  report folder inside the working folder, each with a first line that starts with "Write
-  only" or "Report in your text". The main session and every other agent follow the rules of
-  a session with the same access, so a `write-no-push` session with `qory.review_session`
-  writes and runs commands as before. The functions are `reviewSession`, `reportName`,
-  `sessionDeny` and `sessionReport` of `tool-guard.cjs`.
+  Write or `apply_patch`, and runs only a shell command of read commands. On Claude Code its
+  type is `harness:<name>`; on Codex it is a role that the composed home defines in
+  `<home>/codex/agents/<name>.toml`. A bare name, `evil:code-reviewer` and
+  `a/b:test-reviewer` get no report. The name matches `^[a-z0-9][a-z0-9-]{0,63}$` and is not
+  `full-suite`, the rule of qory's review round. The guard denies a link, a file with more
+  than one link, a `..` part and a report folder inside the working folder, each with a
+  first line that starts with "Write only" or "Report in your text". No other call writes in
+  `<reports>`: not the main session, no agent of another type or of none, by no tool, also
+  no shell command. Only `checks.cjs findings round`, run alone, writes
+  `<reports>/points.json`. A shell command whose writes the guard cannot read, such as `node
+  -e`, is denied when it contains a path in `<reports>`. The main session and every other
+  agent follow the rules of a session with the same access outside `<reports>`, so a
+  `write-no-push` session with `qory.review_session` writes and runs commands as before. The
+  functions are `reviewSession`, `reportName`, `keptFiles`, `sessionDeny` and
+  `sessionReport` of `tool-guard.cjs`.
+- In a session with `qory.review` or `qory.review_session`, the guard denies a write of
+  `inputs.json` of the harness home, wherever the home lies, with a first line that starts
+  with "Leave inputs.json". The file is read only in a walled run whose home is outside the
+  workspace (a read-only mount); qory's checks use the bytes it wrote, not the file.
+- The guard reads the writes of a shell command from its text, so a path in `<reports>` or
+  of `inputs.json` that a shell variable makes, such as `D=/x; echo > "$D/r.json"`, passes.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,

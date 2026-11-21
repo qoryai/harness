@@ -29,9 +29,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The tool guard knows a review session: a session whose `inputs.json` has
   `qory.review_session` as an object. There it allows agent starts, and an agent whose type
   ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case
-  letters, digits and hyphens that is not `full-suite`, and no link or `..` on the way.
-  Every other rule follows the access of the session, as before. In every other session the
-  guard denies the write tools to a `-reviewer` agent, as before.
+  letters, digits and hyphens that is not `full-suite`, and no link or `..` on the way. Its
+  type is `harness:<name>` on Claude Code and a role of the composed home on Codex, and it
+  runs only read commands. No other call writes in `<reports>`, except `checks.cjs findings
+  round`, which writes `points.json`. A session with `qory.review` or `qory.review_session`
+  writes no `inputs.json` of the harness home. A path that a shell variable makes still
+  passes. Every other rule follows the access of the session, as before. In every other
+  session the guard denies the write tools to a `-reviewer` agent, as before.
 
 - A tier for each workflow of the `software` stack, and a plan for each write workflow. Each
   entry of `workflows` in `stacks/software/qory-stack.yaml` sets `tier`, the tier whose
