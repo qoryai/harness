@@ -83,15 +83,101 @@ test('each new agent has its guardrails, stop conditions and expected output, an
   assert.match(planner, /\nTool exception: Edit, because /);
 });
 
-test('the stack declares plan-the-build with the tier thinking and the access write', () => {
+test('the stack declares plan-the-build with the tier thinking, the access write and its plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
-  assert.match(stack, /\n {2}plan-the-build: \{tier: thinking, access: write\}\n/);
+  assert.match(stack, /\n {2}plan-the-build: \{tier: thinking, access: write, plan: build-plan\}\n/);
   const settings = JSON.parse(read(SOFTWARE, 'settings/claude/settings.json'));
   for (const rule of ['Skill(harness:workflow-plan-the-build)', 'Skill(harness:planning-builds)',
     'Skill(harness:checking-build-plans)', 'Agent(harness:build-planner)',
     'Agent(harness:plan-reviewer)']) {
     assert.ok(settings.permissions.allow.includes(rule), rule);
   }
+});
+
+// TIERS are the tiers of a workflow's session: `Tiers` in qory's internal/stack/stack.go.
+const TIERS = ['light', 'balanced', 'thinking'];
+
+// workflowProblems returns a line for each workflow of the stack text whose tier is not one of
+// TIERS, and for each workflow with access write and no `plan: build-plan`. Each entry of the
+// workflows key is one line with a flow mapping: an entry in another form is a line too, on
+// its first line. A blank line inside the key ends no entry. tier, access and plan count only
+// at the top of the entry's mapping, not inside a nested value such as hook_points.
+function workflowProblems(text) {
+  const block = /\nworkflows:\n((?:(?: {2}.*)?\n)+)/.exec(text);
+  if (!block) return ['Add the workflows key to the stack.'];
+  const problems = [];
+  for (const line of block[1].split('\n')) {
+    // A blank line, or a member line of an entry written over several lines.
+    if (!line.trim() || /^ {3}/.test(line)) continue;
+    const entry = /^ {2}([a-z0-9-]+): \{(.*)\}$/.exec(line);
+    if (!entry) {
+      const name = /^ {2}([^:]+)/.exec(line)[1].trim();
+      problems.push(`Write ${name} on one line, as <name>: {<key>: <value>, ...}.`);
+      continue;
+    }
+    let top = entry[2];
+    while (/\{[^{}]*\}/.test(top)) top = top.replace(/\{[^{}]*\}/g, '');
+    const member = (key) => (new RegExp(`(?:^|[{,]\\s*)${key}: ([^,}\\s]+)`).exec(top) || [])[1];
+    const tier = member('tier');
+    if (!TIERS.includes(tier)) {
+      problems.push(`Set the tier of ${entry[1]} to ${TIERS.slice(0, -1).join(', ')} or ` +
+        `${TIERS.at(-1)}: it is ${tier || 'missing'}.`);
+    }
+    if (member('access') === 'write' && member('plan') !== 'build-plan') {
+      problems.push(`Add plan: build-plan to ${entry[1]}: its access is write.`);
+    }
+  }
+  return problems;
+}
+
+test('each workflow of the stack has a tier, and each write workflow the plan build-plan', () => {
+  const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
+  assert.deepEqual(workflowProblems(stack), []);
+  for (const [name, tier] of [['explore-a-ticket', 'thinking'], ['shape-a-ticket', 'thinking'],
+    ['write-specs', 'thinking'], ['write-technical-decisions', 'thinking'],
+    ['make-mockups', 'balanced'], ['write-demo-scenarios', 'balanced']]) {
+    assert.match(stack, new RegExp(`\\n {2}${name}: \\{tier: ${tier}, access: read\\}\\n`), name);
+  }
+  // workflowProblems returns the line of the fault in a changed stack.
+  const changed = (from, to) => {
+    const text = stack.replace(from, to);
+    assert.notEqual(text, stack, from);
+    return workflowProblems(text);
+  };
+  assert.deepEqual(changed('make-mockups: {tier: balanced, ', 'make-mockups: {tier: fast, '),
+    ['Set the tier of make-mockups to light, balanced or thinking: it is fast.']);
+  assert.deepEqual(changed('write-specs: {tier: thinking, ', 'write-specs: {'),
+    ['Set the tier of write-specs to light, balanced or thinking: it is missing.']);
+  assert.deepEqual(changed('review-changes: {tier: thinking, access: write, plan: build-plan}',
+    'review-changes: {tier: thinking, access: write}'),
+  ['Add plan: build-plan to review-changes: its access is write.']);
+  assert.deepEqual(changed('shape-a-ticket: {tier: thinking, access: read}',
+    'shape-a-ticket:\n    tier: thinking'),
+  ['Write shape-a-ticket on one line, as <name>: {<key>: <value>, ...}.']);
+  // A blank line inside the key, and an entry after it.
+  assert.deepEqual(changed('  review-changes: ', '\n  extra-flow: {access: write}\n  review-changes: '),
+    ['Set the tier of extra-flow to light, balanced or thinking: it is missing.',
+      'Add plan: build-plan to extra-flow: its access is write.']);
+  // A nested value: its members are not the entry's.
+  assert.deepEqual(changed('make-mockups: {tier: balanced, access: read}',
+    'make-mockups: {tier: balanced, access: read, hook_points: {x: {at: end}}}'), []);
+  assert.deepEqual(changed('make-mockups: {tier: balanced, access: read}',
+    'make-mockups: {access: write, hook_points: {x: {tier: light, plan: build-plan}}}'),
+  ['Set the tier of make-mockups to light, balanced or thinking: it is missing.',
+    'Add plan: build-plan to make-mockups: its access is write.']);
+  assert.deepEqual(workflowProblems('name: sample\n'), ['Add the workflows key to the stack.']);
+});
+
+// SCOPE_CHECK is the command of the scope check of build-plan under scope_checks in the
+// manifest of software-factory, as a list of words, or null when the manifest has none.
+const SCOPE_CHECK = ((match) => match && match[1].split(',').map((word) => word.trim()))(
+  /\nscope_checks:\n {2}build-plan: \[([^\]\n]*)\]\n/.exec(read(SOFTWARE, 'qory-module.yaml')));
+
+test('software-factory declares the scope check of build-plan, the plan of each write workflow', () => {
+  assert.deepEqual(SCOPE_CHECK,
+    ['skills/running-a-software-workflow/workflow-checks.cjs', 'scope', '--plan']);
+  assert.equal(path.join(SOFTWARE, SCOPE_CHECK[0]), PUSH);
+  assert.ok(fs.statSync(PUSH).isFile());
 });
 
 test('exploring-code keeps the form of its Report, so checking-proposals still reads it', () => {
@@ -759,6 +845,83 @@ test('scope --plan lets a locked check and its helper in when the Files list the
     refused.out);
   assert.ok(refused.lines.includes('Undo the change to "tests/helpers/orders.ts": it is outside the scope.'),
     refused.out);
+});
+
+// scopeCheck runs the scope check of build-plan in a separate node process: the command of
+// SCOPE_CHECK, from the module's folder, then --base <start commit> and --artifacts <folder>,
+// its last arguments. With verb, it runs the program of the command with those arguments.
+function scopeCheck(w, base, artifacts, ...verb) {
+  const [program, ...words] = SCOPE_CHECK;
+  const ran = childProcess.spawnSync(process.execPath, [path.join(SOFTWARE, program),
+    ...(verb.length ? verb : [...words, '--base', base, '--artifacts', artifacts])],
+  { cwd: w.repo, env: w.env, encoding: 'utf8' });
+  return { status: ran.status, out: ran.stdout + ran.stderr };
+}
+
+test('the scope check of build-plan exits 0 on a push inside the plan and 1 on one outside it', () => {
+  const pushed = (file) => {
+    const { w } = checkout(EXAMPLE, []);
+    const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    fs.mkdirSync(path.dirname(path.join(w.repo, file)), { recursive: true });
+    fs.writeFileSync(path.join(w.repo, file), 'The change.\n');
+    git(w.repo, w.env, 'add', file);
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Change');
+    return scopeCheck(w, base, path.join(w.repo, '.qory/artifacts'));
+  };
+  const inside = pushed('replies/delayed-order.md');
+  assert.equal(inside.status, 0, inside.out);
+  assert.match(inside.out, /^Passed: 1 changed path in the files of the build plan, 1 commit/);
+  const outside = pushed('src/prices.ts');
+  assert.equal(outside.status, 1, outside.out);
+  assert.match(outside.out, /^Take "src\/prices\.ts" out of the commits since the base: it is /);
+  // Any verb other than push and scope still exits 2.
+  const { w } = checkout(EXAMPLE, []);
+  const other = scopeCheck(w, null, null, 'check', 'build-plan', path.join(w.repo, 'plan.md'));
+  assert.equal(other.status, 2, other.out);
+  assert.equal(other.out, 'Give push <type> <file>... or scope --plan: workflow-checks.cjs runs ' +
+    'only push and scope.\n');
+});
+
+test('the scope check of build-plan runs the checks of freeze on the commits since the base', () => {
+  // A GitHub token, built here so that the file has no key in it.
+  const token = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  // committed makes a checkout with the example plan and commits one change inside its Files,
+  // and returns the result of the scope check from the commit before it.
+  const committed = (change) => {
+    const { w } = checkout(EXAMPLE, []);
+    const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    change(w);
+    return scopeCheck(w, base, path.join(w.repo, '.qory/artifacts'));
+  };
+  const commitFile = (w, file, text, message = 'Change') => {
+    fs.mkdirSync(path.dirname(path.join(w.repo, file)), { recursive: true });
+    fs.writeFileSync(path.join(w.repo, file), text);
+    git(w.repo, w.env, 'add', file);
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', message);
+  };
+  // A key in a file of the plan.
+  const inFile = committed((w) => commitFile(w, 'replies/delayed-order.md', `Token ${token}\n`));
+  assert.equal(inFile.status, 1, inFile.out);
+  assert.match(inFile.out, /^Rewrite commit [0-9a-f]{12} without a GitHub token in "replies\/delayed-order\.md", line 1\.$/m);
+  assert.match(inFile.out, /^Scanned 1 commit since [0-9a-f]{12} for keys: 1 finding\.$/m);
+  // A key in the message of a commit whose files are in the plan.
+  const inMessage = committed((w) => commitFile(w, 'replies/delayed-order.md', 'The hours.\n',
+    `Change ${token}`));
+  assert.equal(inMessage.status, 1, inMessage.out);
+  assert.match(inMessage.out, /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/m);
+  assert.ok(!inFile.out.includes(token) && !inMessage.out.includes(token));
+  // A repository committed under a folder of the plan.
+  const nested = committed((w) => {
+    const head = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    git(w.repo, w.env, 'update-index', '--add', '--cacheinfo', `160000,${head},tests/vendor`);
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add a repository');
+  });
+  assert.equal(nested.status, 1, nested.out);
+  assert.match(nested.out, /^Rewrite commit [0-9a-f]{12} without the repository "tests\/vendor": scope scans no repository\.$/m);
+  // The same commit with no key passes.
+  const clean = committed((w) => commitFile(w, 'replies/delayed-order.md', 'The hours.\n'));
+  assert.equal(clean.status, 0, clean.out);
+  assert.match(clean.out, /^Passed: 1 changed path in the files of the build plan, 1 commit with no key\.$/m);
 });
 
 // ---- The reports of the agents -------------------------------------------------------------
