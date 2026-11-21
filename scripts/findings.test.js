@@ -623,18 +623,25 @@ const REVIEWED = {
 const LATER = { ...REVIEWED, severity: 'non-blocking', proof: 'broken rule: the name is unclear.',
   point: 'The name of the helper is unclear.' };
 
+// The suite results of qory's form {tests, failed, skipped, output_tail}, by how the suite ended.
+const SUITES = {
+  passed: { tests: 12, failed: 0, skipped: 1, output_tail: 'ok 12 tests' },
+  failed: { tests: 12, failed: 2, skipped: 0, output_tail: 'not ok 4 export keeps the limit' },
+  notRun: { tests: 3, failed: 0, skipped: 3, output_tail: '' },
+};
+
 // sessionFolder returns a new report folder with a report for each name of reports, and the
-// path of a suite result in the state state, or of no file for null.
-function sessionFolder(reports, state = 'passed') {
+// path of the suite result suite, written as JSON, or of no file for null.
+function sessionFolder(reports, suite = SUITES.passed) {
   const dir = path.join(tmp, `reports-${++files}`);
   fs.mkdirSync(dir);
   for (const [name, report] of Object.entries(reports)) {
     fs.writeFileSync(path.join(dir, `${name}.json`),
       typeof report === 'string' ? report : JSON.stringify(report));
   }
-  const suite = path.join(tmp, `suite-${files}.json`);
-  if (state !== null) fs.writeFileSync(suite, JSON.stringify({ state }));
-  return { dir, suite };
+  const file = path.join(tmp, `suite-${files}.json`);
+  if (suite !== null) fs.writeFileSync(file, JSON.stringify(suite));
+  return { dir, suite: file };
 }
 
 const round = (dir, suite, names) => call(['findings', 'round', dir, '--reviewers',
@@ -716,14 +723,18 @@ test('findings round: a missing or invalid report is one blocking finding', () =
 });
 
 test('findings round: a suite that failed, did not run or has no result is blocking', () => {
-  for (const [state, point] of [['failed', 'The full suite failed.'],
-    ['not_run', 'The full suite did not run.'],
-    [null, 'The full suite has no result for the reviewed change.'],
-    ['green', 'The full suite has no result for the reviewed change.']]) {
+  const none = 'The full suite has no result for the reviewed change.';
+  for (const [given, point] of [[SUITES.failed, 'The full suite failed.'],
+    [SUITES.notRun, 'The full suite did not run.'],
+    [{ ...SUITES.passed, tests: 0, skipped: 0 }, 'The full suite did not run.'],
+    [null, none], [{ state: 'passed' }, none], [{ ...SUITES.passed, failed: -1 }, none],
+    [{ ...SUITES.passed, tests: 1.5 }, none], [{ ...SUITES.passed, failed: '0' }, none],
+    [{ ...SUITES.passed, skipped: 13 }, none], [{ ...SUITES.passed, output_tail: null }, none],
+    [[], none]]) {
     const { dir, suite } = sessionFolder({
-      'code-reviewer': { reviewer: 'code-reviewer', findings: [] } }, state);
+      'code-reviewer': { reviewer: 'code-reviewer', findings: [] } }, given);
     const got = round(dir, suite, ['code-reviewer']);
-    assert.equal(got.status, 1, String(state));
+    assert.equal(got.status, 1, JSON.stringify(given));
     assert.equal(got.lines[0], `Blocking finding of full-suite: ${point}`);
   }
 });

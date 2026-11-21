@@ -20,18 +20,13 @@
 // the hand-off file first and build-report.md second, each through a temporary file in its
 // folder that it renames into place; a write that fails, or a folder that a link moves out
 // of the checkout, leaves neither file and exits 3 with a fix line.
-//
-// report-build --out <folder>, for a session that cannot write its checkout, such as a
-// review session, writes build-report.md into <folder>, an absolute path of a folder that is
-// no link, and nothing else: it reads no QORY_SUBMISSION_HANDOFF, writes and removes no
-// hand-off file, and leaves an earlier one as it is.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
 const git = require('../lib/git.cjs');
-const { takeInputs, takeValue } = require('../lib/limits.cjs');
+const { takeInputs } = require('../lib/limits.cjs');
 const schema = require('../lib/schema.cjs');
 const { INPUTS_USAGE } = require('./run.cjs');
 
@@ -222,25 +217,8 @@ module.exports = (lib) => {
     }
   }
 
-  // outFolder returns the folder of --out, checked: an absolute path of a folder, no link.
-  function outFolder(out) {
-    let stat = null;
-    try {
-      stat = fs.lstatSync(out);
-    } catch {
-      stat = null;
-    }
-    if (!path.isAbsolute(out) || !stat || !stat.isDirectory()) {
-      throw new Missing('Give report-build --out the absolute path of a folder that exists.\n' +
-        `${short(out, 60)} is no such folder, or is a link.`);
-    }
-    return out;
-  }
-
   function build(io, what, rest) {
-    const given = [what, ...rest].filter((one) => one !== undefined);
-    const { value: out, rest: other } = takeValue(given, '--out');
-    const { inputs } = takeInputs(other);
+    const { inputs } = takeInputs([what, ...rest].filter((one) => one !== undefined));
     const root = artifactFolder(io);
     const top = git.top(Missing, io.cwd, io.env);
     const context = new Context(root, 'check', io.home, root);
@@ -250,8 +228,8 @@ module.exports = (lib) => {
     if (!data) {
       throw new Missing('Run checks.cjs resume first.\n.reports/build-ledger.json does not exist.');
     }
-    const target = out ? undefined : io.env.QORY_SUBMISSION_HANDOFF || undefined;
-    const written = path.join(out ? outFolder(out) : root, lib.BUILD_REPORT_FILE);
+    const target = io.env.QORY_SUBMISSION_HANDOFF || undefined;
+    const written = path.join(root, lib.BUILD_REPORT_FILE);
     let handoff = null;
     let dropped = 0;
     if (target !== undefined) {
@@ -297,24 +275,21 @@ module.exports = (lib) => {
     writeAll(handoff ? [handoff, report] : [report]);
     const note = dropped ? `, without the ${dropped} oldest commits of its steps` : '';
     io.print([], handoff ? `Wrote ${lib.BUILD_REPORT_FILE} and the hand-off file${note}.`
-      : out ? `Wrote ${written}, and no hand-off file.`
-        : `Wrote ${lib.BUILD_REPORT_FILE}. QORY_SUBMISSION_HANDOFF is not set, so no hand-off ` +
-          'file is written.');
+      : `Wrote ${lib.BUILD_REPORT_FILE}. QORY_SUBMISSION_HANDOFF is not set, so no hand-off ` +
+        'file is written.');
     return 0;
   }
 
-  // run removes an earlier hand-off file on every non-zero exit, a thrown Missing included,
-  // except with --out, which touches no hand-off file.
+  // run removes an earlier hand-off file on every non-zero exit, a thrown Missing included.
   function run(io, what, rest) {
-    const keep = [what, ...rest].includes('--out');
     let status;
     try {
       status = build(io, what, rest);
     } catch (error) {
-      if (!keep) dropHandoff(io);
+      dropHandoff(io);
       throw error;
     }
-    if (status !== 0 && !keep) dropHandoff(io);
+    if (status !== 0) dropHandoff(io);
     return status;
   }
 
@@ -330,21 +305,18 @@ module.exports = (lib) => {
 
   return {
     'report-build': {
-      usage: ['report-build [--inputs <path>] [--out <folder>]', 'report-build --drop'],
+      usage: ['report-build [--inputs <path>]', 'report-build --drop'],
       args: (io, what, rest) => {
         if (what === '--drop') {
           if (!rest.length) return null;
           dropHandoff(io);
           return 'Give report-build --drop with no other argument.';
         }
-        const given = [what, ...rest].filter((one) => one !== undefined);
-        const { value: out, rest: left } = takeValue(given, '--out');
-        const { inputs, rest: other } = takeInputs(left);
+        const { inputs, rest: other } = takeInputs([what, ...rest]
+          .filter((one) => one !== undefined));
         const why = inputs === null ? INPUTS_USAGE
-          : out === null ? 'Give report-build --out the path of a folder.'
-            : other.length && 'Give report-build only --inputs and --out, each with a path, ' +
-              'or only --drop.';
-        if (why && !given.includes('--out')) dropHandoff(io);
+          : other.length && 'Give report-build only --inputs, with a path, or only --drop.';
+        if (why) dropHandoff(io);
         return why || null;
       },
       run: (io, what, rest) => (what === '--drop' ? drop(io) : run(io, what, rest)),

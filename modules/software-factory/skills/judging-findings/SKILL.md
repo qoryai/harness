@@ -41,7 +41,8 @@ The values:
   is that copy: review the working folder.
 - `diff`: the lines that the change adds and removes, from the state before it to the
   frozen state.
-- `suite_result`: the result of the full suite on the frozen state, as JSON.
+- `suite_result`: the result of the full suite on the frozen state, as JSON: the counts
+  `tests`, `failed` and `skipped`, and `output_tail`, the last lines of its output.
 - `previous_findings`: the findings of the round before, as JSON. It is missing in the
   first round. In a review session, it is set in every round, and in the first round no
   file may be at its path.
