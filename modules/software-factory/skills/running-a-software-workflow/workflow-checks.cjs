@@ -25,8 +25,9 @@
 // demo-scenarios.
 //
 // It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
-// scope, freeze, diff, probe, prove and preflight, each in verbs/, and the verb
-// report-build, which writes build-report.md and the hand-off file of the submission.
+// scope, freeze, diff, probe, prove and preflight, each in verbs/, the verb
+// report-build, which writes build-report.md and the hand-off file of the submission, and the
+// verb matrix, which writes the draft verification.json of Verify from records.
 'use strict';
 
 const fs = require('node:fs');
@@ -68,7 +69,7 @@ function workflowChecks(core) {
       ...require('./verbs/run.cjs')(lib), ...require('./verbs/scope.cjs')(lib),
       ...require('./verbs/diff.cjs')(lib), ...require('./verbs/probe.cjs')(lib),
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
-      ...require('./verbs/report-build.cjs')(lib),
+      ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
     },
     types: [
       require('./types/proposal.cjs')(lib),

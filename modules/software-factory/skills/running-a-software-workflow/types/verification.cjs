@@ -1,14 +1,26 @@
 // The check of the type verification: verification.json, against
 // schemas/verification.schema.json, the verification format of qory's contract, and the rules
-// that the schema cannot state: target_version is a full commit id, and each live criterion of
+// that the schema cannot state: target_version is a full commit id, each live criterion of
 // the criteria version that criteriaTarget of lib/build.cjs returns is in matrix or in
-// not_verified, once.
+// not_verified, once, the evidence of a met criterion with a demo check names its scenario,
+// and, in a check, no state is above the record that the verb matrix wrote.
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 module.exports = (lib) => {
-  const { COMMIT, characters, jsonFile, liveCriteria, paths, short, wrongQuotes } = lib;
+  const { COMMIT, MATRIX_RECORD, characters, isObject, jsonFile, liveCriteria, parseJson, paths,
+    short, wrongQuotes } = lib;
 
   const FILE = 'verification.json';
+
+  // The evidence of a criterion that a demo proves: the film or the pictures, and the id of the
+  // scenario, which Qory Apiary links to the scenario's evidence.
+  const DEMO = /^(?:Demo video|Pictures): scenario-[1-9][0-9]?(?![0-9A-Za-z-])/;
+
+  // A state, from the highest: the record of matrix is the ceiling of the file.
+  const RANK = { met: 2, not_met: 1, not_verified: 0 };
 
   // entries returns each criterion of matrix and of not_verified with the place of its text,
   // such as /matrix/0/evidence, and that text.
@@ -48,6 +60,46 @@ module.exports = (lib) => {
     }
   }
 
+  // demoForm finds the evidence of each met criterion with a demo check that has no demo form.
+  function demoForm(run, data, byId) {
+    run.did('demo evidence');
+    data.matrix.forEach((row, place) => {
+      const criterion = byId.get(row.criterion);
+      if (!criterion || !criterion.check.startsWith('Demo:') || row.state !== 'met' ||
+        DEMO.test(row.evidence)) return;
+      run.find(`Write the evidence of ${row.criterion} as "Demo video: scenario-N" or ` +
+        `"Pictures: scenario-N".\n/matrix/${place}/evidence of ${FILE} is ` +
+        `${short(row.evidence, 60)}.`);
+    });
+  }
+
+  // aboveRecord finds a state of the file above the record that the verb matrix wrote, in a
+  // check. A criterion that the record lacks counts as not verified.
+  // shortcut: a check with no record finds nothing, so a push or an artifact folder with no
+  // record is unchecked; require the record when the end gate knows the run is Verify.
+  function aboveRecord(run, data) {
+    const file = path.join(run.context.root, MATRIX_RECORD);
+    if (run.context.mode !== 'check' || !fs.existsSync(file)) return;
+    run.did('matrix record');
+    const record = parseJson(fs.readFileSync(file, 'utf8'), MATRIX_RECORD, 'matrix');
+    if (record.commit !== data.target_version) {
+      run.find(`Run matrix again, or set target_version of ${FILE} to the commit of its record.` +
+        `\nThe record of matrix is of ${short(record.commit, 40)}.`);
+      return;
+    }
+    const states = new Map(record.matrix.filter(isObject)
+      .map((row) => [row.criterion, row.state]));
+    for (const row of data.matrix) {
+      const state = states.get(row.criterion) || 'not_verified';
+      if (RANK[row.state] <= RANK[state]) continue;
+      run.find(state === 'not_verified'
+        ? `Put ${row.criterion} in not_verified of ${FILE}, or run matrix again.\nThe record of ` +
+          `matrix has no result for ${row.criterion}.`
+        : `Set the state of ${row.criterion} in ${FILE} to ${state}, or run matrix again.\nThe ` +
+          `record of matrix has ${row.criterion} as ${state}.`);
+    }
+  }
+
   // verification reads the criteria first: a finding of that read is the one finding, so that
   // the line for a member comes before any finding of the format.
   function verification(run, files) {
@@ -69,6 +121,8 @@ module.exports = (lib) => {
     run.did('quotes');
     const byId = new Map(live.map((criterion) => [criterion.id, criterion]));
     for (const entry of all) wrongQuotes(run, entry.text, byId, `${entry.where} of ${FILE}`);
+    demoForm(run, data, byId);
+    aboveRecord(run, data);
     for (const entry of all) {
       characters(run, FILE, entry.where, entry.text);
       paths(run, FILE, entry.where, entry.text);

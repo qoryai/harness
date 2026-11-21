@@ -2608,6 +2608,9 @@ expect "the build ledger's tests pass" 0 "$ROOT" node --test scripts/ledger.test
 # The tests of the lock on the acceptance checks: lock, lock --verify, and a cancelled run's
 # lock in the check and the push of acceptance-lock.
 expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
+# The tests of Verify: the skills and agents of its reviewers, and the verb matrix on the
+# records of run locked, the demo evidence and Build's ledger.
+expect "the verify-a-ticket tests pass" 0 "$ROOT" node --test scripts/verify-a-ticket.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # The tests of the preflight: the browser, the app of the serve command and the sign-in of
