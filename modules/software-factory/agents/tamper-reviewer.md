@@ -91,7 +91,8 @@ with `reviewer` set to `tamper-reviewer` and the list `findings`, empty when you
 nothing.
 Write it once, as your last step. Your text after the write is no part of the review.
 
-A report of this review with one finding looks like this:
+A report of this review with two findings, a helper that a locked check imports and a skip
+mark on an existing test, looks like this:
 
 ```json
 {
@@ -106,6 +107,16 @@ A report of this review with one finding looks like this:
       "point": "The change edits a helper that a locked check imports and the lock does not list, so the check passes without the export meeting its criterion.",
       "file": "tests/helpers/clock.ts",
       "line": 4
+    },
+    {
+      "severity": "blocking",
+      "quote": "tests/export.test.ts, line 12: it.skip(\"lists the rows of today\", () => {",
+      "problem": "The change adds a skip mark to the existing test \"lists the rows of today\", which the state before the change runs. A skipped test does not fail, so no result shows that it no longer runs.",
+      "fix": "Remove it.skip from tests/export.test.ts, line 12, and fix the code under test instead.",
+      "proof": "failing input: the test \"lists the rows of today\" in tests/export.test.ts has no skip mark before the change, and it.skip at line 12 after it, so the suite passes with the test not run.",
+      "point": "The change turns off a test that the criterion depends on, so a green suite no longer shows that the criterion is met.",
+      "file": "tests/export.test.ts",
+      "line": 12
     }
   ]
 }

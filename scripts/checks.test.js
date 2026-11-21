@@ -5262,7 +5262,7 @@ test('questions: a question about a criterion with the answers of Verify has the
   passes(add());
   const options = acQuestion().options;
   const first = 'Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N.';
-  exactly(add({ options: options.slice(0, 2) }), `${first}\n  q7 has 2.`);
+  fails(add({ options: options.slice(0, 2) }), /^Give q7 3 options: .* q7 has 2\.$/);
   exactly(add({ options: [...options, { title: 'Wait', explanation: 'Wait for a person.' }] }),
     `${first}\n  q7 has 4.`);
   const bare = [{ ...options[0], proposal: undefined }, ...options.slice(1)];
@@ -5277,14 +5277,63 @@ test('questions: a question about a criterion with the answers of Verify has the
   // The label must start a paragraph: a label inside one does not count.
   fails(add({ context: '**Why:** Open. **Checked:** The settings.' }),
     /^Start a paragraph of the context of q7 with \*\*Checked:\*\*/);
-  for (const item of ['AC-3', 'ac-03']) {
-    const result = add({ about: { type: 'acceptance-criteria', name: 'main', item } });
-    fails(result, /^(Write about\.item of q7 as the id of the criterion in lower case|Write about\.item of q7 as an id of acceptance-criteria)/);
+  // The rule reports the item itself, besides the finding of the reader of the criteria.
+  for (const [item, shown] of [['AC-3', '"AC-3"'], ['ac-03', '"ac-03"'], [3, 'a number']]) {
+    fails(add({ about: { type: 'acceptance-criteria', name: 'main', item } }), new RegExp(
+      `^Write about\\.item of q7 as the id of the criterion in lower case, such as ac-3\\. It is ${shown}\\.$`));
   }
+  // With no item, and so no proposal that core accepts, the rule still names the item.
+  fails(add({ about: { type: 'acceptance-criteria', name: 'main' }, options: bare }),
+    /^Write about\.item of q7 as the id of the criterion in lower case, such as ac-3\. It is missing\.$/);
+  // Each answer once, and the number of the title is the number of the item.
+  const [change, another, withdraw] = options;
+  const once = (title, count) => new RegExp(
+    `^Give q7 1 option with the title "${title}"\\. q7 has ${count}\\.$`);
+  fails(add({ options: [another, withdraw, { title: 'Other', explanation: 'Another answer.' }] }),
+    once('Change AC-N', 0));
+  fails(add({ options: [change, { ...change, title: `Change AC-3, "${AC3}", again` }, another,
+    withdraw] }), once('Change AC-N', 2));
+  fails(add({ options: [change, another, { ...another }, withdraw] }),
+    once('Make it met another way', 2));
+  fails(add({ options: [change, another, { ...withdraw, title: 'Other' }] }),
+    once('Withdraw AC-N', 0));
+  const AC4 = 'Each customer who got the reply with the old hours receives a corrected reply ' +
+    'that lists the new hours';
+  exactly(add({ options: [{ ...change, title: `Change AC-4, "${AC4}"` }, another, withdraw] }),
+    'Write AC-3 in the title of option 1 of q7, as about.item is ac-3.\n  The title has AC-4.');
+  exactly(add({ options: [change, another, { ...withdraw, title: `Withdraw AC-4, "${AC4}"` }] }),
+    'Write AC-3 in the title of option 3 of q7, as about.item is ac-3.\n  The title has AC-4.');
   // A question about a criterion with none of the three answers is not read by the rule.
   passes(questionsAfter((byId, data) => {
     data.questions.push(q7({ about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } }));
   }));
+});
+
+test('questions: in a check with the record of matrix, a new question about a criterion is read', () => {
+  const ask = ({ record = true, stored = false, question = acQuestion({
+    options: [{ title: 'The reply', explanation: 'Only the reply.' },
+      { title: 'The page', explanation: 'The page too.' }] }) } = {}) => {
+    const root = fixture();
+    if (record) {
+      fs.mkdirSync(path.join(root, '.reports'));
+      write(root, '.reports/matrix-record.json', { commit: 'c', matrix: [] });
+    }
+    const file = path.join(root, 'questions.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.questions.push(question);
+    if (stored) version(root, 'questions', 2, 'questions.json', data);
+    write(root, 'questions.json', data);
+    return check(root, 'questions', file);
+  };
+  // New, with the record: refused though no title is an answer.
+  fails(ask(), /^Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N\. q7 has 2\.$/);
+  fails(ask(), /^Give q7 1 option with the title "Change AC-N"\. q7 has 0\.$/);
+  // With no record, that is a push or a check of another workflow, and a kept question is
+  // not read again.
+  passes(ask({ record: false }));
+  passes(ask({ stored: true }));
+  // A full question passes with the record.
+  passes(ask({ question: acQuestion() }));
 });
 
 test('questions: an about names an output that the run can read, and a criterion it has', () => {

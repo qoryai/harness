@@ -34,9 +34,11 @@ const reviewComments = require('../types/review-comments.cjs');
 //   which the questions check reads for the item of an about; read returns the ids of name,
 //   or null when it cannot read them;
 // - questionRules: the rules for the questions whose about has a type, each { type,
-//   check(question, who) }, which the questions check runs for each question whose about is an
-//   output of that type; check returns a list of findings, each text of two lines, the fix
-//   first, or an empty list. The check reads nothing of what a rule checks;
+//   check(question, who, { context, earlier }) }, which the questions check runs for each
+//   question whose about is an output of that type, with the context of the run and the
+//   same question in the newest questions, or undefined; check returns a list of findings,
+//   each text of two lines, the fix first, or an empty list. The check reads nothing of what
+//   a rule checks;
 // - ledger: the rules of the ledger of steps, which verbs/ledger.cjs lists. One skill at most
 //   adds them.
 const FILE = 'workflow-checks.cjs';

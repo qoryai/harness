@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 module.exports = (lib) => {
-  const { COMMIT, MATRIX_RECORD, characters, isObject, jsonFile, liveCriteria, parseJson, paths,
+  const { COMMIT, MATRIX_RECORD, characters, isObject, jsonFile, liveCriteria, paths,
     short, wrongQuotes } = lib;
 
   const FILE = 'verification.json';

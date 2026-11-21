@@ -73,23 +73,23 @@ another area is left out: its reviewer writes it.
 
 These lists sort the kinds of finding of this area under the definition of `blocking` in
 `judging-findings`, and add nothing to it. This review gets no result of the locked
-checks, so a proof is a `failing input`: trace the check through the changed file.
+checks, so a proof is a `failing input`: trace the check through the changed file, or name
+the test and its mark.
 
 - `blocking`: a changed file of step 3 that a locked check uses, when tracing the check
-  through that file shows that the check passes with the code under test unchanged; and a
-  mark of step 5 on a test that fails on the code in the copy, or on a test that a locked
-  check runs.
+  through that file shows that the check passes with the code under test unchanged; and
+  each mark of step 5 on a test that exists in the state before the change, because the
+  test then no longer runs.
 - `non-blocking`: a changed file of step 3 that a locked check uses, when the change
-  keeps what the check asserts; and a mark of step 5 on a test that passes on the code in
-  the copy and that no locked check runs. Each has a `broken rule` proof that quotes the
-  lock entry or the mark.
+  keeps what the check asserts. It has a `broken rule` proof that quotes the lock entry.
 
 ## Check list
 
 - You took each entry of `checks` and `support` of the lock.
 - Each changed path that the lock does not list is traced through the locked commands and
   the imports of the locked files.
-- Each test file that the change adds a skip, xfail or only mark to has a finding.
+- Each existing test that the change newly skips, or marks with a skip, xfail or only mark,
+  has a `blocking` finding.
 - No finding is about a path that the lock lists, about code under test, or about a bug.
 - No finding is made up: a change that tampers with nothing has an empty `findings` list.
 - Each earlier finding of this area that is still true is in the report with its `id`.

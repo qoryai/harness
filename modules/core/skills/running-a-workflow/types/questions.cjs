@@ -64,7 +64,7 @@ function outputs(context, types) {
 // writing-questions (SKILL.md:80-84: "for an output"), and
 // writing-questions (SKILL.md:173-174: "has a question with no `about`").
 // For an output, each rule that a module registered for the type of the output, in
-// registry.questionRules, then checks the question, whether or not its about is new.
+// registry.questionRules, then checks the question, with the context and earlier.
 function aboutCheck(run, which, question, earlier, readable) {
   run.did('about');
   const { about } = question;
@@ -96,7 +96,9 @@ function aboutCheck(run, which, question, earlier, readable) {
   }
   if (output) {
     for (const rule of readable().rules.filter((one) => one.type === about.type)) {
-      for (const text of rule.check(question, who)) run.find(text);
+      for (const text of rule.check(question, who, { context: run.context, earlier })) {
+        run.find(text);
+      }
     }
   }
   if (workItem || (earlier && sameJson(about, earlier.about))) return;

@@ -440,7 +440,8 @@ module.exports = (lib) => {
   }
 
   return {
-    COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile, sectionTitles,
+    COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile,
+    sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
     noCriteria,

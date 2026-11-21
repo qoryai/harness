@@ -120,13 +120,23 @@ test('each reviewer of Verify lists its tools, its tier, its skills and its repo
     /- A row whose state you would raise: write nothing for it\./);
 });
 
-test('the example report of tamper-reviewer is a finding for a newly added skip mark or helper', () => {
+test('the example report of tamper-reviewer has a helper and a new skip mark, each blocking', () => {
   const text = read('agents', 'tamper-reviewer.md');
   const report = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(text)[1]);
   assert.equal(report.reviewer, 'tamper-reviewer');
-  assert.equal(report.findings.length, 1);
-  assert.equal(report.findings[0].severity, 'blocking');
-  assert.match(report.findings[0].proof, /^failing input: /);
+  assert.equal(report.findings.length, 2);
+  for (const finding of report.findings) {
+    assert.equal(finding.severity, 'blocking');
+    assert.match(finding.proof, /^failing input: /);
+  }
+  // The card's case: a skip mark that the change adds to an existing test.
+  const [, skip] = report.findings;
+  assert.match(skip.quote, /it\.skip\(/);
+  assert.match(skip.problem, /adds a skip mark to the existing test/);
+  // The skill sorts every such mark under blocking, whether or not the test fails.
+  const skill = read('skills', 'checking-tampering', 'SKILL.md');
+  assert.match(skill, /each mark of step 5 on a test that exists in the state before the\s+change/);
+  assert.ok(!skill.includes('fails on the code in the copy'));
 });
 
 // ---- The family line --------------------------------------------------------------------------
@@ -166,8 +176,8 @@ function layout({ models = {}, settings = null } = {}) {
   return path.join(modules, 'core');
 }
 
-// RUNS is the records of run locked of a call that checked ac-4 and ac-5; each field is as
-// verbs/run.cjs writes it.
+// check returns one entry of checks of a record of run locked, with the fields that
+// verbs/run.cjs writes.
 const check = (criterion, state, extra = {}) => ({ criterion, path: `tests/${criterion}.test.js`,
   command: 'node t.js', state, reasons: [], exit: state === 'green' ? 0 : 1, signal: null,
   timed_out: false, seconds: 1, log: 'x.log',
@@ -268,19 +278,29 @@ test('matrix: a failed locked check or a failed demo is not met, and the draft p
 });
 
 test('matrix: a criterion with no result, a check that did not run and a stale record are not verified', () => {
+  const green = { checks: [check('ac-4', 'green')] };
   const stale = [
-    { checks: [check('ac-4', 'green')], commit: OTHER },
-    { checks: [check('ac-4', 'green')], clean: false },
-    { checks: [check('ac-4', 'green')], lock: 2 },
-    // A call for one criterion ran no complete lock.
-    { checks: [check('ac-4', 'green')], criteria: ['ac-4'] },
+    [{ ...green, commit: OTHER }],
+    [{ ...green, clean: false }],
+    [{ ...green, lock: 2 }],
+    // A call for one criterion ran no full lock.
+    [{ ...green, criteria: ['ac-4'] }],
+    // The record has a list of changed files.
+    [{ ...green, state: 'red', changed: ['tests/ac-4.test.js changed'] }],
+    // A call that ended red with every check green: a locked file changed after the checks.
+    [{ ...green, state: 'red', reasons: ['A locked file changed.'] }],
+    // A newer red record with no checks, after a green full run, does not leave the old one.
+    [green, { state: 'red', reasons: ['Pull acceptance-lock version 1 again.'] }],
+    // A newer red call for one criterion, after a green full run.
+    [green, { state: 'red', criteria: ['ac-4'], checks: [check('ac-4', 'red')] }],
   ];
-  for (const record of stale) {
-    const wk = work({ records: [record], evidence: DEMO_1 });
+  for (const records of stale) {
+    const wk = work({ records, evidence: DEMO_1 });
     assert.equal(matrix(wk).status, 0);
     const doc = verification(wk);
     assert.deepEqual(doc.not_verified.map((one) => one.criterion), ['ac-4']);
-    assert.match(doc.not_verified[0].reason, /^Run locked ran no complete check of version 1 on /);
+    assert.match(doc.not_verified[0].reason,
+      /^The newest record of run locked of version 1 on [0-9a-f]{12} is no clean run of every check\.$/);
   }
   const none = work({ records: [{ checks: [] }] });
   assert.equal(matrix(none).status, 0);

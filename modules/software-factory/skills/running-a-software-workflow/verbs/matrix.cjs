@@ -77,17 +77,23 @@ module.exports = (lib) => {
     return [...new Set(models.map(familyOf))];
   }
 
-  // locked returns the newest record of run locked that ran every check of the lock number on
-  // commit, with no uncommitted change, or null.
+  // locked returns the newest record of run locked for the lock number on commit, when it is a
+  // full, clean run that ended with the results of its checks, else null. An older record
+  // never stands in for a newer one that failed, and a record of a call that ended red with
+  // every check green, because a locked file changed, shows nothing.
   function locked(root, number, commit) {
-    return lib.readRecords(root).filter((record) => record.verb === 'run' &&
-      record.kind === 'locked' && record.lock === number && record.commit === commit &&
-      record.clean === true && Array.isArray(record.criteria) && record.criteria.length === 0 &&
-      Array.isArray(record.checks)).pop() || null;
+    const newest = lib.readRecords(root).filter((record) => record.verb === 'run' &&
+      record.kind === 'locked' && record.lock === number && record.commit === commit).pop();
+    if (!newest || newest.clean !== true || !Array.isArray(newest.criteria) ||
+      newest.criteria.length !== 0 || !Array.isArray(newest.checks)) return null;
+    if (Array.isArray(newest.changed) && newest.changed.length) return null;
+    const swapped = newest.state === 'red' && newest.checks.every((one) => isObject(one) &&
+      one.state === 'green');
+    return swapped ? null : newest;
   }
 
   // byTests returns { state, text } of a criterion with a locked check from the checks of the
-  // record that are its own, or { reason } when none has a result or one did not run.
+  // record for id, or { reason } when none has a result or one did not run.
   function byTests(checks, id) {
     const own = checks.filter((check) => isObject(check) && check.criterion === id);
     if (!own.length) return { reason: 'The locked checks have no check of this criterion.' };
@@ -103,8 +109,10 @@ module.exports = (lib) => {
       }
       const counts = check.counts ? `, ${check.counts.failed} of ` +
         `${plural(check.counts.tests, 'test')} failed` : '';
-      return check.timed_out ? `Locked check \`${check.path}\` timed out after ` +
-        `${check.seconds} s.` : `Locked check \`${check.path}\` failed: exit ${check.exit}${counts}.`;
+      if (check.timed_out) {
+        return `Locked check \`${check.path}\` timed out after ${check.seconds} s.`;
+      }
+      return `Locked check \`${check.path}\` failed: exit ${check.exit}${counts}.`;
     };
     return { state: own.every((check) => check.state === 'green') ? 'met' : 'not_met',
       text: cut(own.map(sentence).join(' '), 2000) };
@@ -174,8 +182,8 @@ module.exports = (lib) => {
       if (demo) got = byDemo(context, demo[1].trim(), commit);
       else if (record) got = byTests(record.checks, criterion.id);
       else {
-        got = { reason: `Run locked ran no complete check of version ${number} on ` +
-          `${commit.slice(0, 12)}.` };
+        got = { reason: `The newest record of run locked of version ${number} on ` +
+          `${commit.slice(0, 12)} is no clean run of every check.` };
       }
       if (got.state) matrix.push({ criterion: criterion.id, state: got.state, evidence: got.text });
       else notVerified.push({ criterion: criterion.id, reason: got.reason });
