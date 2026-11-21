@@ -8,6 +8,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The review session of Build. `workflow-review-changes` reviews the change inside its
+  session: it starts `code-reviewer`, `test-reviewer` and `acceptance-reviewer` in turn,
+  then each member of the group role `reviewers` that `checks.cjs panel` starts for the
+  paths of the change, as agents of the session. Each writes one report,
+  `<reports>/<agent>.json`, where `<reports>` is `qory.review_session.reports` of
+  `inputs.json`. qory runs the full suite and the locked checks before the session and
+  passes the result in `qory.review_session.suite_result`. The new verb `checks.cjs
+  findings round <reports> --reviewers <names> --suite <file>` reads each report and the
+  suite result once; a reviewer with no valid report and a suite that failed or did not run
+  are one blocking finding each, in the words of qory's review round. While a finding is
+  blocking, it writes the `run_again` points to `<reports>/points.json` and exits 1, and
+  the session records `changes-requested` with them; otherwise the session pushes the
+  build report and records `passed`. Build is a loop of at most 3 rounds of
+  `implement-changes` and `review-changes`, which Apiary runs.
+- `checks.cjs report-build --out <folder>` writes `build-report.md` into that folder and
+  touches no hand-off file. The review session writes its build report into the report
+  folder with it.
+- The tool guard knows a review session: a session whose `inputs.json` has
+  `qory.review_session` as an object. There it allows agent starts, and an agent whose type
+  ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case
+  letters, digits and hyphens that is not `full-suite`, and no link or `..` on the way.
+  Every other rule follows the access of the session, as before. In every other session the
+  guard denies the write tools to a `-reviewer` agent, as before.
+
 - A tier for each workflow of the `software` stack, and a plan for each write workflow. Each
   entry of `workflows` in `stacks/software/qory-stack.yaml` sets `tier`, the tier whose
   model and effort the workflow's session runs on: `thinking` for `explore-a-ticket`,
@@ -962,6 +986,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   through `points.json`, as for every end through "Points".
 
 ### Changed
+
+- `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
+  `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
+  verdict against, and no `plan`, which qory refuses on a workflow that cannot write. The
+  session starts no `submission-writer`, writes no hand-off file and no file into the
+  checkout, and reads the build plan only from `qory.start_artifacts`. The stack test also
+  fails a `plan` on a workflow whose access is not `write`.
+- The reviewer agents, `judging-findings`, `reviewing-changes` and the six checking skills
+  read the values of the review from `qory.review`, in a separate session of a reviewer,
+  or from `qory.review_session`, as an agent of a review session.
+- `running-a-workflow` lists both ways of a round of review. The text of the `reviewers`
+  key of Build, which was never built, is gone from the docs; the group role `reviewers`
+  stays, for `checks.cjs panel`.
 
 - The standard type `explainer` of `software-factory` is called `walkthrough`: its entry
   in `artifact_types` of `process.yaml`, its push check in `qory-module.yaml`, and its file

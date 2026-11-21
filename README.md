@@ -113,10 +113,10 @@ The `software` stack composes the `core` module and the `software-factory` modul
 checkout in a workspace set up as a software factory extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
-`access: write`, the workflow `write-acceptance-checks`, with `tier: balanced` and
-`access: write`, and the workflow `review-changes`, with `tier: thinking` and
-`access: write`. The `software-factory` module ships the process template, nine workflows'
+with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and `access:
+write`, the workflow `write-acceptance-checks`, with `tier: balanced` and `access: write`,
+and the workflow `review-changes`, with `tier: thinking`, `access: read` and `review_group:
+reviewers`. The `software-factory` module ships the process template, nine workflows'
 skills, twenty-six other skills, twenty-three agents and the settings for a run of those
 workflows:
 
@@ -323,25 +323,20 @@ workflows:
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
   `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
   as text. The session passes it the changed paths of the working folder.
-- `workflow-review-changes`: check a Build run before its review round. With no build plan,
-  it ends with a `run_again` point. While a planned change is not built, or a locked file
-  differs from the acceptance lock, it ends with `qory run verdict changes-requested`. When
-  every check passes, it does five steps, in this order:
-  1. It starts `submission-writer`; a start that fails, a report that fails its check
-     after two fixes and a `blocked` report end the run as Failures.
-  2. It runs `checks.cjs report-build`. With exit 1, it starts `submission-writer` again,
-     at most twice, then ends with one `run_again` point; with exit 2, 3 or 4, it ends as
-     Failures.
-  3. It runs `checks.cjs check build-report`. With exit 1, it runs `checks.cjs report-build
-     --drop`, ends with one `run_again` point and starts no writer; with exit 2, 3 or 4, it
-     ends as Failures.
-  4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
-     again and pushes again, at most twice more. When the push is still refused, it runs
-     `report-build --drop` first and then ends.
-  5. It ends ready: in a stage that has reviewers, qory then runs the review round, and in
-     a stage with none, the run ends with `qory run verdict passed`.
-
-  The ends of steps 1 to 4 run no `qory run verdict passed`.
+- `workflow-review-changes`: the review session of a Build run. Build runs a loop of at
+  most 3 rounds of `implement-changes` and `review-changes`, which Apiary runs: `passed`
+  leaves the loop, `changes-requested` runs `implement-changes` again. qory runs the full
+  suite and the locked checks before the session. With no build plan, the session ends with
+  a `run_again` point. While a planned change is not built, or a locked file differs from
+  the acceptance lock, it ends with `qory run verdict changes-requested`. Otherwise it
+  starts `code-reviewer`, `test-reviewer` and `acceptance-reviewer` in turn, then each
+  member of the group role `reviewers` that `checks.cjs panel` starts for the paths of the
+  change. Each writes one report into the report folder. `checks.cjs findings round`
+  decides the round from the reports and the result of the full suite: a blocking finding,
+  a reviewer with no report and a red suite end with `qory run verdict changes-requested`.
+  With no blocking finding, the session writes `build-report.md` into the report folder
+  with `checks.cjs report-build --out`, pushes it, and runs `qory run verdict passed`. The
+  session writes nothing into the checkout.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.
@@ -358,19 +353,18 @@ workflows:
 - `submission-writer`: an agent that writes `.reports/submission.md` of the artifact
   folder by `writing-submissions`: the title and the parts `## Problem`, `## Change`,
   `## Tests` and `## Disclosed`, from the build plan, the build ledger and the records of
-  the checks. It types no result. `workflow-review-changes` starts it when every check
-  passed.
+  the checks. It types no result. No workflow of this module starts it.
 - `code-reviewer`: an agent that reviews the code of a change, apart from its tests, by
   `reviewing-changes`, `judging-findings` and `checking-code`, and writes one report file.
-  It also reports a security hole, data loss or a secret in a test. qory starts it in the
-  review round.
+  It also reports a security hole, data loss or a secret in a test. `review-changes`
+  starts it as an agent of its session.
 - `test-reviewer`: an agent that reviews the tests of a change by `reviewing-changes`,
-  `judging-findings` and `checking-tests`, and writes one report file. qory starts it in the
-  review round.
+  `judging-findings` and `checking-tests`, and writes one report file. `review-changes`
+  starts it as an agent of its session.
 - `acceptance-reviewer`: an agent that reviews by `reviewing-changes`, `judging-findings`
   and `checking-acceptance` whether a change meets each approved acceptance criterion and
-  builds each planned change, and writes one report file. qory starts it in the review
-  round.
+  builds each planned change, and writes one report file. `review-changes` starts it as
+  an agent of its session.
 - `checking-security`: load it before you review a change for security holes, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area and the proof it needs, and the
