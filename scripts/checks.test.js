@@ -126,11 +126,11 @@ function call(deps, argv) {
     ...deps,
   });
   first.check(status, err);
-  // check, push and end print the line of what they checked first on stderr and nothing else on
-  // stdout but the findings. out has both, the summary last, as a session reads them; stdout
-  // has the stdout alone, and err the rest of stderr.
+  // check, push, end and destinations print the line of what they checked first on stderr and
+  // nothing else on stdout but the findings or the ids. out has both, the summary last, as a
+  // session reads them; stdout has the stdout alone, and err the rest of stderr.
   const stdout = out;
-  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
+  if (['check', 'push', 'end', 'destinations'].includes(argv[0]) && [0, 1, 3].includes(status)) {
     const at = err.indexOf('\n') + 1;
     out += err.slice(0, at);
     err = err.slice(at);
@@ -5663,7 +5663,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.cjs lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume, notes and hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.cjs lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, destinations, findings, lock, end, step, resume, notes and hello\./);
 });
 
 test('workflow-checks.cjs push runs the push of checks.cjs from the harness home', () => {
@@ -5914,6 +5914,52 @@ function fixesWith(newest, versions = [...Array(9)].map((_, at) => [`av_${at + 1
     ['work-item show']);
   return result;
 }
+
+// destinationId returns the id of destination number n: tg_ and 16 characters of the
+// alphabet of a destination id.
+function destinationId(n) {
+  const alphabet = '0123456789abcdefghjkmnpqrstvwxyz';
+  let id = '';
+  for (let rest = n; id.length < 16; rest = Math.floor(rest / 32)) id = alphabet[rest % 32] + id;
+  return `tg_${id}`;
+}
+
+// destinationsInputs returns the path of an inputs.json with count destinations, each with
+// an address, and the extensions of a harness with none.
+function destinationsInputs(count) {
+  const destinations = Array.from({ length: count }, (_, n) => ({ id: destinationId(n),
+    target: { collection: `place-${n}`, address: { system: 'host.example.com',
+      path: `example-org/place-${n}` } } }));
+  return inputsFile(JSON.stringify({ destinations, qory: { harness_extensions: {} } }));
+}
+
+test('destinations prints the ids that it checks against the inputs, and nothing else', () => {
+  const inputs = destinationsInputs(3);
+  const picked = call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(1)]);
+  passes(picked);
+  assert.equal(picked.stdout, `${destinationId(1)}\n`);
+  assert.equal(picked.lines.at(-1), 'Checked 1 id against destinations in the inputs; 0 findings.');
+  const unlisted = call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(1),
+    destinationId(7)]);
+  exactly(unlisted, `Give only ids from destinations in the inputs: ${destinationId(7)} is ` +
+    'not one of them.');
+  fails(call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(0),
+    destinationId(0)]), /^Give each id once: "tg_0{16}" is given more than once\.$/);
+  fails(call({ cwd: tmp }, ['destinations', '--inputs', inputs, 'tg_IIII']),
+    /^Write each id as tg_ and 16 characters, .* "tg_IIII" is not of that form\.$/);
+  // 100 listed ids pass, and 101 fail on the count alone.
+  const many = destinationsInputs(101);
+  const ids = Array.from({ length: 101 }, (_, n) => destinationId(n));
+  passes(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids.slice(0, 100)]));
+  exactly(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids]),
+    'Give at most 100 ids: a session reads at most 100 destinations.\n  The call gives 101.');
+  // No id, no --inputs, and an inputs.json with no list destinations.
+  assert.equal(call({ cwd: tmp }, ['destinations', '--inputs', inputs]).status, 2);
+  assert.equal(call({ cwd: tmp }, ['destinations', destinationId(1)]).status, 2);
+  const none = call({ cwd: tmp }, ['destinations', '--inputs', inputsFile({}), destinationId(1)]);
+  assert.equal(none.status, 3, none.out);
+  assert.match(none.out, /has no member destinations\./);
+});
 
 const END_FAILED = 'The end check after the run failed: Write the spec\'s summary in at most 3 ' +
   'sentences.';
