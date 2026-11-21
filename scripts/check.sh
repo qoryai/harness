@@ -2595,6 +2595,9 @@ expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
 # The tests of review-changes: the skill, the stack entry and the reviewers, and scripted
 # review sessions with a planted defect, a clean change and a reviewer with no report.
 expect "the review-changes tests pass" 0 "$ROOT" node --test scripts/review-changes.test.js
+# The matcher of the paths of an agent, which panel uses, against each case of qory's
+# contracts/harness/v1/path-cases.json in QORY_SOURCE.
+expect "the path cases of qory's contract pass" 0 "$ROOT" node --test scripts/path-cases.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list
 # "Notes read:".
 expect "the notes tests pass" 0 "$ROOT" node --test scripts/notes.test.js
