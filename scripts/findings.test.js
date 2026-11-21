@@ -1,7 +1,8 @@
 // Tests of the review of a change: the skills that define a reviewer's report, the report in
 // the JSON format of the review round against qory's schema of it, and the verb
 // `findings open` of the checks script of running-a-workflow, which prints the findings that
-// the next session fixes first. scripts/check.sh runs them.
+// the next session fixes first, and the verb `findings round`, which reads the reports of a
+// review session. scripts/check.sh runs them.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -601,4 +602,144 @@ test('findings: wrong arguments exit 2, and the removed forms are gone', () => {
     ['starts', 'r1', 'code-reviewer', '--subject']]) {
     assert.equal(call(argv).status, 2, argv.join(' '));
   }
+});
+
+// ---- findings round: the reports of a review session ----------------------------------------
+
+const REVIEWED = {
+  severity: 'blocking', quote: 'return rows.slice(0, limit - 1);',
+  problem: 'The export drops the last row that the limit allows.',
+  fix: 'Return the first limit rows.', proof: 'failing input: 11 rows with a limit of 10 give 9.',
+  point: 'The export drops the last row that the limit allows.', file: 'src/export.js', line: 42,
+};
+const LATER = { ...REVIEWED, severity: 'non-blocking', proof: 'broken rule: the name is unclear.',
+  point: 'The name of the helper is unclear.' };
+
+// sessionFolder returns a new report folder with a report for each name of reports, and the
+// path of a suite result in the state state, or of no file for null.
+function sessionFolder(reports, state = 'passed') {
+  const dir = path.join(tmp, `reports-${++files}`);
+  fs.mkdirSync(dir);
+  for (const [name, report] of Object.entries(reports)) {
+    fs.writeFileSync(path.join(dir, `${name}.json`),
+      typeof report === 'string' ? report : JSON.stringify(report));
+  }
+  const suite = path.join(tmp, `suite-${files}.json`);
+  if (state !== null) fs.writeFileSync(suite, JSON.stringify({ state }));
+  return { dir, suite };
+}
+
+const round = (dir, suite, names) => call(['findings', 'round', dir, '--reviewers',
+  names.join(','), '--suite', suite]);
+
+test('findings round: a blocking finding exits 1, prints its proof and writes its point', () => {
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [LATER, REVIEWED] },
+    'test-reviewer': { reviewer: 'test-reviewer', findings: [] } });
+  const got = round(dir, suite, ['code-reviewer', 'test-reviewer']);
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines, [
+    'Blocking finding of code-reviewer, src/export.js:42: The export drops the last row that ' +
+      'the limit allows.',
+    '  Proof: failing input: 11 rows with a limit of 10 give 9.',
+    'Non-blocking finding of code-reviewer, src/export.js:42: The name of the helper is unclear.',
+    '  Proof: broken rule: the name is unclear.',
+    'Checked 2 reports and the suite result: 1 blocking and 1 non-blocking findings; wrote ' +
+      `${quoted(path.join(dir, 'points.json'))}.`,
+  ]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'points.json'), 'utf8')), [
+    { text: REVIEWED.point, action: 'run_again', fix: REVIEWED.fix }]);
+});
+
+test('findings round: only non-blocking findings exit 0 and remove an earlier points.json', () => {
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [LATER] } });
+  fs.writeFileSync(path.join(dir, 'points.json'), '[]');
+  const got = round(dir, suite, ['code-reviewer']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(got.lines.at(-1), 'Checked 1 report and the suite result: 0 blocking and 1 ' +
+    'non-blocking findings; no blocking finding is open.');
+  assert.equal(fs.existsSync(path.join(dir, 'points.json')), false);
+});
+
+test('findings round: a missing or invalid report is one blocking finding in qory\'s words', () => {
+  const name = 'code-reviewer';
+  const cases = [
+    [undefined, 'Reviewer code-reviewer wrote no report.'],
+    ['{', 'Reviewer code-reviewer wrote a report that is not one JSON object: it is no JSON.'],
+    ['[]', 'Reviewer code-reviewer wrote a report that is not one JSON object.'],
+    [{ reviewer: 'test-reviewer', findings: [] },
+      'Reviewer code-reviewer wrote a report for the reviewer test-reviewer.'],
+    [{ reviewer: name, findings: [], verdict: 'passed' }, 'Reviewer code-reviewer wrote a ' +
+      'report that does not match the report format: it has the member verdict.'],
+    [{ reviewer: name, findings: [{ ...REVIEWED, proof: 'broken rule: style.' }] },
+      'Reviewer code-reviewer wrote a report that does not match the report format: finding ' +
+      '1 is blocking with a proof that is a broken rule.'],
+    [{ reviewer: name, findings: [{ ...REVIEWED, point: '\u200b' }] }, 'Reviewer ' +
+      'code-reviewer wrote a report that does not match the report format: finding 1 has a ' +
+      'point that is not one line with a character that shows.'],
+  ];
+  for (const [report, point] of cases) {
+    const { dir, suite } = sessionFolder(report === undefined ? {} : { [name]: report });
+    const got = round(dir, suite, [name]);
+    assert.equal(got.status, 1, point);
+    assert.equal(got.lines[0], `Blocking finding of code-reviewer: ${point}`);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'points.json'), 'utf8')),
+      [{ text: point, action: 'run_again' }]);
+    // qory's schema refuses each such report of the reviewer; a point of hidden characters
+    // only, which qory refuses in its code, passes the schema.
+    if (report !== undefined && typeof report === 'object' && report.reviewer === name &&
+      !point.includes('character that shows')) {
+      assert.notDeepEqual(problems(report), [], point);
+    }
+  }
+  // A report that is no UTF-8 text is no report.
+  const bad = sessionFolder({});
+  fs.writeFileSync(path.join(bad.dir, `${name}.json`), Buffer.from([0x7b, 0xff, 0x7d]));
+  assert.equal(round(bad.dir, bad.suite, [name]).lines[0], 'Blocking finding of code-reviewer: ' +
+    'Reviewer code-reviewer wrote a report that is not UTF-8 text.');
+  // A link at the report path is no report.
+  const { dir, suite } = sessionFolder({});
+  const real = path.join(tmp, `real-${++files}.json`);
+  fs.writeFileSync(real, JSON.stringify({ reviewer: name, findings: [] }));
+  fs.symlinkSync(real, path.join(dir, `${name}.json`));
+  assert.equal(round(dir, suite, [name]).lines[0], 'Blocking finding of code-reviewer: ' +
+    'Reviewer code-reviewer wrote no valid report: the report file is a link.');
+});
+
+test('findings round: a suite that failed, did not run or has no result is blocking', () => {
+  for (const [state, point] of [['failed', 'The full suite failed.'],
+    ['not_run', 'The full suite did not run.'],
+    [null, 'The full suite has no result for the reviewed commit.'],
+    ['green', 'The full suite has no result for the reviewed commit.']]) {
+    const { dir, suite } = sessionFolder({
+      'code-reviewer': { reviewer: 'code-reviewer', findings: [] } }, state);
+    const got = round(dir, suite, ['code-reviewer']);
+    assert.equal(got.status, 1, String(state));
+    assert.equal(got.lines[0], `Blocking finding of full-suite: ${point}`);
+  }
+});
+
+test('findings round: more than 20 blocking findings write 19 points and one that counts', () => {
+  const many = Array.from({ length: 25 }, (_, at) => ({ ...REVIEWED, point: `Row ${at} is lost.` }));
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: many } });
+  assert.equal(round(dir, suite, ['code-reviewer']).status, 1);
+  const points = JSON.parse(fs.readFileSync(path.join(dir, 'points.json'), 'utf8'));
+  assert.equal(points.length, 20);
+  assert.deepEqual(points.at(-1), { text: 'The review has 6 more blocking findings than these ' +
+    'points list.', action: 'run_again' });
+});
+
+test('findings round: wrong arguments exit 2, and a report folder that is no folder exits 3', () => {
+  const { dir, suite } = sessionFolder({});
+  for (const argv of [['findings', 'round'], ['findings', 'round', dir],
+    ['findings', 'round', dir, '--reviewers', 'code-reviewer'],
+    ['findings', 'round', dir, '--reviewers', 'Code', '--suite', suite],
+    ['findings', 'round', dir, '--reviewers', 'full-suite', '--suite', suite],
+    ['findings', 'round', dir, '--reviewers', 'a,a', '--suite', suite],
+    ['findings', 'round', dir, '--reviewers', 'a', '--suite', suite, '--x', 'y']]) {
+    assert.equal(call(argv).status, 2, argv.join(' '));
+  }
+  assert.equal(round(path.join(dir, 'none'), suite, ['code-reviewer']).status, 3);
 });

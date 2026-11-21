@@ -2,15 +2,28 @@
 // the latest round of review, blocking and non-blocking, to open-findings.json in the inputs
 // folder of the session. open prints one line per finding and exits 1 while there is one. It
 // reads the file and writes nothing.
+//
+// findings round <reports> --reviewers <names> --suite <file>: the result of the round of a
+// review session. It reads <reports>/<name>.json of each reviewer of --reviewers, in the
+// review report format, and the result of the full suite at --suite, once each. A report that
+// is missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, in another format
+// or of another reviewer is one blocking finding of that reviewer, in qory's words. A suite
+// whose state is failed or not_run, or a result that cannot be read or has another state, is
+// one blocking finding of the entry full-suite. It prints a line per finding, blocking ones
+// first, with its proof on the next line. While a finding is blocking, it writes
+// <reports>/points.json, the run_again points of the blocking findings, at most 20, and exits
+// 1; otherwise it removes an earlier points.json and exits 0. points.json is the only file it
+// writes.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, MAX_FINDING_LINES, Missing, fullQuote, parseJson, plain, plainLine, plural, short,
+  MAX_BYTES, MAX_FINDING_LINES, Missing, NAME, cut, fullQuote, isObject, parseJson, plain,
+  plainLine, plural, short,
 } = require('../lib/base.cjs');
-const { readOpen } = require('../lib/findings.cjs');
+const { readOpen, reportProblem } = require('../lib/findings.cjs');
 
 // Each line that open prints for a finding starts with this.
 const FIX_FIRST = 'Fix first: ';
@@ -24,15 +37,15 @@ class Printed extends Error {
   }
 }
 
-// readLimited returns the text of the first MAX_BYTES bytes of the file at full, and whether
-// the file has more bytes than that. It never reads the rest.
-function readLimited(full, name, size) {
+// readLimited returns the text of the first most bytes of the file at full, MAX_BYTES unless
+// given. It never reads the rest. With raw, it returns the bytes.
+function readLimited(full, name, size, most = MAX_BYTES, raw = false) {
   let fd;
   try {
     fd = fs.openSync(full, 'r');
-    const buffer = Buffer.alloc(Math.min(size, MAX_BYTES));
+    const buffer = Buffer.alloc(Math.min(size, most));
     const count = fs.readSync(fd, buffer, 0, buffer.length, 0);
-    return buffer.toString('utf8', 0, count);
+    return raw ? buffer.subarray(0, count) : buffer.toString('utf8', 0, count);
   } catch {
     throw new Missing(`Name a file that exists and can be read.\n${name} cannot be read.`);
   } finally {
@@ -96,13 +109,207 @@ function open(io, file) {
     'too.' };
 }
 
+// The entry of the finding of a full suite that failed or did not run, as qory names it.
+const SUITE = 'full-suite';
+// The most bytes of a report that round reads, as qory reads it.
+const REPORT_BYTES = 1024 * 1024;
+// The most points of a verdict, and the most characters of a point's text and fix.
+const MAX_POINTS = 20;
+const POINT_CHARS = 500;
+const POINTS = 'points.json';
+
+// roundArgs returns { reports, names, suite } of the arguments of findings round, or the fix
+// of a wrong argument as text.
+function roundArgs(rest) {
+  const [reports, ...flags] = rest;
+  const got = {};
+  for (let at = 0; at < flags.length; at += 2) {
+    const [flag, value] = [flags[at], flags[at + 1]];
+    if (!['--reviewers', '--suite'].includes(flag) || Object.hasOwn(got, flag) ||
+      value === undefined) {
+      return 'Give findings round the report folder, then --reviewers <names> and ' +
+        '--suite <file> once each.';
+    }
+    got[flag] = value;
+  }
+  if (!reports || reports.startsWith('--') || !got['--reviewers'] || !got['--suite']) {
+    return 'Give findings round the report folder, then --reviewers <names> and ' +
+      '--suite <file> once each.';
+  }
+  const names = got['--reviewers'].split(',');
+  if (names.some((name) => !NAME.test(name) || name === SUITE) ||
+    new Set(names).size !== names.length) {
+    return 'Give --reviewers each agent name once, joined by commas, and not full-suite.\n' +
+      'A name has lower-case letters, digits and hyphens, from a letter or a digit.';
+  }
+  return { reports, names, suite: got['--suite'] };
+}
+
+// reviewerFindings returns the findings of the report of name in the folder dir: those of
+// the report, or one blocking finding of qory's words when the report is missing or invalid.
+function reviewerFindings(dir, name) {
+  const file = path.join(dir, `${name}.json`);
+  const missing = (point) => [{ reviewer: name, severity: 'blocking', point, proof: null }];
+  let stat;
+  try {
+    stat = fs.lstatSync(file);
+  } catch (error) {
+    if (error.code === 'ENOENT') return missing(`Reviewer ${name} wrote no report.`);
+    return missing(`Reviewer ${name} wrote no valid report: the report file cannot be read.`);
+  }
+  if (stat.isSymbolicLink()) {
+    return missing(`Reviewer ${name} wrote no valid report: the report file is a link.`);
+  }
+  if (!stat.isFile()) {
+    return missing(`Reviewer ${name} wrote no valid report: the report file is no regular file.`);
+  }
+  if (stat.size > REPORT_BYTES) {
+    return missing(`Reviewer ${name} wrote no valid report: the report file has more than 1 MiB.`);
+  }
+  let bytes;
+  try {
+    bytes = readLimited(file, name, stat.size, REPORT_BYTES, true);
+  } catch {
+    return missing(`Reviewer ${name} wrote no valid report: the report file cannot be read.`);
+  }
+  let text;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return missing(`Reviewer ${name} wrote a report that is not UTF-8 text.`);
+  }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return missing(`Reviewer ${name} wrote a report that is not one JSON object: it is no JSON.`);
+  }
+  if (!isObject(data)) {
+    return missing(`Reviewer ${name} wrote a report that is not one JSON object.`);
+  }
+  const problem = reportProblem(data, name);
+  if (typeof problem === 'string') {
+    return missing(`Reviewer ${name} wrote a report that does not match the report format: ` +
+      `${problem}.`);
+  }
+  if (problem) {
+    return missing(`Reviewer ${name} wrote a report for the reviewer ` +
+      `${short(plain(problem.other), 64)}.`);
+  }
+  return data.findings.map((one) => ({ reviewer: name, severity: one.severity,
+    point: plain(one.point), proof: plain(one.proof), fix: plain(one.fix),
+    file: one.file === undefined ? null : plain(one.file), line: one.line ?? null }));
+}
+
+// suiteFindings returns the finding of the result of the full suite at file, read once: none
+// for the state passed, else one blocking finding.
+function suiteFindings(file) {
+  const finding = (point) => [{ reviewer: SUITE, severity: 'blocking', point, proof: null }];
+  let state;
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.size > MAX_BYTES) throw new Error('no file');
+    const data = JSON.parse(readLimited(file, 'the suite result', stat.size));
+    state = isObject(data) ? data.state : undefined;
+  } catch {
+    state = undefined;
+  }
+  if (state === 'passed') return [];
+  if (state === 'failed') return finding('The full suite failed.');
+  if (state === 'not_run') return finding('The full suite did not run.');
+  return finding('The full suite has no result for the reviewed commit.');
+}
+
+// writePoints writes the run_again points of blocking to points.json in dir, through a new
+// temporary file that it renames into place, or removes an earlier points.json when blocking
+// is empty. It throws Missing when the folder is a link or no folder, or the write fails.
+function writePoints(dir, blocking) {
+  const file = path.join(dir, POINTS);
+  let stat;
+  try {
+    stat = fs.lstatSync(dir);
+  } catch {
+    stat = null;
+  }
+  if (!stat || !stat.isDirectory()) {
+    throw new Missing('Give findings round the report folder of the session.\n' +
+      `${short(plain(dir), 80)} is a link or no folder.`);
+  }
+  let old = null;
+  try {
+    old = fs.lstatSync(file);
+  } catch {
+    old = null;
+  }
+  if (old && !old.isFile()) {
+    throw new Missing(`Remove ${POINTS} from the report folder.\nIt is no regular file.`);
+  }
+  if (!blocking.length) {
+    if (old) fs.rmSync(file, { force: true });
+    return null;
+  }
+  const shown = blocking.length > MAX_POINTS ? blocking.slice(0, MAX_POINTS - 1) : blocking;
+  const points = shown.map((one) => ({ text: cut(one.point, POINT_CHARS), action: 'run_again',
+    ...(one.fix ? { fix: cut(one.fix, POINT_CHARS) } : {}) }));
+  if (shown.length < blocking.length) {
+    points.push({ text: `The review has ${blocking.length - shown.length} more blocking ` +
+      'findings than these points list.', action: 'run_again' });
+  }
+  const temporary = path.join(dir, `.${POINTS}.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(temporary, `${JSON.stringify(points, null, 2)}\n`, { flag: 'wx' });
+    fs.renameSync(temporary, file);
+  } catch {
+    fs.rmSync(temporary, { force: true });
+    throw new Missing(`Make the report folder writable.\n${short(plain(file), 80)} cannot be ` +
+      'written.');
+  }
+  return file;
+}
+
+// round prints the findings of the round and writes points.json, and returns its exit.
+function round(io, { reports, names, suite }) {
+  const dir = path.resolve(io.cwd, reports);
+  const found = [...suiteFindings(path.resolve(io.cwd, suite)),
+    ...names.flatMap((name) => reviewerFindings(dir, name))];
+  const blocking = found.filter((one) => one.severity === 'blocking');
+  const ranked = [...blocking, ...found.filter((one) => one.severity !== 'blocking')];
+  const written = writePoints(dir, blocking);
+  const lines = ranked.slice(0, MAX_FINDING_LINES / 2).flatMap((one) => {
+    const where = one.file ? `, ${one.file}${one.line ? `:${one.line}` : ''}` : '';
+    const head = `${one.severity === 'blocking' ? 'Blocking' : 'Non-blocking'} finding of ` +
+      `${one.reviewer}${where}: ${one.point}`;
+    return [plainLine(head), ...(one.proof ? [`  ${plainLine(`Proof: ${one.proof}`)}`] : [])];
+  });
+  if (ranked.length > MAX_FINDING_LINES / 2) {
+    lines.push(`${ranked.length - MAX_FINDING_LINES / 2} more findings are not shown.`);
+  }
+  const counts = `${blocking.length} blocking and ${found.length - blocking.length} ` +
+    'non-blocking findings';
+  const last = written
+    ? `Checked ${plural(names.length, 'report')} and the suite result: ${counts}; wrote ` +
+      `${fullQuote(written)}.`
+    : `Checked ${plural(names.length, 'report')} and the suite result: ${counts}; no ` +
+      'blocking finding is open.';
+  io.out.write([...lines, last].join('\n') + '\n');
+  return blocking.length ? 1 : 0;
+}
+
 module.exports = {
   verbs: {
     findings: {
-      usage: ['findings open <file>'],
-      args: (io, what, rest) => (what === 'open' && rest.length === 1 ? null
-        : 'Give findings open one file: the open-findings.json of the session.'),
+      usage: ['findings open <file>',
+        'findings round <reports> --reviewers <names> --suite <file>'],
+      args(io, what, rest) {
+        if (what === 'round') {
+          const got = roundArgs(rest);
+          return typeof got === 'string' ? got : null;
+        }
+        return what === 'open' && rest.length === 1 ? null
+          : 'Give findings open one file: the open-findings.json of the session.';
+      },
       run(io, what, rest) {
+        if (what === 'round') return round(io, roundArgs(rest));
         let found;
         try {
           found = open(io, rest[0]);

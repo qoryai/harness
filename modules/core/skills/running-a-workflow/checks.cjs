@@ -18,6 +18,8 @@
 //   checks.cjs findings add <round> <agent> <file>   after report, on a reviewer of a change
 //   checks.cjs findings close <agent> <file>         after report, on the agent that fixed
 //   checks.cjs findings show                         before and after each round of review
+//   checks.cjs findings round <reports> --reviewers <names> --suite <file>
+//                                           after the reviewers of a review session
 //   checks.cjs lock <file>                   once, to lock the files that the lock draft lists
 //   checks.cjs lock --verify [--version <N>] after each step, against the lock that counts
 //   checks.cjs end <folder> [--inputs <file>]   when the session tries to end, from a hook
