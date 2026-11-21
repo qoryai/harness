@@ -1,6 +1,6 @@
 // The matcher of the paths of an agent, which `checks.cjs panel` uses, against the path cases
 // of qory's contract: contracts/harness/v1/path-cases.json, read from the folder QORY_SOURCE.
-// qory decides which members of a group role a change needs with a matcher of its own code,
+// qory decides which members of a group role a change needs with a matcher in qory's Go code,
 // so the two must agree on every case: a member that panel skips and qory expects blocks the
 // round. scripts/check.sh runs the test.
 'use strict';

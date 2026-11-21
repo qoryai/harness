@@ -133,7 +133,7 @@ function workflowProblems(text) {
   return problems;
 }
 
-test('each workflow of the stack has a tier, and only each write workflow the plan build-plan', () => {
+test('each stack workflow has a tier, and only a write workflow has the plan build-plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
   assert.deepEqual(workflowProblems(stack), []);
   for (const [name, tier] of [['explore-a-ticket', 'thinking'], ['shape-a-ticket', 'thinking'],
