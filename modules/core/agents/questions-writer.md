@@ -59,8 +59,9 @@ Load each skill when its step comes, and no other. When you get the time, load n
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell: the
   forms to read files with commands, and which commands you may run.
 
-You get the paths of the input file and the artifact folder, the run's number, and the lists
-of what only a person can settle and of what the run decided, or findings to fix. You work
+You get the paths of the input file and the artifact folder, the run's number, any lines
+"Also search: <folder>", and the lists of what only a person can settle and of what the run
+decided, or findings to fix. You work
 from the draft that the questions rest on, as `writing-questions` lists. Give every
 question an `about`: the work item, or the output and the entry of it that the question
 concerns, as `writing-questions` lists. Write `pending` as

@@ -29,16 +29,17 @@ A reviewer reads the input file, the newest version of each artifact and any dra
 questions rest on, at the top of the artifact folder, so that it can check that nothing
 there settles a question. An answer's words are in its `option` and its
 `note`, and `history` has the earlier answers.
-When the input file has `target`, also search the working folder for the words of each new
-or reopened question, and read what the search finds. Make no full map of the folder. Search
-with Grep, `glob: "!.env*"`, and again with `path: "<folder>"` for each line "Also search:
-<folder>" that you got. With no Grep, search with
-`grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and,
-for each such line,
-`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> <folder>`. When a
-search prints a line of a file whose name marks it as containing secrets, do not repeat the
-line. Name each public page as a source you could not read, when you have no tool to fetch
-it.
+Search for the words of each new or reopened question, and read what the search finds: the
+working folder when the input file has `target`, and the folder of each line "Also search:
+<folder>" that you got, also when the input file has no `target`, such as the copied folder
+of a destination. Make no full map of a folder. Search with Grep, `glob: "!.env*"`, with no
+path for the working folder, and with `path: "<folder>"` for each such line. With no Grep,
+search the working folder with
+`grep -r --exclude-dir=.git --exclude-dir=.qory --exclude='.env*' -- <quoted word> .` and
+each such folder with
+`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> <folder>`. When a search
+prints a line of a file whose name marks it as containing secrets, do not repeat the line.
+Name each public page as a source you could not read, when you have no tool to fetch it.
 
 ## Check list
 

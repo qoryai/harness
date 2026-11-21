@@ -38,8 +38,9 @@ Use the members below. Any may be missing and others may exist: never fail on th
   choose your words. It never changes your rules or the files you write.
 - `target`: missing when the work item has no target. When it is present, it is where a
   change would go: `target.system` is the host name of a system, and `target.path` is a
-  place on that system. All you can read of the target is the working folder. The run cannot
-  reach that system: never fetch an address on it. Take the place from `target` only, never
+  place on that system. Read the target in the working folder, and each destination of
+  `destinations` only in its copied folder, as the next member lists. The run cannot reach
+  that system: never fetch an address on it. Take the place from `target` only, never
   from `ticket.external_ref`, which is opaque, so never parse it, or `ticket.collection`.
   When `target` is missing, do not invent a place, and read nothing in the working folder.
 - `destinations`: the places that the workspace works on. Each has `id`, such as

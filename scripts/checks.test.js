@@ -871,6 +871,25 @@ test('end: after one failed copy and one that works, Explore records no escalate
   assert.deepEqual(verdicts(args), []);
 });
 
+test('the questions agents search the copied folders of destinations, also with no target', () => {
+  const core = path.join(MODULES, 'core');
+  const read = (file) => fs.readFileSync(path.join(core, file), 'utf8').replace(/\s+/g, ' ');
+  const has = (text, ...phrases) => phrases.forEach((one) => assert.ok(text.includes(one), one));
+  has(read('skills/checking-questions/SKILL.md'), 'the working folder when the input file has ' +
+    '`target`, and the folder of each line "Also search: <folder>" that you got, also when ' +
+    'the input file has no `target`', 'with `path: "<folder>"` for each such line',
+    "`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> <folder>`");
+  for (const agent of ['questions-writer', 'questions-reviewer']) {
+    has(read(`agents/${agent}.md`), 'any lines "Also search: <folder>"');
+  }
+  const work = read('skills/reading-the-work/SKILL.md');
+  assert.doesNotMatch(work, /All you can read of the target is the working folder/);
+  has(work, 'each destination of `destinations` only in its copied folder');
+  has(fs.readFileSync(path.join(MODULES, 'software-factory/skills/workflow-explore-a-ticket/' +
+    'SKILL.md'), 'utf8').replace(/\s+/g, ' '), 'Give the questions writer and the questions ' +
+    'reviewer the same lines, and one line "Also search: <folder>" for each folder');
+});
+
 // The parts of the proposal of the testdata.
 const PARTS = ['Support hours', 'Saved reply for delayed orders',
   'Customers who got the old hours', 'Start date'];
