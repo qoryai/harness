@@ -56,7 +56,8 @@ plain text, and `criteria`, a list of at least one criterion. Each criterion has
   answer comes.
 - **Check:** `Demo: <title>` when a person can see the criterion in the UI, else
   `Tests`. The demo scenario with that title shows it, and criteria that one scenario shows
-  share a title.
+  share a title. When the surface line, a fact from the higher workflow, says the stack has
+  no surface module, no scenario is written: plan each criterion as `Tests`.
 - **Ids:** `ac-` and a number from 1 to 9999 with no leading zero, kept in every later
   version. A new criterion takes the next number after the highest. A criterion that no
   longer applies keeps its id, its `text` and its `check`, and gets

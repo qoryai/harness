@@ -3376,6 +3376,16 @@ pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisio
      -> make-mockups -> write-demo-scenarios -> shape-reviewer -> verdict
 ```
 
+The session runs `checks.cjs demo surface` at step 1, and gives its line, the surface line,
+to the planner, to each small workflow and to `shape-reviewer`. When the line says the stack
+has no surface module, the planner lists `write-demo-scenarios` under "Not run" with the
+reason "The stack has no surface module.", and the session never follows it. `write-specs`
+then plans each criterion as `Tests`, never as `Demo: <title>`, and `checking-specs` and
+`checking-shape` flag a `Demo` check, and a missing scenario is no finding. A change with
+screens produces no `demo-scenarios` there, starts no workflow for them and ends with no
+point, and the Build round of that ticket passes `demo check` with "No demo script to
+write".
+
 The order is fixed: spec and acceptance criteria, technical decision, mockups, demo
 scenarios. Demo scenarios come last because they cite criteria and screens. Every writer
 that the work needs drafts in one run, in the recommended direction, and an open question
@@ -3541,22 +3551,27 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   and the reruns share one time limit. A missing tool, exit 127 or 126, and a timeout are
   red. Each call writes a record and the output of its commands to `.reports/runs/` of the
   artifact folder.
-- `demo check` and `demo write <scenario>`: the demo scripts of Build, in
-  `verbs/demo.cjs`. Both read the approved version of the demo scenarios, else the newest,
-  as the push check of `demo-script` does, and skip a removed scenario. `demo check` exits
-  1 with the fix "Add the module browser-screens to the stack, then run another round." when
-  a scenario exists and no skills folder of the composed harness has `scripting-demos`.
-  Otherwise it exits 0 and prints "Write the demo script of <scenarios>, from version <N> of
-  the demo scenarios.", or "No demo script to write", for a scenario with no `demo-script`
-  version that counts. `demo write` reads `.demo/<scenario>.actions.json` of the artifact
-  folder, a JSON object with the lists `setup` and `steps`, one list of actions for each row
-  of the scenario's table. It writes `.demo/<scenario>.json` with the title, the evidence
-  line, `source.version`, and the title and expected result of each step, which are the
-  Action and the What the viewer sees of the scenario word for word, so no agent types
-  them. It checks the result against `demo-script.schema.json`, which allows the actions
-  open, click, type, press and wait and no other, and exits 1 with a finding for each fault,
-  its place named by the actions file. A script that `demo write` builds passes the push
-  check of `demo-script`. The verb runs no browser.
+- `demo surface`, `demo check` and `demo write <scenario>`: the demo scenarios of Shape and
+  the demo scripts of Build, in `verbs/demo.cjs`. `demo surface` reads no artifact and
+  always exits 0. It prints "The stack has a surface module: Shape writes demo scenarios."
+  when a skills folder of the composed harness has `scripting-demos`, which `demo check`
+  also tests, and otherwise "The stack has no surface module: Shape writes no demo
+  scenarios, and plans each criterion as Tests." `demo check` and `demo write` read the
+  approved version of the demo scenarios, else the newest, as the push check of
+  `demo-script` does, and skip a removed scenario. `demo check` exits 1 with the fix "Add
+  the module browser-screens to the stack, then run another round." when a scenario exists
+  and no skills folder of the composed harness has `scripting-demos`. Otherwise it exits 0
+  and prints "Write the demo script of <scenarios>, from version <N> of the demo
+  scenarios.", or "No demo script to write", for a scenario with no `demo-script` version
+  that counts. `demo write` reads `.demo/<scenario>.actions.json` of the artifact folder, a
+  JSON object with the lists `setup` and `steps`, one list of actions for each row of the
+  scenario's table. It writes `.demo/<scenario>.json` with the title, the evidence line,
+  `source.version`, and the title and expected result of each step, which are the Action and
+  the What the viewer sees of the scenario word for word, so no agent types them. It checks
+  the result against `demo-script.schema.json`, which allows the actions open, click, type,
+  press and wait and no other, and exits 1 with a finding for each fault, its place named by
+  the actions file. A script that `demo write` builds passes the push check of
+  `demo-script`. The verb runs no browser.
 - `run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]`: runs the checks
   of the acceptance lock that counts, the newest `acceptance-lock` version that no
   cancelled run wrote, which it reads with `lockReader.readLock` of core's
@@ -4376,15 +4391,16 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
 No entry of `software-factory` references the role `demo-author` or the skill
 `scripting-demos` with `${qory:...}`: a reference to a role that no agent fills fails the
 compose, and a stack has no optional role. So a stack without `browser-screens` composes,
-`implement-changes` included, and has no agent in the role `demo-author`. In a stack of
-that kind, `workflow-implement-changes` writes no demo script: when the approved demo
-scenarios have a scenario, `demo check` exits 1 with the fix "Add the module
-browser-screens to the stack, then run another round." Shape still writes demo scenarios
-there. A workflow that starts the role in a stack without the module fails the compose
-with "Add a module that fills agents/demo-author, or drop capture-demos from the workflows
-and process." `scripts/check.sh` composes a copy of this repository for each of these
-cases: no module and no `capture-demos`, no module and a skill that starts the role, and
-the module with that skill.
+`implement-changes` included, and has no agent in the role `demo-author`. In a stack of that
+kind, Shape writes no demo scenarios, as "The high-level workflow, shape-a-ticket" lists,
+and `workflow-implement-changes` writes no demo script. When approved demo scenarios have a
+scenario anyway, such as from a run in a stack that had the module, `demo check` exits 1
+with the fix "Add the module browser-screens to the stack, then run another round." A
+workflow that starts the role in a stack without the module fails the compose with "Add a
+module that fills agents/demo-author, or drop capture-demos from the workflows and process."
+`scripts/check.sh` composes a copy of this repository for each of these cases: no module and
+no `capture-demos`, no module and a skill that starts the role, and the module with that
+skill.
 
 ## The harness-authoring module
 

@@ -37,7 +37,9 @@ spec and acceptance criteria. A workflow runs when a word concerns its output, a
   criterion that a screen lists changed.
 - `write-demo-scenarios`: when a criterion's check "Demo: <title>" has no scenario of that
   title, a scenario that is not removed has a title that no criterion's check names, or a
-  criterion in a `Shows:` line or its check changed.
+  criterion in a `Shows:` line or its check changed. Never when the surface line, which you
+  get with the input file, says the stack has no surface module: list it under "Not run",
+  with the reason "The stack has no surface module." and that line as the source.
 
 The reason for a workflow that does not run names the missing case. A word on one output
 reruns only what depends on that output. A word that asks for a screen that the newest spec

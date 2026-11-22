@@ -1,8 +1,9 @@
 // Tests of the verb demo of running-a-software-workflow and of the module browser-screens:
 // demo check, which fails a stack with a demo scenario and no skill scripting-demos, and
-// demo write, which builds the demo script of a scenario from the actions of the demo author
-// and the approved scenario, so that no agent types a title or an expected result. scripts/
-// check.sh runs them.
+// demo surface, which tells Shape whether the stack has a surface module, and so whether Shape
+// writes demo scenarios, and demo write, which builds the demo script of a scenario from the
+// actions of the demo author and the approved scenario, so that no agent types a title or an
+// expected result. scripts/check.sh runs them.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -130,6 +131,44 @@ test('demo check passes with no scenario left, also with no module that ships th
     assert.match(got.lines[0], /^No demo script to write: the approved demo scenarios have no scenario/);
   }
   assert.equal(call(fresh(), ['demo', 'check'], withoutScreens()).status, 0);
+});
+
+// shape returns what a Shape run of a change with screens does in the stack of plugin: it
+// runs demo surface, and follows write-demo-scenarios only when the line says the stack has
+// the module, as workflow-shape-a-ticket lists. The Build round then runs demo check on the
+// artifacts that the run pushed.
+function shape(plugin) {
+  const shapeText = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-shape-a-ticket/SKILL.md'), 'utf8')
+    .replace(/\s+/g, ' ');
+  assert.match(shapeText, /run `<skill folder>\/checks\.cjs demo surface`/);
+  assert.match(shapeText,
+    /Follow `write-demo-scenarios` only when the surface line says the stack has a surface module/);
+  const line = call(fresh(), ['demo', 'surface'], plugin).lines;
+  const follows = line[0].startsWith('The stack has a surface module');
+  const root = follows ? artifacts() : fresh();
+  if (!follows) {
+    fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts: [] }));
+  }
+  return { line, follows, build: call(root, ['demo', 'check'], plugin) };
+}
+
+test('a stack without browser-screens: Shape writes no scenarios and Build passes demo check',
+  () => {
+    const got = shape(withoutScreens());
+    assert.deepEqual(got.line, ['The stack has no surface module: Shape writes no demo ' +
+      'scenarios, and plans each criterion as Tests.']);
+    assert.equal(got.follows, false);
+    assert.equal(got.build.status, 0, got.build.out);
+    assert.match(got.build.lines[0], /^No demo script to write/);
+  });
+
+test('a stack with browser-screens: Shape still writes demo scenarios', () => {
+  const got = shape(CORE);
+  assert.deepEqual(got.line,
+    ['The stack has a surface module: Shape writes demo scenarios.']);
+  assert.equal(got.follows, true);
+  assert.match(got.build.lines[0], /^Write the demo script of scenario-1, scenario-2/);
 });
 
 test('demo write builds the title, the expected results and the evidence from the scenario', () => {

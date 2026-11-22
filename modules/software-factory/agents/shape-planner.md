@@ -44,9 +44,9 @@ Load each skill when its step comes, and no other:
   commands that read files.
 
 You get the paths of the input file and the artifact folder, the run's id, the newest
-verdict with its `verdict` and `version`, the notes, and the log. You read no file of the
-target, and you fetch no web page. A refused tool call stays refused: do not retry it. Never
-read through a link.
+verdict with its `verdict` and `version`, the notes, the surface line, and the log. You read
+no file of the target, and you fetch no web page. A refused tool call stays refused: do not
+retry it. Never read through a link.
 
 ## Stop conditions
 

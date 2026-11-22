@@ -1,5 +1,8 @@
 // demo: the demo scripts of Build, one for each approved demo scenario.
 //
+//   demo surface          prints whether the composed harness has the skill scripting-demos,
+//                         the test of a surface module, and exits 0. A Shape run writes demo
+//                         scenarios only where the line says the stack has the module.
 //   demo check            reads the approved demo scenarios. With a scenario that is not
 //                         removed and no skill scripting-demos in the composed harness, it
 //                         exits 1 with the fix. Otherwise it lists the scenarios that have no
@@ -30,7 +33,8 @@ const FOLDER = '.demo';
 const EVIDENCE = /^Evidence: (film|pictures)$/;
 // The most bytes of an actions file: 8 steps of 10 actions of 2 KB each is far below it.
 const MOST_BYTES = 262144;
-const USAGE = 'Give demo check, or demo write with the id of a scenario, such as scenario-1.';
+const USAGE = 'Give demo surface, demo check, or demo write with the id of a scenario, such ' +
+  'as scenario-1.';
 
 module.exports = (lib) => {
   const { Context, Missing, approved, artifactFolder, isObject, plural, pluginFolders, readFile,
@@ -52,6 +56,15 @@ module.exports = (lib) => {
   // the harness home, a module beside it.
   const hasSkill = (io) => pluginFolders(io.plugin).some((folder) => fs.existsSync(
     path.join(folder, 'skills', SKILL, 'SKILL.md')));
+
+  // surface prints the line that a Shape run reads: the test of check, without a scenario.
+  function surface(io) {
+    io.print([], hasSkill(io)
+      ? 'The stack has a surface module: Shape writes demo scenarios.'
+      : 'The stack has no surface module: Shape writes no demo scenarios, and plans each ' +
+        'criterion as Tests.');
+    return 0;
+  }
 
   // scripted returns the ids of the scenarios of root that have a demo script that counts.
   function scripted(root, io) {
@@ -199,15 +212,18 @@ module.exports = (lib) => {
 
   return {
     demo: {
-      usage: ['demo check', 'demo write <scenario>'],
+      usage: ['demo surface', 'demo check', 'demo write <scenario>'],
       args: (io, what, rest) => {
-        if (what === 'check' && !rest.length) return null;
+        if ((what === 'surface' || what === 'check') && !rest.length) return null;
         if (what === 'write' && rest.length === 1 && /^scenario-[1-9][0-9]?$/.test(rest[0])) {
           return null;
         }
         return USAGE;
       },
-      run: (io, what, rest) => (what === 'check' ? check(io) : write(io, rest[0])),
+      run: (io, what, rest) => {
+        if (what === 'surface') return surface(io);
+        return what === 'check' ? check(io) : write(io, rest[0]);
+      },
     },
   };
 };

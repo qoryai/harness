@@ -20,6 +20,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   module composes, `implement-changes` included. A compose of a stack whose workflow starts
   that role with no module to fill it fails with qory's fix "Add a module that fills
   agents/demo-author, or drop capture-demos from the workflows and process."
+- `checks.cjs demo surface`, a verb of `running-a-software-workflow` that prints whether the
+  composed harness has the skill `scripting-demos`. `workflow-shape-a-ticket` runs it at
+  step 1. In a stack without that skill, Shape writes no demo scenarios: the planner lists
+  `write-demo-scenarios` under "Not run", `write-specs` plans each criterion as `Tests`, and
+  the Build round passes `demo check` with no demo script to write.
 - `checks.cjs demo check` and `checks.cjs demo write <scenario>`, verbs of
   `running-a-software-workflow`. `demo check` exits 1 with the fix "Add the module
   browser-screens to the stack, then run another round." when the approved demo scenarios

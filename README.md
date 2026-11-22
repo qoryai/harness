@@ -285,10 +285,11 @@ workflows:
   through in Qory Apiary. The pictures that the run renders are for its review only.
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
   `shape-planner`, follows every small workflow it lists in one run, in the order spec,
-  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. Shape is in the
-  first round until a person writes a `questions` version in the Shape stage. The run ends
-  with `qory run verdict passed` after a `clean` report, with questions open or not, or with
-  `escalate` and its points on a failure.
+  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. In a stack
+  without a module that ships `scripting-demos`, it follows no demo scenarios and plans each
+  criterion as `Tests`. Shape is in the first round until a person writes a `questions`
+  version in the Shape stage. The run ends with `qory run verdict passed` after a `clean`
+  report, with questions open or not, or with `escalate` and its points on a failure.
 - `planning-shape`: load it before you decide which small workflows a Shape run follows.
   The skill contains when each one runs, how a person's word maps to one, how to find what
   changed, and where a stop goes.

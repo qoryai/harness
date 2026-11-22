@@ -33,7 +33,9 @@ not a word of the system that runs you. `declines.md` is no part of a version.
    differ from its rule are findings that quote both. A rule whose "After" waits for an
    answer needs no criterion.
 4. `Demo` on a criterion that no person can see in the UI, or `Tests` on one that a person
-   sees on a mockup screen that a part names, is a finding.
+   sees on a mockup screen that a part names, is a finding. When the surface line, a fact
+   from the higher workflow, says the stack has no surface module, `Tests` is right on each
+   criterion and `Demo` is a finding.
 5. With more than 7 criteria that are not removed, a missing split question or a criterion
    dropped or merged to stay at 7 is a finding, marked `writer` and `break`. The split
    question is a question in the writer's list that proposes a split into sub-items. The

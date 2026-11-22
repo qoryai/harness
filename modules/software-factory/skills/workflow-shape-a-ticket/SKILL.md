@@ -44,12 +44,15 @@ only what a person must answer by it, such as a change of scope or a split of th
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`, and also take `run.id` and `verdict`, the newest
-   verdict with its `verdict` and `version`, or none when `verdict` is null. A small skill's
-   step 1 then only pulls, and reuses the run's number and the notes, which you keep with
-   the log. Run the command again only when you lost them. After "Nothing pulled", follow
-   only `write-specs`, as a session alone, and end as its skill lists.
+   verdict with its `verdict` and `version`, or none when `verdict` is null. Then run
+   `<skill folder>/checks.cjs demo surface`, and keep its line, the surface line, with the
+   notes. A small skill's step 1 then only pulls, and reuses the run's number, the notes and
+   the surface line, which you keep with the log. Run both commands again only when you lost
+   their results. After "Nothing pulled", follow only `write-specs`, as a session alone, and
+   end as its skill lists.
 2. Pull, except right after step 1, and start ${qory:agents/shape-planner} with the input
-   file's path, the artifact folder, `run.id`, the newest verdict, the notes, and the log:
+   file's path, the artifact folder, `run.id`, the newest verdict, the notes, the surface
+   line, and the log:
    each small workflow you followed, with its report, and each start of `shape-reviewer`.
    When you lose the log, start it again with the entry `lost`, and add each later entry
    after it. Do this step whenever you lose the list. For each version under "Pull:", run
@@ -57,7 +60,9 @@ only what a person must answer by it, such as a change of scope or a split of th
 3. Follow each workflow under "Run:" or with a pending item, once per pass, in the order
    spec, technical decision, mockups, demo scenarios. Each new list and each return from
    step 4 starts a pass. Give the workflow the planner's fact and all its pending items,
-   quoted, with the notes. Then, by the first case that fits its report:
+   quoted, with the notes and the surface line. Follow `write-demo-scenarios` only when the
+   surface line says the stack has a surface module: otherwise start no agent for it, and
+   drop its pending items. Then, by the first case that fits its report:
    - With a path of `points.json`, do step 2. On a "Stop:" line, pass the points of the
      small workflow on: run `<qory> run verdict escalate --points <that path>`, and end
      with the line that ended the small workflow.
@@ -71,10 +76,10 @@ only what a person must answer by it, such as a change of scope or a split of th
    `<folder>/<type>/main/v<N>/<type>.md` with the largest `<N>`. These checks read the
    newest acceptance criteria and questions, so they find what an older version no longer
    matches. Then start ${qory:agents/shape-reviewer} with the input file's path, the
-   artifact folder, the run's number, the notes, the planner's newest "Not run" and every
-   line that the script printed, under "Checks:". Each finding and "Unverified:" claim is a
-   pending item of the workflow it lists. With any, do step 3 for only the workflows with a
-   pending item, then this step again.
+   artifact folder, the run's number, the notes, the surface line, the planner's newest "Not
+   run" and every line that the script printed, under "Checks:". Each finding and
+   "Unverified:" claim is a pending item of the workflow it lists. With any, do step 3 for
+   only the workflows with a pending item, then this step again.
 5. After `clean`, run `<qory> run verdict passed`, and end with one line that lists the
    newest version this run pushed of each type, in the form of the section "The end" of
    `running-a-workflow`, such as "The run pushed version 2 of the spec and version 1 of the
