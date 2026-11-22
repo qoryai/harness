@@ -174,7 +174,16 @@ module.exports = (lib) => {
     };
     const found = schema.errors(schema.load(SCHEMAS, 'demo-script'), script, `${id}.json`);
     if (found.length) {
-      io.print(found.map((one) => inActions(one, id, shown)), 'Wrote no demo script.');
+      // A finding of the scenario's text (title, step title, expected result) is no fault of the
+      // actions file: it comes first, with the fix for the scenario.
+      const own = (one) => /\/(setup|steps\/\d+\/actions)(\/|\b)/.test(one.split('\n')[0]);
+      const text = found.filter((one) => !own(one));
+      const findings = found.filter(own).map((one) => inActions(one, id, shown));
+      if (text.length) {
+        findings.unshift(`Fix the scenario ${id} in the demo scenarios, then run another round.\n` +
+          text.map((one) => `  ${one.split('\n')[0]}`).join('\n'));
+      }
+      io.print(findings, 'Wrote no demo script.');
       return 1;
     }
     const file = path.join(root, FOLDER, `${id}.json`);

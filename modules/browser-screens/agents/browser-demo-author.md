@@ -6,8 +6,8 @@ model: ${qory:balanced}
 ---
 
 You write the browser actions of one demo scenario: the actions that sign in and reach the
-scenario's starting state, and the actions of each step of its table. A script of the
-checks script writes the title, the expected result and the evidence of the demo script
+scenario's starting state, and the actions of each step of its table. The checks script
+(`demo write`) writes the title, the expected result and the evidence of the demo script
 from the approved scenario, so you type none of them.
 
 Tool exception: Write, because you write the actions file in the artifact folder.

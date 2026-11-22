@@ -37,13 +37,14 @@ Do these steps for one scenario `<id>`, such as `scenario-1`, before the next sc
    with `Blocked: no screen for` or `Blocked: no action for`, the cause is that line, in
    plain words.
 3. Run `<skill folder>/checks.cjs demo write <id>`. With 0, the script `.demo/<id>.json` of
-   the artifact folder is built. With 1, start the demo author again, at most twice, with
-   each line that `demo write` printed, quoted, the path of its last report and the path of
-   its file, and tell it to fix only those lines. Check its report as step 2 lists, and run
-   `demo write` again. When
-   `demo write` still exits with 1 after the second start, end as "Failures" lists, with the
-   cause "its actions still break the rules for a demo script after two fixes". With 2 or 3,
-   end as "Failures" lists for the checks script.
+   the artifact folder is built. With 1 and a first line that starts with "Fix the scenario",
+   the scenario breaks a rule that the demo author cannot fix: end as "Failures" lists, with
+   that line's cause as the cause. With another 1, start the demo author again, at most
+   twice, with each line that `demo write` printed, quoted, the path of its last report and
+   the path of its file, and tell it to fix only those lines. Check its report as step 2
+   lists, and run `demo write` again. When `demo write` still exits with 1 after the second start, end as
+   "Failures" lists, with the cause "its actions still break the rules for a demo script
+   after two fixes". With 2 or 3, end as "Failures" lists for the checks script.
 4. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
    <inputs>`, as "Check before each push" of `running-a-workflow` lists. With 1, the script
    breaks a rule that `demo write` does not check: end as "Failures" lists, with the first

@@ -4264,10 +4264,11 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
 No entry of `software-factory` references the role `demo-author` or the skill
 `scripting-demos` with `${qory:...}`: a reference to a role that no agent fills fails the
 compose, and a stack has no optional role. So a stack without `browser-screens` composes,
-`implement-changes` included, and has no agent in the role `demo-author`. A stack of that
-kind lists no workflow that starts the role, such as `capture-demos`, in its `workflows`
-and its process, and Shape writes no demo scenarios for it. A workflow that starts the
-role in a stack without the module fails the compose with "Add a module that fills
+`implement-changes` included, and has no agent in the role `demo-author`. In a stack of
+that kind, `workflow-implement-changes` writes no demo script: when the approved demo
+scenarios have a scenario, `demo check` exits 1 with the fix "Add the module
+browser-screens to the stack, then run another round." Shape still writes demo scenarios
+there. A workflow that starts the role in a stack without the module fails the compose with "Add a module that fills
 agents/demo-author, or drop capture-demos from the workflows and process." `scripts/check.sh`
 composes a copy of this repository for each of these cases: no module and no `capture-demos`,
 no module and a skill that starts the role, and the module with that skill.

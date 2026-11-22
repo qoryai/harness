@@ -193,6 +193,28 @@ test('demo write refuses an actions file with a wrong form and writes no script'
   }
 });
 
+test('demo write reports a title that the schema refuses against the scenario, first', () => {
+  const root = artifacts(SCENARIOS.replace('### scenario-2: Read the closed day',
+    `### scenario-2: ${'Read the closed day '.repeat(30)}`));
+  actions(root, 'scenario-2', { setup: SIGN_IN, steps: [[{ do: 'eval' }]] });
+  const got = call(root, ['demo', 'write', 'scenario-2']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Fix the scenario scenario-2 in the demo scenarios, then run another round.');
+  assert.match(got.lines[1], /^ {2}\S.*500/);
+  assert.match(got.lines[2], /^Write action 1 of step 1 of \.demo\/scenario-2\.actions\.json /);
+  assert.ok(!fs.existsSync(path.join(root, '.demo/scenario-2.json')));
+});
+
+test('demo write refuses an actions file of more than 262144 bytes', () => {
+  const root = artifacts();
+  actions(root, 'scenario-2', { setup: [], steps: [[{ do: 'wait', text: 'x'.repeat(262144) }]] });
+  const got = call(root, ['demo', 'write', 'scenario-2']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Write .demo/scenario-2.actions.json in at most 262144 bytes.');
+  assert.equal(got.lines.at(-1), 'Wrote no demo script.');
+  assert.ok(!fs.existsSync(path.join(root, '.demo/scenario-2.json')));
+});
+
 test('demo write refuses a scenario that is removed or not in the demo scenarios', () => {
   const removed = SCENARIOS.replace(/### scenario-2[\s\S]*$/,
     '### scenario-2: Read the closed day\n\nRemoved, because the day moved to tests.\n');
