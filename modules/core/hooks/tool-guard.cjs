@@ -39,13 +39,16 @@
 //   harness home, wherever the home lies, and, when the home lies outside the working folder,
 //   every write below the home except qory.review.report, <reports> and a working folder
 //   inside the home: the guards and the agents that qory composed. A command whose writes the
-//   guard does not read, other than the checks script, neither runs in the home nor contains a
-//   word that reaches it, outside that working folder, except the file of the home that it
-//   runs in a call with no quotes, parentheses or $. A home in the working folder gets no
-//   such deny, so a change of the harness's files can edit them. The checks of qory use the
-//   bytes that qory wrote, not the file. The guard reads the writes of a shell command from
-//   its text, so a path of the home, of the file or of <reports> that a shell variable makes
-//   passes, as the next lines state.
+//   guard does not read, other than the checks script with a verb of REVIEW_VERBS, neither
+//   runs in the home nor contains a word that reaches it, outside that working folder, except
+//   the file of the home that it runs in a call with no quotes, parentheses or $. A home in
+//   the working folder gets no such deny, so a change of the harness's files can edit them.
+//   The checks of qory use the bytes that qory wrote, not the file. The guard reads the
+//   writes of a shell command from its text, so a path of the home, of the file or of
+//   <reports> that a shell variable makes passes, as the next lines state. So does a script
+//   that one call writes to a file and a later call runs, as cat > /tmp/p.py, then python3
+//   /tmp/p.py, and a path that code joins from parts, as 'ho' + 'me'. The read-only mount of
+//   the home in a walled run is the main control; the guard is the second.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -2029,7 +2032,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
       exempt: sessionExempt(call.command, env, script),
-      checks: reportsGuard.runsChecks(call.command, env, script) });
+      checks: reviewChecks(call.command, env, script) });
     if (reason || !paths.length) return reason;
   }
   const homed = home && paths.find((full) => inside(full, home));
@@ -3052,15 +3055,34 @@ function keptWrite(kept, paths) {
   return null;
 }
 
+// checksVerb returns the words after the file of the checks script in command, or null when
+// command runs more than the checks script.
+function checksVerb(command, env, script) {
+  const text = String(command);
+  if (!reportsGuard.runsChecks(text, env, script)) return null;
+  const words = reportsGuard.withoutRedirect(text).split(/\s+/);
+  return words.slice(words[0] === 'node' ? 2 : 1);
+}
+
 // sessionExempt reports whether command may contain a path in the report folder of a review
 // session although the guard does not read what it writes: the checks script alone with
 // findings round, which reads the reports and writes no file.
 function sessionExempt(command, env, script) {
-  const text = String(command);
-  if (!reportsGuard.runsChecks(text, env, script)) return false;
-  const words = reportsGuard.withoutRedirect(text).split(/\s+/);
-  const at = words[0] === 'node' ? 2 : 1;
-  return words[at] === 'findings' && words[at + 1] === 'round';
+  const words = checksVerb(command, env, script);
+  return Boolean(words) && words[0] === 'findings' && words[1] === 'round';
+}
+
+// The verbs of the checks script that workflow-review-changes and running-a-workflow run in a
+// review session. None of them writes a file that a word of the call names.
+const REVIEW_VERBS = [['resume'], ['lock', '--verify'], ['panel'], ['findings', 'round'],
+  ['check', 'points']];
+
+// reviewChecks reports whether command runs the checks script alone with a verb of
+// REVIEW_VERBS, which may contain a path of the harness home.
+function reviewChecks(command, env, script) {
+  const words = checksVerb(command, env, script);
+  return Boolean(words) && REVIEW_VERBS.some((verb) => verb.every((word, at) =>
+    words[at] === word));
 }
 
 const SESSION_NONE = 'Report in your text and write no file: qory.review_session.reports ' +

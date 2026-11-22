@@ -4799,8 +4799,15 @@ test('a session with a review key writes nothing below a harness home outside th
     firstLine(review.call(bashAs(command, 'worker')), HOME_KEPT);
   }
   for (const command of [`cat ${guard}`, `node ${path.join(review.home, 'tool.cjs')} a b`,
-    `node ${SESSION_CHECKS} notes code-reviewer --files ${path.join(review.home, 'f.txt')}`]) {
+    `node ${SESSION_CHECKS} panel --names a --files ${path.join(review.home, 'f.txt')}`,
+    `node ${SESSION_CHECKS} findings round ${review.reports} --reviewers a --suite ` +
+      path.join(review.home, 's.json')]) {
     assert.equal(review.call(bashAs(command)), null, command);
+  }
+  // The checks script with a verb that a review session does not run gets the same deny.
+  for (const command of [`node ${SESSION_CHECKS} end --offline --out ${review.home}/hooks`,
+    `node ${SESSION_CHECKS} notes a --files ${path.join(review.home, 'f.txt')}`]) {
+    firstLine(review.call(bashAs(command)), HOME_KEPT);
   }
   // With no review key, no deny of the home applies.
   for (const file of files(plain.home)) {
