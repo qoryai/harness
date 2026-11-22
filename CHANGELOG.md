@@ -33,8 +33,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   type is `harness:<name>` on Claude Code and a role of the composed home on Codex, and it
   runs only read commands. No other call writes in `<reports>`. A session with `qory.review`
   or `qory.review_session` writes no `inputs.json` of the harness home, and nothing below a
-  home that lies outside the working folder. A path that a shell variable makes still
-  passes. Every other rule follows the access of the session, as before. In every other
+  home that lies outside the working folder. A path that a shell variable makes, a script
+  that a later call runs, and a path that code joins from parts still pass; the read-only
+  mount of the home in a walled run is the main control. Every other rule follows the access of the session, as before. In every other
   session the guard denies the write tools to a `-reviewer` agent, as before.
 
 - A tier for each workflow of the `software` stack, and a plan for each write workflow. Each

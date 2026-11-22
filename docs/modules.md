@@ -1744,16 +1744,20 @@ tool's error. The first line of each reason starts with what to do. The guard de
   home". `qory.review.report`, the report folder of a review session and a working folder
   inside the home keep their rules there. A command whose writes the guard cannot read, such
   as `python3 -c`, `node -e`, `tar -C` or `unzip -d`, is denied when it runs in the home or
-  contains a path that reaches it, outside that working folder. The checks script passes,
-  and so does a run of a file of the home, as `node <home>/tool.cjs a b`, in a call with no
-  other word that reaches the home and no quotes, parentheses or `$`. A home that is the
-  working folder or lies inside it gets no such deny, so `implement-changes` can change the
-  files of the harness when the target is the harness repository. The walled run, whose home
-  is a read-only mount outside the workspace, is the main barrier; the guard is the second.
-  qory's checks use the bytes it wrote to `inputs.json`, not the file.
+  contains a path that reaches it, outside that working folder. The checks script passes
+  with a verb that a review session runs (`resume`, `lock --verify`, `panel`,
+  `findings round` and `check points`), and so does a run of a file of the home, as
+  `node <home>/tool.cjs a b`, in a call with no other word that reaches the home and no
+  quotes, parentheses or `$`. A home that is the working folder or lies inside it gets no
+  such deny, so `implement-changes` can change the files of the harness when the target is
+  the harness repository. qory's checks use the bytes it wrote to `inputs.json`, not the
+  file.
 - The guard reads the writes of a shell command from its text, so a path in `<reports>`, of
   `inputs.json` or below the harness home that a shell variable makes, such as `D=/x; echo >
-  "$D/r.json"`, passes.
+  "$D/r.json"`, passes. So does a script that one call writes to a file and a later call
+  runs, such as `cat > /tmp/p.py` and then `python3 /tmp/p.py`, and a path that code joins
+  from parts, such as `'ho' + 'me'`. The walled run, whose home is a read-only mount outside
+  the workspace, is the main control; the guard is the second.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
