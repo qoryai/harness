@@ -306,9 +306,11 @@ function lockFile(io, def, draft) {
 // Qory Apiary, "GET artifacts") sets `cancelled` to true on each version that a cancelled run
 // wrote. A number that index.json does not list, that a cancelled run wrote, or that is older
 // than the newest version that counts exits 3: an older lock is a lock that a newer one
-// replaced, so a member approves the newer one first. A withdrawn lock exits 3 with the line
-// for a member, with or without number: a lock protects checks that a person approved, so a
-// withdrawal never reads as no lock, and an agent that withdraws it verifies nothing.
+// replaced, so a member approves the newer one first. readLock refuses, with approvedOnly, a
+// number that is not the version that approved_version of the lock is set to. A withdrawn
+// lock exits 3 with the line for a member, with or without number: a lock protects checks that
+// a person approved, so a withdrawal never reads as no lock, and an agent that withdraws it
+// verifies nothing.
 function counted(context, def, number) {
   if (context.withdrawn(def.type)) {
     throw new Missing(`Report to a member: ${def.type} was withdrawn, so the locked checks ` +
@@ -336,6 +338,22 @@ function counted(context, def, number) {
       `${number} is older.`);
   }
   return chosen;
+}
+
+// approvedOnly throws Missing, as counted does, when number is not the version that
+// approved_version of the main artifact of def.type is set to, or when that is none.
+function approvedOnly(context, def, number) {
+  const artifact = context.index.artifacts.find((one) => one.type === def.type &&
+    (one.name || 'main') === 'main');
+  const approved = artifact && artifact.approved_version !== null
+    ? artifact.versions.find((one) => one.id === artifact.approved_version) : null;
+  const instead = `Pass --version the ${def.type} version that a member approved.`;
+  if (!approved || approved.cancelled === true || approved.withdrawn === true) {
+    throw new Missing(instead, [`${def.type} has no approved version.`]);
+  }
+  if (approved.number !== number) {
+    throw new Missing(instead, [`Version ${approved.number} is the approved one, not ${number}.`]);
+  }
 }
 
 // indexed returns the SHA-256 that version, an entry of index.json, lists for file, or null.
@@ -382,6 +400,7 @@ function readLock(io, def, number, verb = 'verify') {
   }
   let version = counted(context, def, number);
   if (!version) return { version: null };
+  if (number !== null) approvedOnly(context, def, number);
   const { number: chosen, id } = version;
   if (inRun) {
     store = pull(io, def.type, chosen);

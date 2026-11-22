@@ -186,6 +186,15 @@ module.exports = (lib) => {
     const plan = lib.readPlan(pinned);
     const row = plan.commands.targeted;
     const work = git.checkout(Missing, io);
+    // A record under .reports/ that git tracks is no record of this call, and matrix ignores
+    // it; the call refuses a commit that tracks one, so the writer learns it at once.
+    const held = git.ok(Missing, work.top, ['ls-files', '-z', '--', '.reports'],
+      'Run the verb in the checkout of the work', { env: io.env }).split('\0').filter(Boolean);
+    if (held.length) {
+      throw new Missing(`Remove ${held[0]} from the commit, then run locked again.\n` +
+        `Git tracks ${plural(held.length, 'file')} in .reports/ of the checkout: ` +
+        `${held.slice(0, 3).join(', ')}${held.length > 3 ? ' and more' : ''}.`);
+    }
     const limit = limits({ inputs: inputs && path.resolve(io.cwd, inputs), top: work.top,
       env: io.env });
     if (inputs !== undefined && limit.problem) {
@@ -207,7 +216,8 @@ module.exports = (lib) => {
     const record = newRecord(lib.artifactFolder(io));
     const values = secrets.secretValues(io.env);
     const base = {
-      verb: 'run', kind: 'locked', criteria, lock: lock.version.number, commit: work.commit,
+      verb: 'run', kind: 'locked', run_id: io.env.QORY_RUN_ID || null, criteria,
+      lock: lock.version.number, commit: work.commit,
       clean: changed.length === 0 && !work.excluded, build_plan: plan.version,
       at: new Date().toISOString(),
     };
