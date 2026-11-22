@@ -10,6 +10,10 @@ const { machinePattern } = require('./markdown.cjs');
 // The harness report of a compose in the working folder of a session.
 const HARNESS_REPORT = path.join('.qory', 'harness-report.json');
 
+// The id of a destination in the inputs: tg_ and 16 characters, each a digit or a lower-case
+// letter other than i, l, o and u.
+const DESTINATION_ID = /^tg_[0-9a-hjkmnp-tv-z]{16}$/;
+
 // A top questions.json of end --offline that is no regular file of at most MAX_BYTES: only
 // the check of the questions draft reports it.
 class BadQuestions extends Missing {}
@@ -35,6 +39,7 @@ class Context {
     this.workingFolder = null;
     this.inputs = null;
     this.extensionsRead = null;
+    this.destinationsRead = undefined;
     this.index = null;
     const file = path.join(store, 'index.json');
     if (fs.existsSync(file)) {
@@ -283,6 +288,15 @@ class Context {
     return this.extensionsRead;
   }
 
+  // destinations returns the destinations of the inputs.json at inputs, as inputsDestinations
+  // reads them, or null with no inputs or when that file has no member destinations.
+  destinations() {
+    if (this.destinationsRead === undefined) {
+      this.destinationsRead = this.inputs ? inputsDestinations(this.inputs, true) : null;
+    }
+    return this.destinationsRead;
+  }
+
   // requireIndex exits 3 with no index.json, for a check that rests on it.
   requireIndex(type) {
     if (!this.index) {
@@ -335,6 +349,26 @@ function inputsExtensions(file) {
       `${jsonKind(extensions)}, not an object.`);
   }
   return extensions;
+}
+
+// inputsDestinations returns the list destinations of the inputs.json at file, each entry
+// an object with a text id, or throws Missing with the fix. With optional, a file with no
+// member destinations returns null.
+function inputsDestinations(file, optional = false) {
+  const fix = 'Give --inputs the inputs.json that qory wrote for the run.';
+  const name = quote(file);
+  const { destinations } = readObject(file, fix, name, 'the file of --inputs');
+  if (destinations === undefined && optional) return null;
+  if (destinations === undefined) throw new Missing(`${fix}\n${name} has no member destinations.`);
+  if (!Array.isArray(destinations)) {
+    throw new Missing(`${fix}\n${name} has destinations as ${jsonKind(destinations)}, not a list.`);
+  }
+  const wrong = destinations.findIndex((one) => !isObject(one) || typeof one.id !== 'string');
+  if (wrong >= 0) {
+    throw new Missing(`${fix}\nEntry ${wrong + 1} of destinations in ${name} is no object ` +
+      'with a text id.');
+  }
+  return destinations;
 }
 
 // reportExtensions returns the extensions of HARNESS_REPORT in folder, a map by module, {}
@@ -408,5 +442,6 @@ function baseVersions(index, runs) {
 }
 
 module.exports = {
-  BadQuestions, Context, HARNESS_REPORT, baseVersions, counts, lacks, withdrawn,
+  BadQuestions, Context, DESTINATION_ID, HARNESS_REPORT, baseVersions, counts,
+  inputsDestinations, lacks, withdrawn,
 };

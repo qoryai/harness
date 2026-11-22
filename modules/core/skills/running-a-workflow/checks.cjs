@@ -15,6 +15,7 @@
 //                                           before the members of a group start
 //   checks.cjs notes <agent> [--files <file>]   before an agent starts
 //   checks.cjs fixes                         once per run, after `work-item show`
+//   checks.cjs destinations --inputs <file> <id>...   before a session reads destinations
 //   checks.cjs findings add <round> <agent> <file>   after report, on a reviewer of a change
 //   checks.cjs findings close <agent> <file>         after report, on the agent that fixed
 //   checks.cjs findings show                         before and after each round of review
@@ -210,6 +211,12 @@
 // one with no such point print no point. The first artifact folder that exists is the one
 // of the session's pull, as for starts; fixes writes nothing.
 //
+// destinations checks the ids of the destinations that a session reads against the list
+// destinations of the inputs.json at --inputs: each id is tg_ and 16 characters, listed there
+// and given once, and the call has at most 100 ids. With no finding, it prints each id on a
+// line of stdout, in the order given, and the line of what it checked on stderr, and exits 0.
+// Each finding exits 1, and an inputs.json with no list destinations exits 3. It writes nothing.
+//
 // findings keeps the findings of the review of a change, as reviewing-changes lists them,
 // in .reports/findings.json of the artifact folder of its report, or of the first artifact
 // folder that exists for show. add reads a reviewer's report of round <round>, 1 to 99 and
@@ -308,6 +315,7 @@ const VERBS = {
   ...require('./verbs/starts.cjs').verbs,
   ...require('./verbs/panel.cjs').verbs,
   ...require('./verbs/fixes.cjs').verbs,
+  ...require('./verbs/destinations.cjs').verbs,
   ...require('./verbs/findings.cjs').verbs,
   ...require('./verbs/lock.cjs').verbs,
   ...require('./verbs/end.cjs').verbs,
@@ -389,7 +397,7 @@ function main(argv, deps = {}) {
   };
   const [verb, what, ...given] = argv;
   const offline = verb === 'end' && what === '--offline';
-  io.summaryToErr = ['check', 'push', 'end'].includes(verb);
+  io.summaryToErr = ['check', 'push', 'end', 'destinations'].includes(verb);
   // Only a verb that is none of VERBS, and a usage, read the registry here: starts, begin,
   // panel and fixes never load it. A verb that the registry may add fails with the registry's
   // error, exit 3, because a usage would hide that error.

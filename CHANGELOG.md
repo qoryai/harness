@@ -8,6 +8,24 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `checks.cjs destinations --inputs <file> <id>...`, a verb of `running-a-workflow`. It
+  checks the ids of the destinations that a session reads against `destinations` of the
+  inputs.json at `--inputs`: each id is `tg_` and 16 characters, listed there with a
+  `target.address` and given once, and the call has at most 100 ids. With no finding, it
+  prints the ids alone on stdout, one per line, and exits with 0; each finding exits with 1,
+  and an inputs.json with no list `destinations` exits with 3.
+- `targets.json` in a proposal version: `{"targets": [{"id": "<id>", "why": "<text>"}]}`, 1
+  to 20 destinations that the changes of the proposal go to, each an id of `destinations`
+  once, with a `why` of 1 to 500 characters on one line. Each part of `## Proposed
+  solution` opens with the line `` Destination: `<id>` `` of a target. `writing-proposals`
+  and `proposal-writer` write it, and `check` and `push` of the type `proposal` with
+  `--inputs` require it when the inputs list `destinations`. They refuse an unlisted or
+  repeated id, more than 20 targets, a `why` that is empty or longer than 500 characters,
+  a part with no destination line, with two, or with an id that `targets.json` does not
+  list, and a `sources.json` container that starts with `tg_` and is no listed id. A
+  solution with no `###` part opens with one destination line. An empty `destinations` list
+  is no list.
+
 - A tier for each workflow of the `software` stack, and a plan for each write workflow. Each
   entry of `workflows` in `stacks/software/qory-stack.yaml` sets `tier`, the tier whose
   model and effort the workflow's session runs on: `thinking` for `explore-a-ticket`,
@@ -1012,6 +1030,28 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Explore copies only the destinations that the ticket concerns. qory no longer fetches the
+  destinations at the start of an Explore run. The first start of `code-explorer` reads only
+  the input file and lists the ids under "Destinations:". The session checks them with
+  `checks.cjs destinations`, runs one `qory destination clone <id>...`, and gives the lines
+  `<id> <folder>` that it prints to each agent; the questions writer and reviewer also get
+  "Also search: <folder>". It copies once more at most, for an id that a later report of
+  `code-explorer` needs, within the 100. When the script refuses the ids, `code-explorer`
+  starts once more, and a second refusal ends the run with `escalate`, with the first line
+  of the refusal as the first point. A copy that fails runs once more, and a second failure
+  ends the run with `escalate`, with the error line of the copy as the first point, or a
+  line for an admin when `check points` refuses that line.
+  `checking-questions` searches the folder of each line "Also search:" also when the input
+  file has no `target`, and the questions writer and reviewer get those lines.
+  `exploring-code` searches the folder of each line, and writes a file there as its id, a
+  colon and the path, as `sources.json` does with `container`. `reading-the-work` lists
+  `destinations`, each read only in its copied folder. Shape and plan-the-build keep
+  `.qory/repositories`.
+- A path under `/tmp/qory-destinations` is a path of the machine the run is on, and the
+  check of paths of a software document refuses it with the fix to write the destination's
+  id, a colon and the path.
+- The Release stage of `software-factory/process.yaml` sends the change as a pull request
+  for the run's target, not one in each repository.
 - The schema checker moved from `software-factory` to
   `modules/core/skills/running-a-workflow/lib/schema.cjs`, and `end` checks each output
   that the stage declares. Before, only the software module checked a schema, and `end`
