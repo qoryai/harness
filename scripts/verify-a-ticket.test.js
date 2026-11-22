@@ -91,7 +91,7 @@ test('checking-tampering sorts it.only as blocking, and judging-criteria reads d
     /`it\.only` is no skip mark, but it skips every other test of its file, so it is blocking/);
   const skill = flat('skills', 'judging-criteria', 'SKILL.md');
   assert.match(skill, /the newest `demo-evidence` of the scenario that it names/);
-  assert.match(skill, /or the `demo-evidence` of a scenario that a row names, cannot be read/);
+  assert.match(skill, /or the `demo-evidence` of a scenario that a row names cannot be read/);
   assert.match(flat('agents', 'verification-reviewer.md'),
     /the `demo-evidence` of a scenario that a row names cannot be read/);
 });
@@ -106,6 +106,22 @@ test('judging-criteria lowers a state, never raises one, and states the quote fo
   for (const gone of ['## Lowered', '## Accepted findings', '## Summary', '## Not verified']) {
     assert.ok(!text.includes(gone), gone);
   }
+});
+
+test('judging-criteria reads the draft in the artifact folder, not in start_artifacts', () => {
+  const flat = (...parts) => read(...parts).replace(/\s+/g, ' ');
+  const skill = flat('skills', 'judging-criteria', 'SKILL.md');
+  assert.ok(skill.includes('The draft `verification.json` that `matrix` wrote at the top of ' +
+    'the artifact folder of the run, `/tmp/qory-artifacts/verification.json`'));
+  assert.ok(skill.includes('Read no `verification` from `qory.start_artifacts`'));
+  assert.ok(skill.includes(
+    'where `<file>` is `acceptance-criteria.json` or `acceptance-lock.json`'));
+  assert.ok(!skill.includes('`verification.json`, `acceptance-criteria.json`'));
+  assert.ok(skill.includes(
+    'When the draft, `qory.start_artifacts`, one of the two files of `<start>`'));
+  const agent = flat('agents', 'verification-reviewer.md');
+  assert.ok(agent.includes('The draft `/tmp/qory-artifacts/verification.json` cannot be read'));
+  assert.ok(!agent.includes('newest version of the verification'));
 });
 
 test('each reviewer of Verify lists its tools, its tier, its skills and its report', () => {

@@ -255,6 +255,10 @@ file cannot be read. With no `previous_findings`, it goes on as the first round.
 tier `thinking`, which the pattern `*-reviewer` of the tier table gives it. Each reads the
 newest versions of the types that it needs from the folder of `qory.start_artifacts`, as
 `checking-acceptance` does, and stops with no report when one cannot be read.
+`verification-reviewer` reads the draft `verification.json` at the top of the artifact
+folder of the run, `/tmp/qory-artifacts`, where `matrix` wrote it, and not a `verification`
+version of `qory.start_artifacts`. The session pushes that draft, so the review reads the
+file that the push sends.
 `software-factory` declares them as the group role `verify-reviewers`, with the members
 `tamper-reviewer` and `verification-reviewer`, in `roles.agents` and `provides.agents`, as
 it declares `reviewers`. The members set no `paths`.
@@ -266,8 +270,8 @@ it declares `reviewers`. The members set no `paths`.
   exists before the change is a `blocking` finding. It reads only the diff and the
   copy, so a file that a check changes and restores during its run stays unseen, as the
   limit of `run locked` in the section "The check runners" states.
-- `verification-reviewer` reads the verification matrix, the criteria, the lock and the
-  copy. It lowers a state and never raises one. A lowered state is one `blocking` finding
+- `verification-reviewer` reads the draft verification matrix, the criteria, the lock and
+  the copy. It lowers a state and never raises one. A lowered state is one `blocking` finding
   with a `failing input` proof, and the matrix is not edited. No other part of the report
   records the lowering. A criterion in a finding has the form `AC-3, "<first sentence>"`.
 
