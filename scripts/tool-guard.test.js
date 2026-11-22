@@ -5158,6 +5158,120 @@ test('a session with qory.review and qory.review_session keeps the reviewer sess
   firstLine(call(claude('WebFetch', {})), 'Use Read, Grep, Glob');
 });
 
+// ---- The session of a hook's agent ----------------------------------------------------------
+
+const HOOK_ONLY = 'Write only qory.hook_session.report, with Write or apply_patch';
+const HOOK_NONE = 'Report in your text and write no file: qory.hook_session.report';
+const HOOK_AGENT = 'Report in your text: the write tools are denied to an agent of a hook';
+const HOOK_SHELL = 'A hook session writes only its report file';
+// hookSetup is sessionSetup with qory.hook_session.report at <reports>/report.json, or with
+// the value that value returns for the folder.
+const hookSetup = (value = (dir) => ({ report: path.join(dir, 'report.json') })) =>
+  sessionSetup((dir) => ({ hook_session: value(dir) }));
+
+test('a hook session writes only qory.hook_session.report, from its main session', () => {
+  const { reports, runFolder, call } = hookSetup();
+  const report = path.join(reports, 'report.json');
+  const artifacts = path.join(WORK, '.qory', 'artifacts', 'points.json');
+  assert.equal(call(write(report)), null);
+  assert.equal(call(codex('apply_patch', patch(report))), null);
+  for (const other of [path.join(reports, 'other.json'), path.join(WORK, 'src', 'reply.ts'),
+    artifacts, path.join(runFolder, 'points.json')]) {
+    firstLine(call(write(other)), HOOK_ONLY);
+    firstLine(call(codex('apply_patch', patch(other))), HOOK_ONLY);
+  }
+  // Each other write tool is denied, the report path included.
+  const tools = {
+    Edit: { file_path: report, old_string: 'a', new_string: 'b' },
+    MultiEdit: { file_path: report, edits: [{ old_string: 'a', new_string: 'b' }] },
+    NotebookEdit: { notebook_path: path.join(reports, 'n.ipynb'), new_source: 'x' },
+  };
+  for (const [tool, args] of Object.entries(tools)) firstLine(call(claude(tool, args)), HOOK_ONLY);
+  // An agent of the session writes no file, the report included, and starts no agent.
+  for (const type of ['worker', REVIEWER]) {
+    firstLine(call(writeAs(report, type)), HOOK_AGENT);
+    firstLine(call(writeAs(artifacts, type)), HOOK_AGENT);
+    firstLine(call(codex('apply_patch', patch(report), type)), HOOK_AGENT);
+    firstLine(call(claude('NotebookEdit', tools.NotebookEdit, type)), HOOK_AGENT);
+  }
+  for (const agent of [undefined, 'worker']) {
+    firstLine(call(claude('Agent', { prompt: 'x' }, agent)),
+      'Start no agent: the agent of a hook reads the work');
+    firstLine(call(codex('spawn_agent', { message: 'x' }, agent)), 'Start no agent');
+    firstLine(call(claude('WebFetch', { url: 'https://example.com' }, agent)),
+      'Use Read, Grep, Glob, a read shell or the report Write, not WebFetch.');
+    assert.ok(call(claude('WebFetch', {}, agent)).includes('A hook session denies the tool'));
+    for (const tool of ['Read', 'Grep', 'Glob', 'Skill']) {
+      assert.equal(call(claude(tool, { file_path: report }, agent)), null, tool);
+    }
+  }
+});
+
+test('a hook session runs only read commands, and no qory command or checks script', () => {
+  const { reports, home, call } = hookSetup();
+  const report = path.join(reports, 'report.json');
+  const checks = path.join(home, 'claude', 'plugin', 'skills', 'running-a-workflow', 'checks.cjs');
+  for (const agent of [undefined, 'worker', REVIEWER]) {
+    for (const command of ['cat src/reply.ts', 'grep -rn order src', 'ls -la', 'wc -l a.ts']) {
+      assert.equal(call(bashAs(command, agent)), null, `${agent}: ${command}`);
+      assert.equal(call(codex('Bash', { command }, agent)), null, `${agent}: ${command}`);
+    }
+    for (const command of [`echo '{}' > ${report}`, `tee ${report}`, `touch ${report}`,
+      'rm -rf src', 'qory artifact push questions', 'qory run verdict passed',
+      `${checks} end ${WORK}`, `node ${SESSION_CHECKS} push questions questions.json`,
+      `${SESSION_CHECKS} lock --version 1`, `${SESSION_CHECKS} findings round ${reports}`,
+      `node ${SESSION_CHECKS} check points`]) {
+      const reason = firstLine(call(bashAs(command, agent)), READ_SHELL);
+      assert.ok(reason.includes(HOOK_SHELL), reason);
+      firstLine(call(codex('Bash', { command }, agent)), READ_SHELL);
+    }
+  }
+});
+
+test('a hook session with no usable qory.hook_session.report writes no file', () => {
+  const values = [() => ({}), () => ({ report: 'report.json' }), () => ({ report: '' }),
+    (dir) => ({ report: `${dir}/../report.json` }), (dir) => ({ report: `${dir}/` }),
+    () => null, () => 'report.json', (dir) => [path.join(dir, 'report.json')]];
+  for (const value of values) {
+    const { reports, call } = hookSetup(value);
+    const report = path.join(reports, 'report.json');
+    for (const target of [report, path.join(WORK, 'src', 'reply.ts')]) {
+      const reason = firstLine(call(write(target)), HOOK_NONE);
+      assert.ok(reason.includes('It must be an absolute path'), reason);
+      firstLine(call(codex('apply_patch', patch(target))), HOOK_NONE);
+    }
+    firstLine(call(writeAs(report, 'worker')), HOOK_AGENT);
+    firstLine(call(bashAs(`touch ${report}`)), READ_SHELL);
+  }
+});
+
+test('qory.hook_session takes the place of qory.review and qory.review_session', () => {
+  // With qory.review beside it, qory.hook_session.report is the one path.
+  const both = hookSetup((dir) => ({ report: path.join(dir, 'hook.json') }));
+  const withReview = sessionSetup((dir) => ({ hook_session: { report: path.join(dir, 'hook.json') },
+    review: { report: path.join(dir, 'review.json') } }));
+  assert.equal(both.call(write(path.join(both.reports, 'hook.json'))), null);
+  assert.equal(withReview.call(write(path.join(withReview.reports, 'hook.json'))), null);
+  firstLine(withReview.call(write(path.join(withReview.reports, 'review.json'))), HOOK_ONLY);
+  // With qory.review_session beside it, a reviewer agent writes no report in the folder.
+  const withSession = sessionSetup((dir) => ({ hook_session: { report: path.join(dir, 'h.json') },
+    review_session: { reports: dir } }));
+  firstLine(withSession.call(writeAs(path.join(withSession.reports, 'code-reviewer.json'),
+    REVIEWER)), HOOK_AGENT);
+  firstLine(withSession.call(claude('Agent', { prompt: 'x' })), 'Start no agent');
+  // The inputs.json of the home stays as it is.
+  for (const type of [undefined, 'worker']) {
+    firstLine(withSession.call(writeAs(path.join(withSession.home, 'inputs.json'), type)),
+      'Leave inputs.json of the harness home as it is');
+  }
+  // Without qory.hook_session, a session keeps its rules: the main session of a run writes in
+  // the artifact folder, and the reviewer of a review session writes its report.
+  assert.equal(guard(write(path.join(WORK, '.qory', 'artifacts', 'points.json'))), null);
+  const review = sessionSetup();
+  assert.equal(review.call(writeAs(path.join(review.reports, 'code-reviewer.json'), REVIEWER)),
+    null);
+});
+
 test('a review session keeps the lock, .qory/build/ and the guard of .reports/', () => {
   const { reports, call } = sessionSetup();
   firstLine(call(writeAs(LOCKED, REVIEWER)), 'Leave the locked file as it is');

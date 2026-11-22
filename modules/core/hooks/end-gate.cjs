@@ -20,6 +20,10 @@
 // same file as the push check; else `end <folder>`, which reads .qory/harness-report.json of
 // the working folder.
 // The hook takes that file only from the variable, never from a path that it builds.
+//
+// In the session of a hook's agent, when that file has the member qory.hook_session, the hook
+// runs no check and lets the session end: qory checks the report of the hook after its agent
+// exits.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -58,6 +62,36 @@ function inputsFile(env = process.env) {
   if (!env.QORY_HARNESS_HOME || !path.isAbsolute(env.QORY_HARNESS_HOME)) return null;
   const file = path.join(env.QORY_HARNESS_HOME, 'inputs.json');
   return fs.existsSync(file) ? file : null;
+}
+
+// The most bytes of inputs.json that qoryInputs reads.
+const INPUTS_MAX = 1024 * 1024;
+
+// qoryInputs returns the member qory of the inputs.json of inputsFile when it is an object, or
+// null. A link, a file that is no regular file or no JSON, and one of more than INPUTS_MAX
+// bytes count as no file.
+function qoryInputs(env = process.env) {
+  const file = inputsFile(env);
+  if (!file) return null;
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.size > INPUTS_MAX) return null;
+    const qory = JSON.parse(fs.readFileSync(file, 'utf8')).qory;
+    return qory !== null && typeof qory === 'object' ? qory : null;
+  } catch {
+    return null;
+  }
+}
+
+// The member of qory in inputs.json that qory writes in the session of a hook's agent: an
+// object whose member report is the absolute path of the hook's report file.
+const HOOK_SESSION = 'hook_session';
+
+// hookSession reports whether the inputs.json of inputsFile has the member qory.hook_session,
+// with any value: the session of a hook's agent.
+function hookSession(env = process.env) {
+  const qory = qoryInputs(env);
+  return Boolean(qory) && Object.hasOwn(qory, HOOK_SESSION);
 }
 
 // folder returns the artifact folder for a session in the working folder cwd. run is the
@@ -111,7 +145,9 @@ try {
 // checks.cjs: 0 when the session may end, 1 while it must go on with text; CRASHED when the
 // script threw; any other number, or null when the script could not run, for another
 // failure of the check itself. Every status but 0 and 1 ends the session in each adapter.
+// In the session of a hook's agent it runs no check and returns { status: 0, text: '' }.
 function check({ cwd, script = process.argv[1], env = process.env } = {}) {
+  if (hookSession(env)) return { status: 0, text: '' };
   const home = path.resolve(path.dirname(script), '..');
   const checks = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow', 'checks.cjs');
   const work = cwd && fs.existsSync(cwd) ? cwd : process.cwd();
@@ -126,4 +162,5 @@ function check({ cwd, script = process.argv[1], env = process.env } = {}) {
   return { status: ran.status, text };
 }
 
-module.exports = { readInput, base, folder, inputsFile, check };
+module.exports = { readInput, base, folder, inputsFile, qoryInputs, HOOK_SESSION, hookSession,
+  check };

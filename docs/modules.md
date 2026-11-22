@@ -1314,6 +1314,11 @@ which the compose places at `$QORY_HARNESS_HOME/hooks/`. `end-gate.cjs` picks th
 when it is set, else at the session's working folder, so a session in a subfolder checks
 the checkout's folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project folder, and
 Gemini CLI sets it to the session's working folder.
+In the session of a hook's agent, when the `inputs.json` of `$QORY_HARNESS_HOME` has the
+member `qory.hook_session` with any value, `end-gate.cjs` runs no check and every adapter
+lets the session end: qory checks the report of the hook after its agent
+exits. `HOOK_SESSION` of `end-gate.cjs` is the name of the member, and the tool guard reads
+it from there.
 `end-gate.cjs` loads `checks.cjs` and runs its `end` in a separate node process. When
 `checks.cjs` throws, at load or while it runs, a missing file included, that process exits 4
 and prints the fix first: "Send this error to the harness maintainers: the end check
@@ -1933,13 +1938,30 @@ tool's error. The first line of each reason starts with what to do. The guard de
   `write-no-push` session with `qory.review_session` writes and runs commands as before. The
   functions are `reviewSession`, `reportName`, `keptFiles`, `sessionDeny` and
   `sessionReport` of `tool-guard.cjs`.
-- In a session with `qory.review` or `qory.review_session`, the guard denies a write of
-  `inputs.json` of the harness home, wherever the home lies, with a first line that starts
-  with "Leave inputs.json". When the home lies outside the working folder, it denies every
-  write below the home too, such as `hooks/tool-guard.cjs`, `codex/agents/<name>.toml` and
-  the agent files under `modules/`, with a first line that starts with "Leave the harness
-  home". `qory.review.report`, the report folder of a review session and a working folder
-  inside the home keep their rules there. A command whose writes the guard cannot read, such
+- A hook session is the session of a hook's agent: its `inputs.json` has the member
+  `qory.hook_session`, with any value. There the guard applies the rules of a reviewer
+  session, with `qory.hook_session.report` in place of `qory.review.report`, and in place of
+  the rules of `qory.review` and `qory.review_session` when the file has them too. The main
+  session writes that one path, with a `Write` or an `apply_patch` that adds it. Each other
+  write is denied with a first line that starts with "Write only
+  qory.hook_session.report", and each write of an agent with "Report in your text: the
+  write tools are denied to an agent of a hook session". The session starts no agent and
+  runs only the read commands of a reviewer session, so `qory artifact push`,
+  `qory run verdict` and every verb of the checks script are denied. A `qory.hook_session`
+  that is no object, or whose `report` is missing or no report path, leaves the session no
+  path: each write is denied with a first line that starts with "Report in your text and
+  write no file: qory.hook_session.report cannot be used." A session without the member
+  keeps its rules. The limits of the guard in the bullet on a reviewer session apply here
+  too: the guard runs only on Claude Code and Codex, only when `QORY_RUN_ID` is set, and
+  only when it can read `inputs.json`.
+- In a session with `qory.review`, `qory.review_session` or `qory.hook_session`, the guard
+  denies a write of `inputs.json` of the harness home, wherever the home lies, with a first
+  line that starts with "Leave inputs.json". When the home lies outside the working folder,
+  it denies every write below the home too, such as `hooks/tool-guard.cjs`,
+  `codex/agents/<name>.toml` and the agent files under `modules/`, with a first line that
+  starts with "Leave the harness home". `qory.review.report`, `qory.hook_session.report`,
+  the report folder of a review session and a working folder inside the home keep their
+  rules there. A command whose writes the guard cannot read, such
   as `python3 -c`, `node -e`, `tar -C` or `unzip -d`, is denied when it runs in the home or
   contains a path that reaches it, outside that working folder. The checks script passes
   with a verb that a review session runs (`resume`, `lock --verify`, `panel`,
@@ -4775,8 +4797,16 @@ the rule passes on that file.
     member that no module defines. `scripts/review-groups.cjs` prints a finding that starts
     with its fix, such as "Add b-reviewer to the group grp, or start no b-reviewer in
     workflow-flow".
+14. No agent reaches a skill `running-a-*` or `workflow-*`: not by a reference
+    `${qory:skills/<name>}` in its file, and not through the references of a skill that it
+    reaches, in any Markdown file of that skill's folder. qory is to compose the session of
+    a hook's agent with that agent and the skills it reaches, and with no workflow skill.
+    `scripts/agent-reach.cjs` prints a finding that starts with its fix and shows the way
+    from the agent to the skill, such as "Remove ${qory:skills/workflow-flow} from
+    modules/m/skills/s1/references/more.md: agent a reaches it through a > s1 >
+    workflow-flow".
 
-Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
+Rules 4, 6, 7, 8 and 14 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
 read the same file without it.

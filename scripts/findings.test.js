@@ -116,6 +116,14 @@ test('the schema fails a result word, an unknown member and each bad finding', (
 test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
   assert.match(REVIEWING,
     /Write one file, the report, with Write or, on Codex, with `apply_patch`/);
+  // In a hook session the path is qory.hook_session.report, the first case of the list.
+  assert.match(REVIEWING, /Take the path from the first of these cases that fits your session/);
+  assert.match(REVIEWING,
+    /`inputs\.json` has `qory\.hook_session`, the path\s+is `qory\.hook_session\.report`/);
+  assert.ok(REVIEWING.indexOf('qory.hook_session.report') <
+    REVIEWING.indexOf('qory.review.report'));
+  assert.ok(REVIEWING.indexOf('qory.review.report') <
+    REVIEWING.indexOf('`<reports>/<your agent name>.json`'));
   assert.match(REVIEWING, /the path is `qory\.review\.report` of\s+`inputs\.json`/);
   // As an agent of a review session, the reviewer writes <reports>/<name>.json.
   assert.match(REVIEWING, /the path is\s+`<reports>\/<your agent name>\.json`, where/);

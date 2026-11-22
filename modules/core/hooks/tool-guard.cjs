@@ -23,6 +23,12 @@
 //   and to each agent whose type ends in -reviewer in any session but a review session, the
 //   report path included. Outside a reviewer session it does not run reviewShell for such an
 //   agent; the other rules of the guard limit its shell;
+// - in the session of a hook's agent, when inputs.json has the member qory.hook_session, the
+//   rules of a reviewer session, with qory.hook_session.report as the one path that the main
+//   session writes. These rules apply in place of those of qory.review and
+//   qory.review_session. A value that is no object, or a report that is no normalised
+//   absolute path, leaves the session no path to write. The shell runs only the commands of
+//   reviewShell, so no qory command and no checks script;
 // - in a review session, when inputs.json has the member qory.review_session as an object and
 //   no qory.review object, as reviewSession reads it: each write of an agent whose type ends
 //   in -reviewer but one, a Write or an apply_patch of reportPatch's form that writes
@@ -94,7 +100,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { folder, inputsFile } = require('./end-gate.cjs');
+const { folder, inputsFile, qoryInputs, HOOK_SESSION } = require('./end-gate.cjs');
 const steps = require('./step-limit.cjs');
 const reportsGuard = require('./reports-guard.cjs');
 
@@ -1991,14 +1997,16 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (call.kind === 'agent') {
     // A reviewer session starts no agent, as reviewReport reads it. Any other session starts
     // one, and an agent in the background is denied.
-    return call.reason || (reviewReport(env) ? REVIEW_NO_AGENT : null);
+    const reviewer = reviewReport(env);
+    return call.reason || (reviewer ? (reviewer.hook ? HOOK_NO_AGENT : REVIEW_NO_AGENT) : null);
   }
   // A reviewer session allows the tools of REVIEW_TOOLS and no other that is no write or shell:
   // a tool that the guard does not know is denied there, and allowed in any other session.
   // On Codex it allows the three tools of REVIEW_MCP too, for the main session and each agent.
-  if (call.kind === null && reviewReport(env) && !REVIEW_TOOLS.has(input.tool_name) &&
+  const reviewing = reviewReport(env);
+  if (call.kind === null && reviewing && !REVIEW_TOOLS.has(input.tool_name) &&
     !(runtime === 'codex' && REVIEW_MCP.has(input.tool_name))) {
-    return reviewToolDeny(input.tool_name, runtime);
+    return reviewToolDeny(input.tool_name, runtime, reviewing.hook);
   }
   if (call.kind !== 'write' && call.kind !== 'shell') return null;
   // reports-guard.cjs denies a write of .reports/*.json and a shell command that reaches
@@ -2018,11 +2026,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (reports) return reports;
   // The guard reads the files that a shell command writes only from the paths in its text, so
   // the main session and each agent of a reviewer session run the commands of reviewShell only.
-  if (call.kind === 'shell' && reviewReport(env)) {
+  if (call.kind === 'shell' && reviewing) {
     const folder = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
     const git = reviewHasGit(folder);
     const refused = reviewShell(call.command, git, folder);
-    if (refused !== null) return reviewShellDeny(git, refused);
+    if (refused !== null) return reviewShellDeny(git, refused, reviewing.hook);
   }
   if (typeof start !== 'string' || start === '') return NO_ROOT;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
@@ -2111,10 +2119,10 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
     // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
     // writes. The first kind has no reviewShell here, only the other rules for a shell.
-    return /-reviewer$/.test(String(input.agent_type)) || reviewReport(env) ? reviewDeny({
+    return /-reviewer$/.test(String(input.agent_type)) || reviewing ? reviewDeny({
       call, input, paths, env, root, nocase, agent: true }) : null;
   }
-  if (reviewReport(env)) return reviewDeny({ call, input, paths, env, root, nocase });
+  if (reviewing) return reviewDeny({ call, input, paths, env, root, nocase });
   const outside = paths.find((full) => !artifacts || !inside(full, artifacts));
   if (!outside) return null;
   if (!artifacts) {
@@ -2609,37 +2617,28 @@ function reportsGlob(command, cwd, dirs, fold) {
   return null;
 }
 
-// The most bytes of inputs.json that reviewReport reads.
-const INPUTS_MAX = 1024 * 1024;
-
-// reviewReport returns { report } for a session of a reviewer, or null for any other session. A
-// session is a reviewer's when the inputs.json that qory wrote at $QORY_HARNESS_HOME, a regular
-// file of at most INPUTS_MAX bytes, has the member qory.review as an object; a link, a file that
-// is no JSON, a larger file or no such member makes it any other session. qory writes
-// qory.review only in a reviewer session, not in the session that builds the change.
-// report is qory.review.report when it is a normalised absolute path: no relative path, no
-// . or .. part, no empty part from a double slash, no trailing slash, no NUL and at most
-// PATH_MAX characters; otherwise null, and the session of the reviewer writes no file.
+// reviewReport returns { report, hook } for a session of a reviewer, or null for any other
+// session. qoryInputs of end-gate.cjs reads the inputs.json that qory wrote at
+// $QORY_HARNESS_HOME: a link, a file that is no JSON or a file of more than 1 MiB counts as
+// none. A session is a reviewer's in two cases:
+// - inputs.json has the member qory.hook_session, HOOK_SESSION, with any value: the session of
+//   a hook's agent, with hook true. report is qory.hook_session.report. A value that is no
+//   object leaves the session no report, so it writes no file.
+// - inputs.json has the member qory.review as an object, and no qory.hook_session, with hook
+//   false. report is qory.review.report. qory writes qory.review only in a reviewer session,
+//   not in the session that builds the change.
+// report is the member when it is a normalised absolute path: no relative path, no . or ..
+// part, no empty part from a double slash, no trailing slash, no NUL and at most PATH_MAX
+// characters; otherwise null, and the session of the reviewer writes no file.
 function reviewReport(env) {
   const qory = qoryInputs(env);
+  if (qory && Object.hasOwn(qory, HOOK_SESSION)) {
+    const hook = qory[HOOK_SESSION];
+    return { report: member(hook) && normalPath(hook.report) ? hook.report : null, hook: true };
+  }
   const review = qory && qory.review;
   if (!member(review)) return null;
-  return { report: normalPath(review.report) ? review.report : null };
-}
-
-// qoryInputs returns the member qory of inputs.json at $QORY_HARNESS_HOME when it is an object,
-// read as reviewReport describes, or null.
-function qoryInputs(env) {
-  const file = inputsFile(env);
-  if (!file) return null;
-  try {
-    const stat = fs.lstatSync(file);
-    if (!stat.isFile() || stat.size > INPUTS_MAX) return null;
-    const qory = JSON.parse(fs.readFileSync(file, 'utf8')).qory;
-    return qory !== null && typeof qory === 'object' ? qory : null;
-  } catch {
-    return null;
-  }
+  return { report: normalPath(review.report) ? review.report : null, hook: false };
 }
 
 // member reports whether value is a JSON object: no null and no array.
@@ -2660,6 +2659,18 @@ const REVIEW_AGENT = 'Report in your text: the write tools are denied to a revie
   '-reviewer. ';
 const REVIEW_NO_AGENT = 'Start no agent: a reviewer reads the change and writes its report ' +
   'itself.\nThe session has qory.review in inputs.json of the harness home.';
+// The denies of a hook session, as those of a reviewer for the member HOOK of inputs.json.
+const HOOK = `qory.${HOOK_SESSION}`;
+const HOOK_ONLY = `Write only ${HOOK}.report, with Write or apply_patch: a hook ` +
+  'session writes no other file.\nThe path is in inputs.json of the harness home; a link, a ' +
+  'file with more than one link and a path below .git or .claude of the working folder are ' +
+  'denied. ';
+const HOOK_NONE = `Report in your text and write no file: ${HOOK}.report cannot be ` +
+  'used.\nIt must be an absolute path with no . or .. part, no double or trailing slash. ';
+const HOOK_AGENT = 'Report in your text: the write tools are denied to an agent of a hook ' +
+  `session.\nOnly the main session of a hook session writes ${HOOK}.report. `;
+const HOOK_NO_AGENT = 'Start no agent: the agent of a hook reads the work and writes its ' +
+  `report itself.\nThe session has ${HOOK} in inputs.json of the harness home.`;
 // The tools of a reviewer session besides the report write and the shell: the read tools and
 // two tools that only plan.
 const REVIEW_TOOLS = new Set(['Read', 'Grep', 'Glob', 'Skill', 'TodoWrite', 'update_plan']);
@@ -2670,9 +2681,9 @@ const REVIEW_MCP_TOOLS = ['read_file', 'list_directory', 'search_in_files'];
 const REVIEW_MCP = new Set(REVIEW_MCP_TOOLS.map((one) => `${REVIEW_MCP_PREFIX}${one}`));
 // reviewShown returns text for a deny line: printable ASCII only, at most size characters.
 const reviewShown = (text, size = 60) => String(text).replace(/[^\x20-\x7e]/g, '?').slice(0, size);
-const reviewToolDeny = (name, runtime) => 'Use Read, Grep, Glob, a read shell or the report ' +
-  `Write, not ${reviewShown(name, 28)}.\n` +
-  `A reviewer session denies the tool ${reviewShown(name)}.` +
+const reviewToolDeny = (name, runtime, hook) => 'Use Read, Grep, Glob, a read shell or the ' +
+  `report Write, not ${reviewShown(name, 28)}.\n` +
+  `A ${hook ? 'hook' : 'reviewer'} session denies the tool ${reviewShown(name)}.` +
   (runtime === 'codex' ? ` On Codex it allows ${[...REVIEW_MCP].join(', ')}.` : '');
 // The options of each command of a reviewer's shell. flags are short options with no value,
 // valued short options with a value, long and longValued long options without and with a
@@ -2942,10 +2953,11 @@ function reviewShell(command, git, folder) {
 
 // reviewShellDeny returns the deny for a shell command with the refusal that reviewShell
 // returned. Its fixed text contains git only when the working folder has git.
-const reviewShellDeny = (git, refused) => 'Run only read commands: cat, head, tail, ls, wc, ' +
-  `grep, rg, find, ${git ? 'git diff, git log, git show.' : 'sort, cut, diff.'}\n` +
+const reviewShellDeny = (git, refused, hook) => 'Run only read commands: cat, head, tail, ls, ' +
+  `wc, grep, rg, find, ${git ? 'git diff, git log, git show.' : 'sort, cut, diff.'}\n` +
   `Refused: ${refused}.\n` +
-  'A reviewer session writes only its report file, so each other command is denied, and so ' +
+  `A ${hook ? 'hook' : 'reviewer'} session writes only its report file, so each other ` +
+  'command is denied, and so ' +
   'is an option that the command does not list, a redirect, $( ), a backtick, a variable and ' +
   'a * ? [ ^ outside quotes, and a ~ that starts a word or follows = or : outside quotes. The ' +
   'commands are cat, head, tail, ' +
@@ -2988,18 +3000,21 @@ function reviewDeny({ call, input, paths, env, root, nocase, agent = false }) {
       if (!kept && fold(asked) === fold(named.real)) return null;
     }
   }
-  const head = agent ? REVIEW_AGENT : report ? REVIEW_ONLY : REVIEW_NONE;
+  const hook = Boolean(review && review.hook);
+  const head = agent ? (hook ? HOOK_AGENT : REVIEW_AGENT)
+    : report ? (hook ? HOOK_ONLY : REVIEW_ONLY) : hook ? HOOK_NONE : REVIEW_NONE;
   return `${head}The call writes ${paths.join(', ')}.`;
 }
 
 // reviewSession returns { reports } for a review session, or null for any other session. A
 // session is a review session when inputs.json, read as reviewReport reads it, has the member
-// qory.review_session as an object and no qory.review object: with both, the rules of a
-// reviewer session apply. reports is qory.review_session.reports when it is a normalised
-// absolute path, as reviewReport reads qory.review.report; otherwise null.
+// qory.review_session as an object, no qory.review object and no qory.hook_session: with
+// either, the rules of a reviewer session apply. reports is qory.review_session.reports when
+// it is a normalised absolute path, as reviewReport reads qory.review.report; otherwise null.
 function reviewSession(env) {
   const qory = qoryInputs(env);
-  if (!qory || member(qory.review) || !member(qory.review_session)) return null;
+  if (!qory || member(qory.review) || Object.hasOwn(qory, HOOK_SESSION) ||
+    !member(qory.review_session)) return null;
   const { reports } = qory.review_session;
   return { reports: normalPath(reports) ? reports : null };
 }
@@ -3039,13 +3054,14 @@ function reportName(agentType, runtime, home) {
 // Each entry is { full, folder, inputs, nocase, head, except }, with head the first two lines
 // of its deny; matrix is true for the two files of the artifact folder; inputs is true
 // for an entry of the home, whose deny comes before the rule of a reviewer's report. except
-// is the path that the entry of the home leaves to the rules of a review: qory.review.report,
-// or the report folder of a review session, with every path below it.
+// is the path that the entry of the home leaves to the rules of a review: the report of
+// reviewReport, or the report folder of a review session, with every path below it.
 function keptFiles(env, session, nocase, root, artifacts) {
   const out = [];
   const qory = qoryInputs(env);
+  const reviewer = reviewReport(env);
   const home = env.QORY_HARNESS_HOME;
-  if (qory && (member(qory.review) || member(qory.review_session)) &&
+  if (qory && (reviewer || member(qory.review_session)) &&
     typeof home === 'string' && path.isAbsolute(home)) {
     const full = real(path.join(home, 'inputs.json'));
     out.push({ full, folder: false, inputs: true, head: INPUTS_KEPT,
@@ -3053,8 +3069,7 @@ function keptFiles(env, session, nocase, root, artifacts) {
     const top = real(home);
     const fold = (one) => (nocase ? one.toLowerCase() : one);
     if (!under(fold(top), fold(root))) {
-      const left = member(qory.review) ? reviewReport(env).report
-        : session && session.reports;
+      const left = reviewer ? reviewer.report : session && session.reports;
       out.push({ full: top, folder: true, inputs: true, home: true, head: HOME_KEPT,
         nocase: nocase || caseless(top) || caseless(path.dirname(top)),
         except: [...(left ? [real(left)] : []), root], shell: homeParts(top, root, fold) });
@@ -3291,10 +3306,10 @@ const VERSIONS_KEPT = 'Run versions.cjs only with compare.\nIn a review session 
 const STORE_KEPT = 'Leave the version store of the artifact folder to qory.\nIn a review session ' +
   'no call writes below <artifact folder>/<type>/: a pull writes it. ';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
-  'of the run in it.\nA session with qory.review or qory.review_session in it writes no ' +
-  'inputs.json. ';
+  `of the run in it.\nA session with qory.review, qory.review_session or ${HOOK} in ` +
+  'it writes no inputs.json. ';
 const HOME_KEPT = 'Leave the harness home as it is: a review runs with the guards and agents ' +
-  'of it.\nA session with qory.review or qory.review_session writes ' +
+  `of it.\nA session with qory.review, qory.review_session or ${HOOK} writes ` +
   'nothing below QORY_HARNESS_HOME when the home lies outside the working folder. ';
 const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write or apply_patch: ' +
   'a reviewer writes one file.\nThe report folder is qory.review_session.reports of inputs.json; ' +
