@@ -495,8 +495,8 @@ test('browser-screens ships the agent that fills the role demo-author and the sk
 
 // drafted returns a folder with the approved demo scenarios, and the draft script of each
 // scenario of ids that demo write built, with change(id, script) applied to the script.
-function drafted(ids = ['scenario-1'], change = () => {}) {
-  const root = artifacts();
+function drafted(ids = ['scenario-1'], change = () => {}, scripted = []) {
+  const root = artifacts(SCENARIOS, scripted);
   for (const id of ids) {
     actions(root, id, id === 'scenario-1' ? ONE : TWO);
     assert.equal(call(root, ['demo', 'write', id]).status, 0);
@@ -679,6 +679,60 @@ test('demo check refuses a sign-in step that opens an address outside the App ad
   assert.equal(call(outside('https://other.example/sign-in'), ['demo', 'check']).status, 0);
 });
 
+test('demo check refuses a sign-in step outside the path of the App address', () => {
+  const address = 'http://localhost:3000/app';
+  const opens = (url) => {
+    const root = drafted(['scenario-1'], (id, script) => { script.setup[0].url = url; });
+    plan(root, address);
+    return call(root, ['demo', 'check']);
+  };
+  for (const url of ['/admin', '/application', '/application/sign-in', '/app/../admin',
+    '/app/%2e%2e/admin', 'http://localhost:3000\\evil.example', '/app\\..\\admin',
+    'http://localhost:3000@evil.example/app', 'http://user@localhost:3000/app',
+    'http://user:pass@localhost:3000/app/sign-in', 'http://localhost:3000/',
+    'https://localhost:3000/app']) {
+    const got = opens(url);
+    assert.equal(got.status, 1, `${url}: ${got.out}`);
+    assert.equal(got.lines[0], `Open only pages under ${address} in the sign-in steps of ` +
+      'scenario-1.json.', url);
+  }
+  // The path of the App address, a page below it at a segment boundary, an uppercase host and
+  // the default port of the scheme pass.
+  for (const url of ['/app', '/app/', '/app/sign-in?next=1', 'http://localhost:3000/app/x',
+    'HTTP://LOCALHOST:3000/app/x']) {
+    assert.equal(opens(url).status, 0, url);
+  }
+  const root = drafted(['scenario-1'], (id, script) => {
+    script.setup[0].url = 'HTTPS://Example.test:443/sign-in';
+  });
+  plan(root, 'https://example.test');
+  assert.equal(call(root, ['demo', 'check']).status, 0);
+  // The whole App address is in the fix line.
+  const long = `http://localhost:3000/${'a'.repeat(60)}`;
+  const far = drafted(['scenario-1'], (id, script) => { script.setup[0].url = '/other'; });
+  plan(far, long);
+  const lines = call(far, ['demo', 'check']).lines;
+  assert.ok(lines[0].length <= 100, lines[0]);
+  assert.match(lines[0], /^Open only pages under http:\/\/localhost:3000\/a+\.\.\./);
+  assert.equal(lines[1], '  The step opens /other.');
+  assert.equal(lines[2], `  The App address is ${long}.`);
+});
+
+test('demo check compares the newest pushed version with the newest done row', () => {
+  const root = drafted(['scenario-1'], () => {}, ['scenario-1']);
+  const draft = text(root, 'scenario-1');
+  // The pushed script is the frozen one: no fault.
+  ledger(root, ['script:scenario-1'], [draft]);
+  fs.writeFileSync(path.join(root, 'demo-script/scenario-1/v1/scenario-1.json'), draft);
+  assert.equal(call(root, ['demo', 'check', 'scenario-1']).status, 0);
+  // The pushed script differs from the done row, as when a session skipped step end.
+  ledger(root, ['script:scenario-1'], ['other']);
+  const got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Push the frozen script of scenario-1 again, or run the step ' +
+    'script:scenario-1#2 for the pushed one.');
+});
+
 test('demo run exits 3 with the fix when the build plan has no serve row or no browser', () => {
   const root = drafted();
   plan(root, 'http://localhost:3000');
@@ -692,4 +746,60 @@ test('demo run exits 3 with the fix when the build plan has no serve row or no b
   assert.equal(missing.status, 3, missing.out);
   assert.equal(missing.lines[0],
     'Run demo write scenario-1, then run demo run again.');
+});
+
+// ---- The skill and the agent texts of the freeze --------------------------------------------
+
+const SCRIPTING = fs.readFileSync(path.join(MODULES,
+  'browser-screens/skills/scripting-demos/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+const REVIEWER = fs.readFileSync(path.join(MODULES, 'software-factory/agents/check-reviewer.md'),
+  'utf8').replace(/\s+/g, ' ');
+
+// inText asserts that each of parts is in text, in the order given.
+function inText(text, ...parts) {
+  let from = 0;
+  for (const part of parts) {
+    const at = text.indexOf(part, from);
+    assert.ok(at >= 0, `"${part}" is missing or out of order`);
+    from = at + part.length;
+  }
+}
+
+test('scripting-demos: the steps of a scenario in order, with the freeze and the step id', () => {
+  inText(SCRIPTING, 'For a correction it is `script:<id>#<k+1>`, where `<k>` is the number of ' +
+    'done steps', 'Take it from the ledger, not from the output of `demo check`');
+  inText(SCRIPTING, '1. Run `<skill folder>/checks.cjs step begin <step> implement-changes',
+    '2. Run `<skill folder>/checks.cjs notes browser-demo-author`',
+    '3. Start the demo author in the foreground',
+    '4. Run `<skill folder>/checks.cjs demo write <id>`',
+    '5. Run `<skill folder>/checks.cjs demo check <id> --inputs <inputs>`',
+    '6. Run `<skill folder>/checks.cjs check demo-script',
+    '7. Before the first run of a script in this session, run ' +
+      '`<skill folder>/checks.cjs preflight --inputs <inputs>` once',
+    '8. Run `<skill folder>/checks.cjs demo run <id> --inputs <inputs>`',
+    '9. Push it, as "Push only what changed"',
+    '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
+  inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
+    'its script needs a third correction, and a script has 2',
+    'Open only pages under <App address> in the sign-in steps of <script>.',
+    'When the first line starts with "Push the frozen script"',
+    'With 0 and a line that starts with "Start check-reviewer"',
+    'Review the change to a demo script', 'With `changes-needed`, do "Start the author again"');
+  // The limit of the sign-in check with no build plan is stated.
+  inText(SCRIPTING, 'only when the build plan is readable and has the line `App address:`',
+    'With no such plan, it compares nothing');
+  inText(SCRIPTING, 'Start the demo author again at most twice');
+});
+
+test('check-reviewer: a branch for the change to a demo script that passed', () => {
+  inText(REVIEWER, '## A demo script', 'Review the change to a demo script',
+    'the paths of the input file, the artifact folder, the demo scenarios, the script that ' +
+      'passed and the new script',
+    'You need no draft lock and no "Changed paths:"',
+    'report each difference as a finding marked `writer`, `no direction` and `break`',
+    'a new target of a click or type action, a new text of a wait action, or one wait action ' +
+      'added',
+    'A removed action, a changed `open` address, a changed variable name, a changed sign-in',
+    'so a difference there is a finding too', '## Stop conditions',
+    'In the review of a demo script, you get none.');
 });

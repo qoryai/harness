@@ -37,8 +37,11 @@ correction is read by `check-reviewer` before it runs, as step 5 lists.
 ## For each scenario
 
 Do these steps for one scenario `<id>`, such as `scenario-1`, before the next scenario.
-`<step>` is `script:<id>` for the first script of the scenario, and for a correction the id
-that `demo check` printed, such as `script:<id>#2`.
+`<step>` is `script:<id>` for the first script of the scenario. For a correction it is
+`script:<id>#<k+1>`, where `<k>` is the number of done steps `script:<id>`,
+`script:<id>#2` and `script:<id>#3` in `<folder>/.reports/build-ledger.json`, so `#2` for
+the first correction. Take it from the ledger, not from the output of `demo check`: `demo
+check` prints no step for a script that has not changed.
 
 1. Run `<skill folder>/checks.cjs step begin <step> implement-changes --inputs <inputs>
    <scenarios> <skill file> <agent file>`, as "The build ledger" of
@@ -73,9 +76,14 @@ that `demo check` printed, such as `script:<id>#2`.
      "Failures" lists, with the cause "its script needs a third correction, and a script
      has 2".
    - With another 1, the script breaks a rule, and the first line of each fault is the fix.
-     This includes a sign-in step that opens a page outside the app: "Open only pages under
-     <App address> in the sign-in steps of <script>." Do "Start the author again", with
-     those lines.
+     This includes a sign-in step that opens a page outside the App address, by origin or by
+     path: "Open only pages under <App address> in the sign-in steps of <script>." Do
+     "Start the author again", with those lines. When the first line starts with "Push the
+     frozen script", the pushed script differs from the newest done step: push the frozen
+     script again, or run the step that the line names for the pushed one, with
+     check-reviewer first. `demo check` compares the sign-in with the App address only when
+     the build plan is readable and has the line `App address:`. With no such plan, it
+     compares nothing, and the run in step 8 loads only pages of the origin of the app.
    - With 0 and a line that starts with "Start check-reviewer", the script changes a script
      that passed. Start ${qory:agents/check-reviewer} in the foreground, as "Starting
      agents" of `running-a-workflow` lists, with the input file's path, `<folder>`, the

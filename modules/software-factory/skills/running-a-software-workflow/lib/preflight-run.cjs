@@ -1,5 +1,5 @@
 // The part of the preflight that waits, which lib/preflight.cjs starts with node and waits for.
-// It reads { serve, browser, setups, typed, startMs, actionMs, signedInMs, limitMs,
+// It reads { serve, browser, setups, runs, typed, startMs, actionMs, signedInMs, limitMs,
 // browserMs, proc } as JSON on stdin:
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
@@ -13,18 +13,20 @@
 //   which the serve command does not get.
 // - browser is null, or the path of the browser. When the app started, it replays each setup
 //   of setups, { actions, names }, with signIn of lib/replay.cjs, in a new browser context,
-//   with only the variables of names from its environment. browserMs, which only a test
-//   sets, is the time for the browser to start, 15 s by default.
+//   with only the variables of names from its environment. With runs, { setup, steps, names }
+//   per script, it replays each setup as a sign-in, then each step, in place of setups.
+//   browserMs, which only a test sets, is the time for the browser to start, 15 s by default.
 // Then it stops the browser, the process group of the command and each process with its
 // mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
 // lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
 // SIGHUP, on an error that nothing catches, and within PARENT_MS of the end of its parent. A
 // watcher in the process group of the command kills the process group of the browser and
 // that group when the runner ends, also on SIGKILL; a process that left the groups then keeps
-// running. After limitMs from its start, 570 s without limitMs, it stops the sign-ins and sets unfinished. It prints { app, signIns, unfinished }
-// as JSON on stdout, the one line that it prints: app is { started, ran, why }, signIns has
-// { ok, why, outside, browser } per setup, and unfinished is null or the reason in one
-// clause.
+// running. After limitMs from its start, 570 s without limitMs, it stops the sign-ins and
+// sets unfinished. It prints { app, signIns, runs, unfinished } as JSON on stdout, the one
+// line that it prints: app is { started, ran, why }, signIns has { ok, why, outside, browser }
+// per setup, runs is set instead of signIns when spec.runs is, with { ok, step, why, outside }
+// per script, and unfinished is null or the reason in one clause.
 'use strict';
 
 const childProcess = require('node:child_process');

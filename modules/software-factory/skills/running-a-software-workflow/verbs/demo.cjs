@@ -107,6 +107,9 @@ module.exports = (lib) => {
   // addressOf returns the App address of the build plan that --inputs or --artifacts gives, else
   // of the artifact folder, or null when there is no plan or it has no address. The sign-in of
   // a script is checked against it only then.
+  // shortcut: with no readable build plan or no App address, the sign-in is not compared; the
+  // run of demo run still loads only pages of the origin of the app, so replace this with a
+  // refusal when a Build session can start with no plan.
   function addressOf(io, given) {
     try {
       const starts = require('../lib/start.cjs')(lib);
@@ -123,23 +126,24 @@ module.exports = (lib) => {
   const doneRows = (ledger, id) => (ledger ? ledger.steps : []).filter((row) =>
     row.state === 'done' && row.kind === 'script' && row.id.split('#')[0] === `script:${id}`);
 
-  // scriptOf returns { shown, text, data } of the script of id that check reads: the draft of
-  // the artifact folder, else the newest pushed version that counts. It returns { none: true }
-  // for a scenario with no script, and { findings } for a script that cannot be read, no JSON
-  // or breaks the schema of demo-script, which allows the actions open, click, type, press and
-  // wait and no other.
+  // pushedFile returns the path in the artifact folder of the newest version of the demo script
+  // of id that counts.
+  const pushedFile = (root, io, id) => path.join('demo-script', id, `v${new Context(root,
+    'check', io.home).counted('demo-script', id)}`, `${id}.json`);
+
+  // scriptOf returns { shown, text, data, drafted } of the script of id that check reads: the
+  // draft of the artifact folder, else the newest pushed version that counts. It returns
+  // { none: true } for a scenario with no script, and { findings } for a script that cannot be
+  // read, no JSON or breaks the schema of demo-script, which allows the actions open, click,
+  // type, press and wait and no other.
   function scriptOf(root, io, id, pushed) {
     const draft = path.join(FOLDER, `${id}.json`);
-    let shown = draft;
-    let number = null;
-    if (!fs.existsSync(path.join(root, draft))) {
-      if (!pushed.has(id)) return { none: true };
-      number = new Context(root, 'check', io.home).counted('demo-script', id);
-      shown = path.join('demo-script', id, `v${number}`, `${id}.json`);
-    }
+    const drafted = fs.existsSync(path.join(root, draft));
+    if (!drafted && !pushed.has(id)) return { none: true };
+    const shown = drafted ? draft : pushedFile(root, io, id);
     const got = boundedText(path.join(root, shown));
     if (got.why) {
-      return { findings: [number === null
+      return { findings: [drafted
         ? `Run demo write ${id} again.\n${shown} is no regular file of at most ${MAX_BYTES} bytes.`
         : `Pull the artifacts again, then run demo check again.\n${shown} cannot be read.`] };
     }
@@ -150,7 +154,8 @@ module.exports = (lib) => {
       return { findings: [`Run demo write ${id} again.\n${shown} does not parse.`] };
     }
     const found = isObject(data)
-      ? schema.errors(schema.load(SCHEMAS, 'demo-script'), data, `${id}.json`) : ['it is no object'];
+      ? schema.errors(schema.load(SCHEMAS, 'demo-script'), data, `${id}.json`)
+      : ['it is no object'];
     if (found.length) {
       return { findings: [`Use only open, click, type, press and wait in ${id}, then run demo ` +
         `write ${id}.\n${shown} breaks its schema: ` +
@@ -160,35 +165,65 @@ module.exports = (lib) => {
       return { findings: [`Run demo write ${id} again.\n${shown} is the script of ` +
         `${short(String(data.scenario), 30)}.`] };
     }
-    return { shown, text: got.text, data };
+    return { shown, text: got.text, data, drafted };
+  }
+
+  // within returns true when url, opened from address, the App address, is a page under it: of
+  // the same origin, with no user name or password, and with a path that is the path of address
+  // or below it at a segment boundary. A backslash is refused: a browser reads it as a slash.
+  function within(url, address) {
+    if (url.includes('\\')) return false;
+    try {
+      const page = new URL(url, address);
+      const base = new URL(address);
+      const prefix = base.pathname.replace(/\/+$/, '');
+      return page.origin === base.origin && !page.username && !page.password &&
+        (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`));
+    } catch {
+      return false;
+    }
   }
 
   // outsideOpens returns a finding for each open of the setup of data, the demo script, whose
-  // address has another origin than address, the App address of the build plan. The setup is
-  // the sign-in: a script may leave the app only after it, and the run refuses that too.
+  // page is not under address, the App address of the build plan. The setup is the sign-in: a
+  // script may leave the app only after it, and the run refuses that too.
   function outsideOpens(data, address) {
-    const origin = new URL(address).origin;
-    return data.setup.filter((action) => {
-      if (action.do !== 'open') return false;
-      try {
-        return new URL(action.url, address).origin !== origin;
-      } catch {
-        return true;
-      }
-    }).map((action) => `Open only pages under ${cut(address, 30)} in the sign-in steps of ` +
-      `${data.scenario}.json.\nThe step opens ${cut(action.url, 80)}.`);
+    const tail = ` in the sign-in steps of ${data.scenario}.json.`;
+    // The first line keeps the fix within 100 characters, so a long address is cut there and
+    // shown whole on the line after the step.
+    const room = 100 - 'Open only pages under '.length - tail.length;
+    return data.setup.filter((action) => action.do === 'open' && !within(action.url, address))
+      .map((action) => `Open only pages under ${cut(address, room)}${tail}\n` +
+        `The step opens ${cut(action.url, 80)}.` +
+        (address.length > room ? `\nThe App address is ${address}.` : ''));
+  }
+
+  // unrecorded returns a finding when the newest pushed version of the script of id, which the
+  // freeze must record, has another sha256 than the newest done row of the ledger: a session
+  // that pushed a script and skipped `step end`. It returns null with no draft, no row or no
+  // pushed version that can be read: with no draft, the script read is the pushed one.
+  function unrecorded(root, io, got, id, rows, done) {
+    if (!got.drafted || !rows.length || !done.has(id)) return null;
+    const shown = pushedFile(root, io, id);
+    const pushed = boundedText(path.join(root, shown));
+    if (pushed.why || sha256(pushed.text) === rows[rows.length - 1].script_sha256) return null;
+    return `Push the frozen script of ${id} again, or run the step script:${id}#` +
+      `${rows.length + 1} for the pushed one.\n${shown} has another sha256 than the newest ` +
+      `done step ${rows[rows.length - 1].id}.`;
   }
 
   // inspect returns { findings, notes } of the script of scenario: its faults, with the fix
   // first, then the line for check-reviewer when it changes a script that a pass froze. A
   // change to a script that has had 2 corrections is a fault.
-  function inspect(scenario, got, address, ledger) {
+  function inspect(scenario, got, where) {
+    const { address, ledger, root, io, done } = where;
     const id = scenario.id;
     const rows = doneRows(ledger, id);
     const findings = [...scriptFindings(scenario, got.data, `${id}.json`),
       ...(address ? outsideOpens(got.data, address) : [])];
     const changed = rows.length > 0 && sha256(got.text) !== rows[rows.length - 1].script_sha256;
-    if ((findings.length || changed) && rows.length >= MOST_ROWS) {
+    const skipped = unrecorded(root, io, got, id, rows, done);
+    if ((findings.length || changed || skipped) && rows.length >= MOST_ROWS) {
       return { findings: [`Keep the script of ${id} as it is: it has had 2 corrections, and a ` +
         `third is refused.\nThe build ledger has the done steps script:${id}, script:${id}#2 ` +
         `and script:${id}#3.`], notes: [] };
@@ -197,6 +232,7 @@ module.exports = (lib) => {
     if (findings.length && rows.length) {
       findings.push(`Write ${id} again as the step ${step}, then run demo check ${id}.`);
     }
+    if (skipped) findings.push(skipped);
     return { findings, notes: changed && !findings.length
       ? [`Start check-reviewer on the change to ${id}, then run the step ${step}.`] : [] };
   }
@@ -228,7 +264,8 @@ module.exports = (lib) => {
     for (const scenario of live.filter((one) => !only || one.id === only)) {
       const got = scriptOf(root, io, scenario.id, done);
       if (got.none) continue;
-      const found = got.findings ? got : inspect(scenario, got, address, ledger);
+      const found = got.findings ? got
+        : inspect(scenario, got, { address, ledger, root, io, done });
       findings.push(...found.findings);
       notes.push(...(found.notes || []));
     }

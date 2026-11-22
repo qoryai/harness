@@ -3592,14 +3592,19 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     expected result differs by one character from the approved scenario, the same
     comparison as the push check of `demo-script`, which also refuses an `evidence` that
     differs from the scenario's Evidence line. It exits 1 too for an `open` of the setup,
-    the sign-in, whose address, read against the line `App address:` of the build plan, has
-    another origin: "Open only pages under <App address> in the sign-in steps of
-    <script>." and the line "The step opens <url>." The build plan is the one that
-    `--inputs` or `--artifacts` gives, as `preflight` reads it, else the one in the artifact
-    folder; with no plan or no address, the sign-in is not compared. Its last line is "Write
-    the demo script of <scenarios>, from version <N> of the demo scenarios." for a scenario
-    with no `demo-script` version that counts, and "No demo script to write: each scenario
-    has one." otherwise.
+    the sign-in, that is no page under the line `App address:` of the build plan: a page
+    under it has the same origin, no user name or password, no backslash, and a path that is
+    the path of the address or below it at a segment boundary, so with
+    `http://localhost:3000/app`, `/app` and `/app/x` pass, and `/application`, `/admin` and
+    `/app/../admin` fail. The finding is "Open only pages under <App address> in the sign-in
+    steps of <script>." and the line "The step opens <url>." An address too long for 100
+    characters in the first line is cut there and shown whole in the line "The App address
+    is <address>." The build plan is the one that `--inputs` or `--artifacts` gives, as
+    `preflight` reads it, else the one in the artifact folder. When no build plan can be
+    read or it has no address, the sign-in is not compared, and `demo run` still loads only
+    pages of the origin of the app. Its last line is "Write the demo script of <scenarios>,
+    from version <N> of the demo scenarios." for a scenario with no `demo-script` version
+    that counts, and "No demo script to write: each scenario has one." otherwise.
   - The freeze and the corrections: `demo check` reads `.reports/build-ledger.json` and the
     done rows of the steps `script:<id>`, `script:<id>#2` and `script:<id>#3`, kind
     `script`. A script whose sha256 differs from the `script_sha256` of the newest done row
@@ -3607,8 +3612,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     <id>, then run the step script:<id>#<k>." and exit 0. With 3 done rows and a changed
     script or a fault, it exits 1 with "Keep the script of <id> as it is: it has had 2
     corrections, and a third is refused." A script that breaks a rule after a pass has the
-    extra line "Write <id> again as the step
-    script:<id>#<k>, then run demo check <id>."
+    extra line "Write <id> again as the step script:<id>#<k>, then run demo check <id>."
+    `<k>` is the number of done rows of the scenario plus 1; the skill reads it from the
+    ledger, since `demo check` prints no step for a script that has not changed. With a
+    draft, `demo check` also compares the newest pushed version that counts with the newest
+    done row, and a pushed script with another sha256 is a fault: "Push the frozen script of
+    <id> again, or run the step script:<id>#<k> for the pushed one." `step end
+    --script-sha256` does not compare the hash with the file, so this check catches a
+    session that pushed a script and skipped the step. With no done row, nothing is
+    compared.
   - `demo write <scenario>` reads `.demo/<scenario>.actions.json` of the artifact folder, a
     regular file of at most 262144 bytes that is no link, and a JSON object with the lists
     `setup` and `steps`, one list of actions for each row of the scenario's table. It writes
@@ -4471,16 +4483,15 @@ The check and the freeze of a script:
   correction, the step `script:<id>#2` or `#3`; `check-reviewer` reads it, started by the
   skill with the line "Review the change to a demo script", before the correction runs. A
   third correction is refused by `demo check`, and by the limit of 3 rows in the ledger.
-- `demo check` refuses a sign-in step, an `open` of the setup, whose address has another
-  origin than the `App address:` of the build plan. The agent corrects the script in its
-  session.
+- `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
+  `App address:` of the build plan, by origin or by path. The agent corrects the script in
+  its session. With no readable build plan or no address, `demo check` compares nothing.
 
-Where the card was silent, the design reuses what exists. The freeze and the count of
-corrections are the rows of the build ledger, which already had the kind `script`. The draft
-is compared against the ledger by sha256, so no new file records a freeze. `demo run` reuses
-the runner and the sign-in replay of `preflight`, so no second browser code exists. The
-correction path ends the run when `check-reviewer` blocks or a script needs a third
-correction, as every other step of `scripting-demos` does.
+The freeze and the count of corrections are rows of the build ledger of the kind `script`,
+and the sha256 of a script is the only record of a freeze. `demo run` uses the runner and
+the sign-in replay of `preflight`. The run ends when `check-reviewer` reports `blocked`,
+when a script needs a third correction, or when a step of `scripting-demos` fails, as
+"Failures" of `running-a-workflow` lists.
 
 No entry of `software-factory` references the role `demo-author` or the skill
 `scripting-demos` with `${qory:...}`: a reference to a role that no agent fills fails the
