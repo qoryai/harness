@@ -121,7 +121,8 @@ each other member starts only when a path of the change matches its paths.
    - Remove the `a/` or `b/` in front.
    - A renamed or copied file has the lines `rename from <old>` and `rename to <new>`, or
      `copy from` and `copy to`, with no `a/` or `b/`, and has a `+++ ` line only when its
-     text changed too. Take both paths, read as the quoted form, and each path only once.
+     text changed too. Take both paths, unquote each path as the bullet on quotes lists, and
+     take each path only once.
    - Any other file with no `+++ ` line, such as a binary file, has its path only in its
      line `diff --git a/<path> b/<path>`, where both halves are the same: take that path.
 

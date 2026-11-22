@@ -753,15 +753,18 @@ test('findings round: with no rule of the suite in the registry, the suite has n
     'result for the reviewed change.');
 });
 
-test('findings round: more than 20 blocking findings print 20 and count the rest', () => {
-  const many = Array.from({ length: 25 },
+test('findings round: more than 100 blocking findings print 100 and count the rest', () => {
+  const many = Array.from({ length: 105 },
     (_, at) => ({ ...REVIEWED, point: `Row ${at} is lost.` }));
   const { dir, suite } = sessionFolder({
     'code-reviewer': { reviewer: 'code-reviewer', findings: many } });
   const got = round(dir, suite, ['code-reviewer']);
   assert.equal(got.status, 1);
-  assert.equal(got.lines.at(-1), 'Checked 1 report and the suite result: 25 blocking and 0 ' +
-    'non-blocking findings.');
+  const shown = got.lines.filter((line) => line.startsWith('Blocking finding of code-reviewer'));
+  assert.deepEqual(shown.map((line) => /: (Row \d+ is lost\.)$/.exec(line)[1]),
+    Array.from({ length: 100 }, (_, at) => `Row ${at} is lost.`));
+  assert.deepEqual(got.lines.slice(-2), ['5 more findings are not shown.',
+    'Checked 1 report and the suite result: 105 blocking and 0 non-blocking findings.']);
   assert.deepEqual(fs.readdirSync(dir), ['code-reviewer.json']);
 });
 
