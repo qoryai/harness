@@ -40,12 +40,15 @@
 //   only the verb matrix of the checks script writes them, so no call of the main session
 //   or of an agent does, by a write tool or by a shell command with the path in its text,
 //   and an extraction by tar or unzip into a folder above them counts as a write. A shell
-//   command that is no read and names <artifacts>, .reports or a folder above them, or runs
-//   in <artifacts>, is denied, other than the checks script with a verb of ARTIFACT_VERBS,
-//   versions.cjs compare and the push of PUSH_FORM. A command with the word push and the
-//   word verification, or a variable or a substitution, is denied unless it is PUSH_FORM and,
-//   for verification, from <artifacts>/verification.json. The limits of the next entry
-//   apply: a path that a variable or code makes passes, except in a push;
+//   command that is no read and names <artifacts> or .reports, or a folder above them as the
+//   target of cd, -C, -d, -o or --directory, or runs in <artifacts>, is denied, as is each
+//   write below <artifacts>/<type>/, the version store, and versions.cjs with a verb but
+//   compare, which would copy a stored version over the draft; other than the checks script
+//   with a verb of ARTIFACT_VERBS, versions.cjs compare and the push of PUSH_FORM. A command
+//   with the word push and the word verification, or a variable or a substitution, is denied
+//   unless it is PUSH_FORM and, for verification, from <artifacts>/verification.json. The
+//   limits of the next entry apply: a path that a variable or code makes passes, except in a
+//   push;
 //   - shortcut: a locked check runs as a child process that the guard does not see, and can
 //     rewrite both files or plant a record in .reports/runs/; replace the guard with qory
 //     running the locked checks and matrix outside the session.
@@ -2057,6 +2060,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     const refused = pushDeny(call.command, artifacts, nocase,
       segs.flatMap((one) => plainWords(one.words)));
     if (refused) return refused;
+    // versions.cjs copy would write a stored version over the draft, and nothing else of
+    // versions.cjs is run here but compare.
+    if (/versions\.cjs/.test(call.command) && !comparesVersions(call.command, env, script)) {
+      return `${VERSIONS_KEPT}The command is ${reviewShown(call.command)}.`;
+    }
   }
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
@@ -2334,7 +2342,7 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
     return `${BUILT}The command writes .qory/build/.`;
   }
   if (home && hit(home, true)) return `${HOMED}${home}; the command writes in it.`;
-  for (const one of kept) {
+  for (const one of kept.filter((each) => !each.deep)) {
     const target = (one.shell || [one.full]).find((full) => hit(full, one.folder));
     if (target) return `${one.head}The command writes ${one.folder ? 'in ' : ''}${target}.`;
   }
@@ -2354,7 +2362,8 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   }
   // A command whose writes the guard does not read, other than one of sessionExempt, writes
   // no word that reaches the report folder of a review session.
-  for (const one of dark ? kept.filter((each) => (each.folder && !each.home && !exempt) ||
+  for (const one of dark ? kept.filter((each) => (each.folder && !each.home && !each.deep &&
+    !exempt) ||
     (each.matrix && !checked)) : []) {
     const found = reaches(all, [], one.full, root, how);
     if (found) {
@@ -3062,6 +3071,10 @@ function keptFiles(env, session, nocase, root, artifacts) {
       out.push({ full, folder: false, inputs: false, matrix: true, head: MATRIX_KEPT,
         nocase: nocase || caseless(path.dirname(full)) });
     }
+    // The version store: a file below <artifacts>/<type>/, which only qory pulls writes.
+    const store = real(artifacts);
+    out.push({ full: store, folder: true, deep: true, inputs: false, head: STORE_KEPT,
+      nocase: nocase || caseless(store), except: session.reports ? [real(session.reports)] : [] });
   }
   return out;
 }
@@ -3106,11 +3119,13 @@ function withoutScript(segment, inHome, realOf) {
 }
 
 // PUSH_FORM is the one push of an artifact that a review session runs: <qory> artifact push
-// with at most one --name and one --note, a type, and the full path of the file. Anything
+// with at most one --name and one --note, before the type or after the path, a type, and the
+// full path of the file. Anything
 // else, such as -- or a root flag of qory, a variable or a quote in the path, does not match.
-const PUSH_FORM = new RegExp('^\\s*(?:/[\\w./-]*/)?qory artifact push(?:\\s+--name(?:=|\\s+)' +
-  '[\\w.-]+|\\s+--note(?:=|\\s+)(?:"[^"$`\\\\]*"|\'[^\']*\'|[\\w.-]+)){0,2}\\s+([a-z0-9-]+)\\s+' +
-  '(/[^\\s\'"$`\\\\;&|<>()*?[\\]{}~]+)\\s*$');
+const PUSH_OPTION = '(?:\\s+--name(?:=|\\s+)[\\w.-]+|\\s+--note(?:=|\\s+)' +
+  '(?:"[^"$`\\\\]*"|\'[^\']*\'|[\\w.-]+)){0,2}';
+const PUSH_FORM = new RegExp(`^\\s*(?:/[\\w./-]*/)?qory artifact push${PUSH_OPTION}\\s+` +
+  '([a-z0-9-]+)\\s+(/[^\\s\'"$`\\\\;&|<>()*?[\\]{}~]+)' + `${PUSH_OPTION}\\s*$`);
 
 // pushedFrom returns the type and the real path of the push that command is, as PUSH_FORM
 // reads it, or null.
@@ -3146,15 +3161,20 @@ function artifactNamed(segs, artifacts, nocase) {
   for (const segment of segs) {
     const inside = segment.cwds.find((from) => under(fold(real(from)), folder));
     if (inside) return inside;
-    for (const word of plainWords(segment.words)) {
+    const words = plainWords(segment.words);
+    for (const [index, word] of words.entries()) {
       if (fold(word).includes(folder)) return word;
+      // A folder above artifacts counts only where a program takes a folder to work in or to
+      // write to: after cd, pushd, -C, -d, -o or --directory, also as -C<path>.
+      const attached = /^(?:-[Cdo]|--directory=)(?=.)/.test(word);
+      const target = attached || /^(?:cd|pushd|-C|-d|-o|--directory)$/.test(words[index - 1] || '');
       // A path that follows an option, as in -C<folder>, -o<folder> or --directory=<folder>.
       const slash = word.indexOf('/');
       for (const part of new Set([word, slash >= 0 ? word.slice(slash) : ''])) {
         if (part === '' || vague(part)) continue;
         for (const from of segment.cwds) {
           const at = fold(real(joined(from, literal(part))));
-          if (under(folder, at) || under(at, folder)) return word;
+          if (under(at, folder) || (target && under(folder, at))) return word;
         }
       }
     }
@@ -3169,6 +3189,7 @@ function keptWrite(kept, paths) {
     const fold = (full) => (one.nocase ? full.toLowerCase() : full);
     const hit = paths.find((full) => (one.folder ? under(fold(full), fold(one.full))
       : fold(full) === fold(one.full)) &&
+      (!one.deep || path.relative(fold(one.full), fold(full)).includes(path.sep)) &&
       !(one.except || []).some((left) => under(fold(full), fold(left))));
     if (hit) return { inputs: one.inputs, reason: `${one.head}The call writes ${hit}.` };
   }
@@ -3251,6 +3272,10 @@ const ARTIFACTS_KEPT = 'Leave the artifact folder to the file tools and the chec
 const PUSH_KEPT = 'Push verification only from verification.json of the artifact folder, with ' +
   'its path written out.\nIn a review session a push of that type from another file or from ' +
   'standard input is denied. ';
+const VERSIONS_KEPT = 'Run versions.cjs only with compare.\nIn a review session versions.cjs ' +
+  'copy is denied: it writes a stored version over verification.json. ';
+const STORE_KEPT = 'Leave the version store of the artifact folder to qory.\nIn a review session ' +
+  'no call writes below <artifact folder>/<type>/: a pull writes it. ';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
   'of the run in it.\nA session with qory.review or qory.review_session in it writes no ' +
   'inputs.json. ';

@@ -1961,23 +1961,28 @@ tool's error. The first line of each reason starts with what to do. The guard de
   and `versions.cjs compare`, which write nothing. A reviewer writes its report only.
   Outside a review session the two files keep the rules of a run.
 - In that session, a shell command that is no read denies each call that names the artifact
-  folder, `.reports` or a folder above them, as an argument, after an option as in
-  `-C<folder>` or `-o<folder>`, or as a `cd` target, and each call that runs in the artifact
-  folder, with a first line that starts "Leave the artifact folder". The guard lists no
-  tool: `tar`, `bsdtar`, `ditto`, `7z`, `pax`, `cpio` and `jar` fall under this rule alike.
-  Two kinds of call may name the folder: the checks script alone with `resume`,
-  `lock --verify`, `run locked`, `matrix`, `check`, `notes`, `starts`, `panel` or
-  `findings round`, or `versions.cjs compare` alone; and the push of an artifact.
-- The one push that the session runs is
-  `<qory> artifact push [--name X] [--note Y] <type> <full path>`, with nothing before
-  `<type>`, no `--` and no redirect or second command. For `verification` the path is the
-  full path of `verification.json` of the artifact folder, and only that form passes: a
-  relative path, also after `cd <folder>`, another file, `-` for standard input, a root flag
-  of qory such as `--verbose`, `command`, `env`, `sh -c` and a variable or a command
-  substitution as the program or the path are denied, with a first line that starts "Push
-  verification only from verification.json". Every command that has the word `push` and
-  either `verification` or a variable or a substitution is held to that form, unless it is a
-  read.
+  folder or `.reports`, as an argument or after an option as in `-C<folder>`, or a folder
+  above them as the target of `cd`, `pushd`, `-C`, `-d`, `-o` or `--directory`, and each
+  call that runs in the artifact folder, with a first line that starts "Leave the artifact
+  folder". A call that has a folder above them as another argument, such as `cp a.ts /tmp/`,
+  runs. The guard lists no tool: `tar`, `bsdtar`, `ditto`, `7z`, `pax`, `cpio` and `jar`
+  fall under this rule alike. Two kinds of call may name the folder: the checks script alone
+  with `resume`, `lock --verify`, `run locked`, `matrix`, `check`, `notes`, `starts`,
+  `panel` or `findings round`, or `versions.cjs compare` alone; and the push of an artifact.
+  No other call runs `versions.cjs`: `copy` would write a stored version over the draft. No
+  call writes below `<artifact folder>/<type>/`, the version store, by a write tool or a
+  shell command, with a first line that starts "Leave the version store"; a file at the top
+  of the folder, such as `questions.json`, stays open to a write tool.
+- The one push that the session runs is `<qory> artifact push [--name X] [--note Y] <type>
+  <full path> [--name X] [--note Y]`, with the options before the type or after the path,
+  and nothing before `<type>`, no `--` and no redirect or second command. For `verification`
+  the path is the full path of `verification.json` of the artifact folder, and only that
+  form passes: a relative path, also after `cd <folder>`, another file, `-` for standard
+  input, a root flag of qory such as `--verbose`, `command`, `env`, `sh -c` and a variable
+  or a command substitution as the program or the path are denied, with a first line that
+  starts "Push verification only from verification.json". Every command that has the word
+  `push` and either `verification` or a variable or a substitution is held to that form,
+  unless it is a read.
 - `shortcut:` a locked check runs as a child process that the guard does not see, and it can
   rewrite `verification.json` and `.reports/matrix-record.json`, or plant a record in
   `.reports/runs/`. The replacement is for qory to run the locked checks and `matrix`

@@ -4858,7 +4858,7 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     // Other ways to run qory, and a path or a type that the form does not read.
     `command ${push} verification /tmp/f.json`, `env ${push} verification /tmp/f.json`,
     `sh -c '${push} verification /tmp/f.json'`, `${push} 'verification' /tmp/f.json`,
-    `${push} ver"ification" /tmp/f.json`, `${push} verification ${draft} --name main`,
+    `${push} ver"ification" /tmp/f.json`, `${push} verification ${draft} --name main --name x --note y`,
     `${push} verification --note "After the fix." ${draft}`,
     `${push} verification ${draft} 2>&1`, `${push} verification ${draft}; echo x`,
     `echo ${draft} | xargs ${push} verification`]) {
@@ -4870,6 +4870,9 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     `${push} --name main verification ${draft}`, `${push} --name=main verification ${draft}`,
     `${push} --note x --name main verification ${draft}`,
     `${push} --note="After the fix." verification ${draft}`,
+    `${push} verification ${draft} --name main`,
+    `${push} demo-evidence ${runFolder}/d.json --name scenario-1`,
+    `${push} --note x demo-evidence /tmp/d.json --name scenario-1`,
     `/qory/qory artifact push verification ${draft}`, `${push} questions ${runFolder}/q.json`,
     `${push} questions /tmp/q.json`, `${push} walkthrough -`]) {
     assert.equal(call(bashAs(command)), null, command);
@@ -4891,8 +4894,39 @@ test('in a review session only checks.cjs matrix writes verification.json and it
   // argument.
   assert.ok(call(bashAs('tar -xf a.tar', undefined, runFolder)));
   assert.ok(call(bashAs('cpio -id < a.cpio', 'worker', runFolder)));
-  // The checks script with a verb of the session, and versions.cjs compare, may name the folder.
+  // A folder above the artifact folder counts only as a place to work in or to write to: cd,
+  // -C, -d, -o or --directory. Any other call that has it, such as /tmp, runs.
+  const above = path.dirname(runFolder);
+  for (const command of [`cp a.ts ${above}/`, `ls ${above}`, `find ${above}/zz -delete`,
+    `mktemp -p ${above}`, `touch ${above}/x`, `rm -rf ${above}/zz`]) {
+    assert.equal(call(bashAs(command)), null, command);
+    assert.equal(call(bashAs(command, 'worker')), null, command);
+  }
+  for (const command of [`cd ${above} && tar -xf a.tar`, `tar -xf a.tar -C ${above}`,
+    `tar -xf a.tar -C${above}`, `unzip a.zip -d ${above}`, `7z x a.7z -o${above}`,
+    `tar -xf a.tar --directory=${above}`, `pushd ${above} && touch x`]) {
+    assert.ok(call(bashAs(command)), command);
+  }
+  // A forged version cannot be copied over the draft: the store is closed to writes, and
+  // versions.cjs runs only with compare.
+  const store = path.join(runFolder, 'verification', 'main', 'v99', 'verification.json');
   const versions = path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'versions.cjs');
+  for (const type of [undefined, 'worker']) {
+    firstLine(call(writeAs(store, type)), 'Leave the version store of the artifact folder');
+    firstLine(call(claude('Edit', { file_path: store, old_string: 'a', new_string: 'b' }, type)),
+      'Leave the version store of the artifact folder');
+    assert.ok(call(bashAs(`echo '{}' > ${store}`, type)));
+    firstLine(call(bashAs(`node ${versions} copy verification 99`, type)),
+      'Run versions.cjs only with compare');
+    firstLine(call(bashAs(`${versions} copy verification 99`, type)),
+      'Run versions.cjs only with compare');
+    firstLine(call(bashAs(`node ${versions} compare verification 1 ${draft}; echo x`, type)),
+      'Run versions.cjs only with compare');
+    // The files at the top of the folder stay open to a write tool.
+    assert.equal(call(writeAs(path.join(runFolder, 'questions.json'), type)), null);
+  }
+  assert.equal(plain.call(writeAs(store, 'worker'), RUN), null);
+  // The checks script with a verb of the session, and versions.cjs compare, may name the folder.
   for (const command of [`node ${SESSION_CHECKS} check verification ${draft}`,
     `node ${SESSION_CHECKS} check questions ${runFolder}/questions.json`,
     `node ${versions} compare verification 1 ${draft}`]) {
