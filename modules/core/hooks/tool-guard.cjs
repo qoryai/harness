@@ -39,10 +39,13 @@
 //   <artifacts>/.reports/matrix-record.json, with <artifacts> as artifactFolder returns it:
 //   only the verb matrix of the checks script writes them, so no call of the main session
 //   or of an agent does, by a write tool or by a shell command with the path in its text,
-//   and an extraction by tar or unzip into a folder above them counts as a write. A push of
-//   `verification` from a source other than <artifacts>/verification.json, such as another
-//   file or standard input, is denied too. The shortcut limits of the next entry apply: a
-//   path that a variable or code makes passes;
+//   and an extraction by tar or unzip into a folder above them counts as a write. A shell
+//   command that is no read and names <artifacts>, .reports or a folder above them, or runs
+//   in <artifacts>, is denied, other than the checks script with a verb of ARTIFACT_VERBS,
+//   versions.cjs compare and the push of PUSH_FORM. A command with the word push and the
+//   word verification, or a variable or a substitution, is denied unless it is PUSH_FORM and,
+//   for verification, from <artifacts>/verification.json. The limits of the next entry
+//   apply: a path that a variable or code makes passes, except in a push;
 //   - shortcut: a locked check runs as a child process that the guard does not see, and can
 //     rewrite both files or plant a record in .reports/runs/; replace the guard with qory
 //     running the locked checks and matrix outside the session.
@@ -2048,15 +2051,24 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (call.kind === 'shell' && session && reviewer && !reads) {
     return `${SESSION_SHELL}The command is ${reviewShown(call.command)}.`;
   }
-  if (call.kind === 'shell' && session && artifacts) {
-    const pushed = verificationPush(call.command, cwd, artifacts, nocase);
-    if (pushed) return pushed;
+  const segs = call.kind === 'shell' && session && artifacts && !reads
+    ? segments(call.command, cwd) : null;
+  if (segs) {
+    const refused = pushDeny(call.command, artifacts, nocase,
+      segs.flatMap((one) => plainWords(one.words)));
+    if (refused) return refused;
   }
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
       exempt: sessionExempt(call.command, env, script),
       checks: reviewChecks(call.command, env, script),
-      checked: (checksVerb(call.command, env, script) || [])[0] === 'check' });
+      checked: (checksVerb(call.command, env, script) || [])[0] === 'check' ||
+        comparesVersions(call.command, env, script) });
+    // The other rules of a review session give their reasons first; this one stops the rest.
+    if (!reason && segs && !pushedFrom(call.command) && !artifactVerb(call.command, env, script)) {
+      const word = artifactNamed(segs, artifacts, nocase);
+      if (word !== null) return `${ARTIFACTS_KEPT}The command has ${reviewShown(word)}.`;
+    }
     if (reason || !paths.length) return reason;
   }
   const homed = home && paths.find((full) => inside(full, home));
@@ -3093,40 +3105,59 @@ function withoutScript(segment, inHome, realOf) {
   return { ...segment, words: rest, text: rest.join(' ') };
 }
 
-// verificationPush returns the reason to deny command, which runs `qory artifact push
-// verification` with a source other than verification.json of artifacts, such as another file
-// or - for standard input, or null. A source or a type that the guard cannot read, as in
-// `$F`, is denied. shortcut: a push that another program makes passes; the push check of qory
-// is the control for it.
-function verificationPush(command, cwd, artifacts, nocase) {
+// PUSH_FORM is the one push of an artifact that a review session runs: <qory> artifact push
+// with at most one --name and one --note, a type, and the full path of the file. Anything
+// else, such as -- or a root flag of qory, a variable or a quote in the path, does not match.
+const PUSH_FORM = new RegExp('^\\s*(?:/[\\w./-]*/)?qory artifact push(?:\\s+--name(?:=|\\s+)' +
+  '[\\w.-]+|\\s+--note(?:=|\\s+)(?:"[^"$`\\\\]*"|\'[^\']*\'|[\\w.-]+)){0,2}\\s+([a-z0-9-]+)\\s+' +
+  '(/[^\\s\'"$`\\\\;&|<>()*?[\\]{}~]+)\\s*$');
+
+// pushedFrom returns the type and the real path of the push that command is, as PUSH_FORM
+// reads it, or null.
+function pushedFrom(command) {
+  const found = PUSH_FORM.exec(String(command));
+  return found ? { type: found[1], file: real(found[2]) } : null;
+}
+
+// pushDeny returns the reason to deny command, a call of a review session that is no read,
+// when it has the word push and the word verification or a variable or a command
+// substitution, and is not the push that PUSH_FORM allows: for verification, from
+// verification.json of artifacts; for another type, from a file below artifacts. Else null.
+// shortcut: a push that another program makes passes; the push check of qory is the control.
+function pushDeny(command, artifacts, nocase, words) {
+  const text = String(command);
   const fold = (one) => (nocase ? one.toLowerCase() : one);
-  const draft = fold(real(path.join(artifacts, MATRIX_FILE)));
-  for (const segment of segments(command, cwd)) {
-    const words = plainWords(segment.words);
-    if (path.basename(words[0] || '') !== 'qory' || words[1] !== 'artifact' ||
-      words[2] !== 'push') continue;
-    // The options of push: --withdraw has no value, the others take the next word.
-    const given = [];
-    for (let at = 3; at < words.length; at += 1) {
-      if (words[at] === '--withdraw' || (words[at].startsWith('--') && words[at].includes('='))) {
-        continue;
+  const pushes = /(?:^|[^\w-])push(?:[^\w-]|$)/.test(text) || words.includes('push');
+  const named = /verification/i.test(text) || words.some((one) => /verification/i.test(one));
+  if (!pushes || !(named || /[$`]/.test(text))) return null;
+  const form = pushedFrom(command);
+  const ok = form && (form.type === 'verification'
+    ? fold(form.file) === fold(real(path.join(artifacts, MATRIX_FILE)))
+    : under(fold(form.file), fold(artifacts)));
+  return ok ? null : `${PUSH_KEPT}The command is ${reviewShown(command)}.`;
+}
+
+// artifactNamed returns the first word of the segments of command that names artifacts, the
+// artifact folder, .reports in it, or a folder above them, or a path inside it, from the
+// folder of its segment, or contains the path of artifacts; and a call that runs in artifacts.
+function artifactNamed(segs, artifacts, nocase) {
+  const fold = (one) => (nocase ? one.toLowerCase() : one);
+  const folder = fold(artifacts);
+  for (const segment of segs) {
+    const inside = segment.cwds.find((from) => under(fold(real(from)), folder));
+    if (inside) return inside;
+    for (const word of plainWords(segment.words)) {
+      if (fold(word).includes(folder)) return word;
+      // A path that follows an option, as in -C<folder>, -o<folder> or --directory=<folder>.
+      const slash = word.indexOf('/');
+      for (const part of new Set([word, slash >= 0 ? word.slice(slash) : ''])) {
+        if (part === '' || vague(part)) continue;
+        for (const from of segment.cwds) {
+          const at = fold(real(joined(from, literal(part))));
+          if (under(folder, at) || under(at, folder)) return word;
+        }
       }
-      if (words[at].startsWith('-') && words[at] !== '-') {
-        // The value of the option, which a quote may carry over several words.
-        at += 1;
-        const quote = /^["']/.exec(segment.words[at] || '');
-        while (quote && at < words.length - 1 && !(segment.words[at].length > 1 &&
-          segment.words[at].endsWith(quote[0]))) at += 1;
-      } else given.push(at);
     }
-    const [type, ...sources] = given;
-    if (type === undefined || (words[type] !== 'verification' && !vague(segment.words[type]))) {
-      continue;
-    }
-    const exact = sources.length === 1 && !vague(segment.words[sources[0]]) && !segment.lost &&
-      segment.cwds.length > 0 && segment.cwds.every((one) =>
-        fold(real(joined(one, words[sources[0]]))) === draft);
-    if (!exact) return `${PUSH_KEPT}The command is ${reviewShown(command)}.`;
   }
   return null;
 }
@@ -3168,6 +3199,26 @@ function sessionExempt(command, env, script) {
 const REVIEW_VERBS = [['resume'], ['lock', '--verify'], ['panel'], ['findings', 'round'],
   ['check', 'points'], ['run', 'locked']];
 
+// The verbs of the checks script that a review session may run with the artifact folder in the
+// call, beside REVIEW_VERBS: they read it, or write it as only the checks script does.
+const ARTIFACT_VERBS = [...REVIEW_VERBS, ['check'], ['matrix'], ['notes'], ['starts']];
+
+// comparesVersions reports whether command is versions.cjs alone with compare, which writes no
+// file.
+function comparesVersions(command, env, script) {
+  if (!reportsGuard.runsChecks(command, env, script, 'versions.cjs')) return false;
+  const rest = reportsGuard.withoutRedirect(String(command)).split(/\s+/);
+  return rest[rest[0] === 'node' ? 2 : 1] === 'compare';
+}
+
+// artifactVerb reports whether command is the checks script alone with a verb of
+// ARTIFACT_VERBS, or versions.cjs alone with compare, which read the artifact folder.
+function artifactVerb(command, env, script) {
+  const words = checksVerb(command, env, script);
+  if (!words) return comparesVersions(command, env, script);
+  return ARTIFACT_VERBS.some((verb) => verb.every((word, at) => words[at] === word));
+}
+
 // reviewChecks reports whether command runs the checks script alone with a verb of
 // REVIEW_VERBS, which may contain a path of the harness home.
 function reviewChecks(command, env, script) {
@@ -3193,6 +3244,10 @@ const MATRIX_FILE = 'verification.json';
 const MATRIX_RECORD = path.join('.reports', 'matrix-record.json');
 const MATRIX_KEPT = 'Leave verification.json and .reports/matrix-record.json of the artifact ' +
   'folder to checks.cjs matrix.\nIn a review session only the verb matrix writes them. ';
+const ARTIFACTS_KEPT = 'Leave the artifact folder to the file tools and the checks script.\n' +
+  'In a review session a shell command names neither the artifact folder, .reports nor a ' +
+  'folder above them, except checks.cjs with a verb of the session and the push of an ' +
+  'artifact by its full path. ';
 const PUSH_KEPT = 'Push verification only from verification.json of the artifact folder, with ' +
   'its path written out.\nIn a review session a push of that type from another file or from ' +
   'standard input is denied. ';

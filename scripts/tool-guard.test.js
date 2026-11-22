@@ -4817,8 +4817,7 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     }
   }
   // The verb matrix, and a read of either file, run.
-  for (const command of [`node ${SESSION_CHECKS} matrix --version 1`,
-    `cd ${runFolder} && node ${SESSION_CHECKS} matrix --version 1`, `cat ${draft} ${record}`]) {
+  for (const command of [`node ${SESSION_CHECKS} matrix --version 1`, `cat ${draft} ${record}`]) {
     assert.equal(call(bashAs(command)), null, command);
   }
   // An extraction into the artifact folder, or into .reports, writes the files in it.
@@ -4833,10 +4832,11 @@ test('in a review session only checks.cjs matrix writes verification.json and it
       else firstLine(call(bashAs(command, type)), MATRIX_KEPT);
     }
   }
-  for (const command of [`tar -xf a.tar -C ${other}`, `unzip -o a.zip -d ${other}`,
-    `tar -cf ${other}/a.tar ${runFolder}`]) {
+  for (const command of [`tar -xf a.tar -C ${other}`, `unzip -o a.zip -d ${other}`]) {
     assert.equal(call(bashAs(command)), null, command);
   }
+  // Any other command that names the folder is denied, a tar that only reads it too.
+  assert.ok(call(bashAs(`tar -cf ${other}/a.tar ${runFolder}`)));
   // A push of verification from another file or from standard input is denied; the push of
   // the draft passes by its full path, with --note, and for another type. A relative path
   // is denied, since a cd can fail.
@@ -4847,15 +4847,65 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     `${push} verification --note x ${path.join(runFolder, '..', 'forged.json')}`,
     `cd /tmp && ${push} verification verification.json`,
     `cd ${runFolder} && ${push} verification verification.json`, `/qory/qory artifact push verification -`,
-    `${push} "$T" /tmp/forged.json`]) {
+    `${push} "$T" /tmp/forged.json`,
+    // A -- before the type, a root flag of qory, and a variable or a substitution as qory.
+    `${push} -- verification /tmp/f.json`, `${push} --name=main -- verification /tmp/f.json`,
+    `${push} --note x -- verification /tmp/f.json`,
+    `qory --verbose artifact push verification /tmp/f.json`,
+    `qory -v artifact push verification /tmp/f.json`, `Q=qory; $Q artifact push questions f`,
+    `"$(which qory)" artifact push verification /tmp/f.json`,
+    // Other ways to run qory, and a path or a type that the form does not read.
+    `command ${push} verification /tmp/f.json`, `env ${push} verification /tmp/f.json`,
+    `sh -c '${push} verification /tmp/f.json'`, `${push} 'verification' /tmp/f.json`,
+    `${push} ver"ification" /tmp/f.json`, `${push} verification ${draft} --name main`,
+    `${push} verification --note "After the fix." ${draft}`,
+    `${push} verification ${draft} 2>&1`, `${push} verification ${draft}; echo x`,
+    `echo ${draft} | xargs ${push} verification`]) {
     firstLine(call(bashAs(command)), PUSH_KEPT);
     firstLine(call(bashAs(command, 'worker')), PUSH_KEPT);
   }
   for (const command of [`${push} verification ${draft}`,
-    `${push} verification --note "After the fix." ${draft}`,
-    `/qory/qory artifact push verification ${draft}`,
+    `${push} --note "After the fix." verification ${draft}`,
+    `${push} --name main verification ${draft}`, `${push} --name=main verification ${draft}`,
+    `${push} --note x --name main verification ${draft}`,
+    `${push} --note="After the fix." verification ${draft}`,
+    `/qory/qory artifact push verification ${draft}`, `${push} questions ${runFolder}/q.json`,
     `${push} questions /tmp/q.json`, `${push} walkthrough -`]) {
     assert.equal(call(bashAs(command)), null, command);
+    assert.equal(call(bashAs(command, 'worker')), null, command);
+  }
+  // A shell call that names the artifact folder, .reports or a folder above them, as an
+  // argument, after an option or as a cd target, is denied whatever the program is.
+  const tools = [`tar -xf a.tar -C${runFolder}`, `bsdtar -xf a.tar -C ${runFolder}`,
+    `gtar -xf a.tar -C ${runFolder}`, `ditto -x -k a.zip ${runFolder}`,
+    `python3 -m zipfile -e a.zip ${runFolder}`, `7z x a.7z -o${runFolder}`,
+    `cd ${runFolder} && pax -r < a.pax`, `cd ${runFolder} && cpio -id < a.cpio`,
+    `cd ${runFolder} && jar xf a.jar`, `cd ${path.dirname(runFolder)} && tar -xf a.tar`,
+    `python3 -c "open('${runFolder}/x','w')"`, `cd ${runFolder}/.reports && jar xf a.jar`,
+    `tar -xf a.tar -C ${runFolder}/.reports`];
+  for (const command of tools) {
+    for (const type of [undefined, 'worker']) assert.ok(call(bashAs(command, type)), command);
+  }
+  // The call runs in the artifact folder: bashAs takes the folder of the call as its third
+  // argument.
+  assert.ok(call(bashAs('tar -xf a.tar', undefined, runFolder)));
+  assert.ok(call(bashAs('cpio -id < a.cpio', 'worker', runFolder)));
+  // The checks script with a verb of the session, and versions.cjs compare, may name the folder.
+  const versions = path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'versions.cjs');
+  for (const command of [`node ${SESSION_CHECKS} check verification ${draft}`,
+    `node ${SESSION_CHECKS} check questions ${runFolder}/questions.json`,
+    `node ${versions} compare verification 1 ${draft}`]) {
+    assert.equal(call(bashAs(command)), null, command);
+    assert.equal(call(bashAs(command, 'worker')), null, command);
+  }
+  // A read, and a command that names neither, run; a session of another kind runs all of them.
+  for (const command of [`ls ${runFolder}`, `grep -n x ${draft}`, 'git status']) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  for (const command of [...tools.filter((one) => !one.includes('.reports')),
+    `${push} -- verification /tmp/f.json`,
+    `qory --verbose artifact push verification /tmp/f.json`]) {
+    assert.equal(plain.call(bashAs(command, 'worker'), RUN), null, command);
   }
   // A path that a shell variable makes is not read: the limit that the header states.
   assert.equal(call(bashAs(`D=${runFolder}; echo x > "$D/verification.json"`)), null);
