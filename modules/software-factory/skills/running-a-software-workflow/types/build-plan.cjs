@@ -15,9 +15,10 @@ module.exports = (lib) => {
   const DELIVERABLE_COLUMNS = ['Id', 'Change', 'Criteria', 'Files', 'Check'];
   const COMMAND_COLUMNS = ['Kind', 'Command', 'Result file', 'Source'];
   const KINDS = ['targeted', 'lint', 'types', 'build', 'full', 'locked', 'serve'];
-  // The kinds that each plan has: the session runs them after each agent. serve is needed only
-  // for a criterion planned as Demo. locked is optional: qory is to run it as it runs full.
-  const REQUIRED = KINDS.filter((kind) => kind !== 'serve' && kind !== 'locked');
+  // The kinds that each plan has: the session runs them after each agent, and qory is to run
+  // locked after the session as it runs full. serve is needed only for a criterion planned
+  // as Demo.
+  const REQUIRED = KINDS.filter((kind) => kind !== 'serve');
 
   const plainCell = (cell) => cell.replace(/`/g, '').trim();
 

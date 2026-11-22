@@ -2350,10 +2350,11 @@ find:
   such as `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check,
   such as `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`,
   `full`, `locked` and `serve`, or one kind twice; no row for one of `targeted`, `lint`,
-  `types`, `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
-  `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
-  criterion is planned as Demo; with a `serve` row, no line `App address: <url>` in
-  `## Summary`, or a value that is no http or https URL whose host has only letters,
+  `types`, `build`, `full` and `locked`; a Source other than `repository: <file>`,
+  `module: <name>` or `found: <file>:<line>`, or none for a kind with the command `none`;
+  no `serve` when a criterion is planned as Demo; with a `serve` row, no line
+  `App address: <url>` in `## Summary`, or a value that is no http or https URL whose
+  host has only letters,
   digits, `.` and `-`, starts and ends with a letter or digit and has no `..`, or is an
   IPv6 address in brackets, where an http address goes in
   backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links

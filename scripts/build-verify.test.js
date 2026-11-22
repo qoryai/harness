@@ -140,6 +140,7 @@ App address: \`http://localhost:3000/\`
 |---|---|---|---|
 | targeted | \`npm test --\` | \`reports/junit.xml\` | repository: \`qory.yaml\` |
 | full | \`npm test\` | \`reports/junit.xml\` | found: \`package.json:12\` |
+| locked | \`npm test -- tests/acceptance\` | \`reports/junit.xml\` | repository: \`qory.yaml\` |
 | lint | none | none | The storefront has no linter. |
 | types | \`npx tsc --noEmit\` | none | module: typescript |
 | build | none | none | \`package.json\` has no build script. |
@@ -1184,13 +1185,9 @@ test('build-plan: a criterion planned as Demo has the id of its scenario', () =>
 test('build-plan: each kind of command once, its source, and serve for a Demo criterion', () => {
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| lint |', '| style |'))),
     /^Set the kind "style" in ## Commands of build-plan.md to one of the 7 kinds\. The kinds are targeted, lint, types, build, full, locked, serve\.$/);
-  // A locked row is optional, and the check takes it as a row of any other kind.
-  passes(push(fixture(), 'build-plan', planFile(PLAN.replace('| serve |',
-    '| locked | `npm run test:locked` | `reports/locked.xml` | found: `package.json:13` |\n' +
-    '| serve |'))), 'build-plan');
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| serve |',
-    '| locked | `npm test` | none | module: typescript |\n| locked | none | none | |\n' +
-    '| serve |'))), /^Give the kind locked one row in ## Commands of build-plan.md\.$/);
+    '| locked | none | none | No locked checks. |\n| serve |'))),
+  /^Give the kind locked one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| lint |', '| full |'))),
     /^Give the kind full one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(`${PLAN}| serve | \`npm start\` | none | module: typescript |\n`)),
@@ -1240,8 +1237,8 @@ test('build-plan: a plan with a serve row has the address of the app in its Summ
   assert.ok(!noCommand.lines.some((line) => /App address/.test(line)), noCommand.out);
 });
 
-test('build-plan: a row for each of targeted, lint, types, build and full', () => {
-  for (const kind of ['targeted', 'lint', 'types', 'build', 'full']) {
+test('build-plan: a row for each of targeted, lint, types, build, full and locked', () => {
+  for (const kind of ['targeted', 'lint', 'types', 'build', 'full', 'locked']) {
     const md = PLAN.replace(new RegExp(`\\| ${kind} \\|.*\\n`), '');
     fails(push(fixture(), 'build-plan', planFile(md)),
       new RegExp(`^Add the kind ${kind} to ## Commands of build-plan.md\\. With no command, ` +

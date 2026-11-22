@@ -275,6 +275,7 @@ const COMMANDS = `## Commands
 | types | none | none | The repository has no type check. |
 | build | none | none | \`package.json\` has no build script. |
 | full | \`npm test\` | \`reports/junit.xml\` | found: \`package.json:7\` |
+| locked | \`npm test -- tests/acceptance\` | \`reports/junit.xml\` | repository: \`package.json\` |
 `;
 
 // planOf returns a build plan of count deliverables, each with its test file in its Files. A

@@ -274,6 +274,7 @@ The order list gets an export, in three changes.
 | types | none | none | The repository has no type check. |
 | build | none | none | The repository has no build. |
 | full | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
+| locked | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
 `;
 
 function version(root, type, number, file, text) {

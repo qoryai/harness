@@ -174,6 +174,7 @@ The export keeps at most the limit of rows.
 | types | none | none | The repository has no type check. |
 | build | none | none | The repository has no build. |
 | full | none | none | The repository has no runner. |
+| locked | none | none | The repository has no runner. |
 `;
 
 function git(repo, env, ...argv) {
