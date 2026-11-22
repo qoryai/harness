@@ -3154,34 +3154,39 @@ characters. It writes no `points.json` then, because qory sends `escalate` or `a
 that file. Otherwise, in a run, it runs `checks.cjs lock --verify`, and ends the same way
 with the paths of the locked files that differ. Outside a run it skips the verify, because
 the verify would read the local artifact folder. With every check passed, "The end" of the
-skill has five steps, in this order: 1. It starts `submission-writer`, which writes
-`.reports/submission.md` of the artifact folder: the title, then `## Problem`, `## Change`,
-`## Tests` and `## Disclosed`, in the order of the check of `pull-request`, from the build
-plan, the build ledger and the records of the checks, with no result typed. A runtime with
-no tool that starts an agent, a start that fails, a report that still fails its check after
-two fixes and a `blocked` report end the run as "Failures" of `running-a-workflow` lists. 2.
-It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md` in
-the artifact folder and writes the outbox file
-`$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
-the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text broke:
-the session starts `submission-writer` again with the lines that `report-build` printed, at
-most twice. When exit 1 stays, the run ends with one `run_again` point, "The change is not
-ready, because the text of the change still breaks the rules for it." With exit 3 and the
-first line `Build the change in fewer commits`, the list of steps makes the output larger
-than 786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
-the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists for
-the checks script. 3. It runs `checks.cjs check build-report --inputs <input file>
-<folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The change
-is not ready, because the build report differs from the records of the run.", and starts no
-writer, because the tables are the script's, so a difference is a defect. Before it ends, it
-runs `checks.cjs report-build --drop`, which removes the outbox file of step 2. With exit 2,
-3 or 4, the run ends as "Failures" lists for the checks script. 4. It pushes `build-report`.
-When the push exits with 4 or fails, it runs steps 2 and 3 again and pushes again, at most
-twice more, and then runs `checks.cjs report-build --drop` and ends with "The run could not
-push its build report." 5. In a stage that has reviewers, it runs no verdict command, and
-qory then runs the review round. In a stage with none, such as when `inputs.json` has no
-`qory.stage.reviewers`, it runs `qory run verdict passed` first. It ends with "The change is
-ready: each planned change is built."
+skill has five steps, in this order:
+1. It starts `submission-writer`, which writes `.reports/submission.md` of the artifact
+   folder: the title, then `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in the
+   order of the check of `pull-request`, from the build plan, the build ledger and the
+   records of the checks, with no result typed. A runtime with no tool that starts an
+   agent, a start that fails, a report that still fails its check after two fixes and a
+   `blocked` report end the run as "Failures" of `running-a-workflow` lists.
+2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
+   in the artifact folder and writes the outbox file
+   `$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
+   the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text
+   broke: the session starts `submission-writer` again with the lines that `report-build`
+   printed, at most twice.
+   When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
+   because the text of the change still breaks the rules for it." With exit 3 and the first
+   line `Build the change in fewer commits`, the list of steps makes the output larger than
+   786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
+   the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists
+   for the checks script.
+3. It runs `checks.cjs check build-report --inputs <input file>
+   <folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The
+   change is not ready, because the build report differs from the records of the run.",
+   and starts no writer, because the tables are the script's, so a difference is a defect.
+   Before it ends, it runs `checks.cjs report-build --drop`, which removes the outbox
+   file of step 2. With exit 2, 3 or 4, the run ends as "Failures" lists for the checks
+   script.
+4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
+   again and pushes again, at most twice more, and then runs `checks.cjs report-build
+   --drop` and ends with "The run could not push its build report."
+5. In a stage that has reviewers, it runs no verdict command, and qory then runs the review
+   round. In a stage with none, such as when `inputs.json` has no `qory.stage.reviewers`,
+   it runs `qory run verdict passed` first. It ends with "The change is ready: each planned
+   change is built."
 
 The ends of steps 1 to 4 run no `qory run verdict passed`.
 

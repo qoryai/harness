@@ -1003,3 +1003,18 @@ test('a review-changes session whose end check fails three times records escalat
   fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, workflow: {} } }));
   escalates(w, endThrice(w, call, 'submission-writer', inputs));
 });
+
+test('a review-changes session in a stage with reviewers records escalate at the third end check',
+  () => {
+    // The stage has reviewers both when the member is true and when it is a group role.
+    for (const reviewers of [true, 'reviewers']) {
+      const w = work();
+      const call = session(w);
+      assert.equal(call('resume').status, 0);
+      const inputs = path.join(fresh('in'), 'inputs.json');
+      const qory = JSON.parse(read(w.inputs)).qory;
+      fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, workflow: {},
+        stage: { reviewers } } }));
+      escalates(w, endThrice(w, call, 'submission-writer', inputs));
+    }
+  });
