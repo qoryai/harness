@@ -3384,7 +3384,8 @@ then plans each criterion as `Tests`, never as `Demo: <title>`, and `checking-sp
 `checking-shape` flag a `Demo` check, and a missing scenario is no finding. A change with
 screens produces no `demo-scenarios` there, starts no workflow for them and ends with no
 point, and the Build round of that ticket passes `demo check` with "No demo script to
-write".
+write". Verify reads demo evidence only for a criterion whose check is `Demo: <title>`, so
+in such a stack it has no demo video or pictures for those criteria.
 
 The order is fixed: spec and acceptance criteria, technical decision, mockups, demo
 scenarios. Demo scenarios come last because they cite criteria and screens. Every writer

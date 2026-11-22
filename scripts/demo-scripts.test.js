@@ -135,8 +135,10 @@ test('demo check passes with no scenario left, also with no module that ships th
 
 // shape returns what a Shape run of a change with screens does in the stack of plugin: it
 // runs demo surface, and follows write-demo-scenarios only when the line says the stack has
-// the module, as workflow-shape-a-ticket lists. The Build round then runs demo check on the
-// artifacts that the run pushed.
+// the module, as workflow-shape-a-ticket lists. This proves the verb, the text of the skill
+// and the Build demo check. It does not run a Shape session: the skipped workflow is modeled
+// here by the surface line, and the agents are not started. The Build round then runs demo
+// check on the artifacts that the run pushed.
 function shape(plugin) {
   const shapeText = fs.readFileSync(path.join(MODULES,
     'software-factory/skills/workflow-shape-a-ticket/SKILL.md'), 'utf8')
