@@ -21,8 +21,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that role with no module to fill it fails with qory's fix "Add a module that fills
   agents/demo-author, or drop capture-demos from the workflows and process."
 - `checks.cjs demo surface`, a verb of `running-a-software-workflow` that prints whether the
-  composed harness has the skill `scripting-demos`, in the plugin folder or, when that folder
-  is a module of the harness home, in a module beside it. `workflow-shape-a-ticket`,
+  composed harness has the skill `scripting-demos`, in the plugin folder or, when that
+  folder is a module of the harness home, in a module beside it. `workflow-shape-a-ticket`,
   `workflow-write-specs` and `workflow-write-demo-scenarios` run it at step 1. In a stack
   without that skill, Shape writes no demo scenarios: the planner lists
   `write-demo-scenarios` under "Not run", `write-specs` plans each criterion as `Tests`, and
