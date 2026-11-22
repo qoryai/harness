@@ -29,7 +29,7 @@ not load the rules it needs, so it pushed no demo scenarios."
    has no fix.
 2. Copy the newest `demo-scenarios`, as "Copy the newest version" lists. Then start
    ${qory:agents/scenario-writer} with the input file's path, the artifact folder, the run's
-   number, the notes, the surface line and any fact or finding that a higher workflow gives.
+   number, the notes and any fact or finding that a higher workflow gives.
    With `- none` under "Files:", skip steps 4 and 5. In step 6, the time is then the largest
    `at` in `index.json`. A failed push of questions or replies, or no `at`, ends the run as
    "Points" lists, with "The run stopped before it pushed its questions or replies, and no
