@@ -1077,7 +1077,7 @@ const SCRIPT_1 = { scenario: 'scenario-1', title: 'The export', evidence: 'film'
   steps: [{ step: 1, title: 'Open the export.', expected: 'The export shows.',
     actions: [{ do: 'click', target: 'text=Export' }] }] };
 
-test('preflight: an app that does not start ends the session, and a draft script counts', async () => {
+test('preflight: an app that does not start ends the session, and a draft counts', async () => {
   const port = await freePort();
   const command = 'node app/missing.cjs';
   const plan = PLAN.replace('The order list gets an export, in three changes.\n',

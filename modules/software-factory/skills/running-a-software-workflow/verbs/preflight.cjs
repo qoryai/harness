@@ -42,7 +42,8 @@ module.exports = (lib) => {
     // A draft .demo/<scenario>.json that demo write built takes the place of the pushed script
     // of its scenario: the session runs the preflight before it pushes a script.
     const scripts = serve ? withDrafts(checks.demoScripts(artifactFolder(io), io),
-      lib.draftScripts(artifactFolder(io))) : [];
+      checks.withCause('a demo script breaks its format rules',
+        () => lib.draftScripts(artifactFolder(io)))) : [];
     if (serve && !scripts.length) {
       throw new Missing('Run `qory artifact pull demo-script`, then run preflight again.',
         ['The artifact folder has no demo script, and the build plan has a serve command.',

@@ -3666,10 +3666,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `/app/../admin` fail. The finding is "Open only pages under <App address> in the sign-in
     steps of <script>." and the line "The step opens <url>." An address too long for 100
     characters in the first line is cut there and shown whole in the line "The App address
-    is <address>." The build plan is the one that `--inputs` or `--artifacts` gives, as
-    `preflight` reads it, else the one in the artifact folder. When no build plan can be
-    read or it has no address, the sign-in is not compared, and `demo run` still loads only
-    pages of the origin of the app. Its last line is "Write the demo script of <scenarios>,
+    is <address>." The build plan is the one in `--inputs` or `--artifacts`, as `preflight`
+    reads it, else the one in the artifact folder. When no build plan can be read or it has
+    no address, the sign-in is not compared, and `demo run` still loads only pages of the
+    origin of the app. Its last line is "Write the demo script of <scenarios>,
     from version <N> of the demo scenarios." for a scenario with no `demo-script` version
     that counts, and "No demo script to write: each scenario has one." otherwise.
   - The freeze and the corrections: `demo check` reads `.reports/build-ledger.json` and the
@@ -3898,29 +3898,27 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   plans: of each name that `index.json` lists, the newest version that it counts, so a
   version folder or a name that `index.json` does not list is not read. A draft
   `.demo/<scenario>.json` that `demo write` built replaces the pushed script of its
-  scenario, so the session runs `preflight` before it pushes the first script. The output of
-  the
-  serve command goes to `.reports/preflight/serve.log`, a new file in place of whatever was
-  at that path. After the check, also on a failure or a signal, the process group of the
-  command stops, and on Linux each process with the mark of the supervisor of `run`. The
-  runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
-  in the group kills the process group of the browser and then the group when the runner
-  ends, also on SIGKILL. The browser starts as
-  the leader of a new process group, and each stop of the browser kills that group, so a
-  child of the browser that stays in the group stops with it. A process that leaves
-  the group by `setsid` and removes the mark from its environment keeps running, as
-  `lib/supervise.cjs` states, and after a SIGKILL of the runner, so does every process that
-  left the group. The sign-ins stop after at most 570
+  scenario, so the session runs `preflight` before it pushes the first script. The output
+  of the serve command goes to `.reports/preflight/serve.log`, a new file in place of
+  whatever was at that path. After the check, also on a failure or a signal, the process
+  group of the command stops, and on Linux each process with the mark of the supervisor of
+  `run`. The runner of the check stops them too within 500 ms of the end of `preflight`, and
+  a watcher in the group kills the process group of the browser and then the group when the
+  runner ends, also on SIGKILL. The browser starts as the leader of a new process group, and
+  each stop of the browser kills that group, so a child of the browser that stays in the
+  group stops with it. A process that leaves the group by `setsid` and removes the mark from
+  its environment keeps running, as `lib/supervise.cjs` states, and after a SIGKILL of the
+  runner, so does every process that left the group. The sign-ins stop after at most 570
   seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
   Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
   no build plan, a `serve` command with no address of the app or one whose host breaks the
-  host rule, no demo script, a demo script that cannot be read or breaks its format rules,
-  a demo script that types a key of qory or of an agent, or a check of the app that fails
-  or runs past its limit. With each of these exits 3, a line that starts with `Cause:`
-  contains the cause for the line that ends the run, as `running-checks` lists it; after a
-  check that did not finish, the session ends the run. The session then checks the points
-  with `check points` and ends: the end check sends them with the verdict `escalate`.
+  host rule, no demo script, a demo script that cannot be read or breaks its format rules, a
+  demo script that types a key of qory or of an agent, or a check of the app that fails or
+  runs past its limit. With each of these exits 3, a line that starts with `Cause:` contains
+  the cause for the line that ends the run, as `running-checks` lists it; after a check that
+  did not finish, the session ends the run. The session then checks the points with `check
+  points` and ends: the end check sends them with the verdict `escalate`.
 - `report-build [--inputs <path>]` and `report-build --drop`: the first writes
   `build-report.md` of the standard track to the artifact folder, with every table rendered
   from records, so no agent types a result, and writes the outbox file that qory's push
@@ -4549,7 +4547,10 @@ The check and the freeze of a script:
   `script_sha256` of the script. A script that differs from the newest done row is a
   correction, the step `script:<id>#2` or `#3`; `check-reviewer` reads it, started by the
   skill with the line "Review the change to a demo script", before the correction runs. A
-  third correction is refused by `demo check`, and by the limit of 3 rows in the ledger.
+  third correction is refused by `demo check`, and the ledger refuses the id
+  `script:<id>#4`.
+  A pushed script that differs from the newest done row, with or without a draft, is a fault
+  of `demo check`, whose fix is to push the frozen script again or to run the next step.
 - `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
   `App address:` of the build plan, by origin or by path. The agent corrects the script in
   its session. With no readable build plan or no address, `demo check` compares nothing.

@@ -86,8 +86,9 @@ module.exports = (lib) => {
   }
 
   // draftScript returns the draft demo script of scenario id in the artifact folder root,
-  // .demo/<id>.json, as { text, data }, or null when there is none. A draft that cannot be read
-  // or breaks the schema of demo-script throws Missing with the fix.
+  // .demo/<id>.json, as { text, data }, or null when there is none. A draft that cannot be read,
+  // breaks the schema of demo-script, or is the script of another scenario throws Missing with
+  // the fix.
   function draftScript(root, id) {
     const shown = path.join(FOLDER, `${id}.json`);
     const got = boundedText(path.join(root, shown));
@@ -101,6 +102,10 @@ module.exports = (lib) => {
     if (found.length || !isObject(data)) {
       throw new Missing(`Run demo write ${id} again.\n${shown} breaks its schema: ` +
         `${found.length ? found[0].split('\n')[0] : 'it is no object'}`);
+    }
+    if (data.scenario !== id) {
+      throw new Missing(`Run demo write ${id} again.\n${shown} is the script of ` +
+        `${short(String(data.scenario), 30)}.`);
     }
     return { text: got.text, data };
   }

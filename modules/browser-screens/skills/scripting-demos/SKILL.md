@@ -23,8 +23,8 @@ scenarios with no script, in the order to script them, and shows the version `<S
 demo scenarios that they come from. `<scenarios>` is the file
 `<folder>/demo-scenarios/main/v<S>/demo-scenarios.md`. Do the steps below for each scenario
 in that list, then for each other scenario that a fault line or a line that starts with
-"Start check-reviewer" names: its script exists, and the line has the id of its correction
-step.
+"Start check-reviewer" is about: its script exists, and the line shows the id of its
+correction step.
 
 ## The freeze
 
@@ -80,7 +80,7 @@ check` prints no step for a script that has not changed.
      path: "Open only pages under <App address> in the sign-in steps of <script>." Do
      "Start the author again", with those lines. When the first line starts with "Push the
      frozen script", the pushed script differs from the newest done step: push the frozen
-     script again, or run the step that the line names for the pushed one, with
+     script again, or run the step that the line shows for the pushed one, with
      check-reviewer first. `demo check` compares the sign-in with the App address only when
      the build plan is readable and has the line `App address:`. With no such plan, it
      compares nothing, and the run in step 8 loads only pages of the origin of the app.

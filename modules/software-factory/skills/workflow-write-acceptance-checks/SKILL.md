@@ -21,8 +21,8 @@ not load the rules it needs, so it pushed no acceptance lock."
 
 Each command of this skill that starts with `<skill folder>/checks.cjs` is the checks script
 of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
-ends in `/in/inputs.json`. Give each Bash call of `run locked` the timeout 3600000 ms, and run
-no other command in the same call.
+ends in `/in/inputs.json`. Give each Bash call of `run locked` the timeout 3600000 ms, and
+run no other command in the same call.
 
 ## The order of the run
 
