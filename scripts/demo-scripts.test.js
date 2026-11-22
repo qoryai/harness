@@ -744,6 +744,27 @@ test('a copy of the pushed script as the draft is a correction of the frozen scr
   assert.ok(!done.out.includes('Start check-reviewer'), done.out);
 });
 
+test('a draft equal to a pushed script that the done row did not freeze ends with review', () => {
+  // Every scenario is pushed. The draft is the pushed script, and the done row froze another.
+  const root = artifacts(SCENARIOS, ['scenario-1', 'scenario-2']);
+  const pushed = fs.readFileSync(path.join(root, 'demo-script/scenario-1/v1/scenario-1.json'),
+    'utf8');
+  fs.mkdirSync(path.join(root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), pushed);
+  ledger(root, ['script:scenario-1'], ['frozen']);
+  const got = call(root, ['demo', 'check']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(got.lines[0], 'Start check-reviewer on the change to scenario-1, then run the ' +
+    'step script:scenario-1#2.');
+  assert.equal(got.lines.at(-1),
+    'Review the change to the demo script of scenario-1 with check-reviewer.');
+  assert.ok(!got.out.includes('No demo script to write'), got.out);
+  // With the correction recorded, the skip line is back.
+  ledger(root, ['script:scenario-1', 'script:scenario-1#2'], ['frozen', pushed]);
+  assert.equal(call(root, ['demo', 'check']).lines.at(-1),
+    'No demo script to write: each scenario has one.');
+});
+
 test('demo run exits 3 with the fix when the machine has no browser', () => {
   const root = drafted();
   plan(root, 'http://localhost:3000');
@@ -891,7 +912,9 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
     'its script needs a third correction, and a script has 2',
     'With 0 and a line that starts with "Start check-reviewer"');
-  inText(SCRIPTING, 'starts with "Push the frozen script", `.demo/<id>.json` does not exist',
+  inText(SCRIPTING, 'starts with "Start check-reviewer", `.demo/<id>.json` exists and differs',
+    'skip steps 2 to 4, do step 1, and go on from step 5',
+    'starts with "Push the frozen script", `.demo/<id>.json` does not exist',
     'skip steps 2 to 4: copy the pushed file', 'do step 1, and go on from step 5 on that copy',
     'Run this step once for each `<step>`');
   inText(SCRIPTING, '5. Run `<skill folder>/checks.cjs demo check <id>',

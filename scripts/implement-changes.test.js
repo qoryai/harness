@@ -279,6 +279,9 @@ test('the session scripts the demos after the last deliverable and before the fi
       'browser-screens to the stack, then run another round."');
     contains(demos, 'With 1 and another first line, a script that exists breaks a rule: the ' +
       'skill `scripting-demos` corrects it.');
+    contains(demos, 'With 0 and a last line that starts with "Review the change to the demo ' +
+      'script", a draft changes a script that passed: the skill `scripting-demos` has the ' +
+      'change reviewed.');
     contains(demos, 'Load the skill `scripting-demos` by its name');
     // The skill and the role are named in plain words: a ${qory:...} reference would fail the
     // compose of a stack with no module that ships them, and a stack has no optional role.

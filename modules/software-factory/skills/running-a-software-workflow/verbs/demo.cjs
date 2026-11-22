@@ -274,6 +274,7 @@ module.exports = (lib) => {
     const ledger = readLedger(root);
     const findings = [];
     const notes = [];
+    const reviews = [];
     for (const scenario of live.filter((one) => !only || one.id === only)) {
       const got = scriptOf(root, io, scenario.id, done);
       if (got.none) continue;
@@ -281,13 +282,15 @@ module.exports = (lib) => {
         : inspect(scenario, got, { address, ledger, done });
       findings.push(...found.findings);
       notes.push(...(found.notes || []));
+      if (found.notes && found.notes.length) reviews.push(scenario.id);
     }
     const todo = live.filter((one) => !done.has(one.id)).map((one) => one.id);
     const last = todo.length
       ? `Write the demo script of ${todo.join(', ')}, from version ${number} of the demo ` +
         'scenarios.'
       : findings.length ? `Found ${plural(findings.length, 'fault')} in the demo scripts.`
-        : 'No demo script to write: each scenario has one.';
+        : reviews.length ? `Review the change to the demo script of ${reviews.join(', ')} with ` +
+          'check-reviewer.' : 'No demo script to write: each scenario has one.';
     io.print([...findings, ...notes], last);
     return findings.length ? 1 : 0;
   }

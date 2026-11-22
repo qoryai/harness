@@ -133,13 +133,16 @@ and a stack without that module has no such skill.
      another round." Print the first line of `demo check` in your output.
    - With 1 and another first line, a script that exists breaks a rule: the skill
      `scripting-demos` corrects it.
+   - With 0 and a last line that starts with "Review the change to the demo script", a
+     draft changes a script that passed: the skill `scripting-demos` has the change reviewed.
    - With 2 or 3, end as "Failures" lists for the checks script, where the step is "the
      check of the demo scripts".
 2. Load the skill `scripting-demos` by its name, and follow it for the scenarios that the
-   last line "Write the demo script of" of `demo check` lists, and for each scenario whose
-   script `demo check` refuses. When your runtime cannot load it, read its `SKILL.md` where
-   your runtime lists it. When it cannot be read, end as "Failures" lists, with "The run
-   could not load the rules for a demo script, so it wrote no demo script."
+   last line "Write the demo script of" or "Review the change to the demo script of" of
+   `demo check` lists, and for each scenario whose script `demo check` refuses. When your
+   runtime cannot load it, read its `SKILL.md` where your runtime lists it. When it cannot
+   be read, end as "Failures" lists, with "The run could not load the rules for a demo
+   script, so it wrote no demo script."
 3. When the skill ends the run, end as it lists. Otherwise go on with "The order of the
    run".
 

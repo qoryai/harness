@@ -3243,8 +3243,9 @@ id.
   lacks, so the run wrote no demo script.", with the fix "Add the module browser-screens to
   the stack, then run another round." Otherwise it loads `scripting-demos` by name, which
   scripts each scenario that has no script and corrects each script that `demo check`
-  refuses, as "The module browser-screens" lists. The name is no `${qory:...}` reference,
-  so a stack without the module still composes `implement-changes`.
+  refuses or whose draft changes a frozen script, as "The module browser-screens" lists.
+  The name is no `${qory:...}` reference, so a stack without the module still composes
+  `implement-changes`.
 - **A step.** The session runs `step begin` with the build plan, the skill, the two agent
   files and, for a fix, the file of its finding. It starts `software-developer` (the role
   `developer`) for the first and the second attempt and `software-debugger` (the role
@@ -3671,7 +3672,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     no address, the sign-in is not compared, and `demo run` still loads only pages of the
     origin of the app. Its last line is "Write the demo script of <scenarios>,
     from version <N> of the demo scenarios." for a scenario with no `demo-script` version
-    that counts, and "No demo script to write: each scenario has one." otherwise.
+    that counts, "Review the change to the demo script of <scenarios> with check-reviewer."
+    when a draft changes a frozen script and no scenario lacks a script, and "No demo script
+    to write: each scenario has one." otherwise. A session skips the demo section only on
+    the last line "No demo script to write".
   - The freeze and the corrections: `demo check` reads `.reports/build-ledger.json` and the
     done rows of the steps `script:<id>`, `script:<id>#2` and `script:<id>#3`, kind
     `script`. A script whose sha256 differs from the `script_sha256` of the newest done row
