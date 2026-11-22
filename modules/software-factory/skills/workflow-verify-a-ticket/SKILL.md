@@ -75,9 +75,9 @@ submission text. Start no agent that is not one of the two reviewers.
      its record, so the change was not verified."
    - With 3 and the first line "Ask a member to approve acceptance-lock version <M>.", a
      newer lock version that no member approved exists. Start nothing and end as "Points"
-     lists, with one `run_again` point. Its text is "A member approved acceptance-lock
+     lists, with one `run_again` point. Its text is "A member approved acceptance lock
      version <N>, but version <M> is newer, so the change was not verified." and its `fix`
-     is "Approve acceptance-lock version <M>, then run Verify again."
+     is "Approve acceptance lock version <M>, then run Verify again."
    - With 2, 4, or 3 with another first line, end as "Failures" lists for the checks script.
 5. Run `<skill folder>/checks.cjs run locked --inputs <inputs>` from the working folder,
    once. It runs the locked checks on the checkout of the commit
@@ -106,9 +106,10 @@ submission text. Start no agent that is not one of the two reviewers.
     `<skill folder>/versions.cjs compare verification <V> <folder>/verification.json`,
     where `<V>` is the `newest_version` of `verification` in `<folder>/index.json`, and push
     when it exits with a status other than 0 or the type has no version. Push the matrix
-    for each verdict, so that the members read what the verdict rests on. Only step 4 with
-    exit 1 pushes nothing, because it ends the run before `matrix` writes the draft. When
-    the push is still refused after the third attempt, end with "The run could not push its
+    for each verdict that step 12 records, so that the members read what the verdict rests
+    on. A run that ends before this step pushes nothing: each `run_again` end, the
+    `changes-requested` end of step 4 and each end as "Failures" lists. When the push is
+    still refused after the third attempt, end with "The run could not push its
     verification." and record no verdict.
 11. Take the time of the version, as "The time of a version" of `run-artifacts` lists.
 12. Do "The questions", then "The end".
@@ -223,8 +224,3 @@ A checks script exit of 2, 3 or 4, a skill that does not load, an input file wit
 session, and a push that fails end the run as "Failures" of `running-a-workflow` lists, with
 the lines that this skill lists. No agent can fix a file that a script wrote, so no step of
 this skill starts an agent to fix one.
-
-<!-- shortcut: nothing ties `run verdict passed` to the round or the matrix, so the text
-of this skill decides the verdict, and nothing checks the `--reviewers` list against the
-group `verify-reviewers`; replace with a verb that runs the round, reads the matrix and
-records the verdict. -->

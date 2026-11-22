@@ -302,8 +302,8 @@ the matrix and its questions, and no code. Its steps, in order:
 3. It runs `lock --verify --version <N>`. With exit 1 it records `changes-requested`, and
    starts no agent. With exit 3 and the first line "Ask a member to approve acceptance-lock
    version <M>.", a newer lock version has no approval, and it ends with one `run_again`
-   point, "A member approved acceptance-lock version <N>, but version <M> is newer, so the
-   change was not verified." with the fix "Approve acceptance-lock version <M>, then run
+   point, "A member approved acceptance lock version <N>, but version <M> is newer, so the
+   change was not verified." with the fix "Approve acceptance lock version <M>, then run
    Verify again."
 4. It runs `run locked`, then `matrix --version <N>`, then reads the newest `demo-evidence`
    of each scenario, and runs `check verification` on the draft.
@@ -311,9 +311,9 @@ the matrix and its questions, and no code. Its steps, in order:
    the input file only, and runs `findings round <reports> --reviewers
    tamper-reviewer,verification-reviewer`, with `--suite` only when
    `qory.review_session.suite_result` exists.
-6. It pushes `verification` with either verdict, and takes the time of the version. Only
-   step 3 with exit 1 pushes nothing, because it ends the run before `matrix` writes the
-   draft.
+6. It pushes `verification` with either verdict, and takes the time of the version. A run
+   that ends before this step pushes nothing: each `run_again` end, the `changes-requested`
+   end of step 3 and each end as "Failures" lists.
 7. For each row of `verification.json` with the state `not_met`, it writes one question
    about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
    and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
@@ -326,6 +326,11 @@ the matrix and its questions, and no code. Its steps, in order:
 
 A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
 rule 13 read `review_group` of the stack entry.
+
+`shortcut:` nothing ties `run verdict passed` to the round or the matrix, so the text of the
+skill decides the verdict, and nothing checks the `--reviewers` list against the group
+`verify-reviewers`. The replacement is a verb that runs the round, reads the matrix and
+records the verdict.
 
 ## Agents
 
@@ -1038,7 +1043,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   report that a reviewer writes is a JSON file that qory's report schema checks; only
   `findings round` reads it, and `report`, `starts` and `end` have no check for the
   reviewers of a change.
-- - `checks.cjs findings round <reports> --reviewers <names> [--suite <file>]`: a review
+- `checks.cjs findings round <reports> --reviewers <names> [--suite <file>]`: a review
   session runs it once, after its reviewers returned. It reads `<reports>/<name>.json` of
   each name of `--reviewers`, agent names joined by commas, each once and none `full-suite`,
   and the result of the full suite at `--suite`, once each. With no `--suite`, the round has
@@ -1108,26 +1113,25 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   a cancelled run wrote, or that is not the version that `approved_version` of the lock is
   set to, with "Pass --version the acceptance-lock version that a member approved." and a
   second line with the cause, such as "index.json lists no version 7." or "Version 1 is the
-  approved one, not 2.". In
-  a run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
-  artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file with the
-  one in `index.json`, so a lock or an `index.json` that an agent changed in the store
-  before the call counts for nothing. When the second pull changes the id of version N in
-  `index.json`, removes it or marks it cancelled, it exits 3 with "Verify the lock again:
-  acceptance-lock version N changed in index.json during the pull.". Outside a run, it reads
-  the first artifact folder that exists, and compares the SHA-256 when `index.json` lists
-  one. It prints one finding for each listed file that is missing, cannot be read, is a
-  link, is no regular file or has another SHA-256, and exits 1. Such a finding is "Restore
-  "checks/reply.check.ts".", with the line "The bytes of "checks/reply.check.ts" differ from
-  acceptance-lock version 1." after it. With no version that counts, it prints "Verified
-  nothing: index.json lists no acceptance-lock version that counts." and exits 0. A stored
-  lock file whose SHA-256 differs from `index.json` exits 1 with "Pull acceptance-lock
-  version N again: the stored acceptance-lock.json differs from index.json.". A failed pull,
-  a version with no stored file or a link in its place, a `--version` that `index.json` does
-  not list or that a cancelled run wrote, and, in a run, a version with no SHA-256 in
-  `index.json` exit 3. Past 50 lines, `lock` and `lock --verify` print whole findings up to
-  49 lines, then a line that counts the findings not shown, such as "Fix the findings above
-  and lock again: 2 more are not shown.".
+  approved one, not 2.". In a run, when `QORY_RUN_ID` is set, it runs `qory artifact pull
+  <type>` and then `qory artifact pull <type> --version <N>`, and compares the SHA-256 of
+  the stored file with the one in `index.json`, so a lock or an `index.json` that an agent
+  changed in the store before the call counts for nothing. When the second pull changes the
+  id of version N in `index.json`, removes it or marks it cancelled, it exits 3 with "Verify
+  the lock again: acceptance-lock version N changed in index.json during the pull.". Outside
+  a run, it reads the first artifact folder that exists, and compares the SHA-256 when
+  `index.json` lists one. It prints one finding for each listed file that is missing, cannot
+  be read, is a link, is no regular file or has another SHA-256, and exits 1. Such a finding
+  is "Restore "checks/reply.check.ts".", with the line "The bytes of "checks/reply.check.ts"
+  differ from acceptance-lock version 1." after it. With no version that counts, it prints
+  "Verified nothing: index.json lists no acceptance-lock version that counts." and exits 0.
+  A stored lock file whose SHA-256 differs from `index.json` exits 1 with "Pull
+  acceptance-lock version N again: the stored acceptance-lock.json differs from
+  index.json.". A failed pull, a version with no stored file or a link in its place, a
+  `--version` that `index.json` does not list or that a cancelled run wrote, and, in a run,
+  a version with no SHA-256 in `index.json` exit 3. Past 50 lines, `lock` and `lock
+  --verify` print whole findings up to 49 lines, then a line that counts the findings not
+  shown, such as "Fix the findings above and lock again: 2 more are not shown.".
 
   The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run,
   on a new working folder, before any agent of that run starts. It pulls the lock again, and
@@ -3432,6 +3436,10 @@ locked check that fails. The session runs no ledger step. In this order:
    report and no submission text, starts no `submission-writer` and pushes no artifact:
    its checkout is read-only, so it cannot write `pull-request.json` into the outbox.
 
+`shortcut:` nothing ties `run verdict passed` to the round, so the text of the skill decides
+the verdict, and nothing checks the `--reviewers` list against the group `reviewers`. The
+replacement is a verb that runs the round and records the verdict.
+
 - **The reviewers.** `code-reviewer`, `test-reviewer` and `acceptance-reviewer` start for
   every change, as "The review of a change" lists. Each loads `reviewing-changes`,
   `judging-findings` and its checking skill, `checking-code`, `checking-tests` or
@@ -4065,8 +4073,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   the family `unknown`. `<N>` is the acceptance-lock version that Build's approval lists,
   the one that `lock --verify --version <N>` verified. A `--version` that is not the version
   that `approved_version` of the lock is set to exits 3 with the same first line, and the
-  matrix writes no file. The matrix has one row for each live
-  criterion, in the order of the criteria, from these sources:
+  matrix writes no file. The matrix has one row for each live criterion, in the order of the
+  criteria, from these sources:
   - a criterion whose check does not start with `Demo: `: the newest record of `run locked`
     in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria.
     An older record never stands in for a newer one. The record counts only when it is a

@@ -576,11 +576,9 @@ test('matrix: it refuses a lock version that is not the approved one', () => {
     'Pass --version the acceptance-lock version that a member approved.',
     '  Version 1 is the approved one, not 2.']);
   assert.ok(!fs.existsSync(path.join(wk.store, 'verification.json')));
-  for (const dir of [wk.server]) {
-    const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
-    index.artifacts.find((one) => one.type === 'acceptance-lock').approved_version = null;
-    write(path.join(dir, 'index.json'), index);
-  }
+  const served = JSON.parse(fs.readFileSync(path.join(wk.server, 'index.json'), 'utf8'));
+  served.artifacts.find((one) => one.type === 'acceptance-lock').approved_version = null;
+  write(path.join(wk.server, 'index.json'), served);
   const none = matrix(wk);
   assert.equal(none.status, 3, none.out + none.err);
   assert.equal(none.lines[1], '  acceptance-lock has no approved version.');
@@ -669,17 +667,19 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
     '"Lock the acceptance checks in Build and approve the lock, then run Verify again."',
     '"No member approved an acceptance lock, so the change was not verified."',
     '"Approve the acceptance lock, then run Verify again."',
-    '"A member approved acceptance-lock version <N>, but version <M> is newer, so the change ' +
+    '"A member approved acceptance lock version <N>, but version <M> is newer, so the change ' +
       'was not verified."',
-    '"Approve acceptance-lock version <M>, then run Verify again."',
+    '"Approve acceptance lock version <M>, then run Verify again."',
     'With 3 and the first line "Ask a member to approve acceptance-lock version <M>."']) {
     assert.ok(flat.includes(text), text);
   }
   // The version of a demo evidence is D, and N stays the version of the lock.
   assert.ok(flat.includes('demo-evidence/<name>/v<D>/<name>.json'));
   assert.ok(!flat.includes('v<N>/<name>.json'));
-  // The matrix is pushed for each verdict, except the end of step 4 with exit 1.
-  assert.ok(flat.includes('Only step 4 with exit 1 pushes nothing'));
+  // The matrix is pushed for each verdict that step 12 records; an end before step 10 pushes
+  // nothing.
+  assert.ok(flat.includes('A run that ends before this step pushes nothing: each `run_again` ' +
+    'end, the `changes-requested` end of step 4 and each end as "Failures" lists.'));
 });
 
 test('the skill starts the two reviewers, pushes the matrix and records the verdict', () => {
@@ -702,10 +702,9 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.ok(end.includes('"The change passed Verify: 1 criterion is met and no finding is ' +
     'blocking."'));
   assert.ok(end.includes('"Failed scenarios: <names>." with the names joined by ", "'));
-  assert.ok(oneLine(WORKFLOW).includes('<!-- shortcut: nothing ties `run verdict passed` to ' +
-    'the round or the matrix'));
-  assert.ok(oneLine(read('skills', 'workflow-review-changes', 'SKILL.md')).includes(
-    '<!-- shortcut: nothing ties `run verdict passed` to the round'));
+  // The limit of the verdict is in docs/modules.md: a skill that an agent loads has none.
+  assert.doesNotMatch(WORKFLOW, /shortcut:/);
+  assert.doesNotMatch(read('skills', 'workflow-review-changes', 'SKILL.md'), /shortcut:/);
   assert.ok(oneLine(reviewers).includes('`verification-reviewer` also reads the draft ' +
     '`verification.json` at the top of the artifact folder.'));
   assert.doesNotMatch(WORKFLOW, /changes-requested --points/);

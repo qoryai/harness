@@ -183,7 +183,3 @@ session, a diff that cannot be read and a build plan that cannot be read end the
 "Failures" of `running-a-workflow` lists. For a build plan that cannot be read, use "The
 review of the change did not start, because the build plan could not be read." The session
 runs no ledger step, so it runs no `step begin` and no `step end`.
-
-<!-- shortcut: nothing ties `run verdict passed` to the round, so the text of this skill
-decides the verdict, and nothing checks the `--reviewers` list against the group
-`reviewers`; replace with a verb that runs the round and records the verdict. -->
