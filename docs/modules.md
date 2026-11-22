@@ -3844,9 +3844,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     nothing.
 - `film <scenario> [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
   [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
-  `verbs/film.cjs`. One call takes one scenario, because the Bash tool stops a command at
-  600 seconds: the runner stops at 480 seconds and ffmpeg at 90 seconds, so a call ends
-  within 585 seconds. It stores nothing in Qory Apiary and writes no `demo-evidence` and
+  `verbs/film.cjs`. One call takes one scenario. The runner stops after 600 seconds, the
+  app's start included: 120 seconds to start the app, plus the 8 steps that a demo script
+  has at most, each with the 60 seconds that its longest wait has (`RUN_BUDGET_MS` of
+  `lib/preflight.cjs`, built from `demo-script.schema.json`). It gets 15 seconds more to
+  stop and ffmpeg gets 90 seconds, so a call takes up to 705 seconds, and its Bash call
+  needs that timeout, which `BASH_MAX_TIMEOUT_MS` of 60 minutes in the settings of
+  `software-factory` allows. It stores nothing in Qory Apiary and writes no `demo-evidence` and
   no ledger row: the session pushes the files.
   - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
     a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
@@ -3855,8 +3859,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `.film/<scenario>/` of the artifact folder, which the call makes new. With the evidence
     `film`, the page is recorded from the start of step 1: the sign-in runs before the
     recording, so no frame has it, and nothing inside the film is cut or sped up. The
-    runner keeps each frame that the page paints, up to 9000 (about 50 KB each), and one
-    frame at the start and one at the end of the last step. ffmpeg, which is
+    runner keeps each frame that the page paints (about 50 KB each), whatever the paint
+    rate, and one frame at the start and one at the end of the last step, so every cue of
+    the captions lies within the film. ffmpeg, which is
     `/usr/bin/ffmpeg` or else the first `ffmpeg` on the `PATH`, makes `<scenario>.mp4` from
     them at 25 frames a second, and the last frame stays for 1 second. `<scenario>.vtt` has
     one cue per step, with the title of the step as its text, from the start of the step to

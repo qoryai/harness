@@ -134,6 +134,12 @@ module.exports = (lib) => {
   const { Context, Missing, Run, agentNames, isObject, lacks, parseJson, plural, pointCheck,
     pointRules, readFile, schema, short, writeJson, MAX_POINTS } = lib;
 
+  // The most time of a run of one demo script, app start included: the start allowance plus
+  // the most steps of the schema, each with its longest wait. A film ends within it.
+  const SCRIPT = schema.load(SCHEMAS, 'demo-script').schema;
+  const RUN_BUDGET_MS = START_MS + SCRIPT.properties.steps.maxItems *
+    SCRIPT.$defs.wait.properties.timeout_ms.maximum;
+
   // withCause returns what read returns. A Missing that read throws gets the line of the
   // cause words after its other lines.
   function withCause(words, read) {
@@ -398,6 +404,14 @@ module.exports = (lib) => {
       'points.json has a point run_again for each.' };
   }
 
+  // scriptLimitMs returns the limit of the runner for the actions of a demo script: their
+  // time, the start of the app and MORE_MS, at most options.maxMs, else MAX_MS.
+  function scriptLimitMs(options, actions) {
+    return Math.min((options.startMs || START_MS) + MORE_MS + signInMs(actions,
+      options.actionMs || ACTION_MS, options.signedInMs || SIGNED_IN_MS),
+    options.maxMs || MAX_MS);
+  }
+
   // runScript runs script, a demo script, once in the browser with video off: the runner starts
   // the app of serve, { command, url, cwd }, replays the setup as a sign-in, then each step. It
   // returns { browser: null } when the machine has no browser, else { app, run, log }: run is
@@ -417,8 +431,7 @@ module.exports = (lib) => {
     const steps = script.steps.map((step) => step.actions);
     const actions = [...script.setup, ...steps.flat()];
     const names = typedNames([script]);
-    const limitMs = Math.min(startMs + MORE_MS + signInMs(actions, actionMs, signedInMs),
-      options.maxMs || MAX_MS);
+    const limitMs = scriptLimitMs(options, actions);
     const result = waited(io, {
       serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
       browser, setups: [], runs: [{ setup: script.setup, steps, names, capture }], typed: names,
@@ -428,6 +441,6 @@ module.exports = (lib) => {
     return { browser, app: result.app, run: run || null, log };
   }
 
-  return { preflight, runScript, serveOf, demoScripts, pointOf, joined, signInMs, withCause, MAX_MS,
-    STOP_MS };
+  return { preflight, runScript, scriptLimitMs, serveOf, demoScripts, pointOf, joined, signInMs,
+    withCause, MAX_MS, RUN_BUDGET_MS, STOP_MS };
 };

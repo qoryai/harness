@@ -19,11 +19,6 @@ const path = require('node:path');
 const FILM_HEIGHT = 720;
 const WIDTH = 1280;
 const HOLD_MS = 1000;
-// The most frames of a film: 5 minutes of a page that paints 30 times a second. A film keeps
-// its first 9000 frames, and its last frame stays from the last of them.
-// shortcut: a page that paints more often loses the frames after the 9000th, replace this with
-// a limit in seconds when a scenario runs for minutes.
-const MAX_FRAMES = 9000;
 
 const frameName = (number) => `f${String(number).padStart(6, '0')}.jpg`;
 
@@ -36,7 +31,6 @@ async function startFilm(page, dir) {
   let t0 = 0;
   let stop = null;
   const frame = (data) => {
-    if (frames.length >= MAX_FRAMES) return;
     const file = frameName(frames.length + 1);
     put(dir, file, data);
     frames.push({ file, at: Date.now() - t0 });
@@ -96,4 +90,4 @@ function capture(page, spec) {
   return spec.kind === 'film' ? startFilm(page, spec.dir) : startPictures(page, spec.dir, spec);
 }
 
-module.exports = { FILM_HEIGHT, HOLD_MS, MAX_FRAMES, capture };
+module.exports = { FILM_HEIGHT, HOLD_MS, capture };

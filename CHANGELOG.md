@@ -15,7 +15,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   ffmpeg makes from the frames of the page from the start of step 1 at real speed, and
   `<scenario>.vtt` with one cue per step. A `pictures` scenario runs with video off and
   gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
-  pictures of pages at 360, 768 and 1280 px, for the screen reviewers.
+  pictures of pages at 360, 768 and 1280 px, for the screen reviewers. The runner of a
+  film stops after 600 s, the app's start included: 120 s to start the app, plus 8 steps
+  with the 60 s of the longest wait of a step, as `demo-script.schema.json` allows. A call
+  takes up to 705 s with the 15 s to stop the runner and the 90 s of ffmpeg, so give its
+  Bash call that timeout. A film keeps each frame that the page paints, so every cue of
+  `<scenario>.vtt` lies within the film.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a

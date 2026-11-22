@@ -1801,7 +1801,7 @@ test('preflight: a page cannot look up another host name', { skip: NO_BROWSER },
 
 // ---- film: the film or the pictures of a scenario, and the pictures of pages -----------------
 
-const { MAX_FRAMES, capture } = require(path.join(SKILL, 'lib/capture.cjs'));
+const { capture } = require(path.join(SKILL, 'lib/capture.cjs'));
 const filmVerb = require(path.join(SKILL, 'verbs/film.cjs'));
 
 // pushed writes the demo scripts of scripts into root as version 1 of each, and index.json.
@@ -1971,8 +1971,27 @@ test('film: a film scenario with no ffmpeg exits 3 with the fix, a missing scrip
   }
 });
 
-test('film: the runner and ffmpeg end before the Bash tool stops the call at 600 s', () => {
-  assert.ok(filmVerb.FILM_MAX_MS + preflight.STOP_MS + filmVerb.FFMPEG_MS < 600000);
+test('film: the runner budget is the start allowance and the longest script of the schema, and a call ends within the Bash cap', () => {
+  // 120 s to start the app, and 8 steps with one wait of 60 s each.
+  assert.equal(preflight.RUN_BUDGET_MS, 120000 + 8 * 60000);
+  const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
+    'software-factory/settings/claude/settings.json'), 'utf8'));
+  assert.ok(preflight.RUN_BUDGET_MS + preflight.STOP_MS + filmVerb.FFMPEG_MS <
+    Number(settings.env.BASH_MAX_TIMEOUT_MS));
+});
+
+test('film: the runner does not stop the longest script that the schema allows', () => {
+  const longest = scenario('scenario-1', 'film', ...Array.from({ length: 8 }, () =>
+    [{ do: 'wait', text: 'Done', timeout_ms: 60000 }]));
+  const loaded = LIBRARY.schema.load(path.join(SKILL, 'schemas'), 'demo-script');
+  assert.deepEqual(LIBRARY.schema.errors(loaded, longest, 'scenario-1.json'), []);
+  const actions = [...longest.setup, ...longest.steps.flatMap((step) => step.actions)];
+  // The limit that film gives the runner, with the defaults of the preflight.
+  const limit = preflight.scriptLimitMs({ maxMs: preflight.RUN_BUDGET_MS }, actions);
+  assert.equal(limit, preflight.RUN_BUDGET_MS);
+  assert.ok(limit >= 120000 + 8 * 60000);
+  // The limit of 480 s that film had stopped it.
+  assert.ok(limit > 480000);
 });
 
 test('film: the captions have one cue per step, from the start of the step', () => {
@@ -2017,14 +2036,49 @@ test('capture: a film keeps the frame of each change from the start of step 1, a
   assert.equal(done.starts[0], 0);
   assert.equal(done.end, done.frames.at(-1).at + 1000);
   assert.equal(fs.readFileSync(path.join(dir, 'f000002.jpg'), 'utf8'), 'a');
-  // A film keeps at most MAX_FRAMES frames.
-  const many = fs.mkdtempSync(path.join(tmp, 'capture-'));
-  const busy = fakePage();
-  const long = await capture(busy, { kind: 'film', dir: many, name: 'scenario-1' });
-  await long.begin(0);
-  for (let at = 0; at < MAX_FRAMES + 5; at += 1) busy.frame(Buffer.from('b'));
-  assert.equal((await long.finish()).frames.length, MAX_FRAMES);
-  assert.equal(fs.readdirSync(many).length, MAX_FRAMES);
+});
+
+test('capture: a film of 8 steps that run past 151 s keeps every frame of a page that paints 56 times a second, and its captions end within it', async () => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const page = fakePage();
+  const realNow = Date.now;
+  let now = 1000000;
+  Date.now = () => now;
+  try {
+    const taken = await capture(page, { kind: 'film', dir, name: 'scenario-1' });
+    // Steps of 58 s each: they start at 0, 58, 116, 174 ... 406 s, and the last ends at 464 s.
+    const starts = Array.from({ length: 8 }, (_, at) => 58000 * at);
+    const origin = now;
+    let sent = 0;
+    for (let at = 0; at < 8; at += 1) {
+      now = origin + starts[at];
+      await taken.begin(at);
+      for (let paint = Math.ceil(starts[at] * 56 / 1000) + 1;
+        paint * 1000 / 56 < starts[at] + 58000; paint += 1) {
+        now = origin + Math.round(paint * 1000 / 56);
+        page.frame(Buffer.from('p'));
+        sent += 1;
+      }
+      await taken.end(at);
+    }
+    now = origin + 464000;
+    const done = await taken.finish();
+    // The first and the last frame come from a screenshot: no painted frame is dropped.
+    assert.equal(done.frames.length, sent + 2);
+    assert.equal(fs.readdirSync(dir).length, sent + 2);
+    assert.ok(sent > 9000 && done.frames.at(-1).at > 151000);
+    assert.deepEqual(done.starts, starts);
+    const steps = starts.map((_, at) => ({ title: `Step ${at + 1}.` }));
+    const text = filmVerb.captions({ steps }, done);
+    const cues = [...text.matchAll(/^(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})$/gm)];
+    const ms = (time) => ((Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5))) * 60 +
+      Number(time.slice(6))) * 1000;
+    assert.equal(cues.length, 8);
+    for (const [, from, to] of cues) assert.ok(ms(from) < done.end && ms(to) <= done.end, text);
+    assert.equal(ms(cues[7][2]), done.end);
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test('capture: pictures take the page after each step, and pages at each width', async () => {
