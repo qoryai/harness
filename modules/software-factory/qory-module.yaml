@@ -36,8 +36,7 @@ description: >-
   submission-writer, which writes the title and the description of the draft pull request;
   the skills checking-security, checking-data-changes and checking-failure-handling; the
   agents security-reviewer, data-reviewer and failure-reviewer, which start only for a
-  change in their paths; the six reviewers are the members of the group role reviewers; and live web search off on
-  Codex.
+  change in their paths; and the group role reviewers, whose members are the six reviewers.
 roles:
   agents:
     reviewers: many
