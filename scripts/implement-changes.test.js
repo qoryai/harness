@@ -151,8 +151,8 @@ test('the session writes the text of the change after the last step, and not on 
   inOrder(submission, 'Start ${qory:agents/submission-writer} in the foreground',
     '<folder>/.reports/submission-writer-1.md',
     'Run `<skill folder>/checks.cjs report-build --inputs <inputs>`',
-    '`build-report.md` in `<folder>` and the hand-off file at the value of ' +
-      '`QORY_SUBMISSION_HANDOFF`',
+    '`build-report.md` in `<folder>` and the outbox file ' +
+      '`$QORY_OUTBOX/pull-request/pull-request.json`',
     'With exit 1, a rule of the text broke.', 'at most twice',
     'With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is ' +
       '"the build report".',
@@ -171,7 +171,8 @@ test('the session writes the text of the change after the last step, and not on 
     'fails and an end as "Failures" lists skip it.');
   contains(submission, 'With 0, go on with step 3.');
   contains(submission, 'with one `run_again` point: "The change is not ready, because the ' +
-    'description of the change still breaks the rules for it."');
+    'text of the change still breaks the rules for it."');
+  contains(submission, 'With exit 3 and the first line `Build the change in fewer commits`');
   // The steps committed, so a failure of the writer says that qory pushes them with no text.
   contains(submission, 'in place of the line of its case "Any other case", use "The run wrote ' +
     'no text of the change, because <the cause>, so qory pushes the commits of the steps ' +
@@ -516,7 +517,7 @@ function session(w) {
   const run = `run-${++runs}`;
   const env = { ...w.env, ARTIFACTS: w.artifacts, QORY_RUN_ID: run,
     PATH: `${w.bin}${path.delimiter}${process.env.PATH}`,
-    QORY_SUBMISSION_HANDOFF: path.join(w.repo, '.qory/handoff', run, 'submission.json') };
+    QORY_OUTBOX: path.join(w.repo, '.qory/outbox', run) };
   const call = (...argv) => {
     let out = '';
     let err = '';
@@ -626,7 +627,7 @@ const SUBMISSION = ['# Write the order lines and a header in the export', '', '#
   '## Disclosed', '', 'Nothing is left out.', ''].join('\n');
 
 // submit does "The submission" of the skill: the submission writer writes its text and its
-// report, the report check passes, report-build writes build-report.md and the hand-off file,
+// report, the report check passes, report-build writes build-report.md and the outbox file,
 // check build-report passes, and the push stores version 1 of build-report. It returns the
 // paths of the two files.
 function submit(w, call) {
@@ -644,7 +645,8 @@ function submit(w, call) {
   const pushed = qory(w, call, 'artifact', 'push', 'build-report', file);
   assert.equal(pushed.status, 0, pushed.out + pushed.err);
   assert.equal(read(w.store, 'build-report/main/v1/build-report.md'), read(file));
-  return { handoff: call.env.QORY_SUBMISSION_HANDOFF, report: file };
+  return { handoff: path.join(call.env.QORY_OUTBOX, 'pull-request', 'pull-request.json'),
+    report: file };
 }
 
 // The two steps of the plan: d-1 runs its locked check, d-2 its test file.
@@ -699,13 +701,13 @@ test('the session builds two deliverables as two frozen commits with two ledger 
       ['deliverable:d-2', 'implement-changes', 'done', commits[1]]]);
   assert.deepEqual(ledger.steps[0].attempts, [{ agent: 'software-developer', role: 'developer',
     tier: 'thinking', model: 'unknown' }]);
-  // "The submission" leaves the hand-off file with the text and the two commits, and
+  // "The submission" leaves pull-request.json with the text and the two commits, and
   // build-report.md with the two rows.
   const { handoff, report: built } = submit(w, call);
   const sent = JSON.parse(fs.readFileSync(handoff, 'utf8'));
-  assert.equal(sent.text.title, 'Write the order lines and a header in the export');
-  assert.deepEqual(sent.steps, { [commits[0]]: 'deliverable:d-1',
-    [commits[1]]: 'deliverable:d-2' });
+  assert.equal(sent.title, 'Write the order lines and a header in the export');
+  assert.deepEqual(sent.steps, [{ commit: commits[0], step: 'deliverable:d-1' },
+    { commit: commits[1], step: 'deliverable:d-2' }]);
   assert.match(fs.readFileSync(built, 'utf8'),
     /\| deliverable:d-2 \| 1 \| deliverable \| done \|/);
   // The end check passes on the artifact folder after the two steps, with judges false in the
@@ -782,7 +784,7 @@ test('the session ends a step failed after its third red attempt, and starts no 
   assert.deepEqual(row.attempts.map((one) => one.role), ['developer', 'developer', 'debugger']);
   // "The submission" runs after a failed step too: build-report.md lists the open step.
   const { handoff, report: built } = submit(w, call);
-  assert.deepEqual(JSON.parse(fs.readFileSync(handoff, 'utf8')).steps, {});
+  assert.deepEqual(JSON.parse(fs.readFileSync(handoff, 'utf8')).steps, []);
   assert.match(fs.readFileSync(built, 'utf8'),
     /\| deliverable:d-1 \| 1 \| deliverable \| failed \|/);
   // The step stays open in the ledger, and the session ends with no point and no verdict.

@@ -220,24 +220,27 @@ lists skip it.
    "The run wrote no text of the change, because <the cause>, so qory pushes the commits of
    the steps without it."
 2. Run `<skill folder>/checks.cjs report-build --inputs <inputs>`. It writes
-   `build-report.md` in `<folder>` and the hand-off file at the value of
-   `QORY_SUBMISSION_HANDOFF`, which qory's submit step reads. On each non-zero exit it
-   removes an earlier hand-off file.
+   `build-report.md` in `<folder>` and the outbox file
+   `$QORY_OUTBOX/pull-request/pull-request.json`, which qory pushes after the session. On
+   each non-zero exit it removes an earlier outbox file.
    - With 0, go on with step 3.
    - With exit 1, a rule of the text broke. Start ${qory:agents/submission-writer} again
      with each line that `report-build` printed quoted, at most twice, check its report as
      step 1 lists, and run `report-build` again after each start. When it still exits with
      1 after the second start, end as "Points" of `running-a-workflow` lists, with one
-     `run_again` point: "The change is not ready, because the description of the change
-     still breaks the rules for it." Print the first line of `report-build` in your output.
+     `run_again` point: "The change is not ready, because the text of the change still
+     breaks the rules for it." Print the first line of `report-build` in your output.
+   - With exit 3 and the first line `Build the change in fewer commits`, the list of steps
+     is too long for the output. Start no agent: end as "Failures" lists, with that line as
+     the cause.
    - With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is
      "the build report".
 3. Run `<skill folder>/checks.cjs check build-report --inputs <inputs>
    <folder>/build-report.md`. It renders the tables of `build-report.md` again from the
    records and compares each section with the file byte for byte.
    - With exit 1, the tables are the script's, so a difference is a defect: start no agent.
-     Run `<skill folder>/checks.cjs report-build --drop`, which removes the hand-off file
-     of step 2, so that qory's submit step reads no text of a change that is not ready.
+     Run `<skill folder>/checks.cjs report-build --drop`, which removes the outbox file
+     of step 2, so that qory's push reads no text of a change that is not ready.
      Then end as "Points" of `running-a-workflow` lists, with one `run_again` point: "The
      change is not ready, because the build report differs from the records of the run."
      Print the first line of the check in your output. When `--drop` exits with 3, end as
@@ -253,8 +256,8 @@ lists skip it.
 
    When the push exits with 4 or fails, run steps 2 and 3 again, then push again, at most
    twice more. When the third push also fails, run
-   `<skill folder>/checks.cjs report-build --drop`, so that qory's submit step reads no
-   text of a change whose report was not pushed. Then end with "The run could not push its
+   `<skill folder>/checks.cjs report-build --drop`, so that qory's push reads no text
+   of a change whose report was not pushed. Then end with "The run could not push its
    build report." as "Points" of `running-a-workflow` lists. When `--drop` exits with 3,
    end as "Failures" lists for the checks script instead. No agent wrote the file, so
    start no agent to fix it.
