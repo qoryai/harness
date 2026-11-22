@@ -722,7 +722,7 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
     '`verification.json` at the top of the artifact folder.'));
   assert.doesNotMatch(WORKFLOW, /changes-requested --points/);
   assert.doesNotMatch(WORKFLOW,
-    /submission-writer|QORY_SUBMISSION_HANDOFF|QORY_OUTBOX|report-build|pull-request\.json/);
+    /submission-writer|QORY_SUBMISSION_HANDOFF|qory\.outbox|<outbox>|report-build|pull-request\.json/);
   assert.ok(oneLine(WORKFLOW).includes('Push only `verification` and `questions`.'));
 });
 

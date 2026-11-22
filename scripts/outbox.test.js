@@ -38,16 +38,17 @@ const REPLY = {
 };
 
 // session makes a working folder, writes the inputs file with the given outputs (none when
-// outputs is undefined) and each file of files, { <type>: <text> }, into the outbox, which
-// QORY_OUTBOX names, and returns what end needs.
+// outputs is undefined) and the outbox folder in qory.outbox, and each file of files,
+// { <type>: <text> }, into the outbox, and returns what end needs.
 function session(outputs, files = {}) {
   const work = path.join(tmp, `work-${++folders}`);
   fs.mkdirSync(work, { recursive: true });
   const artifacts = path.join(work, 'artifacts');
   fs.mkdirSync(artifacts);
   const inputs = path.join(work, 'inputs.json');
-  fs.writeFileSync(inputs, JSON.stringify({ qory: outputs === undefined ? {} : { outputs } }));
   const outbox = path.join(work, '.qory', 'outbox');
+  fs.writeFileSync(inputs, JSON.stringify({ qory: outputs === undefined ? { outbox }
+    : { outputs, outbox } }));
   fs.mkdirSync(outbox, { recursive: true });
   for (const [type, text] of Object.entries(files)) {
     fs.mkdirSync(path.join(outbox, type), { recursive: true });
@@ -57,7 +58,7 @@ function session(outputs, files = {}) {
 }
 
 // end runs the end check of the session, as the hook does, and returns the status and the lines.
-function end({ work, artifacts, inputs, outbox }, env = {}) {
+function end({ work, artifacts, inputs }, env = {}) {
   let out = '';
   let err = '';
   const first = watch();
@@ -67,7 +68,7 @@ function end({ work, artifacts, inputs, outbox }, env = {}) {
     plugin: CORE,
     firstLine: first.firstLine,
     cwd: work,
-    env: { ...process.env, QORY_RUN_ID: 'run-1', QORY_OUTBOX: outbox, ...env },
+    env: { ...process.env, QORY_RUN_ID: 'run-1', ...env },
   });
   first.check(status, err);
   return { status, text: `${out}${err}` };
@@ -76,7 +77,7 @@ function end({ work, artifacts, inputs, outbox }, env = {}) {
 const reply = (title = 'a title', count = 1, more = {}) => JSON.stringify(
   { title, count, ...more });
 const OUT = [{ type: 'reply', required: true, schema: REPLY }];
-const FILE = '\\$QORY_OUTBOX/reply/reply\\.json';
+const FILE = '<outbox>/reply/reply\\.json';
 
 // with returns the session of OUT with the inputs file replaced by text.
 function withInputs(text) {
@@ -106,8 +107,10 @@ test('outbox: with no qory.outputs, an empty list or no inputs file, the check p
   const none = session(OUT);
   fs.rmSync(none.inputs);
   assert.equal(end(none).status, 0);
-  // With no output declared, the variable is not needed.
-  assert.equal(end(session([]), { QORY_OUTBOX: undefined }).status, 0);
+  // With no output declared, qory.outbox is not needed.
+  const bare = session([]);
+  fs.writeFileSync(bare.inputs, '{"qory":{"outputs":[]}}');
+  assert.equal(end(bare).status, 0);
 });
 
 test('outbox: a qory.outputs that is present and malformed is a finding', () => {
@@ -141,14 +144,19 @@ test('outbox: a qory.outputs that is present and malformed is a finding', () => 
   assert.match(found.text, new RegExp(`^Write ${FILE}\\.`, 'm'));
 });
 
-test('outbox: QORY_OUTBOX must be set and absolute when the stage declares an output', () => {
-  for (const [value, cause] of [[undefined, 'not set'], ['', 'not an absolute path'],
-    ['relative/outbox', 'not an absolute path']]) {
-    const found = end(session(OUT, { reply: reply() }), { QORY_OUTBOX: value });
+test('outbox: qory.outbox must be an absolute path when the stage declares an output', () => {
+  const missing = 'The inputs file has no qory.outbox.';
+  const relative = 'qory.outbox of the inputs file is no absolute path.';
+  for (const [value, cause] of [[undefined, missing], ['', relative], ['relative/outbox',
+    relative], [5, relative], [null, relative]]) {
+    const one = session(OUT, { reply: reply() });
+    fs.writeFileSync(one.inputs, JSON.stringify({ qory: { outputs: OUT, outbox: value } }));
+    // The old variable QORY_OUTBOX is no fallback.
+    const found = end(one, { QORY_OUTBOX: one.outbox });
     assert.equal(found.status, 1, String(value));
     assert.match(found.text,
-      /^Set QORY_OUTBOX in the setup of the run to the absolute path of the outbox folder\./m);
-    assert.match(found.text, new RegExp(`It is ${cause}\\.`));
+      /^Set qory\.outbox in the inputs file to the absolute path of the outbox folder\./m);
+    assert.ok(found.text.includes(cause), String(value));
     assert.doesNotMatch(found.text, /Fix qory\.outputs/);
   }
 });
@@ -260,7 +268,7 @@ test('outbox: the pattern checks of all outputs share one time', () => {
   const found = end(session([slow('one'), slow('two')], { one: value, two: value }),
     { QORY_OUTBOX_TEST: '{"patternMs":600}' });
   assert.equal(found.status, 1);
-  assert.match(found.text, /Change the member \/t of \$QORY_OUTBOX\/one\/one\.json\./);
+  assert.match(found.text, /Change the member \/t of <outbox>\/one\/one\.json\./);
   assert.match(found.text,
     /The check of the two output could not finish: the time of the pattern /);
 });
@@ -298,21 +306,21 @@ test('outbox: a refused character is named by its code point, with its rule as c
   const list = { pattern: '^[^\\u0000-\\u0009\\u000b\\u000c\\u000e-\\u001f\\u2028\\u2029]*$' };
   // A text of several lines names the line, and the description is the cause line.
   const text = run({ ...list, description: RULE }, 'a\r\nb\nc\u0001d');
-  assert.equal(text[1], 'Remove U+0001 from line 3 of /t of $QORY_OUTBOX/reply/reply.json.');
+  assert.equal(text[1], 'Remove U+0001 from line 3 of /t of <outbox>/reply/reply.json.');
   assert.equal(text[2], `  ${RULE}`);
   // A value of one line has no line in the finding.
   const one = run({ ...list, description: RULE }, 'ab\u2028');
-  assert.equal(one[1], 'Remove U+2028 from /t of $QORY_OUTBOX/reply/reply.json.');
+  assert.equal(one[1], 'Remove U+2028 from /t of <outbox>/reply/reply.json.');
   // Without a description, the cause is the pattern.
   const bare = run(list, 'a\u0001');
-  assert.equal(bare[1], 'Remove U+0001 from /t of $QORY_OUTBOX/reply/reply.json.');
+  assert.equal(bare[1], 'Remove U+0001 from /t of <outbox>/reply/reply.json.');
   assert.match(bare[2], /^ {2}The pattern is \^\[\^\\u0000-\\u0009/);
   // A pattern that is not one list of characters gives no code point, and the description
   // replaces the pattern in the cause.
   const blank = run({ pattern: '[^ ]',
     description: 'A title has a character other than spaces.' }, '  ');
   assert.equal(blank[1],
-    'Write /t of $QORY_OUTBOX/reply/reply.json so that it matches its pattern.');
+    'Write /t of <outbox>/reply/reply.json so that it matches its pattern.');
   assert.equal(blank[2], '  A title has a character other than spaces. It is "  ".');
 });
 
@@ -325,7 +333,7 @@ test('outbox: a description is the cause only when it fits whole; a cut ends in 
     `${'x'.repeat(70)} the last words.`;
   assert.equal(long.length, 152);
   const refused = run({ pattern: '^[^\\u0000-\\u001f]*$', description: long }, 'a\u0001');
-  assert.equal(refused[1], 'Remove U+0001 from /t of $QORY_OUTBOX/reply/reply.json.');
+  assert.equal(refused[1], 'Remove U+0001 from /t of <outbox>/reply/reply.json.');
   assert.match(refused[2], /^ {2}The pattern is \^\[\^\\u0000-\\u001f\]\*\$\.$/);
   // a rule of 121 characters beside the value: too long, so the pattern is the cause.
   const wide = run({ pattern: '^a+$', description: `${'w'.repeat(121)}.` }, 'b');

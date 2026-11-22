@@ -1143,6 +1143,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,
+  which Forager does not pass to a session. The end check reads it from the file of
+  `--inputs`, and so does `report-build`, which takes `--inputs` in both forms:
+  `report-build --inputs <path>` and `report-build --drop --inputs <path>`. With outputs
+  declared and no usable `qory.outbox`, the end check finds "Set qory.outbox in the inputs
+  file to the absolute path of the outbox folder."; `report-build` exits 3 with that fix,
+  or with "Give --inputs the inputs.json that qory wrote for the run." when it has no
+  `inputs.json`. Findings and skills write the outbox path as `<outbox>`.
+
 - `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
   `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
   verdict against, and no `plan`, which qory refuses on a workflow that cannot write. The
