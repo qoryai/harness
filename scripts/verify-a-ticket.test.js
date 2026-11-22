@@ -615,6 +615,10 @@ test('the skill has its name, a description, its sections and short lines', () =
     assert.ok([...line].length <= 92, `a line of ${[...line].length} characters:\n${line}`);
   }
   assert.doesNotMatch(WORKFLOW, /\bown\b/);
+  // Rule 8 of scripts/check.sh: a workflow skill names only run-artifacts, running-a-* and
+  // workflow-* skills, and the agents that it starts.
+  const refs = [...WORKFLOW.matchAll(/\$\{qory:skills\/([a-z0-9-]+)\}/g)].map((one) => one[1]);
+  assert.deepEqual(refs, ['run-artifacts', 'running-a-workflow', 'running-a-software-workflow']);
 });
 
 test('the skill runs the calls in order and verifies the lock at the approved version only', () => {
@@ -673,6 +677,9 @@ test('the skill asks one question for each criterion that is not met, with three
     '`Make it met another way`', '`Withdraw AC-3, "<first sentence>"`']) {
     assert.ok(questions.includes(title), title);
   }
+  assert.ok(questions.includes('Quote a criterion in each text of a question as its id in ' +
+    'capitals, a comma, a space and its first sentence in double quotes'));
+  assert.ok(questions.includes('When `work-item show` gave no `run.number`, write no question.'));
   assert.ok(questions.includes('The first starts `**Why:**`'));
   assert.ok(questions.includes('The second starts `**Checked:**`'));
   assert.ok(questions.includes('Apiary adds a fourth answer that the person writes, so write ' +

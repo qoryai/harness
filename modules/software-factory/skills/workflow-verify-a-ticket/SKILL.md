@@ -15,9 +15,6 @@ records the verdict of Verify. It changes no code.
   "verification".
 - ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
   `running-a-workflow`.
-- ${qory:skills/running-checks}: before step 5, for `run locked`.
-- ${qory:skills/judging-criteria}: before step 12, for "How a criterion is quoted".
-- ${qory:skills/writing-questions}: before step 12, for the rules of a question.
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
 lists it. When one of the first three skills cannot be loaded, start nothing and end with
@@ -75,7 +72,7 @@ submission text. Start no agent that is not one of the two reviewers.
      its record, so the change was not verified."
    - With 2, 3 or 4, end as "Failures" lists for the checks script.
 5. Run `<skill folder>/checks.cjs run locked --inputs <inputs>` from the working folder,
-   once, as `running-checks` lists. It runs the locked checks on the checkout of the commit
+   once. It runs the locked checks on the checkout of the commit
    under review and writes its record under `<folder>/.reports/runs/`. With 0 or 1, go on:
    a red check is a result, and `matrix` reads it. With 2, 3 or 4, end as "Failures" lists
    for the checks script.
@@ -86,10 +83,12 @@ submission text. Start no agent that is not one of the two reviewers.
    "Failures" lists for the checks script.
 7. Read the demo evidence of the run, with the file tool of your runtime only. Read
    `<folder>/index.json`. For each entry of `artifacts` whose `type` is `demo-evidence`,
-   leave out a withdrawn entry, as "What the review reads" of `judging-criteria` lists, and
-   read `<folder>/demo-evidence/<name>/v<N>/<name>.json` of its `newest_version`. A scenario
-   is failed when its `commit` is `qory.review_session.commit` and its `verdict` is not
-   `passed`. Keep the names of the failed scenarios, also when no criterion rests on them.
+   leave out the entry when its version with the largest `number` in `versions`, of those
+   with no `cancelled` set to `true`, has `withdrawn` set to `true`. Read
+   `<folder>/demo-evidence/<name>/v<N>/<name>.json` of each entry left, where `<N>` is its
+   `newest_version`. A scenario is failed when its `commit` is
+   `qory.review_session.commit` and its `verdict` is not `passed`. Keep the names of the
+   failed scenarios, also when no criterion rests on them.
 8. Run `<skill folder>/checks.cjs check verification <folder>/verification.json`. A script
    wrote the draft, so no agent can fix it: with 1, 2 or 3, end as "Failures" lists for the
    checks script.
@@ -144,20 +143,31 @@ Leave out a criterion that has an open question in the newest `questions` with `
 set to its id in lower case, such as `ac-3`. With no row left, write no file and skip the
 push of the questions.
 
-Write each question as `writing-questions` lists, in `<folder>/questions.json` at the top of
-the artifact folder, with the time of step 11 as `at`, and these members:
+Quote a criterion in each text of a question as its id in capitals, a comma, a space and
+its first sentence in double quotes, with the words of the criterion and no other:
+`AC-3, "<first sentence>"`. An id with no words is wrong, and the check refuses it.
 
-- `id`: `q` and a number above every id in the newest `questions`.
-- `question`: one sentence that asks what to do with the criterion, quoted as "How a
-  criterion is quoted" of `judging-criteria` lists: `AC-3, "<first sentence>"`.
+Write the whole document in `<folder>/questions.json` at the top of the artifact folder.
+Start from the newest `questions` version, `<folder>/questions/main/v<V>/questions.json`, or
+from `{"questions": []}` when the type has no version. Keep every question that exists, in
+its order, with all its members as they are, and add each new question at the end, with the
+time of step 11 as `at` and these members:
+
+- `id`: `q` and a number above every id in the document.
+- `question`: one sentence of at most 500 characters that asks what to do with the
+  criterion, quoted as above.
+- `state`: `open`.
+- `asked`: `{"run": <run.number>, "at": <the time>}`. When `work-item show` gave no
+  `run.number`, write no question.
 - `about`: `{"type": "acceptance-criteria", "name": "main", "item": "ac-3"}`, with the id of
   the criterion in lower case.
 - `context`: two paragraphs. The first starts `**Why:**`, with the fact that the answer
   depends on in its first sentence: why the criterion is not met. The second starts
   `**Checked:**`, with what the row's `evidence` shows, and the check or the scenario. Write
   no plain id: each criterion in the context is quoted the same way.
-- `options`: exactly three, with these titles. Mark the one that the evidence favours with
-  `recommended: true`, and list it first.
+- `options`: exactly three, each with a `title` and an `explanation` of at most 2
+  sentences. Mark the one that the evidence favours with `recommended: true`, and list it
+  first.
   1. `Change AC-3, "<first sentence>"`, with `proposal`: the wording of the criterion that
      the change can meet.
   2. `Make it met another way`: the person's change to the work, which sends the work item
