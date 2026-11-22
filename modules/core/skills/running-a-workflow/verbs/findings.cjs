@@ -10,9 +10,8 @@
 // of another reviewer is one blocking finding of that reviewer, such as "Reviewer <name> wrote
 // no report." A suite result that failed or did not run, by the rule that a skill adds to the
 // registry, or one that cannot be read, is one blocking finding of full-suite. With no --suite,
-// the round has no suite finding. It prints a line
-// per finding, blocking ones first, with its proof on the next line, and exits 1 while a
-// finding is blocking, else 0. It writes no file.
+// the round has no suite finding. It prints a line per finding, blocking ones first, with its
+// proof on the next line, and exits 1 while a finding is blocking, else 0. It writes no file.
 'use strict';
 
 const fs = require('node:fs');
@@ -117,8 +116,8 @@ const REPORT_BYTES = 1024 * 1024;
 const SUITE_BYTES = 4 * 1024 * 1024;
 
 // The fix that findings round prints for a wrong argument.
-const ROUND_FIX = 'Give findings round the report folder, then --reviewers <names>, and ' +
-  '--suite <file>, each once.';
+const ROUND_FIX = 'Give findings round the report folder, then --reviewers <names> once, and ' +
+  '--suite <file> at most once.';
 
 // roundArgs returns { reports, names, suite } of the arguments of findings round, or the fix
 // of a wrong argument as text. suite is null when the flag is missing.
