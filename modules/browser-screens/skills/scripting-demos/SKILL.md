@@ -84,11 +84,11 @@ version; do this only for a script that this session wrote and still has as a fi
 5. Run `<skill folder>/checks.cjs demo check <id> --inputs <inputs>`. Take only the lines
    about `<id>`.
    - With 1 and a first line that starts with "Keep the script of", the scenario has had
-     2 corrections, and its script needs a third. Run `step end <step> failed`, and end as
-     "Failures" lists, with the cause "its script needs a third correction, and a script
-     has 2". When a line of the finding starts with "Push the frozen script", the
-     pushed script differs from the newest done step: push the file of the frozen script
-     again, then run this step again.
+     2 corrections, and its script needs a third. When a line of the finding starts with
+     "Push the frozen script", the pushed script differs from the newest done step: push
+     the file of the frozen script again, then run this step again. Otherwise run
+     `step end <step> failed`, and end as "Failures" lists, with the cause "its script
+     needs a third correction, and a script has 2".
    - With another 1, the script breaks a rule, and the first line of each fault is the fix.
      This includes a sign-in step that opens a page outside the App address, by origin or by
      path: "Open only pages under <App address> in the sign-in steps of <script>." Do
