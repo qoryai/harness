@@ -679,6 +679,16 @@ test('the skill asks one question for each criterion that is not met, with three
     'no option for it.'));
 });
 
+test('the stack lists verify-a-ticket with write-no-push and the group verify-reviewers', () => {
+  const stack = fs.readFileSync(path.join(__dirname, '../stacks/software/qory-stack.yaml'), 'utf8');
+  assert.match(stack, new RegExp('\\n {2}verify-a-ticket: \\{tier: thinking, ' +
+    'access: write-no-push, review_group: verify-reviewers\\}\\n'));
+  // The entry sets no plan: Verify pushes the matrix and its questions, and no code.
+  assert.doesNotMatch(stack, /verify-a-ticket:[^\n]*plan:/);
+  const manifest = read('qory-module.yaml');
+  assert.ok(manifest.includes('verify-reviewers: [tamper-reviewer, verification-reviewer]'));
+});
+
 // ---- A scripted session of the calls that the skill lists ---------------------------------------
 
 // sessionOf returns work() and a folder for the reports of the reviewers.
