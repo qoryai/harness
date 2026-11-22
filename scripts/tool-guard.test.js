@@ -4785,6 +4785,20 @@ test('a session with a review key writes nothing below a harness home outside th
     firstLine(review.call(bashAs(`echo x > ${file}`)), HOME_KEPT);
     firstLine(review.call(bashAs(`sed -i s/a/b/ ${file}`, 'worker')), HOME_KEPT);
   }
+  // A command whose writes the guard does not read, with the path of the home in it, or run
+  // in the home, is denied; a read, a run of a file of the home and the checks script run.
+  const guard = path.join(review.home, 'hooks', 'tool-guard.cjs');
+  for (const command of [`python3 -c "open('${guard}','w')"`,
+    `node -e "require('fs').writeFileSync('${guard}', 'x')"`,
+    `cd ${review.home} && python3 -c "open('hooks/tool-guard.cjs','w')"`,
+    `tar -xf a.tar -C ${review.home}`, `unzip -o a.zip -d ${review.home}`]) {
+    firstLine(review.call(bashAs(command)), HOME_KEPT);
+    firstLine(review.call(bashAs(command, 'worker')), HOME_KEPT);
+  }
+  for (const command of [`cat ${guard}`, `node ${path.join(review.home, 'tool.cjs')} a b`,
+    `node ${SESSION_CHECKS} notes code-reviewer --files ${path.join(review.home, 'f.txt')}`]) {
+    assert.equal(review.call(bashAs(command)), null, command);
+  }
   // With no review key, no deny of the home applies.
   for (const file of files(plain.home)) {
     assert.equal(plain.call(writeAs(file, 'worker')), null, file);
@@ -4812,6 +4826,33 @@ test('a session with a review key writes nothing below a harness home outside th
   assert.equal(review.call(bashAs(`node ${path.join(review.home, 'checks.cjs')} notes a`)),
     null);
   fs.rmSync(inside, { recursive: true, force: true });
+});
+
+test('a checkout inside a harness home keeps its rules, and the rest of the home is denied',
+  () => {
+  const outer = next('home-outer');
+  const root = path.join(outer, 'work');
+  fs.mkdirSync(path.join(outer, 'hooks'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  childProcess.execFileSync('git', ['init', '-q', root]);
+  const reports = next('session-reports');
+  fs.mkdirSync(reports);
+  const env = { ...RUN, QORY_HARNESS_HOME: outer };
+  const call = (input) => decide({ input, env, locked: () => ({ files: [] }), root,
+    runFolder: next('session-artifacts'), script: SESSION_SCRIPT, runtime: 'claude' });
+  const inputs = (qory) => fs.writeFileSync(path.join(outer, 'inputs.json'),
+    JSON.stringify({ qory }));
+  const file = path.join(root, 'src', 'reply.ts');
+  const edits = [writeAs(file, 'implementer'), bashAs(`echo x > ${file}`, 'implementer', root)];
+  inputs({ run: { id: 'r-1' } });
+  const before = edits.map((input) => call(input));
+  inputs({ review_session: { reports } });
+  // An edit in the checkout has the result that it has with no review key.
+  assert.deepEqual(edits.map((input) => call(input)), before);
+  const guard = path.join(outer, 'hooks', 'tool-guard.cjs');
+  firstLine(call(writeAs(guard, 'implementer')), HOME_KEPT);
+  firstLine(call(bashAs(`echo x > ${guard}`, 'implementer', root)), HOME_KEPT);
+  firstLine(call(bashAs(`python3 -c "open('${guard}','w')"`, 'implementer', root)), HOME_KEPT);
 });
 
 test('outside the report folder, the main session and other agents keep the rules of a run',

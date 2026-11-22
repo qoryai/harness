@@ -37,12 +37,14 @@
 //   follow the rules of any other session outside <reports>;
 // - in a session with qory.review or qory.review_session, a write of the inputs.json of the
 //   harness home, wherever the home lies, and, when the home lies outside the working folder,
-//   every write below the home except qory.review.report and <reports>: the guards and the
-//   agents that qory composed. A home in the working folder gets no such deny, so a change of
-//   the harness's files can edit them. The checks of qory use the bytes that qory wrote, not
-//   the file. The guard reads the writes of a shell command from its text, so a path of the
-//   home, of the file or of <reports> that a shell variable makes passes, as the next lines
-//   state.
+//   every write below the home except qory.review.report, <reports> and a working folder
+//   inside the home: the guards and the agents that qory composed. A command whose writes the
+//   guard does not read, other than the checks script, neither runs in the home nor contains a
+//   word that reaches it, except the file of the home that it runs. A home in the working
+//   folder gets no such deny, so a change of the harness's files can edit them. The checks
+//   of qory use the bytes that qory wrote, not the file. The guard reads the writes of a
+//   shell command from its text, so a path of the home, of the file or of <reports> that a
+//   shell variable makes passes, as the next lines state.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -2025,7 +2027,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   }
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
-      exempt: sessionExempt(call.command, env, script) });
+      exempt: sessionExempt(call.command, env, script),
+      checks: reportsGuard.runsChecks(call.command, env, script) });
     if (reason || !paths.length) return reason;
   }
   const homed = home && paths.find((full) => inside(full, home));
@@ -2249,7 +2252,8 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }) {
 // harness home below the working folder, or a file of the lock, as its text shows, or an
 // opaque command of it reaches one of them. lockOf returns the files of the lock; with
 // nocase, a name matches in any case. It spends a unit of spend for each comparison.
-function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [], exempt }) {
+function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [], exempt,
+  checks }) {
   spend(command.length >> 10);
   const all = segments(command, cwd);
   const parts = all.filter(segmentWrites);
@@ -2286,9 +2290,9 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
     return `${BUILT}The command writes .qory/build/.`;
   }
   if (home && hit(home, true)) return `${HOMED}${home}; the command writes in it.`;
-  const shielded = kept.find((one) => hit(one.full, one.folder));
-  if (shielded) {
-    return `${shielded.head}The command writes ${shielded.folder ? 'in ' : ''}${shielded.full}.`;
+  for (const one of kept) {
+    const target = (one.shell || [one.full]).find((full) => hit(full, one.folder));
+    if (target) return `${one.head}The command writes ${one.folder ? 'in ' : ''}${target}.`;
   }
   const { files = [], what, problem, type } = lockOf();
   if (problem) return unread({ type, problem });
@@ -2305,13 +2309,29 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
       `what ${name} writes, and the call contains ${reached.word}, which reaches ${shown}.`;
   }
   // A command whose writes the guard does not read, other than one of sessionExempt, writes
-  // no word that reaches the report folder of a review session. The harness home is left
-  // out: the checks script and the hooks run from it.
-  for (const one of dark && !exempt ? kept.filter((each) => each.folder && !each.inputs) : []) {
+  // no word that reaches the report folder of a review session.
+  for (const one of dark && !exempt ? kept.filter((each) => each.folder && !each.home) : []) {
     const found = reaches(all, [], one.full, root, how);
     if (found) {
       return `${one.head}The guard cannot tell what ${path.basename(dark.words[0])} writes, ` +
         `and the call contains ${found.word}.`;
+    }
+  }
+  // Nor does such a command, other than the checks script, run in the harness home or contain
+  // a word that reaches it, except the file of the home that it runs, as node <home>/x.cjs.
+  const blind = all.filter((one) => opaque(one) || shellArgs(one) ||
+    (FED.test(one.text) && segmentWrites(one)));
+  for (const one of dark && !checks ? kept.filter((each) => each.home) : []) {
+    for (const segment of blind) {
+      const inside = segment.cwds.find((at) => one.shell.some((full) =>
+        under(fold(realOf(at)), fold(full))));
+      const found = inside ? { word: inside } : one.shell.map((full) => reaches(
+        [withoutScript(segment, one.shell, fold, realOf)], [], full, root, how)).find(Boolean);
+      if (found) {
+        return `${one.head}The guard cannot tell what ` +
+          `${path.basename(plainWords(segment.words)[0] || '')} writes, and the call ` +
+          `contains ${found.word}.`;
+      }
     }
   }
   for (const one of parts) {
@@ -2960,12 +2980,12 @@ function keptFiles(env, session, nocase, root) {
       nocase: nocase || caseless(path.dirname(full)) });
     const top = real(home);
     const fold = (one) => (nocase ? one.toLowerCase() : one);
-    if (!under(fold(top), fold(root)) && !under(fold(root), fold(top))) {
+    if (!under(fold(top), fold(root))) {
       const left = member(qory.review) ? reviewReport(env).report
         : session && session.reports;
-      out.push({ full: top, folder: true, inputs: true, head: HOME_KEPT,
+      out.push({ full: top, folder: true, inputs: true, home: true, head: HOME_KEPT,
         nocase: nocase || caseless(top) || caseless(path.dirname(top)),
-        except: left ? real(left) : null });
+        except: [...(left ? [real(left)] : []), root], shell: homeParts(top, root, fold) });
     }
   }
   if (session && session.reports) {
@@ -2976,13 +2996,57 @@ function keptFiles(env, session, nocase, root) {
   return out;
 }
 
+// homeParts returns the entries that a shell command must not write for the harness home top:
+// top itself, or, when root, the working folder, lies below top, each entry of each folder
+// from top down to root that is not on the way to root, so that root keeps its rules.
+// shortcut: a new name directly in such a folder, such as <home>/x, is not in the list, so a
+// shell write of it passes, while Write and Edit are denied; list names when this matters.
+function homeParts(top, root, fold) {
+  if (!under(fold(root), fold(top))) return [top];
+  const out = [];
+  const steps = path.relative(top, root).split(path.sep);
+  let dir = top;
+  for (const step of steps) {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      names = [];
+    }
+    for (const name of names) if (fold(name) !== fold(step)) out.push(path.join(dir, name));
+    dir = path.join(dir, step);
+  }
+  return out;
+}
+
+// INTERPRETERS run the file of their first word that is no option, as in node <file>.
+const INTERPRETERS = /^(?:node|python3?|ruby|perl|deno|bun|sh|bash|zsh|dash)$/;
+
+// withoutScript returns segment without the file that it runs, when that file lies in a folder
+// of inside, so that node <home>/x.cjs does not reach the home by the file that it runs; else
+// segment.
+function withoutScript(segment, inside, fold, realOf) {
+  const words = plainWords(segment.words);
+  const at = INTERPRETERS.test(path.basename(words[0] || '')) ? 1 : 0;
+  const file = words[at];
+  // A word in quotes or with a comma is text that a command splits, not a file that it runs.
+  if (!file || file.startsWith('-') || segment.words[at] !== file || /[,'"`]/.test(file)) {
+    return segment;
+  }
+  if (!segment.cwds.every((cwd) => inside.some((one) =>
+    under(fold(realOf(joined(cwd, file))), fold(one))))) return segment;
+  const rest = segment.words.filter((_, index) => index !== at);
+  return { ...segment, words: rest, text: rest.join(' ') };
+}
+
 // keptWrite returns { inputs, reason } for the first of paths, real paths that a call writes,
 // that is an entry of kept or lies in a kept folder, or null.
 function keptWrite(kept, paths) {
   for (const one of kept) {
     const fold = (full) => (one.nocase ? full.toLowerCase() : full);
     const hit = paths.find((full) => (one.folder ? under(fold(full), fold(one.full))
-      : fold(full) === fold(one.full)) && !(one.except && under(fold(full), fold(one.except))));
+      : fold(full) === fold(one.full)) &&
+      !(one.except || []).some((left) => under(fold(full), fold(left))));
     if (hit) return { inputs: one.inputs, reason: `${one.head}The call writes ${hit}.` };
   }
   return null;

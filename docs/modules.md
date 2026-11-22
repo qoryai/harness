@@ -1741,12 +1741,15 @@ tool's error. The first line of each reason starts with what to do. The guard de
   with "Leave inputs.json". When the home lies outside the working folder, it denies every
   write below the home too, such as `hooks/tool-guard.cjs`, `codex/agents/<name>.toml` and
   the agent files under `modules/`, with a first line that starts with "Leave the harness
-  home". `qory.review.report` and the report folder of a review session keep their rules
-  there. A home that is the working folder or lies inside it gets no such deny, so
-  `implement-changes` can change the files of the harness when the target is the harness
-  repository. The walled run, whose home is a read-only mount outside the workspace, is the
-  main barrier; the guard is the second. qory's checks use the bytes it wrote to
-  `inputs.json`, not the file.
+  home". `qory.review.report`, the report folder of a review session and a working folder
+  inside the home keep their rules there. A command whose writes the guard cannot read, such
+  as `python3 -c`, `node -e`, `tar -C` or `unzip -d`, is denied when it runs in the home or
+  contains a path that reaches it, unless it is the checks script or runs a file of the home
+  and has no other word that reaches it. A home that is the working folder or lies inside
+  it gets no such deny, so `implement-changes` can change the files of the harness when the
+  target is the harness repository. The walled run, whose home is a read-only mount outside
+  the workspace, is the main barrier; the guard is the second. qory's checks use the bytes it
+  wrote to `inputs.json`, not the file.
 - The guard reads the writes of a shell command from its text, so a path in `<reports>`, of
   `inputs.json` or below the harness home that a shell variable makes, such as `D=/x; echo >
   "$D/r.json"`, passes.
