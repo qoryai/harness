@@ -3091,14 +3091,14 @@ highest id of the review, so that `scope` and `freeze` take its id.
   the stop on the build plan ends the run as "Failures" of `running-a-workflow` lists.
 - **A step that fails.** After a third red attempt, the session runs `step end failed` with
   the 3 attempts, so the deliverable or the finding stays open in the build ledger and in
-  the build report. When no row of the build ledger is `done`, the run has no commit: the
-  session skips "The submission", writes `points.json` with one `run_again` point, the line
-  "The run stopped, because the checks still fail after 3 changes to <the step>.", and
-  records `escalate`, which needs no `pull-request` output. Otherwise it does "The
-  submission", writes no `points.json`, runs no verdict command, starts no later step, and
-  ends with that line. `review-changes` runs next and reports the open step as `blocking`,
-  and the limit of 3 rounds of Qory Apiary passes it to a member. `step end` takes at most 3
-  `--attempt`, so a step has no fourth attempt.
+  the build report. When the session ran no `step end done`, the run has no commit: the
+  session skips "The submission", writes `points.json` with one `run_again` point whose text
+  is the line "The run stopped, because the checks still fail after 3 changes to <the
+  step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it does
+  "The submission", writes no `points.json`, runs no verdict command, starts no later step,
+  and ends with that line. `review-changes` runs next and reports the open step as
+  `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. `step end`
+  takes at most 3 `--attempt`, so a step has no fourth attempt.
 - **The writers.** `software-developer` and `software-debugger` change only the paths that
   the build plan lists for the deliverable, run only `checks.cjs run` and the read forms of
   `run-artifacts`, and commit nothing. Both load `making-small-changes` before they change
@@ -3127,12 +3127,11 @@ highest id of the review, so that `scope` and `freeze` take its id.
   the steps without it." With exit 1 of `check build-report`, it runs `report-build --drop`
   and ends with one `run_again` point; after a third push of `build-report` that fails, it
   runs `report-build --drop` and ends with "The run could not push its build report." A stop
-  on the build plan skips it, and so does a run with no row of `.reports/build-ledger.json`
-  in the state `done`, such as one whose first step of the first round fails: qory fills
-  `commits` from the commits that it pushes, and the type needs at least one. Such a run
-  ends with a point, as "A step that fails" lists. `submission-writer` describes what the
-  round built, also after a step that fails. When the end check fails three times, the
-  session records `escalate`.
+  on the build plan skips it, and so does a session that ran no `step end done`, such as one
+  whose first step fails, also in a later round: qory fills `commits` with the commits of
+  this run, and the type needs at least one. Such a run ends with a point, as "A step that
+  fails" lists. `submission-writer` describes what the round built, also after a step that
+  fails. When the end check fails three times, the session records `escalate`.
 - **The end.** With every step done or replayed, the session follows "The end" of
   `running-a-workflow`: with `judges: false`, it runs no verdict command, and
   `review-changes` runs next. It starts no reviewer, and ends with "The change is ready for

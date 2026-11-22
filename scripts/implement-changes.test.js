@@ -67,11 +67,15 @@ function resolve(node, defs) {
 const SCHEMAS = path.join(SOFTWARE, 'skills/running-a-software-workflow/schemas');
 const PRIMITIVES = JSON.parse(read(SCHEMAS, 'primitives.schema.json'));
 const { $defs: DEFS, ...WITHOUT_DEFS } = JSON.parse(read(SCHEMAS, 'pull-request.schema.json'));
-// submits returns whether the session does "The submission" by its skip on the ledger: only
-// when a row of steps in .reports/build-ledger.json is done.
+// submits returns whether the session does "The submission" by its skip: only when a step of
+// this session ended with step end done. A row that an earlier run ended done, or that this
+// session replayed, made no commit of this run.
 function submits(w) {
   const ledger = JSON.parse(read(w.artifacts, '.reports', 'build-ledger.json'));
-  return ledger.steps.some((one) => one.state === 'done');
+  // The mark of the session lists the rows that it started, each as "<id>\n<pass>".
+  const mine = JSON.parse(read(w.artifacts, '.reports', 'ledger.json')).rows;
+  return ledger.steps.some((one) => one.state === 'done' &&
+    mine.includes(`${one.id}\n${one.pass}`));
 }
 
 // PULL_REQUEST is the schema of the output pull-request, which Build declares as required, as
@@ -137,10 +141,9 @@ test('the session starts the developer twice and the debugger once per step, the
   contains(failed, 'The row of the step stays `failed`, so its deliverable or finding stays ' +
     'open in the build ledger and in the build report.');
   // With no done row, the run has no commit, and the step's line is the point of the end.
-  contains(failed, 'When no row of `steps` in `<folder>/.reports/build-ledger.json` has the ' +
-    '`state` `done`, the run has no commit: skip "The submission", do no later step, and end ' +
-    'as "Points" of `running-a-workflow` lists, with one `run_again` point whose text is the ' +
-    'last line of this section.');
+  contains(failed, 'When this session ran no `step end <id> done`, the run has no commit: skip ' +
+    '"The submission", do no later step, and end as "Points" of `running-a-workflow` lists, ' +
+    'with one `run_again` point whose text is the line after "End with" in this section.');
   contains(failed, 'Otherwise do "The submission". When a case of "The submission" ends the ' +
     'run, end as that case lists. Otherwise write no `points.json`, run no verdict command, ' +
     'and do no later step. `review-changes` runs next and reports the open step as ' +
@@ -221,10 +224,10 @@ test('the session writes the text of the change after the last step, and not on 
   // The skip list, and the two ends that "The submission" writes.
   contains(submission, 'Do this section after the last step: at "The end", and in "A step ' +
     'that fails". A stop on the build plan, a work item with no build plan, a withdrawal that ' +
-    'fails and an end as "Failures" lists skip it. Skip it also when no row of `steps` in ' +
-    '`<folder>/.reports/build-ledger.json` has the `state` `done`, such as after the first ' +
-    'step of the first round fails: qory opens a pull request only from at least one commit, ' +
-    'and the run has none.');
+    'fails and an end as "Failures" lists skip it. Skip it also when this session ran no ' +
+    '`step end <id> done`, such as when the first step of the session fails: qory opens a ' +
+    'pull request only from the commits of this run, and a step that an earlier run built, or ' +
+    'that this session replayed, adds none.');
   contains(submission, 'With 0, go on with step 3.');
   contains(submission, 'with one `run_again` point: "The change is not ready, because the ' +
     'text of the change still breaks the rules for it."');
@@ -711,6 +714,46 @@ function submit(w, call) {
     report: file };
 }
 
+// doneStep builds one step in one attempt of the developer, which writes file with code and each
+// [path, text] of more, and returns the commit of the step.
+function doneStep(w, call, id, file, code, more, targeted, leftOut = 'Left out: none') {
+  const begun = call('step', 'begin', id, 'implement-changes', '--inputs', w.inputs,
+    ...stepFiles(w));
+  assert.equal(begun.status, 0, begun.out);
+  assert.equal(begun.lines.at(-1), `Run ${id} as pass 1: start its agent, then run step end.`);
+  writeFile(w, file, code);
+  for (const [name, text] of more) writeFile(w, name, text);
+  const written = report(w, 'software-developer', writerReport([file, ...more.map((one) =>
+    one[0])], 'The export writes the change of the step.', leftOut));
+  const reported = call('report', 'software-developer', written);
+  assert.equal(reported.status, 0, reported.out);
+  assert.ok(checksOf(w, call, id, targeted), id);
+  const frozen = call('freeze', id, '--inputs', w.inputs);
+  assert.equal(frozen.status, 0, frozen.out);
+  const ended = call('step', 'end', id, 'done', '--report', written, '--attempt', DEVELOPER);
+  assert.equal(ended.status, 0, ended.out);
+  return git(w.repo, w.env, 'rev-parse', 'HEAD');
+}
+
+// failStep ends a step failed after 3 red attempts, two of the developer and one of the
+// debugger, each of which writes the [path, text] files.
+function failStep(w, call, id, files, targeted) {
+  assert.equal(call('step', 'begin', id, 'implement-changes', '--inputs', w.inputs,
+    ...stepFiles(w)).status, 0);
+  let last;
+  for (const name of ['software-developer', 'software-developer', 'software-debugger']) {
+    for (const [file, text] of files) writeFile(w, file, text);
+    const cause = name === 'software-debugger' ? 'Cause: not found: "Fix the code."\n' : '';
+    last = report(w, name, writerReport(files.map((one) => one[0]), 'The export is wrong.',
+      'Left out: none', cause));
+    assert.equal(call('report', name, last).status, 0);
+    assert.equal(checksOf(w, call, id, targeted), false);
+  }
+  const failed = call('step', 'end', id, 'failed', '--report', last, '--attempt', DEVELOPER,
+    '--attempt', DEVELOPER, '--attempt', DEBUGGER);
+  assert.equal(failed.status, 0, failed.out);
+}
+
 // The two steps of the plan: d-1 runs its locked check, d-2 its test file.
 const LOCKED_1 = [['run', 'locked', 'ac-1']];
 const TARGETED_2 = [['run', 'targeted', 'tests/header.test.cjs']];
@@ -733,22 +776,7 @@ test('the session builds two deliverables as two frozen commits with two ledger 
       'from a whole one.\n# End\n\nRole notes read:\n- none'],
   ];
   for (const [id, file, code, more, targeted, leftOut] of steps) {
-    const begun = call('step', 'begin', id, 'implement-changes', '--inputs', w.inputs,
-      ...stepFiles(w));
-    assert.equal(begun.status, 0, begun.out);
-    assert.equal(begun.lines.at(-1), `Run ${id} as pass 1: start its agent, then run step end.`);
-    writeFile(w, file, code);
-    for (const [name, text] of more) writeFile(w, name, text);
-    const written = report(w, 'software-developer', writerReport([file, ...more.map((one) =>
-      one[0])], 'The export writes the change of the step.', leftOut));
-    const reported = call('report', 'software-developer', written);
-    assert.equal(reported.status, 0, reported.out);
-    assert.ok(checksOf(w, call, id, targeted), id);
-    const frozen = call('freeze', id, '--inputs', w.inputs);
-    assert.equal(frozen.status, 0, frozen.out);
-    const ended = call('step', 'end', id, 'done', '--report', written, '--attempt', DEVELOPER);
-    assert.equal(ended.status, 0, ended.out);
-    commits.push(git(w.repo, w.env, 'rev-parse', 'HEAD'));
+    commits.push(doneStep(w, call, id, file, code, more, targeted, leftOut));
   }
   // Two commits, the second on the first, each with the files of its step.
   assert.notEqual(commits[0], commits[1]);
@@ -853,32 +881,87 @@ test('the session ends a step failed after its third red attempt, and starts no 
   const row = newest(w, 'build-ledger', 'build-ledger.json').steps.at(-1);
   assert.equal(row.state, 'failed');
   assert.deepEqual(row.attempts.map((one) => one.role), ['developer', 'developer', 'debugger']);
-  // The first step of the first round failed, so no row of the ledger is done, and the session
-  // skips "The submission": it starts no submission writer and runs no report-build.
-  const local = JSON.parse(read(w.artifacts, '.reports', 'build-ledger.json'));
-  assert.equal(local.steps.some((one) => one.state === 'done'), false);
+  // The first step of the session failed, so the session ran no step end done, and it skips
+  // "The submission": it starts no submission writer and runs no report-build.
   assert.equal(submits(w), false);
   assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
   assert.equal(fs.existsSync(path.join(w.artifacts, '.reports', 'submission-writer-1.md')),
     false);
-  // With no done row, the session ends through points.json, with the last line of "A step that
-  // fails" as its one run_again point, so the end check passes on the first try and records
-  // escalate once, with no pull-request output.
+  // The session ends through points.json, with the line after "End with" of "A step that
+  // fails" as its one run_again point.
+  endsWithPoint(w, call, 'the planned change d-1, "Write one line per order"');
+});
+
+// D2_RED are the files of a red attempt at d-2: the code has no header line, which the test of
+// d-2 checks.
+const D2_RED = [['src/orders.cjs', LINES], ['tests/header.test.cjs', HEADER_TEST]];
+
+// endsWithPoint checks the end of a session whose step failed and that ran no step end done:
+// points.json has one run_again point, the line after "End with" of "A step that fails" for
+// the step, the end check passes on its first try, escalate runs once, and no pull-request
+// output exists.
+function endsWithPoint(w, call, step) {
   const line = /End with "(The run stopped, because [^"]+)"/.exec(oneLine(section(WORKFLOW,
     'A step that fails')))[1];
-  const text = line.replace('<the step>', 'the planned change d-1, "Write one line per order"');
   const points = path.join(w.artifacts, 'points.json');
-  fs.writeFileSync(points, JSON.stringify([{ text, action: 'run_again' }]));
+  fs.writeFileSync(points, JSON.stringify([{ text: line.replace('<the step>', step),
+    action: 'run_again' }]));
   assert.equal(call('check', 'points', points).status, 0);
   const ended = call('end', w.artifacts, '--inputs', withOutput(w));
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.match(ended.out + ended.err, /^Checked points\.json: the run ended with it, and /m);
-  assert.deepEqual(logOf(w).filter((line) => line.startsWith('run verdict')),
+  assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')),
     [`run verdict escalate --points ${points}`]);
   assert.deepEqual(JSON.parse(read(points)), [{ text: 'The run stopped, because the checks ' +
-    'still fail after 3 changes to the planned change d-1, "Write one line per order".',
-  action: 'run_again' }]);
+    `still fail after 3 changes to ${step}.`, action: 'run_again' }]);
   assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
+}
+
+test('after one step done and one step failed, the session does "The submission"', () => {
+  const w = work();
+  const call = session(w);
+  lockFirst(w, call);
+  assert.equal(qory(w, call, 'artifact', 'pull').status, 0);
+  assert.equal(call('resume').status, 0);
+  const commit = doneStep(w, call, 'deliverable:d-1', 'src/orders.cjs', LINES, [], LOCKED_1);
+  failStep(w, call, 'deliverable:d-2', D2_RED, TARGETED_2);
+  // d-1 ended done in this session, so the run has its commit and does "The submission".
+  assert.equal(submits(w), true);
+  const { handoff, report: built } = submit(w, call);
+  const sent = JSON.parse(fs.readFileSync(handoff, 'utf8'));
+  assert.deepEqual(sent.steps, [{ commit, step: 'deliverable:d-1' }]);
+  const text = fs.readFileSync(built, 'utf8');
+  assert.match(text, /\| deliverable:d-1 \| 1 \| deliverable \| done \|/);
+  assert.match(text, /\| deliverable:d-2 \| 1 \| deliverable \| failed \|/);
+  // The session writes no point and runs no verdict command, and the end check passes on the
+  // pull-request.json of report-build.
+  assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
+  const ended = call('end', w.artifacts, '--inputs', withOutput(w));
+  assert.equal(ended.status, 0, ended.out + ended.err);
+  assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
+});
+
+test('a later run whose first new step fails ends with a point, though an earlier run built ' +
+  'a step', () => {
+  const w = work();
+  const first = session(w);
+  lockFirst(w, first);
+  assert.equal(qory(w, first, 'artifact', 'pull').status, 0);
+  assert.equal(first('resume').status, 0);
+  doneStep(w, first, 'deliverable:d-1', 'src/orders.cjs', LINES, [], LOCKED_1);
+  // The next run pulls the ledger with the done row of d-1, which the first run pushed with its
+  // commit, and its first new step, d-2, fails.
+  const call = session(w);
+  assert.equal(qory(w, call, 'artifact', 'pull').status, 0);
+  assert.equal(call('resume').status, 0);
+  failStep(w, call, 'deliverable:d-2', D2_RED, TARGETED_2);
+  const ledger = JSON.parse(read(w.artifacts, '.reports', 'build-ledger.json'));
+  assert.deepEqual(ledger.steps.map((one) => [one.id, one.state]),
+    [['deliverable:d-1', 'done'], ['deliverable:d-2', 'failed']]);
+  // This run ran no step end done, so it has no commit: it skips "The submission".
+  assert.equal(submits(w), false);
+  assert.equal(fs.existsSync(path.join(w.artifacts, '.reports', 'submission.md')), false);
+  endsWithPoint(w, call, 'the planned change d-2, "Start the export with a header line"');
 });
 
 test('the session withdraws the demo script of removed scenario-2 once', () => {
