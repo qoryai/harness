@@ -1,21 +1,11 @@
-// The model of an agent start, which step end writes into each attempt of the build ledger and
-// matrix reads for the agents of Verify. A run has its model only in the files of the composed
-// harness, where qory writes the model of the session and the model of each tier with a map:
-// - Claude Code: the model: line of the agent file, and the model of the session's
-//   settings.json in claude/. The plugin folder is the folder two levels above the checks
-//   script: claude/plugin in a run, which --plugin-dir loads, and claude/ or the .claude of
-//   the checkout in a session that reads the checkout. settings.json is in the plugin folder
-//   or beside it.
-// - Codex: the model of agents/<agent>.toml, and the model of config.toml, in the Codex home:
-//   codex/, or, for a session that reads the skills of the checkout's .agents, the folder of
-//   CODEX_HOME, which qory sets only for a Codex launch.
-// With neither file, the agent runs on the runtime's default, and the model is unknown. A
-// session from .agents with no CODEX_HOME gets unknown, since amp, any, copilot, cursor, goose
-// and opencode read .agents too.
-//
+// The model of an agent start, for step end (the build ledger) and matrix (Verify), read only
+// from the composed harness:
+// - Claude Code: the agent file's model:, else the model of settings.json in or beside the
+//   plugin folder (claude/plugin, claude/ or .claude).
+// - Codex: agents/<agent>.toml, else config.toml, in codex/ or, from .agents, in CODEX_HOME.
+// Otherwise unknown, also from .agents with no CODEX_HOME.
 // shortcut: a session of another runtime that reads .agents and inherits a CODEX_HOME from the
-// shell of the person gets the models of that Codex home; check the runtime once the run has a
-// record of it.
+// shell of the person gets the models of that Codex home; check the runtime once a run records it.
 // shortcut: the model of a session of another runtime that reads .agents is not read, so the
 // ledger records unknown; read that runtime's files when the report needs it.
 'use strict';
@@ -72,14 +62,9 @@ module.exports = (lib) => {
     return fs.existsSync(path.join(plugin, 'config.toml')) ? plugin : null;
   }
 
-  // tomlModel returns the top-level model of the TOML file, the line model = "<id>" before the
-  // first table; null when the file does not exist or has no model; and unknown for a file that
-  // small does not read, or a top-level model that is not a string of one line in that form.
-  // A line in a multi-line string, from a value that starts with three quotes to the next
-  // three, is no key.
-  // shortcut: an escaped \""" in a multi-line string ends it, a multi-line string in an array
-  // is not skipped, and a line of a nested array that starts with [ ends the top level;
-  // qory's EncodeTOML writes none of them; read with a TOML parser when a file has them.
+  // tomlModel: the model = "<id>" line before the first table; null with no file or no model;
+  // unknown otherwise. shortcut: \""" in a multi-line string, multi-line strings in arrays and
+  // nested-array lines are read wrong; qory writes none; use a TOML parser if it does.
   function tomlModel(file) {
     const text = small(file);
     if (text === null) return null;
