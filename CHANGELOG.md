@@ -8,6 +8,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
+  `demo-script` compare the title, the evidence, the step count and the title and expected
+  result of each step with the approved scenario by exact string, and `demo check` refuses a
+  setup `open` whose address is outside the `App address:` of the build plan, with the fix
+  first. The new verb `demo run <scenario>` runs a script once with video off and prints its
+  sha256. `scripting-demos` freezes a script at its first pass in the build ledger, starts
+  `check-reviewer` on each change to a frozen script, and `demo check` refuses a third
+  correction. The call of `preflight` moved from the run of the locked checks to before the
+  first run of a script, and it reads the drafts in `.demo/`.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a

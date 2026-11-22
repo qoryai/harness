@@ -2,7 +2,7 @@
 // writes two checks, runs them on the start commit, commits and locks them and ends passed, the
 // question of a locked check that does not fail in two runs, the lock refusal for a criterion
 // planned as Tests with no check, the rules of check-reviewer as far as a fixture shows them,
-// the scope of the step checks, and the preflight before the first run of the locked checks.
+// the scope of the step checks, and the run of the locked checks, which starts no app check.
 // scripts/check.sh runs them. A session is a script of the calls that the skill lists, on a
 // checkout with a qory stub: a push runs the push check of its type and stores the version in
 // a store folder, a pull copies the store into the artifact folder, and a verdict is a line in
@@ -175,21 +175,14 @@ test('the stack declares write-acceptance-checks with tier balanced, access writ
     "which orchestrates one ticket's acceptance checks");
 });
 
-test('the skill runs the preflight before run locked, only with an app and a demo script', () => {
-  const text = oneLine(section(WORKFLOW, 'The run on the start commit'));
-  const preflight = text.indexOf('checks.cjs preflight --inputs <inputs>');
-  const locked = text.indexOf('checks.cjs run locked --inputs <inputs>');
-  assert.ok(preflight > 0 && locked > preflight, 'the preflight comes before run locked');
-  assert.match(text, /found that the app starts and that a demo script exists, run/);
-  says(section(WORKFLOW, 'The order of the run'), '`## Commands` has a `serve` row with a ' +
-    'command, and `## Summary` has a line that starts with `App address:`');
-  says(section(WORKFLOW, 'The order of the run'), 'whether a demo script exists: `index.json` ' +
-    'lists an artifact of type `demo-script` with a name such as `scenario-1`');
-  // With no demo script, the preflight exits 3: the skill runs none and runs the checks.
-  says(text, 'found that the app starts and no demo script exists, run no `preflight`: it ' +
-    'would exit 3 for the missing demo script. Go on to the next item with no app check.');
-  // A point of the preflight ends the session with that point.
-  assert.match(text, /run `check points` on `points\.json`, and end the run with those points/);
+test('the skill runs no preflight: scripting-demos runs it before the first demo run', () => {
+  const text = oneLine(WORKFLOW);
+  assert.ok(!text.includes('preflight'));
+  assert.ok(!text.includes('App address:'));
+  const runs = oneLine(section(WORKFLOW, 'The run on the start commit'));
+  assert.ok(runs.indexOf('checks.cjs run locked --inputs <inputs>') > 0);
+  const demos = oneLine(read(ROOT, 'modules/browser-screens/skills/scripting-demos/SKILL.md'));
+  assert.ok(demos.indexOf('checks.cjs preflight --inputs <inputs>') > 0);
 });
 
 // ---- A checkout, a store and a session -----------------------------------------------------
@@ -1084,7 +1077,7 @@ const SCRIPT_1 = { scenario: 'scenario-1', title: 'The export', evidence: 'film'
   steps: [{ step: 1, title: 'Open the export.', expected: 'The export shows.',
     actions: [{ do: 'click', target: 'text=Export' }] }] };
 
-test('preflight before run locked: an app that does not start ends the session', async () => {
+test('preflight: an app that does not start ends the session, and a draft counts', async () => {
   const port = await freePort();
   const command = 'node app/missing.cjs';
   const plan = PLAN.replace('The order list gets an export, in three changes.\n',
@@ -1113,22 +1106,18 @@ test('preflight before run locked: an app that does not start ends the session',
   assert.equal(point.fix, `Make ${command} start the app in the dev container, then run ` +
     'another round.');
   assert.equal(call('check', 'points', points).status, 0);
-  // With no demo script, the preflight of a plan that starts the app exits 3: the skill runs
-  // no preflight then, and says that it runs the checks with no app check.
+  // With no demo script, the preflight of a plan that starts the app exits 3.
   const bare = work({ plan });
   const none = session(bare, { preflight: { browsers: [process.execPath], startMs: 5000 } });
   const missing = none('preflight', '--inputs', bare.inputs);
   assert.equal(missing.status, 3, missing.out + missing.err);
   assert.match(missing.out + missing.err, /Cause: no demo script exists for the app\./);
-  // A demo script that preflight does not count, such as a withdrawn one, also exits 3 with
-  // that cause: the skill then goes on with no app check, and ends only for another cause.
-  says(section(WORKFLOW, 'The run on the start commit'), 'With 3, take the cause from the ' +
-    'line that starts with `Cause:`. When it is "no demo script exists for the app", go on ' +
-    'with no app check, as below. Otherwise end as "Points" lists');
-  says(section(WORKFLOW, 'The run on the start commit'), 'run no `preflight`: it would exit 3 ' +
-    'for the missing demo script');
-  says(WORKFLOW, '"The run stopped at the app check, because <cause>."');
-  // The docs say the same.
-  says(read(ROOT, 'docs/modules.md'), 'the session runs no preflight and runs the checks with ' +
-    'no app check');
+  // The draft .demo/scenario-1.json of the artifact folder counts as a demo script too.
+  const draft = work({ plan });
+  fs.mkdirSync(path.join(draft.artifacts, '.demo'));
+  fs.writeFileSync(path.join(draft.artifacts, '.demo', 'scenario-1.json'),
+    JSON.stringify(SCRIPT_1));
+  const drafted = session(draft, { preflight: { browsers: [process.execPath], startMs: 5000 } });
+  assert.equal(drafted('preflight', '--inputs', draft.inputs).lines[0],
+    'End the session with points.json: the app did not start in the dev container.');
 });

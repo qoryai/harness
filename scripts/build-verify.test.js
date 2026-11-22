@@ -276,6 +276,10 @@ function recriteria(root, number, change) {
   fs.writeFileSync(file, JSON.stringify(doc));
 }
 
+// filmed returns the text of the demo scenarios with the Evidence line of scenario-1 set to
+// film, as the script of the fixtures has it: the push check refuses another evidence.
+const filmed = (text) => text.replace('Evidence: pictures', 'Evidence: film');
+
 // fixture copies the testdata to a new artifact folder, with version 1 of the acceptance
 // criteria and the demo scenarios, and an index.json in which a person approved criteria
 // version 1.
@@ -284,7 +288,7 @@ function fixture() {
   fs.cpSync(TESTDATA, root, { recursive: true });
   for (const [type, file] of [['acceptance-criteria', 'acceptance-criteria.json'],
     ['demo-scenarios', 'demo-scenarios.md']]) {
-    version(root, type, 'main', 1, file, fs.readFileSync(path.join(root, file), 'utf8'));
+    version(root, type, 'main', 1, file, filmed(fs.readFileSync(path.join(root, file), 'utf8')));
   }
   const index = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
   index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version = 'av_ac1';

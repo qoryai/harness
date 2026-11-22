@@ -1,5 +1,5 @@
 // The part of the preflight that waits, which lib/preflight.cjs starts with node and waits for.
-// It reads { serve, browser, setups, typed, startMs, actionMs, signedInMs, limitMs,
+// It reads { serve, browser, setups, runs, typed, startMs, actionMs, signedInMs, limitMs,
 // browserMs, proc } as JSON on stdin:
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
@@ -13,18 +13,20 @@
 //   which the serve command does not get.
 // - browser is null, or the path of the browser. When the app started, it replays each setup
 //   of setups, { actions, names }, with signIn of lib/replay.cjs, in a new browser context,
-//   with only the variables of names from its environment. browserMs, which only a test
-//   sets, is the time for the browser to start, 15 s by default.
+//   with only the variables of names from its environment. With runs, { setup, steps, names }
+//   per script, it replays each setup as a sign-in, then each step, in place of setups.
+//   browserMs, which only a test sets, is the time for the browser to start, 15 s by default.
 // Then it stops the browser, the process group of the command and each process with its
 // mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
 // lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
 // SIGHUP, on an error that nothing catches, and within PARENT_MS of the end of its parent. A
 // watcher in the process group of the command kills the process group of the browser and
 // that group when the runner ends, also on SIGKILL; a process that left the groups then keeps
-// running. After limitMs from its start, 570 s without limitMs, it stops the sign-ins and sets unfinished. It prints { app, signIns, unfinished }
-// as JSON on stdout, the one line that it prints: app is { started, ran, why }, signIns has
-// { ok, why, outside, browser } per setup, and unfinished is null or the reason in one
-// clause.
+// running. After limitMs from its start, 570 s without limitMs, it stops the sign-ins and
+// sets unfinished. It prints { app, signIns, runs, unfinished } as JSON on stdout, the one
+// line that it prints: app is { started, ran, why }, signIns has { ok, why, outside, browser }
+// per setup, runs is set instead of signIns when spec.runs is, with { ok, step, why, outside }
+// per script, and unfinished is null or the reason in one clause.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -34,7 +36,7 @@ const http = require('node:http');
 const https = require('node:https');
 
 const { Browser } = require('./browser.cjs');
-const { signIn } = require('./replay.cjs');
+const { replay, signIn } = require('./replay.cjs');
 const { runKey } = require('./secrets.cjs');
 const { MARK, marker } = require('./supervise.cjs');
 
@@ -219,8 +221,11 @@ async function stop() {
   if (marks) marks.signal(left(), 'SIGKILL');
 }
 
-// signIns replays the setups of spec, and resolves to their results.
-async function signIns(spec) {
+// inBrowser starts the browser of spec, opens a new page with the origin of the app for each
+// item of items, and resolves to the result of act(page, item, env) for each, where env has
+// the variables of item.names that the runner has. A failure of the browser gives each item
+// that has no result the result { ok: false, why, browser: true }.
+async function inBrowser(spec, items, act) {
   const origin = new URL(spec.serve.url).origin;
   const browser = new Browser(spec.browser, { origin });
   running.browser = browser;
@@ -231,21 +236,20 @@ async function signIns(spec) {
     const started = browser.start(spec.browserMs);
     watchBrowser(browser.pid);
     await started;
-    for (const setup of spec.setups) {
-      const env = Object.fromEntries(setup.names
+    for (const item of items) {
+      const env = Object.fromEntries(item.names
         .filter((name) => process.env[name] !== undefined)
         .map((name) => [name, process.env[name]]));
       const page = await browser.page({ origin });
       try {
-        results.push(await signIn(page, setup.actions, { base: spec.serve.url, env,
-          actionMs: spec.actionMs, signedInMs: spec.signedInMs }));
+        results.push(await act(page, item, env));
       } finally {
         await page.close();
       }
     }
   } catch (error) {
     const why = `the browser failed: ${String((error && error.message) || error).split('\n')[0]}`;
-    while (results.length < spec.setups.length) results.push({ ok: false, why, browser: true });
+    while (results.length < items.length) results.push({ ok: false, why, browser: true });
   } finally {
     await browser.stop();
     watchBrowser(0);
@@ -253,26 +257,51 @@ async function signIns(spec) {
   return results;
 }
 
+// signIns replays the setups of spec, and resolves to their results.
+const signIns = (spec) => inBrowser(spec, spec.setups, (page, setup, env) =>
+  signIn(page, setup.actions, { base: spec.serve.url, env, actionMs: spec.actionMs,
+    signedInMs: spec.signedInMs }));
+
+// runs replays each script of spec.runs, { setup, steps, names }: its setup as a sign-in, then
+// the actions of each step in order, and resolves to { ok, step, why, outside } for each. step
+// is the number of the step that failed, 0 for the setup, or null.
+const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
+  const options = { base: spec.serve.url, env, actionMs: spec.actionMs };
+  const first = await signIn(page, one.setup, { ...options, signedInMs: spec.signedInMs });
+  if (!first.ok) return { ...first, step: 0 };
+  const origin = new URL(spec.serve.url).origin;
+  for (const [place, step] of one.steps.entries()) {
+    const done = await replay(page, step, { ...options, origin });
+    if (done.failure) {
+      return { ok: false, step: place + 1, why: done.failure.words, outside: done.failure.outside };
+    }
+  }
+  return { ok: true, step: null, why: null, outside: null };
+});
+
 async function main() {
   const started = Date.now();
   const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
   const limitMs = spec.limitMs || LIMIT_MS;
-  const result = { app: null, signIns: [], unfinished: null };
+  const result = { app: null, signIns: [], runs: [], unfinished: null };
   try {
     const proc = spec.proc === undefined ? (process.platform === 'linux' ? '/proc' : null)
       : spec.proc;
-    result.app = await start(spec.serve, spec.startMs, proc,
-      [...(spec.typed || []), ...(spec.setups || []).flatMap((setup) => setup.names)]);
-    if (result.app.started && spec.browser && spec.setups.length) {
+    const typed = [...(spec.typed || []), ...(spec.setups || []).flatMap((setup) => setup.names)];
+    result.app = await start(spec.serve, spec.startMs, proc, typed);
+    const [key, work] = (spec.runs || []).length ? ['runs', runs]
+      : (spec.setups || []).length ? ['signIns', signIns] : [null, null];
+    if (result.app.started && spec.browser && work) {
       let timer;
       const late = new Promise((resolve) => {
         timer = setTimeout(() => resolve(null), Math.max(started + limitMs - Date.now(), 0));
       });
-      const done = await Promise.race([signIns(spec), late]);
+      const done = await Promise.race([work(spec), late]);
       clearTimeout(timer);
-      if (done) result.signIns = done;
+      if (done) result[key] = done;
       else {
-        result.unfinished = `the sign-ins ran past the limit of ${limitMs / 1000} s`;
+        result.unfinished = `the ${key === 'runs' ? 'script runs' : 'sign-ins'} ran past the ` +
+          `limit of ${limitMs / 1000} s`;
         await running.browser.stop();
         watchBrowser(0);
       }

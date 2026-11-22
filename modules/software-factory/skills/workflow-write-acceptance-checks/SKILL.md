@@ -21,8 +21,8 @@ not load the rules it needs, so it pushed no acceptance lock."
 
 Each command of this skill that starts with `<skill folder>/checks.cjs` is the checks script
 of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
-ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` the timeout
-3600000 ms, and run no other command in the same call.
+ends in `/in/inputs.json`. Give each Bash call of `run locked` the timeout 3600000 ms, and
+run no other command in the same call.
 
 ## The order of the run
 
@@ -52,11 +52,7 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
      `src/a.ts`; a Check path with no folder adds none. A code folder that contains its
      check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
      `check-reviewer` reports a write there to code under test. Its other Files are not in
-     it, and `check-reviewer` reports a write to code under test;
-   - whether the app starts: `## Commands` has a `serve` row with a command, and
-     `## Summary` has a line that starts with `App address:`;
-   - whether a demo script exists: `index.json` lists an artifact of type `demo-script` with
-     a name such as `scenario-1`.
+     it, and `check-reviewer` reports a write to code under test.
 
    Then decide, in this order, and go no further in this list when a case ends the run:
    - When `index.json` lists no version of `build-plan`, start no agent, push nothing, and
@@ -128,22 +124,7 @@ ends in `/in/inputs.json`. Give each Bash call of `run locked` and `preflight` t
 Each locked check must fail on the start commit: the code of the run's start, with only the
 checks added. This section runs only after a `lock` of this run stored the lock.
 
-1. When step 2 of "The order of the run" found that the app starts and that a demo script
-   exists, run `<skill folder>/checks.cjs preflight --inputs <inputs>` once, before the
-   first `run locked`, because a check may open the app:
-   - With 0, go on.
-   - With 1, `preflight` wrote `points.json` with a `run_again` point and its fix for each
-     missing part. Change no code and start no agent: run `check points` on `points.json`,
-     and end the run with those points, as "Points" of `running-a-workflow` lists.
-   - With 3, take the cause from the line that starts with `Cause:`. When it is "no demo
-     script exists for the app", go on with no app check, as below. Otherwise end as
-     "Points" lists, with "The run stopped at the app check, because <cause>."
-
-   When step 2 of "The order of the run" found that the app starts and no demo script
-   exists, run no `preflight`: it would exit 3 for the missing demo script. Go on to the
-   next item with no app check. A check that needs the app then runs against no app in `run
-   locked`, as any other check runs.
-2. Run `<skill folder>/checks.cjs run locked --inputs <inputs>`. It runs every locked
+1. Run `<skill folder>/checks.cjs run locked --inputs <inputs>`. It runs every locked
    check once and prints one finding for each check that is red. A check fails right only
    when its finding starts with "Fix the code until the locked check of <criterion>
    passes.": the check ran, and a test of it failed. Every other result is wrong: a check
@@ -152,7 +133,7 @@ checks added. This section runs only after a `lock` of this run stored the lock.
    file that differs from the lock: end as "Failures" lists, as for an exit with 3. End the
    same way after a line "Run locked again: <N> checks did not run, because a locked file
    changed during the call."
-3. With no wrong check, go to "The end". Otherwise run
+2. With no wrong check, go to "The end". Otherwise run
    `<skill folder>/checks.cjs run locked <criterion>... --inputs <inputs>` once more, with
    the criterion of each wrong check. A check that is wrong in this second run too was
    judged wrong 2 times: do "A locked check that does not fail" for each such check. When

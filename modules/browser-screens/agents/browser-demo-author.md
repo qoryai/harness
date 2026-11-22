@@ -80,8 +80,10 @@ actions file. Read the build plan for the line `App address:` and the commands, 
 in the working folder for the targets, and the demo scripts of the work item that the
 artifact folder contains for the names of the variables. When you start again, you also get
 each line that the checks script printed for your file and your last report: fix those lines
-only. Read what the pull wrote, never the memory of an earlier session. A refused tool call
-stays refused. Read through no link, and fetch no web page.
+only. For a correction of a script that passed, you also get the path of that script: keep
+its actions, and change only the actions that those lines name. Read what the pull wrote,
+never the memory of an earlier session. A refused tool call stays refused. Read through no
+link, and fetch no web page.
 
 Write the file once, as your last step before the report.
 

@@ -18,9 +18,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { NEW_WINDOW, findBrowser } = require('./browser.cjs');
+const git = require('./git.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
 const { runKey } = require('./secrets.cjs');
+const startOf = require('./start.cjs');
 
 const RUNNER = path.join(__dirname, 'preflight-run.cjs');
 
@@ -170,6 +172,34 @@ module.exports = (lib) => {
     }
     const other = TEXTS[kind](FALLBACK[kind]);
     return { text: other.text, action: 'run_again', fix: other.fix };
+  }
+
+  // serveOf returns { command, url, cwd } of the serve row and the line "App address:" of the
+  // build plan that the preflight reads, or null when the plan has no serve row with a command.
+  // The plan comes from the folder of given.artifacts, or of qory.start_artifacts in the
+  // inputs.json of given.inputs, else from the artifact folder of the session. A serve row with
+  // a host that the browser cannot take, or with no address, throws Missing with the cause.
+  function serveOf(io, given) {
+    const starts = startOf(lib);
+    const start = starts.readStart(io.cwd, given.inputs, io.env);
+    const pinned = starts.planIo(io, given.artifacts, start);
+    const plan = withCause('the build plan is missing', () => lib.readPlan(pinned));
+    const row = plan.commands.serve;
+    if (!row || !row.command) return null;
+    if (plan.badHost !== null && plan.badHost !== undefined) {
+      throw new Missing('Set the App address host to letters, digits, . and -, then push the ' +
+        'build plan.', [`The App address of version ${plan.version} is ` +
+        `${short(plan.badHost, 80)}, whose host is not letters, digits, . and -, starting ` +
+        'and ending with a letter or digit, with no .., or an IPv6 address in brackets.',
+      'Cause: the App address of the build plan has a host other than letters, digits, . and ' +
+        '-.']);
+    }
+    if (!plan.address) {
+      throw new Missing('Add the line "App address: <url>" to ## Summary of the build plan, ' +
+        'then push it.', [`Version ${plan.version} has a serve command, and no http or ` +
+        'https address of the app.', 'Cause: the build plan has no App address.']);
+    }
+    return { command: row.command, url: plan.address, cwd: git.top(Missing, io.cwd, io.env) };
   }
 
   // demoScripts returns the demo script of each scenario of the artifact folder root, in the
@@ -368,5 +398,34 @@ module.exports = (lib) => {
       'points.json has a point run_again for each.' };
   }
 
-  return { preflight, demoScripts, pointOf, joined, signInMs, withCause, MAX_MS, STOP_MS };
+  // runScript runs script, a demo script, once in the browser with video off: the runner starts
+  // the app of serve, { command, url, cwd }, replays the setup as a sign-in, then each step. It
+  // returns { browser: null } when the machine has no browser, else { app, run, log }: run is
+  // { ok, step, why, outside } as lib/preflight-run.cjs has it, with no typed value in it, or
+  // null when the runner returned none. The time is that of preflight for the same actions.
+  function runScript(io, root, { serve, script }) {
+    const options = io.preflight || {};
+    const browser = findBrowser(io.env, options.browsers);
+    if (!browser) return { browser: null };
+    const log = path.join(root, '.reports', 'preflight', 'serve.log');
+    fs.mkdirSync(path.dirname(log), { recursive: true });
+    const startMs = options.startMs || START_MS;
+    const actionMs = options.actionMs || ACTION_MS;
+    const signedInMs = options.signedInMs || SIGNED_IN_MS;
+    const steps = script.steps.map((step) => step.actions);
+    const actions = [...script.setup, ...steps.flat()];
+    const names = typedNames([script]);
+    const limitMs = Math.min(startMs + MORE_MS + signInMs(actions, actionMs, signedInMs),
+      options.maxMs || MAX_MS);
+    const result = waited(io, {
+      serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
+      browser, setups: [], runs: [{ setup: script.setup, steps, names }], typed: names,
+      startMs, actionMs, signedInMs, limitMs, browserMs: options.browserMs, proc: options.proc,
+    });
+    const [run] = hidden(result.runs || [], typedValues([{ names, actions }], io.env));
+    return { browser, app: result.app, run: run || null, log };
+  }
+
+  return { preflight, runScript, serveOf, demoScripts, pointOf, joined, signInMs, withCause, MAX_MS,
+    STOP_MS };
 };

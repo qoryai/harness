@@ -6,6 +6,7 @@
 
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const dgram = require('node:dgram');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -532,6 +533,50 @@ const outsidePoint = (address, origin) => ({
   action: 'run_again',
   fix: `Make the app's sign-in work in the dev container without leaving ${address}, then run ` +
     'another round.',
+});
+
+// runScript runs a demo script whose setup is SIGN_IN and whose first step has actions, with the
+// value of DEMO_PASSWORD, on the app, as demo run does.
+async function runSteps(actions, value) {
+  const here = checkout();
+  const port = await freePort();
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    DEMO_PASSWORD: value };
+  const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env,
+    preflight: { browsers: [BROWSER], startMs: 10000, actionMs: 3000, signedInMs: 3000,
+      browserMs: BROWSER_MS } };
+  const one = script('scenario-1', SIGN_IN);
+  one.steps = actions.map((list, place) => ({ step: place + 1, title: 'Step.', expected: 'Seen.',
+    actions: list }));
+  return preflight.runScript(io, here.root, { serve: { command: 'node app/server.cjs',
+    url: `http://127.0.0.1:${port}/`, cwd: here.dir }, script: one });
+}
+
+test('runScript: a script whose setup and steps pass runs once and passes',
+  { skip: NO_BROWSER }, async () => {
+  const got = await runSteps([[{ do: 'wait', text: 'Order 1042' }]], 'parcel-blue-41');
+  assert.deepEqual(got.run, { ok: true, step: null, why: null, outside: null });
+});
+
+test('runScript: a step that fails ends the run with its number, and a failed sign-in is step 0',
+  { skip: NO_BROWSER }, async () => {
+  const late = await runSteps([[{ do: 'wait', text: 'Order 1042' }],
+    [{ do: 'click', target: '#nothing' }]], 'parcel-blue-41');
+  assert.equal(late.run.ok, false);
+  assert.equal(late.run.step, 2);
+  assert.match(late.run.why, /^action 1 \(click #nothing\) failed: /);
+  const wrong = await runSteps([[{ do: 'wait', text: 'Order 1042' }]], 'wrong-value-7');
+  assert.equal(wrong.run.ok, false);
+  assert.equal(wrong.run.step, 0);
+});
+
+test('runScript: with no browser on the machine, it runs nothing', () => {
+  const here = checkout();
+  const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env: process.env,
+    preflight: { browsers: [path.join(tmp, 'no-browser')] } };
+  const got = preflight.runScript(io, here.root, { serve: { command: 'true',
+    url: 'http://127.0.0.1:9/', cwd: here.dir }, script: script('scenario-1', SIGN_IN) });
+  assert.deepEqual(got, { browser: null });
 });
 
 test('preflight: a sign-in that opens another site writes the point of the page outside the app', { skip: NO_BROWSER }, async () => {
@@ -1280,6 +1325,63 @@ test('preflight verb: with the app stopped, the session ends escalate, and the p
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(fs.readFileSync(args, 'utf8').split('\n')
     .filter((line) => line.startsWith('run verdict')), [`run verdict escalate --points ${file}`]);
+});
+
+test('demo run: a script that passes prints its sha256, and a step that fails gets its fix',
+  { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const port = await freePort();
+  const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    DEMO_PASSWORD: 'parcel-blue-41' };
+  const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
+    startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
+  const draft = (actions) => {
+    const one = script('scenario-1', SIGN_IN);
+    one.steps[0].actions = actions;
+    fs.mkdirSync(path.join(here.root, '.demo'), { recursive: true });
+    fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
+    return fs.readFileSync(path.join(here.root, '.demo', 'scenario-1.json'), 'utf8');
+  };
+  const text = draft([{ do: 'wait', text: 'Order 1042' }]);
+  const done = call(['demo', 'run', 'scenario-1', '--artifacts', pinned], deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.equal(done.out.trim(), 'Ran scenario-1 with video off: 1 step passed. The sha256 of ' +
+    `.demo/scenario-1.json is ${crypto.createHash('sha256').update(text).digest('hex')}.`);
+  draft([{ do: 'click', target: '#nothing' }]);
+  const failed = call(['demo', 'run', 'scenario-1', '--artifacts', pinned], deps);
+  assert.equal(failed.status, 1, failed.out + failed.err);
+  const lines = failed.out.trim().split('\n');
+  assert.equal(lines[0], 'Fix step 1 in .demo/scenario-1.actions.json, then run demo write ' +
+    'scenario-1.');
+  assert.match(lines[1], /^ {2}action 1 \(click #nothing\) failed: /);
+  assert.equal(lines.at(-1), 'Ran scenario-1 with video off: it failed in step 1.');
+  // A sign-in that fails is the setup.
+  const one = script('scenario-1', [{ do: 'open', url: '/missing-page' },
+    { do: 'click', target: '#nothing' }]);
+  fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
+  const setup = call(['demo', 'run', 'scenario-1', '--artifacts', pinned], deps);
+  assert.equal(setup.status, 1, setup.out + setup.err);
+  assert.equal(setup.out.trim().split('\n')[0],
+    'Fix the setup in .demo/scenario-1.actions.json, then run demo write scenario-1.');
+});
+
+test('preflight verb: a draft script that breaks its schema exits 3 with the cause', async () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const port = await freePort();
+  const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
+  demoScript(here.root);
+  fs.mkdirSync(path.join(here.root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), '{"scenario":"scenario-1"}');
+  const done = call(['preflight', '--artifacts', pinned], { cwd: here.dir, artifacts: [here.root],
+    preflight: { browsers: [process.execPath], startMs: 1000 } });
+  assert.equal(done.status, 3, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.match(lines[0], /^Run demo write scenario-1 again\./);
+  assert.ok(lines.some((line) => line.trim() === 'Cause: a demo script breaks its format rules.'),
+    done.out);
 });
 
 test('preflight verb: each input that is missing or broken, and a runner with no result, exit 3 with their causes, and bad arguments exit 2', () => {
