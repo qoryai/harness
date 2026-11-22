@@ -7,7 +7,8 @@
 
 // The limit of a tool call, and the reserve below it. The ffmpeg floor of 5 s is not used
 // after a run within its limit. Of the 15 s, the delete of 28,000 frames takes 1.7 s and the
-// start of Node 0.1 s (measured here), so about 13 s are left.
+// start of Node 0.1 s (measured on this development machine, with 28,000 jpeg files of 50 KB),
+// so about 13 s are left.
 const TOOL_CALL_MS = 600000;
 const MARGIN_MS = 15000;
 // shortcut: a runtime whose tool calls cannot last 600 s cannot run a film call; give it a
@@ -17,7 +18,7 @@ const CALL_MS = TOOL_CALL_MS - MARGIN_MS;
 const STOP_MS = 15000;
 // The time of pass 1, the encode of verbs/film.cjs, in a call, measured: 35 s for about
 // 28,000 frames.
-// shortcut: replace it with the measure on the image of qory when Tessio has made it.
+// shortcut: replace it with the run-image measurement when it exists.
 const ENCODE_MS = 35000;
 // The most time of the runner of a film.
 const RUN_BUDGET_MS = CALL_MS - STOP_MS - ENCODE_MS;

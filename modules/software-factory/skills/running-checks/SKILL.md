@@ -209,12 +209,13 @@ that starts with `Cause:` contains the cause, in the words of the line that ends
 ## Film
 
 `<skill folder>/checks.cjs film <id> --inputs <inputs>` stores the evidence of one scenario in
-`<folder>/.film/<id>/`. With the evidence film, it stores `<id>.mp4` and `<id>.vtt`; with the evidence pictures, it stores
-`<id>-step-<N>.png`, one for each step. Push the files of the scenario once, with the type
-that its evidence names:
+`<folder>/.film/<id>/`. With the evidence film, it stores `<id>.mp4` and `<id>.vtt`; with
+the evidence pictures, it stores `<id>-step-<N>.png`, one for each step. Push the files of
+the scenario once, with the type that its evidence names:
 
 ```
-<qory> artifact push demo-video --name <id> <folder>/.film/<id>/<id>.mp4 <folder>/.film/<id>/<id>.vtt
+<qory> artifact push demo-video --name <id> \
+  <folder>/.film/<id>/<id>.mp4 <folder>/.film/<id>/<id>.vtt
 <qory> artifact push screenshot --name <id> <folder>/.film/<id>/<id>-step-*.png
 ```
 
@@ -287,13 +288,16 @@ runs past what the first run left of the limit, the probe proves nothing and exi
 Probe a test file that runs faster, or, for a limit under 60, raise
 `command_limits_minutes.targeted_checks`.
 
+Run each call of `preflight`, `demo run` and `film` with a tool timeout of at least 600 s.
+The runner of each stops after at most 570 s, and the call ends within 585 s, 15 s after it
+stops the runner.
+
 ### The Bash timeout on Claude Code
 
 On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory` set
 its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run` and
-`probe` the timeout 3600000 ms. `preflight` stops its sign-ins after at most 570 seconds and
-ends within 585 seconds. Run the film call with a tool timeout of at least 600 s. In `run`
-and `probe`, the script stops every command of a call 60 seconds before
+`probe` the timeout 3600000 ms, and each Bash call of `preflight`, `demo run` and `film` the
+timeout 600000 ms. In `run` and `probe`, the script stops every command of a call 60 seconds before
 those 60 minutes, counted from the start of the script, so the call still writes its record
 and its red line. The commands of one call share that time: the reruns of `run targeted`,
 the two runs of `probe` and the checks of `run locked`. A locked check that the call has no

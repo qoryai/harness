@@ -238,8 +238,11 @@ async function inBrowser(spec, items, act) {
   try {
     // launch sets the pid of the browser before start resolves, so the watcher has it
     // while the browser starts.
-    const started = browser.start(Math.max(Math.min(spec.browserMs || BROWSER_START_MS,
-      allowance.until - Date.now()), 1));
+    if (allowance.until - Date.now() < 1000) {
+      throw new Error('the time for the start ran out before the browser started');
+    }
+    const started = browser.start(Math.min(spec.browserMs || BROWSER_START_MS,
+      allowance.until - Date.now()));
     watchBrowser(browser.pid);
     await started;
     for (const item of items) {

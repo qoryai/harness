@@ -15,8 +15,9 @@ of the build.
 `workflow-implement-changes` loads this skill when `demo check` lists a scenario with no
 demo script, or prints a fault of a script. Its words `<qory>`, `<folder>`, `<inputs>` and
 `<skill folder>/checks.cjs` mean here what they mean there. `<skill folder>/checks.cjs` is
-the checks script of `running-a-workflow`. Give each Bash call of `preflight` and `demo run`
-the timeout 3600000 ms, and run no other command in the same call.
+the checks script of `running-a-workflow`. Run each call of `preflight` and `demo run` with a
+tool timeout of at least 600 s, as "Time limits" of `running-checks` states, and run no other
+command in the same call.
 
 The last line of `demo check` that starts with "Write the demo script of" lists the
 scenarios with no script, in the order to script them, and shows the version `<S>` of the

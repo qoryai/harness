@@ -77,6 +77,8 @@ module.exports = (lib) => {
   // script, take at most: the timeout_ms of each, or ACTION_MS when it sets none.
   // shortcut: the open, click, type and press actions are not counted, which add time only
   // when the page is slow; count them when a film of a slow app runs past its limit.
+  // shortcut: the waits of a setup also run inside the 120 s start deadline of the runner, so
+  // a setup with more than 120 s of waits passes here and fails at run time; cap them then.
   const waitsMs = (data) => [...data.setup, ...data.steps.flatMap((step) => step.actions)]
     .filter((action) => action.do === 'wait')
     .reduce((sum, action) => sum + (action.timeout_ms || ACTION_MS), 0);

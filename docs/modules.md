@@ -3859,7 +3859,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   least 5 seconds), and 535 seconds for the runner (`RUN_BUDGET_MS`). The runner's 535
   seconds are 120 seconds for the start of the app, the start of the browser and the
   sign-in (`START_MS`), and 415 seconds for the waits of the setup and the steps
-  (`WAITS_MS`). The three parts of the 120 seconds share one deadline, 120 seconds after the
+  (`WAITS_MS`). The waits of a setup count against both the 415 seconds and the 120
+  seconds, so a setup with 200 seconds of waits passes `demo check` and fails at run time.
+  The three parts of the 120 seconds share one deadline, 120 seconds after the
   start of the runner: when it passes, the sign-in fails and the call stops. A run past
   the limit of the runner exits 3 with the fix "Shorten the waits or the steps of
   <scenario>.json, then film it again." (for pictures, "run it again") and the line "The
@@ -3892,9 +3894,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
     run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
     `.film/<scenario>/` removes that folder, and a call with no browser exits before it
-    makes the folder, so the film of an earlier call stays. The text of a step in the
-    captions has `&`, `<` and `>` escaped as `&amp;`, `&lt;` and `&gt;`, so it holds no tag
-    and no `-->`. The first frame of the film is at 0 ms.
+    makes the folder, so the film of an earlier call stays. The text of a cue in the
+    captions is the title of its step, and a title with `-->` exits 3 before the film, with
+    the fix first. The first frame of the film is at 0 ms.
     An `open` of a step that is no page under the `App address:` of the build plan, by the
     rule of `demo check`, fails the step, whatever its origin. The session pushes the files
     of a scenario with `demo-video` (`<id>.mp4` and `<id>.vtt`) or `screenshot`

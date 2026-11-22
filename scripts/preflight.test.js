@@ -2107,7 +2107,7 @@ async function stopText(kind) {
   return { lines: done.out.split('\n').slice(0, 2), seconds: Math.ceil(limit / 1000) };
 }
 
-test('film: a run that the limit stops prints its own two lines, not the text of preflight', async () => {
+test('film: a run that the limit stops prints the film text, not the text of preflight', async () => {
   const film = await stopText('film');
   assert.deepEqual(film.lines, ['Shorten the waits or the steps of scenario-1.json, then film ' +
     'it again.', `  The film ran past its limit of ${film.seconds} s.`]);
@@ -2116,7 +2116,7 @@ test('film: a run that the limit stops prints its own two lines, not the text of
     'run it again.', `  The run ran past its limit of ${pictures.seconds} s.`]);
 });
 
-test('film: the pictures of a scenario pass the check of screenshot, and running-checks lists their push', async () => {
+test('film: the pictures have the names that screenshot reads, and running-checks lists the two pushes', async () => {
   const again = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
   const deps = { ...again.deps, env: { ...again.deps.env, FILM_FAKE: 'pictures' },
     preflight: { ...again.deps.preflight, browsers: [process.execPath], runner: FAKE_RUNNER } };
@@ -2129,7 +2129,7 @@ test('film: the pictures of a scenario pass the check of screenshot, and running
     'software-factory/skills/running-checks/SKILL.md'), 'utf8');
   assert.ok(skill.includes('<qory> artifact push screenshot --name <id> ' +
     '<folder>/.film/<id>/<id>-step-*.png'), 'the push of the pictures');
-  assert.ok(skill.includes('<qory> artifact push demo-video --name <id> ' +
+  assert.ok(skill.includes('<qory> artifact push demo-video --name <id> \\\n  ' +
     '<folder>/.film/<id>/<id>.mp4 <folder>/.film/<id>/<id>.vtt'), 'the push of the film');
 });
 
@@ -2182,6 +2182,20 @@ test('film: a slow start of the app and a sign-in that waits too long stop the r
   assert.ok(seconds < 20, `${seconds} s`);
 });
 
+test('film: a start deadline with under 1 s left says the time ran out, not "did not start within 0.1 s"', { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  const port = await freePort();
+  // The app answers about 2.1 s after the start of the runner, of the 2.5 s of the deadline.
+  const spec = appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS, startMs: 2500,
+    limitMs: 120000, runs: [{ setup: SIGN_IN, steps: [[{ do: 'open', url: '/orders' }]],
+      names: [] }] });
+  spec.serve.command = `sleep 1.8; APP_PORT=${port} node app/server.cjs`;
+  const [one] = JSON.parse((await runner(spec)).out).runs;
+  assert.equal(one.ok, false);
+  assert.match(one.why, /^the browser failed: the time for the start ran out/);
+  assert.doesNotMatch(one.why, /did not start within/);
+});
+
 test('film: a machine with no browser exits before it makes the folder, and the earlier film stays', async () => {
   const here = await faked('ok', FAKE_FFMPEG, ['/nonexistent/browser']);
   const earlier = path.join(here.film, 'scenario-1');
@@ -2229,12 +2243,18 @@ test('film: ffmpeg gets what is left of the call, from the start of the call', a
   }
 });
 
-test('film: a step title with a tag, an ampersand or an arrow is escaped in its cue', () => {
-  const text = filmVerb.captions({ steps: [{ title: 'Save <b>A & B</b> --> done' }] },
-    { starts: [0], end: 1000 });
-  assert.ok(text.includes('\nSave &lt;b&gt;A &amp; B&lt;/b&gt; --&gt; done\n'), text);
-  // Only the line with the times has an arrow.
-  assert.equal(text.split('-->').length, 2);
+test('film: a step title is the text of its cue, and a title with an arrow is refused before the film', async () => {
+  const text = filmVerb.captions({ steps: [{ title: 'Save A & B' }] }, { starts: [0], end: 1000 });
+  assert.ok(text.includes('\nSave A & B\n'), text);
+  const one = scenario('scenario-1', 'film', ORDERS[0], ORDERS[0]);
+  one.steps[1].title = 'Save --> done.';
+  const here = await filming([one]);
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.deepEqual(done.out.split('\n').slice(0, 2), [
+    'Remove "-->" from the title of step 2 of scenario-1.json, then film it again.',
+    '  A cue of scenario-1.vtt cannot hold "-->", which ends the cue in a player.']);
+  assert.equal(fs.existsSync(path.join(here.root, '.film')), false);
 });
 
 test('film: a result with 40,000 frames passes from the runner, and its file is removed', () => {

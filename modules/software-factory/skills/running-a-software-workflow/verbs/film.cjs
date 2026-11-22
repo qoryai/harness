@@ -66,18 +66,15 @@ function stamp(ms) {
     `${part(ms % 1000, 3)}`;
 }
 
-// cueText returns text for a WebVTT cue: & < and > are escaped, so that the text holds no tag
-// and no --> that ends the cue.
-const cueText = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;');
-
 // captions returns the WebVTT file of script: one cue per step, from the start of the step to
 // the start of the next, and the last to the end of the film.
 function captions(script, capture) {
   const cues = script.steps.map((step, at) => {
     const start = capture.starts[at];
     const end = at + 1 < capture.starts.length ? capture.starts[at + 1] : capture.end;
-    return `${at + 1}\n${stamp(start)} --> ${stamp(Math.max(end, start + 1))}\n${cueText(step.title)}`;
+    // shortcut: a title with & or < reaches the player as written, which may read it as markup.
+    const times = `${stamp(start)} --> ${stamp(Math.max(end, start + 1))}`;
+    return `${at + 1}\n${times}\n${step.title}`;
   });
   return `WEBVTT\n\n${cues.join('\n\n')}\n`;
 }
@@ -238,6 +235,12 @@ module.exports = (lib) => {
     if (script.evidence === 'film' && !ffmpeg) {
       throw new Missing('Add ffmpeg to the dev container, then run film again.\nNo ffmpeg exists ' +
         `on this machine, and ${id} has the evidence film.`);
+    }
+    const arrow = script.evidence === 'film'
+      ? script.steps.findIndex((one) => one.title.includes('-->')) : -1;
+    if (arrow >= 0) {
+      throw new Missing(`Remove "-->" from the title of step ${arrow + 1} of ${id}.json, then ` +
+        `film it again.\nA cue of ${id}.vtt cannot hold "-->", which ends the cue in a player.`);
     }
     browserOf(io);
     const dir = freshFolder(root, id);
