@@ -39,6 +39,10 @@ const NO_BROWSER = BROWSER ? false
 // The most time for a real browser to start in these tests. A run keeps the 15 s of
 // lib/browser.cjs, but a start on a CI runner with 2 cores can take longer.
 const BROWSER_MS = 60000;
+// ffmpeg and ffprobe for the tests of a film, which skip when this machine has none.
+const FFMPEG = findBrowser(process.env, ['ffmpeg']);
+const FFPROBE = findBrowser(process.env, ['ffprobe']);
+const NO_FILM = NO_BROWSER || (FFMPEG && FFPROBE ? false : 'no ffmpeg and ffprobe, so no film');
 
 const P01 = {
   text: 'The dev container has no browser, so the run could not open the app.',
@@ -54,10 +58,10 @@ const p03Text = (names) => `The run could not sign in to the app with the values
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not. /away redirects
 // to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
-// a frame of it, /popup posts the form to it in a new window, /popup-same opens /orders in a
-// new window at the submit, /leak sends the password as a
-// host name of that port at the submit, and /alert shows the form with an alert at its load
-// and at each key. The other origin adds a line to the file OTHER_LOG for each request.
+// a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done", /popup posts the
+// form to it in a new window, /popup-same opens /orders in a new window at the submit, /leak
+// sends the password as a host name of that port at the submit, and /alert shows the form with
+// an alert at its load and at each key. The other origin adds a line to the file OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
 const http = require('http');
@@ -100,6 +104,10 @@ http.createServer((req, res) => {
       '"submit", (e) => { e.preventDefault(); location.href = "http://" + ' +
       'document.getElementById("password").value + ".localhost:' + process.env.OTHER_PORT +
       '/"; });</script></body>'));
+  }
+  else if (req.url === '/clock') {
+    res.end(page('<h1 id="t">Start</h1><script>setTimeout(() => { document.getElementById("t")' +
+      '.textContent = "Done"; }, 1500);</script>'));
   }
   else if (req.url === '/alert') {
     res.end(form(false).replace('</body>', '<script>alert("Welcome");' +
@@ -1759,4 +1767,235 @@ test('preflight: a page cannot look up another host name', { skip: NO_BROWSER },
   } finally {
     other.server.close();
   }
+});
+
+// ---- film: the film or the pictures of a scenario, and the pictures of pages -----------------
+
+const { MAX_FRAMES, capture } = require(path.join(SKILL, 'lib/capture.cjs'));
+const filmVerb = require(path.join(SKILL, 'verbs/film.cjs'));
+
+// pushed writes the demo scripts of scripts into root as version 1 of each, and index.json.
+function pushed(root, scripts) {
+  for (const one of scripts) {
+    const dir = path.join(root, 'demo-script', one.scenario, 'v1');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${one.scenario}.json`), JSON.stringify(one));
+  }
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts: scripts
+    .map((one) => entry(one.scenario, [[1]])) }));
+}
+
+// scenario returns a demo script that signs in, with the evidence and the steps of the
+// actions in lists.
+const scenario = (id, evidence, ...lists) => ({ ...script(id, SIGN_IN), evidence,
+  steps: lists.map((actions, at) => ({ step: at + 1, title: `Step ${at + 1} of ${id}.`,
+    expected: 'Seen.', actions })) });
+
+const CLOCK = [[{ do: 'open', url: '/clock' }, { do: 'wait', text: 'Start' }],
+  [{ do: 'wait', text: 'Done', timeout_ms: 5000 }]];
+const ORDERS = [[{ do: 'open', url: '/orders' }, { do: 'wait', text: 'Order 1042' }]];
+
+// filming returns a checkout with the pushed scripts and the dependencies of call, for a build
+// plan with the serve row of the app.
+async function filming(scripts) {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  pushed(here.root, scripts);
+  const port = await freePort();
+  const plan = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    DEMO_PASSWORD: 'parcel-blue-41' };
+  const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
+    startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
+  return { ...here, plan, deps };
+}
+
+// probe returns the width, height and duration in seconds of the film file.
+function probe(file) {
+  const got = childProcess.spawnSync(FFPROBE, ['-v', 'error', '-show_entries',
+    'stream=width,height:format=duration', '-of', 'json', file], { encoding: 'utf8' });
+  const data = JSON.parse(got.stdout);
+  return { width: data.streams[0].width, height: data.streams[0].height,
+    seconds: Number(data.format.duration) };
+}
+
+test('film: two film scenarios make two films, and a pictures scenario one picture per step', { skip: NO_FILM }, async () => {
+  const here = await filming([scenario('scenario-1', 'film', ...CLOCK),
+    scenario('scenario-2', 'film', ...ORDERS),
+    scenario('scenario-3', 'pictures', ...ORDERS, [{ do: 'wait', text: 'Order 1042' }])]);
+  const film = path.join(here.root, '.film');
+  const one = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(one.status, 0, one.out + one.err);
+  assert.equal(one.out.trim(), 'Filmed scenario-1: 2 steps in .film/scenario-1/scenario-1.mp4, ' +
+    'with the captions scenario-1.vtt.');
+  const two = call(['film', 'scenario-2', '--artifacts', here.plan], here.deps);
+  assert.equal(two.status, 0, two.out + two.err);
+  const pictures = call(['film', 'scenario-3', '--artifacts', here.plan], here.deps);
+  assert.equal(pictures.status, 0, pictures.out + pictures.err);
+  assert.equal(pictures.out.trim(), 'Took 2 pictures of scenario-3 in .film/scenario-3/, one ' +
+    'for each step.');
+  // Each folder has only its files: no frame and no list of frames stay.
+  assert.deepEqual(fs.readdirSync(path.join(film, 'scenario-1')).sort(),
+    ['scenario-1.mp4', 'scenario-1.vtt']);
+  assert.deepEqual(fs.readdirSync(path.join(film, 'scenario-2')).sort(),
+    ['scenario-2.mp4', 'scenario-2.vtt']);
+  assert.deepEqual(fs.readdirSync(path.join(film, 'scenario-3')).sort(),
+    ['scenario-3-step-1.png', 'scenario-3-step-2.png']);
+  // A film has the frame of 1280 x 720, and runs from step 1 to the end at real speed: the
+  // page changes 1.5 s after its load, then the film holds the last frame for 1 s.
+  const clock = probe(path.join(film, 'scenario-1', 'scenario-1.mp4'));
+  assert.deepEqual([clock.width, clock.height], [1280, 720]);
+  const vtt = fs.readFileSync(path.join(film, 'scenario-1', 'scenario-1.vtt'), 'utf8');
+  const cues = [...vtt.matchAll(/^(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})$/gm)];
+  assert.equal(cues.length, 2);
+  assert.equal(cues[0][1], '00:00:00.000');
+  assert.equal(cues[0][2], cues[1][1]);
+  const seconds = (time) => Number(time.slice(6)) + 60 * Number(time.slice(3, 5));
+  assert.ok(seconds(cues[1][2]) > 2.4, vtt);
+  assert.ok(Math.abs(clock.seconds - seconds(cues[1][2])) < 0.15, `${clock.seconds} s, ${vtt}`);
+  assert.ok(vtt.includes('\nStep 2 of scenario-1.\n'), vtt);
+  // The film shows the change of the page: its frames at 0.5 s and at 2.2 s differ.
+  const frame = (second) => childProcess.spawnSync(FFMPEG, ['-v', 'error', '-ss', second, '-i',
+    path.join(film, 'scenario-1', 'scenario-1.mp4'), '-frames:v', '1', '-f', 'image2pipe',
+    '-vcodec', 'png', '-'], { maxBuffer: 10 * 1024 * 1024 }).stdout;
+  assert.notDeepEqual(frame('0.5'), frame('2.2'));
+  // The checks of demo-video and screenshot pass on the files.
+  const check = (type, ...files) => call(['check', type, ...files], { ...here.deps, cwd: tmp });
+  const base = (id) => path.join(film, id, id);
+  const video = check('demo-video', `${base('scenario-1')}.mp4`, `${base('scenario-1')}.vtt`);
+  assert.equal(video.status, 0, video.out + video.err);
+  const shots = check('screenshot', `${base('scenario-3')}-step-1.png`,
+    `${base('scenario-3')}-step-2.png`);
+  assert.equal(shots.status, 0, shots.out + shots.err);
+  // A film opens on step 1: the sign-in is no part of it, and neither is a password.
+  assert.ok(!vtt.includes('Sign in'), vtt);
+});
+
+test('film: a step that fails stores nothing, with the fix first', { skip: NO_FILM }, async () => {
+  const here = await filming([scenario('scenario-1', 'film', ORDERS[0],
+    [{ do: 'click', target: '#nothing' }])]);
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.equal(lines[0], 'Check step 2 against the app, then run film scenario-1 again.');
+  assert.match(lines[1], /^ {2}action 1 \(click #nothing\) failed: /);
+  assert.equal(lines.at(-1), 'Stored no film: it failed in step 2.');
+  assert.equal(fs.existsSync(path.join(here.root, '.film', 'scenario-1')), false);
+});
+
+test('film pages: a picture of each page at each width, after the sign-in of the first script', { skip: NO_BROWSER }, async () => {
+  const here = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const done = call(['film', 'pages', '/orders', '/clock', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.equal(done.out.trim(), 'Took 6 pictures of 2 pages in .film/pages/ at 360, 768, 1280 ' +
+    'px: pages-<N>-<width>.png is the Nth path.');
+  const names = fs.readdirSync(path.join(here.root, '.film', 'pages')).sort();
+  assert.deepEqual(names, ['pages-1-1280.png', 'pages-1-360.png', 'pages-1-768.png',
+    'pages-2-1280.png', 'pages-2-360.png', 'pages-2-768.png']);
+  // The width of a PNG is at bytes 16 to 19 of its header.
+  const width = (name) => fs.readFileSync(path.join(here.root, '.film', 'pages', name))
+    .readUInt32BE(16);
+  assert.deepEqual(['pages-1-360.png', 'pages-1-768.png', 'pages-1-1280.png'].map(width),
+    [360, 768, 1280]);
+});
+
+test('film pages: a path outside the App address is refused before any run', async () => {
+  const here = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const plan = pinnedPlan(['App address: `http://127.0.0.1:41111/app`'], 'node app/server.cjs');
+  const done = call(['film', 'pages', '/app/x', '/admin', '--artifacts', plan], here.deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  assert.equal(done.out.split('\n')[0],
+    'Open only pages under http://127.0.0.1:41111/app, as paths that start with /.');
+  assert.equal(fs.existsSync(path.join(here.root, '.film')), false);
+  // A path that starts with // names a host, so it is another origin and is refused too.
+  const host = call(['film', 'pages', '//example.com/app/x', '--artifacts', plan], here.deps);
+  assert.equal(host.status, 1, host.out + host.err);
+});
+
+test('film: a film scenario with no ffmpeg exits 3 with the fix, a missing script exits 3, bad arguments exit 2', async () => {
+  const here = await filming([scenario('scenario-1', 'film', ...ORDERS)]);
+  const deps = { ...here.deps,
+    preflight: { ...here.deps.preflight, ffmpegs: [path.join(tmp, 'x')] } };
+  const none = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(none.status, 3, none.out + none.err);
+  assert.equal(none.out.split('\n')[0], 'Add ffmpeg to the dev container, then run film ' +
+    'again.');
+  const absent = call(['film', 'scenario-2', '--artifacts', here.plan], here.deps);
+  assert.equal(absent.status, 3, absent.out + absent.err);
+  assert.equal(absent.out.split('\n')[0],
+    'Push the demo script of scenario-2, then run film scenario-2 again.');
+  for (const argv of [['film'], ['film', 'scenario-1', 'scenario-2'], ['film', 'one'],
+    ['film', 'pages']]) {
+    assert.equal(call(argv, here.deps).status, 2, argv.join(' '));
+  }
+});
+
+test('film: the captions have one cue per step, from the start of the step', () => {
+  const steps = [{ title: 'Open it.' }, { title: 'Read it.' }, { title: 'Close it.' }];
+  const text = filmVerb.captions({ steps }, { starts: [0, 1250, 61000], end: 3723456 });
+  assert.equal(text, 'WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.250\nOpen it.\n\n' +
+    '2\n00:00:01.250 --> 00:01:01.000\nRead it.\n\n3\n00:01:01.000 --> 01:02:03.456\n' +
+    'Close it.\n');
+  assert.equal(filmVerb.stamp(7), '00:00:00.007');
+});
+
+// A page of the capture tests: it records what capture asks of it.
+function fakePage() {
+  const page = { calls: [], frame: null };
+  page.screenshot = async (format = 'png') => {
+    page.calls.push(`screenshot ${format}`);
+    return Buffer.from(format);
+  };
+  page.resize = async (width) => { page.calls.push(`resize ${width}`); };
+  page.screencast = async (onFrame) => {
+    page.frame = onFrame;
+    page.calls.push('screencast');
+    return async () => { page.calls.push('stop'); };
+  };
+  return page;
+}
+
+test('capture: a film keeps the frame of each change from the start of step 1, and stops its screencast', async () => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const page = fakePage();
+  const taken = await capture(page, { kind: 'film', dir, name: 'scenario-1' });
+  await taken.begin(0);
+  page.frame(Buffer.from('a'));
+  await taken.end(0);
+  await taken.begin(1);
+  const done = await taken.finish();
+  assert.deepEqual(page.calls, ['screenshot jpeg', 'screencast', 'stop', 'screenshot jpeg']);
+  assert.equal(done.kind, 'film');
+  assert.deepEqual(done.frames.map((one) => one.file), ['f000001.jpg', 'f000002.jpg',
+    'f000003.jpg']);
+  assert.equal(done.starts.length, 2);
+  assert.equal(done.starts[0], 0);
+  assert.equal(done.end, done.frames.at(-1).at + 1000);
+  assert.equal(fs.readFileSync(path.join(dir, 'f000002.jpg'), 'utf8'), 'a');
+  // A film keeps at most MAX_FRAMES frames.
+  const many = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const busy = fakePage();
+  const long = await capture(busy, { kind: 'film', dir: many, name: 'scenario-1' });
+  await long.begin(0);
+  for (let at = 0; at < MAX_FRAMES + 5; at += 1) busy.frame(Buffer.from('b'));
+  assert.equal((await long.finish()).frames.length, MAX_FRAMES);
+  assert.equal(fs.readdirSync(many).length, MAX_FRAMES);
+});
+
+test('capture: pictures take the page after each step, and pages at each width', async () => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const page = fakePage();
+  const pictures = await capture(page, { kind: 'pictures', dir, name: 'scenario-4' });
+  await pictures.end(0);
+  await pictures.end(1);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['scenario-4-step-1.png', 'scenario-4-step-2.png']);
+  assert.deepEqual(page.calls, ['screenshot png', 'screenshot png']);
+  const other = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const wide = fakePage();
+  const pages = await capture(wide, { kind: 'pages', dir: other, name: 'pages',
+    widths: [360, 1280] });
+  await pages.end(0);
+  assert.deepEqual(wide.calls, ['resize 360', 'screenshot png', 'resize 1280', 'screenshot png',
+    'resize 1280']);
+  assert.deepEqual((await pages.finish()).files, ['pages-1-360.png', 'pages-1-1280.png']);
 });

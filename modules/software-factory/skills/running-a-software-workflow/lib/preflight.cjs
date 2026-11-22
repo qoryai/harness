@@ -403,7 +403,9 @@ module.exports = (lib) => {
   // returns { browser: null } when the machine has no browser, else { app, run, log }: run is
   // { ok, step, why, outside } as lib/preflight-run.cjs has it, with no typed value in it, or
   // null when the runner returned none. The time is that of preflight for the same actions.
-  function runScript(io, root, { serve, script }) {
+  // With capture, { kind, dir, name, widths } of lib/capture.cjs, the runner stores what that
+  // file lists in dir, and run has capture, what it returns, besides.
+  function runScript(io, root, { serve, script, capture }) {
     const options = io.preflight || {};
     const browser = findBrowser(io.env, options.browsers);
     if (!browser) return { browser: null };
@@ -419,7 +421,7 @@ module.exports = (lib) => {
       options.maxMs || MAX_MS);
     const result = waited(io, {
       serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
-      browser, setups: [], runs: [{ setup: script.setup, steps, names }], typed: names,
+      browser, setups: [], runs: [{ setup: script.setup, steps, names, capture }], typed: names,
       startMs, actionMs, signedInMs, limitMs, browserMs: options.browserMs, proc: options.proc,
     });
     const [run] = hidden(result.runs || [], typedValues([{ names, actions }], io.env));

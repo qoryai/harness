@@ -3643,6 +3643,40 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     typed value. It exits 3 for a missing draft, a plan with no `serve` row, no browser, an
     app that does not start or a browser that fails. It records no ledger row and pushes
     nothing.
+- `film <scenario> [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
+  [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
+  `verbs/film.cjs`. One call takes one scenario, because the Bash tool stops a command at
+  600 seconds. It stores nothing in Qory Apiary and writes no `demo-evidence` and no ledger
+  row: the session pushes the files.
+  - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
+    a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
+    `App address:`, opens a page of 1280 x 720 px, replays the setup as a sign-in, then the
+    actions of each step, with the limits of the sign-in of `preflight`. The files go to
+    `.film/<scenario>/` of the artifact folder, which the call makes new. With the evidence
+    `film`, the page is recorded from the start of step 1: the sign-in runs before the
+    recording, so no frame has it, and nothing inside the film is cut or sped up. The
+    runner keeps each frame that the page paints, up to 9000, and one frame at the start
+    and one at the end of the last step. ffmpeg, the first `ffmpeg` on the `PATH`, makes
+    `<scenario>.mp4` from them at 25 frames a second, and the last frame stays for 1 second.
+    `<scenario>.vtt` has one cue per step, with the title of the step as its text, from the
+    start of the step to the start of the next; the first cue starts at `00:00:00.000`.
+    The call removes the frames, so the folder has the two files that the check of
+    `demo-video` reads. With the evidence `pictures`, the replay records no video, and the
+    folder has `<scenario>-step-<N>.png`, the page after the last action of step N, as the
+    check of `screenshot` reads them. It exits 0 and prints the files. A step that fails
+    stores nothing: it exits 1 with the fix "Check step <k> against the app, then run film
+    <id> again." (the sign-in is step 0, "the sign-in"), the failed action with no typed
+    value, and the last line "Stored no film: it failed in step <k>." A film scenario with
+    no ffmpeg, a scenario with no pushed script that counts, a plan with no `serve` row,
+    no browser, an app or a browser that does not run, and an ffmpeg that fails exit 3 with
+    the fix first.
+  - `film pages <path>...` takes pictures of the pages that the paths open, for the two
+    screen reviewers: `.film/pages/pages-<N>-<width>.png` for the Nth path at 360, 768 and
+    1280 px, each taken after the page loads. A path starts with `/` and is a page under the
+    `App address:`, by the rule of `demo check`; otherwise the call exits 1 with "Open only
+    pages under <App address>, as paths that start with /." and takes no picture. The setup
+    of the first demo script that counts is the sign-in; with no script, the pages open
+    with no sign-in.
 - `run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]`: runs the checks
   of the acceptance lock that counts, the newest `acceptance-lock` version that no
   cancelled run wrote, which it reads with `lockReader.readLock` of core's

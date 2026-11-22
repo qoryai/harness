@@ -33,7 +33,8 @@
 // which writes build-report.md and the outbox file of the pull request, the verb matrix,
 // which writes the draft verification.json of Verify from records, and the verb demo, which
 // checks that the harness has the skill scripting-demos and builds a demo script from the
-// actions of the demo author.
+// actions of the demo author, and the verb film, which stores the film or the pictures of a
+// demo script and the pictures of pages.
 'use strict';
 
 const fs = require('node:fs');
@@ -82,7 +83,7 @@ function workflowChecks(core) {
       ...require('./verbs/diff.cjs')(lib), ...require('./verbs/probe.cjs')(lib),
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
       ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
-      ...require('./verbs/demo.cjs')(lib),
+      ...require('./verbs/demo.cjs')(lib), ...require('./verbs/film.cjs')(lib),
     },
     types: [
       require('./types/proposal.cjs')(lib),

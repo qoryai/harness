@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
+  a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
+  the `App address:` of the build plan, signs in with the replay of `preflight`, and runs
+  the steps in a page of 1280 x 720 px. A `film` scenario gets `<scenario>.mp4`, which
+  ffmpeg makes from the frames of the page from the start of step 1 at real speed, and
+  `<scenario>.vtt` with one cue per step. A `pictures` scenario runs with video off and
+  gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
+  pictures of pages at 360, 768 and 1280 px, for the screen reviewers.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a

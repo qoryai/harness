@@ -16,6 +16,8 @@
 //   with only the variables of names from its environment. With runs, { setup, steps, names }
 //   per script, it replays each setup as a sign-in, then each step, in place of setups.
 //   browserMs, which only a test sets, is the time for the browser to start, 15 s by default.
+//   A run with capture, { kind, dir, name, widths }, stores a film, pictures or page pictures
+//   in dir, as lib/capture.cjs lists, and its result has capture.
 // Then it stops the browser, the process group of the command and each process with its
 // mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
 // lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
@@ -36,6 +38,7 @@ const http = require('node:http');
 const https = require('node:https');
 
 const { Browser } = require('./browser.cjs');
+const { FILM_HEIGHT, capture } = require('./capture.cjs');
 const { replay, signIn } = require('./replay.cjs');
 const { runKey } = require('./secrets.cjs');
 const { MARK, marker } = require('./supervise.cjs');
@@ -240,7 +243,7 @@ async function inBrowser(spec, items, act) {
       const env = Object.fromEntries(item.names
         .filter((name) => process.env[name] !== undefined)
         .map((name) => [name, process.env[name]]));
-      const page = await browser.page({ origin });
+      const page = await browser.page({ origin, height: item.capture ? FILM_HEIGHT : undefined });
       try {
         results.push(await act(page, item, env));
       } finally {
@@ -262,21 +265,34 @@ const signIns = (spec) => inBrowser(spec, spec.setups, (page, setup, env) =>
   signIn(page, setup.actions, { base: spec.serve.url, env, actionMs: spec.actionMs,
     signedInMs: spec.signedInMs }));
 
-// runs replays each script of spec.runs, { setup, steps, names }: its setup as a sign-in, then
-// the actions of each step in order, and resolves to { ok, step, why, outside } for each. step
-// is the number of the step that failed, 0 for the setup, or null.
+// runs replays each script of spec.runs, { setup, steps, names, capture }: its setup as a
+// sign-in, then the actions of each step in order, and resolves to { ok, step, why, outside,
+// capture } for each. step is the number of the step that failed, 0 for the setup, or null.
+// With capture, { kind, dir, name, widths } of lib/capture.cjs, the page has the window of a
+// film, the setup is no part of what is stored, and capture of the result is what finish of
+// lib/capture.cjs returns.
 const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
   const options = { base: spec.serve.url, env, actionMs: spec.actionMs };
   const first = await signIn(page, one.setup, { ...options, signedInMs: spec.signedInMs });
   if (!first.ok) return { ...first, step: 0 };
   const origin = new URL(spec.serve.url).origin;
-  for (const [place, step] of one.steps.entries()) {
-    const done = await replay(page, step, { ...options, origin });
-    if (done.failure) {
-      return { ok: false, step: place + 1, why: done.failure.words, outside: done.failure.outside };
+  const taken = one.capture ? await capture(page, one.capture) : null;
+  try {
+    for (const [place, step] of one.steps.entries()) {
+      if (taken) await taken.begin(place);
+      const done = await replay(page, step, { ...options, origin });
+      if (done.failure) {
+        return { ok: false, step: place + 1, why: done.failure.words,
+          outside: done.failure.outside };
+      }
+      if (taken) await taken.end(place);
     }
+    const result = { ok: true, step: null, why: null, outside: null };
+    if (taken) result.capture = await taken.finish();
+    return result;
+  } finally {
+    if (taken) await taken.stop();
   }
-  return { ok: true, step: null, why: null, outside: null };
 });
 
 async function main() {

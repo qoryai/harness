@@ -53,7 +53,7 @@ const MOST_ROWS = 3;
 module.exports = (lib) => {
   const { Context, DEMO_FOLDER: FOLDER, MAX_BYTES, Missing, approved, artifactFolder,
     boundedText, cut, draftScript, evidenceOf, isObject, plural, pluginFolders, readLedger, schema,
-    scenarios, scriptFindings, sha256, short, stepRows, writeJson } = lib;
+    scenarios, scriptFindings, sha256, short, stepRows, within, writeJson } = lib;
   const checks = require('../lib/preflight.cjs')(lib);
 
   // readScenarios returns { root, number, live } of the approved demo scenarios in the
@@ -166,22 +166,6 @@ module.exports = (lib) => {
         `${short(String(data.scenario), 30)}.`] };
     }
     return { shown, text: got.text, data, drafted };
-  }
-
-  // within returns true when url, opened from address, the App address, is a page under it: of
-  // the same origin, with no user name or password, and with a path that is the path of address
-  // or below it at a segment boundary. A backslash is refused: a browser reads it as a slash.
-  function within(url, address) {
-    if (url.includes('\\')) return false;
-    try {
-      const page = new URL(url, address);
-      const base = new URL(address);
-      const prefix = base.pathname.replace(/\/+$/, '');
-      return page.origin === base.origin && !page.username && !page.password &&
-        (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`));
-    } catch {
-      return false;
-    }
   }
 
   // outsideOpens returns a finding for each open of the setup of data, the demo script, whose

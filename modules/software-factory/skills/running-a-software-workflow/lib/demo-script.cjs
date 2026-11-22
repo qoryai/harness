@@ -122,6 +122,22 @@ module.exports = (lib) => {
       .map((one) => one.data);
   }
 
+  // within returns true when url, opened from address, the App address, is a page under it: of
+  // the same origin, with no user name or password, and with a path that is the path of address
+  // or below it at a segment boundary. A backslash is refused: a browser reads it as a slash.
+  function within(url, address) {
+    if (url.includes('\\')) return false;
+    try {
+      const page = new URL(url, address);
+      const base = new URL(address);
+      const prefix = base.pathname.replace(/\/+$/, '');
+      return page.origin === base.origin && !page.username && !page.password &&
+        (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`));
+    } catch {
+      return false;
+    }
+  }
+
   return { DEMO_FOLDER: FOLDER, boundedText, draftScript, draftScripts, evidenceOf,
-    scriptFindings };
+    scriptFindings, within };
 };
