@@ -168,12 +168,13 @@ both:
 
 - **A review session.** Build's workflow `review-changes` is a review session: qory writes
   `qory.review_session` into its `inputs.json`, with `reports`, the report folder, and
-  `suite_result`, the result of the full suite, which qory runs before the session. The
-  session starts each reviewer as one of its agents, and each writes one report,
-  `<reports>/<agent>.json`. Each reviewer reads `commit`, `diff`, `previous_findings` after
-  the first round, `build_report` when there is one, and the two other members from
-  `qory.review_session`, and the prompt passes only the path of the input file, so the
-  session cannot point a reviewer at another commit.
+  `suite_result`, the absolute path of the file with the result of the full suite, which
+  qory runs before the session; `diff`, `previous_findings` and `build_report` are absolute
+  paths of files too. The session starts each reviewer as one of its agents, and each writes
+  one report, `<reports>/<agent>.json`. Each reviewer reads `commit`, `diff`,
+  `previous_findings` after the first round, `build_report` when there is one, and the two
+  other members from `qory.review_session`, and the prompt passes only the path of the input
+  file, so the session cannot point a reviewer at another commit.
 - **A separate session per reviewer.** qory starts the reviewer as the main agent of a
   session, with the tools Read, Grep, Glob, Skill and Write, no shell and no network. The
   values are in the member `qory.review` of the `inputs.json` that qory writes: `commit`,
@@ -3005,8 +3006,9 @@ the workflow with `tier: thinking`, `access: read` and `review_group: reviewers`
 role whose reports qory checks the verdict against, and no `plan`, because qory refuses a
 `plan` on a workflow that cannot write: the checkout is read-only, and the session writes
 only into the artifact folder and the report folder `qory.review_session.reports`. qory runs
-the full suite before the session, and passes its result in
-`qory.review_session.suite_result`; qory writes the finding of a locked check that fails.
+the full suite before the session, and passes the absolute path of its result file in
+`qory.review_session.suite_result`; `findings round` reads that file, and a file that it
+cannot read is one blocking finding. qory writes the finding of a locked check that fails.
 The session runs no ledger step. In this order:
 
 1. It pulls and runs `checks.cjs resume`, and stops when the input file has no

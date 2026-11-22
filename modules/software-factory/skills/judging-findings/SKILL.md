@@ -39,15 +39,17 @@ The values:
 - `commit`: a fresh copy of the change at the frozen state, read-only. Review this copy. In
   a review session, `commit` is the pushed head of the fresh copy, and the working folder
   is that copy: review the working folder.
-- `diff`: the lines that the change adds and removes, from the state before it to the
-  frozen state.
-- `suite_result`: the result of the full suite on the frozen state, as JSON: the counts
-  `tests`, `failed` and `skipped`, and `output_tail`, the last lines of its output.
-- `previous_findings`: the findings of the round before, as JSON. It is missing in the
-  first round, also in a review session. When it is given and its file cannot be read, stop
-  and write no report.
-- `build_report`: the newest report of the session that made the change. It is missing
-  when that session wrote none. When it is missing, judge the change from the diff alone.
+- `diff`: the absolute path of a file with the lines that the change adds and removes,
+  from the state before it to the frozen state.
+- `suite_result`: the absolute path of a file with the result of the full suite on the
+  frozen state, as JSON: the counts `tests`, `failed` and `skipped`, and `output_tail`, the
+  last lines of its output. Read the file; the value itself has no counts.
+- `previous_findings`: the absolute path of a file with the findings of the round before,
+  as JSON. It is missing in the first round, also in a review session. When it is given
+  and its file cannot be read, stop and write no report.
+- `build_report`: the absolute path of the newest report of the session that made the
+  change. It is missing when that session wrote none. When it is missing, judge the change
+  from the diff alone.
 - `report`: the path where you write your report. Write no other path.
 
 ## Reading the result of the suite
