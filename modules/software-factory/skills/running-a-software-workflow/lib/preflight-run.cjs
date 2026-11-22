@@ -283,7 +283,8 @@ const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
   const options = { base: spec.serve.url, env, actionMs: spec.actionMs };
   const first = await signIn(page, one.setup, { ...options, signedInMs: spec.signedInMs,
     until: allowance.until === Infinity ? undefined : allowance.until });
-  if (!first.ok) return { ...first, step: 0 };
+  // A sign-in that fails after the deadline of the start is late: the time ran out.
+  if (!first.ok) return { ...first, step: 0, late: Date.now() >= allowance.until };
   const origin = new URL(spec.serve.url).origin;
   const taken = one.capture ? await capture(page, one.capture) : null;
   try {

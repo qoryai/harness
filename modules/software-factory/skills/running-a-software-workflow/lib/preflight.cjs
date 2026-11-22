@@ -270,7 +270,7 @@ module.exports = (lib) => {
   function stopped(script, kind, limitMs) {
     const what = kind === 'film' ? 'film' : 'run';
     return new Missing(`Shorten the waits or the steps of ${script.scenario}.json, then ` +
-      `${what === 'film' ? 'film it' : 'run it'} again.\n  The ${what} ran past its limit of ` +
+      `${what === 'film' ? 'film it' : 'run it'} again.\nThe ${what} ran past its limit of ` +
       `${Math.ceil(limitMs / 1000)} s.`);
   }
 

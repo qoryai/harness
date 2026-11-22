@@ -624,13 +624,29 @@ test('demo check: waits that add up to the share of a film pass, and one second 
 
 test('demo check counts the waits of the setup too', () => {
   const got = call(drafted(['scenario-1'], (id, script) => {
-    // 4 waits of 50 s in the sign-in, 200 s, 5 s of the wait that it has, and 360 s in the
+    // 2 waits of 50 s in the sign-in, 100 s, 5 s of the wait that it has, and 360 s in the
     // first step.
-    script.setup = [...script.setup, ...Array.from({ length: 4 }, () => WAIT(50000))];
+    script.setup = [...script.setup, ...Array.from({ length: 2 }, () => WAIT(50000))];
     script.steps[0].actions = Array.from({ length: 6 }, () => WAIT(60000));
   }), ['demo', 'check']);
   assert.equal(got.status, 1, got.out);
-  assert.deepEqual(got.lines.slice(0, 2), SHORTEN(565));
+  assert.deepEqual(got.lines.slice(0, 2), SHORTEN(465));
+});
+
+test('demo check: setup waits of exactly 120 s pass, and 121 s are refused', () => {
+  // The sign-in of the test script has one wait with no timeout_ms, 5 s.
+  const setup = (ms) => call(drafted(['scenario-1'], (id, script) => {
+    // A timeout_ms is at most 60 s, so the rest of the time is a second wait.
+    script.setup = [...script.setup, WAIT(60000), WAIT(ms)];
+  }), ['demo', 'check']);
+  const at = setup(55000);
+  assert.equal(at.status, 0, at.out);
+  const over = setup(56000);
+  assert.equal(over.status, 1, over.out);
+  assert.deepEqual(over.lines.slice(0, 2), [
+    'Shorten the setup waits in scenario-1.json to at most 120 s in total.',
+    '  They add up to 121 s (a wait with no timeout_ms counts 5 s), and the app start, the ' +
+      'sign-in and the browser share 120 s.']);
 });
 
 test('demo check refuses the longest script that the schema allows: 8 steps of 10 waits of 60 s', () => {
@@ -712,6 +728,24 @@ test('a faulty script after one pass asks for the correction step', () => {
   assert.equal(got.status, 1, got.out);
   assert.equal(got.lines.at(-2), 'Write scenario-1 again as the step ' +
     'script:scenario-1#2, then run demo check scenario-1.');
+});
+
+test('demo check refuses a step that opens an address outside the App address', () => {
+  const opens = (url) => {
+    const root = drafted(['scenario-1'], (id, script) => {
+      script.steps[0].actions = [...script.steps[0].actions, { do: 'open', url }];
+    });
+    plan(root, 'http://localhost:3000');
+    return call(root, ['demo', 'check']);
+  };
+  for (const url of ['https://other.example/x', '//other.example/x', 'http://localhost:3001/x']) {
+    const got = opens(url);
+    assert.equal(got.status, 1, `${url}: ${got.out}`);
+    assert.equal(got.lines[0], 'Open only pages under http://localhost:3000/ in step 1 of ' +
+      'scenario-1.json.', url);
+    assert.equal(got.lines[1], `  The step opens ${url}.`);
+  }
+  assert.equal(opens('/orders').status, 0);
 });
 
 test('demo check refuses a sign-in step that opens an address outside the App address', () => {

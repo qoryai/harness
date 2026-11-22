@@ -253,7 +253,7 @@ module.exports = (lib) => {
       const again = script.evidence === 'film' ? 'film it' : 'run it';
       const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
         `film ${id}`, () => new Missing(`Shorten the sign-in steps of ${id}.json, or make the ` +
-          `app start faster, then ${again} again.\n  The ${START_MS / 1000} s for the app ` +
+          `app start faster, then ${again} again.\nThe ${START_MS / 1000} s for the app ` +
           'start, the sign-in and the browser ran out before the browser started.'));
       if (!run.ok) {
         fs.rmSync(dir, { recursive: true, force: true });

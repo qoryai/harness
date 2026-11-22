@@ -22,9 +22,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   one deadline, and 415 s for the waits of the setup and the steps. A run past its limit exits
   3 with "Shorten the waits or the steps of <scenario>.json, then film it again." and "The film
   ran past its limit of <n> s." A step `open` outside the App address fails. The waits of a
-  setup count against the 415 s and also against the 120 s deadline, so a setup with 200 s of
-  waits passes `demo check` and fails at run time. When the 120 s run out before the
-  browser starts, `film` exits 3 with "Shorten the sign-in steps of <scenario>.json, or make
+  setup count against the 415 s and also against the 120 s deadline, and `demo check` refuses
+  a setup whose waits add up to more than 120 s. `demo check` refuses a step `open` outside
+  the App address, as the run does. When the 120 s run out before the browser starts or
+  during the sign-in, `film` exits 3 with "Shorten the sign-in steps of <scenario>.json, or make
   the app start faster, then film it again." and "The 120 s for the app start, the sign-in and
   the browser ran out before the browser started." ffmpeg gets what is left of the 585 s, at
   most 90 s and at least 5 s. A film keeps each frame that the page paints, so every cue of

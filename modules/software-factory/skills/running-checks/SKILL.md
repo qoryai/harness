@@ -288,22 +288,21 @@ runs past what the first run left of the limit, the probe proves nothing and exi
 Probe a test file that runs faster, or, for a limit under 60, raise
 `command_limits_minutes.targeted_checks`.
 
-Run each call of `preflight`, `demo run` and `film` with a tool timeout of at least 600 s.
-The runner of each stops after at most 570 s, and the call ends within 585 s, 15 s after it
-stops the runner.
+### Tool timeouts
 
-### The Bash timeout on Claude Code
+Run each call of `run` and `probe` with a tool timeout of at least 3600 s. The script stops
+every command of a call 60 seconds before those 60 minutes, counted from the start of the
+script, so the call still writes its record and its red line. The commands of one call share
+that time: the reruns of `run targeted`, the two runs of `probe` and the checks of
+`run locked`. A locked check that the call has no time left for does not run, and is red:
+run fewer checks per call. Run the verb as the only command of the call: the script counts
+the 60 minutes from the start of the script, so a command before it in the same call, such as
+`npm ci`, uses up the reserve.
 
-On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory` set
-its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run` and
-`probe` the timeout 3600000 ms, and each Bash call of `preflight`, `demo run` and `film` the
-timeout 600000 ms. In `run` and `probe`, the script stops every command of a call 60 seconds before
-those 60 minutes, counted from the start of the script, so the call still writes its record
-and its red line. The commands of one call share that time: the reruns of `run targeted`,
-the two runs of `probe` and the checks of `run locked`. A locked check that the call has no
-time left for does not run, and is red: run fewer checks per call. Run the verb as the only
-command of the Bash call: the script counts the 60 minutes from the start of the script, so
-a command before it in the same call, such as `npm ci`, uses up the reserve.
+Run each call of `preflight` and `demo run` with a tool timeout of at least 600 s. The runner
+stops after at most 570 s, and the call ends within 585 s. Run each call of `film` with a tool
+timeout of at least 600 s. The runner stops after at most 535 s, the stop of the runner takes
+at most 15 s, the encode of the film at most 35 s, and the call ends within 585 s.
 
 ## Scope
 

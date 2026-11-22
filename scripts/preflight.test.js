@@ -2052,7 +2052,7 @@ let capture = null;
 if (mode === 'pictures') {
   fs.writeFileSync(dir + '/scenario-1-step-1.png', 'png');
   capture = { kind: 'pictures', files: ['scenario-1-step-1.png'] };
-} else if (mode !== 'late' && mode !== 'start') {
+} else if (mode !== 'late' && mode !== 'start' && mode !== 'signin') {
   const files = mode === 'bad' ? ['../outside.jpg'] : ['f000001.jpg', 'f000002.jpg'];
   for (const file of files) if (mode !== 'bad') fs.writeFileSync(dir + '/' + file, 'x');
   capture = { kind: 'film', frames: files.map((file, at) => ({ file, at: at * 40 })),
@@ -2060,7 +2060,8 @@ if (mode === 'pictures') {
 }
 const run = mode === 'late' ? null : mode === 'start' ? { ok: false, step: 0, outside: null,
   why: 'the browser failed: the time for the start ran out before the browser started',
-  browser: true, late: true } : { ok: true, step: null, why: null, outside: null, capture };
+  browser: true, late: true } : mode === 'signin' ? { ok: false, step: 0, outside: null,
+  why: 'action 2 (wait for Done) failed: the page showed no such text within 1 s', late: true } : { ok: true, step: null, why: null, outside: null, capture };
 const result = { app: { started: true, ran: true, why: null }, signIns: [],
   runs: run ? [run] : [], unfinished: mode === 'late' ?
     'the script runs ran past the limit of 535 s' : null };
@@ -2106,7 +2107,8 @@ async function stopText(kind, fake = 'late') {
   assert.equal(done.status, 3, done.out + done.err);
   const limit = preflight.scriptLimitMs({ ...deps.preflight, maxMs: preflight.RUN_BUDGET_MS },
     [...SIGN_IN, ...ORDERS[0]]);
-  return { lines: done.out.split('\n').slice(0, 2), seconds: Math.ceil(limit / 1000) };
+  return { lines: done.out.split('\n').slice(0, 2), seconds: Math.ceil(limit / 1000),
+    status: done.status };
 }
 
 test('film: a run that the limit stops prints the film text, not the text of preflight', async () => {
@@ -2126,6 +2128,10 @@ test('film: a start deadline that ran out before the browser started prints the 
   const pictures = await stopText('pictures', 'start');
   assert.equal(pictures.lines[0], 'Shorten the sign-in steps of scenario-1.json, or make the ' +
     'app start faster, then run it again.');
+  // A sign-in that fails after the deadline prints the same lines, not "Check the sign-in".
+  const signin = await stopText('film', 'signin');
+  assert.deepEqual(signin.lines, film.lines);
+  assert.equal(signin.status, 3);
 });
 
 test('film: the pictures have the names that screenshot reads, and running-checks lists the two pushes', async () => {
@@ -2190,6 +2196,7 @@ test('film: a slow start of the app and a sign-in that waits too long stop the r
   const [one] = JSON.parse(ran.out).runs;
   assert.equal(one.ok, false, ran.out);
   assert.equal(one.step, 0);
+  assert.equal(one.late, true);
   // The start allowance is 5 s from the start of the runner: the run ends near it, not at 60 s.
   assert.ok(seconds < 20, `${seconds} s`);
 });

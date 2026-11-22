@@ -3794,9 +3794,14 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `timeout_ms` of each `wait` of the setup and the steps, 5 seconds for a wait with none:
     "Shorten the waits in <script> to at most 415 s in total.", and the line "They add up to
     <m> s (a wait with no timeout_ms counts 5 s), and a demo run has room for 415 s of
-    waits." The push check of `demo-script` finds it too. The
+    waits." It also refuses a setup whose waits add up to more than the 120 seconds that
+    the app start, the sign-in and the browser share (`START_MS`): "Shorten the setup waits
+    in <script> to at most 120 s in total.", and the line "They add up to <m> s (a wait
+    with no timeout_ms counts 5 s), and the app start, the sign-in and the browser share
+    120 s." The push check of `demo-script` finds both too. The
     finding of an outside `open` is "Open only pages under <App address> in the sign-in
-    steps of <script>." and the line "The step opens <url>." An address too long for 100
+    steps of <script>." or "... in step <N> of <script>." and the line "The step opens
+    <url>." An address too long for 100
     characters in the first line is cut there and shown whole in the line "The App address
     is <address>." The build plan is the one in `--inputs` or `--artifacts`, as `preflight`
     reads it, else the one in the artifact folder. When no build plan can be read or it has
@@ -3860,8 +3865,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   seconds are 120 seconds for the start of the app, the start of the browser and the
   sign-in (`START_MS`), and 415 seconds for the waits of the setup and the steps
   (`WAITS_MS`). The waits of a setup count against both the 415 seconds and the 120
-  seconds, so a setup with 200 seconds of waits passes `demo check` and fails at run time.
-  When the 120 seconds run out before the browser starts, `film` exits 3 with the fix
+  seconds, and `demo check` refuses a setup whose waits add up to more than 120 seconds.
+  When the 120 seconds run out before the browser starts, or during the sign-in, `film`
+  exits 3 with the fix
   "Shorten the sign-in steps of <scenario>.json, or make the app start faster, then film it
   again." ("run it again" for pictures) and the line "The 120 s for the app start, the
   sign-in and the browser ran out before the browser started."
@@ -3869,8 +3875,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   start of the runner: when it passes, the sign-in fails and the call stops. A run past
   the limit of the runner exits 3 with the fix "Shorten the waits or the steps of
   <scenario>.json, then film it again." (for pictures, "run it again") and the line "The
-  film ran past its limit of <n> s." ("The run ran past ..."). It stores nothing in Qory Apiary and writes no `demo-evidence` and
-  no ledger row: the session pushes the files.
+  film ran past its limit of <n> s." ("The run ran past ..."). It stores nothing in Qory
+  Apiary and writes no `demo-evidence` and no ledger row: the session pushes the files.
   - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
     a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
     `App address:`, opens a page of 1280 x 720 px, replays the setup as a sign-in, then the

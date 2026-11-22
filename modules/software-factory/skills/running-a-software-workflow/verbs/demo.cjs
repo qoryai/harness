@@ -177,18 +177,22 @@ module.exports = (lib) => {
     return { shown, text: got.text, data, drafted };
   }
 
-  // outsideOpens returns a finding for each open of the setup of data, the demo script, whose
-  // page is not under address, the App address of the build plan. The setup is the sign-in: a
-  // script may leave the app only after it, and the run refuses that too.
+  // outsideOpens returns a finding for each open of the setup and the steps of data, the demo
+  // script, whose page is not under address, the App address of the build plan. The run
+  // refuses the same opens: it replays the setup and each step with that address.
   function outsideOpens(data, address) {
-    const tail = ` in the sign-in steps of ${data.scenario}.json.`;
-    // The first line keeps the fix within 100 characters, so a long address is cut there and
-    // shown whole on the line after the step.
-    const room = 100 - 'Open only pages under '.length - tail.length;
-    return data.setup.filter((action) => action.do === 'open' && !within(action.url, address))
-      .map((action) => `Open only pages under ${cut(address, room)}${tail}\n` +
-        `The step opens ${cut(action.url, 80)}.` +
-        (address.length > room ? `\nThe App address is ${address}.` : ''));
+    const parts = [[' in the sign-in steps of', data.setup],
+      ...data.steps.map((step, at) => [` in step ${at + 1} of`, step.actions])];
+    return parts.flatMap(([where, actions]) => {
+      const tail = `${where} ${data.scenario}.json.`;
+      // The first line keeps the fix within 100 characters, so a long address is cut there and
+      // shown whole on the line after the step.
+      const room = 100 - 'Open only pages under '.length - tail.length;
+      return actions.filter((action) => action.do === 'open' && !within(action.url, address))
+        .map((action) => `Open only pages under ${cut(address, room)}${tail}\n` +
+          `The step opens ${cut(action.url, 80)}.` +
+          (address.length > room ? `\nThe App address is ${address}.` : ''));
+    });
   }
 
   // shortcut: the push check of demo-script does not read the ledger, so a changed frozen script

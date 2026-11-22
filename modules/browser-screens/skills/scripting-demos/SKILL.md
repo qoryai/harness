@@ -91,8 +91,9 @@ version; do this only for a script that this session wrote and still has as a fi
      `step end <step> failed`, and end as "Failures" lists, with the cause "its script
      needs a third correction, and a script has 2".
    - With another 1, the script breaks a rule, and the first line of each fault is the fix.
-     This includes a sign-in step that opens a page outside the App address, by origin or by
-     path: "Open only pages under <App address> in the sign-in steps of <script>." Do
+     This includes a sign-in step or a step that opens a page outside the App address, by
+     origin or by path: "Open only pages under <App address> in the sign-in steps of <script>."
+     or "Open only pages under <App address> in step <N> of <script>." Do
      "Start the author again", with those lines. `demo check` compares the sign-in with the
      App address only when the build plan is readable and has the line `App address:`. With
      no such plan, it compares nothing, and the run in step 8 loads only pages of the origin
