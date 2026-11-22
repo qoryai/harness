@@ -40,8 +40,8 @@ function familyOf(id) {
 
 module.exports = (lib) => {
   const { pull } = lib.lockReader;
-  const { Context, MATRIX_RECORD, Missing, agentModel, artifactFolder, cut, isObject,
-    liveCriteria, parseJson, plural, writeJson } = lib;
+  const { Context, MATRIX_RECORD, Missing, agentModel, approvedNumber, artifactFolder, cut,
+    isObject, liveCriteria, parseJson, plural, writeJson } = lib;
 
   // families returns the families of the models of Build's ledger, in the newest
   // version of build-ledger of context, and of the agents of Verify, once each. With no
@@ -169,6 +169,13 @@ module.exports = (lib) => {
     const live = liveCriteria(probe, 'the verification');
     if (!live) throw new Missing(finds[0]);
     const number = Number(version);
+    // The lock that Verify checks is the one that a member approved, as lock --verify checks.
+    const approved = approvedNumber(context, 'acceptance-lock');
+    if (approved !== number) {
+      throw new Missing('Pass --version the acceptance-lock version that a member approved.',
+        [approved === null ? 'acceptance-lock has no approved version.'
+          : `Version ${approved} is the approved one, not ${number}.`]);
+    }
     // The demo evidence is pulled once, when a criterion has a demo check.
     let demos;
     const evidence = () => {

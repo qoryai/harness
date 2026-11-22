@@ -306,7 +306,8 @@ function lockFile(io, def, draft) {
 // Qory Apiary, "GET artifacts") sets `cancelled` to true on each version that a cancelled run
 // wrote. A number that index.json does not list, that a cancelled run wrote, or that is older
 // than the newest version that counts exits 3: an older lock is a lock that a newer one
-// replaced, so a member approves the newer one first. A withdrawn lock exits 3 with the line
+// replaced, so a member approves the newer one first. A number that is not the version that
+// approved_version of the lock is set to exits 3 too. A withdrawn lock exits 3 with the line
 // for a member, with or without number: a lock protects checks that a person approved, so a
 // withdrawal never reads as no lock, and an agent that withdraws it verifies nothing.
 function counted(context, def, number) {
@@ -334,6 +335,14 @@ function counted(context, def, number) {
   if (chosen.number < newest.number) {
     throw new Missing(`Ask a member to approve ${def.type} version ${newest.number}.\nVersion ` +
       `${number} is older.`);
+  }
+  const approved = artifact && artifact.approved_version !== null
+    ? versions.find((one) => one.id === artifact.approved_version) : null;
+  if (!approved || approved.cancelled === true || approved.withdrawn === true) {
+    throw new Missing(instead, [`${def.type} has no approved version.`]);
+  }
+  if (approved.number !== number) {
+    throw new Missing(instead, [`Version ${approved.number} is the approved one, not ${number}.`]);
   }
   return chosen;
 }

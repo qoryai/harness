@@ -311,6 +311,11 @@ function work({ records = [], ledger = null, evidence = {}, plugin = layout(), f
   write(path.join(store, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json'), criteria);
   const index = JSON.parse(fs.readFileSync(path.join(store, 'index.json'), 'utf8'));
   index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version = 'av_ac1';
+  index.artifacts.push({ type: 'acceptance-lock', name: 'main', stage_id: 'st_6ns22c4pav',
+    approved_version: 'av_lock1', newest_version: 1, changed_after_approval: false,
+    versions: [{ id: 'av_lock1', number: 1, writer: { kind: 'run', run_id: 'run_7c3k1' },
+      cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-21T10:00:00Z',
+      files: [], approvals: [] }] });
   write(path.join(store, 'index.json'), index);
   if (ledger) write(path.join(store, 'build-ledger', 'main', 'v1', 'build-ledger.json'), ledger);
   for (const [scenario, doc] of Object.entries(evidence)) {
@@ -561,6 +566,24 @@ test('matrix: a type that cannot be pulled gives no state to what rests on it, a
   const result = matrix(none);
   assert.equal(result.status, 3, result.out + result.err);
   assert.match(result.lines[0], /^Run `qory artifact pull acceptance-criteria`, then matrix again\./);
+});
+
+test('matrix: it refuses a lock version that is not the approved one', () => {
+  const wk = work({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
+  const other = call(wk, ['matrix', '--version', '2']);
+  assert.equal(other.status, 3, other.out + other.err);
+  assert.deepEqual(other.lines.slice(0, 2), [
+    'Pass --version the acceptance-lock version that a member approved.',
+    '  Version 1 is the approved one, not 2.']);
+  assert.ok(!fs.existsSync(path.join(wk.store, 'verification.json')));
+  for (const dir of [wk.server]) {
+    const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+    index.artifacts.find((one) => one.type === 'acceptance-lock').approved_version = null;
+    write(path.join(dir, 'index.json'), index);
+  }
+  const none = matrix(wk);
+  assert.equal(none.status, 3, none.out + none.err);
+  assert.equal(none.lines[1], '  acceptance-lock has no approved version.');
 });
 
 test('matrix: it needs a run, the flag --version with a number, and approved criteria', () => {

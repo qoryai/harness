@@ -1096,8 +1096,10 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   <N>`, the version that a member approved, which may not be older than that version. An
   older `--version` exits 3 with "Ask a member to approve acceptance-lock version M." and
   the line "Version N is older.", and a `--version` that `index.json` does not list, or that
-  a cancelled run wrote, with "Pass --version the acceptance-lock version that a member
-  approved." and a second line with the cause, such as "index.json lists no version 7.". In
+  a cancelled run wrote, or that is not the version that `approved_version` of the lock is
+  set to, with "Pass --version the acceptance-lock version that a member approved." and a
+  second line with the cause, such as "index.json lists no version 7." or "Version 1 is the
+  approved one, not 2.". In
   a run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
   artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file with the
   one in `index.json`, so a lock or an `index.json` that an agent changed in the store
@@ -4031,7 +4033,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `.reports/runs/`, where the guard denies an agent's write. A criterion whose
   `demo-evidence` cannot be pulled is not verified, and a ledger that cannot be pulled adds
   the family `unknown`. `<N>` is the acceptance-lock version that Build's approval lists,
-  the one that `lock --verify --version <N>` verified. The matrix has one row for each live
+  the one that `lock --verify --version <N>` verified. A `--version` that is not the version
+  that `approved_version` of the lock is set to exits 3 with the same first line, and the
+  matrix writes no file. The matrix has one row for each live
   criterion, in the order of the criteria, from these sources:
   - a criterion whose check does not start with `Demo: `: the newest record of `run locked`
     in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria.
