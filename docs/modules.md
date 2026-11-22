@@ -2349,8 +2349,8 @@ find:
   in no row; a criterion planned as Tests with no path of a file with an extension in Check,
   such as `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check,
   such as `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`,
-  `full` and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`,
-  `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
+  `full`, `locked` and `serve`, or one kind twice; no row for one of `targeted`, `lint`,
+  `types`, `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
   `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
   criterion is planned as Demo; with a `serve` row, no line `App address: <url>` in
   `## Summary`, or a value that is no http or https URL whose host has only letters,
@@ -3402,6 +3402,8 @@ locked check that fails. The session runs no ledger step. In this order:
   - `qory.review_session` in the `inputs.json` of the `review-changes` session, and the
     run of the full suite before it: at qory `64e700db`, `newReviewSessionInputs` and the
     check of the round have `shortcut: not called yet`, so qory writes neither;
+  - the run of the `locked` row of the build plan: qory is to run it after the session as it
+    runs `full`, and at qory `64e700db` `FullRow` reads only the `full` row;
   - the run of the loop of Build, which Apiary runs;
   - the shape of `previous_findings`;
   - `qory.review_session.outputs` in the `inputs.json` of the session: the outputs that

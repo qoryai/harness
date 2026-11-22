@@ -82,13 +82,15 @@ with its Criteria cell. Never drop a criterion, and never merge unrelated change
 ## The commands
 
 The table has the columns `Kind`, `Command`, `Result file` and `Source`, with one row for
-each of the kinds `targeted`, `lint`, `types`, `build` and `full`, and a `serve` row when a
-criterion is planned as `Demo`.
+each of the kinds `targeted`, `lint`, `types`, `build` and `full`, a `serve` row when a
+criterion is planned as `Demo`, and at most one `locked` row, which is optional.
 
 - **targeted:** the command that runs the test files of one deliverable. Write it so that
   the paths of the test files come last, with no `#`, `;` or `&&`: the run adds the paths
   at its end. Its Result file is the JUnit XML file that it writes.
 - **full:** the command that runs every test, with the same Result file.
+- **locked:** the cells follow the rules of `full`. qory is to run its command after the
+  session, as it runs `full`.
 - **lint, types, build, serve:** the Result file is `none`.
 - **Command:** a command that the explorer's report or a file shows. With no such command,
   write `none` in Command, and in Source the reason, such as "The repository has no

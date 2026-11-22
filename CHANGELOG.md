@@ -26,6 +26,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `review-changes`, which Apiary runs. Rule 13 of `scripts/check.sh` fails when such a
   workflow starts a `-reviewer` agent that is no member of its `review_group`, or when a
   member of a group is no agent that a module defines.
+- The kind `locked` of a row of `## Commands` in a build plan. The row is optional, and the
+  check of the plan takes it as a row of any other kind: once, with a Source in one of its
+  three forms. qory is to run its command after the session as it runs `full`; qory
+  `64e700db` reads only the `full` row.
 - The tool guard knows a review session: a session whose `inputs.json` has
   `qory.review_session` as an object. There it allows agent starts, and an agent whose type
   ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case

@@ -1183,7 +1183,14 @@ test('build-plan: a criterion planned as Demo has the id of its scenario', () =>
 
 test('build-plan: each kind of command once, its source, and serve for a Demo criterion', () => {
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| lint |', '| style |'))),
-    /^Set the kind "style" in ## Commands of build-plan.md to one of the 6 kinds\. The kinds are targeted, lint, types, build, full, serve\.$/);
+    /^Set the kind "style" in ## Commands of build-plan.md to one of the 7 kinds\. The kinds are targeted, lint, types, build, full, locked, serve\.$/);
+  // A locked row is optional, and the check takes it as a row of any other kind.
+  passes(push(fixture(), 'build-plan', planFile(PLAN.replace('| serve |',
+    '| locked | `npm run test:locked` | `reports/locked.xml` | found: `package.json:13` |\n' +
+    '| serve |'))), 'build-plan');
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| serve |',
+    '| locked | `npm test` | none | module: typescript |\n| locked | none | none | |\n' +
+    '| serve |'))), /^Give the kind locked one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('| lint |', '| full |'))),
     /^Give the kind full one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(`${PLAN}| serve | \`npm start\` | none | module: typescript |\n`)),
