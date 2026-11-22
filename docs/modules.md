@@ -1210,12 +1210,13 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   git call fails, the check finds no change in that checkout. The finding is `Commit these
   changes, then end the session: the suite and the review read only committed work.`, then
   `Not committed:` with at most 20 paths, sorted, fewer when the line would pass 200
-  characters, with a path that has a key shown as words, and `(<n> in all)`. It counts the checks in a row that found a
-  change in `.reports/uncommitted.json`, and a check with none sets the count to 0. At the
-  third failed check, its point is "The Build session ended <n> times with changes it did
-  not commit, so the suite and the review could not check them.", with that count. With no
-  `inputs.json`, another stage, or a stack of core alone, it finds nothing. The Build stage
-  runs `implement-changes`, `plan-the-build` and `write-acceptance-checks` in such sessions.
+  characters, with a path that has a key shown as words, and `(<n> in all)`. It counts the
+  checks in a row that found a change in `.reports/uncommitted.json`, and a check with none
+  sets the count to 0. At the third failed check, its point is "The Build session ended <n>
+  times with changes it did not commit, so the suite and the review could not check them.",
+  with that count. With no `inputs.json`, another stage, or a stack of core alone, it finds
+  nothing. The Build stage runs `implement-changes`, `plan-the-build` and
+  `write-acceptance-checks` in such sessions.
 - The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
