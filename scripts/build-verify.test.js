@@ -1,7 +1,7 @@
 // Tests of the checks of the types of Build and Verify, which workflow-checks.cjs of
 // running-a-software-workflow adds to the checks script. scripts/check.sh runs them. Each type
 // has a version that passes, and each rule a test that breaks it and watches the check fail.
-// scripts/testdata/build-verify-samples.json has 50 documents of five JSON types, and
+// scripts/testdata/build-verify-samples.json has 58 documents of five JSON types, and
 // MORE_SAMPLES has documents of acceptance-criteria and verification, each valid or invalid
 // against the type's JSON Schema. A push runs on a store with the files that
 // qory mounts for a push check: index.json and the newest version of the type and of each type
@@ -13,6 +13,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const MODULES = path.join(__dirname, '../modules');
 const SCRIPT = path.join(MODULES, 'core/skills/running-a-workflow/checks.cjs');
@@ -21,11 +22,13 @@ const TESTDATA = path.join(MODULES, 'software-factory/testdata');
 const PROCESS = path.join(MODULES, 'software-factory/process.yaml');
 const MANIFEST = path.join(MODULES, 'software-factory/qory-module.yaml');
 const SAMPLES = require('./testdata/build-verify-samples.json');
-const schema = require(path.join(SKILL, 'lib/schema.cjs'));
+const core = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/schema.cjs'));
+// schema.load takes the type alone here: the schemas of the software module.
+const schema = { ...core, load: (type) => core.load(path.join(SKILL, 'schemas'), type) };
 const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
 
-const JSON_TYPES = ['submission', 'build-ledger', 'acceptance-lock', 'demo-script',
+const JSON_TYPES = ['pull-request', 'build-ledger', 'acceptance-lock', 'demo-script',
   'demo-evidence', 'verification'];
 const DOCUMENT_TYPES = ['build-plan', 'build-report'];
 // The JSON types that process.yaml defines with a json_schema: every JSON type but verification,
@@ -452,8 +455,44 @@ function passes(result, type) {
 
 // ---- The template, the schemas and the push checks ----------------------------------------
 
+// decodeSchema returns JSON for text, a json_schema block of process.yaml: indented JSON in
+// which each string is a YAML double-quoted scalar. Node has no YAML library, so this reads the
+// one escape that YAML has and JSON lacks, \UXXXXXXXX, as qory's YAML reader does (the library
+// gopkg.in/yaml.v3). It throws for a backslash outside a double-quoted scalar and for an escape
+// that JSON does not have. An escaped backslash before a U stays as it is: it is no \U escape.
+function decodeSchema(text) {
+  let out = '';
+  let quoted = false;
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at];
+    if (char === '"') quoted = !quoted;
+    if (char !== '\\') {
+      out += char;
+      continue;
+    }
+    if (!quoted) throw new Error(`a backslash outside a double-quoted scalar at ${at}`);
+    const next = text[at + 1];
+    if (next === 'U') {
+      const hex = text.slice(at + 2, at + 10);
+      if (!/^[0-9a-fA-F]{8}$/.test(hex) || parseInt(hex, 16) < 0x10000
+        || parseInt(hex, 16) > 0x10ffff) throw new Error(`a bad \\U escape at ${at}`);
+      const code = parseInt(hex, 16) - 0x10000;
+      const pair = [0xd800 + (code >> 10), 0xdc00 + (code & 0x3ff)];
+      out += pair.map((unit) => `\\u${unit.toString(16)}`).join('');
+      at += 9;
+    } else if (next !== undefined && '"\\/bfnrtu'.includes(next)) {
+      out += char + next;
+      at += 1;
+    } else {
+      throw new Error(`an escape that JSON lacks at ${at}`);
+    }
+  }
+  return out;
+}
+
 // artifactEntries returns each entry of artifact_types in process.yaml, with its keys, and its
-// json_schema parsed: the template writes each schema as indented JSON.
+// json_schema parsed: the template writes each schema as indented JSON, with YAML's escape
+// \UXXXXXXXX for a character above U+FFFF (decodeSchema).
 function artifactEntries() {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   const list = yaml.slice(yaml.indexOf('\nartifact_types:\n'));
@@ -466,7 +505,9 @@ function artifactEntries() {
       const match = /^    ([a-z_]+): (.+)$/.exec(line);
       if (match) entry[match[1]] = /^[0-9]+$/.test(match[2]) ? Number(match[2]) : match[2];
     }
-    if (schemaAt >= 0) entry.json_schema = JSON.parse(rest.slice(schemaAt + 1).join('\n'));
+    if (schemaAt >= 0) {
+      entry.json_schema = JSON.parse(decodeSchema(rest.slice(schemaAt + 1).join('\n')));
+    }
     return entry;
   });
 }
@@ -480,12 +521,12 @@ function templateEntries() {
 
 test('process.yaml lists the seven custom types of Build and Verify last, with their limits', () => {
   const entries = templateEntries();
-  assert.deepEqual(entries.map((entry) => entry.name), ['submission', 'build-plan',
+  assert.deepEqual(entries.map((entry) => entry.name), ['pull-request', 'build-plan',
     'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence']);
   for (const entry of entries) {
     const structured = CUSTOM_JSON_TYPES.includes(entry.name);
     assert.equal(entry.base_view, structured ? 'structured' : 'document', entry.name);
-    assert.equal(entry.size_limit, 1048576, entry.name);
+    assert.equal(entry.size_limit, entry.name === 'pull-request' ? 786432 : 1048576, entry.name);
     assert.equal(entry.max_files, 1, entry.name);
     assert.equal(Boolean(entry.json_schema), structured, entry.name);
   }
@@ -559,11 +600,22 @@ test('each JSON Schema of schemas/ is the json_schema of its type in process.yam
   }
 });
 
+test('each type that a stage names has an entry in artifact_types, proposal by name only', () => {
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  const stages = yaml.slice(0, yaml.indexOf('\nartifact_types:\n'));
+  const named = new Set([...stages.matchAll(/^\s+- type: ([a-z-]+)$/gm)].map((one) => one[1]));
+  const entries = artifactEntries();
+  const listed = new Set(entries.map((entry) => entry.name));
+  assert.deepEqual([...named].filter((name) => !listed.has(name)), []);
+  assert.ok(named.has('proposal'));
+  assert.deepEqual(entries.find((entry) => entry.name === 'proposal'), { name: 'proposal' });
+});
+
 test('qory-module.yaml has a push check per type, with the types that each check reads', () => {
   const manifest = fs.readFileSync(MANIFEST, 'utf8');
   const program = 'skills/running-a-software-workflow/workflow-checks.cjs';
   const reads = {
-    submission: null, 'build-plan': 'acceptance-criteria', 'build-report': null,
+    'pull-request': null, 'build-plan': 'acceptance-criteria', 'build-report': null,
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
     'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
@@ -604,11 +656,14 @@ test('the schema check throws for a form of a keyword that it does not check', (
   thrown({ uniqueItems: false }, /Write uniqueItems at # of x.json as true, /);
   // The forms that the schemas of schemas/ use.
   for (const type of ['acceptance-criteria', ...JSON_TYPES]) schema.load(type);
+  // The words of x-qory-fill are annotations that core reads, and the check applies none.
+  schema.compile({ type: 'object', properties: { a: { type: 'string', 'x-qory-fill': 'a' } } },
+    'x.json');
   schema.compile({ type: 'object', additionalProperties: true, properties: {
     a: { enum: ['x', 1, true, null] }, b: { const: null } } }, 'x.json');
 });
 
-test('the 50 samples: each valid one passes its schema, each invalid one fails it', () => {
+test('the 58 samples: each valid one passes its schema, each invalid one fails it', () => {
   let count = 0;
   for (const [type, kinds] of Object.entries(SAMPLES)) {
     const loaded = schema.load(type);
@@ -622,7 +677,7 @@ test('the 50 samples: each valid one passes its schema, each invalid one fails i
       count += 1;
     }
   }
-  assert.equal(count, 50);
+  assert.equal(count, 58);
 });
 
 test('the samples of acceptance-criteria and verification pass or fail their schema', () => {
@@ -639,38 +694,35 @@ test('the samples of acceptance-criteria and verification pass or fail their sch
 });
 
 test('each finding of the schema check has the member and the fix of its keyword', () => {
-  const loaded = schema.load('submission');
-  const doc = clone(SAMPLES.submission.valid[0].doc);
+  const loaded = schema.load('pull-request');
+  const doc = clone(SAMPLES['pull-request'].valid[0].doc);
   const found = (change) => {
     const bad = clone(doc);
     change(bad);
-    return schema.errors(loaded, bad, 'submission.json');
+    return schema.errors(loaded, bad, 'pull-request.json');
   };
-  assert.deepEqual(found((d) => { d.verdict = 'failed'; }), ['Set /verdict of submission.json ' +
-    'to a value that the schema lists.\nThe schema lists passed, changes-requested, escalate, ' +
-    'none. It is "failed".']);
-  assert.deepEqual(found((d) => { delete d.ref; }), ['Add the member ref to submission.json.']);
+  assert.deepEqual(found((d) => { d.draft = 'yes'; }),
+    ['Write /draft of pull-request.json as true or false.\nIt is text.']);
+  assert.deepEqual(found((d) => { delete d.title; }),
+    ['Add the member title to pull-request.json.']);
   assert.deepEqual(found((d) => { d.pull_request = 34; }), ['Remove the member "pull_request" ' +
-    'from submission.json.\nThe schema has no such member.']);
-  assert.match(found((d) => { d.repositories[0].commit = 'abc'; })[0],
-    /^Write \/repositories\/0\/commit of submission.json so that it matches its pattern\.\nThe pattern is /);
-  assert.deepEqual(found((d) => { d.repositories[0].draft.none = 'no-text'; }),
-    ['Write /repositories/0/draft of submission.json in exactly one of its 2 forms.\nIt fits 0.']);
-  assert.deepEqual(found((d) => { d.repositories = []; }),
-    ['Give /repositories of submission.json at least 1 entry.\nIt has 0.']);
-  assert.deepEqual(found((d) => { d.text.title = 'x'.repeat(257); }),
-    ['Cut /text/title of submission.json to at most 256 characters.\nIt has 257.']);
-  assert.deepEqual(found((d) => { d.repositories[0].path = 'example/../x'; }),
-    ['Write /repositories/0/path of submission.json in another form.\nThe schema excludes ' +
-      '"example/../x".']);
-  assert.deepEqual(found((d) => { d.repositories = {}; }),
-    ['Write /repositories of submission.json as a list.\nIt is an object.']);
+    'from pull-request.json.\nThe schema has no such member.']);
+  assert.match(found((d) => { d.head.address.path = 'abc'; })[0],
+    /^Write \/head\/address\/path of pull-request.json so that it matches its pattern\.\n/);
+  assert.deepEqual(found((d) => { d.commits = []; }),
+    ['Give /commits of pull-request.json at least 1 entry.\nIt has 0.']);
+  assert.deepEqual(found((d) => { d.title = 'x'.repeat(257); }),
+    ['Cut /title of pull-request.json to at most 256 characters.\nIt has 257.']);
+  assert.deepEqual(found((d) => { d.branch = 'a..b'; }),
+    ['Write /branch of pull-request.json in another form.\nThe schema excludes "a..b".']);
+  assert.deepEqual(found((d) => { d.commits = {}; }),
+    ['Write /commits of pull-request.json as a list.\nIt is an object.']);
   // A long member name and a long pointer keep the first line within 100 characters, and the
   // later lines have the whole pointer and the member name as shown.
   const long = 'a long member name '.repeat(4).trim();
-  const deep = found((d) => { d.repositories[0][long] = { [long]: 1 }; });
-  assert.deepEqual(deep, ['Remove the member "a long member nam..." from /repositories/0 of ' +
-    'submission.json.\nThe schema has no member "a long member name a long member name...".']);
+  const deep = found((d) => { d.head[long] = { [long]: 1 }; });
+  assert.deepEqual(deep, ['Remove the member "a long member nam..." from /head of ' +
+    'pull-request.json.\nThe schema has no member "a long member name a long member name...".']);
   const pointer = schema.errors({ schema: { type: 'object', properties: { [long]: {
     type: 'object', properties: { [long]: { type: 'string' } } } } }, patterns: new Map() },
   { [long]: { [long]: 1 } }, 'acceptance-lock.json');
@@ -720,146 +772,240 @@ test('each JSON type fails each invalid sample in its push', () => {
   }
 });
 
-// ---- submission ---------------------------------------------------------------------------
+// ---- pull-request -------------------------------------------------------------------------
 
-const SUBMISSION = SAMPLES.submission.valid[0].doc;
+const PULL_REQUEST = SAMPLES['pull-request'].valid[0].doc;
+const PR_FILE = 'pull-request.json';
 
-test('submission: both valid samples pass check and push', () => {
-  for (const sample of SAMPLES.submission.valid) {
-    passes(push(fixture(), 'submission', ['submission.json', sample.doc]), 'submission');
-    passes(check(fixture(), 'submission', ['submission.json', sample.doc]), 'submission');
+test('pull-request: both valid samples pass push, and check leaves the schema to end', () => {
+  for (const sample of SAMPLES['pull-request'].valid) {
+    passes(push(fixture(), 'pull-request', [PR_FILE, sample.doc]), 'pull-request');
+    passes(check(fixture(), 'pull-request', [PR_FILE, sample.doc]), 'pull-request');
   }
+  // In check, before qory sets target and fills the marked members, the file has neither.
+  const written = clone(PULL_REQUEST);
+  for (const name of ['target', 'commits', 'head', 'base', 'branch', 'base_branch']) {
+    delete written[name];
+  }
+  passes(check(fixture(), 'pull-request', [PR_FILE, written]), 'pull-request');
+  fails(push(fixture(), 'pull-request', [PR_FILE, written]), /^Add the member target to /);
 });
 
-test('submission: a passed verdict has a text', () => {
-  const doc = clone(SUBMISSION);
-  delete doc.text;
-  fails(push(fixture(), 'submission', ['submission.json', doc]),
-    /^Add the member text to submission.json: a passed verdict has a title and a description\.$/);
+test('pull-request: the text has the four parts in order', () => {
+  const doc = clone(PULL_REQUEST);
+  doc.text = '## Change\n...\n## Problem\n...\n## Tests\n...\n## Disclosed\n...';
+  for (const run of [push, check]) {
+    fails(run(fixture(), 'pull-request', [PR_FILE, doc]),
+      new RegExp('^Write /text of pull-request.json in four parts, in their order\\. ' +
+        'They are ## Problem, ## Change, ## Tests, ## Disclosed\\. It has ## Change, ## Problem'));
+  }
+  doc.text = 'The change.';
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]), / It has no ## heading\.$/);
 });
 
-test('submission: the description has the four parts in order', () => {
-  const doc = clone(SUBMISSION);
-  doc.text.description = '## Change\n...\n## Problem\n...\n## Tests\n...\n## Disclosed\n...';
-  fails(push(fixture(), 'submission', ['submission.json', doc]),
-    /^Write \/text\/description of submission.json in four parts, in their order\. They are ## Problem, ## Change, ## Tests, ## Disclosed\. It has ## Change, ## Problem/);
-  doc.text.description = 'The change.';
-  fails(push(fixture(), 'submission', ['submission.json', doc]), / It has no ## heading\.$/);
-});
-
-test('submission: no secret in the title or the description', () => {
+test('pull-request: no secret in the title or the text', () => {
   const secrets = ['-----BEGIN RSA PRIVATE KEY-----', `AKIA${'A'.repeat(16)}`,
     `ghp_${'a'.repeat(36)}`, `github_pat_${'a'.repeat(22)}`, `glpat-${'a'.repeat(20)}`,
     `xoxb-${'1'.repeat(12)}`, `sk-${'a'.repeat(24)}`];
   for (const secret of secrets) {
-    const doc = clone(SUBMISSION);
-    doc.text.description = doc.text.description.replace('## Change\n...', `## Change\n${secret}`);
-    fails(push(fixture(), 'submission', ['submission.json', doc]),
-      /^Remove the secret from \/text\/description of submission.json: it has the form of /);
+    const doc = clone(PULL_REQUEST);
+    doc.text = doc.text.replace('## Change\n...', `## Change\n${secret}`);
+    for (const run of [push, check]) {
+      fails(run(fixture(), 'pull-request', [PR_FILE, doc]),
+        /^Remove the secret from \/text of pull-request.json: it has the form of /);
+    }
   }
   // A token one character shorter than its form is no secret.
   for (const short of [`github_pat_${'a'.repeat(21)}`, `glpat-${'a'.repeat(19)}`]) {
-    const doc = clone(SUBMISSION);
-    doc.text.description = doc.text.description.replace('## Change\n...', `## Change\n${short}`);
-    passes(push(fixture(), 'submission', ['submission.json', doc]), 'submission');
+    const doc = clone(PULL_REQUEST);
+    doc.text = doc.text.replace('## Change\n...', `## Change\n${short}`);
+    passes(push(fixture(), 'pull-request', [PR_FILE, doc]), 'pull-request');
   }
-  const doc = clone(SUBMISSION);
-  doc.text.title = `Add export ghp_${'a'.repeat(36)}`;
-  fails(push(fixture(), 'submission', ['submission.json', doc]), /^Remove the secret from \/text\/title/);
+  const doc = clone(PULL_REQUEST);
+  doc.title = `Add export ghp_${'a'.repeat(36)}`;
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]), /^Remove the secret from \/title/);
 });
 
-// The schema of submission takes qory's format and the bounds of the change feed of the
-// integration contract: base, commits, more draft states, the reasons with exit, the title
-// rule of a draft, and a description that may be empty and has no marker line.
-const submissionErrors = (change) => {
-  const doc = clone(SUBMISSION);
+// The schema of pull-request takes the bounds of qory's format, and the shape of the members
+// that qory sets and fills: references, a branch, and a count of earlier commits.
+const pullRequestErrors = (change) => {
+  const doc = clone(PULL_REQUEST);
   change(doc);
-  return schema.errors(schema.load('submission'), doc, 'submission.json');
+  return schema.errors(schema.load('pull-request'), doc, PR_FILE);
 };
 
-test('submission: a repository with base and commits, and one with no draft, is valid', () => {
-  assert.deepEqual(submissionErrors((d) => {
-    Object.assign(d.repositories[0], {
-      base: { commit: C2, branch: 'main', commit_url: 'https://example.com/example/shop/commit/1' },
-      commits: [{ commit: C2, step: 'deliverable:d-1' },
-        { commit: C1, step: 'fix:f1', commit_url: 'https://example.com/example/shop/commit/2' }],
-    });
-  }), []);
-  assert.deepEqual(submissionErrors((d) => { delete d.repositories[0].draft; }), []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { branch: 'main' }; }), []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { commit: C1, x: 1 }; }),
-    []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].base = { commit: C1,
-    branch: 'a..b' }; }), []);
-  assert.notDeepEqual(submissionErrors((d) => { d.repositories[0].commits = [{ commit: C1 }]; }),
-    []);
-});
-
-test('submission: a step has 1 to 128 characters, and the commits have no upper bound', () => {
-  const step = (value) => submissionErrors((d) => {
-    d.repositories[0].commits = [{ commit: C1, step: value }];
-  });
-  assert.deepEqual(step('x'.repeat(128)), []);
-  assert.deepEqual(step('x'.repeat(129)), ['Cut /repositories...mmits/0/step of ' +
-    'submission.json to at most 128 characters.\nIt has 129.\nThe whole JSON pointer is ' +
-    '/repositories/0/commits/0/step.']);
-  assert.notDeepEqual(step(''), []);
-  assert.notDeepEqual(step('a\u0000b'), []);
-  const commits = (count) => submissionErrors((d) => {
-    d.repositories[0].commits = Array.from({ length: count }, () => ({ commit: C1, step: 's' }));
-  });
-  assert.deepEqual(commits(100), []);
-  assert.deepEqual(commits(101), []);
-  // The push check of the type takes 101 commits in one repository, as qory does.
-  const many = clone(SUBMISSION);
-  many.repositories[0].commits = Array.from({ length: 101 }, () => ({ commit: C1, step: 's' }));
-  passes(push(fixture(), 'submission', ['submission.json', many]), 'submission');
-});
-
-test('submission: the title is one line, with no control, bidi or invisible character', () => {
-  const title = (value) => submissionErrors((d) => { d.text.title = value; });
-  assert.deepEqual(title('Add export to CSV'), []);
-  for (const bad of ['Add\texport', 'Add\u0085export', 'Add\u202eexport', 'Add\u2028export',
-    'Add\u200bexport', 'Add\u007fexport', '', '   ', '\u00a0\u3000']) {
-    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+test('pull-request: a null, in any member, is refused at push', () => {
+  for (const member of ['title', 'text', 'draft', 'branch', 'earlier_commits', 'target', 'steps']) {
+    const doc = clone(PULL_REQUEST);
+    doc[member] = null;
+    fails(push(fixture(), 'pull-request', [PR_FILE, doc]), new RegExp(`^Write /${member} of `));
   }
 });
 
-test('submission: the description may be empty, has at most 20000 characters, no marker line', () => {
-  const description = (value) => submissionErrors((d) => { d.text.description = value; });
-  assert.deepEqual(description(''), []);
-  assert.deepEqual(description('x'.repeat(20000)), []);
-  assert.deepEqual(description('See <!-- qory:start --> in a line.'), []);
-  assert.deepEqual(description('x'.repeat(20001)), ['Cut /text/description of ' +
-    'submission.json to at most 20000 characters.\nIt has 20001.']);
+test('pull-request: a commit id has 40 or 64 hex characters, not 41', () => {
+  const id = (value) => pullRequestErrors((d) => { d.commits[0].address.path = value; });
+  assert.deepEqual(id('a'.repeat(40)), []);
+  assert.deepEqual(id('a'.repeat(64)), []);
+  assert.notDeepEqual(id('a'.repeat(41)), []);
+  assert.notDeepEqual(id('A'.repeat(40)), []);
+  const doc = clone(PULL_REQUEST);
+  doc.commits[0].address.path = 'a'.repeat(41);
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]),
+    /^Write \/commits\/0\/address\/path of pull-request.json so that it matches its pattern\./);
+  assert.notDeepEqual(pullRequestErrors((d) => { d.head.address = {}; }), []);
+  assert.notDeepEqual(pullRequestErrors((d) => { delete d.base.address; }), []);
+});
+
+test('pull-request: the address of every reference needs a system and a path', () => {
+  const paths = { target: 'example/shop', head: 'a'.repeat(40), base: 'b'.repeat(40) };
+  for (const [member, path] of Object.entries(paths)) {
+    assert.deepEqual(pullRequestErrors((d) => { d[member].address = { system: 'x.org', path }; }),
+      [], member);
+    assert.notDeepEqual(pullRequestErrors((d) => { d[member].address = { path }; }), [], member);
+    assert.notDeepEqual(pullRequestErrors((d) => { d[member].address = { system: 'x.org' }; }),
+      [], member);
+  }
+  const system = pullRequestErrors((d) => { d.commits[0].address = { path: 'a'.repeat(40) }; });
+  assert.deepEqual(system, ['Add the member system to /commits/0/address of pull-request.json.']);
+});
+
+test('pull-request: a step has 1 to 128 characters, and the commits have no upper bound', () => {
+  const step = (value) => pullRequestErrors((d) => { d.steps = [{ commit: C1, step: value }]; });
+  assert.deepEqual(step('x'.repeat(128)), []);
+  assert.deepEqual(step('x'.repeat(129)), ['Cut /steps/0/step of pull-request.json to at ' +
+    'most 128 characters.\nIt has 129.']);
+  assert.notDeepEqual(step(''), []);
+  assert.notDeepEqual(step('a\u0000b'), []);
+  const many = (count) => {
+    const doc = clone(PULL_REQUEST);
+    doc.commits = Array.from({ length: count }, () => doc.head);
+    doc.steps = Array.from({ length: count }, () => ({ commit: C1, step: 's' }));
+    return doc;
+  };
+  assert.deepEqual(schema.errors(schema.load('pull-request'), many(100), PR_FILE), []);
+  assert.deepEqual(schema.errors(schema.load('pull-request'), many(101), PR_FILE), []);
+  // The push check of the type takes 101 commits in one target, as qory does.
+  passes(push(fixture(), 'pull-request', [PR_FILE, many(101)]), 'pull-request');
+});
+
+test('pull-request: the title is one line, with no control, bidi or invisible character', () => {
+  const title = (value) => pullRequestErrors((d) => { d.title = value; });
+  assert.deepEqual(title('Add export to CSV'), []);
+  for (const bad of ['Add\texport', 'Add\u0085export', 'Add\u202eexport', 'Add\u2028export',
+    'Add\u200bexport', 'Add\u007fexport', '', '   ', ' 　']) {
+    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+  }
+  // Each character of the class Cf but U+200C and U+200D is refused by the pattern.
+  for (const bad of ['Add\u00adexport', 'Add\u0600export', 'Add\u{110bd}export']) {
+    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+    fails(push(fixture(), 'pull-request', [PR_FILE, { ...clone(PULL_REQUEST), title: bad }]),
+      /^Remove U\+[0-9A-F]{4,5} from \/title of /);
+  }
+});
+
+test('pull-request: a title keeps an emoji joiner and refuses a tag or bidi character', () => {
+  const run = (title) => {
+    const doc = clone(PULL_REQUEST);
+    doc.title = title;
+    return push(fixture(), 'pull-request', [PR_FILE, doc]);
+  };
+  // U+1F468 U+200D U+1F469: the joiner U+200D is inside the emoji.
+  passes(run('Add family \u{1F468}\u200D\u{1F469} export'), 'pull-request');
+  passes(run('Add\u200Cexport'), 'pull-request');
+  for (const [title, code] of [['Add\u202Eexport', '202E'],
+    ['Add\u{E0041}export', 'E0041']]) {
+    const got = run(title);
+    fails(got, new RegExp(`^Remove U\\+${code} from /title of `));
+    assert.ok(!got.out.includes(title.charAt(3)), `${code}: the raw character is in a finding`);
+  }
+});
+
+test('pull-request: the text may be empty, has at most 20000 characters, no marker line', () => {
+  const text = (value) => pullRequestErrors((d) => { d.text = value; });
+  assert.deepEqual(text(''), []);
+  assert.deepEqual(text('x'.repeat(20000)), []);
+  assert.deepEqual(text('See <!-- qory:start --> in a line.'), []);
+  assert.deepEqual(text('x'.repeat(20001)), ['Cut /text of pull-request.json to at most ' +
+    '20000 characters.\nIt has 20001.']);
   for (const marker of ['<!-- qory:start -->', '<!-- qory:end -->']) {
     for (const bad of [marker, `## Problem\n${marker}\n## Change`, `${marker} \r\nx`]) {
-      assert.notDeepEqual(description(bad), [], JSON.stringify(bad));
+      assert.notDeepEqual(text(bad), [], JSON.stringify(bad));
     }
   }
 });
 
-test('submission: the reasons for no draft, and the exit that goes with each', () => {
-  const none = (draft) => submissionErrors((d) => { d.repositories[0].draft = draft; });
-  for (const exit of [0, 1, 2]) assert.deepEqual(none({ none: 'program-failed', exit }), []);
-  assert.deepEqual(none({ none: 'login-needed', exit: 3 }), []);
-  for (const reason of ['not-passed', 'no-text', 'escalated', 'no-program', 'program-timeout']) {
-    assert.deepEqual(none({ none: reason }), [], reason);
-    assert.notDeepEqual(none({ none: reason, exit: 1 }), [], reason);
+test('the marker rule is on the text of pull-request, the primitive text has none', () => {
+  const marker = 'a\n<!-- qory:start -->\nb';
+  assert.deepEqual(pullRequestErrors((d) => { d.text = marker; }), ['Write /text of ' +
+    `pull-request.json in another form.\nThe schema excludes ${JSON.stringify(marker)}.`]);
+  for (const doc of [JSON.parse(fs.readFileSync(path.join(SKILL,
+    'schemas/pull-request.schema.json'), 'utf8')), artifactEntries()
+    .find((entry) => entry.name === 'pull-request').json_schema]) {
+    assert.equal(doc.$defs.text.not.pattern, '(^|\\n)<!-- qory:(start|end) -->');
+    assert.deepEqual(doc.properties.text, { title: 'Description', $ref: '#/$defs/text' });
   }
-  assert.notDeepEqual(none({ none: 'program-failed' }), []);
-  assert.notDeepEqual(none({ none: 'program-failed', exit: 3 }), []);
-  assert.notDeepEqual(none({ none: 'login-needed' }), []);
-  assert.notDeepEqual(none({ none: 'login-needed', exit: 2 }), []);
-  assert.notDeepEqual(none({ none: 'other' }), []);
-  for (const state of ['closed', 'merged']) {
-    assert.deepEqual(submissionErrors((d) => { d.repositories[0].draft.state = state; }), []);
-  }
+  const primitives = JSON.parse(fs.readFileSync(path.join(SKILL,
+    'schemas/primitives.schema.json'), 'utf8'));
+  assert.equal(primitives.$defs.text.not, undefined);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'marker-'));
+  fs.copyFileSync(path.join(SKILL, 'schemas/primitives.schema.json'),
+    path.join(dir, 'primitives.schema.json'));
+  fs.writeFileSync(path.join(dir, 'plain.schema.json'), JSON.stringify({ type: 'object',
+    properties: { body: { $ref: `${primitives.$id}#/$defs/text` } } }));
+  assert.deepEqual(core.errors(core.load(dir, 'plain'), { body: marker }, 'plain.json'), []);
 });
 
-test('process.yaml declares the submit step: the type submission, sent at the end of a run', () => {
-  assert.ok(fs.readFileSync(PROCESS, 'utf8').split('\n').includes(
-    'submit: {type: submission, send: end_of_run}'));
+test('pull-request: a branch follows the rules of a name, earlier_commits is optional', () => {
+  const branch = (value) => pullRequestErrors((d) => { d.branch = value; });
+  assert.deepEqual(branch('qory/wi_abc'), []);
+  assert.deepEqual(branch('x'.repeat(255)), []);
+  for (const bad of ['x'.repeat(256), 'a..b', '-a', 'a b', 'a.lock', '@', 'a/']) {
+    assert.notDeepEqual(branch(bad), [], bad);
+  }
+  assert.notDeepEqual(pullRequestErrors((d) => { d.base_branch = 'a~b'; }), []);
+  assert.deepEqual(pullRequestErrors((d) => { delete d.earlier_commits; }), []);
+  assert.deepEqual(pullRequestErrors((d) => { d.earlier_commits = 1; }), []);
+  assert.notDeepEqual(pullRequestErrors((d) => { d.earlier_commits = 0; }), []);
+  assert.notDeepEqual(pullRequestErrors((d) => { d.draft = 1; }), []);
+});
+
+test('pull-request: a whole number with a fraction, an exponent or a huge value is refused', () => {
+  const base = clone(PULL_REQUEST);
+  delete base.earlier_commits;
+  const written = (count) => JSON.stringify(base).replace('"draft":true',
+    `"draft":true,"earlier_commits":${count}`);
+  for (const count of ['34.0', '3.4e1', '3E1', '34e0']) {
+    fails(push(fixture(), 'pull-request', [PR_FILE, written(count)]),
+      /^Write \/earlier_commits of pull-request.json as a whole number with no fraction/);
+  }
+  passes(push(fixture(), 'pull-request', [PR_FILE, written('9223372036854775807')]),
+    'pull-request');
+  fails(push(fixture(), 'pull-request', [PR_FILE, written('9223372036854775808')]),
+    /^Set \/earlier_commits of pull-request.json to at most 9223372036854775807\./);
+  // The same digits in a string are text.
+  const note = JSON.stringify({ ...PULL_REQUEST, title: '34.0' });
+  passes(push(fixture(), 'pull-request', [PR_FILE, note]), 'pull-request');
+});
+
+test('process.yaml has no submit step, lists pull-request as an output of Build', () => {
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  assert.ok(!/^submit:/m.test(yaml));
+  assert.ok(!yaml.includes('submission'));
+  assert.ok(yaml.includes(
+    '      outputs:\n        - type: pull-request\n          required: true\n'));
+  const entry = artifactEntries().find((one) => one.name === 'pull-request');
+  assert.equal(entry.size_limit, 786432);
+  assert.equal(entry.base_view, 'structured');
+});
+
+test('pull-request: every member that qory fills is marked, and no other member is', () => {
+  const { properties } = schema.load('pull-request').schema;
+  const marks = Object.fromEntries(Object.entries(properties)
+    .filter(([, member]) => member['x-qory-fill']).map(([name, member]) =>
+      [name, member['x-qory-fill']]));
+  assert.deepEqual(marks, { commits: 'pushed-commits', head: 'pushed-head', base: 'pushed-base',
+    branch: 'pushed-branch', base_branch: 'pushed-base-branch',
+    earlier_commits: 'pushed-commits-left-out' });
 });
 
 // ---- build-plan ---------------------------------------------------------------------------
@@ -3193,4 +3339,309 @@ test('end takes no file of a scenario at the top of the folder as a draft', () =
     .filter((def) => ['demo-script', 'demo-evidence', 'demo-video', 'screenshot'].includes(def.type));
   assert.equal(types.length, 4);
   assert.deepEqual(endDrafts(root, '/nowhere', types), []);
+});
+
+// ---- the rule of the characters of a string -----------------------------------------------
+// A string refuses each Cc, U+2028, U+2029, and each Cf but U+200C and U+200D (the joiners of
+// emoji). A text keeps tab, line feed and carriage return. The lists in the schemas are those
+// of Unicode 17.0; Node generates the expected set here, so a Node with other tables fails.
+const UNICODE = '17.0';
+const REFUSED = { line: new Uint8Array(0x110000), text: new Uint8Array(0x110000) };
+for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+  const char = String.fromCodePoint(cp);
+  const refused = /\p{Cc}/u.test(char) || cp === 0x2028 || cp === 0x2029
+    || (/\p{Cf}/u.test(char) && cp !== 0x200c && cp !== 0x200d);
+  REFUSED.line[cp] = refused ? 1 : 0;
+  REFUSED.text[cp] = refused && cp !== 9 && cp !== 10 && cp !== 13 ? 1 : 0;
+}
+const isRefused = (cp, text) => REFUSED[text ? 'text' : 'line'][cp] === 1;
+// patternsOf returns the patterns of the line and text rules with their place: primitives,
+// demo-script and demo-evidence (file and process.yaml) and extensions.schema.json.
+function patternsOf() {
+  const found = [];
+  const entries = artifactEntries();
+  const primitives = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/primitives.schema.json'),
+    'utf8'));
+  found.push(['primitives $defs line', primitives.$defs.line.pattern, false],
+    ['primitives $defs text', primitives.$defs.text.pattern, true]);
+  for (const type of ['demo-script', 'demo-evidence']) {
+    const file = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas', `${type}.schema.json`),
+      'utf8'));
+    const yaml = entries.find((entry) => entry.name === type).json_schema;
+    for (const [from, doc] of [['schemas', file], ['process.yaml', yaml]]) {
+      found.push([`${type} ${from} $defs line`, doc.$defs.line.pattern, false]);
+    }
+  }
+  const area = JSON.parse(fs.readFileSync(path.join(SKILL, 'extensions.schema.json'), 'utf8'))
+    .properties.add_sensitive_areas.items.properties;
+  found.push(['extensions name', area.name.pattern, false],
+    ['extensions patterns', area.patterns.items.pattern, false]);
+  return found;
+}
+
+test('the character lists of the schemas are the one rule, for each code point', () => {
+  const found = patternsOf();
+  // The primitives have a line and a text, demo-script and demo-evidence a line, each twice.
+  assert.equal(found.length, 2 + 2 + 2 + 2);
+  for (const [place, pattern, text] of found) {
+    const regexp = new RegExp(pattern, 'u');
+    const wrong = [];
+    for (let cp = 0; cp <= 0x10ffff && wrong.length < 5; cp += 1) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      if (regexp.test(`a${String.fromCodePoint(cp)}b`) === isRefused(cp, text)) {
+        wrong.push(`U+${cp.toString(16).toUpperCase().padStart(4, '0')}`);
+      }
+    }
+    assert.deepEqual(wrong, [], `${place}: the list differs from Node's Unicode ` +
+      `${process.versions.unicode} at these code points; it was made for Unicode ${UNICODE}`);
+    assert.equal(regexp.test('a\u{1F468}\u200d\u{1F469}b'), true, `${place}: an emoji`);
+  }
+});
+
+test('the extensions pattern in repository-settings.cjs is the pattern of the schema', () => {
+  const source = fs.readFileSync(path.join(SKILL, 'lib/repository-settings.cjs'), 'utf8');
+  const one = vm.runInNewContext(/const ONE_LINE =([^;]*);/.exec(source)[1]);
+  const area = JSON.parse(fs.readFileSync(path.join(SKILL, 'extensions.schema.json'), 'utf8'))
+    .properties.add_sensitive_areas.items.properties;
+  assert.equal(one, area.name.pattern);
+  assert.equal(one, area.patterns.items.pattern);
+});
+
+test('pull-request: no member has a tag character or U+200B, and each keeps emoji joiners', () => {
+  const members = {
+    title: (d, v) => { d.title = v; },
+    text: (d, v) => { d.text = v; },
+    step: (d, v) => { d.steps = [{ commit: C1, step: v }]; },
+    collection: (d, v) => { d.target.collection = v; },
+    path: (d, v) => { d.target.address = { system: 'x.org', path: v }; },
+    branch: (d, v) => { d.branch = v; },
+    base_branch: (d, v) => { d.base_branch = v; },
+  };
+  const errors = (set, value) => pullRequestErrors((d) => set(d, value));
+  for (const [member, set] of Object.entries(members)) {
+    assert.deepEqual(errors(set, 'ab'), [], member);
+    assert.deepEqual(errors(set, 'a\u{1F468}\u200d\u{1F469}b'), [], `${member}: emoji`);
+    for (const bad of ['a\u{E0041}b', 'a\u200bb', 'a\u00adb', 'a\u0600b', 'a\u2028b', 'a\u0085b']) {
+      assert.notDeepEqual(errors(set, bad), [], `${member}: ${JSON.stringify(bad)}`);
+    }
+    const lines = member !== 'text';
+    for (const bad of ['a\tb', 'a\nb', 'a\rb']) {
+      assert.equal(errors(set, bad).length > 0, lines, `${member}: ${JSON.stringify(bad)}`);
+    }
+  }
+  // A text keeps tab, line feed and carriage return and refuses any other control character.
+  assert.deepEqual(errors(members.text, 'a\tb\r\nc'), []);
+  assert.notDeepEqual(errors(members.text, 'a\u001bb'), []);
+});
+
+test('pull-request: a title of spaces and joiners alone is refused', () => {
+  const title = (value) => pullRequestErrors((d) => { d.title = value; });
+  for (const bad of ['\u200c', '\u200d', ' \u200c \u200d', '\u200d　 ']) {
+    assert.notDeepEqual(title(bad), [], JSON.stringify(bad));
+  }
+  assert.deepEqual(title('\u200da'), []);
+});
+
+test('demo-script and demo-evidence: a title and an expected result have one line, no tag', () => {
+  for (const [type, doc] of [['demo-script', SCRIPT_DOC], ['demo-evidence', EVIDENCE_DOC]]) {
+    const errors = (set, value) => {
+      const copy = clone(doc);
+      set(copy, value);
+      return schema.errors(schema.load(type), copy, 'scenario-1.json');
+    };
+    for (const [member, set] of Object.entries({
+      title: (d, v) => { d.title = v; },
+      'step title': (d, v) => { d.steps[0].title = v; },
+      expected: (d, v) => { d.steps[0].expected = v; },
+    })) {
+      assert.deepEqual(errors(set, 'ab \u{1F468}\u200d\u{1F469}'), [], `${type} ${member}`);
+      for (const bad of ['a\u{E0041}b', 'a\u200bb', 'a\tb', 'a\nb', 'a\rb', 'a\u001bb']) {
+        assert.notDeepEqual(errors(set, bad), [], `${type} ${member}: ${JSON.stringify(bad)}`);
+      }
+    }
+  }
+});
+
+test('process.yaml writes a character above U+FFFF as \\UXXXXXXXX, no surrogate pair', () => {
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  assert.equal(/\\u[dD][89abAB][0-9a-fA-F]{2}/.test(yaml), false);
+  assert.match(yaml, /\\U000e0041|\\U000e0020-\\U000e007f/);
+});
+
+test('the decoder of the json_schema blocks reads YAML escapes as a YAML reader does', () => {
+  assert.equal(decodeSchema('"a\\U000e0041b"'), '"a\\udb40\\udc41b"');
+  assert.equal(JSON.parse(decodeSchema('"\\U0001F468"')), '\u{1F468}');
+  // An escaped backslash before U is a backslash and a letter, not an escape.
+  assert.equal(JSON.parse(decodeSchema('"\\\\U000e0041"')), '\\U000e0041');
+  assert.equal(JSON.parse(decodeSchema('"\\"\\U000e0041"')), '"\u{e0041}');
+  for (const bad of ['\\U000e0041', '"\\x41"', '"\\e"', '"\\U0000e041"', '"\\U000e00"', '"a" \\n',
+    '"\\U00110000"']) {
+    assert.throws(() => decodeSchema(bad), bad);
+  }
+  // Each block of process.yaml decodes, so each of its escapes is in a double-quoted string.
+  const blocks = artifactEntries().filter((entry) => entry.json_schema);
+  assert.equal(blocks.length, CUSTOM_JSON_TYPES.length);
+});
+
+test('pull-request: a refused character in a finding has its code point and the rule', () => {
+  const found = (change) => pullRequestErrors(change).map((one) => one.split('\n'));
+  const line = 'One line of text: no control character, no U+2028 or U+2029, and no Cf ' +
+    'character but U+200C and U+200D (emoji joiners).';
+  const [text] = found((d) => { d.text = 'a\r\nb\nc\u0001d'; });
+  assert.equal(text[0], 'Remove U+0001 from line 3 of /text of pull-request.json.');
+  assert.match(text[1], /^Markdown\. Of the control characters it has only tab, line feed and /);
+  const [title] = found((d) => { d.title = 'a\u0600'; });
+  assert.deepEqual(title, ['Remove U+0600 from /title of pull-request.json.', line]);
+  const [step] = found((d) => { d.steps = [{ commit: C1, step: 'x\u{E0041}' }]; });
+  assert.deepEqual(step, ['Remove U+E0041 from /steps/0/step of pull-request.json.', line]);
+  const [lineBreak] = found((d) => { d.text = 'a\nb\u2028'; });
+  assert.equal(lineBreak[0], 'Remove U+2028 from line 2 of /text of pull-request.json.');
+  // A title of spaces and joiners has no character to remove: the rule is the cause.
+  assert.deepEqual(found((d) => { d.title = ' \u200d'; }), [[
+    'Write /title of pull-request.json so that it matches its pattern.',
+    'A title has a character other than spaces and joiners (U+200C, U+200D). ' +
+      'It is " \\u200d".']]);
+});
+
+test('open.url of demo-script and path of acceptance-lock refuse the one rule too', () => {
+  const script = (url) => {
+    const doc = clone(SCRIPT_DOC);
+    doc.setup[0].url = url;
+    return schema.errors(schema.load('demo-script'), doc, 'scenario-1.json');
+  };
+  const lock = (file) => {
+    const doc = clone(LOCK_DOC);
+    doc.checks[0].path = file;
+    return schema.errors(schema.load('acceptance-lock'), doc, 'acceptance-lock.json');
+  };
+  // A tab, CR or LF fails the \S pattern and the line rule: one finding, with the code point.
+  const open = (url) => schema.errors(schema.load('demo-script'), { do: 'open', url },
+    'scenario-1.json', 'open');
+  for (const [bad, code] of [['\t', '0009'], ['\r', '000D'], ['\n', '000A']]) {
+    assert.equal(open(`/a${bad}b`).length, 1, code);
+    assert.match(open(`/a${bad}b`)[0], new RegExp(`^Remove U\\+${code} from `), code);
+    assert.equal(lock(`tests/a${bad}b.test.ts`).length, 1, code);
+    assert.match(lock(`tests/a${bad}b.test.ts`)[0], new RegExp(`^Remove U\\+${code} from `));
+  }
+  // A space is no refused character: the pattern finding stays.
+  assert.match(open('/a b')[0], /^Write \/url of scenario-1\.json so that it matches its pattern/);
+  assert.deepEqual(script('/sign-in?a=\u{1F468}\u200d\u{1F469}'), []);
+  assert.deepEqual(lock('tests/a\u{1F468}\u200d\u{1F469}.test.ts'), []);
+  for (const bad of ['\u202e', '\u{E0041}', '\u200b', '\u0600', '\u0001']) {
+    assert.notDeepEqual(script(`/sign${bad}-in`), [], `url ${JSON.stringify(bad)}`);
+    assert.notDeepEqual(lock(`tests/a${bad}.test.ts`), [], `path ${JSON.stringify(bad)}`);
+  }
+});
+
+test('pull-request: the primitives are $refs to the primitives file, twice', () => {
+  const ID = 'https://qory.dev/contracts/harness/v1/primitives.schema.json';
+  const entry = artifactEntries().find((one) => one.name === 'pull-request');
+  assert.deepEqual(entry.deliver, '{send: after_gate}');
+  const file = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/pull-request.schema.json'),
+    'utf8'));
+  for (const doc of [file, entry.json_schema]) {
+    for (const name of ['line', 'title', 'text', 'reference']) {
+      const ref = { $ref: `${ID}#/$defs/${name}` };
+      // text is the body of the draft: it has the marker rule beside its $ref.
+      if (name === 'text') ref.not = { pattern: '(^|\\n)<!-- qory:(start|end) -->' };
+      assert.deepEqual(doc.$defs[name], ref, name);
+    }
+    assert.deepEqual(doc.properties.target, { title: 'Target', $ref: '#/$defs/reference' });
+    assert.deepEqual(doc.properties.draft, { title: 'Draft', type: 'boolean', const: true });
+  }
+  const primitives = JSON.parse(fs.readFileSync(path.join(SKILL, 'schemas/primitives.schema.json'),
+    'utf8'));
+  assert.equal(primitives.$id, ID);
+  // The checks of the module resolve the address from that file, and read no network.
+  const loaded = schema.load('pull-request');
+  assert.equal(loaded.schema.$defs.title.type, 'string');
+  assert.equal(loaded.schema.$defs.reference.properties.collection.maxLength, 200);
+  assert.equal(JSON.stringify(loaded.schema).includes('qory.dev'), false);
+});
+
+test('pull-request: draft is true, and a draft of false is refused', () => {
+  assert.deepEqual(pullRequestErrors((d) => { d.draft = true; }), []);
+  const refused = pullRequestErrors((d) => { d.draft = false; });
+  assert.deepEqual(refused, ['Set /draft of pull-request.json to true.\nIt is false.']);
+  fails(push(fixture(), 'pull-request', [PR_FILE, { ...clone(PULL_REQUEST), draft: false }]),
+    /^Set \/draft of pull-request\.json to true\./);
+});
+
+test('the schema loader writes out a $ref to the $id of another file of its folder', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inline-'));
+  const ID = 'https://example.org/schemas/words.schema.json';
+  fs.writeFileSync(path.join(dir, 'words.schema.json'), JSON.stringify({ $id: ID, $defs: {
+    word: { type: 'string', pattern: '^[a-z]+$' },
+    pair: { type: 'array', items: { $ref: '#/$defs/word' }, minItems: 2, maxItems: 2 } } }));
+  fs.writeFileSync(path.join(dir, 'doc.schema.json'), JSON.stringify({ type: 'object',
+    properties: { one: { $ref: `${ID}#/$defs/word` }, two: { $ref: `${ID}#/$defs/pair` },
+      three: { type: 'string', maxLength: 3, $ref: `${ID}#/$defs/word` },
+      four: { $ref: '#/$defs/local' } },
+    $defs: { local: { type: 'integer' } } }));
+  const loaded = core.load(dir, 'doc');
+  assert.deepEqual(loaded.schema.properties.one, { type: 'string', pattern: '^[a-z]+$' });
+  assert.deepEqual(loaded.schema.properties.two.items, { type: 'string', pattern: '^[a-z]+$' });
+  assert.deepEqual(loaded.schema.properties.three, { type: 'string', maxLength: 3,
+    allOf: [{ type: 'string', pattern: '^[a-z]+$' }] });
+  assert.deepEqual(loaded.schema.properties.four, { $ref: '#/$defs/local' });
+  const found = (value) => core.errors(loaded, value, 'doc.json');
+  assert.deepEqual(found({ one: 'a', two: ['b', 'c'], three: 'abc', four: 1 }), []);
+  assert.notDeepEqual(found({ one: 'A' }), []);
+  assert.notDeepEqual(found({ two: ['b', 'C'] }), []);
+  assert.notDeepEqual(found({ three: 'abcd' }), []);
+  // An address that no file of the folder has, or a definition that the file lacks, is a fix.
+  for (const ref of ['https://example.org/other.json#/$defs/word', `${ID}#/$defs/none`]) {
+    fs.writeFileSync(path.join(dir, 'bad.schema.json'), JSON.stringify({ $ref: ref }));
+    assert.throws(() => core.load(dir, 'bad'),
+      /^Error: Fix bad\.schema\.json\.\n\$ref .* matches no /);
+  }
+  // A $ref splits at the first #: a second # is part of the pointer, which no definition has.
+  fs.writeFileSync(path.join(dir, 'bad.schema.json'),
+    JSON.stringify({ $ref: `${ID}#/$defs/word#/x` }));
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix bad\.schema\.json\.\n\$ref .* matches no /);
+  // Two files with one $id, and a file that is not JSON or has null, are fixes that name it.
+  const use = (name, text) => fs.writeFileSync(path.join(dir, name), text);
+  use('bad.schema.json', JSON.stringify({ $ref: `${ID}#/$defs/word` }));
+  use('copy.schema.json', JSON.stringify({ $id: ID, $defs: {} }));
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix \w+\.schema\.json\.\nIt has the \$id \S+, which \w+\.schema\.json has too\.$/);
+  fs.rmSync(path.join(dir, 'copy.schema.json'));
+  use('broken.schema.json', '{ not json');
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix broken\.schema\.json\.\nThe file is not JSON: /);
+  use('broken.schema.json', 'null');
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix broken\.schema\.json\.\nThe file has null, and a schema is an object\.$/);
+  fs.rmSync(path.join(dir, 'broken.schema.json'));
+  // A definition that refers to itself without end names the file that has the $ref.
+  use('loop.schema.json', JSON.stringify({ $id: 'https://example.org/loop.schema.json',
+    $defs: { a: { $ref: '#/$defs/b' }, b: { $ref: '#/$defs/a' } } }));
+  use('bad.schema.json', JSON.stringify({ $ref: 'https://example.org/loop.schema.json#/$defs/a' }));
+  assert.throws(() => core.load(dir, 'bad'),
+    /^Error: Fix loop\.schema\.json\.\n\$ref #\/\$defs\/[ab] refers to itself without end\.$/);
+});
+
+// No schema file and no json_schema block decodes to a control character but tab, LF or CR:
+// Apiary's reader refuses one, so each range is a regex escape (\x00-\x1f) that JavaScript
+// with the u flag, PCRE and Go RE2 read.
+test('no schema decodes to a control character, but tab, line feed and carriage return', () => {
+  const CONTROL = /[\p{Cc}]/u;
+  const hold = (node) => {
+    if (typeof node === 'string') {
+      return [...node].filter((c) => CONTROL.test(c) && !'\t\n\r'.includes(c));
+    }
+    if (node === null || typeof node !== 'object') return [];
+    return Object.entries(node).flatMap(([key, value]) => [...hold(key), ...hold(value)]);
+  };
+  const files = [...fs.readdirSync(path.join(SKILL, 'schemas')).map((name) => `schemas/${name}`),
+    'extensions.schema.json'].filter((name) => name.endsWith('.json'));
+  assert.equal(files.length, 9, files.join(' '));
+  for (const name of files) {
+    const doc = JSON.parse(fs.readFileSync(path.join(SKILL, name), 'utf8'));
+    assert.deepEqual(hold(doc), [], name);
+  }
+  for (const entry of artifactEntries()) {
+    assert.deepEqual(hold(entry.json_schema || {}), [], `process.yaml ${entry.name}`);
+  }
 });

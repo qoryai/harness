@@ -14,9 +14,10 @@ process:
     - id: st_r79kph11eg
       name: Explore
       description: >-
-        Agents read the ticket, its comments and the target, and write questions
-        for members about what the ticket leaves open. The stage ends with a proposal: the
-        general direction for solving the ticket.
+        Agents read the ticket and its comments, read the destinations that the ticket
+        concerns, and write questions for members about what the ticket leaves open. The
+        stage ends with a proposal: the general direction for solving the ticket and the
+        destinations it changes.
       inputs: []
       sequence:
         - workflow: explore-a-ticket
@@ -56,7 +57,9 @@ process:
         spec. The stage ends with the change committed on one branch in each repository.
       inputs: []
       sequence: []
-      outputs: []
+      outputs:
+        - type: pull-request
+          required: true
       gate: {kind: person, approvers: members}
     - id: st_m1mqbeywdg
       name: Verify
@@ -71,13 +74,12 @@ process:
       name: Release
       description: >-
         Agents send the change through the destination you connect, for example
-        as a pull request in each repository. The stage ends when the destination has the
-        change for each repository.
+        as a pull request for the run's target. The stage ends when the destination has
+        the change.
       inputs: []
       sequence: []
       outputs: []
       gate: {kind: person, approvers: members}
-submit: {type: submission, send: end_of_run}
 artifact_types:
   - name: acceptance-criteria
   - name: verification
@@ -86,6 +88,7 @@ artifact_types:
   - name: demo-video
   - name: walkthrough
   - name: decision-record
+  - name: proposal
   - name: spec
     base_view: document
     size_limit: 1048576
@@ -94,318 +97,166 @@ artifact_types:
     base_view: document
     size_limit: 1048576
     max_files: 1
-  - name: submission
+  - name: pull-request
     base_view: structured
-    size_limit: 1048576
+    size_limit: 786432
     max_files: 1
-    # The same JSON Schema is in running-a-software-workflow/schemas/submission.schema.json.
+    deliver: {send: after_gate}
+    # The same JSON Schema is in running-a-software-workflow/schemas/pull-request.schema.json.
     json_schema:
       {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Submission, version 1",
-        "description": "A session's branch, commits, draft, text and verdict.",
+        "title": "Pull request, version 1",
+        "description": "The change of a Build run: title, text, commits and steps.",
         "type": "object",
         "required": [
-          "ref",
-          "repositories",
-          "verdict"
+          "target",
+          "title",
+          "text",
+          "commits",
+          "head",
+          "base",
+          "branch",
+          "base_branch",
+          "steps",
+          "draft"
         ],
         "additionalProperties": false,
         "properties": {
-          "ref": {
-            "title": "Branch",
-            "type": "string",
-            "pattern": "^qory/wi_[A-Za-z0-9_-]{1,64}$"
+          "target": {
+            "title": "Target",
+            "$ref": "#/$defs/reference"
           },
-          "verdict": {
-            "enum": [
-              "passed",
-              "changes-requested",
-              "escalate",
-              "none"
-            ]
-          },
-          "repositories": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 20,
-            "items": {
-              "$ref": "#/$defs/repository"
-            }
+          "title": {
+            "title": "Title",
+            "$ref": "#/$defs/title"
           },
           "text": {
+            "title": "Description",
             "$ref": "#/$defs/text"
-          }
-        },
-        "$defs": {
-          "repository": {
-            "type": "object",
-            "required": [
-              "system",
-              "path",
-              "commit"
+          },
+          "commits": {
+            "title": "Commits",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/commit"
+            },
+            "x-qory-fill": "pushed-commits"
+          },
+          "head": {
+            "title": "Head commit",
+            "$ref": "#/$defs/commit",
+            "x-qory-fill": "pushed-head"
+          },
+          "base": {
+            "title": "Base commit",
+            "$ref": "#/$defs/commit",
+            "x-qory-fill": "pushed-base"
+          },
+          "branch": {
+            "title": "Branch",
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
+            "not": {
+              "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
+            },
+            "allOf": [
+              {
+                "$ref": "#/$defs/line"
+              }
             ],
-            "additionalProperties": false,
-            "properties": {
-              "system": {
-                "type": "string",
-                "pattern": "^[a-z0-9.-]{0,252}[a-z0-9-]$"
-              },
-              "path": {
-                "type": "string",
-                "maxLength": 200,
-                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
-                "not": {
-                  "pattern": "(^|/)(\\.\\.?|\\.[Gg][Ii][Tt])(/|$)"
+            "x-qory-fill": "pushed-branch"
+          },
+          "base_branch": {
+            "title": "Base branch",
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
+            "not": {
+              "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
+            },
+            "allOf": [
+              {
+                "$ref": "#/$defs/line"
+              }
+            ],
+            "x-qory-fill": "pushed-base-branch"
+          },
+          "earlier_commits": {
+            "title": "Earlier commits",
+            "type": "integer",
+            "minimum": 1,
+            "x-qory-fill": "pushed-commits-left-out"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "commit",
+                "step"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "commit": {
+                  "type": "string",
+                  "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+                },
+                "step": {
+                  "type": "string",
+                  "$ref": "#/$defs/line",
+                  "minLength": 1,
+                  "maxLength": 128
                 }
-              },
-              "commit": {
-                "title": "Commit",
-                "$ref": "#/$defs/commit"
-              },
-              "commit_url": {
-                "title": "Commit link",
-                "type": "string",
-                "maxLength": 2048,
-                "pattern": "^https://\\S+$"
-              },
-              "base": {
-                "type": "object",
-                "required": [
-                  "commit"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "commit": {
-                    "$ref": "#/$defs/commit"
-                  },
-                  "branch": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\/-][^\\x00-\\x20\\x7f~^:?*\\[\\\\]*$",
-                    "not": {
-                      "pattern": "\\.\\.|//|@\\{|(^|/)\\.|\\.lock(/|$)|[./]$|^@$"
-                    }
-                  },
-                  "commit_url": {
-                    "type": "string",
-                    "maxLength": 2048,
-                    "pattern": "^https://\\S+$"
-                  }
-                }
-              },
-              "commits": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "commit",
-                    "step"
-                  ],
-                  "additionalProperties": false,
-                  "properties": {
-                    "commit": {
-                      "$ref": "#/$defs/commit"
-                    },
-                    "step": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128,
-                      "pattern": "^[^\\x00]*$"
-                    },
-                    "commit_url": {
-                      "type": "string",
-                      "maxLength": 2048,
-                      "pattern": "^https://\\S+$"
-                    }
-                  }
-                }
-              },
-              "draft": {
-                "oneOf": [
-                  {
-                    "$ref": "#/$defs/draft"
-                  },
-                  {
-                    "$ref": "#/$defs/no_draft"
-                  }
-                ]
               }
             }
           },
           "draft": {
-            "type": "object",
-            "required": [
-              "number",
-              "url",
-              "title",
-              "state",
-              "action"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "number": {
-                "title": "Draft",
-                "type": "integer",
-                "minimum": 1
-              },
-              "url": {
-                "title": "Draft link",
-                "type": "string",
-                "maxLength": 2048,
-                "pattern": "^https://\\S+$"
-              },
-              "title": {
-                "title": "Draft title",
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256,
-                "pattern": "^[^\\x00-\\x1f\\x7f]+$"
-              },
-              "state": {
-                "enum": [
-                  "draft",
-                  "open",
-                  "closed",
-                  "merged"
-                ]
-              },
-              "action": {
-                "enum": [
-                  "opened",
-                  "updated",
-                  "kept"
-                ]
-              }
+            "title": "Draft",
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "$defs": {
+          "line": {
+            "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/line"
+          },
+          "title": {
+            "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/title"
+          },
+          "text": {
+            "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/text",
+            "not": {
+              "pattern": "(^|\\n)<!-- qory:(start|end) -->"
             }
           },
-          "no_draft": {
-            "type": "object",
-            "required": [
-              "none"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "none": {
-                "title": "No draft",
-                "enum": [
-                  "not-passed",
-                  "no-text",
-                  "escalated",
-                  "no-program",
-                  "program-failed",
-                  "program-timeout",
-                  "login-needed"
-                ]
-              },
-              "exit": {
-                "enum": [
-                  0,
-                  1,
-                  2,
-                  3
-                ]
-              }
-            },
+          "reference": {
+            "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/reference"
+          },
+          "commit": {
+            "description": "A commit: the repository is the collection, the commit id is the path.",
             "allOf": [
               {
-                "if": {
-                  "properties": {
-                    "none": {
-                      "const": "program-failed"
-                    }
-                  }
-                },
-                "then": {
-                  "required": [
-                    "exit"
-                  ],
-                  "properties": {
-                    "exit": {
-                      "enum": [
-                        0,
-                        1,
-                        2
-                      ]
-                    }
-                  }
-                }
+                "$ref": "#/$defs/reference"
               },
               {
-                "if": {
-                  "properties": {
-                    "none": {
-                      "const": "login-needed"
+                "required": [
+                  "address"
+                ],
+                "properties": {
+                  "address": {
+                    "properties": {
+                      "path": {
+                        "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+                      }
                     }
-                  }
-                },
-                "then": {
-                  "required": [
-                    "exit"
-                  ],
-                  "properties": {
-                    "exit": {
-                      "const": 3
-                    }
-                  }
-                }
-              },
-              {
-                "if": {
-                  "properties": {
-                    "none": {
-                      "enum": [
-                        "not-passed",
-                        "no-text",
-                        "escalated",
-                        "no-program",
-                        "program-timeout"
-                      ]
-                    }
-                  }
-                },
-                "then": {
-                  "not": {
-                    "required": [
-                      "exit"
-                    ]
                   }
                 }
               }
             ]
-          },
-          "text": {
-            "type": "object",
-            "required": [
-              "title",
-              "description"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "title": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256,
-                "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]+$",
-                "allOf": [
-                  {
-                    "pattern": "[^ \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
-                  }
-                ]
-              },
-              "description": {
-                "type": "string",
-                "maxLength": 20000,
-                "pattern": "^[^\\x00]*$",
-                "not": {
-                  "pattern": "(^|\\n)<!-- qory:(start|end) -->"
-                }
-              }
-            }
-          },
-          "commit": {
-            "type": "string",
-            "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
           }
         }
       }
@@ -818,7 +669,12 @@ artifact_types:
             "pattern": "^[^/\\s][^\\s]*$",
             "not": {
               "pattern": "(^|/)\\.\\.?(/|$)"
-            }
+            },
+            "allOf": [
+              {
+                "$ref": "#/$defs/line"
+              }
+            ]
           },
           "commit": {
             "type": "string",
@@ -827,6 +683,11 @@ artifact_types:
           "sha256": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "line": {
+            "description": "One line of text: no control character, no U+2028 or U+2029, and no Cf character but U+200C and U+200D (emoji joiners).",
+            "type": "string",
+            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f]*$"
           }
         }
       }
@@ -857,9 +718,9 @@ artifact_types:
           },
           "title": {
             "type": "string",
+            "$ref": "#/$defs/line",
             "minLength": 1,
-            "maxLength": 500,
-            "pattern": "^[^\\n]+$"
+            "maxLength": 500
           },
           "evidence": {
             "enum": [
@@ -914,15 +775,15 @@ artifact_types:
               },
               "title": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "expected": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "actions": {
                 "type": "array",
@@ -966,7 +827,12 @@ artifact_types:
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 2048,
-                "pattern": "^\\S+$"
+                "pattern": "^\\S+$",
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/line"
+                  }
+                ]
               }
             },
             "type": "object",
@@ -1068,6 +934,11 @@ artifact_types:
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          },
+          "line": {
+            "description": "One line of text: no control character, no U+2028 or U+2029, and no Cf character but U+200C and U+200D (emoji joiners).",
+            "type": "string",
+            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f]*$"
           }
         }
       }
@@ -1100,9 +971,9 @@ artifact_types:
           },
           "title": {
             "type": "string",
+            "$ref": "#/$defs/line",
             "minLength": 1,
-            "maxLength": 500,
-            "pattern": "^[^\\n]+$"
+            "maxLength": 500
           },
           "commit": {
             "$ref": "#/$defs/commit"
@@ -1205,15 +1076,15 @@ artifact_types:
               },
               "title": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "expected": {
                 "type": "string",
+                "$ref": "#/$defs/line",
                 "minLength": 1,
-                "maxLength": 500,
-                "pattern": "^[^\\n]+$"
+                "maxLength": 500
               },
               "verdict": {
                 "enum": [
@@ -1288,6 +1159,11 @@ artifact_types:
           "commit": {
             "type": "string",
             "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "line": {
+            "description": "One line of text: no control character, no U+2028 or U+2029, and no Cf character but U+200C and U+200D (emoji joiners).",
+            "type": "string",
+            "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0001\U000e0020-\U000e007f]*$"
           }
         }
       }

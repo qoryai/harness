@@ -362,7 +362,7 @@ isolation needs another user or a mount namespace.
 qory's push step runs `scope --plan` before the first push, and when the proposal in its
 folder is on the fast track, `scope --plan` proves the commits against the kind of `##
 Track` in place of the Files of a build plan; a failed proof exits 1 and stops every push.
-`check submission` and the end check run it in your session, and `prove` runs it by hand.
+`check pull-request` and the end check run it in your session, and `prove` runs it by hand.
 The start commit is `--base`, else `qory.start_commits` of `inputs.json`: pass the
 `--inputs` path of the prompt, and no other `--base`. Run `prove` after your last commit.
 With the parsers missing from your machine, `check` and `end` write one line on stderr,

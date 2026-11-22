@@ -30,7 +30,7 @@
 //
 // It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
 // scope, freeze, diff, probe, prove and preflight, each in verbs/, the verb
-// report-build, which writes build-report.md and the hand-off file of the submission, and the
+// report-build, which writes build-report.md and the outbox file of the pull request, and the
 // verb matrix, which writes the draft verification.json of Verify from records.
 'use strict';
 
@@ -47,7 +47,7 @@ const STOPS = [
 
 // The types of Build and Verify, each in types/<type>.cjs.
 const BUILD_AND_VERIFY = [
-  'submission', 'build-plan', 'build-report', 'build-ledger', 'acceptance-lock', 'demo-script',
+  'pull-request', 'build-plan', 'build-report', 'build-ledger', 'acceptance-lock', 'demo-script',
   'demo-evidence', 'demo-video', 'screenshot', 'verification', 'walkthrough',
 ];
 

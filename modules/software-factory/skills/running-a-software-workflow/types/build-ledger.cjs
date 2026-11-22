@@ -3,11 +3,11 @@
 // the schema cannot state, and each row of the newest version kept.
 'use strict';
 
-const { MAX_DEPTH, depthLine } = require('../lib/schema.cjs');
 const { sizeLimit } = require('../lib/template.cjs');
 
 module.exports = (lib) => {
-  const { Missing, isObject, jsonFile, parseJson, short } = lib;
+  const { Missing, isObject, jsonFile, parseJson, schema, short } = lib;
+  const { MAX_DEPTH, depthLine } = schema;
 
   const FILE = 'build-ledger.json';
 

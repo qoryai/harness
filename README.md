@@ -171,7 +171,11 @@ workflows:
     every public page and every file of the target that the run used: a page as a link, and
     a file with no link, as its path. A file
     of a further repository (a folder under `.qory/repositories`) is the folder's name, a
-    colon and the path inside that folder, such as `web: src/cart.ts`. The run draws each
+    colon and the path inside that folder, such as `web: src/cart.ts`, and a file of a
+    destination is its id, a colon and the path, such as `tg_8k2m4n6p8q0r2s4t: src/cart.ts`.
+    With destinations in the inputs, each part opens with the line
+    `` Destination: `<id>` ``, and `targets.json` lists each destination that a change goes
+    to, 1 to 20, each with why. The run draws each
     diagram and wireframe by the `visuals` skill of the `core` module, and pushes each
     wireframe in the same version. It adds a code block, existing text from the target's
     files or a short sketch of the change, only when a person cannot understand the change
@@ -213,20 +217,23 @@ workflows:
   drafts, a separate agent reviews the draft, and the session pushes after the review: first
   the proposal, then the questions, and `review-comments` last, once.
 
-  The target's files include each further repository under `.qory/repositories`. With no
-  target or no files of the target, the run works from the ticket alone. The skill's rule is
-  that the session reads only agents' reports, the `at` and `newest_version` in
-  `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
-  `.qory/repositories` and of the versions and checks scripts, and a `SKILL.md` when the
-  runtime offers no loading. It writes only the copies of the versions script, each
+  qory copies no destination before the session. The code explorer first names the
+  destinations that the ticket concerns, by their ids in `destinations` of the inputs, and
+  the session checks them with `checks.cjs destinations` and copies only those with one
+  `qory destination clone`, at most 100. It copies once more at most, for an id that a later
+  report needs. A copy that fails runs once more, and a second failure ends the run with
+  `escalate` and the error line of the copy. With no files to read, the run works from the
+  ticket alone. The skill's rule is that the session reads only agents' reports, the `at`
+  and `newest_version` in `index.json`, `run.number` from `qory work-item show`, the output
+  of the versions and checks scripts and of `qory destination clone`, and a `SKILL.md` when
+  the runtime offers no loading. It writes only the copies of the versions script, each
   agent's report under `.reports`, and `points.json` on a failure. It runs only `qory`
-  commands, that `find`, the versions and checks scripts and the read forms of
-  `run-artifacts`. In a read run, qory sets Claude
-  Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
-  permission and that no rule of the run's settings allows. In a test on Claude Code
-  2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key loaded
-  with no allow rule, and a skill with that key was denied.
-  The writer looks beyond the ticket in public pages, libraries and tools.
+  commands, the versions and checks scripts and the read forms of `run-artifacts`. In a read
+  run, qory sets Claude Code's `dontAsk` mode, which denies, with no prompt, each tool call
+  that needs a permission and that no rule of the run's settings allows. In a test on Claude
+  Code 2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key
+  loaded with no allow rule, and a skill with that key was denied. The writer looks beyond
+  the ticket in public pages, libraries and tools.
 - `writing-proposals`: load it before you write a proposal. The skill contains the sections,
   public pages, diagrams, wireframes and code blocks.
 - `checking-proposals`: load it before you write or review a proposal. The skill contains
@@ -329,12 +336,13 @@ workflows:
   every check passes, it does five steps, in this order:
   1. It starts `submission-writer`; a start that fails, a report that fails its check
      after two fixes and a `blocked` report end the run as Failures.
-  2. It runs `checks.cjs report-build`. With exit 1, it starts `submission-writer` again,
-     at most twice, then ends with one `run_again` point; with exit 2, 3 or 4, it ends as
-     Failures.
+  2. It runs `checks.cjs report-build`, which writes `build-report.md` and the outbox file
+     `$QORY_OUTBOX/pull-request/pull-request.json`. With exit 1, it starts
+     `submission-writer` again, at most twice, then ends with one `run_again` point; with
+     exit 2, 3 or 4, it ends as Failures.
   3. It runs `checks.cjs check build-report`. With exit 1, it runs `checks.cjs report-build
-     --drop`, ends with one `run_again` point and starts no writer; with exit 2, 3 or 4, it
-     ends as Failures.
+     --drop`, which removes the outbox file, ends with one `run_again` point and starts no
+     writer; with exit 2, 3 or 4, it ends as Failures.
   4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
      again and pushes again, at most twice more. When the push is still refused, it runs
      `report-build --drop` first and then ends.
@@ -352,7 +360,7 @@ workflows:
   criteria and build plan, after `reviewing-changes` and `judging-findings`. The skill
   contains what the review reads, the area it covers, the steps, what is blocking in that
   area, and the check list.
-- `writing-submissions`: load it before you write the title and the description of the
+- `writing-submissions`: load it before you write the title and the text of the
   draft pull request of a Build run. The skill contains the file, the title, the four
   parts, their limits, what `## Disclosed` contains and the check list.
 - `submission-writer`: an agent that writes `.reports/submission.md` of the artifact

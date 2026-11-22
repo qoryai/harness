@@ -1403,6 +1403,17 @@ printf '%s\n' "$OUT" | sed -n 1p
 
 expect "qory config exits 0" 0 "$ROOT" "$QORY" config
 
+# The primitives, verification and acceptance-criteria files beside the schemas of
+# software-factory are qory's files at the commit that QORY_SOURCE has, byte for byte: the
+# schema of pull-request refers to the $id of primitives.
+SCHEMAS=$ROOT/modules/software-factory/skills/running-a-software-workflow/schemas
+for NAME in primitives verification acceptance-criteria; do
+	QFILE=contracts/harness/v1/$NAME.schema.json
+	OUT=$(cmp "$SCHEMAS/$NAME.schema.json" "${QORY_SOURCE:-/nowhere}/$QFILE" 2>&1) ||
+		fail "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
+	pass "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
+done
+
 # process.yaml sets withdrawable: false for acceptance-lock and build-ledger. Outside a run,
 # qory reads that flag from the exported modules and exits 4 before it writes a file.
 for type in acceptance-lock build-ledger; do
@@ -2593,6 +2604,8 @@ expect "the build-plan limit tests pass" 0 "$ROOT" node --test scripts/build-pla
 # The tests of the review of a change: the example report against qory's schema, the open
 # findings verb, and the removed forms.
 expect "the findings tests pass" 0 "$ROOT" node --test scripts/findings.test.js
+# The tests of the outbox check of end and of the raw-text rules of the schema checker.
+expect "the outbox tests pass" 0 "$ROOT" node --test scripts/outbox.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list
 # "Notes read:".
 expect "the notes tests pass" 0 "$ROOT" node --test scripts/notes.test.js
@@ -2679,11 +2692,11 @@ demo-scenarios:software-factory:acceptance-criteria
 demo-script:software-factory:demo-scenarios
 demo-video:software-factory:demo-script
 proposal:software-factory:
+pull-request:software-factory:
 questions:core:
 review-comments:core:questions
 screenshot:software-factory:demo-script
 spec:software-factory:
-submission:software-factory:
 verification:software-factory:acceptance-criteria
 walkthrough:software-factory:verification,acceptance-criteria'
 # The composes of the core stack, earlier, and of the software stack wrote push-checks.json.

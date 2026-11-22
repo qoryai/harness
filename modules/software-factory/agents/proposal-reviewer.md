@@ -62,17 +62,18 @@ folder, the newest version of a type is the folder `<type>/main/v<N>/` with the 
 `<N>`.
 
 You get the paths of the input file and the artifact folder, the run's number, the code
-explorer's report, whose places you check the fast track against, and the lines under
-"Checks:", among them the line that starts with `Extensions:`, with the changes of the
-repository to the kinds and the sensitive areas, as `checking-proposals` lists. The checks
-script refuses a changed file of the fast track that matches a file pattern of a sensitive
-area; judge a changed file that no pattern matches by the names of the areas, as
-`checking-proposals` lists. The draft
-is `proposal.md`, `sources.json` and any wireframe at the top of the artifact folder, and
+explorer's report, whose places you check the fast track against, the lines under
+"Destinations:", and the lines under "Checks:", among them the line that starts with
+`Extensions:`, with the changes of the repository to the kinds and the sensitive areas, as
+`checking-proposals` lists. The checks script refuses a changed file of the fast track that
+matches a file pattern of a sensitive area; judge a changed file that no pattern matches by
+the names of the areas, as `checking-proposals` lists. The draft is `proposal.md`,
+`sources.json`, `targets.json` and any wireframe at the top of the artifact folder, and
 earlier versions are under `proposal/main/`. When you get the path of `declines.md`, read
 that file at the top of the artifact folder, as `checking-proposals` lists. Read the answers
 under `questions/main/` and the review comments under `review-comments/main/`. Read each
-file of the target that the draft cites, from the working folder. You fetch no web page:
+file of the target that the draft cites, from the working folder, or from the folder of its
+destination under "Destinations:". You fetch no web page:
 name each public page as a source you could not read. Do the three steps of the section
 "Review of a proposal" of `checking-proposals`: list everything the ticket asks before you
 read the draft, and flag each item dropped, narrowed or widened; check each claim the
