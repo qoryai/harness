@@ -988,10 +988,13 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   report that a reviewer writes is a JSON file that qory's report schema checks; only
   `findings round` reads it, and `report`, `starts` and `end` have no check for the
   reviewers of a change.
-- `checks.cjs findings round <reports> --reviewers <names> --suite <file>`: a review session
-  runs it once, after its reviewers returned. It reads `<reports>/<name>.json` of each name
-  of `--reviewers`, agent names joined by commas, each once and none `full-suite`, and the
-  result of the full suite at `--suite`, once each. A report that is missing, a link, no
+- `checks.cjs findings round <reports> --reviewers <names> [--suite <file>]`: a review
+  session runs it once, after its reviewers returned. It reads `<reports>/<name>.json` of
+  each name of `--reviewers`, agent names joined by commas, each once and none `full-suite`,
+  and the result of the full suite at `--suite`, once each. With no `--suite`, the round has
+  no finding of `full-suite`: a session that has no suite result, such as Verify, leaves the
+  flag out. A given file that is missing, unreadable, failed or all skipped is still one
+  blocking finding. A report that is missing, a link, no
   regular file, over 1 MiB, no UTF-8, no JSON object, outside the review report format or of
   another reviewer is one blocking finding of that reviewer, such as `Reviewer code-reviewer
   wrote no report.`. The suite result has qory's form `{tests, failed, skipped,

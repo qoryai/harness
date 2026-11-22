@@ -3,13 +3,14 @@
 // folder of the session. open prints one line per finding and exits 1 while there is one. It
 // reads the file and writes nothing.
 //
-// findings round <reports> --reviewers <names> --suite <file>: the result of the round of a
+// findings round <reports> --reviewers <names> [--suite <file>]: the result of the round of a
 // review session. It reads <reports>/<name>.json of each reviewer of --reviewers, in the review
 // report format, and the result of the full suite at --suite, once each. A report that is
 // missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, in another format or
 // of another reviewer is one blocking finding of that reviewer, such as "Reviewer <name> wrote
 // no report." A suite result that failed or did not run, by the rule that a skill adds to the
-// registry, or one that cannot be read, is one blocking finding of full-suite. It prints a line
+// registry, or one that cannot be read, is one blocking finding of full-suite. With no --suite,
+// the round has no suite finding. It prints a line
 // per finding, blocking ones first, with its proof on the next line, and exits 1 while a
 // finding is blocking, else 0. It writes no file.
 'use strict';
@@ -115,8 +116,12 @@ const REPORT_BYTES = 1024 * 1024;
 // shortcut: a larger file is a suite with no result; raise it when qory caps a line.
 const SUITE_BYTES = 4 * 1024 * 1024;
 
+// The fix that findings round prints for a wrong argument.
+const ROUND_FIX = 'Give findings round the report folder, then --reviewers <names>, and ' +
+  '--suite <file>, each once.';
+
 // roundArgs returns { reports, names, suite } of the arguments of findings round, or the fix
-// of a wrong argument as text.
+// of a wrong argument as text. suite is null when the flag is missing.
 function roundArgs(rest) {
   const [reports, ...flags] = rest;
   const got = {};
@@ -124,22 +129,18 @@ function roundArgs(rest) {
     const [flag, value] = [flags[at], flags[at + 1]];
     if (!['--reviewers', '--suite'].includes(flag) || Object.hasOwn(got, flag) ||
       value === undefined) {
-      return 'Give findings round the report folder, then --reviewers <names> and ' +
-        '--suite <file> once each.';
+      return ROUND_FIX;
     }
     got[flag] = value;
   }
-  if (!reports || reports.startsWith('--') || !got['--reviewers'] || !got['--suite']) {
-    return 'Give findings round the report folder, then --reviewers <names> and ' +
-      '--suite <file> once each.';
-  }
+  if (!reports || reports.startsWith('--') || !got['--reviewers']) return ROUND_FIX;
   const names = got['--reviewers'].split(',');
   if (names.some((name) => !NAME.test(name) || name === SUITE) ||
     new Set(names).size !== names.length) {
     return 'Give --reviewers each agent name once, joined by commas, and not full-suite.\n' +
       'A name has lower-case letters, digits and hyphens, from a letter or a digit.';
   }
-  return { reports, names, suite: got['--suite'] };
+  return { reports, names, suite: got['--suite'] ?? null };
 }
 
 // reviewerFindings returns the findings of the report of name in the folder dir: those of
@@ -237,7 +238,8 @@ function reportFolder(dir) {
 function round(io, { reports, names, suite }) {
   const dir = path.resolve(io.cwd, reports);
   reportFolder(dir);
-  const found = [...suiteFindings(path.resolve(io.cwd, suite), io.registry().suite),
+  const found = [...(suite === null ? []
+    : suiteFindings(path.resolve(io.cwd, suite), io.registry().suite)),
     ...names.flatMap((name) => reviewerFindings(dir, name))];
   const blocking = found.filter((one) => one.severity === 'blocking');
   const ranked = [...blocking, ...found.filter((one) => one.severity !== 'blocking')];
@@ -252,7 +254,8 @@ function round(io, { reports, names, suite }) {
   }
   const counts = `${blocking.length} blocking and ${found.length - blocking.length} ` +
     'non-blocking findings';
-  const last = `Checked ${plural(names.length, 'report')} and the suite result: ${counts}` +
+  const last = `Checked ${plural(names.length, 'report')}${suite === null ? '' :
+    ' and the suite result'}: ${counts}` +
     `${blocking.length ? '.' : '; no blocking finding is open.'}`;
   io.out.write([...lines, last].join('\n') + '\n');
   return blocking.length ? 1 : 0;
@@ -262,7 +265,7 @@ module.exports = {
   verbs: {
     findings: {
       usage: ['findings open <file>',
-        'findings round <reports> --reviewers <names> --suite <file>'],
+        'findings round <reports> --reviewers <names> [--suite <file>]'],
       args(io, what, rest) {
         if (what === 'round') {
           const got = roundArgs(rest);
