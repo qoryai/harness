@@ -947,7 +947,7 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
     'its script needs a third correction, and a script has 2',
-    'When the second line of the finding starts with "Push the frozen script"',
+    'When a line of the finding starts with "Push the frozen script"',
     'With 0 and a line that starts with "Start check-reviewer"');
   inText(SCRIPTING, 'starts with "Start check-reviewer", `.demo/<id>.json` exists and differs',
     'skip steps 2 to 4, do step 1, and go on from step 5',
