@@ -82,13 +82,17 @@ with its Criteria cell. Never drop a criterion, and never merge unrelated change
 ## The commands
 
 The table has the columns `Kind`, `Command`, `Result file` and `Source`, with one row for
-each of the kinds `targeted`, `lint`, `types`, `build` and `full`, and a `serve` row when a
-criterion is planned as `Demo`.
+each of the kinds `targeted`, `lint`, `types`, `build`, `full` and `locked`, and a `serve`
+row when a criterion is planned as `Demo`. Write the `locked` row in every plan: every Build
+runs `write-acceptance-checks`, so every Build has locked checks.
 
 - **targeted:** the command that runs the test files of one deliverable. Write it so that
   the paths of the test files come last, with no `#`, `;` or `&&`: the run adds the paths
   at its end. Its Result file is the JUnit XML file that it writes.
 - **full:** the command that runs every test, with the same Result file.
+- **locked:** the command that runs the locked acceptance checks; its cells follow the
+  rules of `full`. qory is to run it after the session, as it runs `full`. With no such
+  command, write `none`, as for the other kinds.
 - **lint, types, build, serve:** the Result file is `none`.
 - **Command:** a command that the explorer's report or a file shows. With no such command,
   write `none` in Command, and in Source the reason, such as "The repository has no
@@ -132,6 +136,7 @@ App address: `http://localhost:3000/`
 | types | `npx tsc --noEmit` | none | found: `package.json:12` |
 | build | none | none | `package.json` has no build script. |
 | full | `npm test` | `reports/junit.xml` | found: `package.json:7` |
+| locked | `npm test -- tests/acceptance` | `reports/junit.xml` | repository: `package.json` |
 | serve | `npm run dev` | none | found: `package.json:6` |
 ```
 

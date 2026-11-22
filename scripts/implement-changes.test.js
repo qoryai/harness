@@ -405,6 +405,7 @@ The order list gets an export, in two changes.
 | types | none | none | The repository has no type check. |
 | build | none | none | The repository has no build. |
 | full | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
+| locked | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
 `;
 
 // The newest demo scenarios remove scenario-2, whose demo script stays listed.
