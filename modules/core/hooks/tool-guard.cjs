@@ -40,11 +40,12 @@
 //   every write below the home except qory.review.report, <reports> and a working folder
 //   inside the home: the guards and the agents that qory composed. A command whose writes the
 //   guard does not read, other than the checks script, neither runs in the home nor contains a
-//   word that reaches it, except the file of the home that it runs. A home in the working
-//   folder gets no such deny, so a change of the harness's files can edit them. The checks
-//   of qory use the bytes that qory wrote, not the file. The guard reads the writes of a
-//   shell command from its text, so a path of the home, of the file or of <reports> that a
-//   shell variable makes passes, as the next lines state.
+//   word that reaches it, outside that working folder, except the file of the home that it
+//   runs in a call with no quotes, parentheses or $. A home in the working folder gets no
+//   such deny, so a change of the harness's files can edit them. The checks of qory use the
+//   bytes that qory wrote, not the file. The guard reads the writes of a shell command from
+//   its text, so a path of the home, of the file or of <reports> that a shell variable makes
+//   passes, as the next lines state.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -2170,7 +2171,7 @@ function readsOnly(name, words) {
 // command whose folder is lost, after eval, source, . or a cd to a vague folder, is read from
 // cwd, the working folder of the call, as well as by its name, and an absolute word from
 // any folder. The folder of a cd, which walk follows, is no word that reaches.
-function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }) {
+function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }, skip = null) {
   const top = fold(root);
   const depth = top.split(path.sep).filter(Boolean).length;
   // The paths that a word reaches, each file and each folder above it below root, with the
@@ -2191,7 +2192,9 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }) {
   }
   const longest = Math.max(0, ...[...named.keys()].map((name) => name.length));
   const full = fold(folder);
-  const hit = (at) => reached.get(at) || (under(at, full) ? folder : null);
+  const left = skip && fold(skip);
+  const hit = (at) => reached.get(at) ||
+    (under(at, full) && !(left && under(at, left)) ? folder : null);
   // reachedIn returns { word, file } of the first word of raw, a text of the command one,
   // that reaches a file, or null. With plain, raw is a word without quotes, read as it is.
   const reachedIn = (raw, plain, one) => {
@@ -2318,19 +2321,20 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
     }
   }
   // Nor does such a command, other than the checks script, run in the harness home or contain
-  // a word that reaches it, except the file of the home that it runs, as node <home>/x.cjs.
-  const blind = all.filter((one) => opaque(one) || shellArgs(one) ||
-    (FED.test(one.text) && segmentWrites(one)));
+  // a word that reaches it, outside a working folder in the home, except the file of the home
+  // that it runs, as node <home>/x.cjs, in a call with no quotes, parentheses or $.
+  const plain = !/['"`()$\\{}]/.test(command);
   for (const one of dark && !checks ? kept.filter((each) => each.home) : []) {
-    for (const segment of blind) {
-      const inside = segment.cwds.find((at) => one.shell.some((full) =>
-        under(fold(realOf(at)), fold(full))));
-      const found = inside ? { word: inside } : one.shell.map((full) => reaches(
-        [withoutScript(segment, one.shell, fold, realOf)], [], full, root, how)).find(Boolean);
+    const skip = under(fold(root), fold(one.full)) ? root : null;
+    const inHome = (at) => under(fold(at), fold(one.full)) &&
+      !(skip && under(fold(at), fold(skip)));
+    for (const segment of all) {
+      const inside = segment.cwds.find((at) => inHome(realOf(at)));
+      const found = inside ? { word: inside } : reaches([plain ? withoutScript(segment, inHome,
+        realOf) : segment], [], one.full, root, how, skip);
       if (found) {
-        return `${one.head}The guard cannot tell what ` +
-          `${path.basename(plainWords(segment.words)[0] || '')} writes, and the call ` +
-          `contains ${found.word}.`;
+        return `${one.head}The guard cannot tell what ${path.basename(dark.words[0])} writes, ` +
+          `and the call contains ${found.word}.`;
       }
     }
   }
@@ -3022,19 +3026,15 @@ function homeParts(top, root, fold) {
 // INTERPRETERS run the file of their first word that is no option, as in node <file>.
 const INTERPRETERS = /^(?:node|python3?|ruby|perl|deno|bun|sh|bash|zsh|dash)$/;
 
-// withoutScript returns segment without the file that it runs, when that file lies in a folder
-// of inside, so that node <home>/x.cjs does not reach the home by the file that it runs; else
-// segment.
-function withoutScript(segment, inside, fold, realOf) {
+// withoutScript returns segment without the file that it runs, when inHome passes for that
+// file, so that node <home>/x.cjs does not reach the home by the file that it runs; else
+// segment. The caller passes only a segment of a call with no quotes or parentheses.
+function withoutScript(segment, inHome, realOf) {
   const words = plainWords(segment.words);
   const at = INTERPRETERS.test(path.basename(words[0] || '')) ? 1 : 0;
   const file = words[at];
-  // A word in quotes or with a comma is text that a command splits, not a file that it runs.
-  if (!file || file.startsWith('-') || segment.words[at] !== file || /[,'"`]/.test(file)) {
-    return segment;
-  }
-  if (!segment.cwds.every((cwd) => inside.some((one) =>
-    under(fold(realOf(joined(cwd, file))), fold(one))))) return segment;
+  if (!file || file.startsWith('-')) return segment;
+  if (!segment.cwds.every((cwd) => inHome(realOf(joined(cwd, file))))) return segment;
   const rest = segment.words.filter((_, index) => index !== at);
   return { ...segment, words: rest, text: rest.join(' ') };
 }

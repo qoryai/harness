@@ -4791,7 +4791,10 @@ test('a session with a review key writes nothing below a harness home outside th
   for (const command of [`python3 -c "open('${guard}','w')"`,
     `node -e "require('fs').writeFileSync('${guard}', 'x')"`,
     `cd ${review.home} && python3 -c "open('hooks/tool-guard.cjs','w')"`,
-    `tar -xf a.tar -C ${review.home}`, `unzip -o a.zip -d ${review.home}`]) {
+    `tar -xf a.tar -C ${review.home}`, `unzip -o a.zip -d ${review.home}`,
+    `perl -e 'unlink(q(${guard}))'`, `ruby -e 'File.delete(%q(${guard}))'`,
+    `python3 -c "f(${guard})"`, `node ${path.join(review.home, 'tool.cjs')} ${guard}`,
+    `node ${SESSION_CHECKS} notes a; python3 -c "open('${guard}','w')"`]) {
     firstLine(review.call(bashAs(command)), HOME_KEPT);
     firstLine(review.call(bashAs(command, 'worker')), HOME_KEPT);
   }
@@ -4853,6 +4856,13 @@ test('a checkout inside a harness home keeps its rules, and the rest of the home
   firstLine(call(writeAs(guard, 'implementer')), HOME_KEPT);
   firstLine(call(bashAs(`echo x > ${guard}`, 'implementer', root)), HOME_KEPT);
   firstLine(call(bashAs(`python3 -c "open('${guard}','w')"`, 'implementer', root)), HOME_KEPT);
+  // A command whose writes the guard does not read may run in the checkout, not elsewhere in
+  // the home.
+  for (const command of [`tar -xf a.tar -C ${outer}`, `unzip -o a.zip -d ${outer}`,
+    `cd ${outer} && tar -xf a.tar`, 'tar -xf a.tar -C ..']) {
+    firstLine(call(bashAs(command, 'implementer', root)), HOME_KEPT);
+  }
+  assert.equal(call(bashAs('tar -xf a.tar -C src', 'implementer', root)), null);
 });
 
 test('outside the report folder, the main session and other agents keep the rules of a run',
