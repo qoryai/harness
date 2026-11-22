@@ -241,8 +241,9 @@ sessions that qory starts, and they read no `qory.review`. qory is to write
 `qory.review_session` into the `inputs.json` of the session, with `commit`, the pushed head
 of the fresh copy, `diff`, the path of the diff, `previous_findings`, the path of
 `open-findings.json`, which qory leaves out in the first round, `reports`, the report
-folder, `suite_result`, the path of the file with the suite result, and, when there is one,
-`build_report`, the path of the file with the report of the build. The prompt of each agent
+folder, `suite_result`, the path of the file with the suite result, which qory leaves out
+when Verify has no suite, and, when there is one, `build_report`, the path of the file with
+the report of the build. The prompt of each agent
 has only the path of the input file, so the prompt has no commit, diff or findings; the path
 of `inputs.json` itself comes from the prompt. Where a skill lists a value of `qory.review`,
 the agent reads the member of the same name in `qory.review_session`. Each agent writes one

@@ -169,7 +169,8 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
       `${name} stops for a file that cannot be read`);
     assert.ok(flat.includes('Where a skill lists a value of `qory.review`, read the member of ' +
       'the same name in `qory.review_session`.'), `${name} maps qory.review`);
-    assert.ok(flat.includes('`suite_result` is the path of the file with the suite result'), name);
+    assert.ok(flat.includes('`suite_result`, when it exists, is the path of the file with the ' +
+      'suite result'), name);
     assert.ok(!/in your prompt|in the prompt|from the prompt/.test(flat),
       `${name} reads the prompt`);
     assert.ok(flat.includes('The prompt contains the path of the input file.'), name);
@@ -576,4 +577,202 @@ test('matrix: it needs a run, the flag --version with a number, and approved cri
   // The run API has no index.json, so the criteria have no approved version.
   fs.rmSync(path.join(wk.server, 'index.json'));
   assert.equal(matrix(wk).status, 3);
+});
+
+// ---- The skill workflow-verify-a-ticket ---------------------------------------------------------
+
+const WORKFLOW = read('skills', 'workflow-verify-a-ticket', 'SKILL.md');
+const oneLine = (text) => text.replace(/\s+/g, ' ').trim();
+
+// section returns the text of the ## section of text with that title, up to the next ## heading.
+function section(text, title) {
+  const at = text.indexOf(`\n## ${title}\n`);
+  assert.notEqual(at, -1, `no section ${title}`);
+  const rest = text.slice(at + 1);
+  const next = rest.indexOf('\n## ', 1);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+// inOrder asserts that each phrase is in text, with its white space joined, in that order.
+function inOrder(text, ...phrases) {
+  const line = oneLine(text);
+  const at = phrases.map((phrase) => line.indexOf(phrase));
+  assert.ok(at.every((place) => place >= 0), `a phrase is missing: ${phrases[at.indexOf(-1)]}`);
+  assert.deepEqual([...at].sort((a, b) => a - b), at, `the order is ${at}`);
+}
+
+test('the skill has its name, a description, its sections and short lines', () => {
+  assert.match(frontOf(WORKFLOW),
+    /^name: workflow-verify-a-ticket\ndescription: Verify the change /);
+  let at = -1;
+  for (const heading of ['## What the session writes', '## The order of the run',
+    '## The reviewers', '## The round', '## The questions', '## The end', '## Failures']) {
+    const place = WORKFLOW.indexOf(`\n${heading}\n`);
+    assert.ok(place > at, `${heading} is missing or out of order`);
+    at = place;
+  }
+  for (const line of proseOf(WORKFLOW)) {
+    assert.ok([...line].length <= 92, `a line of ${[...line].length} characters:\n${line}`);
+  }
+  assert.doesNotMatch(WORKFLOW, /\bown\b/);
+});
+
+test('the skill runs the calls in order and verifies the lock at the approved version only', () => {
+  const steps = section(WORKFLOW, 'The order of the run');
+  inOrder(steps, '1. Pull, then run `<qory> work-item show`', '`<skill folder>/checks.cjs resume`',
+    '2. When `work-item show` printed no `run.id`', '3. Find `<N>`',
+    '4. Run `<skill folder>/checks.cjs lock --verify --version <N>`',
+    '5. Run `<skill folder>/checks.cjs run locked --inputs <inputs>`',
+    '6. Run `<skill folder>/checks.cjs matrix --version <N>`',
+    '7. Read the demo evidence of the run',
+    '8. Run `<skill folder>/checks.cjs check verification <folder>/verification.json`',
+    '9. Do "The reviewers", then "The round".', '10. Push the draft',
+    '11. Take the time of the version', '12. Do "The questions", then "The end".');
+  // The only command that runs lock --verify has --version <N>.
+  const runs = oneLine(steps).match(/`<skill folder>\/checks\.cjs lock --verify[^`]*`/g);
+  assert.deepEqual(runs, ['`<skill folder>/checks.cjs lock --verify --version <N>`']);
+  // No run id, no review session: nothing starts.
+  assert.ok(oneLine(steps).includes('printed no `run.id`, or the input file has no ' +
+    '`qory.review_session`'));
+  assert.ok(oneLine(steps).includes('start nothing and end as "Failures" lists'));
+  // N is the approved version of the lock, and an unapproved lock is a point.
+  assert.ok(oneLine(steps).includes('`<N>` is the `number` of that version'));
+  assert.ok(oneLine(steps).includes('"No member approved an acceptance lock, so the change ' +
+    'was not verified."'));
+});
+
+test('the skill starts the two reviewers, pushes the matrix and records the verdict', () => {
+  const reviewers = section(WORKFLOW, 'The reviewers');
+  assert.ok(oneLine(reviewers).includes('${qory:agents/tamper-reviewer} and ' +
+    '${qory:agents/verification-reviewer} both start in every run'));
+  assert.ok(oneLine(reviewers).includes('Pass each reviewer the path of the input file, ' +
+    '`<inputs>`, and nothing else.'));
+  assert.ok(oneLine(reviewers).includes('Read no report of a reviewer, start no reviewer ' +
+    'again, and fix no report'));
+  const round = oneLine(section(WORKFLOW, 'The round'));
+  assert.ok(round.includes('--reviewers tamper-reviewer,verification-reviewer` once, and add ' +
+    '`--suite <suite>` only when the member `qory.review_session.suite_result` exists'));
+  assert.ok(round.includes('With no `--suite`, the round has no suite finding.'));
+  const end = oneLine(section(WORKFLOW, 'The end'));
+  assert.ok(end.includes('`passed`, when all of these hold'));
+  assert.ok(end.includes('Never record `passed` while a scenario of the commit under review ' +
+    'has the verdict `failed`.'));
+  assert.ok(end.includes('`changes-requested`, when any of them fails: a criterion is not met ' +
+    'or not verified, a scenario failed, or a finding is blocking.'));
+  assert.doesNotMatch(WORKFLOW, /changes-requested --points/);
+  assert.doesNotMatch(WORKFLOW,
+    /submission-writer|QORY_SUBMISSION_HANDOFF|QORY_OUTBOX|report-build|pull-request\.json/);
+  assert.ok(oneLine(WORKFLOW).includes('Push only `verification` and `questions`.'));
+});
+
+test('the skill asks one question for each criterion that is not met, with three answers', () => {
+  const questions = oneLine(section(WORKFLOW, 'The questions'));
+  assert.ok(questions.includes('Ask one question for each row of `<folder>/verification.json` ' +
+    'whose `state` is `not_met`.'));
+  for (const title of ['`Change AC-3, "<first sentence>"`, with `proposal`',
+    '`Make it met another way`', '`Withdraw AC-3, "<first sentence>"`']) {
+    assert.ok(questions.includes(title), title);
+  }
+  assert.ok(questions.includes('The first starts `**Why:**`'));
+  assert.ok(questions.includes('The second starts `**Checked:**`'));
+  assert.ok(questions.includes('Apiary adds a fourth answer that the person writes, so write ' +
+    'no option for it.'));
+});
+
+// ---- A scripted session of the calls that the skill lists ---------------------------------------
+
+// sessionOf returns work() and a folder for the reports of the reviewers.
+function sessionOf(options) {
+  const wk = work(options);
+  wk.reports = next('reports');
+  fs.mkdirSync(wk.reports);
+  return wk;
+}
+
+// reviewed writes the report of a reviewer, as the agent would.
+const reviewed = (wk, name, findings) => fs.writeFileSync(path.join(wk.reports, `${name}.json`),
+  JSON.stringify({ reviewer: name, findings }));
+
+const ROUND = ['findings', 'round'];
+const BOTH = 'tamper-reviewer,verification-reviewer';
+const LOWERED = { severity: 'blocking', quote: 'Demo video: scenario-1',
+  problem: 'AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00" ' +
+    'is met on the evidence of a film that shows other hours.',
+  fix: 'Lower the state of AC-1 and return the work item to Build.',
+  proof: 'failing input: the steps of scenario-1 read the hours 9:00 to 17:00, and the criterion ' +
+    'states 8:00 to 20:00.',
+  point: 'AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00" ' +
+    'is not shown by its demo.' };
+
+test('a session with no suite result: a clean round passes and the matrix passes its check', () => {
+  const wk = sessionOf({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
+  assert.equal(matrix(wk).status, 0);
+  const draft = path.join(wk.store, 'verification.json');
+  assert.equal(call(wk, ['check', 'verification', draft]).status, 0);
+  reviewed(wk, 'tamper-reviewer', []);
+  reviewed(wk, 'verification-reviewer', []);
+  const got = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH]);
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(got.lines.at(-1),
+    'Checked 2 reports: 0 blocking and 0 non-blocking findings; no blocking finding is open.');
+  assert.ok(!got.out.includes('full-suite'));
+  assert.equal(verification(wk).matrix.every((row) => row.state === 'met'), true);
+});
+
+test('a session: a lowered state is one blocking finding with its proof, and exits 1', () => {
+  const wk = sessionOf({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
+  assert.equal(matrix(wk).status, 0);
+  reviewed(wk, 'tamper-reviewer', []);
+  reviewed(wk, 'verification-reviewer', [LOWERED]);
+  const got = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH]);
+  assert.equal(got.status, 1, got.out + got.err);
+  assert.equal(got.lines[0], `Blocking finding of verification-reviewer: ${LOWERED.point}`);
+  assert.equal(got.lines[1], `  Proof: ${LOWERED.proof}`);
+  // The reviewers lower a state in a finding. The matrix and its record stay as they were.
+  assert.equal(verification(wk).matrix[0].state, 'met');
+  assert.equal(recordOf(wk).matrix[0].state, 'met');
+});
+
+test('a session: a reviewer with no report is one blocking finding of that reviewer', () => {
+  const wk = sessionOf({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
+  reviewed(wk, 'tamper-reviewer', []);
+  const got = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH]);
+  assert.equal(got.status, 1);
+  assert.equal(got.lines[0], 'Blocking finding of verification-reviewer: Reviewer ' +
+    'verification-reviewer wrote no report.');
+});
+
+test('a session: a failed check is not met, and the question for it passes its check', () => {
+  const wk = sessionOf({ records: [{ state: 'red', checks: [check('ac-4', 'red')] }],
+    evidence: DEMO_1 });
+  const wrote = matrix(wk);
+  assert.equal(wrote.status, 0);
+  assert.match(wrote.lines.at(-1), /: 3 met, 1 not met, 0 not verified\.$/);
+  const quoted = 'AC-4, "Each customer who got the reply with the old hours receives a ' +
+    'corrected reply that lists the new hours."';
+  const question = { id: 'q1', question: `What do you want to do with ${quoted}?`,
+    about: { type: 'acceptance-criteria', name: 'main', item: 'ac-4' },
+    context: `**Why:** The locked check of ${quoted} exits 1, because one of its 2 tests ` +
+      'fails.\n\n**Checked:** `tests/ac-4.test.js` ran on the commit under review: exit 1, ' +
+      '1 of 2 tests failed.',
+    options: [
+      { title: 'Make it met another way', recommended: true,
+        explanation: 'The work item returns to Build, which fixes the code under test.' },
+      { title: 'Change AC-4, "Each customer who got the reply..."',
+        explanation: 'The criterion states what the check can show.',
+        proposal: 'Each customer who got the reply with the old hours receives a corrected ' +
+          'reply within one day.' },
+      { title: 'Withdraw AC-4, "Each customer who got the reply..."',
+        explanation: 'The criterion leaves the acceptance criteria.' }],
+    state: 'open', asked: { run: 1, at: '2026-11-22T10:00:00Z' } };
+  const file = path.join(wk.store, 'questions.json');
+  write(file, { questions: [question] });
+  const checked = call(wk, ['check', 'questions', file]);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+  // The same question with two answers is refused.
+  write(file, { questions: [{ ...question, options: question.options.slice(0, 2) }] });
+  const refused = call(wk, ['check', 'questions', file]);
+  assert.equal(refused.status, 1, refused.out + refused.err);
+  assert.match(refused.out,
+    /Give .* 3 options: Change AC-N, Make it met another way and Withdraw AC-N/);
 });
