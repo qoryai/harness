@@ -1,6 +1,6 @@
 ---
 name: workflow-implement-changes
-description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. After the steps, the submission writer writes the text of the change, and report-build writes the build report. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
+description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. After the steps, the submission writer writes the text of the change, and report-build writes the build report, which the session checks and pushes. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
 ---
 
 # Implement changes
@@ -223,7 +223,7 @@ lists skip it.
    `build-report.md` in `<folder>` and the hand-off file at the value of
    `QORY_SUBMISSION_HANDOFF`, which qory's submit step reads. On each non-zero exit it
    removes an earlier hand-off file.
-   - With 0, go back to "The end" or "A step that fails", whichever started this section.
+   - With 0, go on with step 3.
    - With exit 1, a rule of the text broke. Start ${qory:agents/submission-writer} again
      with each line that `report-build` printed quoted, at most twice, check its report as
      step 1 lists, and run `report-build` again after each start. When it still exits with
@@ -232,6 +232,33 @@ lists skip it.
      still breaks the rules for it." Print the first line of `report-build` in your output.
    - With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is
      "the build report".
+3. Run `<skill folder>/checks.cjs check build-report --inputs <inputs>
+   <folder>/build-report.md`. It renders the tables of `build-report.md` again from the
+   records and compares each section with the file byte for byte.
+   - With exit 1, the tables are the script's, so a difference is a defect: start no agent.
+     Run `<skill folder>/checks.cjs report-build --drop`, which removes the hand-off file
+     of step 2, so that qory's submit step reads no text of a change that is not ready.
+     Then end as "Points" of `running-a-workflow` lists, with one `run_again` point: "The
+     change is not ready, because the build report differs from the records of the run."
+     Print the first line of the check in your output. When `--drop` exits with 3, end as
+     "Failures" lists for the checks script instead.
+   - With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is
+     "the build report".
+4. Push `build-report` as "Push only what changed" and "Check before each push" of
+   `running-a-workflow` list, with step 3 as the `check`:
+
+   ```
+   <qory> artifact push build-report <folder>/build-report.md
+   ```
+
+   When the push exits with 4 or fails, run steps 2 and 3 again, then push again, at most
+   twice more. When the third push also fails, run
+   `<skill folder>/checks.cjs report-build --drop`, so that qory's submit step reads no
+   text of a change whose report was not pushed. Then end with "The run could not push its
+   build report." as "Points" of `running-a-workflow` lists. When `--drop` exits with 3,
+   end as "Failures" lists for the checks script instead. No agent wrote the file, so
+   start no agent to fix it.
+5. Go back to "The end" or "A step that fails", whichever started this section.
 
 ## The end
 

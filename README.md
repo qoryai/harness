@@ -336,9 +336,10 @@ workflows:
   ends the session with one `answer` point. Before the steps, the session withdraws the
   demo script of each removed demo scenario. After the last step, and after a step that
   fails, it starts `submission-writer` and runs `checks.cjs report-build`, which writes
-  `build-report.md` and the hand-off file. Its stack entry sets `judges: false`, so it ends
-  with no verdict command once qory writes `qory.workflow.judges` (see the `shortcut:` note
-  in `scripts/checks.test.js`), and `review-changes` runs next.
+  `build-report.md` and the hand-off file, then checks and pushes `build-report`. Its stack
+  entry sets `judges: false`, so it ends with no verdict command once qory writes
+  `qory.workflow.judges` (see the `shortcut:` note in `scripts/checks.test.js`), and
+  `review-changes` runs next.
 - `changing-code`: load it before you change code for one step of a build. The skill
   contains the step you get, the paths you may change, the tests of the change, the checks
   you run and the list `Left out:` of the report.
@@ -388,8 +389,9 @@ workflows:
 - `submission-writer`: an agent that writes `.reports/submission.md` of the artifact
   folder by `writing-submissions`: the title and the parts `## Problem`, `## Change`,
   `## Tests` and `## Disclosed`, from the build plan, the build ledger and the records of
-  the checks. It types no result. `workflow-review-changes` starts it when every check
-  passed.
+  the checks. It types no result. `workflow-implement-changes` starts it at the end of each
+  round, also after a step that fails, and `workflow-review-changes` starts it when every
+  check passed.
 - `code-reviewer`: an agent that reviews the code of a change, apart from its tests, by
   `reviewing-changes`, `judging-findings` and `checking-code`, and writes one report file.
   It also reports a security hole, data loss or a secret in a test, and a broken rule of

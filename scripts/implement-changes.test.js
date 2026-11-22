@@ -155,13 +155,21 @@ test('the session writes the text of the change after the last step, and not on 
       '`QORY_SUBMISSION_HANDOFF`',
     'With exit 1, a rule of the text broke.', 'at most twice',
     'With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is ' +
-      '"the build report".');
+      '"the build report".',
+    'Run `<skill folder>/checks.cjs check build-report --inputs <inputs> ' +
+      '<folder>/build-report.md`.',
+    'Run `<skill folder>/checks.cjs report-build --drop`',
+    'The change is not ready, because the build report differs from the records of the run.',
+    '<qory> artifact push build-report <folder>/build-report.md',
+    'When the push exits with 4 or fails, run steps 2 and 3 again, then push again, at most ' +
+      'twice more.',
+    'The run could not push its build report.',
+    '5. Go back to "The end" or "A step that fails", whichever started this section.');
   // The skip list, and the two ends that "The submission" writes.
   contains(submission, 'Do this section after the last step: at "The end", and in "A step ' +
     'that fails". A stop on the build plan, a work item with no build plan, a withdrawal that ' +
     'fails and an end as "Failures" lists skip it.');
-  contains(submission, 'With 0, go back to "The end" or "A step that fails", whichever ' +
-    'started this section.');
+  contains(submission, 'With 0, go on with step 3.');
   contains(submission, 'with one `run_again` point: "The change is not ready, because the ' +
     'description of the change still breaks the rules for it."');
   // The steps committed, so a failure of the writer says that qory pushes them with no text.
@@ -442,7 +450,7 @@ case "$1 $2" in
     exit 0
   fi
   case "$3" in
-  build-ledger|acceptance-lock) program='${PUSH}';;
+  build-ledger|acceptance-lock|build-report) program='${PUSH}';;
   *) exit 9;;
   esac
   out=$('${process.execPath}' "$program" push "$3" "$4" 2>&1) ||
@@ -618,8 +626,9 @@ const SUBMISSION = ['# Write the order lines and a header in the export', '', '#
   '## Disclosed', '', 'Nothing is left out.', ''].join('\n');
 
 // submit does "The submission" of the skill: the submission writer writes its text and its
-// report, the report check passes, and report-build writes build-report.md and the hand-off
-// file. It returns the paths of the two files.
+// report, the report check passes, report-build writes build-report.md and the hand-off file,
+// check build-report passes, and the push stores version 1 of build-report. It returns the
+// paths of the two files.
 function submit(w, call) {
   fs.writeFileSync(path.join(w.artifacts, '.reports', 'submission.md'), SUBMISSION);
   const written = path.join(w.artifacts, '.reports', 'submission-writer-1.md');
@@ -629,8 +638,13 @@ function submit(w, call) {
   assert.equal(reported.status, 0, reported.out);
   const built = call('report-build', '--inputs', w.inputs);
   assert.equal(built.status, 0, built.out + built.err);
-  return { handoff: call.env.QORY_SUBMISSION_HANDOFF,
-    report: path.join(w.artifacts, 'build-report.md') };
+  const file = path.join(w.artifacts, 'build-report.md');
+  const checked = call('check', 'build-report', '--inputs', w.inputs, file);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+  const pushed = qory(w, call, 'artifact', 'push', 'build-report', file);
+  assert.equal(pushed.status, 0, pushed.out + pushed.err);
+  assert.equal(read(w.store, 'build-report/main/v1/build-report.md'), read(file));
+  return { handoff: call.env.QORY_SUBMISSION_HANDOFF, report: file };
 }
 
 // The two steps of the plan: d-1 runs its locked check, d-2 its test file.
@@ -943,4 +957,39 @@ test('the session ends on another blocked report as "Failures" lists, with no re
   assert.equal(ended.status, 0, ended.out);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')),
     [`run verdict escalate --points ${points}`]);
+});
+
+// endThrice runs the end check of a session three times on a report that no check passed, and
+// returns the three results. A stage never ends as failed: the third check records escalate,
+// whatever qory.workflow.judges is.
+function endThrice(w, call, agent, inputs) {
+  report(w, agent, 'What you read:\n- none\n\ndone\n');
+  return [1, 2, 3].map(() => call('end', w.artifacts, '--inputs', inputs));
+}
+
+const escalates = (w, results) => {
+  assert.deepEqual(results.map((one) => one.status), [1, 1, 0]);
+  assert.match(results[2].out + results[2].err, new RegExp('; check 3 of 3, so the run ends: wrote 1 ' +
+    'point to points\\.json, and \\S+ run verdict escalate exited with 0'));
+  assert.deepEqual(logOf(w).filter((line) => line.startsWith('run verdict')),
+    [`run verdict escalate --points ${path.join(w.artifacts, 'points.json')}`]);
+};
+
+test('an implement-changes session whose end check fails three times records escalate', () => {
+  const w = work();
+  const call = session(w);
+  assert.equal(call('resume').status, 0);
+  // The inputs of implement-changes have judges false.
+  escalates(w, endThrice(w, call, 'software-developer', w.inputs));
+});
+
+test('a review-changes session whose end check fails three times records escalate', () => {
+  const w = work();
+  const call = session(w);
+  assert.equal(call('resume').status, 0);
+  // review-changes has no judges in its stack entry, so qory.workflow has none.
+  const inputs = path.join(fresh('in'), 'inputs.json');
+  const qory = JSON.parse(read(w.inputs)).qory;
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, workflow: {} } }));
+  escalates(w, endThrice(w, call, 'submission-writer', inputs));
 });

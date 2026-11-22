@@ -47,8 +47,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   writes "<scenario>: removed by Shape, still on the gate" for each such upload and each
   withdrawal that exits with 4. After the last step, and after a step that fails, the
   session starts `submission-writer` and runs `checks.cjs report-build`, which writes
-  `build-report.md` and the hand-off file that qory's submit step reads. A stop on the build
-  plan runs neither. The session starts no reviewer.
+  `build-report.md` and the hand-off file that qory's submit step reads, then runs
+  `check build-report` and pushes `build-report`, as `review-changes` does. A stop on the
+  build plan runs none of these. `submission-writer` describes what the round built, also
+  after a step that fails. When the end check fails three times, the session records
+  `escalate`, as every workflow does. The session starts no reviewer.
 - The agents `software-developer` and `software-debugger`, which fill the roles `developer`
   and `debugger` of `software-factory`, and the skills `changing-code`,
   `debugging-failures` and `making-small-changes`. `making-small-changes` has nine rules for

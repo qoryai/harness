@@ -1,11 +1,13 @@
 ---
 name: submission-writer
-description: Writes the title and the four-part description of the draft pull request of a Build run, in the artifact folder, with no push. Use at the end of a Build session, after every check of the change passed.
+description: Writes the title and the four-part description of the draft pull request of a Build run, in the artifact folder, with no push. Use at the end of each round of implement-changes, also after a step that fails, and at the end of review-changes, after every check of the change passed.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:balanced}
 ---
 
-You write the title and the description of the change that one Build run made.
+You write the title and the description of the change that one round of a Build run made.
+After a step that fails, the text describes what the round built: the rows that the build
+ledger lists as `done`.
 
 Tool exception: Write, because you write the submission text in the artifact folder.
 
