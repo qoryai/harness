@@ -4783,6 +4783,7 @@ test('a session with qory.review or qory.review_session writes no inputs.json of
   assert.equal(review.call(bashAs(`cat ${inputs}`, REVIEWER)), null);
 });
 
+const PUSH_KEPT = 'Push verification only from verification.json of the artifact folder';
 const MATRIX_KEPT = 'Leave verification.json and .reports/matrix-record.json of the artifact';
 
 test('in a review session only checks.cjs matrix writes verification.json and its record', () => {
@@ -4818,6 +4819,42 @@ test('in a review session only checks.cjs matrix writes verification.json and it
   // The verb matrix, and a read of either file, run.
   for (const command of [`node ${SESSION_CHECKS} matrix --version 1`,
     `cd ${runFolder} && node ${SESSION_CHECKS} matrix --version 1`, `cat ${draft} ${record}`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  // An extraction into the artifact folder, or into .reports, writes the files in it.
+  const other = next('session-other');
+  for (const command of [`tar -xf a.tar -C ${runFolder}`, `cd ${runFolder} && tar -xf a.tar`,
+    `unzip -o a.zip -d ${runFolder}`, `tar -xf a.tar -C ${runFolder}/.reports`,
+    `tar xzf a.tgz --directory=${runFolder}`, `cd ${runFolder}/.reports && unzip -o a.zip`,
+    `unzip a.zip -d ${path.dirname(runFolder)}`]) {
+    // An older rule gives its own reason for a command that names .reports/.
+    for (const type of [undefined, 'worker']) {
+      if (command.includes('.reports')) assert.ok(call(bashAs(command, type)), command);
+      else firstLine(call(bashAs(command, type)), MATRIX_KEPT);
+    }
+  }
+  for (const command of [`tar -xf a.tar -C ${other}`, `unzip -o a.zip -d ${other}`,
+    `tar -cf ${other}/a.tar ${runFolder}`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  // A push of verification from another file or from standard input is denied; the push of
+  // the draft passes by its full path, with --note, and for another type. A relative path
+  // is denied, since a cd can fail.
+  const push = 'qory artifact push';
+  for (const command of [`${push} verification /tmp/forged.json`,
+    `echo '{}' | ${push} verification -`, `${push} verification ${runFolder}/other.json`,
+    `${push} verification ${draft} /tmp/forged.json`, `${push} verification "$F"`,
+    `${push} verification --note x ${path.join(runFolder, '..', 'forged.json')}`,
+    `cd /tmp && ${push} verification verification.json`,
+    `cd ${runFolder} && ${push} verification verification.json`, `/qory/qory artifact push verification -`,
+    `${push} "$T" /tmp/forged.json`]) {
+    firstLine(call(bashAs(command)), PUSH_KEPT);
+    firstLine(call(bashAs(command, 'worker')), PUSH_KEPT);
+  }
+  for (const command of [`${push} verification ${draft}`,
+    `${push} verification --note "After the fix." ${draft}`,
+    `/qory/qory artifact push verification ${draft}`,
+    `${push} questions /tmp/q.json`, `${push} walkthrough -`]) {
     assert.equal(call(bashAs(command)), null, command);
   }
   // A path that a shell variable makes is not read: the limit that the header states.

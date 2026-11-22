@@ -1954,8 +1954,17 @@ tool's error. The first line of each reason starts with what to do. The guard de
   that starts "Leave verification.json and .reports/matrix-record.json": a write tool, a
   shell command with the path in its text, and a command whose writes it cannot read, such
   as `python3 -c`, with the path in its text, except the checks script alone with `check`,
-  which writes nothing. A reviewer writes its report only. Outside a review session the
-  two files keep the rules of a run.
+  which writes nothing. An extraction by `tar` or `unzip` into the artifact folder, into
+  `.reports` or into a folder above either file counts as a write of both. A push of
+  `verification` is denied unless its one source is the full path of `verification.json`
+  of the artifact folder: another file, a relative path, a path that a variable makes and
+  `-` for standard input are denied, with a first line that starts "Push verification
+  only from verification.json". A reviewer writes its report only. Outside a review
+  session the two files keep the rules of a run.
+- `shortcut:` a locked check runs as a child process that the guard does not see, and it can
+  rewrite `verification.json` and `.reports/matrix-record.json`, or plant a record in
+  `.reports/runs/`. The replacement is for qory to run the locked checks and `matrix`
+  outside the session.
 - The guard reads the writes of a shell command from its text, so a path in `<reports>`, of
   `inputs.json`, below the harness home or in the two files of `matrix` that a shell
   variable makes, such as `D=/x; echo > "$D/r.json"`, passes. So does a script that one call

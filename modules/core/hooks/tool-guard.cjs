@@ -38,8 +38,14 @@
 // - in a review session, a write of <artifacts>/verification.json or of
 //   <artifacts>/.reports/matrix-record.json, with <artifacts> as artifactFolder returns it:
 //   only the verb matrix of the checks script writes them, so no call of the main session
-//   or of an agent does, by a write tool or by a shell command with the path in its text. The
-//   shortcut limits of the next entry apply: a path that a variable or code makes passes;
+//   or of an agent does, by a write tool or by a shell command with the path in its text,
+//   and an extraction by tar or unzip into a folder above them counts as a write. A push of
+//   `verification` from a source other than <artifacts>/verification.json, such as another
+//   file or standard input, is denied too. The shortcut limits of the next entry apply: a
+//   path that a variable or code makes passes;
+//   - shortcut: a locked check runs as a child process that the guard does not see, and can
+//     rewrite both files or plant a record in .reports/runs/; replace the guard with qory
+//     running the locked checks and matrix outside the session.
 // - in a session with qory.review or qory.review_session, a write of the inputs.json of the
 //   harness home, wherever the home lies, and, when the home lies outside the working folder,
 //   every write below the home except qory.review.report, <reports> and a working folder
@@ -2030,7 +2036,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   const reviewer = agent && /-reviewer$/.test(String(input.agent_type));
-  const kept = keptFiles(env, session, nocase, root, artifactFolder(root, env, runFolder));
+  const artifacts = artifactFolder(root, env, runFolder);
+  const kept = keptFiles(env, session, nocase, root, artifacts);
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
       .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
@@ -2040,6 +2047,10 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   // A reviewer agent of a review session writes its report with Write or apply_patch only.
   if (call.kind === 'shell' && session && reviewer && !reads) {
     return `${SESSION_SHELL}The command is ${reviewShown(call.command)}.`;
+  }
+  if (call.kind === 'shell' && session && artifacts) {
+    const pushed = verificationPush(call.command, cwd, artifacts, nocase);
+    if (pushed) return pushed;
   }
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
@@ -2080,7 +2091,6 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
       call, input, paths, env, root, nocase, agent: true }) : null;
   }
   if (reviewReport(env)) return reviewDeny({ call, input, paths, env, root, nocase });
-  const artifacts = artifactFolder(root, env, runFolder);
   const outside = paths.find((full) => !artifacts || !inside(full, artifacts));
   if (!outside) return null;
   if (!artifacts) {
@@ -2383,6 +2393,17 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
       }));
     if (word !== undefined) return `${UNSURE}The command writes ${word}.`;
   }
+  // tar or unzip that extracts into a folder above full writes what its archive holds there.
+  const unpacked = (full) => all.some((one) => {
+    if (!/^(?:tar|unzip)$/.test(path.basename(plainWords(one.words)[0] || ''))) return false;
+    const into = madeAt(one);
+    return Array.isArray(into) && into.some((dir) => one.cwds.some((from) => {
+      spend();
+      return under(fold(full), fold(realOf(joined(from, dir))));
+    }));
+  });
+  const matrixFile = kept.find((one) => one.matrix && unpacked(one.full));
+  if (matrixFile) return `${matrixFile.head}The command extracts into a folder that holds it.`;
   return null;
 }
 
@@ -3072,6 +3093,44 @@ function withoutScript(segment, inHome, realOf) {
   return { ...segment, words: rest, text: rest.join(' ') };
 }
 
+// verificationPush returns the reason to deny command, which runs `qory artifact push
+// verification` with a source other than verification.json of artifacts, such as another file
+// or - for standard input, or null. A source or a type that the guard cannot read, as in
+// `$F`, is denied. shortcut: a push that another program makes passes; the push check of qory
+// is the control for it.
+function verificationPush(command, cwd, artifacts, nocase) {
+  const fold = (one) => (nocase ? one.toLowerCase() : one);
+  const draft = fold(real(path.join(artifacts, MATRIX_FILE)));
+  for (const segment of segments(command, cwd)) {
+    const words = plainWords(segment.words);
+    if (path.basename(words[0] || '') !== 'qory' || words[1] !== 'artifact' ||
+      words[2] !== 'push') continue;
+    // The options of push: --withdraw has no value, the others take the next word.
+    const given = [];
+    for (let at = 3; at < words.length; at += 1) {
+      if (words[at] === '--withdraw' || (words[at].startsWith('--') && words[at].includes('='))) {
+        continue;
+      }
+      if (words[at].startsWith('-') && words[at] !== '-') {
+        // The value of the option, which a quote may carry over several words.
+        at += 1;
+        const quote = /^["']/.exec(segment.words[at] || '');
+        while (quote && at < words.length - 1 && !(segment.words[at].length > 1 &&
+          segment.words[at].endsWith(quote[0]))) at += 1;
+      } else given.push(at);
+    }
+    const [type, ...sources] = given;
+    if (type === undefined || (words[type] !== 'verification' && !vague(segment.words[type]))) {
+      continue;
+    }
+    const exact = sources.length === 1 && !vague(segment.words[sources[0]]) && !segment.lost &&
+      segment.cwds.length > 0 && segment.cwds.every((one) =>
+        fold(real(joined(one, words[sources[0]]))) === draft);
+    if (!exact) return `${PUSH_KEPT}The command is ${reviewShown(command)}.`;
+  }
+  return null;
+}
+
 // keptWrite returns { inputs, reason } for the first of paths, real paths that a call writes,
 // that is an entry of kept or lies in a kept folder, or null.
 function keptWrite(kept, paths) {
@@ -3134,6 +3193,9 @@ const MATRIX_FILE = 'verification.json';
 const MATRIX_RECORD = path.join('.reports', 'matrix-record.json');
 const MATRIX_KEPT = 'Leave verification.json and .reports/matrix-record.json of the artifact ' +
   'folder to checks.cjs matrix.\nIn a review session only the verb matrix writes them. ';
+const PUSH_KEPT = 'Push verification only from verification.json of the artifact folder, with ' +
+  'its path written out.\nIn a review session a push of that type from another file or from ' +
+  'standard input is denied. ';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
   'of the run in it.\nA session with qory.review or qory.review_session in it writes no ' +
   'inputs.json. ';
