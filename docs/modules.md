@@ -3124,7 +3124,11 @@ highest id of the review, so that `scope` and `freeze` take its id.
   the steps without it." With exit 1 of `check build-report`, it runs `report-build --drop`
   and ends with one `run_again` point; after a third push of `build-report` that fails, it
   runs `report-build --drop` and ends with "The run could not push its build report." A
-  stop on the build plan skips it. `submission-writer` describes what the round built, also
+  stop on the build plan skips it, and so does a run with no row of
+  `.reports/build-ledger.json` in the state `done`, such as one whose first step of the first
+  round fails: qory fills `commits` from the commits that it pushes, and the type needs at
+  least one. Such a run writes no `pull-request.json`, so each end check finds it missing,
+  and the third records `escalate`. `submission-writer` describes what the round built, also
   after a step that fails. When the end check fails three times, the session records
   `escalate`.
 - **The end.** With every step done or replayed, the session follows "The end" of
