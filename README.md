@@ -345,7 +345,7 @@ workflows:
   script of each removed demo scenario. After the last step, and after a step that fails, it
   starts `submission-writer` and runs `checks.cjs report-build`, which writes
   `build-report.md` and the outbox file `pull-request.json`, then checks and pushes
-  `build-report`. A run with no step `done` in the build ledger skips these, because qory
+  `build-report`. A session that ran no `step end done` skips these, because qory
   opens a pull request only from at least one commit. Its stack entry sets `judges: false`,
   so it ends with no verdict command once qory writes `qory.workflow.judges` (see the
   `shortcut:` note in `scripts/checks.test.js`), and `review-changes` runs next.

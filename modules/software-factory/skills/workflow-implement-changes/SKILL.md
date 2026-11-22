@@ -173,6 +173,9 @@ stays open in the build ledger and in the build report.
 When this session ran no `step end <id> done`, the run has no commit: skip "The
 submission", do no later step, and end as "Points" of `running-a-workflow` lists, with one
 `run_again` point whose text is the line after "End with" in this section.
+<!-- shortcut: a session that `resume` started counts no step done before the restart, so
+it skips "The submission" although the run has commits; count from `qory.start_commits`
+once qory writes it. -->
 
 Otherwise do "The submission". When a case of "The submission" ends the run, end as that
 case lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
