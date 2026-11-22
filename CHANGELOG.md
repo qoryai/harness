@@ -8,7 +8,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-<<<<<<< HEAD
 - The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
   a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
   the `App address:` of the build plan, signs in with the replay of `preflight`, and runs
@@ -26,8 +25,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `check-reviewer` on each change to a frozen script, and `demo check` refuses a third
   correction. The call of `preflight` moved from the run of the locked checks to before the
   first run of a script, and it reads the drafts in `.demo/`.
-||||||| e1deeb16
-=======
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
@@ -41,7 +38,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   after its agent exits. `reviewing-changes` takes the report path from
   `qory.hook_session.report` first, then `qory.review.report`, then the report folder of a
   review session.
->>>>>>> origin/544-build-verify
 - The review session of Build. `workflow-review-changes` reviews the change inside its
   session: it starts each member of the group role `reviewers` that `checks.cjs panel`
   starts for the paths of the change, in turn, as agents of the session. `code-reviewer`,
