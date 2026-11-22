@@ -1744,10 +1744,18 @@ tool's error. The first line of each reason starts with what to do. The guard de
   `sessionReport` of `tool-guard.cjs`.
 - In a session with `qory.review` or `qory.review_session`, the guard denies a write of
   `inputs.json` of the harness home, wherever the home lies, with a first line that starts
-  with "Leave inputs.json". The file is read only in a walled run whose home is outside the
-  workspace (a read-only mount); qory's checks use the bytes it wrote, not the file.
-- The guard reads the writes of a shell command from its text, so a path in `<reports>` or
-  of `inputs.json` that a shell variable makes, such as `D=/x; echo > "$D/r.json"`, passes.
+  with "Leave inputs.json". When the home lies outside the working folder, it denies every
+  write below the home too, such as `hooks/tool-guard.cjs`, `codex/agents/<name>.toml` and
+  the agent files under `modules/`, with a first line that starts with "Leave the harness
+  home". `qory.review.report` and the report folder of a review session keep their rules
+  there. A home that is the working folder or lies inside it gets no such deny, so
+  `implement-changes` can change the files of the harness when the target is the harness
+  repository. The walled run, whose home is a read-only mount outside the workspace, is the
+  main barrier; the guard is the second. qory's checks use the bytes it wrote to
+  `inputs.json`, not the file.
+- The guard reads the writes of a shell command from its text, so a path in `<reports>`, of
+  `inputs.json` or below the harness home that a shell variable makes, such as `D=/x; echo >
+  "$D/r.json"`, passes.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,

@@ -4441,6 +4441,7 @@ const SESSION_NONE = 'Report in your text and write no file: qory.review_session
 const SESSION_SHELL = 'Run only read commands, such as cat, grep or ls: a reviewer writes its';
 const REPORTS_KEPT = 'Leave the report folder to the reviewers and checks.cjs findings round.';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is';
+const HOME_KEPT = 'Leave the harness home as it is: a review runs with the guards and agents';
 // The reviewer agent on Claude Code, an agent of the harness's plugin.
 const REVIEWER = 'harness:code-reviewer';
 
@@ -4760,6 +4761,57 @@ test('a session with qory.review or qory.review_session writes no inputs.json of
   assert.equal(plain.call(writeAs(path.join(plain.home, 'inputs.json'), 'worker')), null);
   // Reading the file stays allowed.
   assert.equal(review.call(bashAs(`cat ${inputs}`, REVIEWER)), null);
+});
+
+test('a session with a review key writes nothing below a harness home outside the checkout',
+  () => {
+  const review = sessionSetup();
+  const reviewer = sessionSetup((dir) => ({ review: { report: path.join(dir, 'report.json') } }));
+  const plain = sessionSetup(() => ({ run: { id: 'r-1' } }));
+  const files = (home) => [path.join(home, 'hooks', 'tool-guard.cjs'),
+    path.join(home, 'codex', 'agents', 'code-reviewer.toml'),
+    path.join(home, 'modules', 'software-factory', 'agents', 'code-reviewer.md')];
+  for (const { home, call } of [review, reviewer]) {
+    for (const file of files(home)) {
+      for (const type of [undefined, 'worker', REVIEWER]) {
+        firstLine(call(writeAs(file, type)), HOME_KEPT);
+        firstLine(call(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' },
+          type)), HOME_KEPT);
+      }
+    }
+  }
+  // A shell command in a review session; a reviewer session runs only its read commands.
+  for (const file of files(review.home)) {
+    firstLine(review.call(bashAs(`echo x > ${file}`)), HOME_KEPT);
+    firstLine(review.call(bashAs(`sed -i s/a/b/ ${file}`, 'worker')), HOME_KEPT);
+  }
+  // With no review key, no deny of the home applies.
+  for (const file of files(plain.home)) {
+    assert.equal(plain.call(writeAs(file, 'worker')), null, file);
+    assert.equal(plain.call(bashAs(`echo x > ${file}`, 'worker')), null, file);
+  }
+  // A home in the checkout gets no new deny: each write there has the same result with a
+  // review key as without one, so a change of the harness's files keeps today's rules.
+  const inside = path.join(WORK, 'harness-home');
+  fs.mkdirSync(inside, { recursive: true });
+  const file = path.join(inside, 'hooks', 'tool-guard.cjs');
+  const env = { ...RUN, QORY_HARNESS_HOME: inside };
+  const results = (qory) => {
+    fs.writeFileSync(path.join(inside, 'inputs.json'), JSON.stringify({ qory }));
+    return [writeAs(file, 'implementer'), bashAs(`echo x > ${file}`, 'implementer')]
+      .map((input) => review.call(input, env));
+  };
+  const first = (list) => list.map((one) => one && one.split('\n')[0]);
+  const before = first(results({ run: { id: 'r-1' } }));
+  assert.deepEqual(first(results({ review_session: { reports: review.reports } })), before);
+  // A reviewer session runs only read commands, a deny that comes before this rule.
+  const reviewing = results({ review: { report: path.join(review.reports, 'r.json') } });
+  assert.equal(first(reviewing)[0], before[0]);
+  assert.ok(!reviewing[1].startsWith(HOME_KEPT), reviewing[1]);
+  // The checks script runs from a home outside the checkout in a review session.
+  assert.equal(review.call(bashAs(`node ${path.join(review.home, 'checks.cjs')} notes a`)),
+    null);
+  fs.rmSync(inside, { recursive: true, force: true });
 });
 
 test('outside the report folder, the main session and other agents keep the rules of a run',

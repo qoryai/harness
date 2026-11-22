@@ -36,9 +36,13 @@
 //   session starts agents, none in the background; the main session and every other agent
 //   follow the rules of any other session outside <reports>;
 // - in a session with qory.review or qory.review_session, a write of the inputs.json of the
-//   harness home, wherever the home lies. The checks of qory use the bytes that qory wrote,
-//   not the file. The guard reads the writes of a shell command from its text, so a path of
-//   the file or of <reports> that a shell variable makes passes, as the next lines state.
+//   harness home, wherever the home lies, and, when the home lies outside the working folder,
+//   every write below the home except qory.review.report and <reports>: the guards and the
+//   agents that qory composed. A home in the working folder gets no such deny, so a change of
+//   the harness's files can edit them. The checks of qory use the bytes that qory wrote, not
+//   the file. The guard reads the writes of a shell command from its text, so a path of the
+//   home, of the file or of <reports> that a shell variable makes passes, as the next lines
+//   state.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -2008,7 +2012,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   const reviewer = agent && /-reviewer$/.test(String(input.agent_type));
-  const kept = keptFiles(env, session, nocase);
+  const kept = keptFiles(env, session, nocase, root);
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
       .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
@@ -2301,8 +2305,9 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
       `what ${name} writes, and the call contains ${reached.word}, which reaches ${shown}.`;
   }
   // A command whose writes the guard does not read, other than one of sessionExempt, writes
-  // no word that reaches a kept folder, the report folder of a review session.
-  for (const one of dark && !exempt ? kept.filter((each) => each.folder) : []) {
+  // no word that reaches the report folder of a review session. The harness home is left
+  // out: the checks script and the hooks run from it.
+  for (const one of dark && !exempt ? kept.filter((each) => each.folder && !each.inputs) : []) {
     const found = reaches(all, [], one.full, root, how);
     if (found) {
       return `${one.head}The guard cannot tell what ${path.basename(dark.words[0])} writes, ` +
@@ -2938,9 +2943,13 @@ function reportName(agentType, runtime, home) {
 
 // keptFiles returns the entries that no call writes, except as decideCall allows: in a session
 // with qory.review or qory.review_session, the file inputs.json of the harness home, wherever
-// the home lies; in a review session, the report folder, read through its links. Each entry
-// is { full, folder, inputs, nocase, head }, with head the first two lines of its deny.
-function keptFiles(env, session, nocase) {
+// the home lies, and the home itself when it lies outside root, the working folder; in a
+// review session, the report folder, read through its links. Each entry is { full, folder,
+// inputs, nocase, head, except }, with head the first two lines of its deny; inputs is true
+// for an entry of the home, whose deny comes before the rule of a reviewer's report. except
+// is the path that the entry of the home leaves to the rules of a review: qory.review.report,
+// or the report folder of a review session, with every path below it.
+function keptFiles(env, session, nocase, root) {
   const out = [];
   const qory = qoryInputs(env);
   const home = env.QORY_HARNESS_HOME;
@@ -2949,6 +2958,15 @@ function keptFiles(env, session, nocase) {
     const full = real(path.join(home, 'inputs.json'));
     out.push({ full, folder: false, inputs: true, head: INPUTS_KEPT,
       nocase: nocase || caseless(path.dirname(full)) });
+    const top = real(home);
+    const fold = (one) => (nocase ? one.toLowerCase() : one);
+    if (!under(fold(top), fold(root)) && !under(fold(root), fold(top))) {
+      const left = member(qory.review) ? reviewReport(env).report
+        : session && session.reports;
+      out.push({ full: top, folder: true, inputs: true, head: HOME_KEPT,
+        nocase: nocase || caseless(top) || caseless(path.dirname(top)),
+        except: left ? real(left) : null });
+    }
   }
   if (session && session.reports) {
     const full = real(session.reports);
@@ -2964,7 +2982,7 @@ function keptWrite(kept, paths) {
   for (const one of kept) {
     const fold = (full) => (one.nocase ? full.toLowerCase() : full);
     const hit = paths.find((full) => (one.folder ? under(fold(full), fold(one.full))
-      : fold(full) === fold(one.full)));
+      : fold(full) === fold(one.full)) && !(one.except && under(fold(full), fold(one.except))));
     if (hit) return { inputs: one.inputs, reason: `${one.head}The call writes ${hit}.` };
   }
   return null;
@@ -2997,6 +3015,9 @@ const REPORTS_KEPT = 'Leave the report folder to the reviewers and checks.cjs fi
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
   'of the run in it.\nA session with qory.review or qory.review_session in it writes no ' +
   'inputs.json. ';
+const HOME_KEPT = 'Leave the harness home as it is: a review runs with the guards and agents ' +
+  'of it.\nA session with qory.review or qory.review_session writes ' +
+  'nothing below QORY_HARNESS_HOME when the home lies outside the working folder. ';
 const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write or apply_patch: ' +
   'a reviewer writes one file.\nThe report folder is qory.review_session.reports of inputs.json; ' +
   'a path with a .. part, a link, a file with more than one link, a linked report folder and ' +
@@ -3172,7 +3193,7 @@ function run({ runtime, before } = {}) {
 // The fixed texts that start a deny, for the check of their first lines.
 const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
   OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
-  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT };
+  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT };
 
 module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
   REASONS };
