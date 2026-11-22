@@ -126,11 +126,11 @@ function call(deps, argv) {
     ...deps,
   });
   first.check(status, err);
-  // check, push and end print the line of what they checked first on stderr and nothing else on
-  // stdout but the findings. out has both, the summary last, as a session reads them; stdout
-  // has the stdout alone, and err the rest of stderr.
+  // check, push, end and destinations print the line of what they checked first on stderr and
+  // nothing else on stdout but the findings or the ids. out has both, the summary last, as a
+  // session reads them; stdout has the stdout alone, and err the rest of stderr.
   const stdout = out;
-  if (['check', 'push', 'end'].includes(argv[0]) && [0, 1, 3].includes(status)) {
+  if (['check', 'push', 'end', 'destinations'].includes(argv[0]) && [0, 1, 3].includes(status)) {
     const at = err.indexOf('\n') + 1;
     out += err.slice(0, at);
     err = err.slice(at);
@@ -717,11 +717,18 @@ test('proposal: a harness report with changes in another form is refused', () =>
     [{ add_sensitive_areas: [{ name: '', patterns: ['a/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
     [{ add_sensitive_areas: [{ name: 'payments', patterns: [''] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml as text of at least 1 character\. It has 0 characters\.$/],
     // The schema refuses a line break or a control character in a name or a pattern.
-    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "pay\\nments"\.$/],
-    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. It has a line break, tab, control or bidirectional character: "\*\*\/pay\\tments\/\*\*"\.$/],
-    // C1 controls, the line and paragraph separators and the bidirectional controls too.
+    [{ add_sensitive_areas: [{ name: 'pay\nments', patterns: ['**/payments/**'] }] },
+      new RegExp('^Write name of area 1 of add_sensitive_areas in qory\\.yaml on one line\\. ' +
+        'It has a line break, tab, control or invisible character: "pay\\\\nments"\\.$')],
+    [{ add_sensitive_areas: [{ name: 'payments', patterns: ['**/pay\tments/**'] }] },
+      new RegExp('^Write pattern 1 of area 1 of add_sensitive_areas in qory\\.yaml ' +
+        'on one line\\. It has a line break, tab, control or invisible character: ' +
+        '"\\*\\*\\/pay\\\\tments\\/\\*\\*"\\.$')],
+    // C1 controls, the line and paragraph separators, the bidirectional controls and each other
+    // Cf character but U+200C and U+200D too.
     ...['\u0085', '\u009f', '\u2028', '\u2029', '\u202a', '\u202e', '\u2066', '\u2069', '\u200e',
-      '\u200f', '\u061c'].flatMap((char) => [
+      '\u200f', '\u061c', '\u200b', '\u00ad', '\u0600', '\u{e0041}',
+      '\u{110bd}'].flatMap((char) => [
       [{ add_sensitive_areas: [{ name: `pay${char}ments`, patterns: ['**/payments/**'] }] }, /^Write name of area 1 of add_sensitive_areas in qory\.yaml on one line\. /],
       [{ add_sensitive_areas: [{ name: 'payments', patterns: [`**/pay${char}ments/**`] }] }, /^Write pattern 1 of area 1 of add_sensitive_areas in qory\.yaml on one line\. /]]),
     [{ add_sensitive_areas: [{ name: 'payments', patterns: ['/payments/**'] }] }, /cannot be read: it starts with \//],
@@ -787,6 +794,340 @@ test('proposal: Explore gives proposal-reviewer the report of code-explorer', ()
     const text = fs.readFileSync(path.join(module, 'skills', skill, 'SKILL.md'), 'utf8');
     assert.doesNotMatch(text, /--inputs|harness-report/, skill);
   }
+});
+
+test('Explore copies only the destinations that the code explorer names, with one retry', () => {
+  const module = path.join(MODULES, 'software-factory');
+  const read = (file) => fs.readFileSync(path.join(module, file), 'utf8').replace(/\s+/g, ' ');
+  const has = (text, ...phrases) => phrases.forEach((one) => assert.ok(text.includes(one), one));
+  const workflow = read('skills/workflow-explore-a-ticket/SKILL.md');
+  // The first start of the code explorer names the destinations, and the session copies those.
+  has(workflow, 'what to settle: "Name the destinations that the ticket concerns."',
+    'You copy only the destinations that the ticket concerns',
+    '<script folder>/checks.cjs destinations --inputs <input file> <id>...',
+    '<qory> destination clone <id>...',
+    'No copy contains a destination that the code explorer did not name, and the script ' +
+      'exits with 1 for more than 100 ids.');
+  // One more copy at most, and one retry of a failed copy.
+  has(workflow, 'Copy at most once more. When a later report of the code explorer lists an id',
+    'When it exits with a status other than 0, run the same command once more. When that ' +
+      'call fails too, end the run',
+    'the error line of the second call, the line that starts with `✗ `, without that mark');
+  // Explore finds no .qory/repositories; Shape and plan-the-build keep it.
+  assert.doesNotMatch(workflow, /\.qory\/repositories|Further repositories/);
+  has(read('skills/exploring-code/SKILL.md'), 'When you got the line "Further repositories: yes"');
+  has(read('skills/running-a-software-workflow/SKILL.md'),
+    'find . -maxdepth 2 -path ./.qory/repositories -type d');
+  has(read('agents/code-explorer.md'), 'Leave out "Destinations:", "Facts:" or "What the ' +
+    'files cannot show:" when it has no item.');
+});
+
+// The first line of each error of qory destination clone, as cmd/destination.go of qory
+// writes it, with sample values.
+const CLONE_ERRORS = [
+  "Use an id from destinations in the run's inputs: tg_8k2m4n6p8q0r2s4t is not one of them.",
+  'Clone at most 100 destinations in one session: this call would make clone 101.',
+  'Clone only a destination with an address: tg_8k2m4n6p8q0r2s4t has none, so it has no ' +
+    'repository.',
+  "Run qory destination clone inside a run's session: QORY_RUN_API is not set.",
+  "Run qory destination clone inside a run's session: QORY_HARNESS_HOME is not set.",
+  'Run qory destination clone only in a run whose inputs list destinations.',
+  'Clone only a repository: the address of tg_8k2m4n6p8q0r2s4t is not a repository path.',
+  'Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary: the host returned 403 to the ' +
+    'clone.',
+  ...['its folder is in use', 'git did not start', 'the proxy returned 502',
+    'the host returned 500', 'git was stopped', 'git exited with 128'].map((cause) =>
+    `Run qory destination clone again: the clone of tg_8k2m4n6p8q0r2s4t failed: ${cause}.`),
+  'Report this run to the instance admin of Qory Apiary: inputs.json has malformed ' +
+    'destinations.',
+  'Check /tmp/qory-destinations, then run qory destination clone again.',
+];
+
+// The point of a line of the copy that check points refuses.
+const CLONE_FALLBACK = 'Report this run to the instance admin of Qory Apiary: copying the ' +
+  'destinations failed twice.';
+
+// The report of the code explorer's first start in Explore, which lists one destination.
+const PICKED = 'What you searched:\n- nothing: the question lists the destinations\n\n' +
+  'Destinations:\n- tg_8k2m4n6p8q0r2s4t\n\ndone\n';
+
+test('end: a copy that fails twice ends Explore with escalate and the line of the copy', () => {
+  const workflow = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-explore-a-ticket/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  const sample = new RegExp('fails twice in a row, .*?, without that mark and otherwise ' +
+    'unchanged, such as "([^"]+)"').exec(workflow);
+  assert.ok(sample, 'the Explore skill lists no line for a copy that fails twice');
+  assert.ok(CLONE_ERRORS.includes(sample[1]), sample[1]);
+  const fallback = /check points` exits with 1 on that line, .*?, write in its place "([^"]+)"/
+    .exec(workflow);
+  assert.equal(fallback?.[1], CLONE_FALLBACK);
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const points = path.join(root, 'points.json');
+  // Each line of the copy passes as the text of the first point, or check points refuses it
+  // and the fallback passes in its place.
+  const refused = [];
+  for (const text of [...CLONE_ERRORS, CLONE_FALLBACK]) {
+    write(root, 'points.json', [{ text, action: 'run_again' }]);
+    const result = check(root, 'points', points);
+    if (result.status !== 0) refused.push(text);
+  }
+  assert.deepEqual(refused, [CLONE_ERRORS[14]]);
+  older(root);
+  const { args, env } = stub();
+  const ended = end(root, env);
+  passes(ended);
+  assert.ok(ended.lines.at(-1).startsWith('Checked points.json: the run ended with it, and ' +
+    'qory run verdict escalate exited with 0'), ended.out);
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${points}`]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')),
+    [{ text: CLONE_FALLBACK, action: 'run_again' }]);
+});
+
+test('end: with no points.json, as after a copy that works on its second call, no verdict', () => {
+  // A session whose second copy worked goes on and writes no points.json, so end runs no
+  // verdict. The test runs no copy: qory is not installed here.
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const { args, env } = stub();
+  passes(end(root, env));
+  assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
+  assert.deepEqual(verdicts(args), []);
+});
+
+// refusalLines returns the first line of each refusal of the destinations verb, one call per
+// kind of finding, with an inputs.json of two destinations, or of one with no address.
+function refusalLines() {
+  const inputs = destinationsInputs(2);
+  const many = Array.from({ length: 101 }, (_, n) => destinationId(n % 2));
+  const bare = inputsFile(JSON.stringify({ destinations: [{ id: destinationId(0),
+    target: { collection: 'place-0' } }] }));
+  return [[inputs, 'tg_8k2m4n6p8q0r2s4t'], [inputs, destinationId(0), destinationId(0)],
+    [inputs, 'tg_IIII'], [inputs, ...many], [bare, destinationId(0)]].map(([file, ...ids]) => {
+    const result = call({ cwd: tmp }, ['destinations', '--inputs', file, ...ids]);
+    assert.equal(result.status, 1, result.out);
+    return result.stdout.split('\n')[0];
+  });
+}
+
+test('end: ids refused twice end Explore with escalate and the first line of the refusal', () => {
+  const workflow = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-explore-a-ticket/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.doesNotMatch(workflow, /could not name the destinations/);
+  const sample = new RegExp('second start for the destinations, .*?: the first line that ' +
+    'the second call printed, unchanged, such as "([^"]+)"').exec(workflow);
+  assert.ok(sample, 'the Explore skill lists no line for ids refused twice');
+  const lines = refusalLines();
+  assert.equal(lines[0], sample[1]);
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const points = path.join(root, 'points.json');
+  // The first line of each kind of refusal passes as the text of the first point.
+  for (const text of lines) {
+    write(root, 'points.json', [{ text, action: 'run_again' }]);
+    passes(check(root, 'points', points));
+  }
+  write(root, 'points.json', [{ text: lines[0], action: 'run_again' }]);
+  older(root);
+  const { args, env } = stub();
+  const ended = end(root, env);
+  passes(ended);
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${points}`]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(points, 'utf8')),
+    [{ text: lines[0], action: 'run_again' }]);
+});
+
+test('destinations: one refusal, then a list that passes; end runs no verdict', () => {
+  const inputs = destinationsInputs(2);
+  assert.equal(call({ cwd: tmp }, ['destinations', '--inputs', inputs,
+    'tg_8k2m4n6p8q0r2s4t']).status, 1);
+  const second = call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(1)]);
+  passes(second);
+  assert.equal(second.stdout, `${destinationId(1)}\n`);
+  // The session went on to the copy and wrote no points.json: end runs no verdict.
+  const root = fixture();
+  started(root, {});
+  passes(reportIn(root, 'code-explorer', 'code-explorer-1.md', PICKED));
+  const { args, env } = stub();
+  passes(end(root, env));
+  assert.equal(fs.existsSync(path.join(root, 'points.json')), false);
+  assert.deepEqual(verdicts(args), []);
+});
+
+test('the questions agents search the copied folders of destinations, also with no target', () => {
+  const core = path.join(MODULES, 'core');
+  const read = (file) => fs.readFileSync(path.join(core, file), 'utf8').replace(/\s+/g, ' ');
+  const has = (text, ...phrases) => phrases.forEach((one) => assert.ok(text.includes(one), one));
+  has(read('skills/checking-questions/SKILL.md'), 'the working folder when the input file has ' +
+    '`target`, and the folder of each line "Also search: <folder>" that you got, also when ' +
+    'the input file has no `target`', 'with `path: "<folder>"` for each such line',
+    "`grep -r --exclude-dir=.git --exclude='.env*' -- <quoted word> <folder>`");
+  for (const agent of ['questions-writer', 'questions-reviewer']) {
+    has(read(`agents/${agent}.md`), 'any lines "Also search: <folder>"');
+  }
+  const work = read('skills/reading-the-work/SKILL.md');
+  assert.doesNotMatch(work, /All you can read of the target is the working folder/);
+  has(work, 'each destination of `destinations` only in its copied folder');
+  has(fs.readFileSync(path.join(MODULES, 'software-factory/skills/workflow-explore-a-ticket/' +
+    'SKILL.md'), 'utf8').replace(/\s+/g, ' '), 'Give the questions writer and the questions ' +
+    'reviewer the same lines, and one line "Also search: <folder>" for each folder');
+});
+
+// The parts of the proposal of the testdata.
+const PARTS = ['Support hours', 'Saved reply for delayed orders',
+  'Customers who got the old hours', 'Start date'];
+
+const TWO_TARGETS = [
+  { id: destinationId(0), why: 'The saved replies keep the text of the delayed-order reply.' },
+  { id: destinationId(1), why: 'The mail tool sends the corrected reply to customers.' },
+];
+
+// targeted returns a fixture of Explore whose proposal opens each part with its destination,
+// the first two parts destination 0 and the others destination 1, and whose targets.json has
+// targets.
+function targeted(targets = TWO_TARGETS) {
+  const root = fixture();
+  let text = fs.readFileSync(path.join(root, 'proposal.md'), 'utf8');
+  PARTS.forEach((title, at) => {
+    const line = `Destination: \`${destinationId(at < 2 ? 0 : 1)}\``;
+    assert.ok(text.includes(`### ${title}\n\n`), title);
+    text = text.replace(`### ${title}\n\n`, `### ${title}\n\n${line}\n\n`);
+  });
+  write(root, 'proposal.md', text);
+  write(root, 'targets.json', { targets });
+  return root;
+}
+
+// checkTargets runs check proposal on the files of root and its targets.json, with --inputs
+// when inputs is given.
+function checkTargets(root, inputs, files = [...FILES.proposal, 'targets.json']) {
+  return call({ cwd: tmp, artifacts: [root] }, ['check', 'proposal',
+    ...(inputs ? ['--inputs', inputs] : []), ...files.map((f) => path.join(root, f))]);
+}
+
+test('proposal: each part opens with its destination, and targets.json lists them', () => {
+  const inputs = destinationsInputs(2);
+  passes(checkTargets(targeted(), inputs));
+  passes(call({ cwd: tmp, artifacts: [] }, ['push', 'proposal', '--inputs', inputs,
+    ...[...FILES.proposal, 'targets.json'].map((f) => path.join(targeted(), f))]));
+  // With no destinations in the inputs, targets.json is checked for its form alone.
+  passes(checkTargets(targeted([{ id: destinationId(9), why: 'A place.' }, ...TWO_TARGETS])));
+  // With destinations, the proposal needs targets.json.
+  fails(checkTargets(fixture(), inputs, FILES.proposal),
+    /^Add targets\.json to the proposal: the run has destinations\. /);
+  passes(checkTargets(fixture(), null, FILES.proposal));
+});
+
+test('proposal: targets.json refuses an unlisted id, 21 targets, a repeat and a bad why', () => {
+  const inputs = destinationsInputs(21);
+  const why = 'The place keeps the reply.';
+  exactly(checkTargets(targeted([...TWO_TARGETS, { id: destinationId(30), why }]), inputs),
+    `Name only destinations of the inputs in targets.json: ${destinationId(30)} is none of ` +
+    'them.');
+  const many = Array.from({ length: 21 }, (_, n) => ({ id: destinationId(n), why }));
+  exactly(checkTargets(targeted(many), inputs), 'Give targets.json 1 to 20 targets: it has 21.');
+  exactly(checkTargets(targeted([...TWO_TARGETS, TWO_TARGETS[0]]), inputs),
+    `List each destination once in targets.json: ${destinationId(0)} is there more than once.`);
+  exactly(checkTargets(targeted([TWO_TARGETS[0], { id: destinationId(1), why: '' }]), inputs),
+    'Write why target 2 of targets.json matters, in 1 to 500 characters.');
+  exactly(checkTargets(targeted([TWO_TARGETS[0], { id: destinationId(1),
+    why: 'a'.repeat(501) }]), inputs),
+  'Cut the why of target 2 in targets.json to 500 characters: it has 501.');
+  passes(checkTargets(targeted([TWO_TARGETS[0], { id: destinationId(1), why: 'a'.repeat(500) }]),
+    inputs));
+});
+
+test('proposal: a part whose destination targets.json does not list, or that has none', () => {
+  const inputs = destinationsInputs(2);
+  exactly(checkTargets(targeted([TWO_TARGETS[0]]), inputs), [PARTS[2], PARTS[3]].map((part) =>
+    `Add "${destinationId(1)}" to targets.json, or change the destination of its part.\n` +
+    `  The part "${part}" has that id, and targets.json does not.`).join('\n'));
+  const root = targeted();
+  const text = fs.readFileSync(path.join(root, 'proposal.md'), 'utf8');
+  const opened = `### ${PARTS[2]}\n\nDestination: \`${destinationId(1)}\`\n\n`;
+  assert.ok(text.includes(opened));
+  write(root, 'proposal.md', text.replace(opened, `### ${PARTS[2]}\n\n`));
+  exactly(checkTargets(root, inputs), 'Open the part "Customers who got the old hours" of ' +
+    'proposal.md with the line of its destination.\n  Write "Destination: `<id>`" right under ' +
+    'its heading, with an id of targets.json.');
+});
+
+test('proposal: one destination line per part, and a solution with no part opens with one', () => {
+  const inputs = destinationsInputs(2);
+  const root = targeted();
+  const text = fs.readFileSync(path.join(root, 'proposal.md'), 'utf8');
+  const opened = `### ${PARTS[2]}\n\nDestination: \`${destinationId(1)}\`\n\n`;
+  write(root, 'proposal.md', text.replace(opened,
+    `${opened}Destination: \`${destinationId(0)}\`\n\n`));
+  exactly(checkTargets(root, inputs), `Keep one destination line in the part "${PARTS[2]}" of ` +
+    'proposal.md: it has 2.\n  Write a change that goes to two destinations as two parts.');
+  // With no ### part, the solution is one part: it opens with its destination line.
+  const whole = fixture();
+  const solution = /## Proposed solution\n\n[\s\S]*?(?=\n## )/;
+  const plain = fs.readFileSync(path.join(whole, 'proposal.md'), 'utf8')
+    .replace(solution, '## Proposed solution\n\nKeep the support hours on 09:00 to 17:00.\n');
+  write(whole, 'proposal.md', plain);
+  write(whole, 'targets.json', { targets: [TWO_TARGETS[0]] });
+  fails(checkTargets(whole, inputs),
+    /^Open ## Proposed solution of proposal\.md with the line of its destination\./);
+  write(whole, 'proposal.md', plain.replace('## Proposed solution\n\n',
+    `## Proposed solution\n\nDestination: \`${destinationId(0)}\`\n\n`));
+  assert.ok(!checkTargets(whole, inputs).out.includes('Destination'), 'a destination finding');
+});
+
+test('proposal: an empty destinations list is none, and a tg_ container must be listed', () => {
+  const none = inputsFile(JSON.stringify({ destinations: [], qory: { harness_extensions: {} } }));
+  passes(checkTargets(fixture(), none, FILES.proposal));
+  const root = targeted();
+  write(root, 'sources.json', { sources: [{ kind: 'file', ref: 'replies/delayed.md',
+    container: destinationId(7), why: 'Contains the text of the reply.' }] });
+  write(root, 'proposal.md', fs.readFileSync(path.join(root, 'proposal.md'), 'utf8')
+    .replace('No public page and no file.', `- ${destinationId(7)}: replies/delayed.md`));
+  exactly(checkTargets(root, destinationsInputs(2)), 'Write an id of destinations in the ' +
+    `inputs as the container of source 1 in sources.json.\n  The container ` +
+    `"${destinationId(7)}" is none of them.`);
+  // With no inputs, a container is not checked against a list.
+  passes(checkTargets(root));
+});
+
+test('machine paths: the core pattern finds the folder of the copied destinations', () => {
+  const { machinePattern, machinePaths } = require(path.join(MODULES,
+    'core/skills/running-a-workflow/lib/markdown.cjs'));
+  // No core type checks paths through documents.cjs, so the core function runs here on a
+  // record of findings, with no skip.
+  const found = [];
+  const run = { context: { machine: machinePattern('/home/sam') }, find: (one) => found.push(one) };
+  machinePaths(run, 'questions.json', 'See /tmp/qory-destinations/host.example.com/a/b.md.');
+  machinePaths(run, 'questions.json', 'See /private/tmp/qory-destinations first.');
+  machinePaths(run, 'questions.json', 'See /tmp/qory-destinations-old/a.md and /tmp/other.');
+  assert.deepEqual(found.map((one) => one.split('\n')[0]), [
+    'Remove the path of the machine the run is on from questions.json.',
+    'Remove the path of the machine the run is on from questions.json.']);
+});
+
+test('proposal: no file ref or text has the folder of the copied destinations', () => {
+  const root = targeted();
+  write(root, 'sources.json', { sources: [{ kind: 'file',
+    ref: '/tmp/qory-destinations/host.example.com/example-org/place-0/a.md', why: 'A.' }] });
+  write(root, 'proposal.md', fs.readFileSync(path.join(root, 'proposal.md'), 'utf8')
+    .replace('No public page and no file.',
+      '- /tmp/qory-destinations/host.example.com/example-org/place-0/a.md'));
+  const result = checkTargets(root, destinationsInputs(2));
+  assert.ok(result.findings.includes('Remove /tmp/qory-destinations from ref of source 1 of ' +
+    "sources.json. In ref of source 1 of sources.json, write the destination's id, a colon " +
+    'and the path.'), result.out);
+  fails(result, /^Remove \/tmp\/qory-destinations from proposal\.md\./);
+  assert.ok(!result.out.includes('Remove the path of the machine'), result.out);
+  // A destination's file is its id, a colon and the path, as for a further repository.
+  const named = targeted();
+  write(named, 'sources.json', { sources: [{ kind: 'file', ref: 'replies/delayed.md',
+    container: destinationId(0), why: 'Contains the text of the reply.' }] });
+  write(named, 'proposal.md', fs.readFileSync(path.join(named, 'proposal.md'), 'utf8')
+    .replace('No public page and no file.', `- ${destinationId(0)}: replies/delayed.md`));
+  passes(checkTargets(named, destinationsInputs(2)));
 });
 
 test('spec: its four sections, in order', () => {
@@ -1431,11 +1772,11 @@ test('decision record: Qory Apiary strips characters before it draws, and so doe
   const loads = /^Remove the syntax that loads an address from the Mermaid block of decision-1\./;
   const body = (middle) => `flowchart LR\n  A --> B\n  style A fill:url${middle}(x.png)`;
   fails(push(fixture(drawn(body('͏'))), 'decision-record'), loads);
-  fails(push(fixture(drawn(body('­'))), 'decision-record'), loads);
-  fails(push(fixture(drawn(body(' '))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('\u00ad'))), 'decision-record'), loads);
+  fails(push(fixture(drawn(body('\u2028'))), 'decision-record'), loads);
   fails(push(fixture(drawn(body('᠋'))), 'decision-record'), loads);
   // A join control stays, so the text is not an address. A control character becomes U+FFFD.
-  const kept = push(fixture(drawn(body('‍'))), 'decision-record');
+  const kept = push(fixture(drawn(body('\u200d'))), 'decision-record');
   assert.ok(!kept.findings.some((line) => loads.test(line)), kept.out);
   const control = push(fixture(drawn(body('\u0001'))), 'decision-record');
   assert.ok(!control.findings.some((line) => loads.test(line)), control.out);
@@ -2076,7 +2417,7 @@ test('decision record: a Mermaid block with a %%{ line is refused', () => {
   // The size leaves out a %% comment line, and a directive line is dropped before.
   assert.equal(mermaid.size(mermaid.source('flowchart LR\n%%{ init }%%\n  A')),
     'flowchart LR\n  A\n'.length);
-  assert.equal(mermaid.directive('flowchart LR\n%​%{ init }%%'), true);
+  assert.equal(mermaid.directive('flowchart LR\n%\u200b%{ init }%%'), true);
 });
 
 test('decision record: a time limit for text that made a pattern slow', () => {
@@ -2635,7 +2976,8 @@ test('criteria: a file that breaks a rule of the type check gets the fix line of
     'Write the summary of acceptance-criteria.json in 1 to 3 sentences: it has 4.');
   refused((data) => { at('ac-1')(data).id = 'ac-01'; },
     'Write /criteria/0/id of acceptance-criteria.json so that it matches its pattern.',
-    'The pattern is ^ac-[1-9][0-9]{0,3}$. It is "ac-01".');
+    'A criterion\'s id: ac- and a number from 1 to 9999 with no leading zero, such as ac-3. ' +
+      'It is "ac-01".');
   refused((data) => { data.criteria.push(row('ac-3', 'The reply states the hours.')); },
     'Give each criterion of acceptance-criteria.json a different id.', 'ac-3 is there twice.');
   refused((data) => { data.criteria.splice(1, 1); },
@@ -3912,6 +4254,86 @@ test('report: a Blocked: line only when blocked, and a needs line that the skill
     /^Remove "Blocked:" from the report of spec-writer/);
 });
 
+// A report of software-developer or software-debugger, the writers of a build step.
+const STEP_REPORT = [
+  'What you read:',
+  '- /tmp/qory-artifacts/in/inputs.json',
+  '',
+  'Files:',
+  '- src/orders.cjs',
+  '',
+  'Checks:',
+  '- run targeted tests/orders.test.cjs: green; record r1; "Ran 2 tests."',
+  '',
+  'Change: The export writes one line per order.',
+  '',
+  'Left out: none',
+  '',
+  'done',
+  '',
+].join('\n');
+
+test('report: a writer of a build step has the line Left out:, as none or as items', () => {
+  const debugged = STEP_REPORT.replace('Change:', 'Cause: The export joins the lines with ' +
+    'a comma (`src/orders.cjs:3`).\nChange:');
+  passes(report(STEP_REPORT, 'software-developer'));
+  passes(report(debugged, 'software-debugger'));
+  // Items come on the lines after Left out:, and the line # End closes them.
+  const items = STEP_REPORT.replace('Left out: none', 'Left out:\n- The footer line: a cut ' +
+    'file looks whole.\n- shortcut: all rows load at once (`src/orders.cjs:9`): slow above ' +
+    '5,000 rows.\n# End');
+  passes(report(items, 'software-developer'));
+  for (const agent of ['software-developer', 'software-debugger']) {
+    const text = agent === 'software-developer' ? STEP_REPORT : debugged;
+    fails(report(text.replace('Left out: none\n\n', ''), agent),
+      new RegExp(`^Add the line "Left out:" to the report of ${agent}\\.$`));
+  }
+  fails(report(STEP_REPORT, 'software-debugger'),
+    /^Add the line "Cause:" to the report of software-debugger\.$/);
+  fails(report(STEP_REPORT.replace(/Change: .*\n/, ''), 'software-developer'),
+    /^Add the line "Change:" to the report of software-developer\.$/);
+});
+
+test('report: a writer of a build step stops with a change to the build plan', () => {
+  for (const agent of ['software-developer', 'software-debugger']) {
+    passes(report('Blocked: needs a change to the build plan: the header needs src/csv.cjs, ' +
+      'which no Files cell lists.\nblocked\n', agent));
+    // The line states the change after the colon.
+    fails(report('Blocked: needs a change to the build plan\nblocked\n', agent),
+      /^Start "Blocked:" with a stop line that the skills of the workflow list\./);
+  }
+  const workflow = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/workflow-implement-changes/SKILL.md'), 'utf8');
+  assert.match(workflow.replace(/\s+/g, ' '), /reports `Blocked: needs a change to the build plan: <the change>`/);
+});
+
+test('making-small-changes: each writer of code and each code reviewer loads it', () => {
+  const agentText = (name) => fs.readFileSync(path.join(MODULES, 'software-factory', 'agents',
+    `${name}.md`), 'utf8');
+  // A writer of code is each agent of software-factory that loads changing-code; the code
+  // reviewers are those that the card names.
+  const writers = fs.readdirSync(path.join(MODULES, 'software-factory', 'agents'))
+    .map((file) => file.replace(/\.md$/, ''))
+    .filter((name) => agentText(name).includes('${qory:skills/changing-code}'));
+  assert.deepEqual(writers.sort(), ['software-debugger', 'software-developer']);
+  for (const [name, moment] of [...writers.map((one) => [one, 'before you change code']),
+    ['code-reviewer', 'before you write a finding'],
+    ['acceptance-reviewer', 'before you write a finding']]) {
+    assert.ok(agentText(name).includes(`\n- \${qory:skills/making-small-changes}, ${moment}:`),
+      `${name} does not load making-small-changes ${moment}`);
+  }
+  // A reviewer reports a broken rule of the skill as non-blocking.
+  for (const name of ['code-reviewer', 'acceptance-reviewer']) {
+    assert.match(agentText(name).replace(/\s+/g, ' '), /A finding on one of these rules is `non-blocking`, unless the finding also breaks a criterion\./);
+  }
+  // The skill has the nine rules, and the first one makes the approved plan the floor.
+  const rules = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/making-small-changes/SKILL.md'), 'utf8');
+  assert.deepEqual([...rules.matchAll(/^([0-9]+)\. \*\*/gm)].map((one) => Number(one[1])),
+    [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.match(rules, /\n1\. \*\*The approved plan is the floor\.\*\* Build everything that the approved plan lists\. "Small"\n {3}decides how you build each part, never whether\./);
+});
+
 test('report: the scenario writer reports a version note only for an empty file', () => {
   const scenarios = WRITER_REPORT.replace('- spec.md', '- demo-scenarios.md')
     .replace('Criteria:\n- ac-1: added', 'Scenarios:\n- scenario-1: removed; none');
@@ -4694,7 +5116,7 @@ test('report: each agent of the modules has a shape that the script reads', () =
       `${process.env.QORY_SOURCE || 'not set'}.`);
   }
   const schema = require(path.join(MODULES,
-    'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
+    'core/skills/running-a-workflow/lib/schema.cjs'));
   const loaded = { file: REPORT_SCHEMA_FILE,
     schema: JSON.parse(fs.readFileSync(REPORT_SCHEMA_FILE, 'utf8')) };
   loaded.patterns = schema.compile(loaded.schema, REPORT_SCHEMA_FILE);
@@ -4717,8 +5139,9 @@ test('report: each agent of the modules has a shape that the script reads', () =
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
     assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
-  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
-    'security-reviewer, data-reviewer and failure-reviewer');
+  assert.equal(reviewers, 8, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
+    'security-reviewer, data-reviewer, failure-reviewer, tamper-reviewer and ' +
+    'verification-reviewer');
 });
 
 // ---- Time and size ------------------------------------------------------------------------
@@ -5237,6 +5660,104 @@ test('questions: a proposal is text of 1 to 2000 characters', () => {
   }
 });
 
+const AC3 = 'The reply states that support is closed on 25 December';
+
+// acQuestion returns a new question about the criterion ac-3 that Verify asks, with changes.
+function acQuestion(changes = {}) {
+  return q7({
+    question: 'How should the criterion about 25 December be met?',
+    about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' },
+    context: '**Why:** Support is open on 25 December, so the reply cannot state it is closed.\n\n' +
+      '**Checked:** The opening hours in the settings and the reply of the demo.',
+    options: [
+      { title: `Change AC-3, "${AC3}"`, explanation: 'The criterion states the hours.',
+        proposal: 'The reply states that support is open on 25 December.' },
+      { title: 'Make it met another way', explanation: 'Build changes the settings.' },
+      { title: `Withdraw AC-3, "${AC3}"`, explanation: 'The criterion is kept and marked withdrawn.' },
+    ],
+    ...changes,
+  });
+}
+
+test('questions: a question about a criterion with the answers of Verify has the whole form', () => {
+  const add = (changes) => questionsAfter((byId, data) => { data.questions.push(acQuestion(changes)); });
+  passes(add());
+  const options = acQuestion().options;
+  const first = 'Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N.';
+  fails(add({ options: options.slice(0, 2) }), /^Give q7 3 options: .* q7 has 2\.$/);
+  exactly(add({ options: [...options, { title: 'Wait', explanation: 'Wait for a person.' }] }),
+    `${first}\n  q7 has 4.`);
+  const bare = [{ ...options[0], proposal: undefined }, ...options.slice(1)];
+  exactly(add({ options: bare }), 'Write the proposed wording of the criterion in proposal of ' +
+    'option 1 of q7.\n  The option has no proposal.');
+  exactly(add({ context: '**Checked:** The settings.' }), 'Add a paragraph that starts with ' +
+    '**Why:** to the context of q7.\n  Write the reason it cannot be met in it. The context has ' +
+    'no such paragraph.');
+  exactly(add({ context: '**Why:** Support is open.' }), 'Add a paragraph that starts with ' +
+    '**Checked:** to the context of q7.\n  Write what you checked in it. The context has no ' +
+    'such paragraph.');
+  // The label must start a paragraph: a label inside one does not count.
+  fails(add({ context: '**Why:** Open. **Checked:** The settings.' }),
+    /^Add a paragraph that starts with \*\*Checked:\*\* to the context of q7\./);
+  // The rule reports the item itself, besides the finding of the reader of the criteria.
+  for (const [item, shown] of [['AC-3', '"AC-3"'], ['ac-03', '"ac-03"'], [3, 'a number']]) {
+    fails(add({ about: { type: 'acceptance-criteria', name: 'main', item } }), new RegExp(
+      `^Write about\\.item of q7 as a lower-case criterion id, such as ac-3\\. It is ${shown}\\.$`));
+  }
+  // With no item, and so no proposal that core accepts, the rule still names the item.
+  fails(add({ about: { type: 'acceptance-criteria', name: 'main' }, options: bare }),
+    /^Write about\.item of q7 as a lower-case criterion id, such as ac-3\. It is missing\.$/);
+  // Each answer once, and the number of the title is the number of the item.
+  const [change, another, withdraw] = options;
+  const once = (title, count) => new RegExp(
+    `^Give q7 1 option with the title "${title}"\\. q7 has ${count}\\.$`);
+  fails(add({ options: [another, withdraw, { title: 'Other', explanation: 'Another answer.' }] }),
+    once('Change AC-N', 0));
+  fails(add({ options: [change, { ...change, title: `Change AC-3, "${AC3}", again` }, another,
+    withdraw] }), once('Change AC-N', 2));
+  fails(add({ options: [change, another, { ...another }, withdraw] }),
+    once('Make it met another way', 2));
+  fails(add({ options: [change, another, { ...withdraw, title: 'Other' }] }),
+    once('Withdraw AC-N', 0));
+  const AC4 = 'Each customer who got the reply with the old hours receives a corrected reply ' +
+    'that lists the new hours';
+  exactly(add({ options: [{ ...change, title: `Change AC-4, "${AC4}"` }, another, withdraw] }),
+    'Write AC-3 in the title of option 1 of q7, as about.item is ac-3.\n  The title has AC-4.');
+  exactly(add({ options: [change, another, { ...withdraw, title: `Withdraw AC-4, "${AC4}"` }] }),
+    'Write AC-3 in the title of option 3 of q7, as about.item is ac-3.\n  The title has AC-4.');
+  // A question about a criterion with none of the three answers is not read by the rule.
+  passes(questionsAfter((byId, data) => {
+    data.questions.push(q7({ about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } }));
+  }));
+});
+
+test('questions: in a check with the record of matrix, a new question about a criterion is read', () => {
+  const ask = ({ record = true, stored = false, question = acQuestion({
+    options: [{ title: 'The reply', explanation: 'Only the reply.' },
+      { title: 'The page', explanation: 'The page too.' }] }) } = {}) => {
+    const root = fixture();
+    if (record) {
+      fs.mkdirSync(path.join(root, '.reports'));
+      write(root, '.reports/matrix-record.json', { commit: 'c', matrix: [] });
+    }
+    const file = path.join(root, 'questions.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.questions.push(question);
+    if (stored) version(root, 'questions', 2, 'questions.json', data);
+    write(root, 'questions.json', data);
+    return check(root, 'questions', file);
+  };
+  // New, with the record: refused though no title is an answer.
+  fails(ask(), /^Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N\. q7 has 2\.$/);
+  fails(ask(), /^Give q7 1 option with the title "Change AC-N"\. q7 has 0\.$/);
+  // With no record, that is a push or a check of another workflow, and a kept question is
+  // not read again.
+  passes(ask({ record: false }));
+  passes(ask({ stored: true }));
+  // A full question passes with the record.
+  passes(ask({ question: acQuestion() }));
+});
+
 test('questions: an about names an output that the run can read, and a criterion it has', () => {
   const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
   const criteria = { type: 'acceptance-criteria', name: 'main' };
@@ -5526,7 +6047,8 @@ test('each finding of the sections and files fires on a draft that breaks it', (
     /^Add at least one ### part under ## Changes in spec.md/);
   fails(push(fixture(setCriterion('ac-4', { id: 'criterion-4' })), 'acceptance-criteria'),
     new RegExp('^Write /criteria/3/id of acceptance-criteria\\.json so that it matches its ' +
-      'pattern\\. The pattern is \\^ac-\\[1-9\\]\\[0-9\\]\\{0,3\\}\\$\\. It is "criterion-4"\\.$'));
+      'pattern\\. A criterion\'s id: ac- and a number from 1 to 9999 with no leading zero, ' +
+      'such as ac-3\\. It is "criterion-4"\\.$'));
   fails(push(fixture(['demo-scenarios.md', /^### .*$/gm, 'A line.']), 'demo-scenarios'),
     /^Add a ### scenario-<N>: <title> heading to demo-scenarios.md/);
   fails(push(fixture(['demo-scenarios.md', /Starting state: the support member `sam@example.com` signs in with a password\. The account is in the support team, which has the saved reply for delayed orders\. The list of saved replies is open\.\n\n\| Step \| Action \| What the viewer sees \| Screen \|\n\|---\|---\|---\|---\|\n\| 1 \| Open the saved reply for delayed orders\. \| The reply states[^\n]*\n\nShows: ac-3/, 'Removed, because it ended.\n\nA second line.']), 'demo-scenarios'),
@@ -5647,6 +6169,25 @@ test('registry: only a list of ids adds prefixes', () => {
   }
 });
 
+test('registry: a list of rules of questions is loaded, and none gives an empty list', () => {
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.cjs'));
+  const plugin = corePlugin();
+  assert.deepEqual(loadRegistry(plugin).questionRules, []);
+  fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.cjs'), [
+    'module.exports = () => ({ types: [], questionRules: [{ type: "mockup", check: () => [] }] });',
+    ''].join('\n'));
+  const trusted = trusting(path.join(plugin, 'skills', 'notes'));
+  assert.deepEqual(loadRegistry(plugin, trusted).questionRules.map((rule) => rule.type), ['mockup']);
+  // A value that is no list adds no rule.
+  fs.mkdirSync(path.join(plugin, 'skills', 'other'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'other', 'workflow-checks.cjs'),
+    'module.exports = () => ({ types: [], questionRules: { type: "mockup" } });\n');
+  const other = loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'other'),
+    path.join(plugin, 'skills', 'notes')));
+  assert.deepEqual(other.questionRules.map((rule) => rule.type), ['mockup']);
+});
+
 test('registry: a skill adds a type and a verb', () => {
   const plugin = corePlugin();
   fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
@@ -5663,7 +6204,7 @@ module.exports = (lib) => ({
   write(root, 'notes.md', '');
   fails(call(deps, ['check', 'notes', path.join(root, 'notes.md')]), /^Write notes\./);
   assert.deepEqual(call(deps, ['hello']).lines, ['Checked hello.']);
-  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.cjs lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, findings, lock, end, step, resume, notes and hello\./);
+  assert.match(call(deps, ['nothing']).err, /^Start with a verb that the usage of checks\.cjs lists\.\n  The verbs are check, push, report, starts, begin, panel, fixes, destinations, findings, lock, end, step, resume, notes and hello\./);
 });
 
 test('workflow-checks.cjs push runs the push of checks.cjs from the harness home', () => {
@@ -5914,6 +6455,60 @@ function fixesWith(newest, versions = [...Array(9)].map((_, at) => [`av_${at + 1
     ['work-item show']);
   return result;
 }
+
+// destinationId returns the id of destination number n: tg_ and 16 characters of the
+// alphabet of a destination id.
+function destinationId(n) {
+  const alphabet = '0123456789abcdefghjkmnpqrstvwxyz';
+  let id = '';
+  for (let rest = n; id.length < 16; rest = Math.floor(rest / 32)) id = alphabet[rest % 32] + id;
+  return `tg_${id}`;
+}
+
+// destinationsInputs returns the path of an inputs.json with count destinations, each with
+// an address, and the extensions of a harness with none.
+function destinationsInputs(count) {
+  const destinations = Array.from({ length: count }, (_, n) => ({ id: destinationId(n),
+    target: { collection: `place-${n}`, address: { system: 'host.example.com',
+      path: `example-org/place-${n}` } } }));
+  return inputsFile(JSON.stringify({ destinations, qory: { harness_extensions: {} } }));
+}
+
+test('destinations prints the ids that it checks against the inputs, and nothing else', () => {
+  const inputs = destinationsInputs(3);
+  const picked = call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(1)]);
+  passes(picked);
+  assert.equal(picked.stdout, `${destinationId(1)}\n`);
+  assert.equal(picked.lines.at(-1), 'Checked 1 id against destinations in the inputs; 0 findings.');
+  const unlisted = call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(1),
+    destinationId(7)]);
+  exactly(unlisted, `Give only ids from destinations in the inputs: ${destinationId(7)} is ` +
+    'not one of them.');
+  fails(call({ cwd: tmp }, ['destinations', '--inputs', inputs, destinationId(0),
+    destinationId(0)]), /^Give each id once: "tg_0{16}" is given more than once\.$/);
+  fails(call({ cwd: tmp }, ['destinations', '--inputs', inputs, 'tg_IIII']),
+    /^Write each id as tg_ and 16 characters, .* "tg_IIII" is not of that form\.$/);
+  // 100 listed ids pass, and 101 fail on the count alone.
+  const many = destinationsInputs(101);
+  const ids = Array.from({ length: 101 }, (_, n) => destinationId(n));
+  passes(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids.slice(0, 100)]));
+  exactly(call({ cwd: tmp }, ['destinations', '--inputs', many, ...ids]),
+    'Give at most 100 ids: a session reads at most 100 destinations.\n  The call has 101.');
+  // A listed destination with no address has nothing to copy, so the explorer starts again.
+  const bare = inputsFile(JSON.stringify({ destinations: [{ id: destinationId(0),
+    target: { collection: 'place-0' } }, ...JSON.parse(fs.readFileSync(inputs, 'utf8'))
+    .destinations.slice(1)] }));
+  exactly(call({ cwd: tmp }, ['destinations', '--inputs', bare, destinationId(0),
+    destinationId(1)]), 'Give only ids of destinations with an address: ' +
+    `${destinationId(0)} has no address.`);
+  passes(call({ cwd: tmp }, ['destinations', '--inputs', bare, destinationId(1)]));
+  // No id, no --inputs, and an inputs.json with no list destinations.
+  assert.equal(call({ cwd: tmp }, ['destinations', '--inputs', inputs]).status, 2);
+  assert.equal(call({ cwd: tmp }, ['destinations', destinationId(1)]).status, 2);
+  const none = call({ cwd: tmp }, ['destinations', '--inputs', inputsFile({}), destinationId(1)]);
+  assert.equal(none.status, 3, none.out);
+  assert.match(none.out, /has no member destinations\./);
+});
 
 const END_FAILED = 'The end check after the run failed: Write the spec\'s summary in at most 3 ' +
   'sentences.';
@@ -6825,11 +7420,15 @@ test('end: the third failed check writes points.json and records the verdict esc
   assert.match(end(root, env).lines.at(-1), /^Checked points\.json: the run ended with it, and qory run verdict/);
 });
 
-// stageInputs returns the path of an inputs.json that qory wrote, with the member qory.stage of
-// stage, as given.
-function stageInputs(stage) {
+// workflowInputs returns the path of an inputs.json that qory wrote, with the member
+// qory.workflow of workflow, as given.
+// shortcut: qory writes no qory.workflow.judges yet, so a session runs passed. The note covers
+// the sentence on qory.workflow.judges in "The end" of running-a-workflow/SKILL.md. When qory
+// writes the member, remove this note and the CHANGELOG line "Not built yet in qory:
+// `qory.workflow.judges` in `inputs.json`".
+function workflowInputs(workflow) {
   const file = path.join(tmp, `inputs-${++folders}.json`);
-  fs.writeFileSync(file, JSON.stringify({ qory: { stage, harness_extensions: {} } }));
+  fs.writeFileSync(file, JSON.stringify({ qory: { workflow, harness_extensions: {} } }));
   return file;
 }
 
@@ -6849,95 +7448,57 @@ function endThrice(inputs) {
   return { third: run(), args, root, run };
 }
 
-test('end: in a stage with reviewers the third failed check writes points.json and runs no verdict', () => {
-  for (const reviewers of ['reviewers', true]) {
-    const { third, args, root } = endThrice(stageInputs({ reviewers }));
-    passes(third);
-    assert.match(third.lines.at(-1), /; check 3 of 3, so the run ends: wrote 2 points to points\.json, and no verdict command runs, because the stage has reviewers\.$/);
-    assert.deepEqual(verdicts(args), []);
-    const points = JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8'));
-    assert.deepEqual(points.map((point) => point.action), ['run_again', 'run_again']);
-    passes(check(root, 'points', path.join(root, 'points.json')));
-  }
-});
-
-test('end: in a stage with reviewers the first checks say that the run ends with points', () => {
-  const root = fixture(['spec.md', '## Background', '## Context']);
-  started(root, { 'write-specs-1-spec-reviewer': 1 });
-  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
-  const result = call({ cwd: tmp, plugin: PLUGIN, env: RUN_ENV },
-    ['end', root, '--inputs', stageInputs({ reviewers: 'reviewers' })]);
-  assert.equal(result.status, 1);
-  assert.match(result.lines.at(-1), /At check 3, the run ends with points\.$/);
-  const plain = end(root);
-  assert.match(plain.lines.at(-1), /At check 3, the run ends with the verdict escalate\.$/);
-});
-
-test('end: a session that is ready in a stage with reviewers exits 0 and runs no verdict', () => {
+test('end: a workflow with judges false that ends with an answer point runs escalate', () => {
   const root = fixture();
+  started(root, {});
+  write(root, 'points.json', [{ text: 'The proposal does not say who sees the new price.',
+    action: 'answer', question: 'q3' }]);
+  older(root);
   const { args, env } = stub();
   const result = call({ cwd: tmp, plugin: PLUGIN, env },
-    ['end', root, '--inputs', stageInputs({ reviewers: 'reviewers' })]);
+    ['end', root, '--inputs', workflowInputs({ judges: false })]);
   passes(result);
+  assert.match(result.lines.at(-1), /^Checked points\.json: the run ended with it, and qory run verdict escalate exited with 0/);
+  assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`]);
+});
+
+test('end: a ready session of a workflow with judges false gets no verdict command', () => {
+  const root = fixture();
+  const { args, env } = stub();
+  passes(call({ cwd: tmp, plugin: PLUGIN, env },
+    ['end', root, '--inputs', workflowInputs({ judges: false })]));
   assert.deepEqual(verdicts(args), []);
 });
 
-test('end: an end through points.json in a stage with reviewers runs no verdict on the next check', () => {
-  const inputs = stageInputs({ reviewers: 'reviewers' });
-  const { run, args, root } = endThrice(inputs);
-  assert.equal(run().status, 0);
-  assert.equal(fs.existsSync(path.join(root, 'points.json')), true);
-  const again = run();
-  assert.match(again.lines.at(-1), /^Checked points\.json: the run ended with it, and no verdict command runs, because the stage has reviewers/);
-  assert.deepEqual(verdicts(args), []);
-});
-
-// linked returns the path of a link to an inputs.json that has the flag, and padded the path of
-// a regular file over 1 MB that has it: end reads neither.
-function linked() {
-  const real = stageInputs({ reviewers: 'reviewers' });
-  const link = path.join(tmp, `inputs-${++folders}.json`);
-  fs.symlinkSync(real, link);
-  return link;
-}
-function padded() {
-  const file = path.join(tmp, `inputs-${++folders}.json`);
-  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'reviewers' } },
-    pad: 'a'.repeat(1024 * 1024) }));
-  return file;
-}
-
-test('end: without qory.stage.reviewers in inputs.json the verdict escalate runs', () => {
-  // The flag is read from qory's inputs.json only: a member reviewers of index.json, which an
-  // agent can write, a flag of another form, or an inputs.json that cannot be read changes
-  // nothing.
+test('end: the third failed check runs the verdict escalate, whatever qory.workflow is', () => {
   const bad = path.join(tmp, `inputs-${++folders}.json`);
   fs.writeFileSync(bad, 'not json');
-  const forged = (root) => fs.writeFileSync(path.join(root, 'index.json'),
-    JSON.stringify({ artifacts: [], stage: { reviewers: 'reviewers' } }));
-  for (const inputs of [null, stageInputs({}), stageInputs({ reviewers: false }),
-    stageInputs({ reviewers: '' }), stageInputs({ reviewers: 1 }), stageInputs({ reviewers: ['a'] }),
-    stageInputs(null), bad, path.join(tmp, 'no-inputs.json'),
-    ...['false', 'no', '0', 'null', 'off', 'none', 'Reviewers', 'a b', 'x'.repeat(65), '-a']
-      .map((reviewers) => stageInputs({ reviewers })), linked(), padded()]) {
+  for (const inputs of [null, workflowInputs({ judges: false }), workflowInputs({ judges: true }),
+    workflowInputs({}), bad, path.join(tmp, 'no-inputs.json')]) {
     const { third, args, root } = endThrice(inputs);
-    forged(root);
     passes(third);
-    assert.match(third.lines.at(-1), /, and qory run verdict escalate exited with 0: Recorded/);
+    assert.match(third.lines.at(-1), /; check 3 of 3, so the run ends: wrote [0-9]+ points to points\.json, and qory run verdict escalate exited with 0: Recorded/);
     assert.deepEqual(verdicts(args), [`run verdict escalate --points ${path.join(root, 'points.json')}`],
       String(inputs));
   }
+  const root = fixture(['spec.md', '## Background', '## Context']);
+  started(root, { 'write-specs-1-spec-reviewer': 1 });
+  passes(reportIn(root, 'spec-reviewer', 'spec-reviewer-1.md', CLEAN));
+  const first = call({ cwd: tmp, plugin: PLUGIN, env: RUN_ENV },
+    ['end', root, '--inputs', workflowInputs({ judges: false })]);
+  assert.equal(first.status, 1);
+  assert.match(first.lines.at(-1), /At check 3, the run ends with the verdict escalate\.$/);
 });
 
-test('end: an inputs.json of exactly 1 MB with the flag counts, and a role name of 64 characters', () => {
-  const file = path.join(tmp, `inputs-${++folders}.json`);
-  const head = JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } }, pad: '' });
-  fs.writeFileSync(file, JSON.stringify({ qory: { stage: { reviewers: 'a'.repeat(64) } },
-    pad: 'b'.repeat(1024 * 1024 - head.length) }));
-  assert.equal(fs.statSync(file).size, 1024 * 1024);
-  const { third, args } = endThrice(file);
-  passes(third);
-  assert.deepEqual(verdicts(args), []);
+test('The end: a workflow runs verdict passed, unless qory.workflow.judges is false', () => {
+  const text = fs.readFileSync(path.join(MODULES, 'core/skills/running-a-workflow/SKILL.md'),
+    'utf8').replace(/\s+/g, ' ');
+  assert.ok(text.includes('When the run is alone and no case in this skill ended it, run ' +
+    '`<qory> run verdict passed`, with questions open or not. When `qory.workflow.judges` of ' +
+    '`inputs.json`, the inputs file whose path the prompt contains, is `false`, run no verdict ' +
+    'command: the stack\'s entry of the workflow sets `judges: false`, and the next workflow of ' +
+    'the loop judges the change. A case of "Points" still runs its `escalate` there.'));
+  assert.doesNotMatch(text, /stage\.reviewers|stage that has reviewers/);
 });
 
 test('end: an end.json that cannot be read counts as the last check', () => {

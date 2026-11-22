@@ -17,7 +17,7 @@ const CHECKS = path.join(SKILLS, 'running-a-workflow', 'checks.cjs');
 const { main } = require(CHECKS);
 const { watch } = require('./first-line.js');
 const schema = require(path.join(MODULES,
-  'software-factory/skills/running-a-software-workflow/lib/schema.cjs'));
+  'core/skills/running-a-workflow/lib/schema.cjs'));
 
 // A path as the verb prints it: in double quotes, with no cut. The test writes the expected
 // text by hand and does not call the function of the module.

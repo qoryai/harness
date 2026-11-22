@@ -36,7 +36,7 @@ Write nothing in the checkout: the review changes no file of the change. The fil
 - the files under `<folder>/.reports/` that the checks script writes.
 
 Write `points.json` in `<folder>` only for an end through "Points" of `running-a-workflow`,
-and write no hand-off file, no build report and no submission text. Start no agent that is
+and write no outbox file, no build report and no submission text. Start no agent that is
 not a reviewer. The tool guard lets a reviewer write only `<reports>/<agent>.json`.
 
 ## The order of the run

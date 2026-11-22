@@ -5,8 +5,12 @@
 module.exports = (lib) => {
   const { characters, links, machinePaths, short } = lib;
 
-  // paths checks a text for `.qory/repositories` and a path of the machine the run is on:
-  // writing-proposals (SKILL.md:200-201, 334-337, 383-384: "Never write a path of the machine").
+  // The folder where qory copies the destinations of a session, also by its real path.
+  const DESTINATIONS = /(?:\/private)?\/tmp\/qory-destinations(?![\w.-])/;
+
+  // paths checks a text for `.qory/repositories`, the folder of the copied destinations
+  // and a path of the machine the run is on:
+  // writing-proposals (SKILL.md:202-203, 339-346, 412-413: "Never write a path of the machine").
   // For the spec and the decision record,
   // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
   // writing-decisions (SKILL.md:53-54: "A file of a further repository is the folder's name") state
@@ -20,7 +24,12 @@ module.exports = (lib) => {
       run.find(`Remove .qory/repositories from ${short(at)}.\nIn ${at}, write the folder's ` +
         'name, a colon and the path.');
     }
-    machinePaths(run, at, text, (found) => found.startsWith('.qory/repositories'));
+    if (DESTINATIONS.test(text)) {
+      run.find(`Remove /tmp/qory-destinations from ${short(at)}.\nIn ${at}, write the ` +
+        "destination's id, a colon and the path.");
+    }
+    machinePaths(run, at, text, (found) => found.startsWith('.qory/repositories') ||
+      DESTINATIONS.test(found));
   }
 
   // markdown runs the checks of every Markdown text that a run pushes.

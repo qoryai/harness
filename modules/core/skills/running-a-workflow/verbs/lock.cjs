@@ -237,17 +237,18 @@ function refusalFindings(ran) {
 }
 
 // pull runs `<qory> artifact pull <type>`, with --version <number> when number is set, and
-// returns the folder that it prints last. A pull that fails exits 3.
-function pull(io, type, number) {
+// returns the folder that it prints last. A pull that fails exits 3, with the fix to run verb
+// again.
+function pull(io, type, number, verb = 'verify') {
   const args = ['artifact', 'pull', type, ...(number === null ? [] : ['--version', `${number}`])];
   const ran = qory(io, args);
   const why = ran.error ? 'could not start' : `exited with ${ran.status}`;
   if (ran.error || ran.status !== 0) {
-    throw new Missing(`Run \`qory ${args.join(' ')}\`, then verify again.\nThe pull ${why}.`);
+    throw new Missing(`Run \`qory ${args.join(' ')}\`, then ${verb} again.\nThe pull ${why}.`);
   }
   const dir = (ran.stdout || '').trim().split('\n').at(-1).trim();
   if (!path.isAbsolute(dir)) {
-    throw new Missing(`Run \`qory ${args.join(' ')}\`, then verify again.\nThe pull printed no ` +
+    throw new Missing(`Run \`qory ${args.join(' ')}\`, then ${verb} again.\nThe pull printed no ` +
       'folder.');
   }
   return dir;
@@ -480,5 +481,5 @@ module.exports = {
   },
   workingFolder,
   // The reader of the lock that another module uses, such as for its locked checks.
-  lockReader: { lockType, readLock, changedFiles, printFindings },
+  lockReader: { lockType, readLock, changedFiles, printFindings, pull },
 };

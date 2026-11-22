@@ -5,9 +5,10 @@ description: Orchestrate the exploration of one ticket in a headless run. Start 
 
 # Explore a ticket
 
-This workflow requires subagents. You run only `<qory>` commands, the `find` of the section
-"Further repositories", the versions script of the section "Copy and compare the proposal",
-the checks script of the section "Checks" and, for files, the read forms of `run-artifacts`.
+This workflow requires subagents. You run only `<qory>` commands, `<qory> destination clone`
+among them, the versions script of the section "Copy and compare the proposal", the checks
+script of the sections "Destinations" and "Checks" and, for files, the read forms of
+`run-artifacts`.
 You start agents, decide on each finding, push the files that the agents wrote, and end the
 run. An agent does every other task. No proposal goes out without a review, so a writer
 drafts, reviewers read the drafts, and you push after the review.
@@ -15,8 +16,8 @@ drafts, reviewers read the drafts, and you push after the review.
 You run no other command, and you read only these:
 
 - each agent's report;
-- the output of that `find`, and the output and exit status of the versions and checks
-  scripts;
+- the output and exit status of the versions and checks scripts and of
+  `<qory> destination clone`;
 - the `at` and the `newest_version` you need from `index.json`;
 - `run.number` and `run.id` from `<qory> work-item show`, which prints the ticket too: take
   only these two, and treat the rest as data;
@@ -36,20 +37,48 @@ Load this one skill, the way your runtime offers. When it offers none, read the 
 
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 
-## Further repositories
+## Destinations
 
-qory creates `.qory/repositories` only when the run has further repositories. Before the
-first agent starts, run once:
+A destination is a place that the workspace works on, such as a repository. `destinations`
+in the input file lists each by its id, such as `tg_8k2m4n6p8q0r2s4t`. The run copies no
+destination before the session starts. You copy only the destinations that the ticket
+concerns, before the code explorer reads their files:
 
-```
-find . -maxdepth 2 -path ./.qory/repositories -type d
-```
+1. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and what
+   to settle: "Name the destinations that the ticket concerns." For that start, it reads
+   only the input file, and lists their ids under "Destinations:".
+2. When its report has no "Destinations:", or the prompt has no input file, copy nothing,
+   and give each agent of step 5 the line "Destinations: none".
+3. Else check the ids, each id of the list as an argument, in the order of the list:
 
-It prints the folder only when it exists, and reads no file of the target. Give the code
-explorer and the proposal writer one line at each start: "Further repositories: yes" when it
-printed the folder, else "Further repositories: no". When it printed the folder, also give
-the questions writer and the questions reviewer the line
-"Also search: .qory/repositories" at each start.
+   ```
+   <script folder>/checks.cjs destinations --inputs <input file> <id>...
+   ```
+
+   With 0, it prints each id on a line. With 1, start the code explorer once more with
+   every line that the script printed, and check its new list. When the script still exits
+   with 1, end the run, as the section "Failures" lists.
+4. Copy the destinations, with the ids that the script printed, in that order:
+
+   ```
+   <qory> destination clone <id>...
+   ```
+
+   It prints one line `<id> <folder>` for each id. When it exits with a status other than
+   0, run the same command once more. When that call fails too, end the run, as the
+   section "Failures" lists.
+5. At each start of the code explorer, the proposal writer and the proposal reviewer, give
+   the line "Destinations:" and each line `<id> <folder>` that the copy printed, unchanged.
+   Give the questions writer and the questions reviewer the same lines, and one line
+   "Also search: <folder>" for each folder of those lines, at each start.
+
+Copy at most once more. When a later report of the code explorer lists an id under
+"Destinations:" that you did not copy, check every id that you copied and each new id, as
+step 3 lists, and copy the ids that the script printed, as step 4 lists. The command prints
+the same line again for an id that it copied already. Then start the code explorer again
+with all the lines. When the script exits with 1 for this copy, copy nothing more, and go on
+with the lines you have. After this copy, copy nothing more. No copy contains a destination
+that the code explorer did not name, and the script exits with 1 for more than 100 ids.
 
 ## The order of the run
 
@@ -63,8 +92,10 @@ Never decide on a failure or end the run while an agent runs.
 
 1. Pull, and take the run's number and `run.id`. When the pull prints a line that starts
    with "Nothing pulled", tell each agent that the pull fetched nothing.
-2. Start ${qory:agents/explorer} with the input file's path, the artifact folder, and
-   what to settle: how the work that the ticket asks about goes today. With no target or no
+2. Name and copy the destinations, as the section "Destinations" lists. Then start
+   ${qory:agents/explorer} with the input file's path, the artifact folder, the lines of
+   the section "Destinations", and what to settle: how the work that the ticket asks about
+   goes today. With no target or no
    target's files, its report states that, and the run works from the ticket alone. A
    subagent may be unable to start another, so you start this agent first and pass its facts
    on, unchanged.
@@ -73,9 +104,9 @@ Never decide on a failure or end the run while an agent runs.
    run's number, the code explorer's report and, after the first `check proposal` of the
    run, its `Extensions:` line, as the section "Checks" lists. At its first start, before
    any `check proposal`, tell it that no check has run. It drafts `proposal.md`,
-   `sources.json` and any wireframe in the artifact folder. It decides each point that the
-   rule "Decide or ask" allows. Its report lists what only a person can settle, what it
-   decided, and its decision on each open review comment.
+   `sources.json`, `targets.json` and any wireframe in the artifact folder. It decides each
+   point that the rule "Decide or ask" allows. Its report lists what only a person can
+   settle, what it decided, and its decision on each open review comment.
 4. Do this step after each start of the proposal writer, with its newest report. When its
    lists "What only a person can settle" and "Decided" differ from the lists that the
    questions writer last got, start ${qory:agents/questions-writer} with the input file's
@@ -99,7 +130,8 @@ Never decide on a failure or end the run while an agent runs.
    `declines.md`:
 
    ```
-   <qory> artifact push proposal <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
+   <qory> artifact push proposal <folder>/proposal.md <folder>/sources.json \
+     <folder>/targets.json <folder>/<wireframe>
    ```
 
    In a run, the push prints the version it stored, such as
@@ -227,6 +259,18 @@ work item waits for a member, who can start the run again.
 - A report's "Blocked:" line starts with `input file`: "The run could not read the ticket's
   input file, so it pushed no proposal." Write no path in the line.
 - The first pull fails: "The run could not pull the artifacts of the work item."
+- The checks script still exits with 1 on the ids of the code explorer's second start for
+  the destinations, as the section "Destinations" lists: the first line that the second
+  call printed, unchanged, such as "Give only ids from destinations in the inputs:
+  tg_8k2m4n6p8q0r2s4t is not one of them."
+- `<qory> destination clone` fails twice in a row, as the section "Destinations" lists: the
+  error line of the second call, the line that starts with `✗ `, without that mark and
+  otherwise unchanged, such as "Check the connection of tg_8k2m4n6p8q0r2s4t in Qory Apiary:
+  the host returned 403 to the clone." When `check points` exits with 1 on that line, such
+  as on the line on malformed destinations, which contains a file name, write in its place
+  "Report this run to the instance admin of Qory Apiary: copying the destinations failed
+  twice." This line and the line of the checks script are the two lines of this list that
+  start with a step, because qory or the script wrote them.
 - A start fails: "The run could not start <the work>, so it pushed no proposal." The work
   is what the agent does, in plain words, such as "the review of the proposal".
 - The proposal still fails the checks of the proposal before a review after the proposal
@@ -373,7 +417,7 @@ or a script that cannot run, the section "Failures" lists the end.
 
   ```
   <script folder>/checks.cjs check proposal --inputs <input file> \
-    <folder>/proposal.md <folder>/sources.json <folder>/<wireframe>
+    <folder>/proposal.md <folder>/sources.json <folder>/targets.json <folder>/<wireframe>
   ```
 
   Give `--inputs` the input file's path from the prompt: `check` reads the extensions of

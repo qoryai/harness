@@ -96,6 +96,25 @@ A workflow's skill is named `workflow-<workflow name>`, such as `workflow-explor
 `explore-a-ticket`. A workflow name has at most 55 characters. A skill that is not a
 workflow's has no `workflow-` prefix.
 
+An entry of a stack's `workflows` key sets `access`, `tier` and `plan` beside its other
+members, such as `plan-the-build: {tier: thinking, access: write, plan: build-plan}`.
+`access` is `read`, `write-no-push` or `write`: what a run of the workflow may do to the
+checkout. `tier` is `light`, `balanced` or `thinking`: the tier whose model and effort the
+workflow's session runs on. Qory Apiary resolves the model and effort of the tier, and qory
+stops a compose on any other value. A workflow takes `thinking` where the session's
+decisions on findings shape the result, `balanced` where the findings go to agents on the
+tier `thinking` or to the checks of qory, and `light` where a script does the work. `plan`
+is the artifact type whose version at the run's start sets what the session may push: each
+entry with `access: write` sets `plan: build-plan`, and a module of the stack declares the
+scope check of that type under `scope_checks` (see [The manifest,
+qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
+`explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
+`plan-the-build` and `review-changes` run on `thinking`, and `make-mockups`,
+`write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on `balanced`.
+Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
+reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
+a write entry with no `plan: build-plan`.
+
 The compose takes the skill's directory as one entry, so every file in the directory is
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
@@ -196,16 +215,64 @@ section on `findings` lists. The test of the example report in `reviewing-change
 `contracts/harness/v1/review-report.schema.json` of qory at the commit
 `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder `QORY_SOURCE`.
 `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the example reports of
-the six reviewers. After a round with a `blocking` finding, qory writes `open-findings.json`
-from the reports for the next session of `implement-changes`, which `checks.cjs findings
-open` prints as lines to fix first, as its bullet in the section "Small workflows" lists.
-qory writes `qory.review`, `qory.review_session`, `qory.stage` and `open-findings.json`;
-this harness only reads them. The tool guard denies a write to a report path below `.git`
-or `.claude` of the working folder. When the harness home is below the working folder, the
-deny of a write below the harness home applies to the report path too, so the report folder
-must be outside the home; when the home is outside the working folder, the report path may
-be in it. A Codex reviewer writes its report with an `apply_patch` that adds that one file,
-as the bullet "a write from the main session outside the artifact folder" lists.
+the eight reviewers. `scripts/check.sh` compares the three copies `primitives`,
+`verification` and `acceptance-criteria` in `schemas/` of `software-factory` byte for byte
+with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`. After a round
+with a `blocking` finding, qory writes `open-findings.json` from the reports for the next
+session of `implement-changes`, which `checks.cjs findings open` prints as lines to fix
+first, as its bullet in the section "Small workflows" lists. qory writes `qory.review`,
+`qory.review_session`, `qory.stage` and `open-findings.json`; this harness only reads them.
+The tool guard denies a write to a report path below `.git` or `.claude` of the working
+folder. When the harness home is below the working folder, the deny of a write below the
+harness home applies to the report path too, so the report folder must be outside the home;
+when the home is outside the working folder, the report path may be in it. A Codex reviewer
+writes its report with an `apply_patch` that adds that one file, as the bullet "a write from
+the main session outside the artifact folder" lists.
+
+### The reviewers of Verify
+
+Two agents of `software-factory` review Verify's work: `tamper-reviewer` with the skill
+`checking-tampering`, and `verification-reviewer` with the skill `judging-criteria`. They
+are agents of the `verify-a-ticket` session, which starts them. They are no reviewer
+sessions that qory starts, and they read no `qory.review`. qory writes `qory.review_session`
+into the `inputs.json` of the session, with `commit`, the pushed head of the fresh copy,
+`diff`, the path of the diff, `previous_findings`, the path of `open-findings.json`, which
+qory leaves out in the first round, `reports`, the report folder, `suite_result`, the path
+of the file with the suite result, and, when there is one, `build_report`, the path of the
+file with the report of the build. The prompt of each agent has only the path of the input
+file, so the prompt has no commit, diff or findings; the path of `inputs.json` itself comes
+from the prompt. Where a skill lists a value of `qory.review`, the agent reads the member of
+the same name in `qory.review_session`. Each agent writes one report to
+`<reports>/<agent>.json` in the review-report format, such as
+`<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
+`reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
+file cannot be read. With no `previous_findings`, it goes on as the first round. Each loads
+`reviewing-changes`, `judging-findings`, the skill of the agent, `reviewing-drafts` and
+`simple-communication`, lists the tools Read, Grep, Glob, Skill and Write, and runs on the
+tier `thinking`, which the pattern `*-reviewer` of the tier table gives it. Each reads the
+newest versions of the types that it needs from the folder of `qory.start_artifacts`, as
+`checking-acceptance` does, and stops with no report when one cannot be read.
+`software-factory` declares them as the group role `verify-reviewers`, with the members
+`tamper-reviewer` and `verification-reviewer`, in `roles.agents` and `provides.agents`, as
+it declares `reviewers`. The members set no `paths`.
+
+- `tamper-reviewer` reads the diff against the newest acceptance lock. It reports a changed
+  file that a locked check runs or imports and that the lock does not list, and each test
+  that the change newly skips or newly marks with skip or xfail, or the runtime's
+  equivalent, because a skipped test does not fail a suite. Each such mark on a test that
+  exists before the change is a `blocking` finding. It reads only the diff and the
+  copy, so a file that a check changes and restores during its run stays unseen, as the
+  limit of `run locked` in the section "The check runners" states.
+- `verification-reviewer` reads the verification matrix, the criteria, the lock and the
+  copy. It lowers a state and never raises one. A lowered state is one `blocking` finding
+  with a `failing input` proof, and the matrix is not edited. No other part of the report
+  records the lowering. A criterion in a finding has the form `AC-3, "<first sentence>"`.
+
+The written parts of Verify are the skills `checking-tampering` and `judging-criteria`, the
+two agents, and the verb `matrix` of the check runners. The skill `workflow-verify-a-ticket`
+and the stack entry of the workflow are not built, and neither is `qory.review_session` in
+the `inputs.json` of the session, which qory writes. The agents read it as described here;
+its shape is not in a contract of qory yet.
 
 ## Agents
 
@@ -256,10 +323,11 @@ An agent that the table does not list sets no `model` key.
 - Each agent's section `## Expected output` shows the report's shape. A change to that shape
   also changes the skill that lists it: `reviewing-drafts` or `exploring-code`.
 - A module's `provides` fills a role: a name that a reference uses and no entry has. The
-  `software-factory` module provides `explorer` as `code-explorer` and `spec-review` as
-  `spec-reviewer`, because a role's name cannot be an entry's. Workflows' skills start those
-  two by the role. A repository, or a stack composed directly, rebinds a role with `bind`,
-  and a module of technology alone cannot.
+  `software-factory` module provides `explorer` as `code-explorer`, `spec-review` as
+  `spec-reviewer`, `developer` as `software-developer` and `debugger` as
+  `software-debugger`, because a role's name cannot be an entry's. Workflows' skills start
+  those four by the role. A repository, or a stack composed directly, rebinds a role with
+  `bind`, and a module of technology alone cannot.
 - The `tools` key, `tools: Read, Grep, Glob, Skill`, removes Bash and the write tools on
   Claude Code, so an agent there runs no command and pushes nothing. `reply-writer`'s key
   adds Write, `questions-writer`'s, `spec-writer`'s, `decision-writer`'s and
@@ -329,17 +397,32 @@ documentation, untested: a subagent cannot start another by default on Codex
 (`agents.max_depth` is 1), Gemini CLI or Goose, and on OpenCode only with a `task`
 permission. Claude Code allows it only when `tools` lists `Agent`, and no agent here does.
 
-qory creates `.qory/repositories` only when the run has further repositories, and an agent
-with only Read, Grep and Glob cannot check for a folder: a Glob or Grep on a missing path
-fails, and one with no path leaves that folder out. So the session of
-`workflow-explore-a-ticket` runs `find . -maxdepth 2 -path ./.qory/repositories -type d`
-once, before the first agent. It gives `code-explorer` and `proposal-writer` the line
-"Further repositories: yes" or "Further repositories: no", and, with "yes",
-`questions-writer` and `questions-reviewer` the line "Also search: .qory/repositories". An
-agent that follows `exploring-code` searches `.qory/repositories` only with "yes". An agent
-that follows `checking-questions` searches a folder under `.qory`, other than the artifact
-folder, only when a line "Also search:" names it. An agent with no such line searches only
-the working folder.
+qory copies no destination before an Explore session: the `destinations` of the input file
+list the places of the workspace, each with an id such as `tg_8k2m4n6p8q0r2s4t`. The first
+start of `code-explorer` reads only the input file and lists the ids that the ticket
+concerns under "Destinations:". The session checks them with `checks.cjs destinations
+--inputs <input file> <id>...`, runs one `qory destination clone <id>...` with the ids that
+it printed, and gives the printed lines `<id> <folder>` under "Destinations:" to
+`code-explorer`, `proposal-writer`, `proposal-reviewer`, `questions-writer` and
+`questions-reviewer`, and the last two one line "Also search: <folder>" per folder. It
+copies once more at most, when a later report of `code-explorer` lists an id that the
+session did not copy, with every id so far and the new ones, within the 100 of the script.
+When the script refuses the ids, `code-explorer` starts once more, and a second refusal ends
+the run with `escalate` and the first line of the refusal as the text of the first point. A
+copy that fails runs once more. A second failure ends the run with `escalate` and the error
+line of the copy as the text of the first point, or, when `check points` refuses that line,
+the line "Report this run to the instance admin of Qory Apiary: copying the destinations
+failed twice." With no "Destinations:" list, or no input file, the session copies nothing.
+
+Shape and plan-the-build keep `.qory/repositories`, which qory creates only when the run has
+further repositories. An agent with only Read, Grep and Glob cannot check for a folder: a
+Glob or Grep on a missing path fails, and one with no path leaves that folder out. An agent
+that follows `exploring-code` searches `.qory/repositories` only with the line "Further
+repositories: yes". An agent that follows `checking-questions` searches a folder under
+`.qory`, other than the artifact folder, only when a line "Also search:" contains it. It
+searches the working folder when the input file has `target`, and the folder of each line
+"Also search:" also when the input file has no `target`, as with the destinations of
+Explore.
 
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
 `proposal-reviewer` reviews the draft, by the skills `reviewing-drafts` and
@@ -543,12 +626,11 @@ It is in `core`, and uses no word of software work. The small workflows of
 `software-factory` also load `running-a-software-workflow`, which adds the `find` of further
 repositories, the "Blocked:" lines on the spec, and the types that "Check before each
 review" checks. With it, the session runs the `find` for `.qory/repositories` once per run,
-also under a higher workflow, as in Explore. It gives the code explorer, the spec writer,
-and the decision writer and reviewer the line "Further repositories: yes" or "no", and, with
-"yes", the questions writer and reviewer the line "Also search: .qory/repositories". A
-decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
-`run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
-`running-a-workflow`.
+also under a higher workflow. It gives the code explorer, the spec writer, and the decision
+writer and reviewer the line "Further repositories: yes" or "no", and, with "yes", the
+questions writer and reviewer the line "Also search: .qory/repositories". A decision
+reviewer lists that folder only with "yes". Qory Apiary's rules stay in `run-artifacts`.
+`workflow-explore-a-ticket` keeps its text and does not use `running-a-workflow`.
 
 A round that follows a verdict `changes-requested` of the current stage with `run_again`
 points fixes those points first. The session of a run alone runs `checks.cjs fixes` once,
@@ -640,7 +722,10 @@ name, it loads the first. The file exports a function that takes the library of
 the check of a point of `points.json`, and returns `types`, the patterns of "Blocked:"
 lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`,
 the readers of the ids of a type that the questions check reads for the `item` of an
-`about`, `verbs`, and `ledger`, the rules of the build ledger. Only `check`, `push`,
+`about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
+each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
+as lines of two lines, `verbs`, and `ledger`, the rules of the build ledger. Only `check`,
+`push`,
 `report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
 `starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb
 that reads the registry with exit 3. A
@@ -651,8 +736,9 @@ the harness: the verb stops with an error that names the file and exit 3, and `e
 `software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
 `proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
 types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
-new criterion` or `needs a change to the spec`, and the rules of the build ledger that the
-verbs `step` and `resume` apply. A stack without that module, such as `core`, checks
+new criterion` or `needs a change to the spec`, the line `needs a change to the build plan:
+<the change>` of the writers of `implement-changes`, and the rules of the build ledger that
+the verbs `step` and `resume` apply. A stack without that module, such as `core`, checks
 `questions` and `review-comments`, and `report` accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
@@ -866,7 +952,14 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   string or a `points` value other than a list or null gives exit 3. An absent `verdict`
   counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
-- `checks.cjs findings open <file>`: the session of a stage with reviewers runs it at its
+- `checks.cjs destinations --inputs <file> <id>...`: the session of Explore runs it before
+  each `qory destination clone`, on the ids that `code-explorer` names. Each id must be
+  `tg_` and 16 characters, an id of `destinations` in the inputs.json at `--inputs` with a
+  `target.address`, and given once, and the call has at most 100 ids. With no finding, it
+  exits with 0 and prints each id on a line of stdout, in the order given, and the line of
+  what it checked on stderr. Each finding exits with 1, a missing id or `--inputs` with 2,
+  and an inputs.json with no list `destinations` with 3. It writes no file.
+- `checks.cjs findings open <file>`: a session after a round of review runs it at its
   start, on `open-findings.json` in its inputs folder. qory writes that file, read-only,
   from the findings of the latest round of review, `blocking` and `non-blocking`: `{"round":
   <n>, "reviewers": [{"reviewer": "<name>", "findings": [...]}]}`. A finding has `id`,
@@ -1024,16 +1117,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   and a passing check sets the count to 0. An `end.json` that cannot be read, or whose
   count is not a whole number of 0 or more, counts as the last check. At the third, it
   writes `points.json`, runs `run verdict escalate --points <folder>/points.json`, and
-  exits 0. In a stage with reviewers, `end` runs no `run verdict` command, at the third
-  check and for a `points.json` that ended the run, and keeps every status and file: qory
-  sends the verdict, and its push check fails a verdict command from inside the
-  container. The stage has reviewers when `qory.stage.reviewers`, in the `inputs.json` that
-  `--inputs` takes, is `true` or the name of a group role: lower-case letters, digits and
-  hyphens, and not `false`, `no`, `null`, `off`, `none` or `0`. The file must be a regular
-  file of at most 1 MB, the same test as the tool guard makes, and no link. The hook passes
-  the copy that qory writes at `$QORY_HARNESS_HOME/inputs.json`, not the `index.json` of the
-  artifact folder, which an agent can write. With no `--inputs`, a file that cannot be read
-  or another value, the stage has none and `end` runs the command. It writes one point
+  exits 0. The end check runs that `escalate` whatever `inputs.json` contains, also for a
+  workflow whose stack entry sets `judges: false`. It writes one point
   `run_again` for each kind of problem. Each point is
   one sentence: what failed, why, and another round as the step, with each agent in plain
   words and no step for the session, such as "The draft of the spec breaks 2 format rules,
@@ -1050,6 +1135,57 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   left out.`, then the text of the point, cut to 200 characters as each line. `end
   --offline` cuts its points the same way. These commands use `/qory/qory`, or `qory` from
   `PATH` when `/qory/qory` does not exist.
+- The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
+  declares, whatever module declares its type. `end` reads `qory.outputs` from the
+  `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
+  each output of the stage, in the order of the stage, with the primitives of the schema
+  resolved. qory sets the environment variable `QORY_OUTBOX` to the absolute path of the
+  outbox folder, and the session writes each output to `$QORY_OUTBOX/<type>/<type>.json`.
+  The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or no
+  `inputs.json`, the check finds nothing. It finds:
+  - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
+    `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
+    or `false`, or a `schema` is no object. The finding is "Fix qory.outputs in the lines
+    after this one:", with a line for each such part. Only an absent list passes;
+  - an `inputs.json` that is no regular file of at most 1 MiB, or no JSON object: "Fix the
+    inputs file of the run." The point says that the setup of the run must provide it;
+  - a stage that declares an output while `QORY_OUTBOX` is unset or is no absolute path.
+    The finding is "Set QORY_OUTBOX in the setup of the run to the absolute path of the
+    outbox folder.", with the cause "not set" or "not an absolute path", and the check
+    reads no file. The point says that the setup of the run must set it;
+  - a required output with no file;
+  - a link in the outbox folder, in the folder above it, or in the folder of the type. The
+    finding is "Remove the link <path>.", and a link above the parent of the outbox folder
+    is followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
+    cause line for each of these;
+  - a file that is no JSON;
+  - a member that qory sets or fills after the push, which the session writes none of:
+    `target`, and each top-level member whose schema has `x-qory-fill`. The finding is
+    "Remove the member <name> from <file>.", and the schema check does not need these
+    members;
+  - a schema that the check cannot run, such as a leftover `$ref` or a `$ref` loop. The
+    finding is "Fix the schema of the <type> output.", and it names the cause;
+  - a break of the schema, as `lib/schema.cjs` of core finds it, with the rules of the raw
+    text. The whole-number rule applies only to a member whose schema type is `integer`: it
+    refuses a fraction or an exponent, such as `34.0` or `3E1`, a value above
+    9223372036854775807, and a value below -9223372036854775808. A member of type `number`
+    may be written `2.0` or `1e3`. A null is refused anywhere that no schema of type `null`
+    applies, a member that the schema does not list included. A finding gives the member as
+    a JSON pointer, with `~` written as `~0` and `/` as `~1`;
+  - a pattern check that does not finish. The pattern checks of one end check share 10
+    seconds and run in a child process, which the check kills when the time is used up.
+    The finding names the type and the member whose pattern ran;
+  - each finding of the check that the module declares for the type, with the file
+    `<type>.json`. For `pull-request`, these are the four parts `## Problem`, `## Change`,
+    `## Tests` and `## Disclosed`, the title characters that qory drops, and the forms of a
+    secret. `check pull-request`, in check mode, leaves the schema to this check, and
+    `push pull-request` applies the schema with the rules of the raw text.
+
+  A file with findings gives the line "Fix the <n> findings of <file> in the lines after
+  this one:" and then the findings, and adds the `run_again` point "<The type> output
+  breaks its format rules, so the run could not deliver it, and another round writes it
+  again." A required output with no file adds the point "The stage needs <the type>, which
+  the run did not write, and another round writes it again."
 - `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
@@ -2085,7 +2221,21 @@ The checks:
   `running-a-software-workflow` adds the reader of `acceptance-criteria`: an `item` is a
   criterion id that the criteria of the name of `about` have. For `main`, a check reads the
   draft at the top of the artifact folder when it is a file and no link, as for a file given
-  to `check`; otherwise the check reads the newest version of that name;
+  to `check`; otherwise the check reads the newest version of that name. The questions check
+  runs each rule of `questionRules` for the type of an output `about`, with the context of
+  the run and the same question in the newest questions, and the check reads nothing of
+  what a rule tests. The same skill adds the rule for `acceptance-criteria`, which reads a
+  question in two cases: it has an option titled `Change AC-N`, `Make it met another way`
+  or `Withdraw AC-N`, the three answers that Verify writes for a criterion that cannot be
+  met; or, in a check, the question is new and the artifact folder has
+  `.reports/matrix-record.json`, which only Verify writes. It refuses a question with other
+  than 3 options, with other than one option of each of the three titles, with the number
+  of `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on
+  the change option, with a `context` that has no paragraph starting `**Why:**` or none
+  starting `**Checked:**`, and with an `about.item` that is not the lower-case id, such as
+  `ac-3`. A push cannot tell the workflow, so a question of Verify with none of the three
+  titles passes a push. In a push, and in a folder with no such record, a question about a
+  criterion with none of those titles, such as a question of the spec, has no such rule;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
@@ -2101,17 +2251,26 @@ The checks:
   once, at the end of each report of `proposal-reviewer` that is not `blocked`;
 - the proposal's `## Sources`: only list items, or only the line "No public page and no
   file.", and the same pages and files as `sources.json`; and each `file` ref;
+- `targets.json`, with `--inputs` of an inputs.json that lists `destinations`, required, and
+  else only when the proposal has it: only the member `targets`, 1 to 20 entries, each with
+  only `id` and `why`; each `id` of the form `tg_` and 16 characters, once, and with
+  `destinations`, one of their ids; each `why` plain text on one line of 1 to 500
+  characters. Each `###` part of `## Proposed solution`, or the solution when it has no
+  part, opens with the line `` Destination: `<id>` `` of an id of `targets.json`, and has no
+  second such line. With `--inputs`, a `container` of `sources.json` that starts with `tg_`
+  is an id of `destinations`. An empty `destinations` list counts as none;
 - the refused characters and control characters of `artifact-text`, each link and image,
   `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
-  `/qory/`, `/workspace/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/`,
-  `/home/agent/` (the home folder in qory's agent image), the home folder of the user that
-  runs the script, from `HOME` (only with two or more parts, or `/root`), and
-  `/var/folders/`. A general top folder such as `/run/`, `/lib/` or `/tmp/` is no such
-  path, and neither is another folder under `/home/`, so an app route such as
-  `/home/orders/12` or `/run/12` passes. A route in a code span is no such path when the
-  span has a method, such as `GET /home/orders/12`, or a link of the text has the route.
+  `/tmp/qory-destinations`, where qory copies the destinations, `/qory/`, `/workspace/`, a
+  folder of `.qory`, a home folder by `~/`, `/Users/<name>/`, `/home/agent/` (the home
+  folder in qory's agent image), the home folder of the user that runs the script, from
+  `HOME` (only with two or more parts, or `/root`), and `/var/folders/`. A general top
+  folder such as `/run/`, `/lib/` or `/tmp/` is no such path, and neither is another folder
+  under `/home/`, so an app route such as `/home/orders/12` or `/run/12` passes. A route in
+  a code span is no such path when the span has a method, such as `GET /home/orders/12`, or
+  a link of the text has the route.
 
-The types of Build and Verify are `submission`, `build-plan`, `build-report`,
+The types of Build and Verify are `pull-request`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
 `screenshot`, `verification` and `walkthrough`. The check of each JSON type checks the file
 against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`.
@@ -2167,17 +2326,16 @@ in d-1 of build-plan.md as its first sentence.", and gives the words on the line
 it is "Copy the first sentence from AC-2 in the criteria." Beyond the schema, the checks
 find:
 
-- `submission`: a `passed` verdict with no `text`; a description without the parts
-  `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order, or with text
-  before `## Problem`; the form of a
-  secret, such as a private key or an access token, in the title or the description; and,
-  from its schema, a `base` with no `commit`; a `commits[]` entry with no
-  `commit` or with a `step` of 0 or more than 128 characters; a `none` reason
-  `program-failed` with no `exit` of 0, 1 or 2, `login-needed` with no `exit` of 3, or
-  another reason with an `exit`; a title of 0 or more than 256 characters, of spaces only,
-  or with a control or invisible character, such as a tab, U+200B or U+202E; and a
-  description of more than 20000 characters, with a NUL, or with a line that starts with
-  `<!-- qory:start -->` or `<!-- qory:end -->`;
+- `pull-request`: a text without the parts `## Problem`, `## Change`, `## Tests` and
+  `## Disclosed`, in this order, or with text before `## Problem`; the form of a
+  secret, such as a private key or an access token, in the title or the text; a title
+  with a character that qory drops, as `report-build` lists; and, from its schema, a
+  `steps` entry with no `commit` or with a `step` of 0 or more than 128 characters; a
+  title of 0 or more than 256 characters, of spaces and joiners only, or with a control or
+  invisible character, such as a tab, U+200B, U+0600 or U+202E; and a text of more than
+  20000 characters, with a control character but tab, line feed and carriage return, with
+  an invisible character, or with a line that starts with `<!-- qory:start -->` or
+  `<!-- qory:end -->`;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
   than 7 deliverables, or more than the number that a member's answer allows (see "The
   limit of 7"); an id other than `d-<N>`, or one id twice; a Criteria cell other than each
@@ -2293,8 +2451,17 @@ find:
   hexadecimal digits, though the format of the contract accepts any version of a target; a
   criterion that is not removed and is in neither `matrix` nor `not_verified`, or in them
   twice, such as in both; a criterion there that the criteria do not have, or have
-  removed; and a text in quotes beside the id of a criterion that the criteria have, other
-  than the criterion's words, in an `evidence` or a `reason`;
+  removed; a text in quotes beside the id of a criterion that the criteria have, other
+  than the criterion's words, in an `evidence` or a `reason`; the `evidence` of a `met`
+  criterion whose check is `Demo: <title>`, unless it starts with `Demo video: scenario-N`
+  or `Pictures: scenario-N`, where `N` is a number from 1 to 99 and the next character is no
+  letter, digit or hyphen, the form that Qory Apiary links to the scenario's evidence; and,
+  in a check, a state above the record of the verb `matrix`, `.reports/matrix-record.json`
+  of the artifact folder: a `met` criterion that the record has as `not_met` or has not at
+  all, a `not_met` criterion that the record has not at all, or a `target_version` that is
+  not the commit of the record. A check with a record that is missing or is not a record of
+  `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
+  typed by hand fails. A push reads no record;
 - `walkthrough`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
   number, with the id in any case and the criterion's words in quotes, then
   `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
@@ -2442,8 +2609,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   left out, with a line that says why, and the verb exits 0.
 
 The chain of `base`, the commit a step started on, holds within one session only, because
-commits outside a step happen between sessions, such as the commit of the submit step, and a
-cancelled run can leave its commits on no branch. A row replays only when its `commit` is an
+commits outside a step happen between sessions, such as a commit that a person makes, and a
+cancelled run can leave its commits on no branch. qory pushes the pull request, so no
+commit of a session is for the push. A row replays only when its `commit` is an
 ancestor of the head, so a step whose commit is lost runs again at its next `pass`. Each row
 of a session takes the `commit` of the session's newest row that has one, else the head at
 which the session started, from the mark, and `step begin` refuses it when the head is
@@ -2562,6 +2730,23 @@ findings, and the session sends them to the writer and pushes once more. `review
 reads only the questions folder, because qory writes the whole `index.json` for every check.
 `approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
 it.
+
+A module states the check of a plan type under `scope_checks`: a map from the type to one
+command, whose program is a file in the module. `software-factory` declares the check of
+`build-plan`:
+
+    scope_checks:
+      build-plan: [skills/running-a-software-workflow/workflow-checks.cjs, scope, --plan]
+
+The command takes `--base <start commit>` and `--artifacts <folder>` as its last arguments.
+`workflow-checks.cjs` runs `checks.cjs scope` of `running-a-workflow` with the same
+arguments, as it runs `checks.cjs push` for a push check, and exits 2 on any other verb.
+The check exits 0 when every path of the commits since the start commit is in the Files of
+the build plan and no commit has a key, and 1 on a path outside them or on a key, with the
+scan for keys that `freeze` runs (see
+[The call of qory's push step](#the-call-of-qorys-push-step)). qory stops a compose when a
+workflow of the stack has a `plan` that no module of the stack declares a scope check for,
+and when the program of a scope check is no file in its module.
 
 `spec-writer` writes `spec.md` and `acceptance-criteria.json` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
@@ -2884,8 +3069,7 @@ starts `build-planner`, which drafts `build-plan.md` by `planning-builds`, and
 `plan-reviewer`, which reviews it read-only by `reviewing-drafts` and
 `checking-build-plans`.
 Both agents run on the tier `thinking`, and `code-explorer` on `balanced`. The stack lists
-the
-workflow with `tier: thinking` and `access: write`.
+the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
 
 - **The form of the plan.** Each Criteria cell is `AC-<N>, "<the criterion's first
   sentence>"`, with `; ` between criteria, and never an id alone. The Commands table keeps
@@ -2933,25 +3117,25 @@ workflow with `tier: thinking` and `access: write`.
 
 `workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
 locks the acceptance checks of one ticket, after its build plan and before any step changes
-code. The stack lists the workflow with `tier: balanced` and `access: write`, and both
-agents run on the tier `thinking`. The session pulls, runs `checks.cjs resume`, and reads
-the newest build plan and the newest `acceptance-criteria.json`. A check path is a relative
-path with no space and no `.` or `..` part, whose file name has an extension, such as
-`tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are none. It is the
-`isPath` of `lib/plan.cjs`, which `types/build-plan.cjs` uses too. Each Check cell of the
-plan that is a check path is a check, and the criteria of its row are planned as `Tests`.
-The agents start only when the JSON has a live criterion whose `check` is `Tests`, one with
-no `removed` member set to `true`. With none, the session runs no ledger step, starts no
-agent, pushes nothing and ends `passed`, with "No criterion is planned as Tests, so the run
-wrote no acceptance checks." With no build plan, it ends with a `run_again` point whose fix
-is "Plan the build, so that a run pushes the build plan." With no acceptance criteria, the
-point's fix is "Move the work item back to Shape, so that a run there writes the acceptance
-criteria." When a live `Tests` criterion is in the Criteria cell of no row with a check
-path, the session starts no agent, pushes nothing and ends with one `run_again` point for
-each such criterion, not `passed`: "The build plan has no check path for AC-3, "<first
-sentence>", a criterion planned as Tests, so the run wrote no acceptance checks." Its fix is
-to plan the build again. While the text or the fix has more than 500 characters, the quote
-of the criterion is cut in both to its first 8 words and "...".
+code. The stack lists the workflow with `tier: balanced`, `access: write` and `plan:
+build-plan`, and both agents run on the tier `thinking`. The session pulls, runs `checks.cjs
+resume`, and reads the newest build plan and the newest `acceptance-criteria.json`. A check
+path is a relative path with no space and no `.` or `..` part, whose file name has an
+extension, such as `tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are
+none. It is the `isPath` of `lib/plan.cjs`, which `types/build-plan.cjs` uses too. Each
+Check cell of the plan that is a check path is a check, and the criteria of its row are
+planned as `Tests`. The agents start only when the JSON has a live criterion whose `check`
+is `Tests`, one with no `removed` member set to `true`. With none, the session runs no
+ledger step, starts no agent, pushes nothing and ends `passed`, with "No criterion is
+planned as Tests, so the run wrote no acceptance checks." With no build plan, it ends with a
+`run_again` point whose fix is "Plan the build, so that a run pushes the build plan." With
+no acceptance criteria, the point's fix is "Move the work item back to Shape, so that a run
+there writes the acceptance criteria." When a live `Tests` criterion is in the Criteria cell
+of no row with a check path, the session starts no agent, pushes nothing and ends with one
+`run_again` point for each such criterion, not `passed`: "The build plan has no check path
+for AC-3, "<first sentence>", a criterion planned as Tests, so the run wrote no acceptance
+checks." Its fix is to plan the build again. While the text or the fix has more than 500
+characters, the quote of the criterion is cut in both to its first 8 words and "...".
 
 - **The step `checks`.** The session starts the ledger step `checks` and then
   `acceptance-check-writer`, which writes each check at its Check path, writes new helpers
@@ -3008,6 +3192,97 @@ of the criterion is cut in both to its first 8 words and "...".
   build go on. The run ends with `escalate` and one `answer` point per check. The ledger
   step stays `done`, so a new criteria version starts a new pass of `checks`, and an
   unchanged one replays it.
+
+`workflow-implement-changes` builds the code change of one ticket in a Build run, after its
+acceptance checks are locked. It is the first workflow of Build's loop, and `review-changes`
+runs after it. The stack lists the workflow with `tier: balanced`, `access: write`,
+`plan: build-plan` and `judges: false`, and both agents run on the tier `thinking`. The
+session pulls, runs the `find` of "Further repositories" and `checks.cjs resume`, and
+reads the build plan of the run's start from the folder of `qory.start_artifacts`, the
+acceptance lock that no cancelled run wrote, and `.reports/build-ledger.json`. With no
+build plan, it ends with a `run_again` point whose fix is "Plan the build, so that a run
+pushes the build plan." Each step is one row of the build ledger, in this order: each
+deliverable that is not built, as `deliverable:d-<N>`, in the order of the plan; then each
+open finding, as `fix:f<N>`. The findings are those that `findings open` prints from
+`open-findings.json` in the inputs folder, which qory writes read-only from the report of
+the last round of review, the `blocking` ones first, and, after Verify returned the work
+item, the findings of Verify. `work-item show` lists Verify's newest `verdict` and
+`verification` in `inputs`, marked `"from": "return"`. Each point of the verdict and each
+`not_met` row of the verification is one `blocking` finding, numbered `f<N>` after the
+highest id of the review, so that `scope` and `freeze` take its id.
+
+- **Removed demo scenarios.** Before the steps, the session withdraws the demo script of
+  each scenario that the newest demo scenarios mark `Removed, because` or no longer have,
+  approved ones too, with `qory artifact push demo-script --name <scenario> --withdraw`. It
+  skips a name whose newest version outside cancelled runs is
+  missing, is a withdrawal, or is an upload by a member: that demo script stays. When qory
+  exits 4, such as for an approved demo script, the session goes on. For each upload by a
+  member and each exit 4, it writes "<scenario>: removed by Shape, still on the gate" in
+  its output.
+- **A step.** The session runs `step begin` with the build plan, the skill, the two agent
+  files and, for a fix, the file of its finding. It starts `software-developer` (the role
+  `developer`) for the first and the second attempt and `software-debugger` (the role
+  `debugger`) for the third, with the row of the deliverable or the finding, the line
+  "Further repositories: yes" or "no" and, from the second attempt on, the red lines of the
+  attempt before. After each start, it runs `scope`, `run lint`, `run types`, `run build`
+  and the targeted checks of the step: `run locked <criterion>` for a Check cell that is a
+  locked check, `run targeted <path>` for another check path, and for a fix, `run
+  targeted` with each check path that is not locked and `run locked` with no criterion.
+  With every check green, it runs `freeze` and `step end done` with one
+  `--attempt <agent>,<role>,thinking,unknown` per attempt. A `blocked` report other than
+  the stop on the build plan ends the run as "Failures" of `running-a-workflow` lists.
+- **A step that fails.** After a third red attempt, the session runs `step end failed` with
+  the 3 attempts, so the deliverable or the finding stays open in the build ledger and in
+  the build report. When the session ran no `step end done`, the run has no commit: the
+  session skips "The submission", writes `points.json` with one `run_again` point whose text
+  is the line "The run stopped, because the checks still fail after 3 changes to <the
+  step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it does
+  "The submission", writes no `points.json`, runs no verdict command, starts no later step,
+  and ends with that line. `review-changes` runs next and reports the open step as
+  `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. `step end`
+  takes at most 3 `--attempt`, so a step has no fourth attempt.
+- **The writers.** `software-developer` and `software-debugger` change only the paths that
+  the build plan lists for the deliverable, run only `checks.cjs run` and the read forms of
+  `run-artifacts`, and commit nothing. Both load `making-small-changes` before they change
+  code. Each report has the line `Change:`, and the debugger's the line `Cause:`, with the
+  file and line of the cause. Each report ends with `Left out: none`, or with the line
+  `Left out:`, one line `- <item>: <risk>` per item left out and per `shortcut:` comment,
+  and the line `# End`, so that `step end done` reads the list up to that line.
+- **The stop on the build plan.** A writer that cannot build the step as the build plan
+  states it changes no file and reports `Blocked: needs a change to the build plan: <the
+  change>`, which `checks.cjs report` accepts. The session runs `step end failed`, starts
+  `questions-writer` for one question, and writes `points.json` with one `answer` point:
+  "The build plan needs a change before the run can build <the step>: <the change>.", with
+  the first sentence of the change. The session runs
+  `qory run verdict escalate --points <folder>/points.json`, does no later step and starts
+  no other workflow. It writes no `pull-request` output, and the end check passes: an end
+  through `points.json` checks no output.
+- **The submission.** After the last step, and after a step that fails, the session starts
+  `submission-writer` and runs `checks.cjs report-build --inputs <input file>`, which writes
+  `build-report.md` and the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, which
+  qory pushes after the session. It then runs `checks.cjs check build-report` and pushes
+  `build-report`. With exit 1 of `report-build`, it starts
+  `submission-writer` again, at most twice, then ends with one `run_again` point. With exit
+  3 and the line `Build the change in fewer commits`, it ends as Failures with that line;
+  with another exit 2, 3 or 4, it ends as Failures. When the writer fails, the run ends with
+  "The run wrote no text of the change, because <the cause>, so qory pushes the commits of
+  the steps without it." With exit 1 of `check build-report`, it runs `report-build --drop`
+  and ends with one `run_again` point; after a third push of `build-report` that fails, it
+  runs `report-build --drop` and ends with "The run could not push its build report." A stop
+  on the build plan skips it, and so does a session that ran no `step end done`, such as one
+  whose first step fails, also in a later round: qory fills `commits` with the commits of
+  this run, and the type needs at least one. Such a run ends with a point, as "A step that
+  fails" lists. `submission-writer` describes what the round built, also after a step that
+  fails. When the end check fails three times, the session records `escalate`.
+- **The end.** With every step done or replayed, the session follows "The end" of
+  `running-a-workflow`: with `judges: false`, it runs no verdict command, and
+  `review-changes` runs next. It starts no reviewer, and ends with "The change is ready for
+  review: the run built <k> planned changes and fixed <m> findings." Not built yet in qory:
+  `qory.workflow.judges` in `inputs.json`, so until qory writes it, the session runs
+  `qory run verdict passed` at its end.
+- **Reviewers.** `code-reviewer` and `acceptance-reviewer` load `making-small-changes`
+  before they write a finding, and report a finding on one of its rules as `non-blocking`,
+  unless the finding also breaks a criterion.
 
 `workflow-review-changes`, process entry `review-changes`, is the review session of a Build
 run. Build runs `plan-the-build` and `write-acceptance-checks`, then a loop of at most 3
@@ -3120,16 +3395,13 @@ The session runs no ledger step. In this order:
 - **Earlier findings.** Each reviewer re-reads each finding of `previous_findings`, as
   `reviewing-changes` and `judging-findings` list, and repeats with its id each finding of
   its area that is still true.
-- **Not built yet.** These parts of qory are not built yet:
-  - `qory.review_session` in `inputs.json`, with `commit`, `diff`, `previous_findings`,
-    `reports`, `suite_result` and an optional `build_report`, and the run of the loop of
-    Build;
-  - the stack key `review_group`: qory at the pinned commit refuses it with "Remove the key,
-    or rename it to one qory-stack.yaml reads.", so each compose of the `software` stack
-    fails until qory reads the key;
-  - the file of `suite_result`, in qory's form `{tests, failed, skipped, output_tail}`;
-  - the shape of `previous_findings`.
-  Build's `sequence` in `process.yaml` stays empty until `implement-changes` is merged.
+- **Not built yet.** These parts are not built yet:
+  - the run of the loop of Build, which Apiary runs;
+  - the shape of `previous_findings`;
+  - `qory.review.outputs` in the `inputs.json` of a reviewer, each declared output by
+    type, with the title and the text of the draft pull request in the entry for
+    `pull-request`, so `acceptance-reviewer` checks them only once qory writes it.
+  Build's `sequence` in `process.yaml` is still empty.
 
 ## The high-level workflow, shape-a-ticket
 
@@ -3340,7 +3612,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   runs, or a check that imports, a file whose only use is the tests, such as a helper, that
   the lock lists neither as a check nor under `support[]`. It reads the files before the
   lock and watches no run, so no check here looks at what code under test does to a locked
-  file during a check.
+  file during a check. A change that a check leaves on disk and that a commit takes in
+  counts at the push: the scope check of `build-plan` exits 1 on a committed path outside
+  the Files of the build plan. After the lock, `tamper-reviewer` of Verify reads the diff
+  for a locked file that a change edited, and for a test that it newly skips; it reads only
+  the diff, so it does not see a file that a check changes and restores within one run.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
@@ -3520,10 +3796,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   with `check points` and ends: the end check sends them with the verdict `escalate`.
 - `report-build [--inputs <path>]` and `report-build --drop`: the first writes
   `build-report.md` of the standard track to the artifact folder, with every table rendered
-  from records, so no agent types a result, and writes the hand-off file that qory's submit
-  step reads. A fast-track report is written elsewhere. The second removes a regular file
-  at the path of `QORY_SUBMISSION_HANDOFF` and nothing else, prints one line, and exits 0;
-  it exits 3 with a fix line when the file cannot be removed. The sections come from these
+  from records, so no agent types a result, and writes the outbox file that qory's push
+  reads. A fast-track report is written elsewhere. The second removes the regular file
+  `$QORY_OUTBOX/pull-request/pull-request.json` and nothing else, prints one line, and
+  exits 0; it exits 3 with a fix line when the file cannot be removed. The sections come
+  from these
   sources:
   - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
   - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
@@ -3564,40 +3841,55 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   The same records give the same bytes, and the file ends with one newline. Without a
   ledger, the verb exits 3.
 
-  When `QORY_SUBMISSION_HANDOFF` is set, an absolute path with no `..` part, the verb also
-  writes the hand-off file there, as JSON with `text` and `steps`: `{"text": {"title",
-  "description"}, "steps": {"<commit>": "<ledger row id>"}}`. It creates the parent folder
-  first. A path with a `..` part exits 3. When the parent folder, or the nearest folder of
-  it that exists, resolves through a symbolic link to a place outside the top folder of the
-  checkout, the verb exits 3 with the fix "Set QORY_SUBMISSION_HANDOFF to a path inside the
-  checkout." and writes no file. `text` is `.reports/submission.md` of the artifact
-  folder, which `submission-writer` writes: the first line is `# <title>`, and the rest is
-  the description with `## Problem`, `## Change`, `## Tests` and `## Disclosed`. The title
-  and the description pass the rules of `text` in `submission.schema.json` (the title is 1
-  to 256 characters, with no control or invisible character, and is not only spaces; the
-  description has at most 20,000 characters, no NUL and no marker line), the description
-  has the four parts of the type `submission` and no text before the first part, and
-  neither has the form of a secret. The title also has no character of the Unicode class
-  Cf, such as U+200D, U+0600 or U+E0041, and no U+2028 or U+2029, because qory does not
-  accept such a title and drops the whole text; the fix has its code point. The verb removes
-  spaces before and after the title. `steps` maps each commit of `git rev-list
-  <base>..<commit>` of each `done` row to the id of the row, for the commits of `git
-  rev-list <base of the first row>..HEAD`, and a commit in two rows goes to the later row.
-  When the hand-off file would have more than 262,144 bytes, the verb leaves out the oldest
-  commits of `steps` until it fits, and qory shows each of them as unreviewed; the result
-  line shows how many it left out. A text that is missing or breaks a rule, a
-  `submission.md` that is no regular file or has more than 262,144 bytes, or a step of
-  more than 128 characters exits 1 with the fix, and the verb writes no file. A commit that
-  git does not have is a lost row of a cancelled run and has no entry in `steps`; any other
-  failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`, the verb
-  removes a regular file at the path of `QORY_SUBMISSION_HANDOFF`, so that qory never reads
-  the text of an earlier run, only when the real path of the folder of the file is inside
-  the real path of the checkout top, the rule of the write. Else it removes nothing, prints
-  one line, and `--drop` exits 3. It writes the hand-off file first and `build-report.md`
+  The verb always writes the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, as
+  JSON `{"title", "text", "steps", "draft"}`. qory sets `QORY_OUTBOX` to the absolute path
+  of the outbox folder. When `QORY_OUTBOX` is unset or is no absolute path, the verb writes
+  no file and exits 3 with the fix "Set QORY_OUTBOX to the absolute path of the outbox
+  folder." It creates the folder of the type first. When the outbox folder, the folder above
+  it, or the folder of the type is a link, as core's end check reads it, the verb exits 3
+  with the fix "Remove the link in the path of the outbox." and writes no file. A file that
+  would have more than 786432 bytes, the `size_limit` of the type `pull-request`, exits 3
+  with the fix "Build the change in fewer commits", because only the list of `steps` can
+  make it that large (the text has at most 20,000 characters), and the verb writes no
+  file. The links that the rule reads are those of the outbox folder, its parent and the
+  folder of the type; a link above them is followed.
+  The session writes no `target` and no member that qory fills (`commits`, `head`,
+  `base`, `branch`, `base_branch`, `earlier_commits`): qory sets and fills them after the
+  push, and the end check refuses a file that has one. `title` and `text` come from
+  `.reports/submission.md` of the artifact folder, which `submission-writer` writes: the
+  first line is `# <title>`, and the rest is the text with `## Problem`, `## Change`,
+  `## Tests` and `## Disclosed`. The title and the text pass the rules of `title` and `text`
+  in `pull-request.schema.json`, which refers to them by the `$id` of
+  `primitives.schema.json` (qory's file, beside it in `schemas/`, read with no network). The
+  title is 1 to 256 characters, with no control or invisible character, and is not only
+  spaces and joiners; the text has at most 20,000 characters, no marker line, and no
+  control character but tab, line feed and carriage return. The text has the four parts of
+  the type `pull-request` and no text before the first part, and neither has the form of a
+  secret. Both follow the rule of the characters
+  of a string in the schemas of `software-factory`: no Cc character, no U+2028 or U+2029,
+  and no Cf character but U+200C and U+200D (the joiners of emoji), such as U+0600 or
+  U+E0041. The fix for a title with such a character has its code point, because qory does
+  not accept such a title and drops the whole text. The verb removes spaces before and
+  after the title. `steps` is a list of
+  `{"commit", "step"}`, oldest first: it has each commit of `git rev-list <base>..<commit>`
+  of each `done` row, with the id of the row as `step`, for the commits of `git rev-list
+  <base of the first row>..HEAD`, and a commit in two rows goes to the later row. `draft`
+  is always `true`: qory sends the pull request after the gate of the stage passes
+  (`deliver: {send: after_gate}` in `process.yaml`), so the draft opens after the review
+  passes, and the schema refuses a `draft` of `false`. A text that is missing or breaks a
+  rule, or a `submission.md` that is no regular file or has more than 262,144 bytes (the
+  limit of the text file `.reports/submission.md`, not of the output), exits 1 with the
+  fix, and the verb writes no file. A `step` is the id of a ledger row, which the ledger
+  schema limits to 64 characters, so no step is too long. A commit
+  that git does not have is a lost row of a cancelled run and has no entry in `steps`; any
+  other failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`,
+  the verb removes a regular file at the path of the outbox file, so that qory never reads
+  the text of an earlier run. It removes nothing when `QORY_OUTBOX` is unset or relative.
+  When a link is in the path of the outbox, it removes nothing and prints a fix line, and
+  `--drop` exits 3. It writes the outbox file first and `build-report.md`
   second, each through a temporary file in its folder that it renames into place. When a
   write fails, it removes the temporary files, leaves neither file and exits 3 with a fix
-  line. Without the variable, it writes `build-report.md`, prints one line that it wrote
-  no hand-off file and exits 0. `check build-report`, in a session with the ledger in the
+  line. `check build-report`, in a session with the ledger in the
   artifact folder, renders the sections again from the same records and exits 1 for each
   section whose text differs from the file byte for byte, line breaks, trailing spaces,
   blank lines and heading spacing included, with the fix "Run report-build to write ##
@@ -3605,6 +3897,45 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `## Review rounds` and `## Counts`, which need the rounds, and prints a line that says
   so. With no ledger, it prints a line that the tables were not checked. `push` and
   `end --offline` check the order of the sections alone.
+- `matrix --version <N>`: writes the draft `verification.json` of Verify, and
+  `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
+  exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
+  criteria cannot be pulled or have no approved version. The criteria, the `demo-evidence`
+  and the `build-ledger` come from `qory artifact pull <type>`, with `lockReader.pull` of
+  core, because an agent can change the local store; the records of `run locked` come from
+  `.reports/runs/`, where the guard denies an agent's write. A criterion whose
+  `demo-evidence` cannot be pulled is not verified, and a ledger that cannot be pulled adds
+  the family `unknown`. `<N>` is the acceptance-lock version that Build's approval lists,
+  the one that `lock --verify --version <N>` verified. The matrix has one row for each live
+  criterion, in the order of the criteria, from these sources:
+  - a criterion whose check does not start with `Demo: `: the newest record of `run locked`
+    in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria.
+    An older record never stands in for a newer one. The record counts only when it is a
+    full run (no criterion given), with no uncommitted change, with the results of its
+    checks, no `changed` list, and not red with every check green, which is how a call ends
+    when a locked file changed. The criterion is `met` when each of its checks is green,
+    with the evidence "Locked check `<path>` passed: exit 0, <n> tests.", and `not_met` when
+    one is red, with the exit status and the counts. It is not verified when the newest
+    record does not count, when the record has no check of it, and when its check did not
+    run because the call ran out of time;
+  - a criterion whose check is `Demo: <title>`: the newest `demo-evidence` of the scenario
+    with that title in the store. With a verdict `passed` on the commit of HEAD and film or
+    pictures, it is `met`, with the evidence `Demo video: scenario-N` or
+    `Pictures: scenario-N`. With the verdict `failed`, it is `not_met`. It is not verified
+    when the store has no evidence of that title, when the evidence is of another commit and
+    when it has neither film nor pictures;
+  - `model_families`: the family of each model id in the `attempts` of the newest
+    `build-ledger`, and of each Verify reviewer. The family of an id is the text after the
+    last `/`, up to the first `-`, so `claude-sonnet-5` and `openrouter/claude-opus-5` are
+    `claude`. A reviewer's id is the `model:` line of its agent file, which qory writes for
+    the tier, unless it is a `${qory:` name; else the `model` of the `settings.json` beside
+    the plugin folder; else `unknown`. An id that is `unknown`, missing or no 1 to 100
+    printable characters gives `unknown`. No list of families exists, because nothing in
+    qory, the forager or this harness maps a model id to its family.
+
+  `target_version` is the commit of HEAD. The record has the commit, the lock version, each
+  row's state, and the criteria not verified. `check verification` reads it, as the type
+  rules above list. A criterion's evidence is plain text, with no quote of a criterion.
 
 The time limits are under `command_limits_minutes` of `harness.extensions.software-factory`
 in a repository's `qory.yaml`: `targeted_checks`, 5 minutes by default, `fast_checks`, 10,
@@ -3717,6 +4048,11 @@ against the kind of its `## Track` in place of the Files, with the same `--base`
 scans them for keys (see [The proof of the fast track](#the-proof-of-the-fast-track)).
 A finding of the proof exits 1.
 
+`software-factory` declares this call as the scope check of `build-plan` under
+`scope_checks`, with the program `workflow-checks.cjs` of `running-a-software-workflow` in
+place of `checks.cjs`: `workflow-checks.cjs scope --plan --base <start commit> --artifacts
+<folder>` runs `checks.cjs scope` with the same arguments and exits the same way.
+
 `freeze --plan` with the same arguments runs the same checks and exits the same way, with no
 commit.
 
@@ -3733,13 +4069,12 @@ and three calls run it:
   plan, which the fast track has none of. A failed proof exits 1 with its findings, and
   no push follows. A proposal on the standard track, or a folder with no proposal, runs no
   proof, and `scope --plan` judges the Files as before;
-- `check` and `end`, with the check of `submission`, in a checkout, with `--inputs`. The
+- `check` and `end`, with the check of `pull-request`, in a checkout, with `--inputs`. The
   files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the call
   writes "Run the push step: it proves <kind>." on stderr, with the line "The parsers in
-  <folder> are not installed here." after it, and leaves them to `scope --plan`. `end`
-  checks a draft that differs from the newest stored version, so it runs no proof for a
-  submission that equals its stored version. With the fast track and no `--inputs`,
-  `check submission` has a finding, never a pass;
+  <folder> are not installed here." after it, and leaves them to `scope --plan`. `end` runs
+  it on the outbox file of the stage's output `pull-request`. With the fast track and no
+  `--inputs`, `check pull-request` has a finding, never a pass;
 - `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`, by hand.
 
 The push form (`push`) and `end --offline` run no proof: the working folder of a push is
@@ -3958,10 +4293,11 @@ template that a software-factory workspace starts with. The file sets these keys
   Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop, and
   needs a `proposal`. Shape runs the workflow `shape-a-ticket` once per run, with no loop,
   reads a `proposal` when one exists, and needs a `spec` and `acceptance-criteria`, with
-  `decision-record`, `mockup` and `demo-scenarios` as optional outputs. Build, Verify and
-  Release run no workflow. Each stage ends with a gate at which a member approves the
-  result. Each stage has a `description`: one paragraph of plain text, at most 500
-  characters, on what the stage does and what exists when it ends.
+  `decision-record`, `mockup` and `demo-scenarios` as optional outputs. Build lists
+  `pull-request` as a required output. Build, Verify and Release run no workflow. Each
+  stage ends with a gate at which a member approves the result. Each stage has a
+  `description`: one paragraph of plain text, at most 500 characters, on what the stage
+  does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `verification`, `mockup`, `screenshot`, `demo-video`,
   `walkthrough` and `decision-record` are standard types, each with its name alone. The
@@ -3971,9 +4307,10 @@ template that a software-factory workspace starts with. The file sets these keys
   default of the draft check. `spec` and `demo-scenarios` are custom types with
   `base_view: document`, `size_limit: 1048576` and `max_files: 1`: one Markdown file of at
   most 1 MiB. The custom types of Build and Verify follow, each with `max_files: 1`:
-  `build-plan` and `build-report` with `base_view: document`, and `submission`,
+  `build-plan` and `build-report` with `base_view: document`, and `pull-request`,
   `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
-  `base_view: structured`, each with `size_limit: 1048576`, the default of Qory Apiary.
+  `base_view: structured`, each with `size_limit: 1048576`, the default of Qory Apiary,
+  except `pull-request`, whose `size_limit` is 786432.
   Each structured type has the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`. The draft check of
   `build-ledger` reads that size limit from `process.yaml` and refuses a file above it, as
@@ -3987,10 +4324,6 @@ template that a software-factory workspace starts with. The file sets these keys
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
   hide, and every other standard type is hidden.
-- `submit: {type: submission, send: end_of_run}`, the submit step of a run. `type` is the
-  custom type `submission`, which has `base_view: structured`, and `send: end_of_run`
-  sends the submission at the end of the run. `qory config` checks that `artifact_types`
-  has the type.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
@@ -4018,8 +4351,9 @@ for that key, with the same notice next to the **Machine type** picker on the st
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a
-type in its `inputs`. In this template Build has no `outputs`, so no approval at its gate
-covers a version, and Verify has no `inputs`, so it reads no approved version.
+type in its `inputs`. In this template Build has the output `pull-request`, so an approval
+at its gate covers that type's newest version, and Verify has no `inputs`, so it reads no
+approved version.
 
 ## AGENTS.md
 
@@ -4216,6 +4550,15 @@ read the same file without it.
 The script also checks that the compose of the `software` stack writes `roles.json` with
 `security-reviewer`, `data-reviewer` and `failure-reviewer` as the members of
 `agents/reviewers`, each with `paths`.
+
+The script also checks that `roles.json` of the `software` stack has `tamper-reviewer` and
+`verification-reviewer` as the members of `agents/verify-reviewers`, with no `paths`, and
+still has `agents/reviewers`.
+
+The script also checks that each agent of `software-factory` whose description contains "as
+an agent of the verify-a-ticket session" is a member of `verify-reviewers` in
+`qory-module.yaml`, and that the group has no other member. The group name is fixed in the
+check.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,

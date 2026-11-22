@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -1414,6 +1414,17 @@ printf '%s\n' "$OUT" | sed -n 1p
 
 expect "qory config exits 0" 0 "$ROOT" "$QORY" config
 
+# The primitives, verification and acceptance-criteria files beside the schemas of
+# software-factory are qory's files at the commit that QORY_SOURCE has, byte for byte: the
+# schema of pull-request refers to the $id of primitives.
+SCHEMAS=$ROOT/modules/software-factory/skills/running-a-software-workflow/schemas
+for NAME in primitives verification acceptance-criteria; do
+	QFILE=contracts/harness/v1/$NAME.schema.json
+	OUT=$(cmp "$SCHEMAS/$NAME.schema.json" "${QORY_SOURCE:-/nowhere}/$QFILE" 2>&1) ||
+		fail "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
+	pass "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
+done
+
 # process.yaml sets withdrawable: false for acceptance-lock and build-ledger. Outside a run,
 # qory reads that flag from the exported modules and exits 4 before it writes a file.
 for type in acceptance-lock build-ledger; do
@@ -1486,6 +1497,51 @@ for runtime in claude codex; do
 			"$entry_name"
 	done
 done
+
+# qory stops a compose whose stack sets a workflow's tier to a name that is no tier, and
+# one whose write workflow has a plan that no module of the stack declares a scope check
+# for. Each case composes a copy of this repository with one change, from a checkout that
+# extends the software stack of that copy by path.
+for fault in tier scope; do
+	mkdir -p "$TMP/fault-$fault/home" "$TMP/fault-$fault/checkout" || exit 1
+	cp -R "$ROOT/qory.yaml" "$ROOT/modules" "$ROOT/stacks" "$TMP/fault-$fault/home/" || exit 1
+	# qory reads the modules of a stack from the top folder of its git repository.
+	for dir in home checkout; do
+		run "$TMP/fault-$fault/$dir" git init -q
+		[ "$RC" -eq 0 ] || fail "git init in $TMP/fault-$fault/$dir exits 0 (exit status $RC)"
+	done
+	FROOT=$(printf '%s\n' "$TMP/fault-$fault/home" | sed "s/'/''/g")
+	printf "harness: {extends: {path: '%s', stack: software}}\n" "$FROOT" \
+		>"$TMP/fault-$fault/checkout/qory.yaml" || exit 1
+done
+sed 's/^  make-mockups: {tier: balanced, /  make-mockups: {tier: fast, /' \
+	"$ROOT/stacks/software/qory-stack.yaml" >"$TMP/fault-tier/home/stacks/software/qory-stack.yaml" ||
+	exit 1
+sed '/^scope_checks:$/,$d' "$ROOT/modules/software-factory/qory-module.yaml" \
+	>"$TMP/fault-scope/home/modules/software-factory/qory-module.yaml" || exit 1
+# A sed that matches nothing leaves the copy as it was, and the case below would test nothing.
+OUT=
+cmp -s "$ROOT/stacks/software/qory-stack.yaml" \
+	"$TMP/fault-tier/home/stacks/software/qory-stack.yaml" &&
+	fail "the tier case sets make-mockups to tier fast in the copy of qory-stack.yaml"
+cmp -s "$ROOT/modules/software-factory/qory-module.yaml" \
+	"$TMP/fault-scope/home/modules/software-factory/qory-module.yaml" &&
+	fail "the scope case removes scope_checks from the copy of qory-module.yaml"
+BADTIER="harness compose --dry-run exits 2 on a workflow tier that is no tier"
+run "$TMP/fault-tier/checkout" "$QORY" harness compose --dry-run --runtime claude
+if [ "$RC" -ne 2 ] ||
+	! printf '%s\n' "$OUT" | grep -Fq 'Set workflows.make-mockups.tier to a valid tier.'; then
+	fail "$BADTIER (exit status $RC)"
+fi
+pass "$BADTIER"
+NOSCOPE="harness compose --dry-run exits 2 on plan: build-plan with no scope check of build-plan"
+run "$TMP/fault-scope/checkout" "$QORY" harness compose --dry-run --runtime claude
+if [ "$RC" -ne 2 ] ||
+	! printf '%s\n' "$OUT" |
+	grep -Fq 'No module of the stack declares a scope check for build-plan.'; then
+	fail "$NOSCOPE (exit status $RC)"
+fi
+pass "$NOSCOPE"
 
 # A compose for Codex writes the modules' Codex settings into config.toml of the Codex home: the
 # Stop hook of core that runs the end check, the PreToolUse and PreModelRequest hooks of core that
@@ -2632,6 +2688,8 @@ expect "the review-changes tests pass" 0 "$ROOT" node --test scripts/review-chan
 # The matcher of the paths of an agent, which panel uses, against each case of qory's
 # contracts/harness/v1/path-cases.json in QORY_SOURCE.
 expect "the path cases of qory's contract pass" 0 "$ROOT" node --test scripts/path-cases.test.js
+# The tests of the outbox check of end and of the raw-text rules of the schema checker.
+expect "the outbox tests pass" 0 "$ROOT" node --test scripts/outbox.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list
 # "Notes read:".
 expect "the notes tests pass" 0 "$ROOT" node --test scripts/notes.test.js
@@ -2642,12 +2700,20 @@ expect "the plan-the-build tests pass" 0 "$ROOT" node --test scripts/plan-the-bu
 # checks and acceptance-lock, the question of a locked check that does not fail, the lock
 # refusal for a Tests criterion with no check, and the rules of check-reviewer.
 expect "the write-acceptance-checks tests pass" 0 "$ROOT" node --test scripts/write-acceptance-checks.test.js
+# The tests of implement-changes: scripted sessions on a qory stub that build two deliverables
+# as two frozen commits, end a step as failed after 3 attempts, withdraw the demo script of a
+# removed scenario, write the pull request to the outbox, and end a stop on the build plan with
+# one answer point and escalate.
+expect "the implement-changes tests pass" 0 "$ROOT" node --test scripts/implement-changes.test.js
 # The tests of the build ledger: step begin, step end and resume on a checkout with a qory
 # stub, whose push runs the push check of build-ledger.
 expect "the build ledger's tests pass" 0 "$ROOT" node --test scripts/ledger.test.js
 # The tests of the lock on the acceptance checks: lock, lock --verify, and a cancelled run's
 # lock in the check and the push of acceptance-lock.
 expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
+# The tests of Verify: the skills and agents of its reviewers, and the verb matrix on the
+# records of run locked, the demo evidence and Build's ledger.
+expect "the verify-a-ticket tests pass" 0 "$ROOT" node --test scripts/verify-a-ticket.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # The tests of the preflight: the browser, the app of the serve command and the sign-in of
@@ -2715,11 +2781,11 @@ demo-scenarios:software-factory:acceptance-criteria
 demo-script:software-factory:demo-scenarios
 demo-video:software-factory:demo-script
 proposal:software-factory:
+pull-request:software-factory:
 questions:core:
 review-comments:core:questions
 screenshot:software-factory:demo-script
 spec:software-factory:
-submission:software-factory:
 verification:software-factory:acceptance-criteria
 walkthrough:software-factory:verification,acceptance-criteria'
 # The composes of the core stack, earlier, and of the software stack wrote push-checks.json.
@@ -2761,6 +2827,36 @@ const good = names === "code-reviewer test-reviewer acceptance-reviewer security
   (always.includes(row.agent) ? !("paths" in row) :
     Array.isArray(row.paths) && row.paths.length > 0));
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
+# The group role verify-reviewers has the two reviewers of Verify, with no paths, and
+# roles.json still has the group role reviewers.
+expect "roles.json has tamper-reviewer and verification-reviewer in agents/verify-reviewers" \
+	0 "$TMP/software" node -e '
+const roles = JSON.parse(require("fs").readFileSync(".qory/harness/roles.json", "utf8")).roles;
+const rows = (role) => roles.filter((row) => row.role === role && row.group === true);
+const names = (role) => rows(role).map((row) => row.agent).join(" ");
+const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
+  rows("agents/verify-reviewers").every((row) => !("paths" in row)) &&
+  names("agents/reviewers") === "security-reviewer data-reviewer failure-reviewer";
+if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
+# The agents of software-factory whose description is about the verify-a-ticket session
+# are the members of verify-reviewers in qory-module.yaml.
+# shortcut: the group name is fixed; read review_group of the stack entry when it exists.
+expect "each agent of the verify-a-ticket session is in verify-reviewers in qory-module.yaml" \
+	0 "$ROOT" node -e '
+const fs = require("fs");
+const dir = "modules/software-factory/";
+const yaml = fs.readFileSync(dir + "qory-module.yaml", "utf8");
+const line = /^\s{4}verify-reviewers: \[([^\]]*)\]/m.exec(yaml);
+const members = line ? line[1].split(",").map((name) => name.trim()) : [];
+const agents = fs.readdirSync(dir + "agents").filter((file) => file.endsWith(".md"))
+  .filter((file) => /as an agent of the verify-a-ticket session/.test(
+    fs.readFileSync(dir + "agents/" + file, "utf8").split("\n---")[0]))
+  .map((file) => file.slice(0, -3)).sort();
+const good = agents.length > 0 && agents.join(" ") === [...members].sort().join(" ");
+if (!good) {
+  console.error("agents: " + agents.join(" ") + "; members: " + members.join(" "));
+  process.exit(1);
+}'
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||

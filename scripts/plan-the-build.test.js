@@ -83,9 +83,11 @@ test('each new agent has its guardrails, stop conditions and expected output, an
   assert.match(planner, /\nTool exception: Edit, because /);
 });
 
-test('the stack declares plan-the-build with the tier thinking, the access write and its plan', () => {
+test('the stack declares plan-the-build with the tier thinking, the access write and its ' +
+  'plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
-  assert.match(stack, /\n {2}plan-the-build: \{tier: thinking, access: write, plan: build-plan\}\n/);
+  assert.match(stack,
+    /\n {2}plan-the-build: \{tier: thinking, access: write, plan: build-plan\}\n/);
   const settings = JSON.parse(read(SOFTWARE, 'settings/claude/settings.json'));
   for (const rule of ['Skill(harness:workflow-plan-the-build)', 'Skill(harness:planning-builds)',
     'Skill(harness:checking-build-plans)', 'Agent(harness:build-planner)',
@@ -98,10 +100,11 @@ test('the stack declares plan-the-build with the tier thinking, the access write
 const TIERS = ['light', 'balanced', 'thinking'];
 
 // workflowProblems returns a line for each workflow of the stack text whose tier is not one of
-// TIERS, for each workflow with access write and no `plan: build-plan`, and for each other
-// workflow with a plan, which qory refuses. Each entry of the
-// workflows key is one line with a flow mapping: an entry in another form is a line too, on
-// its first line. A blank line inside the key ends no entry. tier, access and plan count only
+// TIERS, for each workflow with access write and no `plan: build-plan`, for each other
+// workflow with a plan, which qory refuses, and for each workflow whose judges is neither
+// true nor false. Each entry of the workflows key is one line with a flow mapping: an entry
+// in another form is a line too, on its first line. A blank line inside the key ends no
+// entry. tier, access, plan and judges count only
 // at the top of the entry's mapping, not inside a nested value such as hook_points.
 function workflowProblems(text) {
   const block = /\nworkflows:\n((?:(?: {2}.*)?\n)+)/.exec(text);
@@ -128,6 +131,10 @@ function workflowProblems(text) {
       problems.push(`Add plan: build-plan to ${entry[1]}: its access is write.`);
     } else if (member('access') !== 'write' && member('plan') !== undefined) {
       problems.push(`Remove plan from ${entry[1]}: its access is ${member('access') || 'read'}.`);
+    }
+    const judges = member('judges');
+    if (judges !== undefined && judges !== 'true' && judges !== 'false') {
+      problems.push(`Set judges of ${entry[1]} to true or false: it is ${judges}.`);
     }
   }
   return problems;
@@ -167,7 +174,8 @@ test('each stack workflow has a tier, and only a write workflow has the plan bui
     'shape-a-ticket:\n    tier: thinking'),
   ['Write shape-a-ticket on one line, as <name>: {<key>: <value>, ...}.']);
   // A blank line inside the key, and an entry after it.
-  assert.deepEqual(changed('  review-changes: ', '\n  extra-flow: {access: write}\n  review-changes: '),
+  assert.deepEqual(
+    changed('  review-changes: ', '\n  extra-flow: {access: write}\n  review-changes: '),
     ['Set the tier of extra-flow to light, balanced or thinking: it is missing.',
       'Add plan: build-plan to extra-flow: its access is write.']);
   // A nested value: its members are not the entry's.
@@ -177,6 +185,11 @@ test('each stack workflow has a tier, and only a write workflow has the plan bui
     'make-mockups: {access: write, hook_points: {x: {tier: light, plan: build-plan}}}'),
   ['Set the tier of make-mockups to light, balanced or thinking: it is missing.',
     'Add plan: build-plan to make-mockups: its access is write.']);
+  // judges is true or false; implement-changes records no verdict, so it is false there.
+  assert.match(stack, /\n {2}implement-changes: \{[^\n]*, judges: false\}\n/);
+  assert.deepEqual(changed('judges: false}', 'judges: true}'), []);
+  assert.deepEqual(changed('judges: false}', 'judges: no}'),
+    ['Set judges of implement-changes to true or false: it is no.']);
   assert.deepEqual(workflowProblems('name: sample\n'), ['Add the workflows key to the stack.']);
 });
 
@@ -185,7 +198,8 @@ test('each stack workflow has a tier, and only a write workflow has the plan bui
 const SCOPE_CHECK = ((match) => match && match[1].split(',').map((word) => word.trim()))(
   /\nscope_checks:\n {2}build-plan: \[([^\]\n]*)\]\n/.exec(read(SOFTWARE, 'qory-module.yaml')));
 
-test('software-factory declares the scope check of build-plan, the plan of each write workflow', () => {
+test('software-factory declares the scope check of build-plan, the plan of each write ' +
+  'workflow', () => {
   assert.deepEqual(SCOPE_CHECK,
     ['skills/running-a-software-workflow/workflow-checks.cjs', 'scope', '--plan']);
   assert.equal(path.join(SOFTWARE, SCOPE_CHECK[0]), PUSH);
@@ -870,7 +884,8 @@ function scopeCheck(w, base, artifacts, ...verb) {
   return { status: ran.status, out: ran.stdout + ran.stderr };
 }
 
-test('the scope check of build-plan exits 0 on a push inside the plan and 1 on one outside it', () => {
+test('the scope check of build-plan exits 0 on a push inside the plan and 1 on one outside ' +
+  'it', () => {
   const pushed = (file) => {
     const { w } = checkout(EXAMPLE, []);
     const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
@@ -894,7 +909,8 @@ test('the scope check of build-plan exits 0 on a push inside the plan and 1 on o
     'only push and scope.\n');
 });
 
-test('the scope check of build-plan runs the checks of freeze on the commits since the base', () => {
+test('the scope check of build-plan runs the checks of freeze on the commits since the ' +
+  'base', () => {
   // A GitHub token, built here so that the file has no key in it.
   const token = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
   // committed makes a checkout with the example plan and commits one change inside its Files,
@@ -914,13 +930,15 @@ test('the scope check of build-plan runs the checks of freeze on the commits sin
   // A key in a file of the plan.
   const inFile = committed((w) => commitFile(w, 'replies/delayed-order.md', `Token ${token}\n`));
   assert.equal(inFile.status, 1, inFile.out);
-  assert.match(inFile.out, /^Rewrite commit [0-9a-f]{12} without a GitHub token in "replies\/delayed-order\.md", line 1\.$/m);
+  assert.match(inFile.out, new RegExp('^Rewrite commit [0-9a-f]{12} without a GitHub token in ' +
+    '"replies/delayed-order\\.md", line 1\\.$', 'm'));
   assert.match(inFile.out, /^Scanned 1 commit since [0-9a-f]{12} for keys: 1 finding\.$/m);
   // A key in the message of a commit whose files are in the plan.
   const inMessage = committed((w) => commitFile(w, 'replies/delayed-order.md', 'The hours.\n',
     `Change ${token}`));
   assert.equal(inMessage.status, 1, inMessage.out);
-  assert.match(inMessage.out, /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/m);
+  assert.match(inMessage.out,
+    /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/m);
   assert.ok(!inFile.out.includes(token) && !inMessage.out.includes(token));
   // A repository committed under a folder of the plan.
   const nested = committed((w) => {
@@ -929,11 +947,13 @@ test('the scope check of build-plan runs the checks of freeze on the commits sin
     git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add a repository');
   });
   assert.equal(nested.status, 1, nested.out);
-  assert.match(nested.out, /^Rewrite commit [0-9a-f]{12} without the repository "tests\/vendor": scope scans no repository\.$/m);
+  assert.match(nested.out, new RegExp('^Rewrite commit [0-9a-f]{12} without the repository ' +
+    '"tests/vendor": scope scans no repository\\.$', 'm'));
   // The same commit with no key passes.
   const clean = committed((w) => commitFile(w, 'replies/delayed-order.md', 'The hours.\n'));
   assert.equal(clean.status, 0, clean.out);
-  assert.match(clean.out, /^Passed: 1 changed path in the files of the build plan, 1 commit with no key\.$/m);
+  assert.match(clean.out,
+    /^Passed: 1 changed path in the files of the build plan, 1 commit with no key\.$/m);
 });
 
 // ---- The reports of the agents -------------------------------------------------------------

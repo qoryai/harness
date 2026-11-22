@@ -115,9 +115,10 @@ workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-tic
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and `access:
 write`, the workflow `write-acceptance-checks`, with `tier: balanced` and `access: write`,
-and the workflow `review-changes`, with `tier: thinking`, `access: read` and `review_group:
-reviewers`. The `software-factory` module ships the process template, nine workflows'
-skills, twenty-six other skills, twenty-three agents and the settings for a run of those
+the workflow `implement-changes`, with `tier: balanced` and `access: write`, and the
+workflow `review-changes`, with `tier: thinking`, `access: read` and `review_group:
+reviewers`. The `software-factory` module ships the process template, ten workflows'
+skills, thirty other skills, twenty-six agents and the settings for a run of those
 workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -171,7 +172,11 @@ workflows:
     every public page and every file of the target that the run used: a page as a link, and
     a file with no link, as its path. A file
     of a further repository (a folder under `.qory/repositories`) is the folder's name, a
-    colon and the path inside that folder, such as `web: src/cart.ts`. The run draws each
+    colon and the path inside that folder, such as `web: src/cart.ts`, and a file of a
+    destination is its id, a colon and the path, such as `tg_8k2m4n6p8q0r2s4t: src/cart.ts`.
+    With destinations in the inputs, each part opens with the line
+    `` Destination: `<id>` ``, and `targets.json` lists each destination that a change goes
+    to, 1 to 20, each with why. The run draws each
     diagram and wireframe by the `visuals` skill of the `core` module, and pushes each
     wireframe in the same version. It adds a code block, existing text from the target's
     files or a short sketch of the change, only when a person cannot understand the change
@@ -213,20 +218,23 @@ workflows:
   drafts, a separate agent reviews the draft, and the session pushes after the review: first
   the proposal, then the questions, and `review-comments` last, once.
 
-  The target's files include each further repository under `.qory/repositories`. With no
-  target or no files of the target, the run works from the ticket alone. The skill's rule is
-  that the session reads only agents' reports, the `at` and `newest_version` in
-  `index.json`, `run.number` from `qory work-item show`, the output of its `find` for
-  `.qory/repositories` and of the versions and checks scripts, and a `SKILL.md` when the
-  runtime offers no loading. It writes only the copies of the versions script, each
+  qory copies no destination before the session. The code explorer first names the
+  destinations that the ticket concerns, by their ids in `destinations` of the inputs, and
+  the session checks them with `checks.cjs destinations` and copies only those with one
+  `qory destination clone`, at most 100. It copies once more at most, for an id that a later
+  report needs. A copy that fails runs once more, and a second failure ends the run with
+  `escalate` and the error line of the copy. With no files to read, the run works from the
+  ticket alone. The skill's rule is that the session reads only agents' reports, the `at`
+  and `newest_version` in `index.json`, `run.number` from `qory work-item show`, the output
+  of the versions and checks scripts and of `qory destination clone`, and a `SKILL.md` when
+  the runtime offers no loading. It writes only the copies of the versions script, each
   agent's report under `.reports`, and `points.json` on a failure. It runs only `qory`
-  commands, that `find`, the versions and checks scripts and the read forms of
-  `run-artifacts`. In a read run, qory sets Claude
-  Code's `dontAsk` mode, which denies, with no prompt, each tool call that needs a
-  permission and that no rule of the run's settings allows. In a test on Claude Code
-  2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key loaded
-  with no allow rule, and a skill with that key was denied.
-  The writer looks beyond the ticket in public pages, libraries and tools.
+  commands, the versions and checks scripts and the read forms of `run-artifacts`. In a read
+  run, qory sets Claude Code's `dontAsk` mode, which denies, with no prompt, each tool call
+  that needs a permission and that no rule of the run's settings allows. In a test on Claude
+  Code 2.1.316, with a scripted API and no real model, a skill with no `allowed-tools` key
+  loaded with no allow rule, and a skill with that key was denied. The writer looks beyond
+  the ticket in public pages, libraries and tools.
 - `writing-proposals`: load it before you write a proposal. The skill contains the sections,
   public pages, diagrams, wireframes and code blocks.
 - `checking-proposals`: load it before you write or review a proposal. The skill contains
@@ -323,6 +331,38 @@ workflows:
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
   `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
   as text. The session passes it the changed paths of the working folder.
+- `workflow-implement-changes`: orchestrate the code change of one ticket in a Build run.
+  The session builds each planned change that is not built, in the order of the build plan,
+  then fixes each open finding of the review and each finding of Verify after a return: each
+  `not_met` row of the verification and each point of the verdict. Each is one step of the
+  build ledger. A step starts `software-developer` twice and `software-debugger` once at
+  most, and after each start runs `scope`, `run lint`, `run types`, `run build` and the
+  targeted checks. When every check is green, `freeze` commits the step and `step end done`
+  records it; after a third red attempt, `step end failed` records it and the session ends
+  with no point, or, when it ran no `step end done`, with one `run_again` point and
+  `escalate`. A writer's line `Blocked: needs a change to the build plan: <the change>` ends
+  the session with one `answer` point. Before the steps, the session withdraws the demo
+  script of each removed demo scenario. After the last step, and after a step that fails, it
+  starts `submission-writer` and runs `checks.cjs report-build`, which writes
+  `build-report.md` and the outbox file `pull-request.json`, then checks and pushes
+  `build-report`. A session that ran no `step end done` skips these, because qory
+  opens a pull request only from at least one commit. Its stack entry sets `judges: false`,
+  so it ends with no verdict command once qory writes `qory.workflow.judges` (see the
+  `shortcut:` note in `scripts/checks.test.js`), and `review-changes` runs next.
+- `changing-code`: load it before you change code for one step of a build. The skill
+  contains the step you get, the paths you may change, the tests of the change, the checks
+  you run and the list `Left out:` of the report.
+- `debugging-failures`: load it before you look for the cause of a check that stays red
+  after two changes of a step. The skill contains how you find and prove the cause from the
+  records of the checks.
+- `making-small-changes`: load it before you change code or review a change. The skill
+  contains nine rules: how small a change is, and what it never cuts.
+- `software-developer`: an agent that changes the code of one step in the paths of the
+  build plan by `changing-code` and `making-small-changes`, runs the targeted checks, and
+  reports what it left out. It fills the role `developer`.
+- `software-debugger`: an agent that finds and fixes the cause of the red checks of a step
+  by `debugging-failures`, as the third and last start of the step. It fills the role
+  `debugger`.
 - `workflow-review-changes`: the review session of a Build run. Build runs a loop of at most
   3 rounds of `implement-changes` and `review-changes`, which Apiary runs: `passed` leaves
   the loop, `changes-requested` runs `implement-changes` again. qory runs the full suite
@@ -346,24 +386,27 @@ workflows:
   criteria and build plan, after `reviewing-changes` and `judging-findings`. The skill
   contains what the review reads, the area it covers, the steps, what is blocking in that
   area, and the check list.
-- `writing-submissions`: load it before you write the title and the description of the
+- `writing-submissions`: load it before you write the title and the text of the
   draft pull request of a Build run. The skill contains the file, the title, the four
   parts, their limits, what `## Disclosed` contains and the check list.
 - `submission-writer`: an agent that writes `.reports/submission.md` of the artifact
   folder by `writing-submissions`: the title and the parts `## Problem`, `## Change`,
   `## Tests` and `## Disclosed`, from the build plan, the build ledger and the records of
-  the checks. It types no result. No workflow of this module starts it.
+  the checks. It types no result. `workflow-implement-changes` starts it at the end of each
+  round, also after a step that fails.
 - `code-reviewer`: an agent that reviews the code of a change, apart from its tests, by
   `reviewing-changes`, `judging-findings` and `checking-code`, and writes one report file.
-  It also reports a security hole, data loss or a secret in a test. `review-changes`
-  starts it as an agent of its session.
+  It also reports a security hole, data loss or a secret in a test, and a broken rule of
+  `making-small-changes` as `non-blocking`. `review-changes` starts it as an agent of its
+  session.
 - `test-reviewer`: an agent that reviews the tests of a change by `reviewing-changes`,
   `judging-findings` and `checking-tests`, and writes one report file. `review-changes`
   starts it as an agent of its session.
 - `acceptance-reviewer`: an agent that reviews by `reviewing-changes`, `judging-findings`
   and `checking-acceptance` whether a change meets each approved acceptance criterion and
-  builds each planned change, and writes one report file. `review-changes` starts it as
-  an agent of its session.
+  builds each planned change, and writes one report file. It reports a broken rule of
+  `making-small-changes` as `non-blocking`. `review-changes` starts it as an agent of its
+  session.
 - `checking-security`: load it before you review a change for security holes, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area and the proof it needs, and the

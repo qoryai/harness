@@ -29,21 +29,24 @@ jobs:
       # verdict. The compose of that release, and of qory at 0e02282, also stops on the
       # `plan` key of a workflow in stacks/software/qory-stack.yaml and on the
       # `scope_checks` key in modules/software-factory/qory-module.yaml. This commit, the
-      # merge of qoryai/qory#146 into qory's 544-build-verify branch, not main, has all
-      # eight, writes `web_search = "disabled"` into the `config.toml` of a Codex home, and
-      # its middle model tier is `balanced`, the tier of
-      # modules/software-factory/agents/code-explorer.md. It also has the contract's
-      # acceptance criteria and verification formats and `about` on each question, which
-      # modules/software-factory/process.yaml and the questions check follow. Move to a
-      # release when one has them.
-      QORY_COMMIT: a5ad28c2faf07fdc2c1e9f6c582537724fd92881
+      # merge of qory's 544-build-verify branch into qory's work branch, not main, has all
+      # eight, reads the `judges` key of the implement-changes entry in
+      # stacks/software/qory-stack.yaml, and writes `web_search = "disabled"` into the
+      # `config.toml` of a Codex home.
+      # Its middle model tier is `balanced`, the tier of
+      # modules/software-factory/agents/code-explorer.md. It has the contract's primitives,
+      # verification and acceptance-criteria files, which scripts/check.sh compares byte for
+      # byte with the copies in modules/software-factory/skills/running-a-software-workflow/
+      # schemas/, and the checks of stage outputs that modules/software-factory/process.yaml
+      # follows. Move to a release when one has them.
+      QORY_COMMIT: 64e700db70a5cb2c956ca5436237b65c5bb223e5
       # qory's commit that the tests read the contract files from, such as
-      # contracts/harness/v1/review-report.schema.json. It is the merge of qoryai/qory#146
-      # into qory's 544-build-verify branch, which publishes that schema and writes
-      # `web_search = "disabled"` into the `config.toml` of a Codex home, and the commit of
-      # QORY_COMMIT. The step "Fetch qory's contracts" sets QORY_SOURCE to the folder of
-      # that commit. scripts/findings.test.js reads this pin to name the commit in its error.
-      QORY_CONTRACTS_COMMIT: a5ad28c2faf07fdc2c1e9f6c582537724fd92881
+      # contracts/harness/v1/review-report.schema.json, and scripts/check.sh compares the
+      # primitives, verification and acceptance-criteria files with. It is the commit of
+      # QORY_COMMIT. The step "Fetch qory's contracts" sets QORY_SOURCE to the folder of that
+      # commit.
+      # scripts/findings.test.js reads this pin to name the commit in its error.
+      QORY_CONTRACTS_COMMIT: 64e700db70a5cb2c956ca5436237b65c5bb223e5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
