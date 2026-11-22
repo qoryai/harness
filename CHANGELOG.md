@@ -8,6 +8,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+<<<<<<< HEAD
 - The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
   a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
   the `App address:` of the build plan, signs in with the replay of `preflight`, and runs
@@ -25,6 +26,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `check-reviewer` on each change to a frozen script, and `demo check` refuses a third
   correction. The call of `preflight` moved from the run of the locked checks to before the
   first run of a script, and it reads the drafts in `.demo/`.
+||||||| e1deeb16
+=======
+- Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
+  by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
+  to compose the session of a hook's agent with that agent and its skills only, so a
+  workflow skill there would let the agent run a workflow or record a verdict.
+- The session of a hook's agent: a session whose `inputs.json` has `qory.hook_session`, with
+  `report` set to the absolute path of the hook's report file. There the tool guard applies
+  the rules of a reviewer session: the main session writes only that path, an agent writes
+  no file, no agent starts, and the shell runs only read commands, so no `qory` command and
+  no verb of the checks script runs. A `qory.hook_session` with no usable `report` allows no
+  write. The end check runs no check in that session, because qory checks the hook's report
+  after its agent exits. `reviewing-changes` takes the report path from
+  `qory.hook_session.report` first, then `qory.review.report`, then the report folder of a
+  review session.
+>>>>>>> origin/544-build-verify
 - The review session of Build. `workflow-review-changes` reviews the change inside its
   session: it starts each member of the group role `reviewers` that `checks.cjs panel`
   starts for the paths of the change, in turn, as agents of the session. `code-reviewer`,
@@ -113,9 +130,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
   run, because an agent can change the local store, and a criterion that rests on a type
   that cannot be pulled is not verified. `matrix` counts only the newest record of `run
-  locked` for the lock and commit, and only when it is a full, clean run with results. The
-  two agents are the group role `verify-reviewers` of `software-factory`, with no `paths`.
-  The workflow skill and its stack entry are not built yet.
+  locked` for the lock and commit and the run id of the session, and only when it is a
+  full, clean run with results; `run locked` exits 3 for a commit that tracks a file under
+  `.reports/`. The two agents are the group role `verify-reviewers` of `software-factory`,
+  with no `paths`. `workflow-verify-a-ticket` and the stack entry `verify-a-ticket`
+  (`write-no-push`, `review_group: verify-reviewers`) run Verify as a review session: the
+  lock at the approved version, `run locked`, `matrix`, both reviewers, the round, the push
+  of the verification, one question for each criterion that is not met, and the verdict. It
+  records `passed` only when every criterion is met, no scenario of the commit has a failed
+  verdict and no finding is blocking. `judging-criteria` and `verification-reviewer` read
+  the draft `verification.json` at the top of the artifact folder, not a `verification`
+  version of `qory.start_artifacts`, and read `suite_result` as optional. `checks.cjs
+  findings round` takes `--suite` as optional: with no flag the round has no suite finding,
+  and a given file that is missing, unreadable, failed or all skipped is still one blocking
+  finding. The check of `scripts/check.sh` for the group of Verify reads `review_group` of
+  the stack entry. Verify's stage in `process.yaml` is not built yet.
 - `checks.cjs destinations --inputs <file> <id>...`, a verb of `running-a-workflow`. It
   checks the ids of the destinations that a session reads against `destinations` of the
   inputs.json at `--inputs`: each id is `tg_` and 16 characters, listed there with a

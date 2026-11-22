@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -1153,6 +1153,15 @@ $OUT"
 # agent file of DIR/modules: qory expects a report from a member that no module defines.
 rule_review_groups() {
 	OUT=$(node "$ROOT/scripts/review-groups.cjs" "$1" 2>&1) || return 1
+	[ -z "$OUT" ] && return 0
+	return 1
+}
+
+# rule_agent_reach DIR: rule 14, no agent of DIR/modules reaches a skill running-a-* or
+# workflow-* by its references ${qory:skills/<name>} or those of a skill it reaches: qory
+# composes the session of a hook's agent with that agent and its skills, and no workflow skill.
+rule_agent_reach() {
+	OUT=$(node "$ROOT/scripts/agent-reach.cjs" "$1" 2>&1) || return 1
 	[ -z "$OUT" ] && return 0
 	return 1
 }
@@ -2727,10 +2736,42 @@ expect_broken "rule 13 fails on a reviewer that the workflow starts outside its 
 	'Add b-reviewer to the group grp' rule_review_groups "$R13"
 expect_broken "rule 13 fails on a group member that no module defines" \
 	'Add the agent ghost-reviewer' rule_review_groups "$R13"
-: >"$R13/modules/m/agents/b-reviewer.md"
+printf -- '---\nname: a-reviewer\ndescription: Reviews as an agent of the flow session.\n---\n' \
+	>"$R13/modules/m/agents/a-reviewer.md"
+printf -- '---\nname: b-reviewer\ndescription: Reviews as an agent of the flow session.\n---\n' \
+	>"$R13/modules/m/agents/b-reviewer.md"
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer]\n' >"$R13/modules/m/qory-module.yaml"
+printf 'Start ${qory:agents/a-reviewer}.\n' >"$R13/modules/m/skills/workflow-flow/SKILL.md"
+expect_broken "rule 13 fails on a group that differs from the agents of its session" \
+	'Make the group grp the agents of the flow session: a-reviewer, b-reviewer' \
+	rule_review_groups "$R13"
 printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n' \
 	>"$R13/modules/m/qory-module.yaml"
 expect_passes "rule 13 passes when each reviewer is a defined member" rule_review_groups "$R13"
+rule_agent_reach "$ROOT" || fail "rule 14: no agent reaches a workflow skill"
+pass "rule 14: no agent reaches a workflow skill"
+# Rule 14 on a tree whose agent a reaches workflow-flow through the skill s1, and whose agent b
+# refers to running-a-flow itself; then on the same tree with no b and s1 referring to the
+# skill s2 in place of workflow-flow.
+R14=$TMP/rule14
+rm -rf "$R14"
+mkdir -p "$R14/modules/m/agents" "$R14/modules/m/skills/s1/references" "$R14/modules/m/skills/s2" \
+	"$R14/modules/n/skills/group/workflow-flow" "$R14/modules/n/skills/running-a-flow" || exit 1
+printf 'Load ${qory:skills/s1}.\n' >"$R14/modules/m/agents/a.md"
+printf 'Read references/more.md.\n' >"$R14/modules/m/skills/s1/SKILL.md"
+printf 'Load ${qory:skills/workflow-flow}.\n' >"$R14/modules/m/skills/s1/references/more.md"
+printf 'Load ${qory:skills/s1}.\n' >"$R14/modules/m/skills/s2/SKILL.md"
+printf 'Start ${qory:agents/a}.\n' >"$R14/modules/n/skills/group/workflow-flow/SKILL.md"
+printf 'Run the flow.\n' >"$R14/modules/n/skills/running-a-flow/SKILL.md"
+printf 'Load ${qory:skills/running-a-flow}.\n' >"$R14/modules/m/agents/b.md"
+expect_broken "rule 14 fails on an agent that reaches a workflow skill through a skill" \
+	'agent a reaches it through a > s1 > workflow-flow' rule_agent_reach "$R14"
+expect_broken "rule 14 fails on an agent that refers to a running-a-* skill itself" \
+	'agent b reaches it through b > running-a-flow' rule_agent_reach "$R14"
+rm "$R14/modules/m/agents/b.md" || exit 1
+printf 'Load ${qory:skills/s2}.\n' >"$R14/modules/m/skills/s1/references/more.md"
+expect_passes "rule 14 passes when the skills of the agent reach no workflow skill" \
+	rule_agent_reach "$R14"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
@@ -2912,37 +2953,43 @@ const good = names === "code-reviewer test-reviewer acceptance-reviewer security
   (always.includes(row.agent) ? !("paths" in row) :
     Array.isArray(row.paths) && row.paths.length > 0));
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
-# The group role verify-reviewers has the two reviewers of Verify, with no paths, and
-# roles.json still has the group role reviewers.
-expect "roles.json has tamper-reviewer and verification-reviewer in agents/verify-reviewers" \
+# The group role that review_group of the stack entry of verify-a-ticket is set to has the
+# two reviewers of Verify, with no paths, and roles.json still has the group role reviewers.
+# review-groups.cjs is the one parser of review_group.
+expect "roles.json has tamper-reviewer and verification-reviewer in the group of verify-a-ticket" \
 	0 "$TMP/software" node -e '
-const roles = JSON.parse(require("fs").readFileSync(".qory/harness/roles.json", "utf8")).roles;
+const fs = require("fs");
+const { groupOf, entriesOf } = require(process.argv[1]);
+const entry = entriesOf(fs.readFileSync(process.argv[2], "utf8"))
+  .find(([name]) => name === "verify-a-ticket");
+const group = entry && groupOf(entry[1]);
+const roles = JSON.parse(fs.readFileSync(".qory/harness/roles.json", "utf8")).roles;
 const rows = (role) => roles.filter((row) => row.role === role && row.group === true);
 const names = (role) => rows(role).map((row) => row.agent).join(" ");
-const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
-  rows("agents/verify-reviewers").every((row) => !("paths" in row)) &&
+const role = "agents/" + group;
+const good = Boolean(group) && names(role) === "tamper-reviewer verification-reviewer" &&
+  rows(role).every((row) => !("paths" in row)) &&
   names("agents/reviewers") === "code-reviewer test-reviewer acceptance-reviewer " +
     "security-reviewer data-reviewer failure-reviewer";
-if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
-# The agents of software-factory whose description is about the verify-a-ticket session
-# are the members of verify-reviewers in qory-module.yaml.
-# shortcut: the group name is fixed; read review_group of the stack entry when it exists.
-expect "each agent of the verify-a-ticket session is in verify-reviewers in qory-module.yaml" \
+if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }' \
+	"$ROOT/scripts/review-groups.cjs" "$ROOT/stacks/software/qory-stack.yaml"
+# The agents whose description has "as an agent of the verify-a-ticket session" are the
+# members of the group that review_group of its stack entry is set to. Rule 13 compares them
+# for each workflow with a group; this check also needs the session to have agents.
+expect "the verify-a-ticket session has the agents of its review group in qory-module.yaml" \
 	0 "$ROOT" node -e '
 const fs = require("fs");
-const dir = "modules/software-factory/";
-const yaml = fs.readFileSync(dir + "qory-module.yaml", "utf8");
-const line = /^\s{4}verify-reviewers: \[([^\]]*)\]/m.exec(yaml);
-const members = line ? line[1].split(",").map((name) => name.trim()) : [];
-const agents = fs.readdirSync(dir + "agents").filter((file) => file.endsWith(".md"))
-  .filter((file) => /as an agent of the verify-a-ticket session/.test(
-    fs.readFileSync(dir + "agents/" + file, "utf8").split("\n---")[0]))
-  .map((file) => file.slice(0, -3)).sort();
-const good = agents.length > 0 && agents.join(" ") === [...members].sort().join(" ");
-if (!good) {
+const { groupOf, entriesOf, groupsOf, sessionAgents } = require(process.argv[1]);
+const entry = entriesOf(fs.readFileSync("stacks/software/qory-stack.yaml", "utf8"))
+  .find(([name]) => name === "verify-a-ticket");
+const group = entry && groupOf(entry[1]);
+const found = group && groupsOf(".").get(group);
+const agents = sessionAgents(".", "verify-a-ticket");
+const members = found ? [...found.members].sort() : [];
+if (!agents.length || agents.join(" ") !== members.join(" ")) {
   console.error("agents: " + agents.join(" ") + "; members: " + members.join(" "));
   process.exit(1);
-}'
+}' "$ROOT/scripts/review-groups.cjs"
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||

@@ -46,8 +46,9 @@ description: >-
   debugging-failures and making-small-changes; the agents software-developer and
   software-debugger, which fill the roles developer and debugger; the skills
   checking-tampering and judging-criteria and the agents tamper-reviewer and
-  verification-reviewer, the reviewers of Verify; and the verb matrix of the checks script,
-  which writes the draft verification of Verify from the records of the run.
+  verification-reviewer, the reviewers of Verify; the verb matrix of the checks script,
+  which writes the draft verification of Verify from the records of the run; and the skill
+  workflow-verify-a-ticket, which runs Verify as a review session.
 roles:
   agents:
     reviewers: many

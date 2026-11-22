@@ -7679,6 +7679,52 @@ test('end-gate reads the lists from inputs.json of the harness home, else the re
   assert.match(broken.text, /Give --inputs the inputs\.json that qory wrote for the run\.\n {2}".*" is no valid JSON\./);
 });
 
+test('end-gate runs no check in the session of a hook\'s agent', (t) => {
+  if (fs.existsSync('/tmp/qory-artifacts')) {
+    t.skip('/tmp/qory-artifacts exists, so a run checks that folder');
+    return;
+  }
+  const { spawnSync } = require('node:child_process');
+  const gateModule = require(path.join(MODULES, 'core', 'hooks', 'end-gate.cjs'));
+  const harness = harnessHome();
+  const script = path.join(harness, 'hooks', 'end-gate.cjs');
+  // A checkout with a fast track on BILLING_FILE, which the end check finds.
+  const work = path.join(tmp, `hook-gate-${++folders}`);
+  fs.mkdirSync(path.join(work, '.git'), { recursive: true });
+  fs.mkdirSync(path.join(work, '.qory'));
+  fs.cpSync(fastWith(BILLING_FILE), path.join(work, '.qory', 'artifacts'), { recursive: true });
+  const envWith = (qory) => {
+    const home = path.join(tmp, `hook-home-${++folders}`);
+    fs.mkdirSync(home);
+    fs.writeFileSync(path.join(home, 'inputs.json'), JSON.stringify({ qory }));
+    const env = { ...RUN_ENV, QORY_HARNESS_HOME: home };
+    delete env.CLAUDE_PROJECT_DIR;
+    return env;
+  };
+  const billing = /sensitive area "billing"/;
+  // Without qory.hook_session the check runs and finds the fast track.
+  const plain = envWith({ harness_extensions: {} });
+  assert.equal(gateModule.hookSession(plain), false);
+  assert.match(gateModule.check({ cwd: work, script, env: plain }).text, billing);
+  // With qory.hook_session, of any value, the check does not run, also with no checks script.
+  const none = path.join(tmp, `no-home-${++folders}`, 'hooks', 'end-gate.cjs');
+  for (const value of [{ report: '/r/report.json' }, {}, { report: 'report.json' }, null, 'x']) {
+    const env = envWith({ harness_extensions: {}, [gateModule.HOOK_SESSION]: value });
+    assert.equal(gateModule.hookSession(env), true, JSON.stringify(value));
+    assert.deepEqual(gateModule.check({ cwd: work, script, env }), { status: 0, text: '' });
+    assert.deepEqual(gateModule.check({ cwd: work, script: none, env }), { status: 0, text: '' });
+  }
+  assert.equal(gateModule.HOOK_SESSION, 'hook_session');
+  // The adapters of Claude Code and Codex let the session end and print nothing.
+  const env = envWith({ hook_session: { report: '/r/report.json' } });
+  for (const name of ['end-gate-claude.cjs', 'end-gate-codex.cjs']) {
+    const ran = spawnSync(process.execPath, [path.join(harness, 'hooks', name)],
+      { cwd: work, env, input: JSON.stringify({ cwd: work }), encoding: 'utf8' });
+    assert.equal(ran.status, 0, `${name}: ${ran.stdout}${ran.stderr}`);
+    assert.equal(`${ran.stdout}${ran.stderr}`, '', name);
+  }
+});
+
 test('each end-gate adapter turns the end check into what its runtime reads', (t) => {
   if (fs.existsSync('/tmp/qory-artifacts')) {
     t.skip('/tmp/qory-artifacts exists, so a run checks that folder');

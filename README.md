@@ -117,11 +117,12 @@ workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-tic
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and `access:
 write`, the workflow `write-acceptance-checks`, with `tier: balanced` and `access: write`,
-the workflow `implement-changes`, with `tier: balanced` and `access: write`, and the
+the workflow `implement-changes`, with `tier: balanced` and `access: write`, the
 workflow `review-changes`, with `tier: thinking`, `access: read` and `review_group:
-reviewers`. The `software-factory` module ships the process template, ten workflows'
-skills, thirty other skills, twenty-six agents and the settings for a run of those
-workflows:
+reviewers`, and the workflow `verify-a-ticket`, with `tier: thinking`, `access:
+write-no-push` and `review_group: verify-reviewers`. The `software-factory` module ships
+the process template, eleven workflows' skills, thirty-two other skills, twenty-eight
+agents and the settings for a run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
   its name, summary and description, the workspace type `qory.software`, the stack
@@ -384,6 +385,15 @@ workflows:
   reviewer with no report and a red suite end with `qory run verdict changes-requested`.
   With no blocking finding, the session runs `qory run verdict passed`. It writes nothing
   into the checkout, and no build report or submission text.
+- `workflow-verify-a-ticket`: the review session of Verify. It verifies the acceptance lock
+  at the version that a member approved, runs `run locked` and `matrix --version <N>`,
+  starts `tamper-reviewer` and `verification-reviewer` in turn, and decides the round with
+  `checks.cjs findings round`, which takes `--suite` only when qory writes a suite result.
+  It pushes the verification, asks one question for each criterion that is not met, with
+  the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, and records
+  `passed` only when every criterion is met, no scenario of the commit has a failed
+  verdict and no finding is blocking. Verify's stage in `process.yaml` runs no workflow
+  yet, and qory does not write `qory.review_session` yet.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.
