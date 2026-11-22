@@ -18,6 +18,8 @@ const path = require('node:path');
 const MODEL = /^[!-~]{1,100}$/;
 // A top-level key model of a TOML file, with a string value and an optional comment.
 const TOML_MODEL = /^[ \t]*model[ \t]*=[ \t]*(?:"([^"\\]*)"|'([^']*)')[ \t]*(?:#.*)?$/;
+// A key whose value starts a multi-line string, and the text after the delimiter.
+const TOML_OPEN = /^[ \t]*[^=#[]+=[ \t]*("{3}|'{3})(.*)$/;
 
 module.exports = (lib) => {
   const { isObject } = lib;
@@ -38,7 +40,7 @@ module.exports = (lib) => {
 
   // tomlModel returns the top-level model of the TOML file, the line model = "<id>" before the
   // first table, or null when the file has none or cannot be read. A line in a multi-line
-  // string is no key.
+  // string, from a value that starts with three quotes to the next three, is no key.
   function tomlModel(file) {
     let text;
     try {
@@ -46,12 +48,17 @@ module.exports = (lib) => {
     } catch {
       return null;
     }
-    let open = false;
+    let open = null;
     for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
-      if (!open && /^[ \t]*\[/.test(line)) return null;
-      const match = !open && TOML_MODEL.exec(line);
+      if (open) {
+        if (line.includes(open)) open = null;
+        continue;
+      }
+      if (/^[ \t]*\[/.test(line)) return null;
+      const match = TOML_MODEL.exec(line);
       if (match) return valid(match[1] === undefined ? match[2] : match[1]);
-      if ((line.match(/"""|'''/g) || []).length % 2 === 1) open = !open;
+      const start = TOML_OPEN.exec(line);
+      if (start && !start[2].includes(start[1])) open = start[1];
     }
     return null;
   }

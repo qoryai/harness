@@ -447,6 +447,12 @@ test('ledger: on Codex, step end adds the model of agents/<agent>.toml, else con
       'software-debugger': 'name = "y"\n[features]\nmodel = "in-a-table"\n' } })),
   ['model-s', 'main-model-x']);
   assert.deepEqual(models(codexOnly({ config: 'model = "a b"\n' })), ['unknown', 'unknown']);
+  // A delimiter of a multi-line string inside a string of one line opens no multi-line string,
+  // and a multi-line string that ends on its first line ends there.
+  assert.deepEqual(models(codexOnly({
+    config: 'notes = """one line"""\nmodel = "main-model-x"\n',
+    agents: { 'software-developer': 'body = "Write \'\'\' here"\nmodel = "model-s"\n' } })),
+  ['model-s', 'main-model-x']);
 });
 
 test('ledger: an edit outside a step fails step begin or step end', () => {
