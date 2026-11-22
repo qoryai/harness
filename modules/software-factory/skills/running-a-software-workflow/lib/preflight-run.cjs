@@ -39,7 +39,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const https = require('node:https');
 
-const { Browser } = require('./browser.cjs');
+const { BROWSER_START_MS, Browser } = require('./browser.cjs');
 const { FILM_HEIGHT, capture } = require('./capture.cjs');
 const { replay, signIn } = require('./replay.cjs');
 const { runKey } = require('./secrets.cjs');
@@ -57,6 +57,7 @@ const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 // What runs, which stopNow stops: the process group of the serve command, the processes with
 // its mark, and the browser.
 const running = { child: null, marks: null, browser: null };
+const allowance = { until: Infinity };
 
 // stopNow kills what runs at once, and resolves once the browser has exited or a second has
 // passed, for a process that exits right after.
@@ -165,7 +166,7 @@ function serveEnv(value, typed) {
 
 // start runs the serve command and resolves to { started, ran, why }. typed are the names
 // that the demo scripts type, which serveEnv removes.
-async function start(serve, startMs, proc, typed) {
+async function start(serve, startMs, proc, typed, until) {
   if (await statusOf(serve.url) !== null) {
     return { started: false, ran: false, why: `another process already returns a response at ` +
       `${serve.url}, so the run did not start the serve command` };
@@ -185,7 +186,6 @@ async function start(serve, startMs, proc, typed) {
   } finally {
     fs.closeSync(out);
   }
-  const until = Date.now() + startMs;
   for (;;) {
     const status = await statusOf(serve.url);
     if (status !== null && status < 500) return { started: true, ran: true, why: null };
@@ -238,7 +238,8 @@ async function inBrowser(spec, items, act) {
   try {
     // launch sets the pid of the browser before start resolves, so the watcher has it
     // while the browser starts.
-    const started = browser.start(spec.browserMs);
+    const started = browser.start(Math.max(Math.min(spec.browserMs || BROWSER_START_MS,
+      allowance.until - Date.now()), 1));
     watchBrowser(browser.pid);
     await started;
     for (const item of items) {
@@ -275,7 +276,8 @@ const signIns = (spec) => inBrowser(spec, spec.setups, (page, setup, env) =>
 // lib/capture.cjs returns.
 const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
   const options = { base: spec.serve.url, env, actionMs: spec.actionMs };
-  const first = await signIn(page, one.setup, { ...options, signedInMs: spec.signedInMs });
+  const first = await signIn(page, one.setup, { ...options, signedInMs: spec.signedInMs,
+    until: allowance.until === Infinity ? undefined : allowance.until });
   if (!first.ok) return { ...first, step: 0 };
   const origin = new URL(spec.serve.url).origin;
   const taken = one.capture ? await capture(page, one.capture) : null;
@@ -306,7 +308,11 @@ async function main() {
     const proc = spec.proc === undefined ? (process.platform === 'linux' ? '/proc' : null)
       : spec.proc;
     const typed = [...(spec.typed || []), ...(spec.setups || []).flatMap((setup) => setup.names)];
-    result.app = await start(spec.serve, spec.startMs, proc, typed);
+    // The start of the app, of the browser and the sign-in of a script run share the time
+    // startMs from the start of the runner: allowance.until is the end of it.
+    allowance.until = spec.runs && spec.runs.length ? started + spec.startMs : Infinity;
+    result.app = await start(spec.serve, spec.startMs, proc, typed,
+      Math.min(allowance.until, Date.now() + spec.startMs));
     const [key, work] = (spec.runs || []).length ? ['runs', runs]
       : (spec.setups || []).length ? ['signIns', signIns] : [null, null];
     if (result.app.started && spec.browser && work) {

@@ -600,7 +600,7 @@ test('demo check refuses a script with an action that is not listed', () => {
 // and the sign-in may take.
 const WAIT = (ms) => ({ do: 'wait', text: 'Hours', timeout_ms: ms });
 const SHORTEN = (total) => ['Shorten the waits in scenario-1.json to at most 415 s in total.',
-  `  They add up to ${total} s (a wait with no timeout_ms counts 5 s), and a demo film has ` +
+  `  They add up to ${total} s (a wait with no timeout_ms counts 5 s), and a demo run has ` +
     'room for 415 s of waits.'];
 
 test('demo check: waits that add up to the share of a film pass, and one second over is refused', () => {

@@ -3793,7 +3793,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     415 seconds that a film has for them (`WAITS_MS` of `lib/budget.cjs`), the sum of the
     `timeout_ms` of each `wait` of the setup and the steps, 5 seconds for a wait with none:
     "Shorten the waits in <script> to at most 415 s in total.", and the line "They add up to
-    <m> s (a wait with no timeout_ms counts 5 s), and a demo film has room for 415 s of
+    <m> s (a wait with no timeout_ms counts 5 s), and a demo run has room for 415 s of
     waits." The push check of `demo-script` finds it too. The
     finding of an outside `open` is "Open only pages under <App address> in the sign-in
     steps of <script>." and the line "The step opens <url>." An address too long for 100
@@ -3851,15 +3851,19 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 - `film <scenario> [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
   [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
   `verbs/film.cjs`. One call takes one scenario and ends within 585 seconds (`CALL_MS` of
-  `lib/budget.cjs`): the 600 seconds of a Bash call with the timeout 600000 ms, less 15
-  seconds of margin, which also covers the time that the stop of the app and the browser
-  add. Give the Bash call that timeout. The 585 seconds are 15 seconds to stop the runner,
-  35 seconds for the encode (`ENCODE_MS`, measured: 35 seconds for about 28,000 frames;
-  ffmpeg gets what is left of the 585 seconds, at most 90 and at least 5 seconds), and 535 seconds for the runner
-  (`RUN_BUDGET_MS`). The runner's 535 seconds are 120 seconds for the start of the app, the
-  start of the browser and the sign-in (`START_MS`), and 415 seconds for the waits of the
-  steps (`WAITS_MS`). An app or a sign-in that takes longer than the 120 seconds takes
-  time from the waits. It stores nothing in Qory Apiary and writes no `demo-evidence` and
+  `lib/budget.cjs`): the 600 seconds of a tool call, less 15 seconds of margin, which also
+  covers the stop of the app and the browser, the delete of the frames and the start of
+  Node. Run the film call with a tool timeout of at least 600 s. The 585 seconds are 15
+  seconds to stop the runner, 35 seconds for the encode (`ENCODE_MS`, measured: 35 seconds
+  for about 28,000 frames; ffmpeg gets what is left of the 585 seconds, at most 90 and at
+  least 5 seconds), and 535 seconds for the runner (`RUN_BUDGET_MS`). The runner's 535
+  seconds are 120 seconds for the start of the app, the start of the browser and the
+  sign-in (`START_MS`), and 415 seconds for the waits of the setup and the steps
+  (`WAITS_MS`). The three parts of the 120 seconds share one deadline, 120 seconds after the
+  start of the runner: when it passes, the sign-in fails and the call stops. A run past
+  the limit of the runner exits 3 with the fix "Shorten the waits or the steps of
+  <scenario>.json, then film it again." (for pictures, "run it again") and the line "The
+  film ran past its limit of <n> s." ("The run ran past ..."). It stores nothing in Qory Apiary and writes no `demo-evidence` and
   no ledger row: the session pushes the files.
   - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
     a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
@@ -3891,6 +3895,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     makes the folder, so the film of an earlier call stays. The text of a step in the
     captions has `&`, `<` and `>` escaped as `&amp;`, `&lt;` and `&gt;`, so it holds no tag
     and no `-->`. The first frame of the film is at 0 ms.
+    An `open` of a step that is no page under the `App address:` of the build plan, by the
+    rule of `demo check`, fails the step, whatever its origin. The session pushes the files
+    of a scenario with `demo-video` (`<id>.mp4` and `<id>.vtt`) or `screenshot`
+    (`<id>-step-<N>.png`), as the section "Film" of `running-checks` lists.
   - `film pages <path>...` takes pictures of the pages that the paths open, for the two
     screen reviewers: `.film/pages/pages-<N>-<width>.png` for the Nth path at 360, 768 and
     1280 px, each taken after the page loads. A path starts with `/` and is a page under the
@@ -4100,8 +4108,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   group stops with it. A process that leaves the group by `setsid` and removes the mark from
   its environment keeps running, as `lib/supervise.cjs` states, and after a SIGKILL of the
   runner, so does every process that left the group. The sign-ins stop after at most 570
-  seconds, and `preflight` ends within 585 seconds, so give its Bash call the timeout 600000
-  ms. It exits 0 when each part is there, 1 with the
+  seconds, and `preflight` ends within 585 seconds. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
   no build plan, a `serve` command with no address of the app or one whose host breaks the
   host rule, no demo script, a demo script that cannot be read or breaks its format rules, a

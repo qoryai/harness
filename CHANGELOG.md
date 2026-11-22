@@ -16,10 +16,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `<scenario>.vtt` with one cue per step. A `pictures` scenario runs with video off and
   gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
   pictures of pages at 360, 768 and 1280 px, for the screen reviewers. A call ends within
-  585 s, so give its Bash call the timeout 600000 ms: 15 s to stop the runner, 35 s for the
-  encode (measured: 35 s for about 28,000 frames) and 535 s for the runner. The runner's 535 s are
-  120 s for the start of the app, the browser and the sign-in, and 415 s for the waits of
-  the steps. ffmpeg gets what is left of the 585 s, at most 90 s and at least 5 s. A film
+  585 s, so run the film call with a tool timeout of at least 600 s: 15 s to stop the runner,
+  35 s for the encode (measured: 35 s for about 28,000 frames) and 535 s for the runner. The
+  runner's 535 s are 120 s for the start of the app, the browser and the sign-in, which share
+  one deadline, and 415 s for the waits of the setup and the steps. A run past its limit exits
+  3 with "Shorten the waits or the steps of <scenario>.json, then film it again." and "The film
+  ran past its limit of <n> s." A step `open` outside the App address fails. ffmpeg gets what is left of the 585 s, at most 90 s and at least 5 s. A film
   keeps each frame that the page paints, so every cue of `<scenario>.vtt` lies within the
   film, and the runner returns its frames in a file, so the number of frames is no limit. The
   first frame is at 0 s, and a step title is escaped in its cue. A call that fails after it
@@ -35,7 +37,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   first run of a script, and it reads the drafts in `.demo/`. `demo check` and the push
   check of `demo-script` also refuse a script whose waits add up to more than 415 s: "Shorten
   the waits in <script> to at most 415 s in total.", with the line "They add up to <m> s (a
-  wait with no timeout_ms counts 5 s), and a demo film has room for 415 s of waits." The
+  wait with no timeout_ms counts 5 s), and a demo run has room for 415 s of waits." The
   waits of the setup count too.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
@@ -1137,7 +1139,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with the mark of `run`; a process that leaves the groups and removes the mark keeps
   running. After a SIGKILL of the runner of the check, the process groups of the command
   and of the browser stop, and every process that left them keeps running. `preflight`
-  ends within 585 seconds, so give its Bash call the timeout 600000 ms. Each browser call has a time limit, and the browser dismisses dialogs.
+  ends within 585 seconds. Each browser call has a time limit, and the browser dismisses dialogs.
   An exit 3 for a missing build plan, a bad App address host, a missing address, a demo
   script that is missing, cannot be read, breaks its format rules or types such a key, or
   a check that did not finish prints a line `Cause:` for the line that ends the run. The

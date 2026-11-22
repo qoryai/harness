@@ -340,11 +340,12 @@ test('preflight: a serve command or a variable name that breaks the text of a po
   assert.equal(preflight.joined(['A', 'B', 'C']), 'A, B and C');
 });
 
-test('preflight: the preflight stops its runner before the Bash tool stops it at 600 s', () => {
+test('preflight: the preflight stops its runner within the call limit of 585 s', () => {
   // The runner stops its sign-ins at MAX_MS, and the preflight stops the runner STOP_MS later.
-  assert.ok(preflight.MAX_MS + preflight.STOP_MS < 600000);
+  const { CALL_MS } = require(path.join(SKILL, 'lib/budget.cjs'));
   assert.equal(preflight.MAX_MS, 570000);
-  assert.equal(preflight.MAX_MS + preflight.STOP_MS, 585000);
+  assert.equal(preflight.MAX_MS + preflight.STOP_MS, CALL_MS);
+  assert.equal(CALL_MS, 585000);
 });
 
 test('preflight: the setups that type a variable count once, with their scenarios', () => {
@@ -1971,14 +1972,14 @@ test('film: a film scenario with no ffmpeg exits 3 with the fix, a missing scrip
   }
 });
 
-test('film: the runner, its stop and the ffmpeg limit of a late run end within the tool-call limit', () => {
+test('film: the runner, its stop and the ffmpeg limit of a late run end within 585 s', () => {
   const budget = require(path.join(SKILL, 'lib/budget.cjs'));
   assert.equal(budget.CALL_MS, budget.TOOL_CALL_MS - budget.MARGIN_MS);
   assert.equal(preflight.RUN_BUDGET_MS, budget.RUN_BUDGET_MS);
   // A runner that takes all of its budget, and 15 s more to stop: ffmpeg gets what is left of
-  // the call, and the three end within the limit of the tool call.
+  // the call, and the three end within CALL_MS.
   const spent = budget.RUN_BUDGET_MS + preflight.STOP_MS;
-  assert.ok(spent + filmVerb.ffmpegLimitMs(spent) <= budget.TOOL_CALL_MS);
+  assert.ok(spent + filmVerb.ffmpegLimitMs(spent) <= budget.CALL_MS);
   // ffmpeg gets its 90 s after a quick run, and 5 s at the least after a late one.
   assert.equal(filmVerb.ffmpegLimitMs(0), filmVerb.FFMPEG_MS);
   assert.equal(filmVerb.ffmpegLimitMs(540000), 45000);
@@ -2048,7 +2049,10 @@ const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
 const mode = process.env.FILM_FAKE;
 const dir = spec.runs[0].capture.dir;
 let capture = null;
-if (mode !== 'late') {
+if (mode === 'pictures') {
+  fs.writeFileSync(dir + '/scenario-1-step-1.png', 'png');
+  capture = { kind: 'pictures', files: ['scenario-1-step-1.png'] };
+} else if (mode !== 'late') {
   const files = mode === 'bad' ? ['../outside.jpg'] : ['f000001.jpg', 'f000002.jpg'];
   for (const file of files) if (mode !== 'bad') fs.writeFileSync(dir + '/' + file, 'x');
   capture = { kind: 'film', frames: files.map((file, at) => ({ file, at: at * 40 })),
@@ -2077,7 +2081,7 @@ async function faked(fake, ffmpeg, browsers = [process.execPath]) {
 
 test('film: a runner past its limit, a bad frame and a failing ffmpeg remove the new folder', async () => {
   for (const [fake, ffmpeg, line] of [
-    ['late', FAKE_FFMPEG, /^End the run: the check of the app/],
+    ['late', FAKE_FFMPEG, /^Shorten the waits or the steps of scenario-1\.json, then film it /],
     ['bad', FAKE_FFMPEG, /^End the run: the runner stored a frame that cannot be read\./],
     ['ok', FAILING_FFMPEG, /^End the run: ffmpeg did not make the film of scenario-1\./]]) {
     const here = await faked(fake, ffmpeg);
@@ -2087,6 +2091,95 @@ test('film: a runner past its limit, a bad frame and a failing ffmpeg remove the
     // The folder .film has no scenario-1, no frame and no list of frames.
     assert.deepEqual(fs.readdirSync(here.film), [], fake);
   }
+});
+
+// stopText returns the two lines of a film call that the limit of the runner stopped, for a
+// scenario with the evidence in kind, run with the dependencies of faked.
+async function stopText(kind) {
+  const here = await filming([scenario('scenario-1', kind, ...ORDERS)]);
+  const deps = { ...here.deps, env: { ...here.deps.env, FILM_FAKE: 'late' },
+    preflight: { ...here.deps.preflight, browsers: [process.execPath], runner: FAKE_RUNNER,
+      ffmpegs: [FAKE_FFMPEG] } };
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  const limit = preflight.scriptLimitMs({ ...deps.preflight, maxMs: preflight.RUN_BUDGET_MS },
+    [...SIGN_IN, ...ORDERS[0]]);
+  return { lines: done.out.split('\n').slice(0, 2), seconds: Math.ceil(limit / 1000) };
+}
+
+test('film: a run that the limit stops prints its own two lines, not the text of preflight', async () => {
+  const film = await stopText('film');
+  assert.deepEqual(film.lines, ['Shorten the waits or the steps of scenario-1.json, then film ' +
+    'it again.', `  The film ran past its limit of ${film.seconds} s.`]);
+  const pictures = await stopText('pictures');
+  assert.deepEqual(pictures.lines, ['Shorten the waits or the steps of scenario-1.json, then ' +
+    'run it again.', `  The run ran past its limit of ${pictures.seconds} s.`]);
+});
+
+test('film: the pictures of a scenario pass the check of screenshot, and running-checks lists their push', async () => {
+  const again = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const deps = { ...again.deps, env: { ...again.deps.env, FILM_FAKE: 'pictures' },
+    preflight: { ...again.deps.preflight, browsers: [process.execPath], runner: FAKE_RUNNER } };
+  const done = call(['film', 'scenario-1', '--artifacts', again.plan], deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  const file = path.join(again.root, '.film', 'scenario-1', 'scenario-1-step-1.png');
+  const check = call(['check', 'screenshot', file], { ...again.deps, cwd: tmp });
+  assert.equal(check.status, 0, check.out + check.err);
+  const skill = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/running-checks/SKILL.md'), 'utf8');
+  assert.ok(skill.includes('<qory> artifact push screenshot --name <id> ' +
+    '<folder>/.film/<id>/<id>-step-*.png'), 'the push of the pictures');
+  assert.ok(skill.includes('<qory> artifact push demo-video --name <id> ' +
+    '<folder>/.film/<id>/<id>.mp4 <folder>/.film/<id>/<id>.vtt'), 'the push of the film');
+});
+
+test('replay: an open of a step outside the App address fails, and an open under it passes', async () => {
+  const opened = [];
+  const page = { guard: async () => {}, goto: async (url) => { opened.push(url); } };
+  const options = { base: 'http://127.0.0.1:41111/app', origin: 'http://127.0.0.1:41111' };
+  const outside = await replay.replay(page, [{ do: 'open', url: '/admin' }], options);
+  assert.equal(outside.failure.words, 'action 1 (open /admin) failed: the address is outside ' +
+    'the App address http://127.0.0.1:41111/app');
+  assert.deepEqual(opened, []);
+  const under = await replay.replay(page, [{ do: 'open', url: '/app/orders' }], options);
+  assert.equal(under.failure, null);
+  assert.deepEqual(opened, ['http://127.0.0.1:41111/app/orders']);
+});
+
+test('replay: after the deadline of the start allowance, the next action fails and each wait is cut', async () => {
+  const waited = [];
+  const page = { guard: async () => {}, click: async (target, ms) => {
+    waited.push(ms);
+    await new Promise((resolve) => { setTimeout(resolve, 80); });
+  } };
+  const until = Date.now() + 100;
+  const done = await replay.replay(page, [{ do: 'click', target: '#a' },
+    { do: 'click', target: '#b' }, { do: 'click', target: '#c' }],
+  { base: 'http://127.0.0.1:41111/', origin: 'http://127.0.0.1:41111', actionMs: 60000, until });
+  // The first click may wait what is left of 100 ms, not 60 s; the third starts too late.
+  assert.ok(waited[0] <= 100, `${waited}`);
+  assert.equal(done.failure.place, 2);
+  assert.equal(done.failure.why,
+    'the time for the start of the app, the browser and the sign-in ran out');
+});
+
+test('film: a slow start of the app and a sign-in that waits too long stop the run at the deadline', { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  const port = await freePort();
+  // The app starts after 1.5 s, and the sign-in waits up to 60 s for a text that never shows.
+  const spec = appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS, startMs: 5000,
+    limitMs: 120000, runs: [{ setup: [{ do: 'open', url: '/orders' },
+      { do: 'wait', text: 'a text that never shows', timeout_ms: 60000 }],
+    steps: [[{ do: 'open', url: '/orders' }]], names: [] }] });
+  spec.serve.command = `sleep 1.5; APP_PORT=${port} node app/server.cjs`;
+  const began = Date.now();
+  const ran = await runner(spec);
+  const seconds = (Date.now() - began) / 1000;
+  const [one] = JSON.parse(ran.out).runs;
+  assert.equal(one.ok, false, ran.out);
+  assert.equal(one.step, 0);
+  // The start allowance is 5 s from the start of the runner: the run ends near it, not at 60 s.
+  assert.ok(seconds < 20, `${seconds} s`);
 });
 
 test('film: a machine with no browser exits before it makes the folder, and the earlier film stays', async () => {

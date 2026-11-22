@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { WAITS_MS } = require('./budget.cjs');
-const { ACTION_MS } = require('./replay.cjs');
+const { ACTION_MS, within } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
 
 // The folder of the artifact folder with the actions of the demo author and the demo script
@@ -68,7 +68,7 @@ module.exports = (lib) => {
     if (waits > WAITS_MS) {
       found.push(`Shorten the waits in ${name} to at most ${WAITS_MS / 1000} s in total.\n` +
         `They add up to ${Math.ceil(waits / 1000)} s (a wait with no timeout_ms counts ` +
-        `${ACTION_MS / 1000} s), and a demo film has room for ${WAITS_MS / 1000} s of waits.`);
+        `${ACTION_MS / 1000} s), and a demo run has room for ${WAITS_MS / 1000} s of waits.`);
     }
     return found;
   }
@@ -141,22 +141,6 @@ module.exports = (lib) => {
       .map((id) => draftScript(root, id))
       .filter(Boolean)
       .map((one) => one.data);
-  }
-
-  // within returns true when url, opened from address, the App address, is a page under it: of
-  // the same origin, with no user name or password, and with a path that is the path of address
-  // or below it at a segment boundary. A backslash is refused: a browser reads it as a slash.
-  function within(url, address) {
-    if (url.includes('\\')) return false;
-    try {
-      const page = new URL(url, address);
-      const base = new URL(address);
-      const prefix = base.pathname.replace(/\/+$/, '');
-      return page.origin === base.origin && !page.username && !page.password &&
-        (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`));
-    } catch {
-      return false;
-    }
   }
 
   return { DEMO_FOLDER: FOLDER, boundedText, draftScript, draftScripts, evidenceOf,

@@ -206,6 +206,18 @@ that starts with `Cause:` contains the cause, in the words of the line that ends
 - "the browser check did not finish: <reason>": the check of the app failed or ran past
   its limit. End the run with the line.
 
+## Film
+
+`<skill folder>/checks.cjs film <id> --inputs <inputs>` stores the evidence of one scenario in
+`<folder>/.film/<id>/`. With the evidence film, it stores `<id>.mp4` and `<id>.vtt`; with the evidence pictures, it stores
+`<id>-step-<N>.png`, one for each step. Push the files of the scenario once, with the type
+that its evidence names:
+
+```
+<qory> artifact push demo-video --name <id> <folder>/.film/<id>/<id>.mp4 <folder>/.film/<id>/<id>.vtt
+<qory> artifact push screenshot --name <id> <folder>/.film/<id>/<id>-step-*.png
+```
+
 ## Red and green
 
 A check is green only when its result shows it. These are red:
@@ -279,9 +291,9 @@ Probe a test file that runs faster, or, for a limit under 60, raise
 
 On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory` set
 its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run` and
-`probe` the timeout 3600000 ms, and each call of `preflight` and `film` the timeout 600000
-ms: `preflight` stops its sign-ins after at most 570 seconds, and both end within 585
-seconds. In `run` and `probe`, the script stops every command of a call 60 seconds before
+`probe` the timeout 3600000 ms. `preflight` stops its sign-ins after at most 570 seconds and
+ends within 585 seconds. Run the film call with a tool timeout of at least 600 s. In `run`
+and `probe`, the script stops every command of a call 60 seconds before
 those 60 minutes, counted from the start of the script, so the call still writes its record
 and its red line. The commands of one call share that time: the reruns of `run targeted`,
 the two runs of `probe` and the checks of `run locked`. A locked check that the call has no

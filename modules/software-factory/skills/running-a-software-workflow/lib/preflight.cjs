@@ -265,11 +265,21 @@ module.exports = (lib) => {
     }
   }
 
-  // waited runs lib/preflight-run.cjs on spec and returns its result. The runner writes the
-  // result to a file next to the log of the serve command, which waited removes on each exit,
-  // so that a long list of frames needs no larger buffer. io.preflight.runner, which only a
-  // test sets, is another script.
-  function waited(io, spec) {
+  // stopped returns the Missing of a run of script, a demo script, that the limit stopped, for
+  // limitMs, the limit of the runner: the fix, then the cause. The words say film for a film.
+  function stopped(script, kind, limitMs) {
+    const what = kind === 'film' ? 'film' : 'run';
+    return new Missing(`Shorten the waits or the steps of ${script.scenario}.json, then ` +
+      `${what === 'film' ? 'film it' : 'run it'} again.\n  The ${what} ran past its limit of ` +
+      `${Math.ceil(limitMs / 1000)} s.`);
+  }
+
+  // waited runs lib/preflight-run.cjs on spec and returns its result. With past, a function
+  // that returns the Missing of a run that the limit stopped, a stop throws that Missing. The
+  // runner writes the result to a file next to the log of the serve command, which waited
+  // removes on each exit, so that a long list of frames needs no larger buffer.
+  // io.preflight.runner, which only a test sets, is another script.
+  function waited(io, spec, past) {
     const limitMs = spec.limitMs + STOP_MS;
     const file = path.join(path.dirname(spec.serve.log), `result-${process.pid}.json`);
     fs.rmSync(file, { force: true });
@@ -286,9 +296,11 @@ module.exports = (lib) => {
       fs.rmSync(file, { force: true });
     }
     if (result && isObject(result.app) && Array.isArray(result.signIns)) {
+      if (result.unfinished && past) throw past(spec.limitMs);
       if (result.unfinished) unfinished(result.unfinished);
       return result;
     }
+    if (past && ran.error && ran.error.code === 'ETIMEDOUT') throw past(spec.limitMs);
     const error = String(ran.stderr || '').split('\n').find((one) => /^\w*Error\b/.test(one));
     unfinished(ran.error && ran.error.code === 'ETIMEDOUT'
       ? `the runner ran past its limit of ${limitMs / 1000} s`
@@ -446,7 +458,7 @@ module.exports = (lib) => {
       serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
       browser, setups: [], runs: [{ setup: script.setup, steps, names, capture }], typed: names,
       startMs, actionMs, signedInMs, limitMs, browserMs: options.browserMs, proc: options.proc,
-    });
+    }, capture && capture.kind !== 'pages' && ((ms) => stopped(script, capture.kind, ms)));
     const [run] = hidden(result.runs || [], typedValues([{ names, actions }], io.env));
     return { browser, app: result.app, run: run || null, log };
   }
