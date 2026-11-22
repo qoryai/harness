@@ -243,7 +243,9 @@ module.exports = (lib) => {
     if ((findings.length || changed || skipped) && rows.length >= MOST_ROWS) {
       return { findings: [`Keep the script of ${id} as it is: it has had 2 corrections, and a ` +
         `third is refused.\nThe build ledger has the done steps script:${id}, script:${id}#2 ` +
-        `and script:${id}#3.`], notes: [] };
+        `and script:${id}#3.` + (skipped ? `\nPush the frozen script of ${id} again, the file ` +
+          `that the done step ${rows[rows.length - 1].id} froze: it is the only way out.` : ''),
+      ], notes: [] };
     }
     const step = `script:${id}#${rows.length + 1}`;
     if (findings.length && rows.length) {

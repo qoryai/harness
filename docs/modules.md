@@ -3682,7 +3682,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     is a correction. The first and the second print "Start check-reviewer on the change to
     <id>, then run the step script:<id>#<k>." and exit 0. With 3 done rows and a changed
     script or a fault, it exits 1 with "Keep the script of <id> as it is: it has had 2
-    corrections, and a third is refused." A script that breaks a rule after a pass has the
+    corrections, and a third is refused." When the pushed script also differs from the
+    newest done row, a line "Push the frozen script of <id> again" follows: pushing the
+    file of the frozen script again is the only way out. A script that breaks a rule after
+    a pass has the
     extra line "Write <id> again as the step script:<id>#<k>, then run demo check <id>."
     `<k>` is the number of done rows of the scenario plus 1; the skill reads it from the
     ledger, since `demo check` prints no step for a script that has not changed. With a

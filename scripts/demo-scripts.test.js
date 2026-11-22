@@ -646,6 +646,16 @@ test('a change to a frozen script starts check-reviewer, and a third correction 
   assert.equal(refused.status, 1, refused.out);
   assert.equal(refused.lines[0], 'Keep the script of scenario-1 as it is: it has had 2 ' +
     'corrections, and a third is refused.');
+  // A pushed script that differs from the newest row names the way out.
+  const pushed = artifacts(SCENARIOS, ['scenario-1']);
+  ledger(pushed, ['script:scenario-1', 'script:scenario-1#2', 'script:scenario-1#3'],
+    ['a', 'b', 'c']);
+  const stuck = call(pushed, ['demo', 'check', 'scenario-1']);
+  assert.equal(stuck.status, 1, stuck.out);
+  assert.equal(stuck.lines[0], 'Keep the script of scenario-1 as it is: it has had 2 ' +
+    'corrections, and a third is refused.');
+  assert.equal(stuck.lines[2], '  Push the frozen script of scenario-1 again, the file that the ' +
+    'done step script:scenario-1#3 froze: it is the only way out.');
 });
 
 test('a faulty script after one pass asks for the correction step', () => {
@@ -937,6 +947,7 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
     'its script needs a third correction, and a script has 2',
+    'When the second line of the finding starts with "Push the frozen script"',
     'With 0 and a line that starts with "Start check-reviewer"');
   inText(SCRIPTING, 'starts with "Start check-reviewer", `.demo/<id>.json` exists and differs',
     'skip steps 2 to 4, do step 1, and go on from step 5',
