@@ -10,8 +10,8 @@
 // state to a criterion that rests on it. The records of `run locked` are read from the
 // artifact folder, where the guard denies an agent's write. The model families are those of
 // the models in Build's ledger, and of the Verify reviewers: the model: line of their agent
-// files, else the model of the settings.json beside the plugin folder, else unknown, as
-// lib/models.cjs reads them.
+// files, else the model of the settings.json in the plugin folder or beside it, else unknown,
+// and unknown on Codex, as lib/models.cjs reads them.
 // It exits 3 outside a run, with no QORY_RUN_ID, where nothing can be pulled.
 'use strict';
 

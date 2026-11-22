@@ -341,8 +341,9 @@ workflows:
   records it, with the role, tier and model of each agent start, the model from the agent
   file or the session's `settings.json`, else `unknown`; after a third red attempt,
   `step end failed` records it and the session ends with no point, or, when it ran no
-  `step end done`, with one `run_again` point and `escalate`. A writer's line `Blocked: needs a change to the build plan: <the change>` ends
-  the session with one `answer` point. Before the steps, the session withdraws the demo
+  `step end done`, with one `run_again` point and `escalate`. A writer's line
+  `Blocked: needs a change to the build plan: <the change>` ends the session with one
+  `answer` point. Before the steps, the session withdraws the demo
   script of each removed demo scenario. After the last step, and after a step that fails, it
   starts `submission-writer` and runs `checks.cjs report-build`, which writes
   `build-report.md` and the outbox file `pull-request.json`, then checks and pushes

@@ -579,11 +579,23 @@ function endOptions(ledger, id, state, rest) {
       options.report = value;
     } else if (flag === '--attempt') {
       // A value has no model: step end reads the model from the files of the harness.
+      // shortcut: the session types the tier, and no check compares it with the tier of the
+      // agent file; check it once the run has a record of the tier of each agent.
       const parts = value.split(',');
       const [agent, role, tier] = parts;
-      if (parts.length !== 3 || !ok(agent) || !ok(role) || !TIERS.includes(tier)) {
+      let cause = null;
+      if (parts.length !== 3) {
+        cause = `The value is ${shown(value)}, which has ${plural(parts.length, 'part')}.`;
+      } else if (!ok(agent) || !ok(role)) {
+        const [what, name] = ok(agent) ? ['role', role] : ['agent', agent];
+        cause = `The ${what} ${shown(name)} is no name in lower case of at most ` +
+          `${NAME_LENGTH} characters.`;
+      } else if (!TIERS.includes(tier)) {
+        cause = `The tier ${shown(tier)} is none of the three.`;
+      }
+      if (cause) {
         return { wrong: 'Give --attempt as <agent>,<role>,<tier>, with a tier of ' +
-          `${TIERS.join(', ')}.\n${shown(value)} is not. step end adds the model of the agent.` };
+          `${TIERS.join(', ')}.\n${cause}` };
       }
       options.attempts.push({ agent, role, tier });
     } else if (flag === '--pushed') {

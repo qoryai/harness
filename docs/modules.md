@@ -2527,10 +2527,15 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
 - `checks.cjs step end <id> done|failed`: after each step, on the `running` row of `<id>`.
   It sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last
   report, a file under `.reports` of the artifact folder and no link, as `report`;
-  `--attempt <agent>,<role>,<tier>`, once per agent start, at most 3 times, which exits 2
-  for a value with a fourth part, such as a model, and to which `step end` adds the model:
-  the `model:` of the agent file in the plugin folder, else the `model` of the
-  `settings.json` beside it, else `unknown`, the runtime's default, as on Codex;
+  `--attempt <agent>,<role>,<tier>`, once per agent start, at most 3 times, to which
+  `step end` adds the model: the `model:` of the agent file in the plugin folder, else the
+  `model` of the `settings.json` in the plugin folder or beside it, else `unknown`, the
+  runtime's default. The plugin folder is `claude/plugin` in a run and `claude/` or the
+  checkout's `.claude` in a session that reads the checkout. A Codex session gets
+  `unknown`, because the lookup reads no Codex file: the skill runs from a folder with
+  `config.toml`, the Codex home, or from the checkout's `.agents`. `step end` exits 2 for a
+  value with other than 3 parts, such as a model as a fourth part, and line 2 of its error
+  has the cause: the number of parts, the agent or role that is no name, or the tier;
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
   `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
   `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is a
@@ -3877,8 +3882,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `build-ledger`, and of each Verify reviewer. The family of an id is the text after the
     last `/`, up to the first `-`, so `claude-sonnet-5` and `openrouter/claude-opus-5` are
     `claude`. A reviewer's id is the `model:` line of its agent file, which qory writes for
-    the tier, unless it is a `${qory:` name; else the `model` of the `settings.json` beside
-    the plugin folder; else `unknown`. An id that is `unknown`, missing or no 1 to 100
+    the tier, unless it is a `${qory:` name; else the `model` of the `settings.json` in the
+    plugin folder or beside it; else `unknown`, and `unknown` in a Codex session, as
+    `step end` reads it. An id that is `unknown`, missing or no 1 to 100
     printable characters gives `unknown`. No list of families exists, because nothing in
     qory, the forager or this harness maps a model id to its family.
 

@@ -289,9 +289,10 @@ test('ledger: a session that stops after two of three deliverables resumes at th
 });
 
 // pluginWith returns a plugin folder in a new harness home, as qory composes one: the modules
-// core and software-factory, an agent file with its model: line for each of models, and the
-// settings.json beside the plugin folder when settings is given.
-function pluginWith({ models = {}, settings } = {}) {
+// core and software-factory, an agent file with its model: line for each of models, an agent
+// file with the text of each of files, and the settings.json beside the plugin folder when
+// settings is given.
+function pluginWith({ models = {}, files = {}, settings } = {}) {
   const modules = path.join(fresh('home'), 'modules');
   fs.mkdirSync(path.join(modules, 'zz-models', 'agents'), { recursive: true });
   for (const name of ['core', 'software-factory']) {
@@ -301,10 +302,54 @@ function pluginWith({ models = {}, settings } = {}) {
     fs.writeFileSync(path.join(modules, 'zz-models', 'agents', `${agent}.md`),
       `---\nname: ${agent}\nmodel: ${model}\n---\nBody.\n`);
   }
+  for (const [agent, text] of Object.entries(files)) {
+    fs.writeFileSync(path.join(modules, 'zz-models', 'agents', `${agent}.md`), text);
+  }
   if (settings !== undefined) {
     fs.writeFileSync(path.join(modules, 'settings.json'), JSON.stringify(settings));
   }
   return path.join(modules, 'core');
+}
+
+// twoRuntimes returns the folders of a harness home that qory composes for claude and codex
+// with --model main-model-x --tier thinking=think-model-y, as qory at 64e700db writes it: the
+// developer has the tier thinking, and the debugger stands for an agent whose tier has no
+// map, so its file has no model: line. Codex agents have no model in a home for two runtimes.
+// The skill folders link the skill of this repository. checkout is the .agents and .claude of
+// a checkout, which link the skills of the home.
+function twoRuntimes() {
+  const home = fresh('harness');
+  const put = (file, text) => {
+    fs.mkdirSync(path.dirname(path.join(home, file)), { recursive: true });
+    fs.writeFileSync(path.join(home, file), text);
+  };
+  const agent = (name, model) =>
+    `---\nname: ${name}\n${model ? `model: ${model}\n` : ''}---\nBody.\n`;
+  const skill = (folder) => {
+    fs.mkdirSync(path.join(home, folder), { recursive: true });
+    fs.symlinkSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow'),
+      path.join(home, folder, 'running-a-software-workflow'));
+  };
+  for (const name of ['core', 'software-factory']) {
+    fs.mkdirSync(path.join(home, 'modules'), { recursive: true });
+    fs.symlinkSync(path.join(MODULES, name), path.join(home, 'modules', name));
+  }
+  put('claude/settings.json', JSON.stringify({ model: 'main-model-x' }));
+  for (const folder of ['claude', 'claude/plugin', 'checkout/.claude']) {
+    put(`${folder}/agents/software-developer.md`, agent('software-developer', 'think-model-y'));
+    put(`${folder}/agents/software-debugger.md`, agent('software-debugger', null));
+    skill(`${folder}/skills`);
+  }
+  put('checkout/.claude/settings.json', JSON.stringify({ model: 'main-model-x' }));
+  put('codex/config.toml', 'model = "main-model-x"\n');
+  put('codex/agents/software-developer.toml', 'name = "software-developer"\n');
+  skill('codex/skills');
+  skill('checkout/.agents/skills');
+  return {
+    plugin: path.join(home, 'claude/plugin'), claude: path.join(home, 'claude'),
+    dotClaude: path.join(home, 'checkout/.claude'), codex: path.join(home, 'codex'),
+    agents: path.join(home, 'checkout/.agents'),
+  };
 }
 
 test('ledger: step end adds the model of each start: agent file, settings.json, or unknown', () => {
@@ -336,6 +381,21 @@ test('ledger: step end adds the model of each start: agent file, settings.json, 
   // A value that the ledger cannot take, as the agent file or settings.json has it, is unknown.
   assert.deepEqual(models(pluginWith({ models: { 'software-developer': 'm'.repeat(101) },
     settings: { model: 'mödel' } })), ['unknown', 'unknown']);
+  // A quoted model, and an agent file with CRLF line ends.
+  assert.deepEqual(models(pluginWith({ models: { 'software-developer': '"model-q"' },
+    files: { 'software-debugger': '---\r\nname: software-debugger\r\nmodel: model-c\r\n---\r\n' },
+  })), ['model-q', 'model-c']);
+  // The layouts of a home for two runtimes. Claude Code in a run loads claude/plugin, and a
+  // session that reads the checkout loads claude/ through .claude; both read
+  // claude/settings.json. Codex reads codex/ as CODEX_HOME, or .agents of the checkout, and
+  // runs each agent on the main model, so the model: lines of claude/ beside it do not apply.
+  const home = twoRuntimes();
+  for (const plugin of [home.plugin, home.claude, home.dotClaude]) {
+    assert.deepEqual(models(plugin), ['think-model-y', 'main-model-x'], plugin);
+  }
+  for (const plugin of [home.codex, home.agents]) {
+    assert.deepEqual(models(plugin), ['unknown', 'unknown'], plugin);
+  }
 });
 
 test('ledger: an edit outside a step fails step begin or step end', () => {
@@ -967,13 +1027,16 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
     [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case\.\n  nothing is none\./],
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],
     [['step', 'end', 'plan'], /^Give step end the state done or failed\.\n  nothing is neither\./],
-    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,slow'], /^Give --attempt as/],
-    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,fast'], /^Give --attempt as/],
-    [['step', 'end', 'plan', 'done', '--attempt', 'a,b'], /^Give --attempt as/],
-    // The form with the model as a fourth part: step end adds the model.
-    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,balanced,m'],
+    // Line 2 of a wrong --attempt has the cause: the parts, the name or the tier.
+    ...[['a,b,slow', 'The tier "slow" is none of the three\\.'],
+      ['a,b,fast', 'The tier "fast" is none of the three\\.'],
+      ['a,b', 'The value is "a,b", which has 2 parts\\.'],
+      ['a,b,balanced,m', 'The value is "a,b,balanced,m", which has 4 parts\\.'],
+      ['A,b,balanced', 'The agent "A" is no name in lower case of at most 32 characters\\.'],
+      ['a,B,balanced', 'The role "B" is no name in lower case of at most 32 characters\\.'],
+    ].map(([value, cause]) => [['step', 'end', 'plan', 'done', '--attempt', value],
       new RegExp('^Give --attempt as <agent>,<role>,<tier>, with a tier of light, balanced, ' +
-        'thinking\\.\\n {2}"a,b,balanced,m" is not\\. step end adds the model of the agent\\.\\n')],
+        `thinking\\.\\n {2}${cause}\\n`)]),
     [['step', 'end', 'plan', 'done', ...attempt, ...attempt, ...attempt, ...attempt], /^Give --attempt at most 3 times/],
     [['step', 'end', 'plan', 'done', '--pushed', 'spec/main/0'], /^Give --pushed as/],
     [['step', 'end', 'plan', 'done', ...pushed, ...pushed, ...pushed, ...pushed, ...pushed], /^Give --pushed at most 4 times/],
