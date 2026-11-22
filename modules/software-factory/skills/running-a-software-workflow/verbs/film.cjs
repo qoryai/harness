@@ -18,8 +18,8 @@
 //                         Nth path, at the widths 360, 768 and 1280 px. The setup of the first
 //                         demo script that counts is the sign-in, if there is one.
 //
-// A call takes one scenario: the runner ends within RUN_BUDGET_MS of lib/preflight.cjs, 15 s
-// after that at the latest, and ffmpeg within 90 s more.
+// A call takes one scenario, and ends within CALL_MS of lib/budget.cjs, 585 s: the runner ends
+// within RUN_BUDGET_MS, 535 s, 15 s more at the latest, and the encode takes ENCODE_MS, 35 s.
 // The verb stores nothing in Qory Apiary, writes no demo evidence and no ledger row: the
 // session pushes the files. Exit 3 means that an input is missing, that ffmpeg or the browser
 // is missing, or that the app, the browser or ffmpeg did not run.
@@ -30,6 +30,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { findBrowser } = require('../lib/browser.cjs');
+const { RUN_BUDGET_MS } = require('../lib/budget.cjs');
 const { FILM_HEIGHT } = require('../lib/capture.cjs');
 const { takeInputs, takeValue } = require('../lib/limits.cjs');
 const { ARTIFACTS_USAGE } = require('../lib/start.cjs');
@@ -42,11 +43,16 @@ const FRAME = /^f[0-9]{6}\.jpg$/;
 const USAGE = 'Give film with a scenario id, or film pages with one path or more.';
 // The path of ffmpeg in the image of qory, which apt installs, and the name for the PATH.
 const FFMPEG = ['/usr/bin/ffmpeg', 'ffmpeg'];
-// The most time of ffmpeg. With RUN_BUDGET_MS and the 15 s that preflight adds to stop the
-// runner, a call takes up to 705 s: the Bash call needs that timeout, which the
-// BASH_MAX_TIMEOUT_MS of 60 minutes in the settings of software-factory allows.
+// The time after which ffmpeg is stopped. The call counts ENCODE_MS of lib/budget.cjs of it.
 const FFMPEG_MS = 90000;
 const FRAMES_PER_SECOND = 25;
+
+// ffmpegArguments returns the arguments of ffmpeg that make <id>.mp4.tmp from frames.txt, the
+// list of frames, with the last frame held for hold seconds.
+const ffmpegArguments = (id, hold) => ['-y', '-hide_banner', '-loglevel', 'error', '-f',
+  'concat', '-i', 'frames.txt', '-vf', `fps=${FRAMES_PER_SECOND},tpad=stop_mode=clone:` +
+  `stop_duration=${hold},scale=1280:${FILM_HEIGHT},format=yuv420p`, '-c:v', 'libx264',
+  '-preset', 'veryfast', '-movflags', '+faststart', '-an', '-f', 'mp4', `${id}.mp4.tmp`];
 
 // stamp returns ms as a WebVTT time, 00:00:03.250.
 function stamp(ms) {
@@ -172,13 +178,9 @@ module.exports = (lib) => {
     // The last frame lasts one frame by itself, and then stays until the end of the film.
     const hold = Math.max((capture.end - capture.frames[capture.frames.length - 1].at) / 1000 -
       1 / FRAMES_PER_SECOND, 0).toFixed(3);
-    const made = childProcess.spawnSync(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error',
-      '-f', 'concat', '-i', 'frames.txt', '-vf',
-      `fps=${FRAMES_PER_SECOND},tpad=stop_mode=clone:stop_duration=${hold},` +
-      `scale=1280:${FILM_HEIGHT},format=yuv420p`, '-c:v', 'libx264',
-      '-preset', 'veryfast', '-movflags', '+faststart', '-an', '-f', 'mp4', `${id}.mp4.tmp`],
-    { cwd: dir, env: { PATH: io.env.PATH || '/usr/bin:/bin' }, encoding: 'utf8',
-      timeout: FFMPEG_MS, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 });
+    const made = childProcess.spawnSync(ffmpeg, ffmpegArguments(id, hold), { cwd: dir,
+      env: { PATH: io.env.PATH || '/usr/bin:/bin' }, encoding: 'utf8', timeout: FFMPEG_MS,
+      killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 });
     if (made.status !== 0) {
       const why = String(made.stderr || '').trim().split('\n')[0] || (made.error
         ? made.error.code || made.error.message : `exit ${made.status}`);
@@ -215,8 +217,8 @@ module.exports = (lib) => {
     const dir = freshFolder(root, id);
     const capture = { kind: script.evidence, dir, name: id };
     const shorter = { ...io, preflight: { ...io.preflight,
-      maxMs: Math.min((io.preflight || {}).maxMs || checks.RUN_BUDGET_MS,
-        checks.RUN_BUDGET_MS) } };
+      maxMs: Math.min((io.preflight || {}).maxMs || RUN_BUDGET_MS,
+        RUN_BUDGET_MS) } };
     const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
       `film ${id}`);
     const what = script.evidence === 'film' ? 'film' : 'pictures';
@@ -288,5 +290,7 @@ module.exports = (lib) => {
   };
 };
 module.exports.FFMPEG_MS = FFMPEG_MS;
+module.exports.FRAMES_PER_SECOND = FRAMES_PER_SECOND;
+module.exports.ffmpegArguments = ffmpegArguments;
 module.exports.captions = captions;
 module.exports.stamp = stamp;

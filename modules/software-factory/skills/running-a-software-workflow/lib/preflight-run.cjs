@@ -1,6 +1,6 @@
 // The part of the preflight that waits, which lib/preflight.cjs starts with node and waits for.
 // It reads { serve, browser, setups, runs, typed, startMs, actionMs, signedInMs, limitMs,
-// browserMs, proc } as JSON on stdin:
+// browserMs, proc, resultFile } as JSON on stdin:
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
 //   runs `sh -c '<command>'` in cwd, in a new process group, with the mark of
@@ -26,9 +26,11 @@
 // that group when the runner ends, also on SIGKILL; a process that left the groups then keeps
 // running. After limitMs from its start, 570 s without limitMs, it stops the sign-ins and
 // sets unfinished. It prints { app, signIns, runs, unfinished } as JSON on stdout, the one
-// line that it prints: app is { started, ran, why }, signIns has { ok, why, outside, browser }
-// per setup, runs is set instead of signIns when spec.runs is, with { ok, step, why, outside }
-// per script, and unfinished is null or the reason in one clause.
+// line that it prints, or writes it to the new file resultFile when the spec has one, because a
+// film has a frame list that is longer than a pipe buffer: app is { started, ran, why },
+// signIns has { ok, why, outside, browser } per setup, runs is set instead of signIns when
+// spec.runs is, with { ok, step, why, outside } per script, and unfinished is null or the
+// reason in one clause.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -326,7 +328,9 @@ async function main() {
     await stop();
   }
   if (aborted) return;
-  fs.writeSync(1, `${JSON.stringify(result)}\n`);
+  const text = `${JSON.stringify(result)}\n`;
+  if (spec.resultFile) fs.writeFileSync(spec.resultFile, text, { flag: 'wx' });
+  else fs.writeSync(1, text);
   process.exit(0);
 }
 

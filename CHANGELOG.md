@@ -15,12 +15,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   ffmpeg makes from the frames of the page from the start of step 1 at real speed, and
   `<scenario>.vtt` with one cue per step. A `pictures` scenario runs with video off and
   gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
-  pictures of pages at 360, 768 and 1280 px, for the screen reviewers. The runner of a
-  film stops after 600 s, the app's start included: 120 s to start the app, plus 8 steps
-  with the 60 s of the longest wait of a step, as `demo-script.schema.json` allows. A call
-  takes up to 705 s with the 15 s to stop the runner and the 90 s of ffmpeg, so give its
-  Bash call that timeout. A film keeps each frame that the page paints, so every cue of
-  `<scenario>.vtt` lies within the film.
+  pictures of pages at 360, 768 and 1280 px, for the screen reviewers. A call ends within
+  585 s, so give its Bash call the timeout 600000 ms: 15 s to stop the runner, 35 s for the
+  encode (Tessio's measure on b19ea703) and 535 s for the runner. The runner's 535 s are
+  120 s for the start of the app, the browser and the sign-in, and 415 s for the waits of
+  the steps. A film keeps each frame that the page paints, so every cue of
+  `<scenario>.vtt` lies within the film, and the runner returns its frames in a file, so
+  the number of frames is no limit.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a
@@ -29,7 +30,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   sha256. `scripting-demos` freezes a script at its first pass in the build ledger, starts
   `check-reviewer` on each change to a frozen script, and `demo check` refuses a third
   correction. The call of `preflight` moved from the run of the locked checks to before the
-  first run of a script, and it reads the drafts in `.demo/`.
+  first run of a script, and it reads the drafts in `.demo/`. `demo check` and the push
+  check of `demo-script` also refuse a script whose waits add up to more than 415 s: "Shorten
+  the waits in <script> to at most 415 s in total.", with the line "They add up to <m> s, and a
+  demo film has room for 415 s of waits." A wait with no `timeout_ms` counts 5 s.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
@@ -1130,8 +1134,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with the mark of `run`; a process that leaves the groups and removes the mark keeps
   running. After a SIGKILL of the runner of the check, the process groups of the command
   and of the browser stop, and every process that left them keeps running. `preflight`
-  ends within 585 seconds, below the 600 seconds after which the Bash tool of Claude Code
-  stops a command. Each browser call has a time limit, and the browser dismisses dialogs.
+  ends within 585 seconds, so give its Bash call the timeout 600000 ms. Each browser call has a time limit, and the browser dismisses dialogs.
   An exit 3 for a missing build plan, a bad App address host, a missing address, a demo
   script that is missing, cannot be read, breaks its format rules or types such a key, or
   a check that did not finish prints a line `Cause:` for the line that ends the run. The

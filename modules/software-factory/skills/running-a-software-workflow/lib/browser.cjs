@@ -674,5 +674,5 @@ class Page {
   }
 }
 
-module.exports = { BROWSERS, Browser, FLAGS, NEW_WINDOW, Page, findBrowser, keyOf, limited,
-  originOf };
+module.exports = { BROWSERS, Browser, FLAGS, NEW_WINDOW, Page, START_MS, findBrowser, keyOf,
+  limited, originOf };

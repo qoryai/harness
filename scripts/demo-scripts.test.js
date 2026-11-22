@@ -596,6 +596,40 @@ test('demo check refuses a script with an action that is not listed', () => {
     /^Use only open, click, type, press and wait in scenario-1, then run demo write scenario-1\.$/);
 });
 
+// The share of a film for waits: 535 s of the runner less the 120 s that the app, the browser
+// and the sign-in may take.
+const WAIT = (ms) => ({ do: 'wait', text: 'Hours', timeout_ms: ms });
+const SHORTEN = (total) => ['Shorten the waits in scenario-1.json to at most 415 s in total.',
+  `  They add up to ${total} s, and a demo film has room for 415 s of waits.`];
+
+test('demo check: waits that add up to the share of a film pass, and one second over is refused', () => {
+  const waits = (...list) => (id, script) => {
+    script.steps[0].actions = list.map(WAIT);
+  };
+  const six = [60000, 60000, 60000, 60000, 60000, 60000];
+  const at = call(drafted(['scenario-1'], waits(...six, 55000)), ['demo', 'check']);
+  assert.equal(at.status, 0, at.out);
+  const over = call(drafted(['scenario-1'], waits(...six, 56000)), ['demo', 'check']);
+  assert.equal(over.status, 1, over.out);
+  assert.deepEqual(over.lines.slice(0, 2), SHORTEN(416));
+  // A wait with no timeout_ms counts for the 5 s of the replay.
+  const bare = call(drafted(['scenario-1'], (id, script) => {
+    script.steps[0].actions = [...six, 60000, { do: 'wait', text: 'Hours' }].map((one) =>
+      (typeof one === 'number' ? WAIT(one) : one));
+  }), ['demo', 'check']);
+  assert.deepEqual(bare.lines.slice(0, 2), SHORTEN(425));
+});
+
+test('demo check refuses the longest script that the schema allows: 8 steps of 10 waits of 60 s', () => {
+  const got = call(drafted(['scenario-1'], (id, script) => {
+    const step = script.steps[0];
+    script.steps = Array.from({ length: 8 }, (_, at) => ({ ...step, step: at + 1,
+      actions: Array.from({ length: 10 }, () => WAIT(60000)) }));
+  }), ['demo', 'check']);
+  assert.equal(got.status, 1, got.out);
+  assert.ok(got.out.includes(SHORTEN(4800).join('\n')), got.out);
+});
+
 test('demo check <scenario> reads that scenario alone', () => {
   const root = drafted(['scenario-1', 'scenario-2'], (id, script) => {
     if (id === 'scenario-2') script.title = 'Other';

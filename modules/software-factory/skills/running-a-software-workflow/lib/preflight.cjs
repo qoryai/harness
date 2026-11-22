@@ -18,6 +18,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { NEW_WINDOW, findBrowser } = require('./browser.cjs');
+const { CALL_MS, RUN_BUDGET_MS, START_MS, STOP_MS } = require('./budget.cjs');
 const git = require('./git.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
@@ -26,8 +27,6 @@ const startOf = require('./start.cjs');
 
 const RUNNER = path.join(__dirname, 'preflight-run.cjs');
 
-// The time for the address of the app to return a response after the serve command starts.
-const START_MS = 120000;
 // The most time that an open action waits for its page, as lib/browser.cjs has it, the time
 // of a press, and the time to start the browser and open a page for a sign-in.
 const OPEN_MS = 15000;
@@ -35,12 +34,12 @@ const PRESS_MS = 1000;
 const PAGE_MS = 15000;
 // The time of the runner besides the start and the sign-ins: the first GET of the address,
 // the start of the browser and the stop of the app. The runner stops its sign-ins at the
-// limit, which is at most MAX_MS, and the preflight stops the runner STOP_MS after it. The
-// Bash tool of Claude Code stops a command at 600 s, whatever its timeout, so the two stay
-// below that: the preflight ends within 585 s.
+// limit, which is at most MAX_MS, and the preflight stops the runner STOP_MS after it, so a
+// call ends within CALL_MS of lib/budget.cjs, 585 s.
 const MORE_MS = 30000;
-const MAX_MS = 570000;
-const STOP_MS = 15000;
+const MAX_MS = CALL_MS - STOP_MS;
+// The most bytes of the result file of the runner: 35,000 frames take about 1.4 MB.
+const MAX_RESULT = 64 * 1024 * 1024;
 
 // signInMs returns the most time that the replay of actions may take, by the limit of each
 // action, with the time after the last action and the time to open its page.
@@ -133,12 +132,6 @@ const cause = (words) => `Cause: ${words}.`;
 module.exports = (lib) => {
   const { Context, Missing, Run, agentNames, isObject, lacks, parseJson, plural, pointCheck,
     pointRules, readFile, schema, short, writeJson, MAX_POINTS } = lib;
-
-  // The most time of a run of one demo script, app start included: the start allowance plus
-  // the most steps of the schema, each with its longest wait. A film ends within it.
-  const SCRIPT = schema.load(SCHEMAS, 'demo-script').schema;
-  const RUN_BUDGET_MS = START_MS + SCRIPT.properties.steps.maxItems *
-    SCRIPT.$defs.wait.properties.timeout_ms.maximum;
 
   // withCause returns what read returns. A Missing that read throws gets the line of the
   // cause words after its other lines.
@@ -261,19 +254,36 @@ module.exports = (lib) => {
         cause(`the browser check did not finish: ${why}`)]);
   }
 
-  // waited runs lib/preflight-run.cjs on spec and returns its result.
+  // resultOf returns the parsed result that the runner wrote to file, or null for a file that is
+  // missing, no regular file, over MAX_RESULT bytes or no JSON.
+  function resultOf(file) {
+    try {
+      if (!fs.lstatSync(file).isFile() || fs.lstatSync(file).size > MAX_RESULT) return null;
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+
+  // waited runs lib/preflight-run.cjs on spec and returns its result. The runner writes the
+  // result to a file next to the log of the serve command, which waited removes on each exit,
+  // so that a long list of frames needs no larger buffer. io.preflight.runner, which only a
+  // test sets, is another script.
   function waited(io, spec) {
     const limitMs = spec.limitMs + STOP_MS;
-    const ran = childProcess.spawnSync(process.execPath, [RUNNER], {
-      input: JSON.stringify(spec), env: io.env, encoding: 'utf8', timeout: limitMs,
-      killSignal: 'SIGTERM', maxBuffer: 1024 * 1024,
-    });
-    const line = String(ran.stdout || '').trim().split('\n').pop();
-    let result = null;
+    const file = path.join(path.dirname(spec.serve.log), `result-${process.pid}.json`);
+    fs.rmSync(file, { force: true });
+    let ran;
+    let result;
     try {
-      result = JSON.parse(line);
-    } catch {
-      // The runner printed no result: the reason follows.
+      ran = childProcess.spawnSync(process.execPath,
+        [(io.preflight || {}).runner || RUNNER], {
+          input: JSON.stringify({ ...spec, resultFile: file }), env: io.env, encoding: 'utf8',
+          timeout: limitMs, killSignal: 'SIGTERM', maxBuffer: 1024 * 1024,
+        });
+      result = resultOf(file);
+    } finally {
+      fs.rmSync(file, { force: true });
     }
     if (result && isObject(result.app) && Array.isArray(result.signIns)) {
       if (result.unfinished) unfinished(result.unfinished);

@@ -23,7 +23,7 @@ const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-wor
 const { main } = require(path.join(PLUGIN, 'skills/running-a-workflow/checks.cjs'));
 const { LIBRARY } = require(path.join(PLUGIN, 'skills/running-a-workflow/lib/registry.cjs'));
 const { preflight } = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY);
-const { findBrowser, keyOf } = require(path.join(SKILL, 'lib/browser.cjs'));
+const { findBrowser, keyOf, START_MS } = require(path.join(SKILL, 'lib/browser.cjs'));
 const replay = require(path.join(SKILL, 'lib/replay.cjs'));
 
 const { signInSetups } = replay;
@@ -1971,27 +1971,103 @@ test('film: a film scenario with no ffmpeg exits 3 with the fix, a missing scrip
   }
 });
 
-test('film: the runner budget is the start allowance and the longest script of the schema, and a call ends within the Bash cap', () => {
-  // 120 s to start the app, and 8 steps with one wait of 60 s each.
-  assert.equal(preflight.RUN_BUDGET_MS, 120000 + 8 * 60000);
-  const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
-    'software-factory/settings/claude/settings.json'), 'utf8'));
-  assert.ok(preflight.RUN_BUDGET_MS + preflight.STOP_MS + filmVerb.FFMPEG_MS <
-    Number(settings.env.BASH_MAX_TIMEOUT_MS));
+test('film: a call of the longest script that demo check passes ends within 585 s', () => {
+  const budget = require(path.join(SKILL, 'lib/budget.cjs'));
+  assert.equal(budget.CALL_MS, 585000);
+  assert.ok(budget.CALL_MS + budget.MARGIN_MS <= budget.TOOL_CALL_MS);
+  assert.equal(budget.START_MS, 120000);
+  assert.equal(budget.ENCODE_MS, 35000);
+  assert.equal(preflight.STOP_MS, 15000);
+  assert.equal(budget.RUN_BUDGET_MS, 535000);
+  assert.equal(budget.WAITS_MS, 415000);
+  assert.equal(preflight.RUN_BUDGET_MS, budget.RUN_BUDGET_MS);
+  // The app's start, the waits, the stop of the runner and the encode, with the margin below
+  // the limit of the call.
+  assert.equal(budget.START_MS + budget.WAITS_MS + preflight.STOP_MS + budget.ENCODE_MS,
+    budget.CALL_MS);
+  assert.ok(budget.ENCODE_MS < filmVerb.FFMPEG_MS);
+  // Without the encode in the call, the runner could take 15 s more than CALL_MS less the stop.
+  assert.equal(budget.CALL_MS - preflight.STOP_MS, 570000);
 });
 
-test('film: the runner does not stop the longest script that the schema allows', () => {
-  const longest = scenario('scenario-1', 'film', ...Array.from({ length: 8 }, () =>
-    [{ do: 'wait', text: 'Done', timeout_ms: 60000 }]));
+test('film: the runner does not stop the longest script that demo check passes, and the allowance covers the browser and the sign-in', () => {
+  const budget = require(path.join(SKILL, 'lib/budget.cjs'));
+  // 6 waits of 60 s and one of 55 s: the waits of the share, 415 s.
+  const longest = scenario('scenario-1', 'film',
+    [...Array.from({ length: 6 }, () => ({ do: 'wait', text: 'Done', timeout_ms: 60000 }))],
+    [{ do: 'wait', text: 'Done', timeout_ms: 55000 }]);
   const loaded = LIBRARY.schema.load(path.join(SKILL, 'schemas'), 'demo-script');
   assert.deepEqual(LIBRARY.schema.errors(loaded, longest, 'scenario-1.json'), []);
   const actions = [...longest.setup, ...longest.steps.flatMap((step) => step.actions)];
-  // The limit that film gives the runner, with the defaults of the preflight.
-  const limit = preflight.scriptLimitMs({ maxMs: preflight.RUN_BUDGET_MS }, actions);
-  assert.equal(limit, preflight.RUN_BUDGET_MS);
-  assert.ok(limit >= 120000 + 8 * 60000);
-  // The limit of 480 s that film had stopped it.
-  assert.ok(limit > 480000);
+  const limit = preflight.scriptLimitMs({ maxMs: budget.RUN_BUDGET_MS }, actions);
+  assert.equal(limit, budget.RUN_BUDGET_MS);
+  assert.ok(limit >= budget.START_MS + budget.WAITS_MS);
+  // The start of the browser and the sign-in of a normal setup fit in the start allowance and
+  // leave room for the app.
+  assert.ok(START_MS + preflight.signInMs(SIGN_IN, replay.ACTION_MS, replay.SIGNED_IN_MS) <
+    budget.START_MS);
+});
+
+test('film: the encode takes the arguments of ffmpeg that make 25 frames a second', () => {
+  assert.ok(filmVerb.ffmpegArguments('scenario-1', '1.000').join(' ')
+    .includes('concat -i frames.txt -vf fps=25,tpad=stop_mode=clone:stop_duration=1.000'));
+});
+
+test('film: the encode of a film of 480 s at 56 frames a second ends within the time of the call', { skip: !(FFMPEG && FFPROBE && process.env.FILM_ENCODE_TIMING) && 'set FILM_ENCODE_TIMING=1 to run this encode, which takes about 25 s' }, () => {
+  const budget = require(path.join(SKILL, 'lib/budget.cjs'));
+  const dir = fs.mkdtempSync(path.join(tmp, 'encode-'));
+  // 56 distinct frames, each linked 480 times: 26,880 frames, one every 1/56 s.
+  assert.equal(childProcess.spawnSync(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i',
+    'testsrc2=size=1280x720:rate=25', '-frames:v', '56', '-q:v', '4', path.join(dir, 's%02d.jpg')])
+    .status, 0);
+  const lines = [];
+  const count = 480 * 56;
+  for (let at = 0; at < count; at += 1) {
+    const name = `f${String(at + 1).padStart(6, '0')}.jpg`;
+    fs.linkSync(path.join(dir, `s${String((at % 56) + 1).padStart(2, '0')}.jpg`),
+      path.join(dir, name));
+    lines.push(`file '${name}'`, `duration ${(1 / 56).toFixed(3)}`);
+  }
+  lines.push(`file 'f${String(count).padStart(6, '0')}.jpg'`);
+  fs.writeFileSync(path.join(dir, 'frames.txt'), `${lines.join('\n')}\n`);
+  const before = Date.now();
+  const made = childProcess.spawnSync(FFMPEG, filmVerb.ffmpegArguments('scenario-1', '1.000'),
+    { cwd: dir, timeout: filmVerb.FFMPEG_MS, killSignal: 'SIGKILL', encoding: 'utf8' });
+  const took = Date.now() - before;
+  assert.equal(made.status, 0, made.stderr);
+  assert.ok(took < budget.ENCODE_MS, `${took} ms for ${count} frames`);
+  assert.ok(probe(path.join(dir, 'scenario-1.mp4.tmp')).seconds > 479);
+});
+
+test('film: a result with 40,000 frames passes from the runner, and its file is removed', () => {
+  const fake = path.join(tmp, 'fake-runner.cjs');
+  fs.writeFileSync(fake, `const fs = require('fs');
+const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
+const frames = Array.from({ length: 40000 }, (_, at) => ({
+  file: 'f' + String(at + 1).padStart(6, '0') + '.jpg', at: at * 12 }));
+const capture = { kind: 'film', frames, starts: [0], end: 481000 };
+const result = { app: { started: true, ran: true, why: null }, signIns: [],
+  runs: [{ ok: true, step: null, why: null, outside: null, capture }], unfinished: null };
+fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' });
+`);
+  const here = checkout();
+  const io = { env: process.env, preflight: { browsers: [process.execPath], runner: fake } };
+  const given = { serve: { command: 'true', url: 'http://127.0.0.1:1/', cwd: here.dir },
+    script: script('scenario-1', SIGN_IN), capture: { kind: 'film', dir: here.dir } };
+  const done = preflight.runScript(io, here.root, given);
+  assert.equal(done.run.capture.frames.length, 40000);
+  assert.ok(JSON.stringify(done.run.capture).length > 1024 * 1024);
+  assert.deepEqual(fs.readdirSync(path.join(here.root, '.reports', 'preflight'))
+    .filter((name) => name.startsWith('result-')), []);
+  // A runner that writes no JSON ends the run with its exit status, and leaves no file.
+  const bad = path.join(tmp, 'bad-runner.cjs');
+  fs.writeFileSync(bad, `const fs = require('fs');
+fs.writeFileSync(JSON.parse(fs.readFileSync(0, 'utf8')).resultFile, 'not json');
+`);
+  assert.throws(() => preflight.runScript({ ...io, preflight: { ...io.preflight, runner: bad } },
+    here.root, given), /did not finish/);
+  assert.deepEqual(fs.readdirSync(path.join(here.root, '.reports', 'preflight'))
+    .filter((name) => name.startsWith('result-')), []);
 });
 
 test('film: the captions have one cue per step, from the start of the step', () => {

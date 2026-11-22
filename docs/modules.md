@@ -3789,7 +3789,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     under it has the same origin, no user name or password, no backslash, and a path that is
     the path of the address or below it at a segment boundary, so with
     `http://localhost:3000/app`, `/app` and `/app/x` pass, and `/application`, `/admin` and
-    `/app/../admin` fail. The finding is "Open only pages under <App address> in the sign-in
+    `/app/../admin` fail. It exits 1 too for a script whose waits add up to more than the
+    415 seconds that a film has for them (`WAITS_MS` of `lib/budget.cjs`), the sum of the
+    `timeout_ms` of each `wait` of the steps, 5 seconds for a wait with none: "Shorten the
+    waits in <script> to at most 415 s in total.", and the line "They add up to <m> s, and a
+    demo film has room for 415 s of waits." The push check of `demo-script` finds it too. The
+    finding of an outside `open` is "Open only pages under <App address> in the sign-in
     steps of <script>." and the line "The step opens <url>." An address too long for 100
     characters in the first line is cut there and shown whole in the line "The App address
     is <address>." The build plan is the one in `--inputs` or `--artifacts`, as `preflight`
@@ -3844,13 +3849,16 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     nothing.
 - `film <scenario> [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
   [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
-  `verbs/film.cjs`. One call takes one scenario. The runner stops after 600 seconds, the
-  app's start included: 120 seconds to start the app, plus the 8 steps that a demo script
-  has at most, each with the 60 seconds that its longest wait has (`RUN_BUDGET_MS` of
-  `lib/preflight.cjs`, built from `demo-script.schema.json`). It gets 15 seconds more to
-  stop and ffmpeg gets 90 seconds, so a call takes up to 705 seconds, and its Bash call
-  needs that timeout, which `BASH_MAX_TIMEOUT_MS` of 60 minutes in the settings of
-  `software-factory` allows. It stores nothing in Qory Apiary and writes no `demo-evidence` and
+  `verbs/film.cjs`. One call takes one scenario and ends within 585 seconds (`CALL_MS` of
+  `lib/budget.cjs`): the 600 seconds of a Bash call with the timeout 600000 ms, less 15
+  seconds of margin, which also covers the time that the stop of the app and the browser
+  add. Give the Bash call that timeout. The 585 seconds are 15 seconds to stop the runner,
+  35 seconds for the encode (`ENCODE_MS`, Tessio's measure on b19ea703 for about 28,000
+  frames; ffmpeg itself is stopped at 90 seconds), and 535 seconds for the runner
+  (`RUN_BUDGET_MS`). The runner's 535 seconds are 120 seconds for the start of the app, the
+  start of the browser and the sign-in (`START_MS`), and 415 seconds for the waits of the
+  steps (`WAITS_MS`). An app or a sign-in that takes longer than the 120 seconds takes
+  time from the waits. It stores nothing in Qory Apiary and writes no `demo-evidence` and
   no ledger row: the session pushes the files.
   - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
     a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
@@ -3861,7 +3869,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     recording, so no frame has it, and nothing inside the film is cut or sped up. The
     runner keeps each frame that the page paints (about 50 KB each), whatever the paint
     rate, and one frame at the start and one at the end of the last step, so every cue of
-    the captions lies within the film. ffmpeg, which is
+    the captions lies within the film. The runner returns its frames in a file of the
+    folder `.reports/preflight/` of the artifact folder, which the call removes, so the
+    number of frames has no limit but the 64 MiB of that file. ffmpeg, which is
     `/usr/bin/ffmpeg` or else the first `ffmpeg` on the `PATH`, makes `<scenario>.mp4` from
     them at 25 frames a second, and the last frame stays for 1 second. `<scenario>.vtt` has
     one cue per step, with the title of the step as its text, from the start of the step to
@@ -4085,8 +4095,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   group stops with it. A process that leaves the group by `setsid` and removes the mark from
   its environment keeps running, as `lib/supervise.cjs` states, and after a SIGKILL of the
   runner, so does every process that left the group. The sign-ins stop after at most 570
-  seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
-  Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
+  seconds, and `preflight` ends within 585 seconds, so give its Bash call the timeout 600000
+  ms. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
   no build plan, a `serve` command with no address of the app or one whose host breaks the
   host rule, no demo script, a demo script that cannot be read or breaks its format rules, a
