@@ -96,6 +96,25 @@ A workflow's skill is named `workflow-<workflow name>`, such as `workflow-explor
 `explore-a-ticket`. A workflow name has at most 55 characters. A skill that is not a
 workflow's has no `workflow-` prefix.
 
+An entry of a stack's `workflows` key sets `access`, `tier` and `plan` beside its other
+members, such as `plan-the-build: {tier: thinking, access: write, plan: build-plan}`.
+`access` is `read`, `write-no-push` or `write`: what a run of the workflow may do to the
+checkout. `tier` is `light`, `balanced` or `thinking`: the tier whose model and effort the
+workflow's session runs on. Qory Apiary resolves the model and effort of the tier, and qory
+stops a compose on any other value. A workflow takes `thinking` where the session's
+decisions on findings shape the result, `balanced` where the findings go to agents on the
+tier `thinking` or to the checks of qory, and `light` where a script does the work. `plan`
+is the artifact type whose version at the run's start sets what the session may push: each
+entry with `access: write` sets `plan: build-plan`, and a module of the stack declares the
+scope check of that type under `scope_checks` (see [The manifest,
+qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
+`explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
+`plan-the-build` and `review-changes` run on `thinking`, and `make-mockups`,
+`write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on `balanced`.
+Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
+reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
+a write entry with no `plan: build-plan`.
+
 The compose takes the skill's directory as one entry, so every file in the directory is
 composed with `SKILL.md`. The `simple-communication` skill has its longer material in
 `references/examples.md` and `references/word-list.md`, and `SKILL.md` links to both files
@@ -2540,6 +2559,23 @@ reads only the questions folder, because qory writes the whole `index.json` for 
 `approved_version` in `index.json` is a version id, such as `av_prop2`, as the run API sets
 it.
 
+A module states the check of a plan type under `scope_checks`: a map from the type to one
+command, whose program is a file in the module. `software-factory` declares the check of
+`build-plan`:
+
+    scope_checks:
+      build-plan: [skills/running-a-software-workflow/workflow-checks.cjs, scope, --plan]
+
+The command takes `--base <start commit>` and `--artifacts <folder>` as its last arguments.
+`workflow-checks.cjs` runs `checks.cjs scope` of `running-a-workflow` with the same
+arguments, as it runs `checks.cjs push` for a push check, and exits 2 on any other verb.
+The check exits 0 when every path of the commits since the start commit is in the Files of
+the build plan and no commit has a key, and 1 on a path outside them or on a key, with the
+scan for keys that `freeze` runs (see
+[The call of qory's push step](#the-call-of-qorys-push-step)). qory stops a compose when a
+workflow of the stack has a `plan` that no module of the stack declares a scope check for,
+and when the program of a scope check is no file in its module.
+
 `spec-writer` writes `spec.md` and `acceptance-criteria.json` by `writing-specs`, and reads
 what the pull wrote. It also writes `declines.md`, which the run never pushes.
 `spec-reviewer` reviews both files together, read-only, by `reviewing-drafts` and
@@ -2861,8 +2897,7 @@ starts `build-planner`, which drafts `build-plan.md` by `planning-builds`, and
 `plan-reviewer`, which reviews it read-only by `reviewing-drafts` and
 `checking-build-plans`.
 Both agents run on the tier `thinking`, and `code-explorer` on `balanced`. The stack lists
-the
-workflow with `tier: thinking` and `access: write`.
+the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
 
 - **The form of the plan.** Each Criteria cell is `AC-<N>, "<the criterion's first
   sentence>"`, with `; ` between criteria, and never an id alone. The Commands table keeps
@@ -2910,25 +2945,25 @@ workflow with `tier: thinking` and `access: write`.
 
 `workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
 locks the acceptance checks of one ticket, after its build plan and before any step changes
-code. The stack lists the workflow with `tier: balanced` and `access: write`, and both
-agents run on the tier `thinking`. The session pulls, runs `checks.cjs resume`, and reads
-the newest build plan and the newest `acceptance-criteria.json`. A check path is a relative
-path with no space and no `.` or `..` part, whose file name has an extension, such as
-`tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are none. It is the
-`isPath` of `lib/plan.cjs`, which `types/build-plan.cjs` uses too. Each Check cell of the
-plan that is a check path is a check, and the criteria of its row are planned as `Tests`.
-The agents start only when the JSON has a live criterion whose `check` is `Tests`, one with
-no `removed` member set to `true`. With none, the session runs no ledger step, starts no
-agent, pushes nothing and ends `passed`, with "No criterion is planned as Tests, so the run
-wrote no acceptance checks." With no build plan, it ends with a `run_again` point whose fix
-is "Plan the build, so that a run pushes the build plan." With no acceptance criteria, the
-point's fix is "Move the work item back to Shape, so that a run there writes the acceptance
-criteria." When a live `Tests` criterion is in the Criteria cell of no row with a check
-path, the session starts no agent, pushes nothing and ends with one `run_again` point for
-each such criterion, not `passed`: "The build plan has no check path for AC-3, "<first
-sentence>", a criterion planned as Tests, so the run wrote no acceptance checks." Its fix is
-to plan the build again. While the text or the fix has more than 500 characters, the quote
-of the criterion is cut in both to its first 8 words and "...".
+code. The stack lists the workflow with `tier: balanced`, `access: write` and `plan:
+build-plan`, and both agents run on the tier `thinking`. The session pulls, runs `checks.cjs
+resume`, and reads the newest build plan and the newest `acceptance-criteria.json`. A check
+path is a relative path with no space and no `.` or `..` part, whose file name has an
+extension, such as `tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are
+none. It is the `isPath` of `lib/plan.cjs`, which `types/build-plan.cjs` uses too. Each
+Check cell of the plan that is a check path is a check, and the criteria of its row are
+planned as `Tests`. The agents start only when the JSON has a live criterion whose `check`
+is `Tests`, one with no `removed` member set to `true`. With none, the session runs no
+ledger step, starts no agent, pushes nothing and ends `passed`, with "No criterion is
+planned as Tests, so the run wrote no acceptance checks." With no build plan, it ends with a
+`run_again` point whose fix is "Plan the build, so that a run pushes the build plan." With
+no acceptance criteria, the point's fix is "Move the work item back to Shape, so that a run
+there writes the acceptance criteria." When a live `Tests` criterion is in the Criteria cell
+of no row with a check path, the session starts no agent, pushes nothing and ends with one
+`run_again` point for each such criterion, not `passed`: "The build plan has no check path
+for AC-3, "<first sentence>", a criterion planned as Tests, so the run wrote no acceptance
+checks." Its fix is to plan the build again. While the text or the fix has more than 500
+characters, the quote of the criterion is cut in both to its first 8 words and "...".
 
 - **The step `checks`.** The session starts the ledger step `checks` and then
   `acceptance-check-writer`, which writes each check at its Check path, writes new helpers
@@ -3074,54 +3109,49 @@ highest id of the review, so that `scope` and `freeze` take its id.
 
 `workflow-review-changes`, process entry `review-changes`, checks a Build run and ends it
 ready, for the review round when the stage has reviewers. The stack lists the workflow with
-`tier: thinking` and `access: write`. The session starts no agent before its end, and runs
-no ledger step. It pulls and runs `checks.cjs resume`. Then it reads the build plan of the
-run's start: the version that `newest_version` of `build-plan` lists in the `index.json` of
-the folder of `qory.start_artifacts`, as `lib/plan.cjs` of `running-a-software-workflow`
-reads it. It also reads `.reports/build-ledger.json` of the artifact folder, which `resume`
-writes from the version of the ledger that counts. A deliverable is built when the ledger
-row of `deliverable:<id>` with the highest `pass` has the `state` `done`. With no build
-plan, or one that is withdrawn, the session ends with a `run_again` point whose fix is
-"Plan the build, so that a run pushes the build plan." While a deliverable is not built, it
-runs `qory run verdict changes-requested` with no point and ends with "<k> of <n> planned
-changes are not built: d-2, "<Change cell>".", cut to 500 characters. It writes no
-`points.json` then, because qory sends `escalate` or `answer` from that file. Otherwise, in
-a run, it runs `checks.cjs lock --verify`, and ends the same way with the paths of the
-locked files that differ. Outside a run it skips the verify, because the verify would read
-the local artifact folder. With every check passed, "The end" of the skill has five steps,
-in this order:
-1. It starts `submission-writer`, which writes `.reports/submission.md` of the artifact
-   folder: the title, then `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in the
-   order of the check of `pull-request`, from the build plan, the build ledger and the
-   records of the checks, with no result typed. A runtime with no tool that starts an
-   agent, a start that fails, a report that still fails its check after two fixes and a
-   `blocked` report end the run as "Failures" of `running-a-workflow` lists.
-2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
-   in the artifact folder and writes the outbox file
-   `$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
-   the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text
-   broke: the session starts `submission-writer` again with the lines that `report-build`
-   printed, at most twice.
-   When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
-   because the text of the change still breaks the rules for it." With exit 3 and the first
-   line `Build the change in fewer commits`, the list of steps makes the output larger than
-   786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
-   the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists
-   for the checks script.
-3. It runs `checks.cjs check build-report --inputs <input file>
-   <folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The
-   change is not ready, because the build report differs from the records of the run.",
-   and starts no writer, because the tables are the script's, so a difference is a defect.
-   Before it ends, it runs `checks.cjs report-build --drop`, which removes the outbox
-   file of step 2. With exit 2, 3 or 4, the run ends as "Failures" lists for the checks
-   script.
-4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
-   again and pushes again, at most twice more, and then runs `checks.cjs report-build
-   --drop` and ends with "The run could not push its build report."
-5. In a stage that has reviewers, it runs no verdict command, and qory then runs the review
-   round. In a stage with none, such as when `inputs.json` has no `qory.stage.reviewers`,
-   it runs `qory run verdict passed` first. It ends with "The change is ready: each planned
-   change is built."
+`tier: thinking`, `access: write` and `plan: build-plan`. The session starts no agent before
+its end, and runs no ledger step. It pulls and runs `checks.cjs resume`. Then it reads the
+build plan of the run's start: the version that `newest_version` of `build-plan` lists in
+the `index.json` of the folder of `qory.start_artifacts`, as `lib/plan.cjs` of
+`running-a-software-workflow` reads it. It also reads `.reports/build-ledger.json` of the
+artifact folder, which `resume` writes from the version of the ledger that counts. A
+deliverable is built when the ledger row of `deliverable:<id>` with the highest `pass` has
+the `state` `done`. With no build plan, or one that is withdrawn, the session ends with a
+`run_again` point whose fix is "Plan the build, so that a run pushes the build plan." While
+a deliverable is not built, it runs `qory run verdict changes-requested` with no point and
+ends with "<k> of <n> planned changes are not built: d-2, "<Change cell>".", cut to 500
+characters. It writes no `points.json` then, because qory sends `escalate` or `answer` from
+that file. Otherwise, in a run, it runs `checks.cjs lock --verify`, and ends the same way
+with the paths of the locked files that differ. Outside a run it skips the verify, because
+the verify would read the local artifact folder. With every check passed, "The end" of the
+skill has five steps, in this order: 1. It starts `submission-writer`, which writes
+`.reports/submission.md` of the artifact folder: the title, then `## Problem`, `## Change`,
+`## Tests` and `## Disclosed`, in the order of the check of `pull-request`, from the build
+plan, the build ledger and the records of the checks, with no result typed. A runtime with
+no tool that starts an agent, a start that fails, a report that still fails its check after
+two fixes and a `blocked` report end the run as "Failures" of `running-a-workflow` lists. 2.
+It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md` in
+the artifact folder and writes the outbox file
+`$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
+the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text broke:
+the session starts `submission-writer` again with the lines that `report-build` printed, at
+most twice. When exit 1 stays, the run ends with one `run_again` point, "The change is not
+ready, because the text of the change still breaks the rules for it." With exit 3 and the
+first line `Build the change in fewer commits`, the list of steps makes the output larger
+than 786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
+the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists for
+the checks script. 3. It runs `checks.cjs check build-report --inputs <input file>
+<folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The change
+is not ready, because the build report differs from the records of the run.", and starts no
+writer, because the tables are the script's, so a difference is a defect. Before it ends, it
+runs `checks.cjs report-build --drop`, which removes the outbox file of step 2. With exit 2,
+3 or 4, the run ends as "Failures" lists for the checks script. 4. It pushes `build-report`.
+When the push exits with 4 or fails, it runs steps 2 and 3 again and pushes again, at most
+twice more, and then runs `checks.cjs report-build --drop` and ends with "The run could not
+push its build report." 5. In a stage that has reviewers, it runs no verdict command, and
+qory then runs the review round. In a stage with none, such as when `inputs.json` has no
+`qory.stage.reviewers`, it runs `qory run verdict passed` first. It ends with "The change is
+ready: each planned change is built."
 
 The ends of steps 1 to 4 run no `qory run verdict passed`.
 
@@ -3414,7 +3444,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   runs, or a check that imports, a file whose only use is the tests, such as a helper, that
   the lock lists neither as a check nor under `support[]`. It reads the files before the
   lock and watches no run, so no check here looks at what code under test does to a locked
-  file during a check.
+  file during a check. A change that a check leaves on disk and that a commit takes in
+  counts at the push: the scope check of `build-plan` exits 1 on a committed path outside
+  the Files of the build plan.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
@@ -3806,6 +3838,11 @@ When the newest proposal in that folder is on the fast track, the call proves th
 against the kind of its `## Track` in place of the Files, with the same `--base`, and
 scans them for keys (see [The proof of the fast track](#the-proof-of-the-fast-track)).
 A finding of the proof exits 1.
+
+`software-factory` declares this call as the scope check of `build-plan` under
+`scope_checks`, with the program `workflow-checks.cjs` of `running-a-software-workflow` in
+place of `checks.cjs`: `workflow-checks.cjs scope --plan --base <start commit> --artifacts
+<folder>` runs `checks.cjs scope` with the same arguments and exits the same way.
 
 `freeze --plan` with the same arguments runs the same checks and exits the same way, with no
 commit.

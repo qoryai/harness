@@ -1487,6 +1487,50 @@ for runtime in claude codex; do
 	done
 done
 
+# qory stops a compose whose stack sets a workflow's tier to a name that is no tier, and
+# one whose write workflow has a plan that no module of the stack declares a scope check
+# for. Each case composes a copy of this repository with one change, from a checkout that
+# extends the software stack of that copy by path.
+for fault in tier scope; do
+	mkdir -p "$TMP/fault-$fault/home" "$TMP/fault-$fault/checkout" || exit 1
+	cp -R "$ROOT/qory.yaml" "$ROOT/modules" "$ROOT/stacks" "$TMP/fault-$fault/home/" || exit 1
+	# qory reads the modules of a stack from the top folder of its git repository.
+	for dir in home checkout; do
+		run "$TMP/fault-$fault/$dir" git init -q
+		[ "$RC" -eq 0 ] || fail "git init in $TMP/fault-$fault/$dir exits 0 (exit status $RC)"
+	done
+	FROOT=$(printf '%s\n' "$TMP/fault-$fault/home" | sed "s/'/''/g")
+	printf "harness: {extends: {path: '%s', stack: software}}\n" "$FROOT" \
+		>"$TMP/fault-$fault/checkout/qory.yaml" || exit 1
+done
+sed 's/^  make-mockups: {tier: balanced, /  make-mockups: {tier: fast, /' \
+	"$ROOT/stacks/software/qory-stack.yaml" >"$TMP/fault-tier/home/stacks/software/qory-stack.yaml" ||
+	exit 1
+sed '/^scope_checks:$/,$d' "$ROOT/modules/software-factory/qory-module.yaml" \
+	>"$TMP/fault-scope/home/modules/software-factory/qory-module.yaml" || exit 1
+# A sed that matches nothing leaves the copy as it was, and the case below would test nothing.
+OUT=
+cmp -s "$ROOT/stacks/software/qory-stack.yaml" \
+	"$TMP/fault-tier/home/stacks/software/qory-stack.yaml" &&
+	fail "the tier case sets make-mockups to tier fast in the copy of qory-stack.yaml"
+cmp -s "$ROOT/modules/software-factory/qory-module.yaml" \
+	"$TMP/fault-scope/home/modules/software-factory/qory-module.yaml" &&
+	fail "the scope case removes scope_checks from the copy of qory-module.yaml"
+BADTIER="harness compose --dry-run exits 2 on a workflow tier that is no tier"
+run "$TMP/fault-tier/checkout" "$QORY" harness compose --dry-run --runtime claude
+if [ "$RC" -ne 2 ] ||
+	! printf '%s\n' "$OUT" | grep -Fq 'Set workflows.make-mockups.tier to a valid tier.'; then
+	fail "$BADTIER (exit status $RC)"
+fi
+pass "$BADTIER"
+NOSCOPE="harness compose --dry-run exits 2 on plan: build-plan with no scope check of build-plan"
+run "$TMP/fault-scope/checkout" "$QORY" harness compose --dry-run --runtime claude
+if [ "$RC" -ne 2 ] ||
+	! printf '%s\n' "$OUT" | grep -Fq 'No module of the stack declares a scope check for build-plan.'; then
+	fail "$NOSCOPE (exit status $RC)"
+fi
+pass "$NOSCOPE"
+
 # A compose for Codex writes the modules' Codex settings into config.toml of the Codex home: the
 # Stop hook of core that runs the end check, the PreToolUse and PreModelRequest hooks of core that
 # run the tool guard and its step limit. No module sets web_search: qory writes
