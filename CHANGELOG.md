@@ -31,7 +31,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   most 90 s and at least 5 s. A film keeps each frame that the page paints, so every cue of
   `<scenario>.vtt` lies within the film, and the runner returns its frames in a file, so the
   number of frames is no limit. The first frame is at 0 s, and the cue of a step is its title.
-  A title with `-->` is refused before the film. A call that fails after it
+  A title with `-->` is refused before the film: "Change the Action of step <N> in the demo
+  scenario so it has no "-->", then film it again." A call that fails after it
   made the folder `.film/<scenario>` removes it, and a missing browser keeps the folder.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected

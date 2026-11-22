@@ -3906,7 +3906,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `.film/<scenario>/` removes that folder, and a call with no browser exits before it
     makes the folder, so the film of an earlier call stays. The text of a cue in the
     captions is the title of its step, and a title with `-->` exits 3 before the film, with
-    the fix first. The first frame of the film is at 0 ms.
+    the fix "Change the Action of step <N> in the demo scenario so it has no "-->", then film
+    it again." The first frame of the film is at 0 ms.
     An `open` of a step that is no page under the `App address:` of the build plan, by the
     rule of `demo check`, fails the step, whatever its origin. The session pushes the files
     of a scenario with `demo-video` (`<id>.mp4` and `<id>.vtt`) or `screenshot`

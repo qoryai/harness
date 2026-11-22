@@ -241,8 +241,8 @@ module.exports = (lib) => {
     const arrow = script.evidence === 'film'
       ? script.steps.findIndex((one) => one.title.includes('-->')) : -1;
     if (arrow >= 0) {
-      throw new Missing(`Remove "-->" from the title of step ${arrow + 1} of ${id}.json, then ` +
-        `film it again.\nA cue of ${id}.vtt cannot hold "-->", which ends the cue in a player.`);
+      throw new Missing(`Change the Action of step ${arrow + 1} in the demo scenario so it has ` +
+        `no "-->", then film it again.\nA cue of ${id}.vtt cannot hold "-->", which ends the cue in a player.`);
     }
     browserOf(io);
     const dir = freshFolder(root, id);

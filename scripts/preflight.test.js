@@ -2272,7 +2272,7 @@ test('film: a step title is the text of its cue, and a title with an arrow is re
   const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
   assert.equal(done.status, 3, done.out + done.err);
   assert.deepEqual(done.out.split('\n').slice(0, 2), [
-    'Remove "-->" from the title of step 2 of scenario-1.json, then film it again.',
+    'Change the Action of step 2 in the demo scenario so it has no "-->", then film it again.',
     '  A cue of scenario-1.vtt cannot hold "-->", which ends the cue in a player.']);
   assert.equal(fs.existsSync(path.join(here.root, '.film')), false);
 });

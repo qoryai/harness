@@ -302,7 +302,8 @@ the 60 minutes from the start of the script, so a command before it in the same 
 Run each call of `preflight` and `demo run` with a tool timeout of at least 600 s. The runner
 stops after at most 570 s, and the call ends within 585 s. Run each call of `film` with a tool
 timeout of at least 600 s. The runner stops after at most 535 s, the stop of the runner takes
-at most 15 s, the encode of the film at most 35 s, and the call ends within 585 s.
+at most 15 s, the encode of the film at most 35 s after a runner that used all its time
+(ffmpeg gets up to 90 s after a quick run), and the call ends within 585 s.
 
 ## Scope
 
