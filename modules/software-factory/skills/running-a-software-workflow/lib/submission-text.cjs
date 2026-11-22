@@ -1,15 +1,28 @@
-// The rules of the text of a submission that the type submission and the verb report-build
-// share: the four parts of a description, and the forms of a secret that no text contains.
+// The rules of the text of a pull request that the type pull-request and the verb report-build
+// share: the characters of a title that qory drops, the four parts of the text, and the
+// forms of a secret that no text contains.
 'use strict';
+
+const TITLE_REFUSED = require('./refused.cjs');
 
 module.exports = (lib) => {
   const { lines, sections } = lib;
 
-  // The four parts of a description, as ## headings in this order: the problem, the
+  // titleFindings returns the finding of a title that has such a character, with its code
+  // point in the fix, or none. where is the words for the title in the fix.
+  function titleFindings(title, where) {
+    const refused = TITLE_REFUSED.exec(title);
+    if (!refused) return [];
+    const code = refused[0].codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+    return [`Remove U+${code} from ${where}.\nqory drops the whole text when its title has a ` +
+      'control, invisible or separator character.'];
+  }
+
+  // The four parts of the text, as ## headings in this order: the problem, the
   // change, how it was tested, and what is disclosed.
   const PARTS = ['Problem', 'Change', 'Tests', 'Disclosed'];
 
-  // The forms of a secret that no text of a submission contains: a private key, and the
+  // The forms of a secret that no text of a pull request contains: a private key, and the
   // tokens and keys of common services, by their fixed start.
   const SECRETS = [
     [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'a private key'],
@@ -20,11 +33,11 @@ module.exports = (lib) => {
     [/\bsk-[A-Za-z0-9_-]{20,}/, 'an API key'],
   ];
 
-  // partFindings returns the finding of a description that lacks the four parts in their
+  // partFindings returns the finding of a text that lacks the four parts in their
   // order, or that has text before the first part, or none. where is the words for the
-  // description in the fix.
-  function partFindings(description, where) {
-    const all = sections(lines(description), 2);
+  // text in the fix.
+  function partFindings(text, where) {
+    const all = sections(lines(text), 2);
     const titles = all.slice(1).map((part) => part.title);
     const before = all[0].lines.some((line) => line.text.trim() !== '');
     if (!before && titles.join('\n') === PARTS.join('\n')) return [];
@@ -34,12 +47,12 @@ module.exports = (lib) => {
       `${before && titles.length ? '\nText comes before the first part.' : ''}`];
   }
 
-  // secretFindings returns one finding for each member of text, { title, description },
+  // secretFindings returns one finding for each member of parts, { title, text },
   // that has the form of a secret. place(member) is the words for the member in the fix.
-  function secretFindings(text, place) {
+  function secretFindings(parts, place) {
     const out = [];
-    for (const member of ['title', 'description']) {
-      const found = SECRETS.find(([form]) => form.test(text[member]));
+    for (const member of ['title', 'text']) {
+      const found = SECRETS.find(([form]) => form.test(parts[member]));
       if (found) {
         out.push(`Remove the secret from ${place(member)}: it has the form of ${found[1]}.`);
       }
@@ -47,5 +60,5 @@ module.exports = (lib) => {
     return out;
   }
 
-  return { PARTS, partFindings, secretFindings };
+  return { PARTS, partFindings, secretFindings, titleFindings };
 };

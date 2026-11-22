@@ -22,7 +22,8 @@ falls under the definition of `blocking` in `judging-findings`.
 - `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
 - `qory.review.build_report`, when it exists: what the session that made the change states
   that it did.
-- `qory.review.submission`, when it exists: the `title` and the `description` of the draft
+- `qory.review.outputs`, when it exists: each declared output, by type, from
+  the outbox. The entry for `pull-request` has the `title` and the `text` of the draft
   pull request, as qory stores them. Either part can be absent.
 
 The review also reads the newest version of the acceptance criteria, the spec and the
@@ -84,7 +85,7 @@ them. The shape of `previous_findings` is not in a contract of qory yet.
    breaks a `Stays:` point of the spec.
 5. A changed path that no Files cell of the build plan lists: a deliverable that is not
    built as planned.
-6. The build report and the description of the draft pull request, when they exist: a
+6. The build report and the text of the draft pull request, when they exist: a
    claim in them that the diff or the records of the run do not show.
 7. A criterion whose `check` is `Demo: <title>`: check its code path only. The Verify stage
    runs the demo.

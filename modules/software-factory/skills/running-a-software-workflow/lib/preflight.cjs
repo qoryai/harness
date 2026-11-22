@@ -19,7 +19,7 @@ const path = require('node:path');
 
 const { NEW_WINDOW, findBrowser } = require('./browser.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
-const schema = require('./schema.cjs');
+const { SCHEMAS } = require('./template.cjs');
 const { runKey } = require('./secrets.cjs');
 
 const RUNNER = path.join(__dirname, 'preflight-run.cjs');
@@ -130,7 +130,7 @@ const cause = (words) => `Cause: ${words}.`;
 
 module.exports = (lib) => {
   const { Context, Missing, Run, agentNames, isObject, lacks, parseJson, plural, pointCheck,
-    pointRules, readFile, short, writeJson, MAX_POINTS } = lib;
+    pointRules, readFile, schema, short, writeJson, MAX_POINTS } = lib;
 
   // withCause returns what read returns. A Missing that read throws gets the line of the
   // cause words after its other lines.
@@ -205,7 +205,7 @@ module.exports = (lib) => {
       });
       scripts.push(withCause('a demo script breaks its format rules', () => {
         const data = parseJson(text, words, null);
-        const found = schema.errors(schema.load('demo-script'), data, `${name}.json`);
+        const found = schema.errors(schema.load(SCHEMAS, 'demo-script'), data, `${name}.json`);
         if (found.length) {
           throw new Missing(`Push a demo script of ${name} that passes its check, then pull it.`,
             [`${words} breaks its schema: ${found[0].split('\n')[0]}`]);

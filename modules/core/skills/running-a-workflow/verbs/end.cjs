@@ -15,6 +15,7 @@ const {
   REPORT_NONE, REPORT_UNCHECKED, endDrafts, endList, leftLine, verdictDrafts,
 } = require('../lib/end.cjs');
 const { offline, offlineArgs } = require('../lib/offline.cjs');
+const { outboxDrafts } = require('../lib/outbox.cjs');
 const { agentNames } = require('../lib/plugin.cjs');
 const { results } = require('../lib/reports.cjs');
 const { openQuestions, pointCheck, pointRules, pointsType } = require('../types/points.cjs');
@@ -330,7 +331,7 @@ function end(io, folder) {
     }
     found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin,
       place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs }, verdict: body }),
-    ...reportResults];
+    ...reportResults, ...outboxDrafts(io)];
   }
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');

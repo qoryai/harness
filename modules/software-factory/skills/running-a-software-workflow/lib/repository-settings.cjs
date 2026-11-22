@@ -19,7 +19,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const schema = require('./schema.cjs');
+const schema = require('./shown.cjs');
 const secrets = require('./secrets.cjs');
 
 // The words of the file whose path --inputs takes, for a source and a line.
@@ -35,9 +35,14 @@ const MAX_INPUTS = 16 * 1024 * 1024;
 // The most characters of the first line of a finding: the fix.
 const LINE = 100;
 
-// The pattern that the schema gives to a text of one line, in the words of a fix.
-const ONE_LINE = '^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e' +
-  '\\u2066-\\u2069\\u200e\\u200f\\u061c]+$';
+// The pattern that the schema gives to a text of one line, in the words of a fix: the rule of
+// the characters of a string (no Cc, U+2028, U+2029 or Cf but U+200C and U+200D). It must equal
+// the pattern in extensions.schema.json.
+const ONE_LINE =
+    '^[^\\x00-\\x1f\\x7f-\\x9f\u00ad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2' +
+    '\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb' +
+    '\ud804\udcbd\ud804\udccd\ud80d\udc30-\ud80d\udc3f\ud82f\udca0-\ud82f\udca3' +
+    '\ud834\udd73-\ud834\udd7a\udb40\udc01\udb40\udc20-\udb40\udc7f]+$';
 
 // The types that check reads, and the form of each keyword that it reads, as a test of the
 // value and its words in a fix. A keyword in another form would be read wrongly, so
@@ -215,7 +220,7 @@ function visit(part, node, path, out, keys) {
     if (part.pattern && !short && !new RegExp(part.pattern, 'u').test(node)) {
       if (part.pattern === ONE_LINE) {
         out.push(finding(`Write ${at} on one line.`,
-          `It has a line break, tab, control or bidirectional character: ${shown(node)}.`));
+          `It has a line break, tab, control or invisible character: ${shown(node)}.`));
       } else {
         // The file goes on the first line when that keeps at most LINE characters, else on the
         // line after it.

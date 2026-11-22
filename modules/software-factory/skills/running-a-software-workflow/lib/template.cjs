@@ -6,6 +6,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PROCESS = path.join(__dirname, '..', '..', '..', 'process.yaml');
+// The folder of the JSON Schema files of the types of this module.
+const SCHEMAS = path.join(__dirname, '..', 'schemas');
 
 let limits = null;
 
@@ -34,4 +36,4 @@ function sizeLimit(type) {
   return limits.get(type);
 }
 
-module.exports = { sizeLimit };
+module.exports = { SCHEMAS, sizeLimit };

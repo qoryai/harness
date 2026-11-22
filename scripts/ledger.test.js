@@ -617,10 +617,10 @@ test('ledger: a commit between two sessions starts the next session on the head'
   const w = work();
   const first = resumed(w);
   deliver(first, w, 'deliverable:d-1');
-  const submit = commit(w, 'submission.txt', 'The commit of the submit step.\n');
+  const between = commit(w, 'change.txt', 'A commit between two sessions.\n');
   const next = resumed(w);
   assert.equal(begin(next, w, 'deliverable:d-2').status, 0);
-  assert.equal(stored(w).ledger.steps[1].base, submit);
+  assert.equal(stored(w).ledger.steps[1].base, between);
 });
 
 test('ledger: after a cancelled run, the next session redoes a step whose commit is lost', () => {
@@ -644,12 +644,13 @@ test('ledger: after a cancelled run, the next session redoes a step whose commit
   assert.notEqual(row.base, lost);
 });
 
-test('ledger: the hand-off file under .qory/handoff is no edit of a step', () => {
+test('ledger: an output file in an outbox folder under .qory is no edit of a step', () => {
   const w = work();
   const call = resumed(w);
   assert.equal(begin(call, w, 'plan').status, 0);
-  fs.mkdirSync(path.join(w.repo, '.qory', 'handoff'), { recursive: true });
-  fs.writeFileSync(path.join(w.repo, '.qory', 'handoff', 'submission.json'), '{"steps":{}}');
+  const outbox = path.join(w.repo, '.qory', 'outbox', 'pull-request');
+  fs.mkdirSync(outbox, { recursive: true });
+  fs.writeFileSync(path.join(outbox, 'pull-request.json'), '{"steps":[]}');
   assert.equal(call('step', 'end', 'plan', 'done').status, 0);
   assert.equal(begin(call, w, 'checks').status, 0);
 });
