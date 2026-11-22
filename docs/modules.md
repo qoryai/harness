@@ -4549,8 +4549,11 @@ The check and the freeze of a script:
   skill with the line "Review the change to a demo script", before the correction runs. A
   third correction is refused by `demo check`, and the ledger refuses the id
   `script:<id>#4`.
-  A pushed script that differs from the newest done row, with or without a draft, is a fault
-  of `demo check`, whose fix is to push the frozen script again or to run the next step. The
+  A draft that differs from the newest done row is a correction, also a copy of the pushed
+  file in `.demo/<id>.json`. A pushed script that differs from the newest done row, with no
+  draft, is a fault of `demo check`, whose fix is to copy the pushed file to
+  `.demo/<id>.json` and run the correction step on it, or to push the frozen script
+  again. The
   limits: the push check of `demo-script` does not read the ledger, so a changed frozen
   script is found by the next `demo check`, not at the push; and `demo check` finds no
   correction that Verify asks for when the script is unchanged, because it compares only

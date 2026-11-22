@@ -75,26 +75,28 @@ check` prints no step for a script that has not changed.
      2 corrections, and its script needs a third. Run `step end <step> failed`, and end as
      "Failures" lists, with the cause "its script needs a third correction, and a script
      has 2".
+   - With 1 and a first line that starts with "Push the frozen script", `.demo/<id>.json`
+     does not exist, and the pushed script differs from the newest done step. `demo run`
+     runs only a draft, so copy the pushed file `<folder>/demo-script/<id>/v<N>/<id>.json`,
+     with the largest `<N>`, to `<folder>/.demo/<id>.json`, and run this step again: the
+     copy is a correction, so the case "Start check-reviewer" below applies. Do step 1, and
+     then steps 5 to 10, for the step that the line shows. To keep the frozen script
+     instead, push the file of the frozen script again, which makes it the newest version;
+     do this only for a script that this session wrote and still has as a file.
    - With another 1, the script breaks a rule, and the first line of each fault is the fix.
      This includes a sign-in step that opens a page outside the App address, by origin or by
      path: "Open only pages under <App address> in the sign-in steps of <script>." Do
-     "Start the author again", with those lines. When the first line starts with "Push the
-     frozen script", the pushed script differs from the newest done step. `demo run` runs
-     only a draft, so copy the pushed file `<folder>/demo-script/<id>/v<N>/<id>.json`, with
-     the largest `<N>`, to `<folder>/.demo/<id>.json`, and do steps 1 to 10 for the step
-     that the line shows: check-reviewer reads the change, `demo run` runs the copy, and
-     the step records its sha256. To keep the frozen script instead, push the file of the
-     frozen script again, which makes it the newest version; do this only for a script
-     that this session wrote and still has as a file. `demo check` compares the sign-in with
-     the App address only when the build plan is readable and has the line `App address:`.
-     With no such plan, it compares nothing, and the run in step 8 loads only pages of the
-     origin of the app.
-   - With 0 and a line that starts with "Start check-reviewer", the script changes a script
-     that passed. Start ${qory:agents/check-reviewer} in the foreground, as "Starting
-     agents" of `running-a-workflow` lists, with the input file's path, `<folder>`, the
-     run's number, the notes, the path of `<scenarios>`, the path of the script that passed,
-     the path `<folder>/.demo/<id>.json` of the new script, and the line "Review the change
-     to a demo script". Write its report to `<folder>/.reports/check-reviewer-<n>.md` and
+     "Start the author again", with those lines. `demo check` compares the sign-in with the
+     App address only when the build plan is readable and has the line `App address:`. With
+     no such plan, it compares nothing, and the run in step 8 loads only pages of the origin
+     of the app.
+   - With 0 and a line that starts with "Start check-reviewer", the draft changes a script
+     that passed, whether the author wrote it or it is a copy of the pushed file. Start
+     ${qory:agents/check-reviewer} in the foreground, as "Starting agents" of
+     `running-a-workflow` lists, with the input file's path, `<folder>`, the run's number,
+     the notes, the path of `<scenarios>`, the path of the script that passed, the path
+     `<folder>/.demo/<id>.json` of the new script, and the line "Review the change to a demo
+     script". Write its report to `<folder>/.reports/check-reviewer-<n>.md` and
      check it, as "Check each report" lists. With `changes-needed`, do "Start the author
      again", with each finding quoted. With `blocked`, run `step end <step> failed`, and end
      as "Failures" lists.

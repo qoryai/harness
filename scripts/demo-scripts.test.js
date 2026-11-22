@@ -719,19 +719,29 @@ test('demo check refuses a sign-in step outside the path of the App address', ()
   assert.equal(lines[2], `  The App address is ${long}.`);
 });
 
-test('demo check compares the newest pushed version with the newest done row', () => {
-  const root = drafted(['scenario-1'], () => {}, ['scenario-1']);
-  const draft = text(root, 'scenario-1');
-  // The pushed script is the frozen one: no fault.
-  ledger(root, ['script:scenario-1'], [draft]);
-  fs.writeFileSync(path.join(root, 'demo-script/scenario-1/v1/scenario-1.json'), draft);
-  assert.equal(call(root, ['demo', 'check', 'scenario-1']).status, 0);
-  // The pushed script differs from the done row, as when a session skipped step end.
-  ledger(root, ['script:scenario-1'], ['other']);
-  const got = call(root, ['demo', 'check', 'scenario-1']);
-  assert.equal(got.status, 1, got.out);
-  assert.equal(got.lines[0], 'Push the frozen script of scenario-1 again, or run the step ' +
+test('a copy of the pushed script as the draft is a correction of the frozen script', () => {
+  const root = artifacts(SCENARIOS, ['scenario-1']);
+  const file = path.join(root, 'demo-script/scenario-1/v1/scenario-1.json');
+  const pushed = fs.readFileSync(file, 'utf8');
+  ledger(root, ['script:scenario-1'], ['frozen']);
+  // With no draft, the pushed script that differs from the done row is a fault.
+  const fault = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(fault.status, 1, fault.out);
+  assert.equal(fault.lines[0], 'Push the frozen script of scenario-1 again, or run the step ' +
     'script:scenario-1#2 for the pushed one.');
+  // The copy as the draft is a correction: check-reviewer starts, and the fault is gone.
+  fs.mkdirSync(path.join(root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), pushed);
+  const note = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(note.status, 0, note.out);
+  assert.equal(note.lines[0], 'Start check-reviewer on the change to scenario-1, then run the ' +
+    'step script:scenario-1#2.');
+  assert.ok(!note.out.includes('Push the frozen script'), note.out);
+  // After the correction step is done with the hash of the copy, nothing is left to do.
+  ledger(root, ['script:scenario-1', 'script:scenario-1#2'], ['frozen', pushed]);
+  const done = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(done.status, 0, done.out);
+  assert.ok(!done.out.includes('Start check-reviewer'), done.out);
 });
 
 test('demo run exits 3 with the fix when the machine has no browser', () => {
@@ -880,9 +890,12 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
     'its script needs a third correction, and a script has 2',
+    'With 1 and a first line that starts with "Push the frozen script", `.demo/<id>.json` ' +
+      'does not exist', 'copy the pushed file', 'the copy is a correction',
+    'Do step 1, and then steps 5 to 10',
     'Open only pages under <App address> in the sign-in steps of <script>.',
-    'When the first line starts with "Push the frozen script"',
-    'With 0 and a line that starts with "Start check-reviewer"',
+    'With 0 and a line that starts with "Start check-reviewer", the draft changes a script ' +
+      'that passed, whether the author wrote it or it is a copy of the pushed file',
     'Review the change to a demo script', 'With `changes-needed`, do "Start the author again"');
   // The limit of the sign-in check with no build plan is stated.
   inText(SCRIPTING, 'only when the build plan is readable and has the line `App address:`',

@@ -210,33 +210,32 @@ module.exports = (lib) => {
   // shortcut: the push check of demo-script does not read the ledger, so a changed frozen script
   // is found by the next demo check, and an unchanged script that Verify faults starts no
   // correction; replace both with a check of the ledger at the push, with the Verify work.
-  // unrecorded returns a finding when the pushed script of id, the newest version that counts,
-  // has another sha256 than the newest done row of the ledger: a session that pushed a script
-  // and skipped `step end`, or that pushed a change to a frozen script. It returns null with no
-  // row, no pushed version that can be read, or a pushed version that the row froze. With no
-  // draft, the script that got has is the pushed one.
-  function unrecorded(root, io, got, id, rows, done) {
-    if (!rows.length || !done.has(id)) return null;
-    const shown = got.drafted ? pushedFile(root, io, id) : got.shown;
-    const pushed = got.drafted ? boundedText(path.join(root, shown)) : { text: got.text };
-    if (pushed.why || sha256(pushed.text) === rows[rows.length - 1].script_sha256) return null;
+  // unrecorded returns a finding when the script of id has no draft, and the pushed script, the
+  // newest version that counts, has another sha256 than the newest done row of the ledger: a
+  // session that pushed a script and skipped `step end`, or that pushed a change to a frozen
+  // script. It returns null with a draft, which is a correction of the frozen script, or with no
+  // row.
+  function unrecorded(got, id, rows, done) {
+    if (got.drafted || !rows.length || !done.has(id)) return null;
+    if (sha256(got.text) === rows[rows.length - 1].script_sha256) return null;
     return `Push the frozen script of ${id} again, or run the step script:${id}#` +
-      `${rows.length + 1} for the pushed one.\n${shown} has another sha256 than the newest ` +
+      `${rows.length + 1} for the pushed one.\n${got.shown} has another sha256 than the newest ` +
       `done step ${rows[rows.length - 1].id}.`;
   }
 
   // inspect returns { findings, notes } of the script of scenario: its faults, with the fix
-  // first, then the line for check-reviewer when a draft changes a script that a pass froze. A
-  // change to a script that has had 2 corrections is a fault, and so is a pushed change to a
-  // frozen script.
+  // first, then the line for check-reviewer when a draft changes a script that a pass froze,
+  // whether the author wrote it or it is a copy of the pushed file. A change to a script that
+  // has had 2 corrections is a fault, and so is a pushed change to a frozen script with no
+  // draft.
   function inspect(scenario, got, where) {
-    const { address, ledger, root, io, done } = where;
+    const { address, ledger, done } = where;
     const id = scenario.id;
     const rows = doneRows(ledger, id);
     const findings = [...scriptFindings(scenario, got.data, `${id}.json`),
       ...(address ? outsideOpens(got.data, address) : [])];
     const changed = rows.length > 0 && sha256(got.text) !== rows[rows.length - 1].script_sha256;
-    const skipped = unrecorded(root, io, got, id, rows, done);
+    const skipped = unrecorded(got, id, rows, done);
     if ((findings.length || changed || skipped) && rows.length >= MOST_ROWS) {
       return { findings: [`Keep the script of ${id} as it is: it has had 2 corrections, and a ` +
         `third is refused.\nThe build ledger has the done steps script:${id}, script:${id}#2 ` +
@@ -279,7 +278,7 @@ module.exports = (lib) => {
       const got = scriptOf(root, io, scenario.id, done);
       if (got.none) continue;
       const found = got.findings ? got
-        : inspect(scenario, got, { address, ledger, root, io, done });
+        : inspect(scenario, got, { address, ledger, done });
       findings.push(...found.findings);
       notes.push(...(found.notes || []));
     }
