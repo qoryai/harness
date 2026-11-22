@@ -16,11 +16,16 @@ ${qory:skills/simple-communication} before you write a finding.
 
 - Read the change, the words of the people who asked for the work, and any file of the work.
 - Write one file, the report, with Write or, on Codex, with `apply_patch` that adds that one
-  file. In a session that qory starts for your review, the path is `qory.review.report` of
-  `inputs.json`. As an agent of a review session, whose `inputs.json` has
-  `qory.review_session` and no `qory.review`, the path is
-  `<reports>/<your agent name>.json`, where `<reports>` is `qory.review_session.reports`. A
-  write to any other path is denied.
+  file. Take the path from the first of these cases that fits your session:
+  - In the session of a hook's agent, whose `inputs.json` has `qory.hook_session`, the path
+    is `qory.hook_session.report`. qory sets no other review member there.
+  - In a session that qory starts for your review, the path is `qory.review.report` of
+    `inputs.json`.
+  - As an agent of a review session, whose `inputs.json` has `qory.review_session` and no
+    `qory.review`, the path is
+    `<reports>/<your agent name>.json`, where `<reports>` is `qory.review_session.reports`.
+
+  A write to any other path is denied.
 - If your session has a shell, run only commands that read, with only the options in this
   list. A value in angle brackets follows the option. The second line of a deny is
   `Refused:` and the word that the guard refused.
