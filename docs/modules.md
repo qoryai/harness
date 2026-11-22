@@ -109,7 +109,8 @@ entry with `access: write` sets `plan: build-plan`, and a module of the stack de
 scope check of that type under `scope_checks` (see [The manifest,
 qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
 `explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
-`plan-the-build` and `review-changes` run on `thinking`, and `make-mockups`,
+`plan-the-build`, `review-changes` and `verify-a-ticket` run on `thinking`, and
+`make-mockups`,
 `write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on `balanced`.
 Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
 reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
@@ -277,11 +278,44 @@ it declares `reviewers`. The members set no `paths`.
   report records the lowering. A criterion in a finding has the form
   `AC-3, "<first sentence>"`.
 
-The written parts of Verify are the skills `checking-tampering` and `judging-criteria`, the
-two agents, and the verb `matrix` of the check runners. The skill `workflow-verify-a-ticket`
-and the stack entry of the workflow are not built, and neither is `qory.review_session` in
-the `inputs.json` of the session, which qory writes. The agents read it as described here;
-its shape is not in a contract of qory yet.
+The parts of Verify are the skills `checking-tampering` and `judging-criteria`, the two
+agents, the verb `matrix` of the check runners, the skill `workflow-verify-a-ticket` and the
+stack entry `verify-a-ticket: {tier: thinking, access: write-no-push, review_group:
+verify-reviewers}`. `qory.review_session` in the `inputs.json` of the session is not built:
+qory does not write it yet, and its shape is not in a contract of qory. The agents read it
+as described here. Verify's stage in `process.yaml` has no `sequence` yet, so no run starts
+the workflow.
+
+### The workflow of Verify
+
+`workflow-verify-a-ticket` is a review session with the access `write-no-push`: it pushes
+the matrix and its questions, and no code. Its steps, in order:
+
+1. It pulls, runs `work-item show` and `resume`, and ends with "Failures" when the run has
+   no `run.id` or the input file has no `qory.review_session`.
+2. It reads `approved_version` of the `acceptance-lock` entry of `<start>/index.json`, the
+   version that a member approved, as `<N>`. With no approved lock it ends with one
+   `run_again` point.
+3. It runs `lock --verify --version <N>`. With exit 1 it records `changes-requested`, and
+   starts no agent.
+4. It runs `run locked`, then `matrix --version <N>`, then reads the newest `demo-evidence`
+   of each scenario, and runs `check verification` on the draft.
+5. It starts `tamper-reviewer` and `verification-reviewer`, in turn, each with the path of
+   the input file only, and runs `findings round <reports> --reviewers
+   tamper-reviewer,verification-reviewer`, with `--suite` only when
+   `qory.review_session.suite_result` exists.
+6. It pushes `verification`, whatever the verdict, and takes the time of the version.
+7. For each row of `verification.json` with the state `not_met`, it writes one question
+   about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
+   and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
+   `questions`.
+8. It records `passed` when the lock verified, the matrix has no `not_met` and no
+   `not_verified` row, no scenario of the commit under review has the verdict `failed`, and
+   no finding is blocking. Otherwise it records `changes-requested` with no point, and qory
+   writes the findings for the next session of `implement-changes` from the reports.
+
+A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
+rule 13 read `review_group` of the stack entry.
 
 ## Agents
 
@@ -4686,13 +4720,14 @@ six members of `agents/reviewers`: `code-reviewer`, `test-reviewer` and
 `failure-reviewer`, each with `paths`.
 
 The script also checks that `roles.json` of the `software` stack has `tamper-reviewer` and
-`verification-reviewer` as the members of `agents/verify-reviewers`, with no `paths`, and
-still has those six members of `agents/reviewers`.
+`verification-reviewer` as the members of the group role that `review_group` of the stack
+entry `verify-a-ticket` names, `agents/verify-reviewers`, with no `paths`, and still has
+those six members of `agents/reviewers`.
 
 The script also checks that each agent of `software-factory` whose description contains "as
-an agent of the verify-a-ticket session" is a member of `verify-reviewers` in
-`qory-module.yaml`, and that the group has no other member. The group name is fixed in the
-check.
+an agent of the verify-a-ticket session" is a member of that group in
+`qory-module.yaml`, and that the group has no other member. The check reads the group
+name from `review_group` of the stack entry `verify-a-ticket`.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
