@@ -32,7 +32,9 @@ is the folder in `qory.start_artifacts` of the input file. `<reports>` is the re
 Write nothing in the checkout: the review changes no file of the change. The files are:
 
 - `<reports>/<agent>.json`, the report of each reviewer, which only that reviewer writes;
-- `<reports>/points.json`, which `findings round` writes while a finding is blocking;
+- `<reports>/points.json`, which `findings round` writes while a finding is blocking. Only
+  `<qory> run verdict escalate --points <file>` reads such a file, and this session runs no
+  `escalate` with it;
 - `<folder>/.notes/changed-files.txt`, the paths of the change, which you write;
 - the files under `<folder>/.reports/` that the checks script writes.
 
@@ -117,11 +119,14 @@ each other member starts only when a path of the change matches its paths.
      `/dev/null`, the change deletes the file: take the rest of the `--- ` line before it.
    - Remove one tab at the end, which git adds when the path has a space.
    - When the rest starts with `"`, git wrote it in quotes: remove the two quotes, and read
-     `\"` as `"`, `\\` as `\`, `\t` as a tab, and each `\` with three octal digits as
-     that byte, so that `\303\251` is `é`.
+     `\"` as `"`, `\\` as `\`, `\t` as a tab, `\n` as a line break, and each `\` with
+     three octal digits as that byte, so that `\303\251` is `é`.
    - Remove the `a/` or `b/` in front.
-   - A file with no `+++ ` line, such as a binary file, has its path only in its line
-     `diff --git a/<path> b/<path>`, where both halves are the same: take that path.
+   - A renamed or copied file has the lines `rename from <old>` and `rename to <new>`, or
+     `copy from` and `copy to`, with no `a/` or `b/`, and has a `+++ ` line only when its
+     text changed too. Take both paths, read as the quoted form, and each path only once.
+   - Any other file with no `+++ ` line, such as a binary file, has its path only in its
+     line `diff --git a/<path> b/<path>`, where both halves are the same: take that path.
 
    Write those paths, one per line, to `<folder>/.notes/changed-files.txt`, which is
    `<paths>`. When the diff cannot be read, end as "Failures" lists, with "The review of

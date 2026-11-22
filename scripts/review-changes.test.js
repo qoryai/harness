@@ -321,7 +321,8 @@ const DEFECT_FINDING = {
 };
 
 // diffPaths returns the paths of the diff text by the rule of step 1 of "The reviewers": the
-// +++ lines, the --- line for a deleted file, git's quotes, and diff --git for a binary file.
+// +++ lines, the --- line for a deleted file, git's quotes, both paths of a rename or a copy,
+// and diff --git for any other file with no +++ line.
 function diffPaths(text) {
   const unquote = (rest) => {
     if (!rest.startsWith('"')) return rest;
@@ -345,10 +346,14 @@ function diffPaths(text) {
   let header = false;
   let before = null;
   for (const line of text.split('\n')) {
+    const moved = /^(?:rename|copy) (?:from|to) (.*)$/.exec(line);
     if (line.startsWith('diff --git ')) {
       if (header) paths.push(header);
       const both = line.slice('diff --git '.length);
       header = both.slice(2, (both.length - 1) / 2);
+    } else if (moved) {
+      paths.push(unquote(moved[1]));
+      header = false;
     } else if (line.startsWith('--- ')) {
       before = line.slice(4);
     } else if (line.startsWith('+++ ')) {
@@ -358,7 +363,7 @@ function diffPaths(text) {
     }
   }
   if (header) paths.push(header);
-  return paths;
+  return [...new Set(paths)];
 }
 
 // reviewers does "The reviewers" of the skill up to the starts: the paths of the change, then
@@ -450,37 +455,27 @@ test('a clean change gives passed, reads the suite result once and writes no bui
   assert.equal(fs.existsSync(path.join(w.repo, '.qory')), false);
 });
 
-// unbuilt returns the line of "The ledger check" of the skill for the build plan and the ledger
-// of w: the deliverables of the plan whose newest ledger row is not done, or null when all are.
-// shortcut: the session does the check with its file tool, so no harness code computes the
-// line and this copies the rule of the skill; replace it when a verb prints the line.
-function unbuilt(w) {
-  const plan = read(w.artifacts, 'build-plan/main/v1/build-plan.md');
-  const rows = plan.split('\n').filter((line) => /^\| d-\d+ \|/.test(line))
-    .map((line) => line.split('|').map((cell) => cell.trim()));
-  const { steps } = JSON.parse(read(w.artifacts, '.reports/build-ledger.json'));
-  const left = rows.filter(([, id]) => {
-    const newest = steps.filter((one) => one.id === `deliverable:${id}`)
-      .sort((a, b) => b.pass - a.pass)[0];
-    return !newest || newest.state !== 'done';
-  });
-  if (!left.length) return null;
-  const list = left.map(([, id, change]) => `${id}, "${change}"`).join(', ');
-  return `${left.length} of ${rows.length} planned changes ${left.length === 1 ? 'is' : 'are'} ` +
-    `not built: ${list}.`;
-}
-
+// shortcut: the session does the ledger check with its file tool, so no harness code computes
+// the line of the deliverables that are not built, and this test checks the text of the skill
+// only; replace it with a run of the verb when a verb prints the line.
 test('a planned deliverable that is not built gives changes-requested with no point', () => {
-  says(section(WORKFLOW, 'The ledger check'), 'When one or more deliverables are not built, ' +
-    'run no `lock --verify`, and end as "Changes requested" lists');
+  const ledger = section(WORKFLOW, 'The ledger check');
+  // The decisions, in their order: no build plan, a ledger that cannot be read, then a
+  // deliverable that is not built.
+  inOrder(ledger, 'Then decide, in this order, and go no further when a case ends the run:',
+    'the work item has no build plan. Start nothing and end as "Points" lists',
+    'When the ledger of item 2 exists and cannot be read, end as "Failures" lists',
+    'When one or more deliverables are not built, run no `lock --verify`, and end as ' +
+      '"Changes requested" lists');
+  says(ledger, 'with the line "<k> of <n> planned changes are not built: <list>."');
+  says(ledger, 'With one, write "1 of <n> planned changes is not built".');
+  says(ledger, 'While the line has more than 500 characters, cut each Change cell to its ' +
+    'first 8 words and "...", then leave out the last item and end with "and <m> more"');
   says(section(WORKFLOW, 'Changes requested'), 'Run `<qory> run verdict changes-requested` ' +
     'with no point');
+  // The session starts no reviewer and runs no findings round: it records the verdict.
   const w = work(CLEAN, SUITES.passed, 'failed');
   const call = session(w);
-  assert.equal(unbuilt(work(CLEAN)), null);
-  assert.equal(unbuilt(w), '1 of 1 planned changes is not built: d-1, "Keep the first rows up ' +
-    'to the limit.".');
-  // The session starts no reviewer and runs no findings round: it records the verdict.
   assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested').status, 0);
   assert.deepEqual(logOf(w), ['run verdict changes-requested']);
   assert.deepEqual(written(w, []), { checkout: '', reports: [] });
@@ -536,16 +531,26 @@ test('the rule of step 1 reads each path of a git diff whole', () => {
   git(repo, env, 'init', '-q');
   put('src/old.js', 'gone\n');
   put('img/logo.bin', Buffer.from([0, 1, 2]));
+  const kept = 'one\ntwo\nthree\nfour\nfive\n';
+  put('src/moved.js', kept);
+  put('src/edited.js', `${kept}six\n`);
   git(repo, env, 'add', '-A');
   git(repo, env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Start');
   const start = git(repo, env, 'rev-parse', 'HEAD');
   fs.rmSync(path.join(repo, 'src/old.js'));
+  // Two renames: one with the same text, so no +++ line, and one with a changed line.
+  fs.rmSync(path.join(repo, 'src/moved.js'));
+  put('lib/a b/moved.js', kept);
+  fs.rmSync(path.join(repo, 'src/edited.js'));
+  put('lib/edited.js', `${kept}seven\n`);
   put('img/logo.bin', Buffer.from([0, 1, 3]));
   for (const name of ['docs/a b/c.md', 'src/"q".js', 'src/café.js']) put(name, 'x\n');
   git(repo, env, 'add', '-A');
   git(repo, env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Change');
-  const text = git(repo, env, 'diff', start, 'HEAD');
-  const want = git(repo, env, 'diff', '--name-only', '-z', start, 'HEAD').split('\0')
-    .filter(Boolean);
+  const text = git(repo, env, 'diff', '-M', start, 'HEAD');
+  assert.match(text, /\nrename from src\/moved\.js\nrename to lib\/a b\/moved\.js\n(?!---)/);
+  assert.match(text, /\nrename from src\/edited\.js\nrename to lib\/edited\.js\n/);
+  const want = git(repo, env, 'diff', '--name-only', '-z', '--no-renames', start, 'HEAD')
+    .split('\0').filter(Boolean);
   assert.deepEqual(diffPaths(text).sort(), want.sort());
 });
