@@ -3252,6 +3252,14 @@ test('report-build: a failure of any exit status removes the output', () => {
   assert.equal(bcall(dir, ['report-build']).status, 0);
   assert.equal(bcall(dir, ['report-build', '--bad']).status, 2);
   assert.equal(fs.existsSync(file), false);
+  // Bad arguments beside an --inputs that parses remove it too, in each order of --drop.
+  const inputs = path.join(dir, '.qory/in/inputs.json');
+  for (const argv of [['--inputs', inputs, '--drop'], ['--drop', '--inputs', inputs, 'x'],
+    ['--inputs', inputs, 'x']]) {
+    assert.equal(bcall(dir, ['report-build']).status, 0);
+    assert.equal(bcall(dir, ['report-build', ...argv]).status, 2, argv.join(' '));
+    assert.equal(fs.existsSync(file), false, argv.join(' '));
+  }
   assert.equal(bcall(dir, ['report-build']).status, 0);
   fs.rmSync(path.join(dir, '.qory/artifacts/.reports/build-ledger.json'));
   assert.equal(bcall(dir, ['report-build']).status, 3);

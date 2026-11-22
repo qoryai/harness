@@ -4314,9 +4314,10 @@ the same commit, or the call exits 3. The proposal is the newest one in the fold
 artifact folder of the session counts as none. With a `qory.start_artifacts` of `""`, a run
 that pulled no build plans at the start, the proposal and the build plan come from the
 artifact folder of the session for `prove`, but the check of the output at `end` reads no
-proposal and runs no proof of the fast track; qory's check at the push still runs it. A
-change in the working folder that no commit has is not proved: `freeze` and `scope` judge
-it.
+proposal and runs no proof of the fast track. The push is stopped instead: qory's scope
+check at the push, with no start snapshot, stops the push of any changed path, or does not
+run, which stops the push too. A change in the working folder that no commit has is not
+proved: `freeze` and `scope` judge it.
 
 The proofs, in order:
 
