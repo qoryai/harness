@@ -2030,9 +2030,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - A `qory.start_artifacts` of `""`, which qory writes for a run that pulled no build plans
-  at the start, no longer stops the verbs that read it, such as `run`, `scope` and
-  `step begin`, with exit 3. The build plan then comes from the artifact folder of the
-  session, as without `--inputs`. Any other relative path still exits 3.
+  at the start, no longer stops `run`, `probe`, `step begin`, `preflight` and `prove` with
+  exit 3. The build plan then comes from the artifact folder of the session, as without
+  `--inputs`. Any other relative path still exits 3. `scope` and `freeze` still exit 3 with
+  `start_commits: []`, which lists no checkout.
 
 - A hook process loads no preload from the environment of its session or from a `.env` file.
   Each of the 13 hook commands in `modules/core/settings/` starts `node` through

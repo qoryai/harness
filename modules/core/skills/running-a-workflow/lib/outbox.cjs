@@ -46,8 +46,7 @@ try {
 }
 `;
 
-// The fix for a run whose inputs file gives no usable outbox folder, and for a verb with no
-// inputs file.
+// The fix for an inputs file with no usable qory.outbox, and for a verb with no inputs file.
 const OUTBOX_FIX = 'Set qory.outbox in the inputs file to the absolute path of the outbox folder.';
 const INPUTS_FIX = 'Give --inputs the inputs.json that qory wrote for the run.';
 
@@ -92,7 +91,7 @@ function outboxFolder(inputs) {
 
 // readOutputs returns { outputs, faults, setup, outbox }: each well-formed entry of qory.outputs,
 // a line for each part that is not, the cause of an inputs file that is no JSON object, and
-// the value of qory.outbox. A missing file or list gives no outputs.
+// the value of qory.outbox. With a missing file or list, outputs is empty.
 function readOutputs(inputs) {
   const none = { outputs: [], faults: [] };
   if (!inputs) return none;

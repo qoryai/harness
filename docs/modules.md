@@ -1214,8 +1214,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   - a stage that declares an output while `qory.outbox` is missing or is no absolute path.
     The finding is "Set qory.outbox in the inputs file to the absolute path of the outbox
     folder.", with the cause "The inputs file has no qory.outbox." or "qory.outbox of the
-    inputs file is no absolute path.", and the check reads no file. The point says that the
-    setup of the run must set it;
+    inputs file is no absolute path.", and the check reads no file. The point states that
+    the setup of the run must set it;
   - a required output with no file;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
     finding is "Remove the link <path>.", and a link above the parent of the outbox folder
@@ -4057,7 +4057,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 
   The verb always writes the outbox file `<outbox>/pull-request/pull-request.json`, as
   JSON `{"title", "text", "steps", "draft"}`. `<outbox>` is `qory.outbox` of the
-  `inputs.json` that `--inputs` gives, the absolute path of the outbox folder. The verb
+  `inputs.json` that `--inputs` takes, the absolute path of the outbox folder. The verb
   writes no file and exits 3 with the fix on the first line in each of these cases: no
   `--inputs`, an `inputs.json` that does not exist or is no JSON object ("Give --inputs the
   inputs.json that qory wrote for the run."), and a `qory.outbox` that is missing or is no

@@ -445,11 +445,12 @@ module.exports = (lib) => {
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;
     try {
       // With the inputs of the run, the proposal is the one that qory pulled at the start, as
-      // prove reads it, so that a version written into the artifact folder of the session
-      // counts as none. Without them, it is the newest version of that folder.
+      // prove reads it. Without them, or with an empty start_artifacts, it is the newest
+      // version in the artifact folder of the session.
       let source = context;
-      if (context.inputs) {
-        const start = starts.readStart(context.workingFolder, context.inputs, process.env);
+      const start = context.inputs
+        ? starts.readStart(context.workingFolder, context.inputs, process.env) : null;
+      if (start && start.artifacts) {
         source = new Context(start.artifacts, 'check', process.env.HOME, start.artifacts);
         source.inputs = context.inputs;
         source.workingFolder = context.workingFolder;
