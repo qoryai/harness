@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -2911,27 +2911,36 @@ const good = names === "code-reviewer test-reviewer acceptance-reviewer security
   (always.includes(row.agent) ? !("paths" in row) :
     Array.isArray(row.paths) && row.paths.length > 0));
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
-# The group role verify-reviewers has the two reviewers of Verify, with no paths, and
-# roles.json still has the group role reviewers.
-expect "roles.json has tamper-reviewer and verification-reviewer in agents/verify-reviewers" \
+# The group role that review_group names in the stack entry of verify-a-ticket has the two
+# reviewers of Verify, with no paths, and roles.json still has the group role reviewers.
+expect "roles.json has tamper-reviewer and verification-reviewer in the group of verify-a-ticket" \
 	0 "$TMP/software" node -e '
-const roles = JSON.parse(require("fs").readFileSync(".qory/harness/roles.json", "utf8")).roles;
+const fs = require("fs");
+const stack = fs.readFileSync(process.argv[1], "utf8");
+const entry = /^ {2}verify-a-ticket: \{([^}]*)\}/m.exec(stack);
+const group = entry && /(?:^|,)\s*review_group: ([a-z0-9-]+)/.exec(entry[1]);
+const roles = JSON.parse(fs.readFileSync(".qory/harness/roles.json", "utf8")).roles;
 const rows = (role) => roles.filter((row) => row.role === role && row.group === true);
 const names = (role) => rows(role).map((row) => row.agent).join(" ");
-const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
-  rows("agents/verify-reviewers").every((row) => !("paths" in row)) &&
+const role = "agents/" + (group ? group[1] : "none");
+const good = Boolean(group) && names(role) === "tamper-reviewer verification-reviewer" &&
+  rows(role).every((row) => !("paths" in row)) &&
   names("agents/reviewers") === "code-reviewer test-reviewer acceptance-reviewer " +
     "security-reviewer data-reviewer failure-reviewer";
-if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
+if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }' \
+	"$ROOT/stacks/software/qory-stack.yaml"
 # The agents of software-factory whose description is about the verify-a-ticket session
-# are the members of verify-reviewers in qory-module.yaml.
-# shortcut: the group name is fixed; read review_group of the stack entry when it exists.
-expect "each agent of the verify-a-ticket session is in verify-reviewers in qory-module.yaml" \
+# are the members of the group that review_group names in its stack entry, in qory-module.yaml.
+expect "each agent of the verify-a-ticket session is in its review group in qory-module.yaml" \
 	0 "$ROOT" node -e '
 const fs = require("fs");
 const dir = "modules/software-factory/";
 const yaml = fs.readFileSync(dir + "qory-module.yaml", "utf8");
-const line = /^\s{4}verify-reviewers: \[([^\]]*)\]/m.exec(yaml);
+const stack = fs.readFileSync("stacks/software/qory-stack.yaml", "utf8");
+const entry = /^ {2}verify-a-ticket: \{([^}]*)\}/m.exec(stack);
+const group = entry && /(?:^|,)\s*review_group: ([a-z0-9-]+)/.exec(entry[1]);
+const line = group &&
+  new RegExp("^\\s{4}" + group[1] + ": \\[([^\\]]*)\\]", "m").exec(yaml);
 const members = line ? line[1].split(",").map((name) => name.trim()) : [];
 const agents = fs.readdirSync(dir + "agents").filter((file) => file.endsWith(".md"))
   .filter((file) => /as an agent of the verify-a-ticket session/.test(
