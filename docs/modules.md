@@ -271,9 +271,10 @@ it declares `reviewers`. The members set no `paths`.
   copy, so a file that a check changes and restores during its run stays unseen, as the
   limit of `run locked` in the section "The check runners" states.
 - `verification-reviewer` reads the draft verification matrix, the criteria, the lock and
-  the copy. It lowers a state and never raises one. A lowered state is one `blocking` finding
-  with a `failing input` proof, and the matrix is not edited. No other part of the report
-  records the lowering. A criterion in a finding has the form `AC-3, "<first sentence>"`.
+  the copy. It lowers a state and never raises one. A lowered state is one `blocking`
+  finding with a `failing input` proof, and the matrix is not edited. No other part of the
+  report records the lowering. A criterion in a finding has the form
+  `AC-3, "<first sentence>"`.
 
 The written parts of Verify are the skills `checking-tampering` and `judging-criteria`, the
 two agents, and the verb `matrix` of the check runners. The skill `workflow-verify-a-ticket`
