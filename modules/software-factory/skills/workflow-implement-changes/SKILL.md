@@ -177,7 +177,7 @@ stay, and qory pushes them.
       of `freeze` are its red lines.
 3. After a green attempt, run `step end <id> done --report <file>`, as "The build ledger"
    lists, with the newest report of the agent that made it, and one
-   `--attempt <agent>,<role>,thinking,unknown` per start of an attempt of the step, where
+   `--attempt <agent>,<role>,thinking` per start of an attempt of the step, where
    `<role>` is `developer` or `debugger`. A start that fixes only its report adds no
    `--attempt`. Then go on to the next step.
 4. When the third attempt is red, do "A step that fails".

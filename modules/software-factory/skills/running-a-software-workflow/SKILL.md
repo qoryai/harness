@@ -88,10 +88,13 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
 3. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
    Add `--report <file>` with the agent's last report under `.reports`, one
-   `--attempt <agent>,<role>,<tier>,<model>` per agent start, one
+   `--attempt <agent>,<role>,<tier>` per agent start, one
    `--pushed <type>/<name>/<version>` per version the step stored, and, for a step
-   `script:`, `--script-sha256 <sha256>`. When `step end done` exits with 1, the step made
-   an edit that no commit of the step has, or the report has a list `Left out:` that
+   `script:`, `--script-sha256 <sha256>`. `step end` adds the model of each start: the
+   `model:` of the agent file, else the `model` of the session's `settings.json`; on Codex,
+   the `model` of `agents/<agent>.toml`, else of `config.toml`; else `unknown`. When
+   `step end done` exits with 1, the step made an edit that no commit of the step has, or
+   the report has a list `Left out:` that
    `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
    with the writer of the report, then run `step end done` again once. If it exits 1 on
    the list again, run `step end <id> failed --report <file>` with the cause. Else end as

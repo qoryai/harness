@@ -131,7 +131,7 @@ test('the session starts the developer twice and the debugger once per step, the
     '`<skill folder>/checks.cjs freeze <id> --inputs <inputs>`',
     'run `step end <id> done --report <file>`');
   contains(step, 'When the third attempt is red, do "A step that fails".');
-  contains(step, 'one `--attempt <agent>,<role>,thinking,unknown` per start of an attempt of ' +
+  contains(step, 'one `--attempt <agent>,<role>,thinking` per start of an attempt of ' +
     'the step');
   // A blocked report other than the stop on the build plan ends the run; it is no red attempt.
   contains(step, 'Any other `blocked` report ends the run as "Failures" lists.');
@@ -780,8 +780,8 @@ function failStep(w, call, id, files, targeted) {
 // The two steps of the plan: d-1 runs its locked check, d-2 its test file.
 const LOCKED_1 = [['run', 'locked', 'ac-1']];
 const TARGETED_2 = [['run', 'targeted', 'tests/header.test.cjs']];
-const DEVELOPER = 'software-developer,developer,thinking,unknown';
-const DEBUGGER = 'software-debugger,debugger,thinking,unknown';
+const DEVELOPER = 'software-developer,developer,thinking';
+const DEBUGGER = 'software-debugger,debugger,thinking';
 
 test('the session builds two deliverables as two frozen commits with two ledger rows', () => {
   const w = work();
