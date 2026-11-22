@@ -207,6 +207,9 @@ module.exports = (lib) => {
         (address.length > room ? `\nThe App address is ${address}.` : ''));
   }
 
+  // shortcut: the push check of demo-script does not read the ledger, so a changed frozen script
+  // is found by the next demo check, and an unchanged script that Verify faults starts no
+  // correction; replace both with a check of the ledger at the push, with the Verify work.
   // unrecorded returns a finding when the pushed script of id, the newest version that counts,
   // has another sha256 than the newest done row of the ledger: a session that pushed a script
   // and skipped `step end`, or that pushed a change to a frozen script. It returns null with no

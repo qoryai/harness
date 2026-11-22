@@ -4550,7 +4550,11 @@ The check and the freeze of a script:
   third correction is refused by `demo check`, and the ledger refuses the id
   `script:<id>#4`.
   A pushed script that differs from the newest done row, with or without a draft, is a fault
-  of `demo check`, whose fix is to push the frozen script again or to run the next step.
+  of `demo check`, whose fix is to push the frozen script again or to run the next step. The
+  limits: the push check of `demo-script` does not read the ledger, so a changed frozen
+  script is found by the next `demo check`, not at the push; and `demo check` finds no
+  correction that Verify asks for when the script is unchanged, because it compares only
+  the script with the scenario and the ledger.
 - `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
   `App address:` of the build plan, by origin or by path. The agent corrects the script in
   its session. With no readable build plan or no address, `demo check` compares nothing.

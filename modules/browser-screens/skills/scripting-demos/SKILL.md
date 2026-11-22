@@ -79,11 +79,16 @@ check` prints no step for a script that has not changed.
      This includes a sign-in step that opens a page outside the App address, by origin or by
      path: "Open only pages under <App address> in the sign-in steps of <script>." Do
      "Start the author again", with those lines. When the first line starts with "Push the
-     frozen script", the pushed script differs from the newest done step: push the frozen
-     script again, or run the step that the line shows for the pushed one, with
-     check-reviewer first. `demo check` compares the sign-in with the App address only when
-     the build plan is readable and has the line `App address:`. With no such plan, it
-     compares nothing, and the run in step 8 loads only pages of the origin of the app.
+     frozen script", the pushed script differs from the newest done step. `demo run` runs
+     only a draft, so copy the pushed file `<folder>/demo-script/<id>/v<N>/<id>.json`, with
+     the largest `<N>`, to `<folder>/.demo/<id>.json`, and do steps 1 to 10 for the step
+     that the line shows: check-reviewer reads the change, `demo run` runs the copy, and
+     the step records its sha256. To keep the frozen script instead, push the file of the
+     frozen script again, which makes it the newest version; do this only for a script
+     that this session wrote and still has as a file. `demo check` compares the sign-in with
+     the App address only when the build plan is readable and has the line `App address:`.
+     With no such plan, it compares nothing, and the run in step 8 loads only pages of the
+     origin of the app.
    - With 0 and a line that starts with "Start check-reviewer", the script changes a script
      that passed. Start ${qory:agents/check-reviewer} in the foreground, as "Starting
      agents" of `running-a-workflow` lists, with the input file's path, `<folder>`, the
