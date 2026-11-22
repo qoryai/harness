@@ -146,7 +146,7 @@ test('outbox: a qory.outputs that is present and malformed is a finding', () => 
 
 test('outbox: qory.outbox must be an absolute path when the stage declares an output', () => {
   const missing = 'The inputs file has no qory.outbox.';
-  const relative = 'qory.outbox of the inputs file is no absolute path.';
+  const relative = 'qory.outbox of the inputs file is not an absolute path.';
   for (const [value, cause] of [[undefined, missing], ['', relative], ['relative/outbox',
     relative], [5, relative], [null, relative]]) {
     const one = session(OUT, { reply: reply() });

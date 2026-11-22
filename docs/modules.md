@@ -1211,11 +1211,11 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
     after this one:", with a line for each such part. Only an absent list passes;
   - an `inputs.json` that is no regular file of at most 1 MiB, or no JSON object: "Fix the
     inputs file of the run." The point says that the setup of the run must provide it;
-  - a stage that declares an output while `qory.outbox` is missing or is no absolute path.
-    The finding is "Set qory.outbox in the inputs file to the absolute path of the outbox
-    folder.", with the cause "The inputs file has no qory.outbox." or "qory.outbox of the
-    inputs file is no absolute path.", and the check reads no file. The point states that
-    the setup of the run must set it;
+  - a stage that declares an output while `qory.outbox` is missing or is not an absolute
+    path. The finding is "Set qory.outbox in the inputs file to the absolute path of the
+    outbox folder.", with the cause "The inputs file has no qory.outbox." or "qory.outbox of
+    the inputs file is not an absolute path.", and the check reads no file. The point states
+    that the setup of the run must set it;
   - a required output with no file;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
     finding is "Remove the link <path>.", and a link above the parent of the outbox folder
@@ -3414,21 +3414,20 @@ highest id of the review, so that `scope` and `freeze` take its id.
   `submission-writer` and runs `checks.cjs report-build --inputs <input file>`, which writes
   `build-report.md` and the outbox file `<outbox>/pull-request/pull-request.json`, which
   qory pushes after the session. It then runs `checks.cjs check build-report` and pushes
-  `build-report`. With exit 1 of `report-build`, it starts
-  `submission-writer` again, at most twice, then ends with one `run_again` point. With exit
-  3 and the line `Build the change in fewer commits`, it ends as Failures with that line;
-  with another exit 2, 3 or 4, it ends as Failures. When the writer fails, the run ends with
-  "The run wrote no text of the change, because <the cause>, so qory pushes the commits of
-  the steps without it." With exit 1 of `check build-report`, it runs `report-build --drop
-  --inputs <input file>` and ends with one `run_again` point; after a third push of
-  `build-report` that fails, it runs the same command and ends with "The run could not push
-  its build report." A stop on the build plan and a case of "Demo scripts" that ends the run
-  skip it, and so does a session that ran no `step end done`, such as one whose first step
-  fails, also in a later
-  round: qory fills `commits` with the commits of this run, and the type needs at least one.
-  Such a run ends with a point, as "A step that fails" lists. `submission-writer` describes
-  what the round built, also after a step that fails. When the end check fails three times,
-  the session records `escalate`.
+  `build-report`. With exit 1 of `report-build`, it starts `submission-writer` again, at
+  most twice, then ends with one `run_again` point. With exit 3 and the line
+  `Build the change in fewer commits`, it ends as Failures with that line; with another exit
+  2, 3 or 4, it ends as Failures. When the writer fails, the run ends with "The run wrote no
+  text of the change, because <the cause>, so qory pushes the commits of the steps without
+  it." With exit 1 of `check build-report`, it runs
+  `report-build --drop --inputs <input file>` and ends with one `run_again` point; after a
+  third push of `build-report` that fails, it runs the same command and ends with "The run
+  could not push its build report." A stop on the build plan and a case of "Demo scripts"
+  that ends the run skip it, and so does a session that ran no `step end done`, such as one
+  whose first step fails, also in a later round: qory fills `commits` with the commits of
+  this run, and the type needs at least one. Such a run ends with a point, as "A step that
+  fails" lists. `submission-writer` describes what the round built, also after a step that
+  fails. When the end check fails three times, the session records `escalate`.
 - **The end.** With every step done or replayed, the session follows "The end" of
   `running-a-workflow`: with `judges: false`, it runs no verdict command, and
   `review-changes` runs next. It starts no reviewer, and ends with "The change is ready for
@@ -4312,7 +4311,9 @@ reads as objects, never as files of the working folder. The start commit is `--b
 full commit id, when given, else `qory.start_commits` of `inputs.json`; with both, they
 must be the same commit, or the call exits 3. The proposal is the newest one in the folder
 of `--artifacts` or of `qory.start_artifacts`, so a proposal that an agent writes into the
-artifact folder of the session counts as none. A change in the working folder that no
+artifact folder of the session counts as none. With a `qory.start_artifacts` of `""`, a run
+that pulled no build plans at the start, the proposal and the build plan come from the
+artifact folder of the session. A change in the working folder that no
 commit has is not proved: `freeze` and `scope` judge it.
 
 The proofs, in order:

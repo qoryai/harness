@@ -270,7 +270,7 @@ module.exports = (lib) => {
         const { dropping, inputs, other } = parse(what, rest);
         const why = inputs === null ? INPUTS_USAGE : other.length && (dropping
           ? 'Give report-build --drop only --inputs, with a path.'
-          : 'Give report-build only --inputs, with a path, or only --drop and --inputs.');
+          : 'Give report-build only --inputs, with a path, or --drop first, then --inputs.');
         if (why) dropOutput(io, inputs, true);
         return why || null;
       },

@@ -24,7 +24,8 @@ Each command of this skill that starts with `<skill folder>/checks.cjs` is the c
 of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
 ends in `/in/inputs.json`, and `<in>` is the folder of that file. `<folder>` is the
 artifact folder that the pull prints, and `<start>` is the folder in
-`qory.start_artifacts` of the input file. Give each Bash call of
+`qory.start_artifacts` of the input file. When `qory.start_artifacts` is `""`, the run
+pulled no build plans at the start, and `<start>` is `<folder>`. Give each Bash call of
 `run` the timeout 3600000 ms, and run no other command in the same call.
 
 The developer is ${qory:agents/developer}, and the debugger is ${qory:agents/debugger}. In

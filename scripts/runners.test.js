@@ -1814,6 +1814,13 @@ test('start: an empty qory.start_artifacts reads the build plan from the session
   const got = call(dir, ['run', 'lint', '--inputs', inputs]);
   assert.equal(got.status, 1, got.out);
   assert.equal(lastRecord(dir).build_plan, 2);
+  // probe reads the same version.
+  write(dir, '.qory/artifacts/p.patch', PATCH('exports.add = (a, b) => a + b;',
+    'exports.add = (a, b) => a - b;'));
+  const probed = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js',
+    '--inputs', inputs]);
+  assert.equal(probed.status, 0, probed.out);
+  assert.equal(lastRecord(dir).build_plan, 2);
 });
 
 test('start: a relative qory.start_artifacts exits 3 with the fix', () => {
@@ -1823,8 +1830,8 @@ test('start: a relative qory.start_artifacts exits 3 with the fix', () => {
       harness_extensions: {}, start_commits: [], start_artifacts: value } })]);
     assert.equal(got.status, 3, `${value}: ${got.out}`);
     assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-    assert.equal(got.lines[1], '  qory.start_artifacts in inputs.json is no absolute path, so ' +
-      'the start of the run is unknown.');
+    assert.equal(got.lines[1], '  qory.start_artifacts in inputs.json is not an absolute ' +
+      'path, so the start of the run is unknown.');
   }
 });
 
@@ -3178,7 +3185,7 @@ test('report-build: a commit outside base..HEAD gets no entry, a commit in two r
   assert.deepEqual(outboxOf(dir).steps, []);
 });
 
-test('report-build: with no inputs file, the output has draft true', () => {
+test('report-build: with only qory.outbox in the inputs file, the output has draft true', () => {
   const { dir } = buildRepo();
   const got = bcall(dir, ['report-build']);
   assert.equal(got.status, 0, got.out + got.err);
@@ -3802,7 +3809,7 @@ test('report-build: qory.outbox missing or relative exits 3, writes no file and 
     assert.equal(got.lines[0],
       'Set qory.outbox in the inputs file to the absolute path of the outbox folder.');
     assert.equal(got.lines[1], value === undefined ? '  The inputs file has no qory.outbox.'
-      : '  qory.outbox of the inputs file is no absolute path.', String(value));
+      : '  qory.outbox of the inputs file is not an absolute path.', String(value));
     assert.equal(fs.existsSync(report), false, String(value));
     // The output of the earlier run is at the old place and stays: no qory.outbox leads to it.
     assert.equal(fs.readFileSync(file, 'utf8'), raw, String(value));
@@ -3825,7 +3832,7 @@ test('report-build: no --inputs, or an inputs file that is missing or no object,
   const none = call(dir, ['report-build'], { env: { QORY_OUTBOX: outboxFolder(dir) } });
   assert.equal(none.status, 3, none.out + none.err);
   assert.equal(none.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
-  assert.equal(none.lines[1], '  The outbox folder is qory.outbox of that file.');
+  assert.equal(none.lines[1], '  The outbox folder is set in qory.outbox of that file.');
   const missing = call(dir, ['report-build', '--inputs', path.join(dir, 'none.json')]);
   assert.equal(missing.status, 3, missing.out + missing.err);
   assert.equal(missing.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');

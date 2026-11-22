@@ -72,14 +72,16 @@ function readInputs(inputs) {
 const outboxCause = (value) => {
   if (value === undefined) return 'The inputs file has no qory.outbox.';
   return typeof value === 'string' && path.isAbsolute(value) ? null
-    : 'qory.outbox of the inputs file is no absolute path.';
+    : 'qory.outbox of the inputs file is not an absolute path.';
 };
 
 // outboxFolder returns qory.outbox of the inputs file at inputs, null when the file has none,
 // or throws Missing with the fix for no inputs, a missing or broken file, or a relative path.
 // A module that writes the outbox reads it the same way, through LIBRARY.
 function outboxFolder(inputs) {
-  if (!inputs) throw new Missing(`${INPUTS_FIX}\nThe outbox folder is qory.outbox of that file.`);
+  if (!inputs) {
+    throw new Missing(`${INPUTS_FIX}\nThe outbox folder is set in qory.outbox of that file.`);
+  }
   const { data, setup } = readInputs(inputs);
   if (!data) throw new Missing(`${INPUTS_FIX}\n${setup || `${quote(inputs)} does not exist.`}`);
   const value = isObject(data.qory) ? data.qory.outbox : undefined;

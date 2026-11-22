@@ -91,7 +91,7 @@ module.exports = (lib) => {
     });
     if (qory.start_artifacts === '') return { commits, artifacts: null };
     if (typeof qory.start_artifacts !== 'string' || !path.isAbsolute(qory.start_artifacts)) {
-      throw fault('qory.start_artifacts in inputs.json is no absolute path');
+      throw fault('qory.start_artifacts in inputs.json is not an absolute path');
     }
     return { commits, artifacts: qory.start_artifacts };
   }

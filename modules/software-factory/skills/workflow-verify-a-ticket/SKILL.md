@@ -23,8 +23,9 @@ lists it. When one of the first three skills cannot be loaded, start nothing and
 Each command of this skill that starts with `<skill folder>/checks.cjs` is the checks script
 of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
 ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull prints. `<start>`
-is the folder in `qory.start_artifacts` of the input file. `<reports>` is the report folder,
-`qory.review_session.reports`. `<suite>` is the result of the full suite,
+is the folder in `qory.start_artifacts` of the input file. When `qory.start_artifacts` is
+`""`, the run pulled no artifacts at the start, and `<start>` is `<folder>`. `<reports>` is
+the report folder, `qory.review_session.reports`. `<suite>` is the result of the full suite,
 `qory.review_session.suite_result`, a member that qory may leave out. `<N>` is the number
 of the acceptance-lock version that a member approved, as step 3 finds it.
 

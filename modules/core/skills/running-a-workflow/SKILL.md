@@ -425,8 +425,8 @@ check reads those files and finds:
   or `false`, or a `schema` is no object. With no `qory.outputs` or no `inputs.json`, the
   check finds nothing;
 - an `inputs.json` that exists and is no JSON object, and a stage that declares an output
-  while `qory.outbox` is missing or is no absolute path ("Set qory.outbox in the inputs file
-  ..."). The setup of the run must fix these; no output file does;
+  while `qory.outbox` is missing or is not an absolute path ("Set qory.outbox in the inputs
+  file ..."). The setup of the run must fix these; no output file does;
 - a required output with no file;
 - a link in the outbox folder, in the folder above it, or in the folder of the type, which
   the fix "Remove the link ..." names, and a file that is a link, is no regular file, or
