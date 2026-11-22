@@ -1207,10 +1207,10 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `hook_session`. For each checkout of `qory.start_commits` that the session can write, a
   change is a path that `git status` lists: a tracked, staged or untracked file that git
   does not ignore, or a submodule whose commit or files changed, outside `.qory/`. When a
-  git call fails, the check finds no change in that checkout. The finding is `Commit these changes, then end the
-  session: the suite and the review read only committed work.`, then `Not committed:` with
-  at most 20 paths, sorted, fewer when the line would pass 200 characters, with a path that
-  has a key shown as words, and `(<n> in all)`. It counts the checks in a row that found a
+  git call fails, the check finds no change in that checkout. The finding is `Commit these
+  changes, then end the session: the suite and the review read only committed work.`, then
+  `Not committed:` with at most 20 paths, sorted, fewer when the line would pass 200
+  characters, with a path that has a key shown as words, and `(<n> in all)`. It counts the checks in a row that found a
   change in `.reports/uncommitted.json`, and a check with none sets the count to 0. At the
   third failed check, its point is "The Build session ended <n> times with changes it did
   not commit, so the suite and the review could not check them.", with that count. With no
