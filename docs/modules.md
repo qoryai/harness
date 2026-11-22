@@ -2531,13 +2531,17 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   `step end` adds the model: the `model:` of the agent file in the plugin folder, else the
   `model` of the `settings.json` in the plugin folder or beside it, else `unknown`, the
   runtime's default. The plugin folder is `claude/plugin` in a run and `claude/` or the
-  checkout's `.claude` in a session that reads the checkout. In a Codex session, which
-  runs the skill from the Codex home, a folder with `config.toml`, or from the checkout's
-  `.agents` beside its `.codex`, the model is the `model` of `agents/<agent>.toml` of the
-  Codex home, else the top-level `model` of its `config.toml`, else `unknown`. A home
-  composed for Codex and another runtime writes no tier into the Codex agents, so each of
-  them gets the model of `config.toml`. `step end` exits 2 for a
-  value with other than 3 parts, such as a model as a fourth part, and line 2 of its error
+  checkout's `.claude` in a session that reads the checkout. In a Codex session, the model
+  is the `model` of `agents/<agent>.toml` of the Codex home, else the top-level `model` of
+  its `config.toml`, else `unknown`. The Codex home is the plugin folder when it has
+  `config.toml`, as `codex/` has. For a session that runs the skill from the checkout's
+  `.agents`, it is the folder of `CODEX_HOME`, which qory sets only for a Codex launch;
+  with no `CODEX_HOME`, or one with no `config.toml`, the model is `unknown`, because amp,
+  any, copilot, cursor, goose and opencode read `.agents` too. A file that is no regular
+  file of at most 64 KiB, or a top-level `model` that is not a string of one line, gives
+  `unknown`. qory writes no tier into the Codex agents of a home composed for Codex and
+  another runtime, so each of them gets the model of `config.toml`. `step end` exits 2 for
+  a value with other than 3 parts, such as a model as a fourth part, and line 2 of its error
   has the cause: the number of parts, the agent or role that is no name, or the tier;
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
   `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end

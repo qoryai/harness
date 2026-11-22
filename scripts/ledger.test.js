@@ -85,6 +85,7 @@ function work() {
     GIT_AUTHOR_NAME: 'Sam Example', GIT_AUTHOR_EMAIL: 'sam@example.com',
     GIT_COMMITTER_NAME: 'Sam Example', GIT_COMMITTER_EMAIL: 'sam@example.com',
   };
+  delete w.env.CODEX_HOME;
   w.args = path.join(w.bin, 'args');
   fs.writeFileSync(path.join(w.bin, 'index.js'),
     `${listVersion}\nlistVersion(...process.argv.slice(2));\n`);
@@ -311,12 +312,9 @@ function pluginWith({ models = {}, files = {}, settings } = {}) {
   return path.join(modules, 'core');
 }
 
-// twoRuntimes returns the folders of a harness home that qory composes for claude and codex
-// with --model main-model-x --tier thinking=think-model-y, as qory at 64e700db writes it: the
-// developer has the tier thinking, and the debugger stands for an agent whose tier has no
-// map, so its file has no model: line. Codex agents have no model in a home for two runtimes,
-// and config.toml has the main model. The skill folders link the skill of this repository.
-// checkout is the .agents, .codex and .claude of a checkout, which link the files of the home.
+// twoRuntimes returns the folders of a home that qory 64e700db composes for claude and codex
+// with --model main-model-x --tier thinking=think-model-y; the debugger's tier has no map.
+// checkout has the .agents, .codex and .claude of a checkout.
 function twoRuntimes() {
   const home = fresh('harness');
   const put = (file, text) => {
@@ -355,10 +353,11 @@ function twoRuntimes() {
 }
 
 test('ledger: step end adds the model of each start: agent file, settings.json, or unknown', () => {
-  // models ends a step with a start of the developer and of the debugger, and returns the
-  // model of each attempt of the stored row.
-  const models = (plugin) => {
+  // models ends a step with a start of the developer and of the debugger, with the variables
+  // of env, and returns the model of each attempt of the stored row.
+  const models = (plugin, env = {}) => {
     const w = work();
+    Object.assign(w.env, env);
     const call = resumed(w, { plugin });
     assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
     commit(w, 'd.txt', 'The change.\n');
@@ -389,21 +388,26 @@ test('ledger: step end adds the model of each start: agent file, settings.json, 
   })), ['model-q', 'model-c']);
   // The layouts of a home for two runtimes. Claude Code in a run loads claude/plugin, and a
   // session that reads the checkout loads claude/ through .claude; both read
-  // claude/settings.json. Codex reads codex/ as CODEX_HOME, or .agents of the checkout with
-  // the .codex beside it. Its agents have no model there, so each runs on the model of
-  // config.toml, and the model: lines of claude/ beside it do not apply.
+  // claude/settings.json. Codex reads codex/ as CODEX_HOME, or .agents of the checkout. Its
+  // agents have no model there, so each runs on the model of config.toml, and the model:
+  // lines of claude/ beside it do not apply.
   const home = twoRuntimes();
   for (const plugin of [home.plugin, home.claude, home.dotClaude]) {
     assert.deepEqual(models(plugin), ['think-model-y', 'main-model-x'], plugin);
   }
-  for (const plugin of [home.codex, home.agents]) {
-    assert.deepEqual(models(plugin), ['main-model-x', 'main-model-x'], plugin);
-  }
+  assert.deepEqual(models(home.codex), ['main-model-x', 'main-model-x']);
+  assert.deepEqual(models(home.agents, { CODEX_HOME: home.codex }),
+    ['main-model-x', 'main-model-x']);
+  // With no CODEX_HOME, a session from .agents is of another runtime, and .codex beside it
+  // does not count.
+  assert.deepEqual(models(home.agents), ['unknown', 'unknown']);
 });
 
-// codexOnly returns the codex/ folder of a harness home composed for Codex alone, with
+// codexOnly returns the codex/ folder of a harness home composed for Codex and opencode, with
 // config.toml of the text config, an agents/<name>.toml of the text of each of agents, and
-// codex/skills, which links the skill of this repository.
+// codex/skills, which links the skill of this repository. Its .agents is the .agents of a
+// checkout, with the .codex and opencode.json beside it, as qory writes them, and a
+// settings.json of the target repository.
 function codexOnly({ config, agents = {} }) {
   const home = fresh('harness');
   const put = (file, text) => {
@@ -412,16 +416,27 @@ function codexOnly({ config, agents = {} }) {
   };
   put('codex/config.toml', config);
   for (const [name, text] of Object.entries(agents)) put(`codex/agents/${name}.toml`, text);
-  fs.mkdirSync(path.join(home, 'codex/skills'), { recursive: true });
-  fs.symlinkSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow'),
-    path.join(home, 'codex/skills/running-a-software-workflow'));
-  return path.join(home, 'codex');
+  for (const folder of ['codex/skills', 'checkout/.agents/skills']) {
+    fs.mkdirSync(path.join(home, folder), { recursive: true });
+    fs.symlinkSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow'),
+      path.join(home, folder, 'running-a-software-workflow'));
+  }
+  fs.mkdirSync(path.join(home, 'checkout/.codex'));
+  for (const name of ['config.toml', 'agents']) {
+    fs.symlinkSync(path.join(home, 'codex', name), path.join(home, 'checkout/.codex', name));
+  }
+  put('checkout/opencode.json', '{}\n');
+  put('checkout/settings.json', '{"model": "a-file-of-the-target"}\n');
+  return { codex: path.join(home, 'codex'), agents: path.join(home, 'checkout/.agents') };
 }
 
 test('ledger: on Codex, step end adds the model of agents/<agent>.toml, else config.toml', () => {
-  const models = (plugin) => {
+  // models ends a step with a start of the developer and of the debugger in a home of
+  // codexOnly, from its codex/ or, with the variables of env, from its .agents.
+  const models = (home, env = null) => {
     const w = work();
-    const call = resumed(w, { plugin });
+    Object.assign(w.env, env || {});
+    const call = resumed(w, { plugin: env ? home.agents : home.codex });
     assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
     commit(w, 'd.txt', 'The change.\n');
     const ended = call('step', 'end', 'deliverable:d-1', 'done',
@@ -431,11 +446,20 @@ test('ledger: on Codex, step end adds the model of agents/<agent>.toml, else con
     return stored(w).ledger.steps[0].attempts.map((one) => one.model);
   };
   const main = 'model = "main-model-x"\n\n[features]\nunified_exec_tty = false\n';
+  const developer = 'description = "d"\nmodel = "think-model-y"\nname = "x"\n';
   // The model of the agent file comes first; the debugger has no file and takes config.toml.
-  assert.deepEqual(models(codexOnly({ config: main, agents: {
-    'software-developer': 'description = "d"\nmodel = "think-model-y"\nname = "x"\n' } })),
-  ['think-model-y', 'main-model-x']);
+  const both = codexOnly({ config: main, agents: { 'software-developer': developer } });
+  assert.deepEqual(models(both), ['think-model-y', 'main-model-x']);
   assert.deepEqual(models(codexOnly({ config: main })), ['main-model-x', 'main-model-x']);
+  // From .agents, the models of the Codex home of CODEX_HOME. With no CODEX_HOME, the session
+  // is of another runtime, such as opencode, and .codex beside .agents does not count. A
+  // CODEX_HOME with no config.toml is no Codex home.
+  assert.deepEqual(models(both, { CODEX_HOME: both.codex }), ['think-model-y', 'main-model-x']);
+  assert.deepEqual(models(both, {}), ['unknown', 'unknown']);
+  const noConfig = fresh('no-config');
+  fs.mkdirSync(path.join(noConfig, 'agents'), { recursive: true });
+  fs.writeFileSync(path.join(noConfig, 'agents/software-developer.toml'), 'model = "m"\n');
+  assert.deepEqual(models(both, { CODEX_HOME: noConfig }), ['unknown', 'unknown']);
   // With neither, the agent runs on the runtime's default.
   assert.deepEqual(models(codexOnly({ config: '[features]\nmodel = "in-a-table"\n' })),
     ['unknown', 'unknown']);
@@ -453,6 +477,45 @@ test('ledger: on Codex, step end adds the model of agents/<agent>.toml, else con
     config: 'notes = """one line"""\nmodel = "main-model-x"\n',
     agents: { 'software-developer': 'body = "Write \'\'\' here"\nmodel = "model-s"\n' } })),
   ['model-s', 'main-model-x']);
+  // A top-level model in another form is unknown, not the model of config.toml.
+  for (const line of ['"model" = "x"', 'model = "a\\"b"', 'model = 5', "model = '''x'''"]) {
+    assert.deepEqual(models(codexOnly({ config: main,
+      agents: { 'software-developer': `name = "x"\n${line}\n` } })),
+    ['unknown', 'main-model-x'], line);
+  }
+});
+
+test('ledger: on Codex, a model file that is no regular file of at most 64 KiB is unknown', () => {
+  const models = (plugin) => {
+    const w = work();
+    const call = resumed(w, { plugin });
+    assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
+    commit(w, 'd.txt', 'The change.\n');
+    const ended = call('step', 'end', 'deliverable:d-1', 'done',
+      '--attempt', 'software-developer,developer,thinking',
+      '--attempt', 'software-debugger,debugger,thinking');
+    assert.equal(ended.status, 0, ended.out);
+    return stored(w).ledger.steps[0].attempts.map((one) => one.model);
+  };
+  const main = 'model = "main-model-x"\n';
+  // A FIFO and a folder in place of an agent file.
+  const odd = codexOnly({ config: main });
+  fs.mkdirSync(path.join(odd.codex, 'agents'));
+  childProcess.execFileSync('mkfifo', [path.join(odd.codex, 'agents/software-developer.toml')]);
+  fs.mkdirSync(path.join(odd.codex, 'agents/software-debugger.toml'));
+  assert.deepEqual(models(odd.codex), ['unknown', 'unknown']);
+  // A link to a device that reads as empty.
+  const device = codexOnly({ config: main });
+  fs.mkdirSync(path.join(device.codex, 'agents'));
+  fs.symlinkSync('/dev/null', path.join(device.codex, 'agents/software-developer.toml'));
+  assert.deepEqual(models(device.codex), ['unknown', 'main-model-x']);
+  // A file of 64 KiB is read, and a file of one byte more is not.
+  const pad = (text, size) => text + '#'.repeat(size - text.length);
+  const limit = codexOnly({ config: pad(main, 64 * 1024),
+    agents: { 'software-developer': pad('model = "model-s"\n', 64 * 1024 + 1) } });
+  assert.deepEqual(models(limit.codex), ['unknown', 'main-model-x']);
+  assert.deepEqual(models(codexOnly({ config: pad(main, 64 * 1024 + 1) }).codex),
+    ['unknown', 'unknown']);
 });
 
 test('ledger: an edit outside a step fails step begin or step end', () => {

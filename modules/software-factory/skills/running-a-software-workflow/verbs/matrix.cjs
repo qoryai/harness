@@ -40,21 +40,21 @@ function familyOf(id) {
 
 module.exports = (lib) => {
   const { pull } = lib.lockReader;
-  const { Context, MATRIX_RECORD, Missing, artifactFolder, cut, isObject, liveCriteria,
-    modelOf, parseJson, plural, sessionModel, writeJson } = lib;
+  const { Context, MATRIX_RECORD, Missing, agentModel, artifactFolder, cut, isObject,
+    liveCriteria, parseJson, plural, writeJson } = lib;
 
   // families returns the families of the models of Build's ledger, in the newest
   // version of build-ledger of context, and of the agents of Verify, once each. With no
-  // context, because the ledger could not be pulled, the family of its models is unknown.
-  function families(context, plugin) {
+  // context, because the ledger could not be pulled, the family of its models is unknown. env
+  // is the environment of the session.
+  function families(context, plugin, env) {
     const ledger = context ? context.newest('build-ledger', 'build-ledger.json') : null;
     const data = ledger ? parseJson(ledger.text, `build-ledger version ${ledger.number}`) : null;
     const steps = data && Array.isArray(data.steps) ? data.steps.filter(isObject) : [];
     const models = steps.flatMap((step) => (Array.isArray(step.attempts) ? step.attempts : []))
       .filter(isObject).map((attempt) => attempt.model);
-    const settings = sessionModel(plugin);
     if (!context) models.push('unknown');
-    models.push(...REVIEWERS.map((agent) => modelOf(plugin, agent, settings)));
+    models.push(...REVIEWERS.map((agent) => agentModel(plugin, agent, env)));
     return [...new Set(models.map(familyOf))];
   }
 
@@ -191,7 +191,7 @@ module.exports = (lib) => {
       else notVerified.push({ criterion: criterion.id, reason: got.reason });
     }
     writeJson(path.join(root, FILE), { target_version: commit, matrix, not_verified: notVerified,
-      model_families: families(pulled('build-ledger', false), io.plugin) });
+      model_families: families(pulled('build-ledger', false), io.plugin, io.env) });
     writeJson(path.join(root, MATRIX_RECORD), { commit, lock: number,
       matrix: matrix.map(({ criterion, state }) => ({ criterion, state })),
       not_verified: notVerified.map((one) => one.criterion) });

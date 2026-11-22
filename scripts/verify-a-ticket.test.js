@@ -249,16 +249,19 @@ function layout({ models = {}, settings = null } = {}) {
 
 // codexLayout returns the codex/ folder of a harness home composed for Codex alone: config.toml
 // with the model of the session, an agents/<agent>.toml with its model for each of models, and
-// codex/skills, which links the skills of this repository.
+// codex/skills, which links the skills of this repository. The .agents of a checkout beside
+// it links the skills too.
 function codexLayout({ models = {}, session }) {
   const home = next('home');
   write(path.join(home, 'codex', 'config.toml'), `model = "${session}"\n\n[features]\n`);
   for (const [agent, model] of Object.entries(models)) {
     write(path.join(home, 'codex', 'agents', `${agent}.toml`), `model = "${model}"\n`);
   }
-  fs.mkdirSync(path.join(home, 'codex', 'skills'), { recursive: true });
-  fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
-    path.join(home, 'codex', 'skills', 'running-a-software-workflow'));
+  for (const folder of [path.join(home, 'codex'), path.join(home, '.agents')]) {
+    fs.mkdirSync(path.join(folder, 'skills'), { recursive: true });
+    fs.symlinkSync(path.join(MODULES, 'software-factory', 'skills', 'running-a-software-workflow'),
+      path.join(folder, 'skills', 'running-a-software-workflow'));
+  }
   return path.join(home, 'codex');
 }
 
@@ -455,6 +458,12 @@ test('matrix: two families, and unknown for no model', () => {
       session: 'deepseek-v4-pro' }) });
   assert.equal(matrix(codex).status, 0);
   assert.deepEqual(verification(codex).model_families, ['qwen', 'deepseek']);
+  // From .agents, only with CODEX_HOME, which qory sets only for a Codex launch.
+  const agents = { ...codex, plugin: path.join(path.dirname(codex.plugin), '.agents') };
+  assert.equal(matrix(agents, { QORY_RUN_ID: 'run_1', CODEX_HOME: codex.plugin }).status, 0);
+  assert.deepEqual(verification(agents).model_families, ['qwen', 'deepseek']);
+  assert.equal(matrix(agents).status, 0);
+  assert.deepEqual(verification(agents).model_families, ['unknown']);
   // An unresolved tier name in an agent file is no model id, and the real agent files have it.
   const none = work({ records: [{ checks: [check('ac-4', 'green')] }] });
   assert.equal(matrix(none).status, 0);
