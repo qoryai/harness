@@ -38,8 +38,8 @@ module.exports = (lib) => {
     Array.isArray(qory.outputs) &&
     qory.outputs.some((one) => isObject(one) && one.type === 'pull-request');
 
-  // writable reports whether the session can write folder: a read-only mount, as qory gives a
-  // review, cannot be written.
+  // writable reports whether the session can write folder: qory mounts the checkout of a
+  // review read-only.
   function writable(folder) {
     try {
       fs.accessSync(folder, fs.constants.W_OK);
@@ -113,8 +113,8 @@ module.exports = (lib) => {
     }
     const count = found.length ? tries(io.root) + 1 : 0;
     save(io.root, count);
-    // shortcut: two checkouts give two findings with the same fix, and no line names the
-    // checkout of a path; add its folder when a Build session writes more than one checkout.
+    // shortcut: with two checkouts, the check reports two findings with the same fix, and no
+    // line shows the checkout of a path; add its folder when a session writes two checkouts.
     return found.map((files) => ({ line: `${FIX}\n${listed(files, io.env)}`,
       point: UNCOMMITTED, item: count }));
   }

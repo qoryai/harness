@@ -1206,8 +1206,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `inputs.json` has `pull-request`, and `qory` has no `review`, `review_session` or
   `hook_session`. For each checkout of `qory.start_commits` that the session can write, a
   change is a path that `git status` lists: a tracked, staged or untracked file that git
-  does not ignore, or a submodule whose commit or files changed, outside `.qory/`. A git
-  call that fails gives no finding. The finding is `Commit these changes, then end the
+  does not ignore, or a submodule whose commit or files changed, outside `.qory/`. When a
+  git call fails, the check finds no change in that checkout. The finding is `Commit these changes, then end the
   session: the suite and the review read only committed work.`, then `Not committed:` with
   at most 20 paths, sorted, fewer when the line would pass 200 characters, with a path that
   has a key shown as words, and `(<n> in all)`. It counts the checks in a row that found a
