@@ -67,6 +67,13 @@ function resolve(node, defs) {
 const SCHEMAS = path.join(SOFTWARE, 'skills/running-a-software-workflow/schemas');
 const PRIMITIVES = JSON.parse(read(SCHEMAS, 'primitives.schema.json'));
 const { $defs: DEFS, ...WITHOUT_DEFS } = JSON.parse(read(SCHEMAS, 'pull-request.schema.json'));
+// submits returns whether the session does "The submission" by its skip on the ledger: only
+// when a row of steps in .reports/build-ledger.json is done.
+function submits(w) {
+  const ledger = JSON.parse(read(w.artifacts, '.reports', 'build-ledger.json'));
+  return ledger.steps.some((one) => one.state === 'done');
+}
+
 // PULL_REQUEST is the schema of the output pull-request, which Build declares as required, as
 // qory writes it in qory.outputs.
 const PULL_REQUEST = resolve(WITHOUT_DEFS, DEFS);
@@ -210,7 +217,10 @@ test('the session writes the text of the change after the last step, and not on 
   // The skip list, and the two ends that "The submission" writes.
   contains(submission, 'Do this section after the last step: at "The end", and in "A step ' +
     'that fails". A stop on the build plan, a work item with no build plan, a withdrawal that ' +
-    'fails and an end as "Failures" lists skip it.');
+    'fails and an end as "Failures" lists skip it. Skip it also when no row of `steps` in ' +
+    '`<folder>/.reports/build-ledger.json` has the `state` `done`, such as after the first ' +
+    'step of the first round fails: qory opens a pull request only from at least one commit, ' +
+    'and the run has none.');
   contains(submission, 'With 0, go on with step 3.');
   contains(submission, 'with one `run_again` point: "The change is not ready, because the ' +
     'text of the change still breaks the rules for it."');
@@ -751,6 +761,7 @@ test('the session builds two deliverables as two frozen commits with two ledger 
     tier: 'thinking', model: 'unknown' }]);
   // "The submission" leaves pull-request.json with the text and the two commits, and
   // build-report.md with the two rows.
+  assert.equal(submits(w), true);
   const { handoff, report: built } = submit(w, call);
   const sent = JSON.parse(fs.readFileSync(handoff, 'utf8'));
   assert.equal(sent.title, 'Write the order lines and a header in the export');
@@ -838,16 +849,29 @@ test('the session ends a step failed after its third red attempt, and starts no 
   const row = newest(w, 'build-ledger', 'build-ledger.json').steps.at(-1);
   assert.equal(row.state, 'failed');
   assert.deepEqual(row.attempts.map((one) => one.role), ['developer', 'developer', 'debugger']);
-  // "The submission" runs after a failed step too: build-report.md lists the open step.
-  const { handoff, report: built } = submit(w, call);
-  assert.deepEqual(JSON.parse(fs.readFileSync(handoff, 'utf8')).steps, []);
-  assert.match(fs.readFileSync(built, 'utf8'),
-    /\| deliverable:d-1 \| 1 \| deliverable \| failed \|/);
-  // The step stays open in the ledger, and the session ends with no point and no verdict.
+  // The first step of the first round failed, so no row of the ledger is done, and the session
+  // skips "The submission": it starts no submission writer and runs no report-build.
+  const local = JSON.parse(read(w.artifacts, '.reports', 'build-ledger.json'));
+  assert.equal(local.steps.some((one) => one.state === 'done'), false);
+  assert.equal(submits(w), false);
+  assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
+  assert.equal(fs.existsSync(path.join(w.artifacts, '.reports', 'submission-writer-1.md')),
+    false);
+  // The step stays open in the ledger, and the session writes no point and runs no verdict
+  // command. Build declares the output pull-request as required, so each end check finds no
+  // pull-request.json, and the third check records escalate.
   assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
-  const ended = call('end', w.artifacts, '--inputs', withOutput(w));
-  assert.equal(ended.status, 0, ended.out + ended.err);
-  assert.deepEqual(logOf(w).filter((line) => line.startsWith('run verdict')), []);
+  const inputs = withOutput(w);
+  const results = [1, 2, 3].map(() => call('end', w.artifacts, '--inputs', inputs));
+  for (const one of results) {
+    assert.match(one.out + one.err, new RegExp('^Write \\$QORY_OUTBOX/pull-request/' +
+      'pull-request\\.json\\.\\n\\s+The stage needs a pull-request output, and the file ' +
+      'does not exist\\.$', 'm'));
+  }
+  escalates(w, results);
+  assert.deepEqual(JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text),
+    ['The stage needs the pull request, which the run did not write, and another round ' +
+      'writes it again.']);
 });
 
 test('the session withdraws the demo script of removed scenario-2 once', () => {

@@ -207,7 +207,9 @@ file, and only a member can change the approved plan.
 
 Do this section after the last step: at "The end", and in "A step that fails". A stop on the
 build plan, a work item with no build plan, a withdrawal that fails and an end as "Failures"
-lists skip it.
+lists skip it. Skip it also when no row of `steps` in `<folder>/.reports/build-ledger.json`
+has the `state` `done`, such as after the first step of the first round fails: qory opens a
+pull request only from at least one commit, and the run has none.
 
 1. Start ${qory:agents/submission-writer} in the foreground, as "Starting agents" of
    `running-a-workflow` lists, with the input file's path, `<folder>` and the path of the
