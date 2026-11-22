@@ -284,7 +284,7 @@ function end(io, folder) {
     return { status: 0, findings: [], last: `Checked nothing: ${folder} does not exist, so no ` +
       `workflow run is there.` };
   }
-  const { types } = io.registry();
+  const { types, end: moduleEnd } = io.registry();
   const points = path.join(root, 'points.json');
   // An end through points.json records escalate, also for a workflow whose stack entry sets
   // judges: false, which records no other verdict.
@@ -329,9 +329,10 @@ function end(io, folder) {
       reportResults = [{ line: [error.message, ...(error.more || [])].join('\n'),
         point: RECORDS_UNREAD }];
     }
+    // moduleEnd is the check at the end that a module of the stack adds, if any.
     found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin,
       place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs }, verdict: body }),
-    ...reportResults, ...outboxDrafts(io)];
+    ...reportResults, ...outboxDrafts(io), ...(moduleEnd ? moduleEnd({ ...io, root }) : [])];
   }
   const findings = found.map((one) => one.line);
   const counter = path.join(root, '.reports', 'end.json');

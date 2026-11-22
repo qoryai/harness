@@ -958,8 +958,9 @@ test('after one step done and one step failed, the session does "The submission"
   assert.match(text, /\| deliverable:d-1 \| 1 \| deliverable \| done \|/);
   assert.match(text, /\| deliverable:d-2 \| 1 \| deliverable \| failed \|/);
   // The session writes no point and runs no verdict command, and the end check passes on the
-  // pull-request.json of report-build.
+  // pull-request.json of report-build, once the files of the failed step are in a stash.
   assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
+  git(w.repo, w.env, 'stash', 'push', '-q', '--include-untracked', '--', ':/', ':!/.qory');
   const ended = call('end', w.artifacts, '--inputs', withOutput(w));
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
@@ -1209,3 +1210,155 @@ for (const reviewers of [true, 'reviewers']) {
     escalates(w, endThrice(w, call, 'submission-writer', inputs));
   });
 }
+
+// CORE_PLUGIN is a composed plugin of the module core alone, whose registry has no end check
+// of a module.
+const CORE_PLUGIN = path.join(tmp, 'core-plugin');
+fs.cpSync(path.join(CORE, 'agents'), path.join(CORE_PLUGIN, 'agents'), { recursive: true });
+
+// The two lines of the end check on changes that no commit contains.
+const COMMIT_FIX = 'Commit these changes, then end the session: the suite and the review read ' +
+  'only committed work.';
+
+// buildInputs writes inputs of w for a Build write session, with qory.outputs pull-request not
+// required, so that no other finding of the end check is about the outbox, and the members of
+// extra. It returns the path.
+function buildInputs(w, extra = {}) {
+  const inputs = path.join(fresh('in'), 'inputs.json');
+  const qory = JSON.parse(read(w.inputs)).qory;
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, outputs: [{ type: 'pull-request',
+    required: false, schema: {} }], ...extra } }));
+  return inputs;
+}
+
+// notCommitted returns the line after COMMIT_FIX in the output of an end check, or null.
+function notCommitted(ended) {
+  const lines = ended.out.split('\n');
+  const at = lines.indexOf(COMMIT_FIX);
+  return at === -1 ? null : lines[at + 1];
+}
+
+test('the end check of a Build write session lists each kind of change that no commit ' +
+  'contains', () => {
+  const w = work();
+  const sub = fresh('sub');
+  git(sub, w.env, 'init', '-q');
+  git(sub, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'One');
+  git(w.repo, w.env, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub,
+    'lib/sub');
+  git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add lib/sub');
+  const call = session(w);
+  const inputs = buildInputs(w);
+  // Tracked, staged, untracked and deleted files, an ignored file, a file under .qory, and a
+  // new commit in the submodule.
+  writeFile(w, 'src/orders.cjs', LINES);
+  writeFile(w, 'src/staged.cjs', START);
+  git(w.repo, w.env, 'add', 'src/staged.cjs');
+  writeFile(w, 'notes/new.txt', 'new\n');
+  fs.rmSync(path.join(w.repo, 'README.md'));
+  writeFile(w, 'reports/junit.xml', '<testsuite/>\n');
+  writeFile(w, '.qory/outbox/x.json', '{}\n');
+  git(path.join(w.repo, 'lib/sub'), w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
+    '--allow-empty', '-m', 'Two');
+  const ended = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(ended.status, 1, ended.out + ended.err);
+  assert.equal(notCommitted(ended), '  Not committed: README.md, lib/sub, notes/new.txt, ' +
+    'src/orders.cjs, src/staged.cjs (5 in all)');
+  // A change of the files in the submodule counts as its path too.
+  git(path.join(w.repo, 'lib/sub'), w.env, 'reset', '-q', '--hard', 'HEAD~1');
+  writeFile(w, 'lib/sub/new.txt', 'new\n');
+  git(w.repo, w.env, 'checkout', '-q', '--', 'README.md', 'src/orders.cjs');
+  git(w.repo, w.env, 'rm', '-q', '--cached', 'src/staged.cjs');
+  for (const file of ['src/staged.cjs', 'notes/new.txt']) fs.rmSync(path.join(w.repo, file));
+  assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)),
+    '  Not committed: lib/sub (1 in all)');
+});
+
+test('the end check lists at most 20 changes, and fewer when the line would pass 200 ' +
+  'characters', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  const names = Array.from({ length: 21 }, (_, at) => `f${String(at + 1).padStart(2, '0')}`);
+  for (const name of names) writeFile(w, name, 'x\n');
+  assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)),
+    `  Not committed: ${names.slice(0, 20).join(', ')}, … (21 in all)`);
+  for (const name of names) fs.rmSync(path.join(w.repo, name));
+  const long = Array.from({ length: 4 }, (_, at) => `${'d'.repeat(55)}/${at + 1}.txt`);
+  for (const name of long) writeFile(w, name, 'x\n');
+  const line = notCommitted(call('end', w.artifacts, '--inputs', inputs));
+  assert.equal(line, `  Not committed: ${long.slice(0, 2).join(', ')}, … (4 in all)`);
+});
+
+test('the end check finds no change for a session that makes no commit, or with none left',
+  () => {
+    const w = work();
+    const call = session(w);
+    const end = (...argv) => call('end', w.artifacts, ...argv);
+    // A clean checkout, and one with only an ignored file and a file under .qory.
+    assert.equal(end('--inputs', buildInputs(w)).status, 0);
+    writeFile(w, 'reports/junit.xml', '<testsuite/>\n');
+    writeFile(w, '.qory/outbox/x.json', '{}\n');
+    assert.equal(end('--inputs', buildInputs(w)).status, 0);
+    // With an untracked file: a review, a reviewer and a hook session, a session with no
+    // pull-request output, and one with no inputs file.
+    writeFile(w, 'notes/new.txt', 'new\n');
+    for (const extra of [{ review: {} }, { review_session: {} }, { hook_session: {} }]) {
+      const ended = end('--inputs', buildInputs(w, extra));
+      assert.equal(ended.status, 0, `${JSON.stringify(extra)}: ${ended.out}`);
+    }
+    assert.equal(end('--inputs', w.inputs).status, 0);
+    assert.equal(end().status, 0);
+    // A stack of core alone has no end check of a module.
+    const core = main(['end', w.artifacts, '--inputs', buildInputs(w)], {
+      cwd: w.repo, artifacts: [w.artifacts], env: call.env, plugin: CORE_PLUGIN, qory: w.qory,
+      out: { write() {} }, err: { write() {} } });
+    assert.equal(core, 0);
+    // A checkout that the session cannot write, as qory mounts the checkout of a review.
+    if (process.getuid?.() !== 0) {
+      fs.chmodSync(w.repo, 0o555);
+      try {
+        assert.equal(end('--inputs', buildInputs(w)).status, 0);
+      } finally {
+        fs.chmodSync(w.repo, 0o755);
+      }
+    }
+    assert.equal(notCommitted(end('--inputs', buildInputs(w))),
+      '  Not committed: notes/new.txt (1 in all)');
+  });
+
+test('at the third end check, the point counts the checks that found changes', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  // The first check fails on a report alone, and the next two on a change.
+  report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+  const first = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(first.status, 1);
+  assert.equal(notCommitted(first), null);
+  writeFile(w, 'notes/new.txt', 'new\n');
+  const results = [2, 3].map(() => call('end', w.artifacts, '--inputs', inputs));
+  assert.deepEqual(results.map((one) => one.status), [1, 0]);
+  const points = path.join(w.artifacts, 'points.json');
+  const texts = JSON.parse(read(points)).map((one) => one.text);
+  assert.ok(texts.includes('The Build session ended 2 times with changes it did not commit, ' +
+    'so the suite and the review could not check them.'), texts.join('\n'));
+  const checked = call('check', 'points', points);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+});
+
+test('a single end check with changes escalates with a point of 1 time', () => {
+  const w = work();
+  const call = session(w);
+  // An end.json that cannot be read counts as the last check.
+  fs.mkdirSync(path.join(w.artifacts, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(w.artifacts, '.reports', 'end.json'), '{');
+  writeFile(w, 'notes/new.txt', 'new\n');
+  const ended = call('end', w.artifacts, '--inputs', buildInputs(w));
+  assert.equal(ended.status, 0, ended.out);
+  const points = path.join(w.artifacts, 'points.json');
+  assert.deepEqual(JSON.parse(read(points)), [{ text: 'The Build session ended 1 time with ' +
+    'changes it did not commit, so the suite and the review could not check them.',
+  action: 'run_again' }]);
+  assert.equal(call('check', 'points', points).status, 0);
+});

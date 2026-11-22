@@ -762,7 +762,8 @@ machine paths refuses the home folder when it has two or more parts, such as `/h
 or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no refused folder. It
 writes only `.reports/starts.json` and its lock `.reports/starts.json.lock`,
 `.reports/local.json`, `.reports/results.json` and its lock `.reports/results.json.lock`,
-`.reports/end.json`, from `end`, `points.json`, which `end --offline` writes to its `--out`
+`.reports/end.json` and, in a Build write session, `.reports/uncommitted.json`, from `end`,
+`points.json`, which `end --offline` writes to its `--out`
 folder only, from `lock`, the draft of the lock, with the SHA-256 of each listed file, and,
 from the verbs `step` and `resume`, the files that the build ledger lists below. `check`
 and `push` exit 3 for a file that is a link, and `report` for a report whose real path is
@@ -1196,6 +1197,25 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   left out.`, then the text of the point, cut to 200 characters as each line. `end
   --offline` cuts its points the same way. These commands use `/qory/qory`, or `qory` from
   `PATH` when `/qory/qory` does not exist.
+- The check of a module at the end of `checks.cjs end <folder>`: the member `end(io)` that a
+  `workflow-checks.cjs` adds to the registry, one at most. `end` calls it with its io and
+  `root`, the artifact folder, beside the checks of drafts, reports and outputs. An early
+  return of `end` and `end --offline` skip it. Each result is `{line, point, item}`, as the
+  other checks of `end` return them. `running-a-software-workflow` adds
+  `lib/uncommitted.cjs`, which checks a Build write session: `qory.outputs` of
+  `inputs.json` has `pull-request`, and `qory` has no `review`, `review_session` or
+  `hook_session`. For each checkout of `qory.start_commits` that the session can write, a
+  change is a path that `git status` lists: a tracked, staged or untracked file that git
+  does not ignore, or a submodule whose commit or files changed, outside `.qory/`. A git
+  call that fails gives no finding. The finding is `Commit these changes, then end the
+  session: the suite and the review read only committed work.`, then `Not committed:` with
+  at most 20 paths, sorted, fewer when the line would pass 200 characters, with a path that
+  has a key shown as words, and `(<n> in all)`. It counts the checks in a row that found a
+  change in `.reports/uncommitted.json`, and a check with none sets the count to 0. At the
+  third failed check, its point is "The Build session ended <n> times with changes it did
+  not commit, so the suite and the review could not check them.", with that count. With no
+  `inputs.json`, another stage, or a stack of core alone, it finds nothing. The Build stage
+  runs `implement-changes`, `plan-the-build` and `write-acceptance-checks` in such sessions.
 - The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for

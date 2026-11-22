@@ -94,6 +94,8 @@ function workflowChecks(core) {
     ledger: require('./lib/ledger.cjs')(lib),
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),
+    // The check at the end of a Build write session: no change outside a commit.
+    end: require('./lib/uncommitted.cjs')(lib).end,
     // The record of the track at the end of a report of proposal-reviewer, which the report
     // check reads for an agent whose Expected output has the line "Track read:".
     records: [{

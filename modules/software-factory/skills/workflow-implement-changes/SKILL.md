@@ -317,6 +317,15 @@ its line of the pushed versions, end with "The change is ready for review: the r
 finding" for one. With no such step, end with "The change is ready for review: each planned
 change was built before this run, and no finding is open."
 
+Commit every change before you end. In this session, the end check stops the end while a
+checkout of `qory.start_commits` has a change that no commit contains, because the full suite
+and the review read only committed work. A change is a tracked, staged or untracked file that
+git does not ignore, or a submodule whose commit or files changed, outside `.qory/`. The
+check prints `Commit these changes, then end the session: the suite and the review read only
+committed work.`, then `Not committed:` with at most 20 of the paths and their count. At its
+third failed check, the run ends with the point "The Build session ended <n> times with
+changes it did not commit, so the suite and the review could not check them."
+
 ## Failures
 
 A failure of an agent, a missing report, a report that still fails its check after two

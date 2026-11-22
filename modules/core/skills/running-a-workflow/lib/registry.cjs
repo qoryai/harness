@@ -40,7 +40,11 @@ const reviewComments = require('../types/review-comments.cjs');
 //   each text of two lines, the fix first, or an empty list. The check reads nothing of what
 //   a rule checks;
 // - ledger: the rules of the ledger of steps, which verbs/ledger.cjs lists. One skill at most
-//   adds them.
+//   adds them;
+// - suite: the state of the result of the full suite, which findings round reads. One skill at
+//   most adds it;
+// - end(io): more results of the end check, each { line, point, item } as lib/end.cjs lists
+//   them, where io is the io of end with root, the artifact folder. One skill at most adds it.
 const FILE = 'workflow-checks.cjs';
 
 // What a workflow-checks.cjs gets: the exports of base, context, markdown and plugin, and the
@@ -223,7 +227,7 @@ function part(file) {
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
     types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
-    ledger: null, suite: null,
+    ledger: null, suite: null, end: null,
   };
   const seen = new Set();
   const files = [];
@@ -262,6 +266,11 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
         'a skill adds a second rule or no function.');
     }
     if (added.suite) registry.suite = added.suite;
+    if (added.end && (registry.end || typeof added.end !== 'function')) {
+      throw new base.Missing('Give the registry one check at the end, as a function: a skill ' +
+        'adds a second check or no function.');
+    }
+    if (added.end) registry.end = added.end;
   }
   registry.types.push(...CORE_TYPES);
   const types = new Set();

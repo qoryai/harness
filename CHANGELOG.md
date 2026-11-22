@@ -8,6 +8,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The end check of a Build write session stops the end while a checkout of
+  `qory.start_commits` has a change that no commit contains, so that the full suite and the
+  review run on committed work. A session counts when `qory.outputs` has `pull-request`,
+  its checkout is writable, and it has no `qory.review`, `qory.review_session` or
+  `qory.hook_session`. A change is a tracked, staged or untracked file that git does not
+  ignore, or a changed submodule, outside `.qory/`. The finding is `Commit these changes,
+  then end the session: the suite and the review read only committed work.`, then `Not
+  committed:` with at most 20 paths and their count. At the third failed check, the point is
+  "The Build session ended <n> times with changes it did not commit, so the suite and the
+  review could not check them.", where `<n>` counts the checks that found a change. The
+  check is the new registry member `end(io)`, which `running-a-software-workflow` adds; other
+  stacks are unchanged.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
