@@ -4902,7 +4902,8 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     assert.equal(call(bashAs(command)), null, command);
     assert.equal(call(bashAs(command, 'worker')), null, command);
   }
-  for (const command of [`cd ${above} && tar -xf a.tar`, `tar -xf a.tar -C ${above}`,
+  for (const command of [`ditto -x -k a.zip ${above}`, `python3 -m zipfile -e a.zip ${above}`,
+    `cd ${above} && tar -xf a.tar`, `tar -xf a.tar -C ${above}`,
     `tar -xf a.tar -C${above}`, `unzip a.zip -d ${above}`, `7z x a.7z -o${above}`,
     `tar -xf a.tar --directory=${above}`, `pushd ${above} && touch x`]) {
     assert.ok(call(bashAs(command)), command);
@@ -4922,8 +4923,27 @@ test('in a review session only checks.cjs matrix writes verification.json and it
       'Run versions.cjs only with compare');
     firstLine(call(bashAs(`node ${versions} compare verification 1 ${draft}; echo x`, type)),
       'Run versions.cjs only with compare');
-    // The files at the top of the folder stay open to a write tool.
-    assert.equal(call(writeAs(path.join(runFolder, 'questions.json'), type)), null);
+    // The program is read as the shell reads it, so a quote or a backslash hides nothing.
+    for (const name of ['vers"ions".cjs', 'version\\s.cjs', "'versions.cjs'", 'versions.c\\js']) {
+      const hidden = versions.replace('versions.cjs', name);
+      firstLine(call(bashAs(`node ${hidden} copy verification 99`, type)),
+        'Run versions.cjs only with compare');
+    }
+    // A file in a version folder is the store, whatever the type and the name.
+    for (const file of ['questions/main/v2/questions.json', 'demo-evidence/scenario-1/v3/x.json',
+      'verification/main/v1/a/b.json']) {
+      firstLine(call(writeAs(path.join(runFolder, file), type)),
+        'Leave the version store of the artifact folder');
+    }
+    // Each write that a skill or an agent prescribes in the artifact folder is open to a
+    // write tool: the drafts, the points and the lists of files in .notes/.
+    for (const file of ['questions.json', 'points.json', 'review-comments.json',
+      '.notes/changed-files.txt', '.notes/code-reviewer-files.txt',
+      '.notes/acceptance-check-writer-files.txt']) {
+      assert.equal(call(writeAs(path.join(runFolder, file), type)), null, file);
+      assert.equal(call(claude('Edit', { file_path: path.join(runFolder, file), old_string: 'a',
+        new_string: 'b' }, type)), null, file);
+    }
   }
   assert.equal(plain.call(writeAs(store, 'worker'), RUN), null);
   // The checks script with a verb of the session, and versions.cjs compare, may name the folder.
@@ -4959,7 +4979,10 @@ test('the checks script runs each verb of Verify in a review session', () => {
     `run locked --inputs ${inHome}`, 'matrix --version 1',
     `check verification ${folder}/verification.json`, `check questions ${folder}/questions.json`,
     `findings round ${review.reports} --reviewers tamper-reviewer,verification-reviewer`,
-    'notes tamper-reviewer', 'starts run-1 verify-a-ticket-1-tamper-reviewer 3'];
+    'notes tamper-reviewer', 'starts run-1 verify-a-ticket-1-tamper-reviewer 3',
+    `notes code-reviewer --files ${folder}/.notes/changed-files.txt`,
+    `panel --names code-reviewer,test-reviewer --files ${folder}/.notes/changed-files.txt`,
+    `notes code-reviewer --files ${folder}/.notes/code-reviewer-files.txt`];
   for (const verb of verbs) {
     assert.equal(review.call(bashAs(`node ${SESSION_CHECKS} ${verb}`)), null, verb);
   }

@@ -42,10 +42,11 @@
 //   and an extraction by tar or unzip into a folder above them counts as a write. A shell
 //   command that is no read and names <artifacts> or .reports, or a folder above them as the
 //   target of cd, -C, -d, -o or --directory, or runs in <artifacts>, is denied, as is each
-//   write below <artifacts>/<type>/, the version store, and versions.cjs with a verb but
-//   compare, which would copy a stored version over the draft; other than the checks script
-//   with a verb of ARTIFACT_VERBS, versions.cjs compare and the push of PUSH_FORM. A command
-//   with the word push and the word verification, or a variable or a substitution, is denied
+//   write of a file in <artifacts>/<type>/<name>/v<N>/, a stored version, and versions.cjs
+//   with a verb but compare, which would copy a stored version over the draft; other than the
+//   checks script with a verb of ARTIFACT_VERBS, versions.cjs compare and the push of
+//   PUSH_FORM. A command with the word push and the word verification, or a variable or a
+//   substitution, is denied
 //   unless it is PUSH_FORM and, for verification, from <artifacts>/verification.json. The
 //   limits of the next entry apply: a path that a variable or code makes passes, except in a
 //   push;
@@ -2062,7 +2063,10 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     if (refused) return refused;
     // versions.cjs copy would write a stored version over the draft, and nothing else of
     // versions.cjs is run here but compare.
-    if (/versions\.cjs/.test(call.command) && !comparesVersions(call.command, env, script)) {
+    const mentions = segs.some((one) => plainWords(one.words).some((word) =>
+      /versions\.cjs/.test(word)));
+    if ((mentions || /versions\.cjs/.test(call.command)) &&
+      !comparesVersions(call.command, env, script)) {
       return `${VERSIONS_KEPT}The command is ${reviewShown(call.command)}.`;
     }
   }
@@ -3167,7 +3171,12 @@ function artifactNamed(segs, artifacts, nocase) {
       // A folder above artifacts counts only where a program takes a folder to work in or to
       // write to: after cd, pushd, -C, -d, -o or --directory, also as -C<path>.
       const attached = /^(?:-[Cdo]|--directory=)(?=.)/.test(word);
-      const target = attached || /^(?:cd|pushd|-C|-d|-o|--directory)$/.test(words[index - 1] || '');
+      const last = index === words.length - 1;
+      // ditto and python3 -m zipfile -e take the folder to write to as the last word.
+      const unpacks = path.basename(words[0]) === 'ditto' ||
+        (words.includes('zipfile') && words.includes('-e'));
+      const target = attached || (last && unpacks) ||
+        /^(?:cd|pushd|-C|-d|-o|--directory)$/.test(words[index - 1] || '');
       // A path that follows an option, as in -C<folder>, -o<folder> or --directory=<folder>.
       const slash = word.indexOf('/');
       for (const part of new Set([word, slash >= 0 ? word.slice(slash) : ''])) {
@@ -3182,6 +3191,11 @@ function artifactNamed(segs, artifacts, nocase) {
   return null;
 }
 
+// VERSION_FILE matches a path below the artifact folder that lies in a stored version, as
+// versions.cjs reads it: <type>/<name>/v<N>/<file>, or deeper. .notes/ and .reports/ start
+// with a dot and are no type.
+const VERSION_FILE = /^[a-z][a-z-]*[/\\][^/\\]+[/\\]v[0-9]+[/\\][^/\\]/;
+
 // keptWrite returns { inputs, reason } for the first of paths, real paths that a call writes,
 // that is an entry of kept or lies in a kept folder, or null.
 function keptWrite(kept, paths) {
@@ -3189,7 +3203,7 @@ function keptWrite(kept, paths) {
     const fold = (full) => (one.nocase ? full.toLowerCase() : full);
     const hit = paths.find((full) => (one.folder ? under(fold(full), fold(one.full))
       : fold(full) === fold(one.full)) &&
-      (!one.deep || path.relative(fold(one.full), fold(full)).includes(path.sep)) &&
+      (!one.deep || VERSION_FILE.test(path.relative(fold(one.full), fold(full)))) &&
       !(one.except || []).some((left) => under(fold(full), fold(left))));
     if (hit) return { inputs: one.inputs, reason: `${one.head}The call writes ${hit}.` };
   }

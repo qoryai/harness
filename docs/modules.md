@@ -1962,17 +1962,19 @@ tool's error. The first line of each reason starts with what to do. The guard de
   Outside a review session the two files keep the rules of a run.
 - In that session, a shell command that is no read denies each call that names the artifact
   folder or `.reports`, as an argument or after an option as in `-C<folder>`, or a folder
-  above them as the target of `cd`, `pushd`, `-C`, `-d`, `-o` or `--directory`, and each
-  call that runs in the artifact folder, with a first line that starts "Leave the artifact
-  folder". A call that has a folder above them as another argument, such as `cp a.ts /tmp/`,
-  runs. The guard lists no tool: `tar`, `bsdtar`, `ditto`, `7z`, `pax`, `cpio` and `jar`
-  fall under this rule alike. Two kinds of call may name the folder: the checks script alone
-  with `resume`, `lock --verify`, `run locked`, `matrix`, `check`, `notes`, `starts`,
-  `panel` or `findings round`, or `versions.cjs compare` alone; and the push of an artifact.
-  No other call runs `versions.cjs`: `copy` would write a stored version over the draft. No
-  call writes below `<artifact folder>/<type>/`, the version store, by a write tool or a
+  above them as the target of `cd`, `pushd`, `-C`, `-d`, `-o` or `--directory`, or as the
+  last word of `ditto` or of `python3 -m zipfile -e`, and each call that runs in the
+  artifact folder, with a first line that starts "Leave the artifact folder". A call that
+  has a folder above them as another argument, such as `cp a.ts /tmp/`, runs. The guard
+  lists no tool: `tar`, `bsdtar`, `ditto`, `7z`, `pax`, `cpio` and `jar` fall under this
+  rule alike. Two kinds of call may name the folder: the checks script alone with `resume`,
+  `lock --verify`, `run locked`, `matrix`, `check`, `notes`, `starts`, `panel` or `findings
+  round`, or `versions.cjs compare` alone; and the push of an artifact. No other call runs
+  `versions.cjs`: `copy` would write a stored version over the draft. No call writes a file
+  of a stored version, `<artifact folder>/<type>/<name>/v<N>/<file>`, by a write tool or a
   shell command, with a first line that starts "Leave the version store"; a file at the top
-  of the folder, such as `questions.json`, stays open to a write tool.
+  of the folder or in `.notes/`, such as `questions.json` or `.notes/changed-files.txt`,
+  stays open to a write tool.
 - The one push that the session runs is `<qory> artifact push [--name X] [--note Y] <type>
   <full path> [--name X] [--note Y]`, with the options before the type or after the path,
   and nothing before `<type>`, no `--` and no redirect or second command. For `verification`
