@@ -29,7 +29,7 @@ jobs:
       # verdict. The compose of that release, and of qory at 0e02282, also stops on the
       # `plan` key of a workflow in stacks/software/qory-stack.yaml and on the
       # `scope_checks` key in modules/software-factory/qory-module.yaml. This commit, the
-      # merge of qory's 544-build-verify branch into its 544-q-35b branch, not main, has all
+      # merge of qory's 544-build-verify branch into qory's work branch, not main, has all
       # eight, reads the `judges` key of the implement-changes entry in
       # stacks/software/qory-stack.yaml, and writes `web_search = "disabled"` into the
       # `config.toml` of a Codex home.

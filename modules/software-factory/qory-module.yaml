@@ -40,13 +40,18 @@ description: >-
   open findings, one step of the build ledger each, withdraws the demo script of a removed
   demo scenario, loads the skill scripting-demos of the module browser-screens by name after
   the last deliverable when the approved demo scenarios have a scenario, and, after the last
-  step or a step that fails, starts submission-writer and
-  report-build, then checks and pushes build-report; the skills changing-code,
-  debugging-failures and making-small-changes; the agents software-developer and software-debugger, which fill the
-  roles developer and debugger; and live web search off on Codex.
+  step or a step that fails, starts submission-writer and report-build, then checks and
+  pushes build-report; the skills changing-code,
+  debugging-failures and making-small-changes; the agents software-developer and
+  software-debugger, which fill the roles developer and debugger; the skills
+  checking-tampering and judging-criteria and the agents tamper-reviewer and
+  verification-reviewer, the reviewers of Verify; the verb matrix of the checks script,
+  which writes the draft verification of Verify from the records of the run; and live web
+  search off on Codex.
 roles:
   agents:
     reviewers: many
+    verify-reviewers: many
 provides:
   agents:
     explorer: code-explorer
@@ -57,6 +62,7 @@ provides:
     # cannot leave one out, so a text file in a listed folder starts a reviewer; replace the
     # globs when a change shows this costs a review.
     reviewers: [security-reviewer, data-reviewer, failure-reviewer]
+    verify-reviewers: [tamper-reviewer, verification-reviewer]
 push_checks:
   - type: proposal
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, proposal]

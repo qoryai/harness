@@ -5139,8 +5139,9 @@ test('report: each agent of the modules has a shape that the script reads', () =
     assert.equal(result.status, 1, `${agent}: ${result.out}`);
     assert.match(result.lines[0], new RegExp(`^End the report with one word, .*blocked\\.$`));
   }
-  assert.equal(reviewers, 6, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
-    'security-reviewer, data-reviewer and failure-reviewer');
+  assert.equal(reviewers, 8, 'code-reviewer, test-reviewer, acceptance-reviewer, ' +
+    'security-reviewer, data-reviewer, failure-reviewer, tamper-reviewer and ' +
+    'verification-reviewer');
 });
 
 // ---- Time and size ------------------------------------------------------------------------
@@ -5659,6 +5660,104 @@ test('questions: a proposal is text of 1 to 2000 characters', () => {
   }
 });
 
+const AC3 = 'The reply states that support is closed on 25 December';
+
+// acQuestion returns a new question about the criterion ac-3 that Verify asks, with changes.
+function acQuestion(changes = {}) {
+  return q7({
+    question: 'How should the criterion about 25 December be met?',
+    about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' },
+    context: '**Why:** Support is open on 25 December, so the reply cannot state it is closed.\n\n' +
+      '**Checked:** The opening hours in the settings and the reply of the demo.',
+    options: [
+      { title: `Change AC-3, "${AC3}"`, explanation: 'The criterion states the hours.',
+        proposal: 'The reply states that support is open on 25 December.' },
+      { title: 'Make it met another way', explanation: 'Build changes the settings.' },
+      { title: `Withdraw AC-3, "${AC3}"`, explanation: 'The criterion is kept and marked withdrawn.' },
+    ],
+    ...changes,
+  });
+}
+
+test('questions: a question about a criterion with the answers of Verify has the whole form', () => {
+  const add = (changes) => questionsAfter((byId, data) => { data.questions.push(acQuestion(changes)); });
+  passes(add());
+  const options = acQuestion().options;
+  const first = 'Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N.';
+  fails(add({ options: options.slice(0, 2) }), /^Give q7 3 options: .* q7 has 2\.$/);
+  exactly(add({ options: [...options, { title: 'Wait', explanation: 'Wait for a person.' }] }),
+    `${first}\n  q7 has 4.`);
+  const bare = [{ ...options[0], proposal: undefined }, ...options.slice(1)];
+  exactly(add({ options: bare }), 'Write the proposed wording of the criterion in proposal of ' +
+    'option 1 of q7.\n  The option has no proposal.');
+  exactly(add({ context: '**Checked:** The settings.' }), 'Add a paragraph that starts with ' +
+    '**Why:** to the context of q7.\n  Write the reason it cannot be met in it. The context has ' +
+    'no such paragraph.');
+  exactly(add({ context: '**Why:** Support is open.' }), 'Add a paragraph that starts with ' +
+    '**Checked:** to the context of q7.\n  Write what you checked in it. The context has no ' +
+    'such paragraph.');
+  // The label must start a paragraph: a label inside one does not count.
+  fails(add({ context: '**Why:** Open. **Checked:** The settings.' }),
+    /^Add a paragraph that starts with \*\*Checked:\*\* to the context of q7\./);
+  // The rule reports the item itself, besides the finding of the reader of the criteria.
+  for (const [item, shown] of [['AC-3', '"AC-3"'], ['ac-03', '"ac-03"'], [3, 'a number']]) {
+    fails(add({ about: { type: 'acceptance-criteria', name: 'main', item } }), new RegExp(
+      `^Write about\\.item of q7 as a lower-case criterion id, such as ac-3\\. It is ${shown}\\.$`));
+  }
+  // With no item, and so no proposal that core accepts, the rule still names the item.
+  fails(add({ about: { type: 'acceptance-criteria', name: 'main' }, options: bare }),
+    /^Write about\.item of q7 as a lower-case criterion id, such as ac-3\. It is missing\.$/);
+  // Each answer once, and the number of the title is the number of the item.
+  const [change, another, withdraw] = options;
+  const once = (title, count) => new RegExp(
+    `^Give q7 1 option with the title "${title}"\\. q7 has ${count}\\.$`);
+  fails(add({ options: [another, withdraw, { title: 'Other', explanation: 'Another answer.' }] }),
+    once('Change AC-N', 0));
+  fails(add({ options: [change, { ...change, title: `Change AC-3, "${AC3}", again` }, another,
+    withdraw] }), once('Change AC-N', 2));
+  fails(add({ options: [change, another, { ...another }, withdraw] }),
+    once('Make it met another way', 2));
+  fails(add({ options: [change, another, { ...withdraw, title: 'Other' }] }),
+    once('Withdraw AC-N', 0));
+  const AC4 = 'Each customer who got the reply with the old hours receives a corrected reply ' +
+    'that lists the new hours';
+  exactly(add({ options: [{ ...change, title: `Change AC-4, "${AC4}"` }, another, withdraw] }),
+    'Write AC-3 in the title of option 1 of q7, as about.item is ac-3.\n  The title has AC-4.');
+  exactly(add({ options: [change, another, { ...withdraw, title: `Withdraw AC-4, "${AC4}"` }] }),
+    'Write AC-3 in the title of option 3 of q7, as about.item is ac-3.\n  The title has AC-4.');
+  // A question about a criterion with none of the three answers is not read by the rule.
+  passes(questionsAfter((byId, data) => {
+    data.questions.push(q7({ about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } }));
+  }));
+});
+
+test('questions: in a check with the record of matrix, a new question about a criterion is read', () => {
+  const ask = ({ record = true, stored = false, question = acQuestion({
+    options: [{ title: 'The reply', explanation: 'Only the reply.' },
+      { title: 'The page', explanation: 'The page too.' }] }) } = {}) => {
+    const root = fixture();
+    if (record) {
+      fs.mkdirSync(path.join(root, '.reports'));
+      write(root, '.reports/matrix-record.json', { commit: 'c', matrix: [] });
+    }
+    const file = path.join(root, 'questions.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.questions.push(question);
+    if (stored) version(root, 'questions', 2, 'questions.json', data);
+    write(root, 'questions.json', data);
+    return check(root, 'questions', file);
+  };
+  // New, with the record: refused though no title is an answer.
+  fails(ask(), /^Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N\. q7 has 2\.$/);
+  fails(ask(), /^Give q7 1 option with the title "Change AC-N"\. q7 has 0\.$/);
+  // With no record, that is a push or a check of another workflow, and a kept question is
+  // not read again.
+  passes(ask({ record: false }));
+  passes(ask({ stored: true }));
+  // A full question passes with the record.
+  passes(ask({ question: acQuestion() }));
+});
+
 test('questions: an about names an output that the run can read, and a criterion it has', () => {
   const add = (about) => questionsAfter((byId, data) => { data.questions.push(q7({ about })); });
   const criteria = { type: 'acceptance-criteria', name: 'main' };
@@ -6068,6 +6167,25 @@ test('registry: only a list of ids adds prefixes', () => {
     assert.deepEqual(loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'notes'))).ids,
       expected);
   }
+});
+
+test('registry: a list of rules of questions is loaded, and none gives an empty list', () => {
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.cjs'));
+  const plugin = corePlugin();
+  assert.deepEqual(loadRegistry(plugin).questionRules, []);
+  fs.mkdirSync(path.join(plugin, 'skills', 'notes'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'workflow-checks.cjs'), [
+    'module.exports = () => ({ types: [], questionRules: [{ type: "mockup", check: () => [] }] });',
+    ''].join('\n'));
+  const trusted = trusting(path.join(plugin, 'skills', 'notes'));
+  assert.deepEqual(loadRegistry(plugin, trusted).questionRules.map((rule) => rule.type), ['mockup']);
+  // A value that is no list adds no rule.
+  fs.mkdirSync(path.join(plugin, 'skills', 'other'));
+  fs.writeFileSync(path.join(plugin, 'skills', 'other', 'workflow-checks.cjs'),
+    'module.exports = () => ({ types: [], questionRules: { type: "mockup" } });\n');
+  const other = loadRegistry(plugin, trusting(path.join(plugin, 'skills', 'other'),
+    path.join(plugin, 'skills', 'notes')));
+  assert.deepEqual(other.questionRules.map((rule) => rule.type), ['mockup']);
 });
 
 test('registry: a skill adds a type and a verb', () => {

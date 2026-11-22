@@ -27,7 +27,35 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   lists the scenarios that have no demo script. `demo write` builds `.demo/<scenario>.json`
   from the approved scenario and the actions in `.demo/<scenario>.actions.json`, and checks
   it against `demo-script.schema.json`.
-
+- The parts of Verify that exist. The agents `tamper-reviewer` and `verification-reviewer`,
+  which the `verify-a-ticket` session starts, and which read `commit`, `diff`, `reports`
+  and, from the second round, `previous_findings` from `qory.review_session` in
+  `inputs.json`, stop with no report when `commit`, `diff` or `reports` is missing or the
+  file of a given `previous_findings` cannot be read, go on with no `previous_findings` as
+  the first round, and each write one report to `<reports>/<agent>.json`, with the skills
+  `checking-tampering` and `judging-criteria`: the first reports a changed file that a
+  locked check runs or imports and that the lock does not list, and each test that the
+  change newly skips or marks with skip or xfail; the second lowers a state of the
+  verification matrix whose evidence does not show it, never raises one, and writes each
+  lowered state as one `blocking` finding. The verb `matrix --version <N>` writes the draft
+  `verification.json` and `.reports/matrix-record.json` from the records of `run locked`,
+  the demo evidence and Build's ledger, so no agent types a state, with the line of model
+  families, such as `claude` and `deepseek`, or `unknown`. In a check, `verification`
+  refuses a state above that record, a missing record, and a met demo criterion whose
+  evidence is not `Demo video: scenario-N` or `Pictures: scenario-N`. A test shows that a
+  forged local lock passes Build's early check and fails Verify's `lock --verify --version`.
+  The registry of the checks gains `questionRules`, rules for the questions about an output
+  of a type; `software-factory` registers one for `acceptance-criteria` that refuses a
+  question with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, or
+  a new question in a check of a folder with the record of `matrix`, unless it has 3
+  options, one of each answer with the number of `about.item`, a `proposal` on the Change
+  option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a lower-case
+  `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
+  run, because an agent can change the local store, and a criterion that rests on a type
+  that cannot be pulled is not verified. `matrix` counts only the newest record of `run
+  locked` for the lock and commit, and only when it is a full, clean run with results. The
+  two agents are the group role `verify-reviewers` of `software-factory`, with no `paths`.
+  The workflow skill and its stack entry are not built yet.
 - `checks.cjs destinations --inputs <file> <id>...`, a verb of `running-a-workflow`. It
   checks the ids of the destinations that a session reads against `destinations` of the
   inputs.json at `--inputs`: each id is `tg_` and 16 characters, listed there with a
@@ -61,38 +89,39 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   repositories. `workflow-checks.cjs` runs `scope` as it runs `push`, and exits 2 on any
   other verb. `.github/workflows/check.yml` builds qory at `afee80c`, the merge of
   qoryai/qory#136, which reads `plan` and `scope_checks`, in place of `0e02282`.
-- The workflow `implement-changes`, with `tier: balanced`, `access: write`, `plan:
-  build-plan` and `judges: false` in the `software` stack. Its session builds each planned
-  change of the build plan that the build ledger does not list as done, in the order of the
-  plan, then fixes each open finding: the findings of `open-findings.json` in the inputs
-  folder, which qory writes from the last round of review, the `blocking` ones first, and,
-  after Verify returned the work item, each `not_met` row of the verification and each point
-  of the verdict that `work-item show` lists in `inputs` with `"from": "return"`, numbered
-  `f<N>` after the highest id of the review. Each is one step of the build ledger,
+- The workflow `implement-changes`, with `tier: balanced`, `access: write`,
+  `plan: build-plan` and `judges: false` in the `software` stack. Its session builds each
+  planned change of the build plan that the build ledger does not list as done, in the order
+  of the plan, then fixes each open finding: the findings of `open-findings.json` in the
+  inputs folder, which qory writes from the last round of review, the `blocking` ones first,
+  and, after Verify returned the work item, each `not_met` row of the verification and each
+  point of the verdict that `work-item show` lists in `inputs` with `"from": "return"`,
+  numbered `f<N>` after the highest id of the review. Each is one step of the build ledger,
   `deliverable:d-<N>` or `fix:f<N>`. A step starts `software-developer` at most twice and
-  `software-debugger` once; after each start, the session runs `scope`, `run lint`, `run
-  types`, `run build` and the targeted checks of the step, and with every check green,
-  `freeze` commits the step and `step end done` records it. After a third red attempt, `step
-  end failed` records the step with its 3 attempts, so it stays open in the build ledger and
-  the build report, and the session ends with no point and starts no later step. When no
-  step is `done`, the run has no commit, and the session ends with one `run_again` point,
-  "The run stopped, because the checks still fail after 3 changes to <the step>.", and
-  `escalate`. A writer's line `Blocked: needs a change to the build plan: <the change>` ends
-  the session with one `answer` point, and `checks.cjs report` accepts that line; any other
-  `blocked` report ends the run as "Failures" of `running-a-workflow` lists. Before the
-  steps, the session withdraws the demo script of each demo scenario that a rework of Shape
-  removed, approved ones too, with `qory artifact push demo-script --name <scenario>
-  --withdraw`. It skips a name with no version outside cancelled runs, one already withdrawn
-  and one that a member uploaded, and writes "<scenario>: removed by Shape, still on the
-  gate" for each such upload and each withdrawal that exits with 4. After the last step, and
-  after a step that fails, the session starts `submission-writer` and runs `checks.cjs
-  report-build`, which writes `build-report.md` and the outbox file `pull-request.json`,
-  which qory pushes, then runs `check build-report` and pushes `build-report`, as
-  `review-changes` does. A stop on the build plan runs none of these, and neither does a run
-  with no step `done` in the build ledger, because qory opens a pull request only from at
-  least one commit. `submission-writer` describes what the round built, also after a step
-  that fails. When the end check fails three times, the session records `escalate`, as every
-  workflow does. The session starts no reviewer.
+  `software-debugger` once; after each start, the session runs `scope`, `run lint`,
+  `run types`, `run build` and the targeted checks of the step, and with every check green,
+  `freeze` commits the step and `step end done` records it. After a third red attempt,
+  `step end failed` records the step with its 3 attempts, so it stays open in the build
+  ledger and the build report, and the session ends with no point and starts no later step.
+  When the session ran no `step end done`, the run has no commit, and the session ends with
+  one `run_again` point, "The run stopped, because the checks still fail after 3 changes to
+  <the step>.", and `escalate`. A writer's line
+  `Blocked: needs a change to the build plan: <the change>` ends the session with one
+  `answer` point, and `checks.cjs report` accepts that line; any other `blocked` report ends
+  the run as "Failures" of `running-a-workflow` lists. Before the steps, the session
+  withdraws the demo script of each demo scenario that a rework of Shape removed, approved
+  ones too, with `qory artifact push demo-script --name <scenario> --withdraw`. It skips a
+  name with no version outside cancelled runs, one already withdrawn and one that a member
+  uploaded, and writes "<scenario>: removed by Shape, still on the gate" for each such
+  upload and each withdrawal that exits with 4. After the last step, and after a step that
+  fails, the session starts `submission-writer` and runs `checks.cjs report-build`, which
+  writes `build-report.md` and the outbox file `pull-request.json`, which qory pushes, then
+  runs `check build-report` and pushes `build-report`, as `review-changes` does. A stop on
+  the build plan runs none of these, and neither does a session that ran no `step end done`,
+  because qory opens a pull request only from the commits of the run. `submission-writer`
+  describes what the round built, also after a step that fails. When the end check fails
+  three times, the session records `escalate`, as every workflow does. The session starts no
+  reviewer.
 - The agents `software-developer` and `software-debugger`, which fill the roles `developer`
   and `debugger` of `software-factory`, and the skills `changing-code`,
   `debugging-failures` and `making-small-changes`. `making-small-changes` has nine rules for

@@ -199,10 +199,12 @@ Run `step end <id> failed --report <file>`, with the newest report of the debugg
 three `--attempt` lines. The row of the step stays `failed`, so its deliverable or finding
 stays open in the build ledger and in the build report.
 
-When no row of `steps` in `<folder>/.reports/build-ledger.json` has the `state` `done`, the
-run has no commit: skip "The submission", do no later step, and end as "Points" of
-`running-a-workflow` lists, with one `run_again` point whose text is the last line of this
-section.
+When this session ran no `step end <id> done`, the run has no commit: skip "The
+submission", do no later step, and end as "Points" of `running-a-workflow` lists, with one
+`run_again` point whose text is the line after "End with" in this section.
+<!-- shortcut: a session that `resume` started counts no step done before the restart, so
+it skips "The submission" although the run has commits; count from `qory.start_commits`
+once qory writes it. -->
 
 Otherwise do "The submission". When a case of "The submission" ends the run, end as that
 case lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
@@ -243,10 +245,12 @@ file, and only a member can change the approved plan.
 
 Do this section after the last step: at "The end", and in "A step that fails". A stop on the
 build plan, a work item with no build plan, a withdrawal that fails, a case of "Demo scripts"
-that ends the run and an end as "Failures" lists skip it. Skip it also when no row of `steps`
-in `<folder>/.reports/build-ledger.json` has the `state` `done`, such as after the first step
-of the first round fails: qory opens a pull request only from at least one commit, and the
-run has none.
+that ends the run and an end as "Failures" lists skip it. Skip it also when this session ran no `step end <id> done`, such as when the
+first step of the session fails: qory opens a pull request only from the commits of this run,
+and a step that an earlier run built, or that this session replayed, adds none.
+<!-- shortcut: a session whose done steps froze no new commit still does "The submission",
+and qory's submit step stops on a submission with no commit; skip it by
+`qory.start_commits` once qory writes it. -->
 
 1. Start ${qory:agents/submission-writer} in the foreground, as "Starting agents" of
    `running-a-workflow` lists, with the input file's path, `<folder>` and the path of the
