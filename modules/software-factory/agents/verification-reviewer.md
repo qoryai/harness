@@ -59,7 +59,7 @@ Load each skill when its step comes, and no other:
   each `point`.
 
 The prompt contains the path of the input file. Read `qory.review_session` and
-`qory.start_artifacts` in it. Where a skill names a value of `qory.review`, read the member
+`qory.start_artifacts` in it. Where a skill lists a value of `qory.review`, read the member
 of the same name in `qory.review_session`. In `qory.review_session`, `commit` is the commit
 under review, `diff` is the path of the file with the diff of the change,
 `previous_findings`, when it exists, is the path of `open-findings.json`, `reports` is the

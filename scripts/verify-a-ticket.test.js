@@ -136,7 +136,7 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     const text = read('agents', `${name}.md`);
     const flat = text.replace(/\s+/g, ' ');
     assert.match(frontOf(text), /as an agent of the verify-a-ticket session/, name);
-    const mapped = text.replace(/\s+/g, ' ').replace('names a value of `qory.review`,', '');
+    const mapped = text.replace(/\s+/g, ' ').replace('lists a value of `qory.review`,', '');
     assert.ok(!/qory\.review\b(?!_)/.test(mapped), `${name} reads qory.review`);
     assert.ok(flat.includes(`at \`<reports>/${name}.json\`, where \`<reports>\` is ` +
       '`qory.review_session.reports` of the input file'), name);
@@ -151,7 +151,7 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
       'first round: go on.'), `${name} goes on in the first round`);
     assert.ok(flat.includes('`previous_findings` is set and its file cannot be read'),
       `${name} stops for a file that cannot be read`);
-    assert.ok(flat.includes('Where a skill names a value of `qory.review`, read the member of ' +
+    assert.ok(flat.includes('Where a skill lists a value of `qory.review`, read the member of ' +
       'the same name in `qory.review_session`.'), `${name} maps qory.review`);
     assert.ok(flat.includes('`suite_result` is the path of the file with the suite result'), name);
     assert.ok(!/in your prompt|in the prompt|from the prompt/.test(flat),

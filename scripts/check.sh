@@ -2732,7 +2732,7 @@ const good = names("agents/verify-reviewers") === "tamper-reviewer verification-
   rows("agents/verify-reviewers").every((row) => !("paths" in row)) &&
   names("agents/reviewers") === "security-reviewer data-reviewer failure-reviewer";
 if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
-# The agents of software-factory that name the verify-a-ticket session in their description
+# The agents of software-factory whose description is about the verify-a-ticket session
 # are the members of verify-reviewers in qory-module.yaml.
 # shortcut: the group name is fixed; read review_group of the stack entry when it exists.
 expect "each agent of the verify-a-ticket session is in verify-reviewers in qory-module.yaml" \
