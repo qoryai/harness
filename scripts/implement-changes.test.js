@@ -221,7 +221,8 @@ test('the session writes the text of the change after the last step, and not on 
   // The skip list, and the two ends that "The submission" writes.
   contains(submission, 'Do this section after the last step: at "The end", and in "A step ' +
     'that fails". A stop on the build plan, a work item with no build plan, a withdrawal that ' +
-    'fails and an end as "Failures" lists skip it. Skip it also when no row of `steps` in ' +
+    'fails, a case of "Demo scripts" that ends the run and an end as "Failures" lists skip ' +
+    'it. Skip it also when no row of `steps` in ' +
     '`<folder>/.reports/build-ledger.json` has the `state` `done`, such as after the first ' +
     'step of the first round fails: qory opens a pull request only from at least one commit, ' +
     'and the run has none.');
@@ -255,6 +256,27 @@ test('the session withdraws the demo script of a removed scenario, approved ones
     'the push exits with 4, qory kept the demo script: go on with the next entry.');
   contains(removed, 'For each entry that a member uploaded and each push that exited with 4, ' +
     'write the line "<scenario>: removed by Shape, still on the gate"');
+});
+
+test('the session scripts the demos after the last deliverable and before the first finding', () => {
+  const order = section(WORKFLOW, 'The order of the run');
+  inOrder(order, 'each deliverable that is not built', 'then do "Demo scripts"',
+    'then each finding as the step `fix:<id>`');
+  const demos = section(WORKFLOW, 'Demo scripts');
+  contains(demos, 'Run `<skill folder>/checks.cjs demo check`.');
+  contains(demos, 'With 0 and a line that starts with "No demo script to write", skip the ' +
+    'rest of this section.');
+  contains(demos, 'With 1, the approved demo scenarios have a scenario, and the harness has no ' +
+    'skill `scripting-demos`. Start no agent, and end as "Points" of `running-a-workflow` lists, ' +
+    'with one `run_again` point. Its text is "The demo scenarios need a module that scripts ' +
+    'browser screens, which the stack of this workspace lacks, so the run wrote no demo ' +
+    'script." and its `fix` is "Add the module browser-screens to the stack, then run another ' +
+    'round."');
+  contains(demos, 'Load the skill `scripting-demos` by its name');
+  // The skill and the role are named in plain words: a ${qory:...} reference would fail the
+  // compose of a stack with no module that ships them, and a stack has no optional role.
+  assert.doesNotMatch(WORKFLOW, /\$\{qory:(skills\/scripting-demos|agents\/demo-author)\}/);
+  contains(section(WORKFLOW, 'The submission'), 'a case of "Demo scripts" that ends the run');
 });
 
 test('each new agent has guardrails, stop conditions, expected output and tier thinking', () => {

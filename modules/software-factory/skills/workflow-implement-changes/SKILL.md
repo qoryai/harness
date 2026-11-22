@@ -1,6 +1,6 @@
 ---
 name: workflow-implement-changes
-description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. After the steps, the submission writer writes the text of the change, and report-build writes the build report, which the session checks and pushes. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
+description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. After the last deliverable, the skill scripting-demos writes the demo script of each approved demo scenario that has none, when the stack has it. After the steps, the submission writer writes the text of the change, and report-build writes the build report, which the session checks and pushes. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
 ---
 
 # Implement changes
@@ -49,10 +49,10 @@ start.
 3. Do "The facts of the steps", then "Removed demo scenarios".
 4. Do "A step" for each step, in this order: each deliverable that is not built, in the
    order of the build plan, as the step `deliverable:<id>`, such as `deliverable:d-2`; then
-   each finding as the step `fix:<id>`, such as `fix:f3`: the `blocking` findings of the
-   review in the order that `findings open` prints them, then the findings of Verify, then
-   the `non-blocking` findings of the review. When a step ends as "A step that fails" or
-   "A stop on the build plan" lists, do no later step.
+   do "Demo scripts"; then each finding as the step `fix:<id>`, such as `fix:f3`: the
+   `blocking` findings of the review in the order that `findings open` prints them, then the
+   findings of Verify, then the `non-blocking` findings of the review. When a step ends as
+   "A step that fails" or "A stop on the build plan" lists, do no later step.
 5. Do "The end".
 
 ## The facts of the steps
@@ -113,6 +113,35 @@ gate and no later stage reads it.
    "<scenario>: removed by Shape, still on the gate", such as "scenario-2: removed by Shape,
    still on the gate", in your output before the last line, so that a member reads it on
    the Run page.
+
+## Demo scripts
+
+Do this section after the last deliverable step and before the first finding step, so that
+the screens of the demo scenarios exist. A demo script holds the browser actions of one
+approved demo scenario. The skill `scripting-demos` of the module browser-screens writes it,
+and a stack without that module has no such skill.
+
+1. Run `<skill folder>/checks.cjs demo check`.
+   - With 0 and a line that starts with "No demo script to write", skip the rest of this
+     section.
+   - With 1, the approved demo scenarios have a scenario, and the harness has no skill
+     `scripting-demos`. Start no agent, and end as "Points" of `running-a-workflow` lists,
+     with one `run_again` point. Its text is "The demo scenarios need a module that scripts
+     browser screens, which the stack of this workspace lacks, so the run wrote no demo
+     script." and its `fix` is "Add the module browser-screens to the stack, then run another
+     round." Print the first line of `demo check` in your output.
+   - With 2 or 3, end as "Failures" lists for the checks script, where the step is "the
+     check of the demo scripts".
+2. Load the skill `scripting-demos` by its name, and follow it for the scenarios that the
+   line "Write the demo script of" of `demo check` lists. When your runtime cannot load it,
+   read its `SKILL.md` where your runtime lists it. When it cannot be read, end as "Failures"
+   lists, with "The run could not load the rules for a demo script, so it wrote no demo
+   script."
+3. When the skill ends the run, end as it lists. Otherwise go on with "The order of the
+   run".
+
+A case of this section that ends the run skips "The submission": the commits of the steps
+stay, and qory pushes them.
 
 ## A step
 
@@ -213,10 +242,11 @@ file, and only a member can change the approved plan.
 ## The submission
 
 Do this section after the last step: at "The end", and in "A step that fails". A stop on the
-build plan, a work item with no build plan, a withdrawal that fails and an end as "Failures"
-lists skip it. Skip it also when no row of `steps` in `<folder>/.reports/build-ledger.json`
-has the `state` `done`, such as after the first step of the first round fails: qory opens a
-pull request only from at least one commit, and the run has none.
+build plan, a work item with no build plan, a withdrawal that fails, a case of "Demo scripts"
+that ends the run and an end as "Failures" lists skip it. Skip it also when no row of `steps`
+in `<folder>/.reports/build-ledger.json` has the `state` `done`, such as after the first step
+of the first round fails: qory opens a pull request only from at least one commit, and the
+run has none.
 
 1. Start ${qory:agents/submission-writer} in the foreground, as "Starting agents" of
    `running-a-workflow` lists, with the input file's path, `<folder>` and the path of the
