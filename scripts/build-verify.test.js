@@ -156,8 +156,8 @@ const REPORT_SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run', 'Le
 const VERIFICATION = {
   target_version: C2,
   matrix: [
-    { criterion: 'ac-1', state: 'met', evidence: 'Film: demo-video scenario-1 v1, step 1 passed.' },
-    { criterion: 'ac-2', state: 'met', evidence: 'Film: demo-video scenario-1 v1, step 2 passed.' },
+    { criterion: 'ac-1', state: 'met', evidence: 'Demo video: scenario-1' },
+    { criterion: 'ac-2', state: 'met', evidence: 'Demo video: scenario-1' },
     { criterion: 'ac-4', state: 'met',
       evidence: 'Locked check `tests/corrected-reply.test.ts` passed: exit 0, 4 tests.' },
   ],
@@ -413,8 +413,28 @@ function push(root, type, ...files) {
     ['push', type, ...files.map(([name]) => path.join(folder, name))]);
 }
 
-// check runs the check form, with root as the artifact folder.
+// check runs the check form, with root as the artifact folder. For a verification it first
+// writes a record of matrix that equals the file, unless root has one, so that the rule of the
+// record finds nothing; checkBare leaves the record as it is.
 function check(root, type, ...files) {
+  for (const [name, value] of files) write(root, name, value);
+  const record = path.join(root, '.reports', 'matrix-record.json');
+  const given = files.find(([name]) => name === 'verification.json');
+  if (type === 'verification' && given && !fs.existsSync(record)) {
+    const doc = typeof given[1] === 'string' || Buffer.isBuffer(given[1])
+      ? JSON.parse(String(given[1])) : given[1];
+    fs.mkdirSync(path.dirname(record), { recursive: true });
+    write(root, '.reports/matrix-record.json', { commit: doc.target_version, lock: 1,
+      // A criterion in two rows takes its best state, so that the record is never below the file.
+      matrix: [...(doc.matrix || []).reduce((best, { criterion, state }) => best.set(criterion,
+        best.get(criterion) === 'met' ? 'met' : state), new Map())]
+        .map(([criterion, state]) => ({ criterion, state })),
+      not_verified: (doc.not_verified || []).map((one) => one.criterion) });
+  }
+  return checkBare(root, type, ...files);
+}
+
+function checkBare(root, type, ...files) {
   for (const [name, value] of files) write(root, name, value);
   return call({ cwd: tmp, artifacts: [root] },
     ['check', type, ...files.map(([name]) => path.join(root, name))]);
@@ -2514,7 +2534,7 @@ test('verification: the matrix of the approved criteria passes check and push', 
   const all = verified((doc) => {
     doc.target_version = H;
     doc.matrix.splice(2, 0, { criterion: 'ac-3', state: 'not_met',
-      evidence: 'Film: demo-video scenario-1 v1, step 3 failed.' });
+      evidence: 'The demo of scenario-2 failed, so the criterion is not shown.' });
     doc.not_verified = [];
   });
   for (const mode of [push, check]) {
@@ -2606,9 +2626,12 @@ test('verification: target_version is the full id of the verified commit', () =>
   }
 });
 
-// evidence returns VERIFICATION with text as the evidence of ac-2, and reason with text as the
-// reason of ac-3; EVIDENCE and REASON are their places in the findings.
-const evidence = (text) => verified((doc) => { doc.matrix[1].evidence = text; });
+// evidence returns VERIFICATION with text after the demo form as the evidence of ac-2, whose
+// check is a demo, and reason with text as the reason of ac-3; EVIDENCE and REASON are their
+// places in the findings.
+const evidence = (text) => verified((doc) => {
+  doc.matrix[1].evidence = `Demo video: scenario-1. ${text}`;
+});
 const reason = (text) => verified((doc) => { doc.not_verified[0].reason = text; });
 const EVIDENCE = '/matrix/1/evidence of verification.json';
 const REASON = '/not_verified/0/reason of verification.json';
@@ -2670,6 +2693,100 @@ function withAc2(sentence, make = fixture) {
   recriteria(folder, 1, (list) => { criterionOf(list, 'ac-2').text = `${sentence}.`; });
   return folder;
 }
+
+test('verification: the evidence of a met demo criterion names its scenario', () => {
+  const demo = (text, state = 'met') => verified((doc) => {
+    Object.assign(doc.matrix[1], { state, evidence: text });
+  });
+  for (const mode of [push, check]) {
+    for (const ok of ['Pictures: scenario-2', 'Demo video: scenario-12', 'Pictures: scenario-2.',
+      'Demo video: scenario-1, step 2 passed.']) {
+      passes(mode(fixture(), 'verification', verificationFile(demo(ok))), 'verification');
+    }
+    // A form that Qory Apiary does not link: other words, no id, a scenario number past 99, and
+    // an id that goes on.
+    for (const bad of ['Pictures of scenario 2', 'Demo: scenario-2', 'Film: demo-video scenario-2',
+      'Pictures: scenario 2', 'Pictures: scenario-100', 'Demo video: scenario-2x',
+      'The film shows it.']) {
+      exactly(mode(fixture(), 'verification', verificationFile(demo(bad))),
+        'Write the evidence of ac-2 as "Demo video: scenario-N" or "Pictures: scenario-N".\n' +
+        `${EVIDENCE} is "${bad}".`);
+    }
+    // A criterion that a demo failed to prove has plain evidence, and a Tests criterion any.
+    passes(mode(fixture(), 'verification', verificationFile(demo('The film shows weekdays only.',
+      'not_met'))), 'verification');
+    passes(mode(fixture(), 'verification', verificationFile(verified((doc) => {
+      doc.matrix[2].evidence = 'Pictures of scenario 2';
+    }))), 'verification');
+  }
+});
+
+// recorded writes the record of matrix at the place that check verification reads, for the
+// criteria of VERIFICATION: ac-1, ac-2 and ac-4 as in record, ac-3 not verified.
+function recorded(folder, change = () => {}) {
+  const record = { commit: C2, lock: 1, matrix: [{ criterion: 'ac-1', state: 'met' },
+    { criterion: 'ac-2', state: 'met' }, { criterion: 'ac-4', state: 'met' }],
+  not_verified: ['ac-3'] };
+  change(record);
+  fs.mkdirSync(path.join(folder, '.reports'), { recursive: true });
+  write(folder, '.reports/matrix-record.json', record);
+  return folder;
+}
+
+test('verification: in a check, no state is above the record of matrix', () => {
+  const file = verificationFile(VERIFICATION);
+  passes(check(recorded(fixture()), 'verification', file), 'verification');
+  // A state below the record passes: met becomes not met, and not met becomes not verified.
+  passes(check(recorded(fixture()), 'verification', verificationFile(verified((doc) => {
+    doc.matrix[2].state = 'not_met';
+    doc.not_verified.push({ criterion: 'ac-1', reason: 'The film did not record.' });
+    doc.matrix.splice(0, 1);
+  }))), 'verification');
+  // Met above not met, and a row above not verified, are refused.
+  exactly(check(recorded(fixture(), (record) => { record.matrix[2].state = 'not_met'; }),
+    'verification', file),
+  'Set the state of ac-4 in verification.json to not_met, or run matrix again.\n' +
+  'The record of matrix has ac-4 as not_met.');
+  exactly(check(recorded(fixture(), (record) => {
+    record.matrix.pop();
+    record.not_verified.push('ac-4');
+  }), 'verification', file),
+  'Put ac-4 in not_verified of verification.json, or run matrix again.\n' +
+  'The record of matrix has no result for ac-4.');
+  // A criterion that the record lacks counts as not verified.
+  exactly(check(recorded(fixture(), (record) => { record.matrix.pop(); }), 'verification', file),
+    'Put ac-4 in not_verified of verification.json, or run matrix again.\n' +
+    'The record of matrix has no result for ac-4.');
+  // A record of another commit gives no ceiling.
+  exactly(check(recorded(fixture(), (record) => { record.commit = C1; }), 'verification', file),
+    'Run matrix again, or set target_version of verification.json to the commit of its record.' +
+    `\nThe record of matrix is of "${C1}".`);
+  // A push has no record to read.
+  passes(push(recorded(fixture(), (record) => { record.matrix[2].state = 'not_met'; }),
+    'verification', file), 'verification');
+  passes(push(fixture(), 'verification', file), 'verification');
+});
+
+test('verification: a check with no record of matrix, or an unreadable one, is a finding', () => {
+  const file = verificationFile(VERIFICATION);
+  exactly(checkBare(fixture(), 'verification', file),
+    'Run matrix --version <N> to write .reports/matrix-record.json.\n' +
+    '.reports/matrix-record.json does not exist. A state in verification.json needs the record ' +
+    'of matrix.');
+  const unreadable = (text) => {
+    const folder = fixture();
+    fs.mkdirSync(path.join(folder, '.reports'), { recursive: true });
+    write(folder, '.reports/matrix-record.json', text);
+    return checkBare(folder, 'verification', file);
+  };
+  for (const text of ['not json', '[]', '{"commit": 5, "matrix": []}',
+    JSON.stringify({ commit: C2 }), '']) {
+    exactly(unreadable(text),
+      'Run matrix --version <N> to write .reports/matrix-record.json.\n' +
+      '.reports/matrix-record.json is not a record that matrix writes. A state in ' +
+      'verification.json needs the record of matrix.');
+  }
+});
 
 // ---- walkthrough ----------------------------------------------------------------------------
 

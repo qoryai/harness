@@ -8,6 +8,35 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The parts of Verify that exist. The agents `tamper-reviewer` and `verification-reviewer`,
+  which the `verify-a-ticket` session starts, and which read `commit`, `diff`, `reports`
+  and, from the second round, `previous_findings` from `qory.review_session` in
+  `inputs.json`, stop with no report when `commit`, `diff` or `reports` is missing or the
+  file of a given `previous_findings` cannot be read, go on with no `previous_findings` as
+  the first round, and each write one report to `<reports>/<agent>.json`, with the skills
+  `checking-tampering` and `judging-criteria`: the first reports a changed file that a
+  locked check runs or imports and that the lock does not list, and each test that the
+  change newly skips or marks with skip or xfail; the second lowers a state of the
+  verification matrix whose evidence does not show it, never raises one, and writes each
+  lowered state as one `blocking` finding. The verb `matrix --version <N>` writes the draft
+  `verification.json` and `.reports/matrix-record.json` from the records of `run locked`,
+  the demo evidence and Build's ledger, so no agent types a state, with the line of model
+  families, such as `claude` and `deepseek`, or `unknown`. In a check, `verification`
+  refuses a state above that record, a missing record, and a met demo criterion whose
+  evidence is not `Demo video: scenario-N` or `Pictures: scenario-N`. A test shows that a
+  forged local lock passes Build's early check and fails Verify's `lock --verify --version`.
+  The registry of the checks gains `questionRules`, rules for the questions about an output
+  of a type; `software-factory` registers one for `acceptance-criteria` that refuses a
+  question with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, or
+  a new question in a check of a folder with the record of `matrix`, unless it has 3
+  options, one of each answer with the number of `about.item`, a `proposal` on the Change
+  option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a lower-case
+  `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
+  run, because an agent can change the local store, and a criterion that rests on a type
+  that cannot be pulled is not verified. `matrix` counts only the newest record of `run
+  locked` for the lock and commit, and only when it is a full, clean run with results. The
+  two agents are the group role `verify-reviewers` of `software-factory`, with no `paths`.
+  The workflow skill and its stack entry are not built yet.
 - `checks.cjs destinations --inputs <file> <id>...`, a verb of `running-a-workflow`. It
   checks the ids of the destinations that a session reads against `destinations` of the
   inputs.json at `--inputs`: each id is `tg_` and 16 characters, listed there with a
