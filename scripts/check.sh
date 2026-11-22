@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -80,6 +80,7 @@ case $QORY in
 /*) ;;
 */*) QORY=$(pwd -P)/$QORY ;;
 esac
+export QORY
 
 ROOT=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P) || exit 1
 # The testdata that rule 9 checks.
@@ -771,9 +772,9 @@ skill_names() {
 	done
 }
 
-# rule_allow DIR [FILE]: rule 6, each skill and agent of the core and software-factory
-# modules has its allow rule in FILE, by default the Claude settings of the core and
-# software-factory modules together, no rule of FILE is in both allow and deny, and each Skill or Agent rule of
+# rule_allow DIR [FILE]: rule 6, each skill and agent of the core, software-factory and
+# browser-screens modules has its allow rule in FILE, by default the Claude settings of those
+# modules together, no rule of FILE is in both allow and deny, and each Skill or Agent rule of
 # allow is for a skill or an agent under modules. The rule checks that the settings
 # match the entries. A skill with an allowed-tools key needs its rule under dontAsk on Claude
 # Code 2.1.316; a skill with no such key loaded with no rule, in a test with a scripted API. An
@@ -792,9 +793,10 @@ rule_allow() {
 		missing="Add the settings file $2: the file is missing."
 		set -- "$2"
 	else
-		settings="the Claude settings of core and software-factory"
+		settings="the Claude settings of core, software-factory and browser-screens"
 		set -- "$dir/modules/core/settings/claude/settings.json" \
-			"$dir/modules/software-factory/settings/claude/settings.json"
+			"$dir/modules/software-factory/settings/claude/settings.json" \
+			"$dir/modules/browser-screens/settings/claude/settings.json"
 		missing="Add the settings file $1 or $2: neither file exists."
 	fi
 	allowed=
@@ -838,7 +840,7 @@ $allowed
 EOF
 	while IFS= read -r skill; do
 		case $skill in
-		./core/* | ./software-factory/*) ;;
+		./core/* | ./software-factory/* | ./browser-screens/*) ;;
 		*) continue ;;
 		esac
 		name=$(basename "$(dirname "$skill")")
@@ -847,7 +849,8 @@ EOF
 	done <<EOF
 $(skill_files "$1")
 EOF
-	for file in "$1"/modules/core/agents/*.md "$1"/modules/software-factory/agents/*.md; do
+	for file in "$1"/modules/core/agents/*.md "$1"/modules/software-factory/agents/*.md \
+		"$1"/modules/browser-screens/agents/*.md; do
 		[ -f "$file" ] || continue
 		name=$(basename "$file" .md)
 		printf '%s\n' "$allowed" | grep -Fxq "\"Agent(harness:$name)\"" ||
@@ -1033,7 +1036,8 @@ EOF
 # directory, because the compose reads references in each of them. A running-a-* skill, such
 # as running-a-workflow, is for a main session: it refers to no skill except run-artifacts,
 # has no skill name with a hyphen outside a code fence except run-artifacts and running-a-*,
-# and no agent loads it. The rule reads the skill, and checks no runtime.
+# and no agent loads it. workflow-implement-changes may name the skill scripting-demos. The rule
+# reads the skill, and checks no runtime.
 rule_orchestrators() {
 	OUT=
 	known_skills=$(skill_names "$1")
@@ -1061,6 +1065,10 @@ rule_orchestrators() {
 			case $other in
 			run-artifacts | running-a-* | workflow-* | "$name") continue ;;
 			esac
+			# shortcut: one name is allowed, because the module browser-screens is optional and no
+			# reference may name it; replace with a rule on skills of a surface module when a
+			# second workflow loads one.
+			[ "$name:$other" = workflow-implement-changes:scripting-demos ] && continue
 			before='(^|[^[:alnum:]_-])'
 			after='([^[:alnum:]_-]|$)'
 			case $other in
@@ -1531,6 +1539,78 @@ if [ "$RC" -ne 2 ] ||
 	fail "$NOSCOPE (exit status $RC)"
 fi
 pass "$NOSCOPE"
+
+# The module browser-screens fills the role demo-author, and no entry of software-factory
+# references that role, so a stack without the module composes, implement-changes included.
+# qory fails the compose of a stack whose workflow starts the role with no agent to fill it.
+# The workflow capture-demos is not built yet, so the module fixture-demos ships a skill
+# workflow-capture-demos that starts agents/demo-author, as qory's check of a workflow reads
+# it. Each case composes a copy of this repository with the stack of the case, from a checkout
+# that extends the software stack of that copy by path:
+# - plain: no browser-screens and no capture-demos;
+# - bare-demos: no browser-screens and capture-demos, which fails;
+# - screen-demos: browser-screens and capture-demos.
+for case in plain bare-demos screen-demos; do
+	mkdir -p "$TMP/screens-$case/home" "$TMP/screens-$case/checkout" || exit 1
+	cp -R "$ROOT/qory.yaml" "$ROOT/modules" "$ROOT/stacks" "$TMP/screens-$case/home/" || exit 1
+	for dir in home checkout; do
+		run "$TMP/screens-$case/$dir" git init -q
+		[ "$RC" -eq 0 ] || fail "git init in $TMP/screens-$case/$dir exits 0 (exit status $RC)"
+	done
+	SROOT=$(printf '%s\n' "$TMP/screens-$case/home" | sed "s/'/''/g")
+	printf "harness: {extends: {path: '%s', stack: software}}\n" "$SROOT" \
+		>"$TMP/screens-$case/checkout/qory.yaml" || exit 1
+	STACK=$TMP/screens-$case/home/stacks/software/qory-stack.yaml
+	case $case in
+	plain | bare-demos)
+		awk '$0 != "  - name: browser-screens"' "$ROOT/stacks/software/qory-stack.yaml" \
+			>"$STACK" || exit 1
+		cmp -s "$ROOT/stacks/software/qory-stack.yaml" "$STACK" &&
+			fail "the $case case removes browser-screens from the copy of qory-stack.yaml"
+		;;
+	esac
+	case $case in
+	bare-demos | screen-demos)
+		mkdir -p "$TMP/screens-$case/home/modules/fixture-demos/skills/workflow-capture-demos" ||
+			exit 1
+		printf 'apiVersion: qory.dev/v1alpha1\nname: fixture-demos\n' \
+			>"$TMP/screens-$case/home/modules/fixture-demos/qory-module.yaml" || exit 1
+		printf -- '---\nname: workflow-capture-demos\ndescription: Film the demos.\n---\n\n# Capture demos\n\nStart ${qory:agents/demo-author}.\n' \
+			>"$TMP/screens-$case/home/modules/fixture-demos/skills/workflow-capture-demos/SKILL.md" ||
+			exit 1
+		sed 's/software-factory, /software-factory, fixture-demos, /' "$ROOT/qory.yaml" \
+			>"$TMP/screens-$case/home/qory.yaml" || exit 1
+		awk '{ print $0 }
+			$0 == "  - name: software-factory" { print "  - name: fixture-demos" }
+			$0 == "workflows:" { print "  capture-demos: {tier: balanced, access: read}" }' \
+			"$STACK" >"$STACK.new" && mv "$STACK.new" "$STACK" || exit 1
+		;;
+	esac
+done
+SCREENS="harness compose --dry-run"
+expect "a stack without browser-screens and without capture-demos: $SCREENS exits 0" \
+	0 "$TMP/screens-plain/checkout" "$QORY" harness compose --dry-run --runtime claude
+expect_entry "a stack without browser-screens and without capture-demos: $SCREENS lists skills/workflow-implement-changes" \
+	skills/workflow-implement-changes
+expect_no_entry "a stack without browser-screens: $SCREENS lists no skills/scripting-demos" \
+	skills/scripting-demos
+expect_no_entry "a stack without browser-screens: $SCREENS lists no agents/browser-demo-author" \
+	agents/browser-demo-author
+NODEMO="a stack without browser-screens and with capture-demos: $SCREENS exits 2 with the fix to add a module"
+run "$TMP/screens-bare-demos/checkout" "$QORY" harness compose --dry-run --runtime claude
+if [ "$RC" -ne 2 ] || ! printf '%s\n' "$OUT" | grep -Fq \
+	'Add a module that fills agents/demo-author, or drop capture-demos from the workflows and process.'; then
+	fail "$NODEMO (exit status $RC)"
+fi
+pass "$NODEMO"
+expect "a stack with browser-screens and with capture-demos: $SCREENS exits 0" \
+	0 "$TMP/screens-screen-demos/checkout" "$QORY" harness compose --dry-run --runtime claude
+expect_entry "a stack with browser-screens: $SCREENS lists agents/browser-demo-author" \
+	agents/browser-demo-author
+expect_entry "a stack with browser-screens: $SCREENS lists skills/scripting-demos" \
+	skills/scripting-demos
+expect_entry "a stack with browser-screens: $SCREENS lists skills/workflow-implement-changes" \
+	skills/workflow-implement-changes
 
 # A compose for Codex writes the modules' Codex settings into config.toml of the Codex home: the
 # Stop hook of core that runs the end check, the PreToolUse and PreModelRequest hooks of core that
@@ -2666,6 +2746,10 @@ expect "the write-acceptance-checks tests pass" 0 "$ROOT" node --test scripts/wr
 # removed scenario, write the pull request to the outbox, and end a stop on the build plan with
 # one answer point and escalate.
 expect "the implement-changes tests pass" 0 "$ROOT" node --test scripts/implement-changes.test.js
+# The tests of the verb demo and of the module browser-screens: the check that a stack with a
+# demo scenario has the skill scripting-demos, and the build of a demo script from the actions
+# of the demo author and the approved scenario.
+expect "the demo script tests pass" 0 "$ROOT" node --test scripts/demo-scripts.test.js
 # The tests of the build ledger: step begin, step end and resume on a checkout with a qory
 # stub, whose push runs the push check of build-ledger.
 expect "the build ledger's tests pass" 0 "$ROOT" node --test scripts/ledger.test.js
@@ -2988,13 +3072,14 @@ done)
 [ -z "$missing" ] ||
 	fail "core: the settings composed on claude allow each skill and agent of core; missing: $missing"
 pass "core: the settings composed on claude allow each skill and agent of core"
-# The software stack's composed settings have each allow rule of the settings of core and
-# software-factory, and no other.
+# The software stack's composed settings have each allow rule of the settings of core,
+# software-factory and browser-screens, and no other.
 [ "$(allow_rules "$TMP/software/.qory/harness/claude/settings.json")" = \
 	"$(allow_rules "$ROOT/modules/core/settings/claude/settings.json" \
-		"$ROOT/modules/software-factory/settings/claude/settings.json")" ] ||
-	fail "the settings composed for the software stack on claude have each allow rule of core and software-factory, and no other"
-pass "the settings composed for the software stack on claude have each allow rule of core and software-factory, and no other"
+		"$ROOT/modules/software-factory/settings/claude/settings.json" \
+		"$ROOT/modules/browser-screens/settings/claude/settings.json")" ] ||
+	fail "the settings composed for the software stack on claude have each allow rule of core, software-factory and browser-screens, and no other"
+pass "the settings composed for the software stack on claude have each allow rule of core, software-factory and browser-screens, and no other"
 for pair in gemini:gemini/settings.json cursor:cursor/hooks.json copilot:copilot/hooks/qory-hooks.json; do
 	runtime=${pair%%:*}
 	file=$TMP/consumer/.qory/harness/${pair#*:}

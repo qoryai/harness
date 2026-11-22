@@ -38,8 +38,10 @@ description: >-
   role reviewers, which start only for a change in their paths; the
   workflow-implement-changes skill, which builds one ticket's planned changes and fixes its
   open findings, one step of the build ledger each, withdraws the demo script of a removed
-  demo scenario, and, after the last step or a step that fails, starts submission-writer and
-  report-build, then checks and pushes build-report; the skills changing-code,
+  demo scenario, loads the skill scripting-demos of the module browser-screens by name after
+  the last deliverable when the approved demo scenarios have a scenario, and, after the last
+  step or a step that fails, starts submission-writer and report-build, then checks and
+  pushes build-report; the skills changing-code,
   debugging-failures and making-small-changes; the agents software-developer and
   software-debugger, which fill the roles developer and debugger; the skills
   checking-tampering and judging-criteria and the agents tamper-reviewer and

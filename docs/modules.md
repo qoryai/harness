@@ -3146,7 +3146,8 @@ reads the build plan of the run's start from the folder of `qory.start_artifacts
 acceptance lock that no cancelled run wrote, and `.reports/build-ledger.json`. With no
 build plan, it ends with a `run_again` point whose fix is "Plan the build, so that a run
 pushes the build plan." Each step is one row of the build ledger, in this order: each
-deliverable that is not built, as `deliverable:d-<N>`, in the order of the plan; then each
+deliverable that is not built, as `deliverable:d-<N>`, in the order of the plan; then the
+demo scripts, as the bullet "Demo scripts" lists, which are no step of the ledger; then each
 open finding, as `fix:f<N>`. The findings are those that `findings open` prints from
 `open-findings.json` in the inputs folder, which qory writes read-only from the report of
 the last round of review, the `blocking` ones first, and, after Verify returned the work
@@ -3163,6 +3164,16 @@ highest id of the review, so that `scope` and `freeze` take its id.
   exits 4, such as for an approved demo script, the session goes on. For each upload by a
   member and each exit 4, it writes "<scenario>: removed by Shape, still on the gate" in
   its output.
+- **Demo scripts.** After the last deliverable, so that the screens exist, the session runs
+  `checks.cjs demo check`. With no scenario that is not removed in the approved demo
+  scenarios, or with a demo script that counts for each of them, it does nothing more. With
+  a scenario and no skill `scripting-demos` in the composed harness, it starts no agent and
+  ends with one `run_again` point: "The demo scenarios need a module that scripts browser
+  screens, which the stack of this workspace lacks, so the run wrote no demo script.", with
+  the fix "Add the module browser-screens to the stack, then run another round." Otherwise
+  it loads `scripting-demos` by name, which writes one script per scenario with no script
+  yet, as "The module browser-screens" lists. The name is no `${qory:...}` reference, so a
+  stack without the module still composes `implement-changes`.
 - **A step.** The session runs `step begin` with the build plan, the skill, the two agent
   files and, for a fix, the file of its finding. It starts `software-developer` (the role
   `developer`) for the first and the second attempt and `software-debugger` (the role
@@ -3213,11 +3224,12 @@ highest id of the review, so that `scope` and `freeze` take its id.
   the steps without it." With exit 1 of `check build-report`, it runs `report-build --drop`
   and ends with one `run_again` point; after a third push of `build-report` that fails, it
   runs `report-build --drop` and ends with "The run could not push its build report." A stop
-  on the build plan skips it, and so does a session that ran no `step end done`, such as one
-  whose first step fails, also in a later round: qory fills `commits` with the commits of
-  this run, and the type needs at least one. Such a run ends with a point, as "A step that
-  fails" lists. `submission-writer` describes what the round built, also after a step that
-  fails. When the end check fails three times, the session records `escalate`.
+  on the build plan and a case of "Demo scripts" that ends the run skip it, and so does a
+  session that ran no `step end done`, such as one whose first step fails, also in a later
+  round: qory fills `commits` with the commits of this run, and the type needs at least one.
+  Such a run ends with a point, as "A step that fails" lists. `submission-writer` describes
+  what the round built, also after a step that fails. When the end check fails three times,
+  the session records `escalate`.
 - **The end.** With every step done or replayed, the session follows "The end" of
   `running-a-workflow`: with `judges: false`, it runs no verdict command, and
   `review-changes` runs next. It starts no reviewer, and ends with "The change is ready for
@@ -3378,6 +3390,26 @@ small ones, and a small one follows no other.
 pull -> shape-planner -> write-specs -> shape-planner -> write-technical-decisions
      -> make-mockups -> write-demo-scenarios -> shape-reviewer -> verdict
 ```
+
+The session runs `checks.cjs demo surface` at step 1, and gives its line, the surface line,
+to the planner, to each small workflow and to `shape-reviewer`. When the line says the stack
+has no surface module, the planner lists `write-demo-scenarios` under "Not run" with the
+reason "The stack has no surface module.", and the session never follows it. `write-specs`
+then plans each criterion as `Tests`, never as `Demo: <title>`, and `checking-specs` and
+`checking-shape` flag a `Demo` check, and a missing scenario is no finding. A change with
+screens produces no `demo-scenarios` there, starts no workflow for them and ends with no
+point, and the Build round of that ticket passes `demo check` with "No demo script to
+write". Verify reads demo evidence only for a criterion whose check is `Demo: <title>`, so
+in such a stack it has no demo video or pictures for those criteria.
+
+`workflow-write-specs` and `workflow-write-demo-scenarios` run `checks.cjs demo surface` at
+step 1 too, when a run follows one of them alone, as the stack lets each of them run. Under
+`shape-a-ticket` their step 1 only pulls, and the surface line is the one that the session
+gives. `workflow-write-specs` gives the line to `spec-writer` and `spec-review`, so each
+criterion is planned as `Tests` in a stack without the module. With that line,
+`workflow-write-demo-scenarios` starts no agent, pushes nothing and ends with "The stack has
+no surface module, so the run pushed no demo scenarios.", with no point and no fix; it gives
+the line to `scenario-writer` otherwise.
 
 The order is fixed: spec and acceptance criteria, technical decision, mockups, demo
 scenarios. Demo scenarios come last because they cite criteria and screens. Every writer
@@ -3544,6 +3576,28 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   and the reruns share one time limit. A missing tool, exit 127 or 126, and a timeout are
   red. Each call writes a record and the output of its commands to `.reports/runs/` of the
   artifact folder.
+- `demo surface`, `demo check` and `demo write <scenario>`: the demo scenarios of Shape and
+  the demo scripts of Build, in `verbs/demo.cjs`. `demo surface` reads no artifact and
+  always exits 0. It prints "The stack has a surface module: Shape writes demo scenarios."
+  when a skills folder of the composed harness has `scripting-demos`, which `demo check`
+  also tests, and otherwise "The stack has no surface module: Shape writes no demo
+  scenarios, and plans each criterion as Tests." `demo check` and `demo write` read the
+  approved version of the demo scenarios, else the newest, as the push check of
+  `demo-script` does, and skip a removed scenario. `demo check` exits 1 with the fix "Add
+  the module browser-screens to the stack, then run another round." when a scenario exists
+  and no skills folder of the composed harness has `scripting-demos`. Otherwise it exits 0
+  and prints "Write the demo script of <scenarios>, from version <N> of the demo
+  scenarios.", or "No demo script to write", for a scenario with no `demo-script` version
+  that counts. `demo write` reads `.demo/<scenario>.actions.json` of the artifact folder, a
+  regular file of at most 262144 bytes that is no link, and a JSON object with the lists
+  `setup` and `steps`, one list of actions for each row of the scenario's table. It writes
+  `.demo/<scenario>.json`, through a temporary file, with the title, the evidence line,
+  `source.version`, and the title and expected result of each step, which are the Action and
+  the What the viewer sees of the scenario word for word, so no agent types them. It checks
+  the result against `demo-script.schema.json`, which allows the actions open, click, type,
+  press and wait and no other, and exits 1 with a finding for each fault, its place named by
+  the actions file. A script that `demo write` builds passes the push check of
+  `demo-script`. The verb runs no browser.
 - `run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]`: runs the checks
   of the acceptance lock that counts, the newest `acceptance-lock` version that no
   cancelled run wrote, which it reads with `lockReader.readLock` of core's
@@ -4344,6 +4398,41 @@ and the text.
 [References](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md#references)
 in qory's compose format specification defines the rules.
 
+## The module browser-screens
+
+`browser-screens` is the surface module of a software factory whose product has screens in
+a browser. The `software` stack lists it after `software-factory`. It ships:
+
+- the agent `browser-demo-author`, which fills the role `demo-author`: `browser-screens`
+  declares `roles: {agents: {demo-author: one}}` and `provides: {agents: {demo-author:
+  browser-demo-author}}`. It runs on the tier `balanced`, with the tools Read, Grep, Glob
+  and Write. It writes one file, `.demo/<scenario>.actions.json` in the artifact folder, in
+  which each action is one of open, click, type, press and wait, a target is a CSS selector
+  or `text=<words>` that it found in the code of the screens, and a secret is the name of a
+  variable of the workspace, never a text. It writes no title and no expected result. It
+  stops with `Blocked: no screen for <the step>` or `Blocked: no action for <the step>`
+  instead of guessing a target;
+- the skill `scripting-demos`, which `workflow-implement-changes` loads by name after its
+  last deliverable. For each scenario that `demo check` lists, it runs `notes`, starts
+  `browser-demo-author`, runs `demo write`, starts the agent again with the printed lines at
+  most twice, runs `check demo-script`, and pushes the script with `qory artifact push
+  demo-script --name <scenario> <folder>/.demo/<scenario>.json`. It writes no ledger row.
+  Each script is pushed once: a later round writes only the scenarios with no script.
+
+No entry of `software-factory` references the role `demo-author` or the skill
+`scripting-demos` with `${qory:...}`: a reference to a role that no agent fills fails the
+compose, and a stack has no optional role. So a stack without `browser-screens` composes,
+`implement-changes` included, and has no agent in the role `demo-author`. In a stack of that
+kind, Shape writes no demo scenarios, as "The high-level workflow, shape-a-ticket" lists,
+and `workflow-implement-changes` writes no demo script. When approved demo scenarios have a
+scenario anyway, such as from a run in a stack that had the module, `demo check` exits 1
+with the fix "Add the module browser-screens to the stack, then run another round." A
+workflow that starts the role in a stack without the module fails the compose with "Add a
+module that fills agents/demo-author, or drop capture-demos from the workflows and process."
+`scripts/check.sh` composes a copy of this repository for each of these cases: no module and
+no `capture-demos`, no module and a skill that starts the role, and the module with that
+skill.
+
 ## The harness-authoring module
 
 The `authoring` stack composes the `harness-authoring` module and, from the `core` module,
@@ -4419,10 +4508,11 @@ the rule passes on that file.
    `slave` and `sanity check` also match with `-s`, and `dummy` as `dummies`. The folder
    `modules/core/skills/simple-communication/references/` is left out, because its word list
    contains these words as examples.
-6. Each skill and agent of the `core` and `software-factory` modules has its allow rule,
-   `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
-   `modules/core/settings/claude/settings.json` or
-   `modules/software-factory/settings/claude/settings.json`, and in the settings composed
+6. Each skill and agent of the `core`, `software-factory` and `browser-screens` modules has
+   its allow rule, `Skill(harness:<name>)` or `Agent(harness:<name>)`, in
+   `modules/core/settings/claude/settings.json`,
+   `modules/software-factory/settings/claude/settings.json` or
+   `modules/browser-screens/settings/claude/settings.json`, and in the settings composed
    for the `software` stack on `claude`. No rule is in both allow and deny, and each such
    rule under allow is for a skill or an agent that exists under `modules/`. The rule checks
    that the settings match the entries: a skill with an `allowed-tools` key needs its allow
@@ -4436,7 +4526,8 @@ the rule passes on that file.
    composed skill under `skills/` in the home (`internal/render/codex/codex.go` and
    `internal/render/address.go`). For Codex, the script checks the entries instead:
    `harness compose --dry-run --runtime codex` for the `software` stack lists every skill
-   and agent of `core` and `software-factory` (`ENTRY`, `VISUALS_ENTRY`, `SOFTWARE_ENTRY`,
+   and agent of `core`, `software-factory` and `browser-screens` (`ENTRY`, `VISUALS_ENTRY`,
+   `SOFTWARE_ENTRY`,
    `CORE_ENTRIES` and `SOFTWARE_ENTRIES` in `scripts/check.sh`), and no entry of
    `AUTHORING_ENTRIES`. A compose for Codex also writes the `Stop` hook and the `PreToolUse`
    and `PreModelRequest` hooks of the tool guard into `config.toml`, which the script
@@ -4455,7 +4546,10 @@ the rule passes on that file.
    contains the name of another skill of `modules/`, starts at least one agent with a
    reference in the text of its `SKILL.md`, outside a code fence, and contains, on one line,
    the sentence "This workflow requires subagents." A one-word name counts only in a code
-   span or next to the word "skill". A `running-a-*` skill, such as `running-a-workflow`,
+   span or next to the word "skill", and `workflow-implement-changes` may name the skill
+   `scripting-demos` of the optional module `browser-screens`, because a reference to it
+   would fail the compose of a stack without that module. A `running-a-*` skill, such as
+   `running-a-workflow`,
    refers to no skill except `run-artifacts`, has no skill name with a hyphen outside a code
    fence except `run-artifacts` and `running-a-*`, and no agent loads it. The rule reads the
    skill, and checks no runtime.

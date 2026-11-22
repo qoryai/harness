@@ -8,6 +8,32 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The module `browser-screens`, which the `software` stack lists after `software-factory`.
+  It ships the agent `browser-demo-author`, on the tier `balanced`, which fills the role
+  `demo-author`, and the skill `scripting-demos`. `workflow-implement-changes` loads that
+  skill by name after its last deliverable and before its first finding fix. For each
+  approved demo scenario with no demo script, the skill starts the agent, which writes only
+  the browser actions of the scenario (open, click, type, press and wait), and then builds
+  the script and pushes it. The title, the expected result of each step, the evidence and
+  the version of the demo scenarios come from the approved scenario, so no agent types them.
+  No entry of `software-factory` references the role `demo-author`, so a stack without the
+  module composes, `implement-changes` included. A compose of a stack whose workflow starts
+  that role with no module to fill it fails with qory's fix "Add a module that fills
+  agents/demo-author, or drop capture-demos from the workflows and process."
+- `checks.cjs demo surface`, a verb of `running-a-software-workflow` that prints whether the
+  composed harness has the skill `scripting-demos`, in the plugin folder or, when that
+  folder is a module of the harness home, in a module beside it. `workflow-shape-a-ticket`,
+  `workflow-write-specs` and `workflow-write-demo-scenarios` run it at step 1. In a stack
+  without that skill, Shape writes no demo scenarios: the planner lists
+  `write-demo-scenarios` under "Not run", `write-specs` plans each criterion as `Tests`, and
+  the Build round passes `demo check` with no demo script to write.
+- `checks.cjs demo check` and `checks.cjs demo write <scenario>`, verbs of
+  `running-a-software-workflow`. `demo check` exits 1 with the fix "Add the module
+  browser-screens to the stack, then run another round." when the approved demo scenarios
+  have a scenario and the composed harness has no skill `scripting-demos`, and otherwise
+  lists the scenarios that have no demo script. `demo write` builds `.demo/<scenario>.json`
+  from the approved scenario and the actions in `.demo/<scenario>.actions.json`, and checks
+  it against `demo-script.schema.json`.
 - The parts of Verify that exist. The agents `tamper-reviewer` and `verification-reviewer`,
   which the `verify-a-ticket` session starts, and which read `commit`, `diff`, `reports`
   and, from the second round, `previous_findings` from `qory.review_session` in

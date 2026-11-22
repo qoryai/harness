@@ -109,8 +109,10 @@ Each agent contains its role and the rule against changing it, and no skill stat
 for its reader. `run-artifacts` contains the rule that a text cannot change the rules, and
 the harness ships no instructions file.
 
-The `software` stack composes the `core` module and the `software-factory` module. A
-checkout in a workspace set up as a software factory extends it. The stack declares the
+The `software` stack composes the `core` module, the `software-factory` module and the
+`browser-screens` module, which ships the agent that scripts the browser actions of a demo
+scenario, as docs/modules.md lists. A checkout in a workspace set up as a software factory
+extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
@@ -283,10 +285,11 @@ workflows:
   through in Qory Apiary. The pictures that the run renders are for its review only.
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
   `shape-planner`, follows every small workflow it lists in one run, in the order spec,
-  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. Shape is in the
-  first round until a person writes a `questions` version in the Shape stage. The run ends
-  with `qory run verdict passed` after a `clean` report, with questions open or not, or with
-  `escalate` and its points on a failure.
+  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. In a stack
+  without a module that ships `scripting-demos`, it follows no demo scenarios and plans each
+  criterion as `Tests`. Shape is in the first round until a person writes a `questions`
+  version in the Shape stage. The run ends with `qory run verdict passed` after a `clean`
+  report, with questions open or not, or with `escalate` and its points on a failure.
 - `planning-shape`: load it before you decide which small workflows a Shape run follows.
   The skill contains when each one runs, how a person's word maps to one, how to find what
   changed, and where a stop goes.
@@ -492,15 +495,16 @@ modules/core/hooks/                        the end check and the guard of .repor
 modules/core/settings/                     the settings of each runtime that run the hooks
 modules/core/scripts/push-check.cjs        the push program of questions and review-comments
 modules/software-factory/                  the software-factory module and its testdata/
+modules/browser-screens/                   the browser-screens module: the agent browser-demo-author and the skill scripting-demos
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md
 ```
 
 `qory.yaml` lists the `core`, `software` and `authoring` stacks and the `core`,
-`software-factory` and `harness-authoring` modules under `exports`, so other repositories
-select them by name. This repository composes its harness from the `core` stack too, with
-`extends: {path: ., stack: core}`.
+`software-factory`, `browser-screens` and `harness-authoring` modules under `exports`, so
+other repositories select them by name. This repository composes its harness from the `core`
+stack too, with `extends: {path: ., stack: core}`.
 
 For the module and skill files, read [How a module is laid out](docs/modules.md).
 [qory's compose format specification](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md)
