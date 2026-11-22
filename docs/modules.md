@@ -3861,6 +3861,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   sign-in (`START_MS`), and 415 seconds for the waits of the setup and the steps
   (`WAITS_MS`). The waits of a setup count against both the 415 seconds and the 120
   seconds, so a setup with 200 seconds of waits passes `demo check` and fails at run time.
+  When the 120 seconds run out before the browser starts, `film` exits 3 with the fix
+  "Shorten the sign-in steps of <scenario>.json, or make the app start faster, then film it
+  again." ("run it again" for pictures) and the line "The 120 s for the app start, the
+  sign-in and the browser ran out before the browser started."
   The three parts of the 120 seconds share one deadline, 120 seconds after the
   start of the runner: when it passes, the sign-in fails and the call stops. A run past
   the limit of the runner exits 3 with the fix "Shorten the waits or the steps of

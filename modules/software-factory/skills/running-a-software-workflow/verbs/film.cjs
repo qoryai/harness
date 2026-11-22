@@ -30,7 +30,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { findBrowser } = require('../lib/browser.cjs');
-const { CALL_MS, RUN_BUDGET_MS } = require('../lib/budget.cjs');
+const { CALL_MS, RUN_BUDGET_MS, START_MS } = require('../lib/budget.cjs');
 const { FILM_HEIGHT } = require('../lib/capture.cjs');
 const { takeInputs, takeValue } = require('../lib/limits.cjs');
 const { ARTIFACTS_USAGE } = require('../lib/start.cjs');
@@ -129,12 +129,14 @@ module.exports = (lib) => {
   }
 
   // ended throws the Missing of a run that has no result, or returns the result run. again is
-  // the command that the fix repeats.
-  function ended(ran, serve, again) {
+  // the command that the fix repeats. With late, a function that returns the Missing of a
+  // run whose START_MS ran out before the browser started, that Missing is thrown for it.
+  function ended(ran, serve, again, late) {
     if (!ran.app.started) {
       throw new Missing(`Make ${short(serve.command, 40)} start the app in the dev container, ` +
         `then run ${again} again.\nThe app did not start: ${ran.app.why}.`);
     }
+    if (late && ran.run && ran.run.late) throw late();
     if (!ran.run || ran.run.browser) {
       throw new Missing('End the run: the browser did not finish the script.\n' +
         `${ran.run ? ran.run.why : 'The runner returned no result'}.`);
@@ -248,8 +250,11 @@ module.exports = (lib) => {
       const capture = { kind: script.evidence, dir, name: id };
       const shorter = { ...io, preflight: { ...io.preflight,
         maxMs: Math.min((io.preflight || {}).maxMs || RUN_BUDGET_MS, RUN_BUDGET_MS) } };
+      const again = script.evidence === 'film' ? 'film it' : 'run it';
       const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
-        `film ${id}`);
+        `film ${id}`, () => new Missing(`Shorten the sign-in steps of ${id}.json, or make the ` +
+          `app start faster, then ${again} again.\n  The ${START_MS / 1000} s for the app ` +
+          'start, the sign-in and the browser ran out before the browser started.'));
       if (!run.ok) {
         fs.rmSync(dir, { recursive: true, force: true });
         return failure(io, run, script.evidence === 'film' ? 'film' : 'pictures', `film ${id}`);

@@ -2052,13 +2052,15 @@ let capture = null;
 if (mode === 'pictures') {
   fs.writeFileSync(dir + '/scenario-1-step-1.png', 'png');
   capture = { kind: 'pictures', files: ['scenario-1-step-1.png'] };
-} else if (mode !== 'late') {
+} else if (mode !== 'late' && mode !== 'start') {
   const files = mode === 'bad' ? ['../outside.jpg'] : ['f000001.jpg', 'f000002.jpg'];
   for (const file of files) if (mode !== 'bad') fs.writeFileSync(dir + '/' + file, 'x');
   capture = { kind: 'film', frames: files.map((file, at) => ({ file, at: at * 40 })),
     starts: [0], end: 1040 };
 }
-const run = mode === 'late' ? null : { ok: true, step: null, why: null, outside: null, capture };
+const run = mode === 'late' ? null : mode === 'start' ? { ok: false, step: 0, outside: null,
+  why: 'the browser failed: the time for the start ran out before the browser started',
+  browser: true, late: true } : { ok: true, step: null, why: null, outside: null, capture };
 const result = { app: { started: true, ran: true, why: null }, signIns: [],
   runs: run ? [run] : [], unfinished: mode === 'late' ?
     'the script runs ran past the limit of 535 s' : null };
@@ -2095,9 +2097,9 @@ test('film: a runner past its limit, a bad frame and a failing ffmpeg remove the
 
 // stopText returns the two lines of a film call that the limit of the runner stopped, for a
 // scenario with the evidence in kind, run with the dependencies of faked.
-async function stopText(kind) {
+async function stopText(kind, fake = 'late') {
   const here = await filming([scenario('scenario-1', kind, ...ORDERS)]);
-  const deps = { ...here.deps, env: { ...here.deps.env, FILM_FAKE: 'late' },
+  const deps = { ...here.deps, env: { ...here.deps.env, FILM_FAKE: fake },
     preflight: { ...here.deps.preflight, browsers: [process.execPath], runner: FAKE_RUNNER,
       ffmpegs: [FAKE_FFMPEG] } };
   const done = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
@@ -2114,6 +2116,16 @@ test('film: a run that the limit stops prints the film text, not the text of pre
   const pictures = await stopText('pictures');
   assert.deepEqual(pictures.lines, ['Shorten the waits or the steps of scenario-1.json, then ' +
     'run it again.', `  The run ran past its limit of ${pictures.seconds} s.`]);
+});
+
+test('film: a start deadline that ran out before the browser started prints the fix first', async () => {
+  const film = await stopText('film', 'start');
+  assert.deepEqual(film.lines, ['Shorten the sign-in steps of scenario-1.json, or make the app ' +
+    'start faster, then film it again.', '  The 120 s for the app start, the sign-in and the ' +
+    'browser ran out before the browser started.']);
+  const pictures = await stopText('pictures', 'start');
+  assert.equal(pictures.lines[0], 'Shorten the sign-in steps of scenario-1.json, or make the ' +
+    'app start faster, then run it again.');
 });
 
 test('film: the pictures have the names that screenshot reads, and running-checks lists the two pushes', async () => {
@@ -2193,6 +2205,7 @@ test('film: a start deadline with under 1 s left says the time ran out, not "did
   const [one] = JSON.parse((await runner(spec)).out).runs;
   assert.equal(one.ok, false);
   assert.match(one.why, /^the browser failed: the time for the start ran out/);
+  assert.equal(one.late, true);
   assert.doesNotMatch(one.why, /did not start within/);
 });
 
