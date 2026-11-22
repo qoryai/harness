@@ -6,8 +6,8 @@
 // start commit, open-findings.json beside the inputs.json of the session, and the previous
 // version of build-report.md for the rounds before the latest.
 //
-// shortcut: no verb records the full suite or the tokens, so the full-suite line and
-// Tokens in Counts are `unknown`; replace both when a verb writes them.
+// shortcut: no verb records the full suite, so the full-suite line is `unknown`; replace it
+// when a verb writes it.
 'use strict';
 
 const fs = require('node:fs');
@@ -254,9 +254,14 @@ module.exports = (lib) => {
     const rows = ledger.steps;
     const out = [];
     out.push(['Summary', [`Commit: ${head}. Review rounds: ${count}. Ready for review.`]]);
+    // Role, Tier and Model have one value per agent start of the row, in the order of the
+    // starts, or none.
+    const each = (row, key) => (row.attempts.length
+      ? row.attempts.map((one) => one[key]).join(', ') : 'none');
     out.push(['Steps', rows.length
-      ? table(['Step', 'Pass', 'Kind', 'State', 'Commit'],
-        rows.map((row) => [row.id, row.pass, row.kind, row.state, row.commit || 'none']))
+      ? table(['Step', 'Pass', 'Kind', 'State', 'Commit', 'Role', 'Tier', 'Model'],
+        rows.map((row) => [row.id, row.pass, row.kind, row.state, row.commit || 'none',
+          each(row, 'role'), each(row, 'tier'), each(row, 'model')]))
       : ['None.']]);
     out.push(['Review rounds', [
       ...(rounds.length ? rounds.flatMap((one) => [one.text, '']) : ['None.', '']), CLOSING]]);
@@ -267,8 +272,7 @@ module.exports = (lib) => {
       'Full suite: unknown.']]);
     out.push(['Counts', table(['Count', 'Value'], [
       ['Replayed steps', rows.reduce((sum, row) => sum + row.replays, 0)],
-      ['Review rounds', count], ['Returns', rounds.filter((one) => one.blocking).length],
-      ['Tokens', 'unknown']])]);
+      ['Review rounds', count], ['Returns', rounds.filter((one) => one.blocking).length]])]);
     const open = rows.filter((row) => row.state !== 'done');
     out.push(['Not run', open.length
       ? open.map((row) => `- ${row.id}, pass ${row.pass}: ${row.state}`) : ['None.']]);

@@ -3001,6 +3001,11 @@ const TEXT = ['# Add the sum helper', '', '## Problem', '', 'Adding two numbers 
   '## Change', '', 'The helper is in src/b.js.', '', '## Tests', '', 'One test covers it.', '',
   '## Disclosed', '', 'Nothing is left out.', ''].join('\n');
 const T0 = '2026-11-15T10:00:00Z';
+// The two agent starts of the row fix:f1 of buildRepo.
+const ATTEMPTS = [
+  { agent: 'software-developer', role: 'developer', tier: 'thinking', model: 'model-a' },
+  { agent: 'software-debugger', role: 'debugger', tier: 'balanced', model: 'unknown' },
+];
 
 // buildRepo returns a locked checkout whose ledger has a change and two fixes, each done
 // with one commit, and a submission text. start is the head when the run started, and
@@ -3016,7 +3021,8 @@ function buildRepo(report) {
   });
   const ledger = { steps: [
     row('deliverable:d-1', 'deliverable', start, commits[0], report ? { report } : {}),
-    row('fix:f1', 'fix', commits[0], commits[1]), row('fix:f2', 'fix', commits[1], commits[2]),
+    row('fix:f1', 'fix', commits[0], commits[1], { attempts: ATTEMPTS }),
+    row('fix:f2', 'fix', commits[1], commits[2]),
   ], escalations: [] };
   write(dir, '.qory/artifacts/.reports/build-ledger.json', JSON.stringify(ledger));
   write(dir, '.qory/artifacts/.reports/submission.md', TEXT);
@@ -3050,8 +3056,23 @@ test('report-build: a change and two fixes write an output that lists the three 
   assert.equal(output.draft, true);
   const text = reportOf(dir);
   assert.ok(text.endsWith('\n') && !text.endsWith('\n\n'));
-  assert.match(text, /^## Summary\n\nCommit: [0-9a-f]{40}\. Review rounds: 0\. Ready for review\.\n\n## Steps\n\n\| Step \| Pass \| Kind \| State \| Commit \|\n\|---\|---\|---\|---\|---\|\n\| deliverable:d-1 \| 1 \| deliverable \| done \| [0-9a-f]{40} \|\n/);
-  assert.match(text, /## Review rounds\n\nNone\.\n\nThe result of the last round is in the review in Qory Apiary, not in this report\.\n\n## Checks\n\n\| Check \| Start \| Head \|\n\|---\|---\|---\|\n\| ac-1: tests\/ac1\.test\.js \| red \| unknown \|\n\| ac-2: tests\/ac2\.test\.js \| red \| unknown \|\n\nFull suite: unknown\.\n\n## Counts\n\n\| Count \| Value \|\n\|---\|---\|\n\| Replayed steps \| 0 \|\n\| Review rounds \| 0 \|\n\| Returns \| 0 \|\n\| Tokens \| unknown \|\n\n## Not run\n\nNone\.\n\n/);
+  assert.match(text, new RegExp('^## Summary\\n\\nCommit: [0-9a-f]{40}\\. Review rounds: 0\\. ' +
+    'Ready for review\\.\\n\\n## Steps\\n\\n'));
+  // Role, Tier and Model list each agent start of a row in order, and none for a row with none.
+  const steps = (ids) => ids.map(([id, at, cells]) =>
+    `| ${id} | 1 | ${id.split(':')[0]} | done | ${commits[at]} | ${cells} |`).join('\n');
+  assert.ok(text.includes(['| Step | Pass | Kind | State | Commit | Role | Tier | Model |',
+    '|---|---|---|---|---|---|---|---|', steps([['deliverable:d-1', 0, 'none | none | none'],
+      ['fix:f1', 1, 'developer, debugger | thinking, balanced | model-a, unknown'],
+      ['fix:f2', 2, 'none | none | none']])].join('\n')), text);
+  // Counts has the replays, the rounds and the returns, and no other row.
+  assert.ok(text.includes(['## Review rounds', '', 'None.', '',
+    'The result of the last round is in the review in Qory Apiary, not in this report.', '',
+    '## Checks', '', '| Check | Start | Head |', '|---|---|---|',
+    '| ac-1: tests/ac1.test.js | red | unknown |', '| ac-2: tests/ac2.test.js | red | unknown |',
+    '', 'Full suite: unknown.', '', '## Counts', '', '| Count | Value |', '|---|---|',
+    '| Replayed steps | 0 |', '| Review rounds | 0 |', '| Returns | 0 |', '', '## Not run', '',
+    'None.', '', ''].join('\n')), text);
   assert.ok(text.endsWith('## Left out\n\n- deliverable:d-1: Export of dates: nobody reads them yet.\n- deliverable:d-1: Retry: the call never fails.\n'));
   // The same records give the same bytes.
   assert.equal(bcall(dir, ['report-build']).status, 0);
@@ -3298,7 +3319,8 @@ test('check build-report: compares the raw text, so a CRLF copy, a trailing spac
   const check = () => call(dir, ['check', 'build-report', '--inputs', inputs, file]);
   assert.equal(check().status, 0);
   for (const [name, changed] of [['CRLF', text.replace(/\n/g, '\r\n')],
-    ['trailing space', text.replace('| Step | Pass | Kind | State | Commit |\n', '| Step | Pass | Kind | State | Commit | \n')],
+    ['trailing space', text.replace('| Commit | Role | Tier | Model |\n',
+      '| Commit | Role | Tier | Model | \n')],
     ['extra blank line', text.replace('\n\n## Steps', '\n\n\n## Steps')],
     ['no final newline', text.slice(0, -1)],
     ['heading spacing', text.replace('## Summary', '##   Summary')]]) {

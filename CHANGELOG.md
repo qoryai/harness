@@ -1063,6 +1063,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `checks.cjs step end` takes `--attempt <agent>,<role>,<tier>` and adds the model of each
+  agent start to the build ledger: the `model:` of the agent file in the plugin folder, else
+  the `model` of the `settings.json` beside it, else `unknown`, when the agent runs on the
+  runtime's default. A run on Codex gets `unknown`. A value with a fourth part, the model of
+  the earlier form, exits 2. `matrix` reads the models of Verify's agents by the same code.
+  `## Steps` of `build-report.md` has the columns Role, Tier and Model, with one value per
+  agent start of the row, or `none`.
 - Explore copies only the destinations that the ticket concerns. qory no longer fetches the
   destinations at the start of an Explore run. The first start of `code-explorer` reads only
   the input file and lists the ids under "Destinations:". The session checks them with

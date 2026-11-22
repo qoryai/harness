@@ -203,7 +203,7 @@ function deliver(call, w, id) {
   commit(w, `${slug(id)}.txt`, `The change of ${id}.\n`);
   const file = report(call, `software-developer-${slug(id)}`, `Built ${id}.\n\ndone\n`);
   const ended = call('step', 'end', id, 'done', '--report', file,
-    '--attempt', 'software-developer,developer,balanced,unknown');
+    '--attempt', 'software-developer,developer,balanced');
   assert.equal(ended.status, 0, ended.out);
   return ended;
 }
@@ -286,6 +286,56 @@ test('ledger: a session that stops after two of three deliverables resumes at th
   // The draft at the top of the artifact folder has the bytes of the newest version.
   assert.equal(fs.readFileSync(path.join(next.artifacts, 'build-ledger.json'), 'utf8'),
     JSON.stringify(ledger));
+});
+
+// pluginWith returns a plugin folder in a new harness home, as qory composes one: the modules
+// core and software-factory, an agent file with its model: line for each of models, and the
+// settings.json beside the plugin folder when settings is given.
+function pluginWith({ models = {}, settings } = {}) {
+  const modules = path.join(fresh('home'), 'modules');
+  fs.mkdirSync(path.join(modules, 'zz-models', 'agents'), { recursive: true });
+  for (const name of ['core', 'software-factory']) {
+    fs.symlinkSync(path.join(MODULES, name), path.join(modules, name));
+  }
+  for (const [agent, model] of Object.entries(models)) {
+    fs.writeFileSync(path.join(modules, 'zz-models', 'agents', `${agent}.md`),
+      `---\nname: ${agent}\nmodel: ${model}\n---\nBody.\n`);
+  }
+  if (settings !== undefined) {
+    fs.writeFileSync(path.join(modules, 'settings.json'), JSON.stringify(settings));
+  }
+  return path.join(modules, 'core');
+}
+
+test('ledger: step end adds the model of each start: agent file, settings.json, or unknown', () => {
+  // models ends a step with a start of the developer and of the debugger, and returns the
+  // model of each attempt of the stored row.
+  const models = (plugin) => {
+    const w = work();
+    const call = resumed(w, { plugin });
+    assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
+    commit(w, 'd.txt', 'The change.\n');
+    const ended = call('step', 'end', 'deliverable:d-1', 'done',
+      '--attempt', 'software-developer,developer,thinking',
+      '--attempt', 'software-debugger,debugger,balanced');
+    assert.equal(ended.status, 0, ended.out);
+    const { attempts } = stored(w).ledger.steps[0];
+    assert.deepEqual(attempts.map((one) => [one.agent, one.role, one.tier]), [
+      ['software-developer', 'developer', 'thinking'],
+      ['software-debugger', 'debugger', 'balanced']]);
+    return attempts.map((one) => one.model);
+  };
+  // The model: of the agent file comes before settings.json, and an agent file with no model,
+  // or with the tier name that qory did not resolve, takes the model of settings.json.
+  assert.deepEqual(models(pluginWith({ models: { 'software-developer': 'model-a' },
+    settings: { model: 'model-b' } })), ['model-a', 'model-b']);
+  assert.deepEqual(models(pluginWith({ settings: { model: 'model-b' } })), ['model-b', 'model-b']);
+  // With neither, the agent runs on the runtime's default.
+  assert.deepEqual(models(pluginWith()), ['unknown', 'unknown']);
+  assert.deepEqual(models(pluginWith({ settings: { model: 7 } })), ['unknown', 'unknown']);
+  // A value that the ledger cannot take, as the agent file or settings.json has it, is unknown.
+  assert.deepEqual(models(pluginWith({ models: { 'software-developer': 'm'.repeat(101) },
+    settings: { model: 'mödel' } })), ['unknown', 'unknown']);
 });
 
 test('ledger: an edit outside a step fails step begin or step end', () => {
@@ -908,7 +958,7 @@ test('ledger: --report takes only a file under .reports, and no link', () => {
 test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () => {
   const w = work();
   const call = resumed(w);
-  const attempt = ['--attempt', 'a,b,balanced,m'];
+  const attempt = ['--attempt', 'a,b,balanced'];
   const pushed = ['--pushed', 'spec/main/1'];
   const cases = [
     [['step'], /^Give step begin or step end\.\n  nothing is neither\./],
@@ -917,8 +967,13 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
     [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case\.\n  nothing is none\./],
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],
     [['step', 'end', 'plan'], /^Give step end the state done or failed\.\n  nothing is neither\./],
-    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,slow,m'], /^Give --attempt as/],
-    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,fast,m'], /^Give --attempt as/],
+    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,slow'], /^Give --attempt as/],
+    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,fast'], /^Give --attempt as/],
+    [['step', 'end', 'plan', 'done', '--attempt', 'a,b'], /^Give --attempt as/],
+    // The form with the model as a fourth part: step end adds the model.
+    [['step', 'end', 'plan', 'done', '--attempt', 'a,b,balanced,m'],
+      new RegExp('^Give --attempt as <agent>,<role>,<tier>, with a tier of light, balanced, ' +
+        'thinking\\.\\n {2}"a,b,balanced,m" is not\\. step end adds the model of the agent\\.\\n')],
     [['step', 'end', 'plan', 'done', ...attempt, ...attempt, ...attempt, ...attempt], /^Give --attempt at most 3 times/],
     [['step', 'end', 'plan', 'done', '--pushed', 'spec/main/0'], /^Give --pushed as/],
     [['step', 'end', 'plan', 'done', ...pushed, ...pushed, ...pushed, ...pushed, ...pushed], /^Give --pushed at most 4 times/],

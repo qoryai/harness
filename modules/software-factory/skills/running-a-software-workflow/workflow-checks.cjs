@@ -65,6 +65,7 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/report-build.cjs')(lib));
   Object.assign(lib, require('./lib/track-record.cjs')(lib));
   Object.assign(lib, require('./lib/member-allowance.cjs')(lib));
+  Object.assign(lib, require('./lib/models.cjs')(lib));
   const spec = require('./types/spec.cjs')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
   const scenarios = require('./types/demo-scenarios.cjs')(lib);

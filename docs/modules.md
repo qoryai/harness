@@ -2527,7 +2527,10 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
 - `checks.cjs step end <id> done|failed`: after each step, on the `running` row of `<id>`.
   It sets `state`, `ended_at`, and from its flags: `--report <file>`, the agent's last
   report, a file under `.reports` of the artifact folder and no link, as `report`;
-  `--attempt <agent>,<role>,<tier>,<model>`, once per agent start, at most 3 times;
+  `--attempt <agent>,<role>,<tier>`, once per agent start, at most 3 times, which exits 2
+  for a value with a fourth part, such as a model, and to which `step end` adds the model:
+  the `model:` of the agent file in the plugin folder, else the `model` of the
+  `settings.json` beside it, else `unknown`, the runtime's default, as on Codex;
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
   `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
   `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is a
@@ -3158,7 +3161,7 @@ highest id of the review, so that `scope` and `freeze` take its id.
   locked check, `run targeted <path>` for another check path, and for a fix, `run
   targeted` with each check path that is not locked and `run locked` with no criterion.
   With every check green, it runs `freeze` and `step end done` with one
-  `--attempt <agent>,<role>,thinking,unknown` per attempt. A `blocked` report other than
+  `--attempt <agent>,<role>,thinking` per attempt. A `blocked` report other than
   the stop on the build plan ends the run as "Failures" of `running-a-workflow` lists.
 - **A step that fails.** After a third red attempt, the session runs `step end failed` with
   the 3 attempts, so the deliverable or the finding stays open in the build ledger and in
@@ -3747,7 +3750,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   sources:
   - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
   - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
-    the columns Step, Pass, Kind, State and Commit;
+    the columns Step, Pass, Kind, State, Commit, Role, Tier and Model. Role, Tier and
+    Model have one value per agent start of the row, in the order of the starts, joined
+    by `, `, or `none` for a row with no start;
   - `## Review rounds`: the latest round from `open-findings.json`, in the folder of the
     file of `--inputs`, as `### Round <N>`, a line with the frozen commit, when the file
     has one, and the reviewers, and the table Finding, Reviewer, Blocking and Proof. The
@@ -3761,8 +3766,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     failed on the start commit, and Head is the result in the newest record of `run locked`
     on HEAD with no uncommitted change. The line `Full suite:` is `unknown`, because no
     verb records the full suite;
-  - `## Counts`: the replays of the ledger rows, the review rounds, the rounds with a
-    blocking finding as the returns, and `unknown` for the tokens;
+  - `## Counts`: the replays of the ledger rows, the review rounds, and the rounds with a
+    blocking finding as the returns;
   - `## Not run`: each ledger row that is not `done`, with its state, or `None.`;
   - `## Left out`: each item of a list `Left out:` in the `report` of a ledger row, as
     `- <row id>: <item>: <risk>`, or `none`. The list is the lines `- <item>: <risk>` or

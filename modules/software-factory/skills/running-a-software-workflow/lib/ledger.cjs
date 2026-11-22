@@ -320,6 +320,8 @@ module.exports = (lib) => {
     origin,
     start,
     replay: (io, row) => follows(io, row.commit, head(io)),
+    // The model of an agent start, as lib/models.cjs reads it from the plugin folder.
+    model: (io, agent) => lib.agentModel(io.plugin, agent),
     finish,
     point,
     // The build plan of the point: from the folder of --artifacts, or of qory.start_artifacts
