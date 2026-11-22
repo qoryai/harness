@@ -190,11 +190,13 @@ both:
   in the section on `review-changes` lists. It has `reports`, the report folder, and
   `suite_result`, the absolute path of the file with the result of the full suite, which
   qory is to run before the session; `diff`, `previous_findings` and `build_report` are
-  absolute paths of files too. The session starts each reviewer as one of its agents, and
-  each writes one report, `<reports>/<agent>.json`. Each reviewer reads `commit`, `diff`,
-  `previous_findings` after the first round, `build_report` when there is one, and the two
-  other members from `qory.review_session`, and the prompt passes only the path of the input
-  file, so the session cannot point a reviewer at another commit.
+  absolute paths of files too. `outputs`, when qory writes it, is no path: the outputs that
+  passed the check of their schema, inline, keyed by type. The session starts each reviewer
+  as one of its agents, and each writes one report, `<reports>/<agent>.json`. Each reviewer
+  reads `commit`, `diff`, `previous_findings` after the first round, `build_report` and
+  `outputs` when qory writes them, and the two other members from `qory.review_session`, and
+  the prompt passes only the path of the input file, so the session cannot point a reviewer
+  at another commit.
 - **A separate session per reviewer.** qory starts the reviewer as the main agent of a
   session, with the tools Read, Grep, Glob, Skill and Write, no shell and no network. The
   values are in the member `qory.review` of the `inputs.json` that qory writes: `commit`,
@@ -3402,9 +3404,10 @@ locked check that fails. The session runs no ledger step. In this order:
     check of the round have `shortcut: not called yet`, so qory writes neither;
   - the run of the loop of Build, which Apiary runs;
   - the shape of `previous_findings`;
-  - `qory.review.outputs` in the `inputs.json` of a reviewer, each declared output by
-    type, with the title and the text of the draft pull request in the entry for
-    `pull-request`, so `acceptance-reviewer` checks them only once qory writes it.
+  - `qory.review_session.outputs` in the `inputs.json` of the session: the outputs that
+    passed the check of their schema, inline, keyed by type, with the title and the text of
+    the draft pull request in the member `pull-request`. Until qory writes it,
+    `acceptance-reviewer` checks no text of a pull request.
   Build's `sequence` in `process.yaml` is still empty.
 
 ## The high-level workflow, shape-a-ticket
@@ -4552,12 +4555,13 @@ there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order m
 read the same file without it.
 
 The script also checks that the compose of the `software` stack writes `roles.json` with
-`security-reviewer`, `data-reviewer` and `failure-reviewer` as the members of
-`agents/reviewers`, each with `paths`.
+six members of `agents/reviewers`: `code-reviewer`, `test-reviewer` and
+`acceptance-reviewer` with no `paths`, then `security-reviewer`, `data-reviewer` and
+`failure-reviewer`, each with `paths`.
 
 The script also checks that `roles.json` of the `software` stack has `tamper-reviewer` and
 `verification-reviewer` as the members of `agents/verify-reviewers`, with no `paths`, and
-still has `agents/reviewers`.
+still has those six members of `agents/reviewers`.
 
 The script also checks that each agent of `software-factory` whose description contains "as
 an agent of the verify-a-ticket session" is a member of `verify-reviewers` in

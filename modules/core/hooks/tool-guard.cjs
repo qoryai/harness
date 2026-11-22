@@ -41,14 +41,21 @@
 //   inside the home: the guards and the agents that qory composed. A command whose writes the
 //   guard does not read, other than the checks script with a verb of REVIEW_VERBS, neither
 //   runs in the home nor contains a word that reaches it, outside that working folder, except
-//   the file of the home that it runs in a call with no quotes, parentheses or $. A home in
-//   the working folder gets no such deny, so a change of the harness's files can edit them.
-//   The checks of qory use the bytes that qory wrote, not the file. The guard reads the
-//   writes of a shell command from its text, so a path of the home, of the file or of
-//   <reports> that a shell variable makes passes, as the next lines state. So does a script
-//   that one call writes to a file and a later call runs, as cat > /tmp/p.py, then python3
-//   /tmp/p.py, and a path that code joins from parts, as 'ho' + 'me'. The read-only mount of
-//   the home in a walled run is the main control; the guard is the second.
+//   the file of the home that it runs. A home in the working folder gets no such deny, so a
+//   change of the harness's files can edit them. The checks of qory use the bytes that qory
+//   wrote, not the file. The read-only mount of the home in a walled run is the main control;
+//   the guard is the second. Its limits:
+//   - shortcut: the guard reads the text of one call, so a path of the home, of the file or
+//     of <reports> that a shell variable makes passes, as the next lines state, and so do a
+//     script that one call writes and a later call runs (cat > /tmp/p.py, then python3
+//     /tmp/p.py) and a path that code joins from parts ('ho' + 'me'). The mount covers them;
+//     replace this check only if a review session runs without that mount.
+//   - shortcut: a run of a file of the home passes only in a call with no quotes,
+//     parentheses or $, so node <home>/x.cjs 'a b' is denied; widen it when a reviewer
+//     needs such a call and the guard can tell the file that runs from the text it reads.
+//   - shortcut: with the working folder inside the home, a shell write of a new name directly
+//     in a folder of the home passes, as homeParts states; Write and Edit are denied. The
+//     mount covers it; list the names when a review session runs without that mount.
 // A write is a call of Write, Edit, MultiEdit or NotebookEdit, or a Codex apply_patch, with
 // the paths of its file_path, notebook_path or patch; or a shell command whose text
 // contains the path and writes, as WRITERS reads it. The guard gives a clear message for
@@ -2055,6 +2062,9 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     return shielded && shielded.inputs ? shielded.reason
       : sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, env });
   }
+  // shortcut: in a review session the main session and agents other than reviewers keep
+  // the rules of the run, as at access write-no-push: the guard does not tell access read
+  // from write-no-push. qory's read-only mount of the checkout enforces read; keep it so.
   if (shielded) return shielded.reason;
   if (agent) {
     // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
