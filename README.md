@@ -339,15 +339,16 @@ workflows:
   most, and after each start runs `scope`, `run lint`, `run types`, `run build` and the
   targeted checks. When every check is green, `freeze` commits the step and `step end done`
   records it; after a third red attempt, `step end failed` records it and the session ends
-  with no point. A writer's line `Blocked: needs a change to the build plan: <the change>`
-  ends the session with one `answer` point. Before the steps, the session withdraws the demo
-  script of each removed demo scenario. After the last step, and after a step that fails, it
-  starts `submission-writer` and runs `checks.cjs report-build`, which writes
-  `build-report.md` and the outbox file `pull-request.json`, then checks and pushes
-  `build-report`. A run with no step `done` in the build ledger skips these, because qory
-  opens a pull request only from at least one commit. Its stack entry sets `judges: false`,
-  so it ends with no verdict command once qory writes `qory.workflow.judges` (see the
-  `shortcut:` note in `scripts/checks.test.js`), and `review-changes` runs next.
+  with no point, or, when no step is `done`, with one `run_again` point and `escalate`. A
+  writer's line `Blocked: needs a change to the build plan: <the change>` ends the session
+  with one `answer` point. Before the steps, the session withdraws the demo script of each
+  removed demo scenario. After the last step, and after a step that fails, it starts
+  `submission-writer` and runs `checks.cjs report-build`, which writes `build-report.md` and
+  the outbox file `pull-request.json`, then checks and pushes `build-report`. A run with no
+  step `done` in the build ledger skips these, because qory opens a pull request only from
+  at least one commit. Its stack entry sets `judges: false`, so it ends with no verdict
+  command once qory writes `qory.workflow.judges` (see the `shortcut:` note in
+  `scripts/checks.test.js`), and `review-changes` runs next.
 - `changing-code`: load it before you change code for one step of a build. The skill
   contains the step you get, the paths you may change, the tests of the change, the checks
   you run and the list `Left out:` of the report.

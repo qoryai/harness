@@ -54,23 +54,25 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   types`, `run build` and the targeted checks of the step, and with every check green,
   `freeze` commits the step and `step end done` records it. After a third red attempt, `step
   end failed` records the step with its 3 attempts, so it stays open in the build ledger and
-  the build report, and the session ends with no point and starts no later step. A writer's
-  line `Blocked: needs a change to the build plan: <the change>` ends the session with one
-  `answer` point, and `checks.cjs report` accepts that line; any other `blocked` report ends
-  the run as "Failures" of `running-a-workflow` lists. Before the steps, the session
-  withdraws the demo script of each demo scenario that a rework of Shape removed, approved
-  ones too, with `qory artifact push demo-script --name <scenario> --withdraw`. It skips a
-  name with no version outside cancelled runs, one already withdrawn and one that a member
-  uploaded, and writes "<scenario>: removed by Shape, still on the gate" for each such
-  upload and each withdrawal that exits with 4. After the last step, and after a step that
-  fails, the session starts `submission-writer` and runs `checks.cjs report-build`, which
-  writes `build-report.md` and the outbox file `pull-request.json`, which qory pushes, then
-  runs `check build-report` and pushes `build-report`, as `review-changes` does. A stop on
-  the build plan runs none of these, and neither does a run with no step `done` in the build
-  ledger, because qory opens a pull request only from at least one commit.
-  `submission-writer` describes what the round built, also after a step that fails. When the
-  end check fails three times, the session records `escalate`, as every workflow does. The
-  session starts no reviewer.
+  the build report, and the session ends with no point and starts no later step. When no
+  step is `done`, the run has no commit, and the session ends with one `run_again` point,
+  "The run stopped, because the checks still fail after 3 changes to <the step>.", and
+  `escalate`. A writer's line `Blocked: needs a change to the build plan: <the change>` ends
+  the session with one `answer` point, and `checks.cjs report` accepts that line; any other
+  `blocked` report ends the run as "Failures" of `running-a-workflow` lists. Before the
+  steps, the session withdraws the demo script of each demo scenario that a rework of Shape
+  removed, approved ones too, with `qory artifact push demo-script --name <scenario>
+  --withdraw`. It skips a name with no version outside cancelled runs, one already withdrawn
+  and one that a member uploaded, and writes "<scenario>: removed by Shape, still on the
+  gate" for each such upload and each withdrawal that exits with 4. After the last step, and
+  after a step that fails, the session starts `submission-writer` and runs `checks.cjs
+  report-build`, which writes `build-report.md` and the outbox file `pull-request.json`,
+  which qory pushes, then runs `check build-report` and pushes `build-report`, as
+  `review-changes` does. A stop on the build plan runs none of these, and neither does a run
+  with no step `done` in the build ledger, because qory opens a pull request only from at
+  least one commit. `submission-writer` describes what the round built, also after a step
+  that fails. When the end check fails three times, the session records `escalate`, as every
+  workflow does. The session starts no reviewer.
 - The agents `software-developer` and `software-debugger`, which fill the roles `developer`
   and `debugger` of `software-factory`, and the skills `changing-code`,
   `debugging-failures` and `making-small-changes`. `making-small-changes` has nine rules for

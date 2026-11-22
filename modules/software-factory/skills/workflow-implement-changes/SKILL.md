@@ -168,12 +168,19 @@ The targeted checks of a step:
 
 Run `step end <id> failed --report <file>`, with the newest report of the debugger and the
 three `--attempt` lines. The row of the step stays `failed`, so its deliverable or finding
-stays open in the build ledger and in the build report. Then do "The submission". When a
-case of "The submission" ends the run, end as that case lists. Otherwise write no
-`points.json`, run no
-verdict command, and do no later step. `review-changes` runs next and reports the open
-step as `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. End
-with "The run stopped, because the checks still fail after 3 changes to <the step>."
+stays open in the build ledger and in the build report.
+
+When no row of `steps` in `<folder>/.reports/build-ledger.json` has the `state` `done`, the
+run has no commit: skip "The submission", do no later step, and end as "Points" of
+`running-a-workflow` lists, with one `run_again` point whose text is the last line of this
+section.
+
+Otherwise do "The submission". When a case of "The submission" ends the run, end as that
+case lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
+`review-changes` runs next and reports the open step as `blocking`, and the limit of 3
+rounds of Qory Apiary passes it to a member.
+
+End with "The run stopped, because the checks still fail after 3 changes to <the step>."
 
 `<the step>` is the planned change and its Change cell in quotes, such as `the planned
 change d-2, "Send the refund"`, for a deliverable, "the fix of a review finding" for a

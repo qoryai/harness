@@ -135,11 +135,15 @@ test('the session starts the developer twice and the debugger once per step, the
   // A step that fails stays open, and the session starts nothing after it.
   const failed = section(WORKFLOW, 'A step that fails');
   contains(failed, 'The row of the step stays `failed`, so its deliverable or finding stays ' +
-    'open in the build ledger and in the build report. Then do "The submission". When a case ' +
-    'of "The submission" ends the run, end as that case lists. Otherwise write no ' +
-    '`points.json`, run no ' +
-    'verdict command, and do no later step. `review-changes` runs next and reports the open ' +
-    'step as ' +
+    'open in the build ledger and in the build report.');
+  // With no done row, the run has no commit, and the step's line is the point of the end.
+  contains(failed, 'When no row of `steps` in `<folder>/.reports/build-ledger.json` has the ' +
+    '`state` `done`, the run has no commit: skip "The submission", do no later step, and end ' +
+    'as "Points" of `running-a-workflow` lists, with one `run_again` point whose text is the ' +
+    'last line of this section.');
+  contains(failed, 'Otherwise do "The submission". When a case of "The submission" ends the ' +
+    'run, end as that case lists. Otherwise write no `points.json`, run no verdict command, ' +
+    'and do no later step. `review-changes` runs next and reports the open step as ' +
     '`blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member.');
   assert.doesNotMatch(oneLine(failed), /next round of Build starts the step again/);
   // The order of the steps: the deliverables not built, then the findings, blocking first.
@@ -234,7 +238,7 @@ test('the session writes the text of the change after the last step, and not on 
   contains(section(WORKFLOW, 'The end'), 'When every step ended done or replayed, do "The ' +
     'submission", then "The end" of `running-a-workflow`.');
   inOrder(section(WORKFLOW, 'A step that fails'), 'Run `step end <id> failed',
-    'Then do "The submission".', 'End with "The run stopped, because');
+    'Otherwise do "The submission".', 'End with "The run stopped, because');
   const stop = section(WORKFLOW, 'A stop on the build plan');
   contains(stop, 'Skip "The submission"');
   assert.doesNotMatch(stop, /report-build|submission-writer/);
@@ -857,21 +861,24 @@ test('the session ends a step failed after its third red attempt, and starts no 
   assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
   assert.equal(fs.existsSync(path.join(w.artifacts, '.reports', 'submission-writer-1.md')),
     false);
-  // The step stays open in the ledger, and the session writes no point and runs no verdict
-  // command. Build declares the output pull-request as required, so each end check finds no
-  // pull-request.json, and the third check records escalate.
-  assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
-  const inputs = withOutput(w);
-  const results = [1, 2, 3].map(() => call('end', w.artifacts, '--inputs', inputs));
-  for (const one of results) {
-    assert.match(one.out + one.err, new RegExp('^Write \\$QORY_OUTBOX/pull-request/' +
-      'pull-request\\.json\\.\\n\\s+The stage needs a pull-request output, and the file ' +
-      'does not exist\\.$', 'm'));
-  }
-  escalates(w, results);
-  assert.deepEqual(JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text),
-    ['The stage needs the pull request, which the run did not write, and another round ' +
-      'writes it again.']);
+  // With no done row, the session ends through points.json, with the last line of "A step that
+  // fails" as its one run_again point, so the end check passes on the first try and records
+  // escalate once, with no pull-request output.
+  const line = /End with "(The run stopped, because [^"]+)"/.exec(oneLine(section(WORKFLOW,
+    'A step that fails')))[1];
+  const text = line.replace('<the step>', 'the planned change d-1, "Write one line per order"');
+  const points = path.join(w.artifacts, 'points.json');
+  fs.writeFileSync(points, JSON.stringify([{ text, action: 'run_again' }]));
+  assert.equal(call('check', 'points', points).status, 0);
+  const ended = call('end', w.artifacts, '--inputs', withOutput(w));
+  assert.equal(ended.status, 0, ended.out + ended.err);
+  assert.match(ended.out + ended.err, /^Checked points\.json: the run ended with it, and /m);
+  assert.deepEqual(logOf(w).filter((line) => line.startsWith('run verdict')),
+    [`run verdict escalate --points ${points}`]);
+  assert.deepEqual(JSON.parse(read(points)), [{ text: 'The run stopped, because the checks ' +
+    'still fail after 3 changes to the planned change d-1, "Write one line per order".',
+  action: 'run_again' }]);
+  assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
 });
 
 test('the session withdraws the demo script of removed scenario-2 once', () => {
