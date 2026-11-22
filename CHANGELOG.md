@@ -96,8 +96,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
   run, because an agent can change the local store, and a criterion that rests on a type
   that cannot be pulled is not verified. `matrix` counts only the newest record of `run
-  locked` for the lock and commit, and only when it is a full, clean run with results. The
-  two agents are the group role `verify-reviewers` of `software-factory`, with no `paths`.
+  locked` for the lock and commit and the run id of the session, and only when it is a full,
+  clean run with results; `run locked` exits 3 for a commit that tracks a file under
+  `.reports/`. The two agents are the group role `verify-reviewers` of `software-factory`, with no `paths`.
   `workflow-verify-a-ticket` and the stack entry `verify-a-ticket` (`write-no-push`,
   `review_group: verify-reviewers`) run Verify as a review session: the lock at the
   approved version, `run locked`, `matrix`, both reviewers, the round, the push of the

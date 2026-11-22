@@ -3761,24 +3761,27 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   with no path and no rerun, under the limit of `targeted_checks`, and is green only when
   the command exits 0 and writes the targeted Result file of the build plan anew, with at
   least 1 test and no skipped or failed test. The build plan comes from the same folder as
-  for `run targeted`. No lock that counts exits 3. One record has every check. In Build,
-  the session runs it beside `lock --verify` as an early warning, because both read a
-  store that the agent can change; Verify runs the locked checks that bind, on the clean
-  checkout of the submitted commit. Code under test runs inside the check, so it can
+  for `run targeted`. No lock that counts exits 3, and so does a commit in which git tracks
+  a file under `.reports/` of the checkout, with the first line "Remove <file> from the
+  commit, then run locked again." and a second line that names up to 3 files. One record has
+  every check, and `run_id`, the `QORY_RUN_ID` of the call or null, shows the run that wrote
+  it. In Build, the session runs it beside `lock --verify` as an early warning, because both
+  read a store that the agent can change; Verify runs the locked checks that bind, on the
+  clean checkout of the submitted commit. Code under test runs inside the check, so it can
   change a locked file and restore it within one check, and the hashes after the check see
-  only a change still on disk. The only guard against that in this repository is the stop
-  at the end of each check: the script stops the process group of the command and, on
-  Linux, each marked process, so a process left running by accident does not change a file
-  during a later check. Before the lock, `check-reviewer` of `write-acceptance-checks`
-  reports a check whose command or files change the setup of the tests, and a command that
-  runs, or a check that imports, a file whose only use is the tests, such as a helper, that
-  the lock lists neither as a check nor under `support[]`. It reads the files before the
-  lock and watches no run, so no check here looks at what code under test does to a locked
-  file during a check. A change that a check leaves on disk and that a commit takes in
-  counts at the push: the scope check of `build-plan` exits 1 on a committed path outside
-  the Files of the build plan. After the lock, `tamper-reviewer` of Verify reads the diff
-  for a locked file that a change edited, and for a test that it newly skips; it reads only
-  the diff, so it does not see a file that a check changes and restores within one run.
+  only a change still on disk. The only guard against that in this repository is the stop at
+  the end of each check: the script stops the process group of the command and, on Linux,
+  each marked process, so a process left running by accident does not change a file during a
+  later check. Before the lock, `check-reviewer` of `write-acceptance-checks` reports a
+  check whose command or files change the setup of the tests, and a command that runs, or a
+  check that imports, a file whose only use is the tests, such as a helper, that the lock
+  lists neither as a check nor under `support[]`. It reads the files before the lock and
+  watches no run, so no check here looks at what code under test does to a locked file
+  during a check. A change that a check leaves on disk and that a commit takes in counts at
+  the push: the scope check of `build-plan` exits 1 on a committed path outside the Files of
+  the build plan. After the lock, `tamper-reviewer` of Verify reads the diff for a locked
+  file that a change edited, and for a test that it newly skips; it reads only the diff, so
+  it does not see a file that a check changes and restores within one run.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
@@ -4076,8 +4079,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   matrix writes no file. The matrix has one row for each live criterion, in the order of the
   criteria, from these sources:
   - a criterion whose check does not start with `Demo: `: the newest record of `run locked`
-    in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria.
-    An older record never stands in for a newer one. The record counts only when it is a
+    in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria,
+    with a `run_id` that is the `QORY_RUN_ID` of the session: a record of another run, or
+    with no `run_id`, is left out, and the file name decides nothing. An older record never
+    stands in for a newer one. The record counts only when it is a
     full run (no criterion given), with no uncommitted change, with the results of its
     checks, no `changed` list, and not red with every check green, which is how a call ends
     when a locked file changed. The criterion is `met` when each of its checks is green,

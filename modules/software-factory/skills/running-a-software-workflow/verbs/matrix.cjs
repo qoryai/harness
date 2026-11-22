@@ -58,13 +58,15 @@ module.exports = (lib) => {
     return [...new Set(models.map(familyOf))];
   }
 
-  // locked returns the newest record of run locked for the lock number on commit, when it is a
-  // full, clean run that ended with the results of its checks, else null. An older record
+  // locked returns the newest record of run locked for the lock number on commit, written in
+  // the run runId, when it is a full, clean run that ended with the results of its checks,
+  // else null. A record of another run, or with no run, is left out. An older record
   // never stands in for a newer one that failed, and a record of a call that ended red with
   // every check green, because a locked file changed, shows nothing.
-  function locked(root, number, commit) {
+  function locked(root, number, commit, runId) {
     const newest = lib.readRecords(root).filter((record) => record.verb === 'run' &&
-      record.kind === 'locked' && record.lock === number && record.commit === commit).pop();
+      record.kind === 'locked' && record.run_id === runId && record.lock === number &&
+      record.commit === commit).pop();
     if (!newest || newest.clean !== true || !Array.isArray(newest.criteria) ||
       newest.criteria.length !== 0 || !Array.isArray(newest.checks)) return null;
     if (Array.isArray(newest.changed) && newest.changed.length) return null;
@@ -182,7 +184,7 @@ module.exports = (lib) => {
       if (demos === undefined) demos = pulled('demo-evidence', false);
       return demos;
     };
-    const record = locked(root, number, commit);
+    const record = locked(root, number, commit, io.env.QORY_RUN_ID);
     const matrix = [];
     const notVerified = [];
     for (const criterion of live) {

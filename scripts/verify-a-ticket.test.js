@@ -338,7 +338,8 @@ exit 1
   if (forge) forge(store, commit);
   records.forEach((record, at) => write(path.join(store, '.reports', 'runs',
     `2026-11-21T10-00-0${at}-1-aaaaaa.json`), {
-    verb: 'run', kind: 'locked', criteria: [], lock: 1, commit, clean: true, build_plan: 1,
+    verb: 'run', kind: 'locked', run_id: 'run_1', criteria: [], lock: 1, commit, clean: true,
+    build_plan: 1,
     at: '2026-11-21T10:00:00Z', state: 'green', reasons: [], ...record }));
   return { dir, store, server, bin, commit, plugin };
 }
@@ -443,6 +444,18 @@ test('matrix: a criterion with no result, a check that did not run and a stale r
   assert.equal(matrix(unrun).status, 0);
   assert.equal(verification(unrun).not_verified.at(-1).reason,
     'The locked check `tests/ac-4.test.js` did not run, so it shows nothing.');
+  // A green record that another run wrote, or that names no run, is no record of this run.
+  for (const foreign of [{ run_id: 'run_9' }, { run_id: null }, { run_id: undefined }]) {
+    const planted = work({ records: [{ checks: [check('ac-4', 'green')], ...foreign }],
+      evidence: DEMO_1 });
+    assert.equal(matrix(planted).status, 0);
+    assert.deepEqual(verification(planted).not_verified.map((one) => one.criterion), ['ac-4']);
+  }
+  // A newer record of another run does not hide the older record of this run.
+  const mixed = work({ records: [{ checks: [check('ac-4', 'green')] },
+    { run_id: 'run_9', state: 'red', checks: [check('ac-4', 'red')] }], evidence: DEMO_1 });
+  assert.equal(matrix(mixed).status, 0);
+  assert.equal(verification(mixed).matrix.at(-1).state, 'met');
   // The newest complete record wins: red first, green after.
   const later = work({ records: [{ state: 'red', checks: [check('ac-4', 'red')] },
     { checks: [check('ac-4', 'green')] }] });
