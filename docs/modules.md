@@ -4307,14 +4307,16 @@ The push form (`push`) and `end --offline` run no proof: the working folder of a
 the store of the push, not a checkout, and `end --offline` runs no program.
 
 The commits are those from the start commit to the HEAD of the checkout, which the proof
-reads as objects, never as files of the working folder. The start commit is `--base`, a
-full commit id, when given, else `qory.start_commits` of `inputs.json`; with both, they
-must be the same commit, or the call exits 3. The proposal is the newest one in the folder
-of `--artifacts` or of `qory.start_artifacts`, so a proposal that an agent writes into the
+reads as objects, never as files of the working folder. The start commit is `--base`, a full
+commit id, when given, else `qory.start_commits` of `inputs.json`; with both, they must be
+the same commit, or the call exits 3. The proposal is the newest one in the folder of
+`--artifacts` or of `qory.start_artifacts`, so a proposal that an agent writes into the
 artifact folder of the session counts as none. With a `qory.start_artifacts` of `""`, a run
 that pulled no build plans at the start, the proposal and the build plan come from the
-artifact folder of the session. A change in the working folder that no
-commit has is not proved: `freeze` and `scope` judge it.
+artifact folder of the session for `prove`, but the check of the output at `end` reads no
+proposal and runs no proof of the fast track; qory's check at the push still runs it. A
+change in the working folder that no commit has is not proved: `freeze` and `scope` judge
+it.
 
 The proofs, in order:
 
