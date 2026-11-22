@@ -176,9 +176,9 @@ module.exports = (lib) => {
     if (found.length) {
       // A finding of the scenario's text (title, step title, expected result) is no fault of the
       // actions file: it comes first, with the fix for the scenario.
-      const own = (one) => /\/(setup|steps\/\d+\/actions)(\/|\b)/.test(one.split('\n')[0]);
-      const text = found.filter((one) => !own(one));
-      const findings = found.filter(own).map((one) => inActions(one, id, shown));
+      const inActionsFile = (one) => /\/(setup|steps\/\d+\/actions)(\/|\b)/.test(one.split('\n')[0]);
+      const text = found.filter((one) => !inActionsFile(one));
+      const findings = found.filter(inActionsFile).map((one) => inActions(one, id, shown));
       if (text.length) {
         findings.unshift(`Fix the scenario ${id} in the demo scenarios, then run another round.\n` +
           text.map((one) => `  ${one.split('\n')[0]}`).join('\n'));

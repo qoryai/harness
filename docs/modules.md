@@ -3139,9 +3139,9 @@ highest id of the review, so that `scope` and `freeze` take its id.
   and ends with one `run_again` point; after a third push of `build-report` that fails, it
   runs `report-build --drop` and ends with "The run could not push its build report." A stop
   on the build plan and a case of "Demo scripts" that ends the run skip it, and so does a run
-  with no row of `.reports/build-ledger.json` in the state `done`, such as one whose first step of the first round fails: qory fills
-  `commits` from the commits that it pushes, and the type needs at least one. Such a run
-  ends with a point, as "A step that fails" lists. `submission-writer` describes what the
+  with no row of `.reports/build-ledger.json` in the state `done`, such as one whose first
+  step of the first round fails: qory fills `commits` from the commits that it pushes, and
+  the type needs at least one. Such a run ends with a point, as "A step that fails" lists. `submission-writer` describes what the
   round built, also after a step that fails. When the end check fails three times, the
   session records `escalate`.
 - **The end.** With every step done or replayed, the session follows "The end" of
@@ -4268,10 +4268,11 @@ compose, and a stack has no optional role. So a stack without `browser-screens` 
 that kind, `workflow-implement-changes` writes no demo script: when the approved demo
 scenarios have a scenario, `demo check` exits 1 with the fix "Add the module
 browser-screens to the stack, then run another round." Shape still writes demo scenarios
-there. A workflow that starts the role in a stack without the module fails the compose with "Add a module that fills
-agents/demo-author, or drop capture-demos from the workflows and process." `scripts/check.sh`
-composes a copy of this repository for each of these cases: no module and no `capture-demos`,
-no module and a skill that starts the role, and the module with that skill.
+there. A workflow that starts the role in a stack without the module fails the compose
+with "Add a module that fills agents/demo-author, or drop capture-demos from the workflows
+and process." `scripts/check.sh` composes a copy of this repository for each of these
+cases: no module and no `capture-demos`, no module and a skill that starts the role, and
+the module with that skill.
 
 ## The harness-authoring module
 

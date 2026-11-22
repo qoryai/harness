@@ -42,9 +42,10 @@ Do these steps for one scenario `<id>`, such as `scenario-1`, before the next sc
    that line's cause as the cause. With another 1, start the demo author again, at most
    twice, with each line that `demo write` printed, quoted, the path of its last report and
    the path of its file, and tell it to fix only those lines. Check its report as step 2
-   lists, and run `demo write` again. When `demo write` still exits with 1 after the second start, end as
-   "Failures" lists, with the cause "its actions still break the rules for a demo script
-   after two fixes". With 2 or 3, end as "Failures" lists for the checks script.
+   lists, and run `demo write` again. When `demo write` still exits with 1 after the
+   second start, end as "Failures" lists, with the cause "its actions still break the rules
+   for a demo script after two fixes". With 2 or 3, end as "Failures" lists for the checks
+   script.
 4. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
    <inputs>`, as "Check before each push" of `running-a-workflow` lists. With 1, the script
    breaks a rule that `demo write` does not check: end as "Failures" lists, with the first
