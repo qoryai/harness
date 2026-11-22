@@ -2606,17 +2606,18 @@ const REVIEW_AGENT = 'Report in your text: the write tools are denied to a revie
   '-reviewer. ';
 const REVIEW_NO_AGENT = 'Start no agent: a reviewer reads the change and writes its report ' +
   'itself.\nThe session has qory.review in inputs.json of the harness home.';
-// The denies of a hook session, as those of a reviewer for the member qory.hook_session.
-const HOOK_ONLY = 'Write only qory.hook_session.report, with Write or apply_patch: a hook ' +
+// The denies of a hook session, as those of a reviewer for the member HOOK of inputs.json.
+const HOOK = `qory.${HOOK_SESSION}`;
+const HOOK_ONLY = `Write only ${HOOK}.report, with Write or apply_patch: a hook ` +
   'session writes no other file.\nThe path is in inputs.json of the harness home; a link, a ' +
   'file with more than one link and a path below .git or .claude of the working folder are ' +
   'denied. ';
-const HOOK_NONE = 'Report in your text and write no file: qory.hook_session.report cannot be ' +
+const HOOK_NONE = `Report in your text and write no file: ${HOOK}.report cannot be ` +
   'used.\nIt must be an absolute path with no . or .. part, no double or trailing slash. ';
 const HOOK_AGENT = 'Report in your text: the write tools are denied to an agent of a hook ' +
-  'session.\nOnly the main session of a hook session writes qory.hook_session.report. ';
+  `session.\nOnly the main session of a hook session writes ${HOOK}.report. `;
 const HOOK_NO_AGENT = 'Start no agent: the agent of a hook reads the work and writes its ' +
-  'report itself.\nThe session has qory.hook_session in inputs.json of the harness home.';
+  `report itself.\nThe session has ${HOOK} in inputs.json of the harness home.`;
 // The tools of a reviewer session besides the report write and the shell: the read tools and
 // two tools that only plan.
 const REVIEW_TOOLS = new Set(['Read', 'Grep', 'Glob', 'Skill', 'TodoWrite', 'update_plan']);
@@ -3122,10 +3123,10 @@ const SESSION_SHELL = 'Run only read commands, such as cat, grep or ls: a review
 const REPORTS_KEPT = 'Leave the report folder to the reviewers.\n' +
   'Only the reviewer of that name writes <reports>/<agent name>.json in it. ';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
-  'of the run in it.\nA session with qory.review, qory.review_session or qory.hook_session in ' +
+  `of the run in it.\nA session with qory.review, qory.review_session or ${HOOK} in ` +
   'it writes no inputs.json. ';
 const HOME_KEPT = 'Leave the harness home as it is: a review runs with the guards and agents ' +
-  'of it.\nA session with qory.review, qory.review_session or qory.hook_session writes ' +
+  `of it.\nA session with qory.review, qory.review_session or ${HOOK} writes ` +
   'nothing below QORY_HARNESS_HOME when the home lies outside the working folder. ';
 const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write or apply_patch: ' +
   'a reviewer writes one file.\nThe report folder is qory.review_session.reports of inputs.json; ' +
