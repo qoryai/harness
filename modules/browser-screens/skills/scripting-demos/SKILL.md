@@ -43,11 +43,21 @@ Do these steps for one scenario `<id>`, such as `scenario-1`, before the next sc
 the first correction. Take it from the ledger, not from the output of `demo check`: `demo
 check` prints no step for a script that has not changed.
 
+When the line of `demo check` that loaded this skill for `<id>` starts with "Push the
+frozen script", `.demo/<id>.json` does not exist, and the pushed script differs from the
+newest done step. `demo run` runs only a draft, so skip steps 2 to 4: copy the pushed file
+`<folder>/demo-script/<id>/v<N>/<id>.json`, with the largest `<N>`, to
+`<folder>/.demo/<id>.json`, do step 1, and go on from step 5 on that copy. The copy is a
+correction, so the case "Start check-reviewer" of step 5 applies. To keep the frozen script
+instead, push the file of the frozen script again, which makes it the newest version; do
+this only for a script that this session wrote and still has as a file.
+
 1. Run `<skill folder>/checks.cjs step begin <step> implement-changes --inputs <inputs>
    <scenarios> <skill file> <agent file>`, as "The build ledger" of
    `running-a-software-workflow` lists. `<skill file>` is the `SKILL.md` of this skill, and
    `<agent file>` is the agent file of ${qory:agents/demo-author}. With "Replay", go to the
-   next scenario.
+   next scenario. Run this step once for each `<step>`: a later start of the author or a
+   later pass through step 5 does not repeat it.
 2. Run `<skill folder>/checks.cjs notes browser-demo-author`, as "Notes in a start" of
    `running-a-workflow` lists, with no `--files`.
 3. Start the demo author in the foreground, as "Starting agents" of `running-a-workflow`
@@ -75,14 +85,6 @@ check` prints no step for a script that has not changed.
      2 corrections, and its script needs a third. Run `step end <step> failed`, and end as
      "Failures" lists, with the cause "its script needs a third correction, and a script
      has 2".
-   - With 1 and a first line that starts with "Push the frozen script", `.demo/<id>.json`
-     does not exist, and the pushed script differs from the newest done step. `demo run`
-     runs only a draft, so copy the pushed file `<folder>/demo-script/<id>/v<N>/<id>.json`,
-     with the largest `<N>`, to `<folder>/.demo/<id>.json`, and run this step again: the
-     copy is a correction, so the case "Start check-reviewer" below applies. Do step 1, and
-     then steps 5 to 10, for the step that the line shows. To keep the frozen script
-     instead, push the file of the frozen script again, which makes it the newest version;
-     do this only for a script that this session wrote and still has as a file.
    - With another 1, the script breaks a rule, and the first line of each fault is the fix.
      This includes a sign-in step that opens a page outside the App address, by origin or by
      path: "Open only pages under <App address> in the sign-in steps of <script>." Do

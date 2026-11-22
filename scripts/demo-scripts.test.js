@@ -890,9 +890,11 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
     'its script needs a third correction, and a script has 2',
-    'With 1 and a first line that starts with "Push the frozen script", `.demo/<id>.json` ' +
-      'does not exist', 'copy the pushed file', 'the copy is a correction',
-    'Do step 1, and then steps 5 to 10',
+    'With 0 and a line that starts with "Start check-reviewer"');
+  inText(SCRIPTING, 'starts with "Push the frozen script", `.demo/<id>.json` does not exist',
+    'skip steps 2 to 4: copy the pushed file', 'do step 1, and go on from step 5 on that copy',
+    'Run this step once for each `<step>`');
+  inText(SCRIPTING, '5. Run `<skill folder>/checks.cjs demo check <id>',
     'Open only pages under <App address> in the sign-in steps of <script>.',
     'With 0 and a line that starts with "Start check-reviewer", the draft changes a script ' +
       'that passed, whether the author wrote it or it is a copy of the pushed file',
