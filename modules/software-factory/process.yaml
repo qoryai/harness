@@ -14,7 +14,7 @@ process:
     - id: st_r79kph11eg
       name: Explore
       description: >-
-        Agents read the ticket and its comments, copy the destinations that the ticket
+        Agents read the ticket and its comments, read the destinations that the ticket
         concerns, and write questions for members about what the ticket leaves open. The
         stage ends with a proposal: the general direction for solving the ticket and the
         destinations it changes.
