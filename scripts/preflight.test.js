@@ -1,7 +1,9 @@
 // Tests of the preflight of running-a-software-workflow (lib/preflight.cjs): the browser, the
 // app that the serve command starts, and the sign-in of the demo scripts, and the points that
-// a missing part writes, which check points passes and end sends with the verdict escalate.
-// The sign-in tests start a real browser, and skip when this machine has none.
+// a missing part writes, which check points passes and end sends with the verdict escalate,
+// and of the verb film (verbs/film.cjs), which stores the film or the pictures of a scenario.
+// The tests that open a page start a real browser, and skip when this machine has none; the
+// tests of a film also skip with no ffmpeg and ffprobe.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -1854,11 +1856,11 @@ test('film: two film scenarios make two films, and a pictures scenario one pictu
   assert.ok(seconds(cues[1][2]) > 2.4, vtt);
   assert.ok(Math.abs(clock.seconds - seconds(cues[1][2])) < 0.15, `${clock.seconds} s, ${vtt}`);
   assert.ok(vtt.includes('\nStep 2 of scenario-1.\n'), vtt);
-  // The film shows the change of the page: its frames at 0.5 s and at 2.2 s differ.
-  const frame = (second) => childProcess.spawnSync(FFMPEG, ['-v', 'error', '-ss', second, '-i',
+  // The film shows the change of the page: its frames at 0.1 s and in its last 0.3 s differ.
+  const frame = (...seek) => childProcess.spawnSync(FFMPEG, ['-v', 'error', ...seek, '-i',
     path.join(film, 'scenario-1', 'scenario-1.mp4'), '-frames:v', '1', '-f', 'image2pipe',
     '-vcodec', 'png', '-'], { maxBuffer: 10 * 1024 * 1024 }).stdout;
-  assert.notDeepEqual(frame('0.5'), frame('2.2'));
+  assert.notDeepEqual(frame('-ss', '0.1'), frame('-sseof', '-0.3'));
   // The checks of demo-video and screenshot pass on the files.
   const check = (type, ...files) => call(['check', type, ...files], { ...here.deps, cwd: tmp });
   const base = (id) => path.join(film, id, id);
@@ -1912,6 +1914,17 @@ test('film pages: a path outside the App address is refused before any run', asy
   assert.equal(host.status, 1, host.out + host.err);
 });
 
+test('film: a link in place of .film is refused before the browser starts', async () => {
+  const here = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const outside = fs.mkdtempSync(path.join(tmp, 'outside-'));
+  fs.symlinkSync(outside, path.join(here.root, '.film'));
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0], 'Make the artifact folder writable, and remove .film if ' +
+    'it is a link.');
+  assert.deepEqual(fs.readdirSync(outside), []);
+});
+
 test('film: a film scenario with no ffmpeg exits 3 with the fix, a missing script exits 3, bad arguments exit 2', async () => {
   const here = await filming([scenario('scenario-1', 'film', ...ORDERS)]);
   const deps = { ...here.deps,
@@ -1928,6 +1941,10 @@ test('film: a film scenario with no ffmpeg exits 3 with the fix, a missing scrip
     ['film', 'pages']]) {
     assert.equal(call(argv, here.deps).status, 2, argv.join(' '));
   }
+});
+
+test('film: the runner and ffmpeg end before the Bash tool stops the call at 600 s', () => {
+  assert.ok(filmVerb.FILM_MAX_MS + preflight.STOP_MS + filmVerb.FFMPEG_MS < 600000);
 });
 
 test('film: the captions have one cue per step, from the start of the step', () => {

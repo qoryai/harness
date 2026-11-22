@@ -3646,8 +3646,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 - `film <scenario> [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
   [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
   `verbs/film.cjs`. One call takes one scenario, because the Bash tool stops a command at
-  600 seconds. It stores nothing in Qory Apiary and writes no `demo-evidence` and no ledger
-  row: the session pushes the files.
+  600 seconds: the runner stops at 480 seconds and ffmpeg at 90 seconds, so a call ends
+  within 585 seconds. It stores nothing in Qory Apiary and writes no `demo-evidence` and
+  no ledger row: the session pushes the files.
   - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
     a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
     `App address:`, opens a page of 1280 x 720 px, replays the setup as a sign-in, then the
@@ -3655,21 +3656,22 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `.film/<scenario>/` of the artifact folder, which the call makes new. With the evidence
     `film`, the page is recorded from the start of step 1: the sign-in runs before the
     recording, so no frame has it, and nothing inside the film is cut or sped up. The
-    runner keeps each frame that the page paints, up to 9000, and one frame at the start
-    and one at the end of the last step. ffmpeg, the first `ffmpeg` on the `PATH`, makes
-    `<scenario>.mp4` from them at 25 frames a second, and the last frame stays for 1 second.
-    `<scenario>.vtt` has one cue per step, with the title of the step as its text, from the
-    start of the step to the start of the next; the first cue starts at `00:00:00.000`.
-    The call removes the frames, so the folder has the two files that the check of
-    `demo-video` reads. With the evidence `pictures`, the replay records no video, and the
-    folder has `<scenario>-step-<N>.png`, the page after the last action of step N, as the
-    check of `screenshot` reads them. It exits 0 and prints the files. A step that fails
-    stores nothing: it exits 1 with the fix "Check step <k> against the app, then run film
-    <id> again." (the sign-in is step 0, "the sign-in"), the failed action with no typed
-    value, and the last line "Stored no film: it failed in step <k>." A film scenario with
-    no ffmpeg, a scenario with no pushed script that counts, a plan with no `serve` row,
-    no browser, an app or a browser that does not run, and an ffmpeg that fails exit 3 with
-    the fix first.
+    runner keeps each frame that the page paints, up to 9000 (about 50 KB each), and one
+    frame at the start and one at the end of the last step. ffmpeg, which is
+    `/usr/bin/ffmpeg` or else the first `ffmpeg` on the `PATH`, makes `<scenario>.mp4` from
+    them at 25 frames a second, and the last frame stays for 1 second. `<scenario>.vtt` has
+    one cue per step, with the title of the step as its text, from the start of the step to
+    the start of the next; the first cue starts at `00:00:00.000`. The call removes the
+    frames, so the folder has the two files that the check of `demo-video` reads. With the
+    evidence `pictures`, the replay records no video, and the folder has
+    `<scenario>-step-<N>.png`, the page after the last action of step N, as the check of
+    `screenshot` reads them. It exits 0 and prints the folder. A step that fails stores
+    nothing: it exits 1 with the fix "Check step <k> against the app, then run film <id>
+    again." (for the sign-in, "the sign-in" in place of "step <k>"), the failed action with
+    no typed value, and the last line "Stored no film: it failed in step <k>." A film
+    scenario with no ffmpeg, a scenario with no pushed script that counts, a plan with no
+    `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
+    run, and an ffmpeg that fails exit 3 with the fix first.
   - `film pages <path>...` takes pictures of the pages that the paths open, for the two
     screen reviewers: `.film/pages/pages-<N>-<width>.png` for the Nth path at 360, 768 and
     1280 px, each taken after the page loads. A path starts with `/` and is a page under the
@@ -4086,8 +4088,8 @@ writes before the session, set the base and the build plan that the checks use i
   commits; no entry for the checkout; an entry that is not a map with an absolute path and
   a full commit id; or a HEAD that does not descend from the commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
-  `run`, `probe`, `scope`, `freeze` and `preflight` use it as `--artifacts` when
-  `--artifacts` is not given; both, with different real paths, exit 3.
+  `run`, `probe`, `scope`, `freeze`, `preflight`, `demo run` and `film` use it as
+  `--artifacts` when `--artifacts` is not given; both, with different real paths, exit 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with
@@ -4721,8 +4723,9 @@ check.
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
 `scripts/preflight.test.js` and rule 9 with `node`, and exits 1 at its start with an
-instruction to install `node` when `node` is missing. Only the sign-in tests of
-`scripts/preflight.test.js` start a browser, and they skip when the machine has none.
+instruction to install `node` when `node` is missing. Only the tests of
+`scripts/preflight.test.js` that open a page start a browser, and they skip when the machine
+has none. The tests of a film also need `ffmpeg` and `ffprobe`, and skip without them.
 
 Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the
 13 hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for

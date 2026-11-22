@@ -18,7 +18,8 @@
 //                         Nth path, at the widths 360, 768 and 1280 px. The setup of the first
 //                         demo script that counts is the sign-in, if there is one.
 //
-// A call takes one scenario, because the Bash tool of Claude Code stops a command at 600 s.
+// A call takes one scenario, because the Bash tool of Claude Code stops a command at 600 s:
+// the runner ends within 495 s and ffmpeg within 90 s more.
 // The verb stores nothing in Qory Apiary, writes no demo evidence and no ledger row: the
 // session pushes the files. Exit 3 means that an input is missing, that ffmpeg or the browser
 // is missing, or that the app, the browser or ffmpeg did not run.
@@ -39,9 +40,12 @@ const WIDTHS = [360, 768, 1280];
 const ID = /^scenario-[1-9][0-9]?$/;
 const FRAME = /^f[0-9]{6}\.jpg$/;
 const USAGE = 'Give film with a scenario id, or film pages with one path or more.';
-const FFMPEG = ['ffmpeg'];
-// The most time for ffmpeg to make a film.
-const FFMPEG_MS = 300000;
+// The path of ffmpeg in the image of qory, which apt installs, and the name for the PATH.
+const FFMPEG = ['/usr/bin/ffmpeg', 'ffmpeg'];
+// The most time of the runner and of ffmpeg. With the 15 s that preflight adds to stop the
+// runner, a call ends within 585 s, below the 600 s after which the Bash tool stops it.
+const FILM_MAX_MS = 480000;
+const FFMPEG_MS = 90000;
 const FRAMES_PER_SECOND = 25;
 
 // stamp returns ms as a WebVTT time, 00:00:03.250.
@@ -210,7 +214,10 @@ module.exports = (lib) => {
     }
     const dir = freshFolder(root, id);
     const capture = { kind: script.evidence, dir, name: id };
-    const run = ended(checks.runScript(io, root, { serve, script, capture }), serve, `film ${id}`);
+    const shorter = { ...io, preflight: { ...io.preflight,
+      maxMs: Math.min((io.preflight || {}).maxMs || FILM_MAX_MS, FILM_MAX_MS) } };
+    const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
+      `film ${id}`);
     const what = script.evidence === 'film' ? 'film' : 'pictures';
     if (!run.ok) {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -279,5 +286,7 @@ module.exports = (lib) => {
     },
   };
 };
+module.exports.FFMPEG_MS = FFMPEG_MS;
+module.exports.FILM_MAX_MS = FILM_MAX_MS;
 module.exports.captions = captions;
 module.exports.stamp = stamp;
