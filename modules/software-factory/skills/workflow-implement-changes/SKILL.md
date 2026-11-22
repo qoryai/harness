@@ -219,6 +219,9 @@ build plan, a work item with no build plan, a withdrawal that fails and an end a
 lists skip it. Skip it also when this session ran no `step end <id> done`, such as when the
 first step of the session fails: qory opens a pull request only from the commits of this run,
 and a step that an earlier run built, or that this session replayed, adds none.
+<!-- shortcut: a session whose done steps froze no new commit still does "The submission",
+and qory's submit step stops on a submission with no commit; skip it by
+`qory.start_commits` once qory writes it. -->
 
 1. Start ${qory:agents/submission-writer} in the foreground, as "Starting agents" of
    `running-a-workflow` lists, with the input file's path, `<folder>` and the path of the
