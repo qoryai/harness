@@ -3387,6 +3387,15 @@ point, and the Build round of that ticket passes `demo check` with "No demo scri
 write". Verify reads demo evidence only for a criterion whose check is `Demo: <title>`, so
 in such a stack it has no demo video or pictures for those criteria.
 
+`workflow-write-specs` and `workflow-write-demo-scenarios` run `checks.cjs demo surface` at
+step 1 too, when a run follows one of them alone, as the stack lets each of them run. Under
+`shape-a-ticket` their step 1 only pulls, and the surface line is the one that the session
+gives. `workflow-write-specs` gives the line to `spec-writer` and `spec-review`, so each
+criterion is planned as `Tests` in a stack without the module. With that line,
+`workflow-write-demo-scenarios` starts no agent, pushes nothing and ends with "The stack has
+no surface module, so the run pushed no demo scenarios.", with no point and no fix; it gives
+the line to `scenario-writer` otherwise.
+
 The order is fixed: spec and acceptance criteria, technical decision, mockups, demo
 scenarios. Demo scenarios come last because they cite criteria and screens. Every writer
 that the work needs drafts in one run, in the recommended direction, and an open question
@@ -3565,8 +3574,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   and prints "Write the demo script of <scenarios>, from version <N> of the demo
   scenarios.", or "No demo script to write", for a scenario with no `demo-script` version
   that counts. `demo write` reads `.demo/<scenario>.actions.json` of the artifact folder, a
-  JSON object with the lists `setup` and `steps`, one list of actions for each row of the
-  scenario's table. It writes `.demo/<scenario>.json` with the title, the evidence line,
+  regular file of at most 262144 bytes that is no link, and a JSON object with the lists
+  `setup` and `steps`, one list of actions for each row of the scenario's table. It writes
+  `.demo/<scenario>.json`, through a temporary file, with the title, the evidence line,
   `source.version`, and the title and expected result of each step, which are the Action and
   the What the viewer sees of the scenario word for word, so no agent types them. It checks
   the result against `demo-script.schema.json`, which allows the actions open, click, type,

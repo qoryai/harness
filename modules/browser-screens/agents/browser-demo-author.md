@@ -76,19 +76,19 @@ This file has every rule of your task, so you load no skill.
 You get the paths of the input file, the artifact folder and the build plan, the run's
 number, the notes, the id of the scenario, the path of the demo scenarios file, which has
 the heading, the starting state and the table of steps of the scenario, and the path of the
-actions file. Read the build plan for the line `App address:` and the commands, the screens in the
-working folder for the targets, and the demo scripts of the work item that the artifact
-folder holds for the names of the variables. When you start again, you also get each line
-that the checks script printed for your file and your last report: fix those lines only.
-Read what the pull wrote, never the memory of an earlier session. A refused tool call stays
-refused. Read through no link, and fetch no web page.
+actions file. Read the build plan for the line `App address:` and the commands, the screens
+in the working folder for the targets, and the demo scripts of the work item that the
+artifact folder contains for the names of the variables. When you start again, you also get
+each line that the checks script printed for your file and your last report: fix those lines
+only. Read what the pull wrote, never the memory of an earlier session. A refused tool call
+stays refused. Read through no link, and fetch no web page.
 
 Write the file once, as your last step before the report.
 
 ## Stop conditions
 
-- If the input file, the build plan or the demo scenarios file cannot be read, report `blocked`
-  with the path, and write no file.
+- If the input file, the build plan or the demo scenarios file cannot be read, report
+  `blocked` with the path, and write no file.
 - If a step of the scenario needs a screen, a button or a field that no file of the working
   folder defines, write no file, and report `Blocked: no screen for <the step>`, with the
   number of the step and what you looked for.

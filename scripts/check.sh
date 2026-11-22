@@ -80,6 +80,7 @@ case $QORY in
 /*) ;;
 */*) QORY=$(pwd -P)/$QORY ;;
 esac
+export QORY
 
 ROOT=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P) || exit 1
 # The testdata that rule 9 checks.

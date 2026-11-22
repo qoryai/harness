@@ -7,6 +7,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -20,6 +21,9 @@ const { watch } = require('./first-line.js');
 const SCENARIOS = fs.readFileSync(path.join(MODULES, 'software-factory/testdata/demo-scenarios.md'),
   'utf8');
 const AT = '2026-11-15T09:00:00Z';
+const ACTIONS_2 = '\\.demo\\/scenario-2\\.actions\\.json';
+const FIX_SCENARIO_2 =
+  'Fix the scenario scenario-2 in the demo scenarios, then run another round.';
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'demo-scripts-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -49,7 +53,8 @@ function artifacts(text = SCENARIOS, scripted = []) {
   const dir = path.join(root, 'demo-scenarios/main/v1');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), text);
-  const list = [listing('demo-scenarios', 'main', 1, { approved_version: 'av_demo-scenarios_main_1' })];
+  const list = [listing('demo-scenarios', 'main', 1,
+    { approved_version: 'av_demo-scenarios_main_1' })];
   for (const name of scripted) list.push(listing('demo-script', name, 1));
   fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts: list }));
   return root;
@@ -105,8 +110,10 @@ test('demo check lists the scenarios that have no demo script', () => {
   const root = artifacts(SCENARIOS, ['scenario-2']);
   const got = call(root, ['demo', 'check']);
   assert.equal(got.status, 0, got.out);
-  assert.deepEqual(got.lines, ['Write the demo script of scenario-1, from version 1 of the demo scenarios.']);
-  assert.deepEqual(call(artifacts(SCENARIOS, ['scenario-1', 'scenario-2']), ['demo', 'check']).lines,
+  assert.deepEqual(got.lines,
+    ['Write the demo script of scenario-1, from version 1 of the demo scenarios.']);
+  assert.deepEqual(
+    call(artifacts(SCENARIOS, ['scenario-1', 'scenario-2']), ['demo', 'check']).lines,
     ['No demo script to write: each scenario has one.']);
 });
 
@@ -128,7 +135,8 @@ test('demo check passes with no scenario left, also with no module that ships th
       '### scenario-2: Read the closed day\n\nRemoved, because the day moved to tests.\n')]) {
     const got = call(artifacts(text), ['demo', 'check'], withoutScreens());
     assert.equal(got.status, 0, got.out);
-    assert.match(got.lines[0], /^No demo script to write: the approved demo scenarios have no scenario/);
+    assert.match(got.lines[0],
+      /^No demo script to write: the approved demo scenarios have no scenario/);
   }
   assert.equal(call(fresh(), ['demo', 'check'], withoutScreens()).status, 0);
 });
@@ -173,6 +181,66 @@ test('a stack with browser-screens: Shape still writes demo scenarios', () => {
   assert.match(got.build.lines[0], /^Write the demo script of scenario-1, scenario-2/);
 });
 
+// composed returns the checkout of a harness that qory composed from a copy of this repository
+// with the software stack, without the module browser-screens when withModule is false. The
+// binary is the one that QORY names, as scripts/check.sh sets it.
+function composed(withModule) {
+  const qory = process.env.QORY;
+  assert.ok(qory, 'Set QORY to the qory binary, as scripts/check.sh does.');
+  const root = fresh();
+  const home = path.join(root, 'home');
+  const checkout = path.join(root, 'checkout');
+  fs.mkdirSync(home);
+  fs.mkdirSync(checkout);
+  for (const name of ['qory.yaml', 'modules', 'stacks']) {
+    fs.cpSync(path.join(__dirname, '..', name), path.join(home, name), { recursive: true });
+  }
+  const stack = path.join(home, 'stacks/software/qory-stack.yaml');
+  const lines = fs.readFileSync(stack, 'utf8').split('\n');
+  const kept = lines.filter((line) => withModule || line !== '  - name: browser-screens');
+  assert.equal(kept.length === lines.length, withModule);
+  fs.writeFileSync(stack, kept.join('\n'));
+  fs.writeFileSync(path.join(checkout, 'qory.yaml'),
+    `harness: {extends: {path: '${home.replace(/'/g, "''")}', stack: software}}\n`);
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: root };
+  for (const dir of [home, checkout]) execFileSync('git', ['init', '-q'], { cwd: dir, env });
+  execFileSync(qory, ['harness', 'compose', '--runtime', 'claude'], { cwd: checkout, env });
+  return checkout;
+}
+
+test('demo surface in a composed harness: the line follows the module browser-screens', () => {
+  for (const withModule of [true, false]) {
+    const checkout = composed(withModule);
+    // The checks script of the runtime folder, and of the harness folder of the compose.
+    for (const folder of ['.claude', '.qory/harness']) {
+      const out = execFileSync('node', [path.join(checkout, folder,
+        'skills/running-a-workflow/checks.cjs'), 'demo', 'surface'], { cwd: checkout })
+        .toString().trim();
+      assert.equal(out, withModule
+        ? 'The stack has a surface module: Shape writes demo scenarios.'
+        : 'The stack has no surface module: Shape writes no demo scenarios, and plans each ' +
+          'criterion as Tests.', `${folder}, with the module ${withModule}`);
+    }
+  }
+});
+
+test('demo surface reads no folder beside a plugin folder that is no module of the home', () => {
+  const root = fresh();
+  const plugin = path.join(root, 'plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  for (const [module, skill] of [['core', 'running-a-workflow'],
+    ['software-factory', 'running-a-software-workflow']]) {
+    fs.symlinkSync(path.join(MODULES, module, 'skills', skill), path.join(plugin, 'skills', skill));
+  }
+  fs.mkdirSync(path.join(root, 'other/skills/scripting-demos'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'other/skills/scripting-demos/SKILL.md'), 'x\n');
+  const surface = () => call(fresh(), ['demo', 'surface'], plugin).lines[0];
+  assert.match(surface(), /^The stack has no surface module/);
+  fs.mkdirSync(path.join(plugin, 'skills/scripting-demos'));
+  fs.writeFileSync(path.join(plugin, 'skills/scripting-demos/SKILL.md'), 'x\n');
+  assert.match(surface(), /^The stack has a surface module/);
+});
+
 test('demo write builds the title, the expected results and the evidence from the scenario', () => {
   const root = artifacts();
   actions(root, 'scenario-1', ONE);
@@ -187,7 +255,8 @@ test('demo write builds the title, the expected results and the evidence from th
   assert.deepEqual(script.source, { version: 1 });
   assert.deepEqual(script.setup, SIGN_IN);
   assert.deepEqual(script.steps.map((one) => [one.step, one.title, one.expected]), [
-    [1, 'Open the saved reply for delayed orders.', 'The reply lists the support hours as 8:00 to 20:00.'],
+    [1, 'Open the saved reply for delayed orders.',
+      'The reply lists the support hours as 8:00 to 20:00.'],
     [2, 'Read the sentence after the hours.',
       'The hours apply every day, on weekends and public holidays too.'],
   ]);
@@ -202,18 +271,24 @@ test('demo write types no title: a title in the actions file is a fault', () => 
   actions(root, 'scenario-2', { ...TWO, title: 'My own title' });
   const got = call(root, ['demo', 'write', 'scenario-2']);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Give \.demo\/scenario-2\.actions\.json the list setup and the list steps, and no other key\.$/);
+  assert.match(got.lines[0],
+    new RegExp(`^Give ${ACTIONS_2} the list setup and the list steps, and no other key\\.$`));
   assert.ok(!fs.existsSync(path.join(root, '.demo/scenario-2.json')));
 });
 
 test('demo write refuses an actions file with a wrong form and writes no script', () => {
   const cases = [
-    [undefined, /^Write \.demo\/scenario-2\.actions\.json with the actions of the scenario, then run demo write again\.$/],
+    [undefined, new RegExp(`^Write ${ACTIONS_2} with the actions of the scenario, then run demo ` +
+      'write again\\.$')],
     ['{', /^Write \.demo\/scenario-2\.actions\.json as valid JSON\.$/],
-    [{ setup: SIGN_IN, steps: [] }, /^Give \.demo\/scenario-2\.actions\.json one list of actions for each step/],
-    [{ setup: SIGN_IN, steps: [{ do: 'click' }] }, /^Give \.demo\/scenario-2\.actions\.json one list of actions/],
+    ['[]', new RegExp(`^Give ${ACTIONS_2} the list setup and the list steps, and no other ` +
+      'key\\.\\n.* has no JSON object\\.$')],
+    [{ setup: SIGN_IN, steps: [] },
+      /^Give \.demo\/scenario-2\.actions\.json one list of actions for each step/],
+    [{ setup: SIGN_IN, steps: [{ do: 'click' }] },
+      /^Give \.demo\/scenario-2\.actions\.json one list of actions/],
     [{ setup: SIGN_IN, steps: [[{ do: 'eval', code: 'alert(1)' }]] },
-      /^Write action 1 of step 1 of \.demo\/scenario-2\.actions\.json in exactly one of its 5 forms\.$/],
+      /^Write action 1 of step 1 of \.demo\/scenario-2\.actions\.json in exactly one of its 5 /],
     [{ setup: SIGN_IN, steps: [[{ do: 'click', target: '#a', timeout: 1 }]] },
       /^Write action 1 of step 1 of /],
     [{ setup: SIGN_IN, steps: [[]] },
@@ -240,7 +315,7 @@ test('demo write reports a title that the schema refuses against the scenario, f
   actions(root, 'scenario-2', { setup: SIGN_IN, steps: [[{ do: 'eval' }]] });
   const got = call(root, ['demo', 'write', 'scenario-2']);
   assert.equal(got.status, 1, got.out);
-  assert.equal(got.lines[0], 'Fix the scenario scenario-2 in the demo scenarios, then run another round.');
+  assert.equal(got.lines[0], FIX_SCENARIO_2);
   assert.match(got.lines[1], /^ {2}\S.*500/);
   assert.match(got.lines[2], /^Write action 1 of step 1 of \.demo\/scenario-2\.actions\.json /);
   assert.ok(!fs.existsSync(path.join(root, '.demo/scenario-2.json')));
@@ -256,6 +331,56 @@ test('demo write refuses an actions file of more than 262144 bytes', () => {
   assert.ok(!fs.existsSync(path.join(root, '.demo/scenario-2.json')));
 });
 
+test('demo write refuses an actions file that is a link', () => {
+  const root = artifacts();
+  const target = path.join(fresh(), 'actions.json');
+  fs.writeFileSync(target, JSON.stringify(TWO));
+  fs.mkdirSync(path.join(root, '.demo'));
+  fs.symlinkSync(target, path.join(root, '.demo/scenario-2.actions.json'));
+  const got = call(root, ['demo', 'write', 'scenario-2']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0],
+    'Write .demo/scenario-2.actions.json with the actions of the scenario, then run demo ' +
+    'write again.');
+  assert.ok(!fs.existsSync(path.join(root, '.demo/scenario-2.json')));
+});
+
+test('demo write refuses a scenario with no Evidence line or no table of steps', () => {
+  const noEvidence = SCENARIOS.replace(/Evidence: pictures\n(?![\s\S]*Evidence: pictures)/, '');
+  const [first, second] = SCENARIOS.split('### scenario-2');
+  const table = /\| Step \|[\s\S]*?\n\nShows:/;
+  const noTable = `${first}### scenario-2${second.replace(table, 'Shows:')}`;
+  assert.notEqual(noEvidence, SCENARIOS);
+  assert.notEqual(noTable, SCENARIOS);
+  for (const [text, what] of [[noEvidence, 'no Evidence line'], [noTable, 'no table of steps']]) {
+    const root = artifacts(text);
+    actions(root, 'scenario-2', TWO);
+    const got = call(root, ['demo', 'write', 'scenario-2']);
+    assert.equal(got.status, 1, got.out);
+    assert.equal(got.lines[0], FIX_SCENARIO_2);
+    assert.equal(got.lines[1], `  scenario-2 has ${what} that demo write can read.`);
+    assert.ok(!fs.existsSync(path.join(root, '.demo/scenario-2.json')));
+  }
+});
+
+test('demo write exits 3 when it cannot write the script', () => {
+  const root = artifacts();
+  actions(root, 'scenario-1', ONE);
+  fs.mkdirSync(path.join(root, '.demo/scenario-1.json'));
+  const got = call(root, ['demo', 'write', 'scenario-1']);
+  assert.equal(got.status, 3, got.out);
+  assert.match(got.out, /Make the artifact folder writable\./);
+});
+
+test('demo check lists the scenario of a withdrawn demo script as still to write', () => {
+  const root = artifacts(SCENARIOS, ['scenario-1', 'scenario-2']);
+  const index = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+  index.artifacts.find((one) => one.name === 'scenario-2').versions[0].withdrawn = true;
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(index));
+  assert.deepEqual(call(root, ['demo', 'check']).lines,
+    ['Write the demo script of scenario-2, from version 1 of the demo scenarios.']);
+});
+
 test('demo write refuses a scenario that is removed or not in the demo scenarios', () => {
   const removed = SCENARIOS.replace(/### scenario-2[\s\S]*$/,
     '### scenario-2: Read the closed day\n\nRemoved, because the day moved to tests.\n');
@@ -268,7 +393,7 @@ test('demo write refuses a scenario that is removed or not in the demo scenarios
   }
 });
 
-test('a session on a test application writes one script per scenario, with generated titles', () => {
+test('a session on a test application writes one script per scenario, with made titles', () => {
   const root = artifacts();
   const first = call(root, ['demo', 'check']);
   assert.deepEqual(first.lines,
@@ -297,8 +422,8 @@ test('a session on a test application writes one script per scenario, with gener
     ['No demo script to write: each scenario has one.']);
 });
 
-test('demo takes check, or write with a scenario id, and no other argument', () => {
-  for (const argv of [['demo'], ['demo', 'check', 'x'], ['demo', 'write'],
+test('demo takes surface, check, or write with a scenario id, and no other argument', () => {
+  for (const argv of [['demo'], ['demo', 'surface', 'x'], ['demo', 'check', 'x'], ['demo', 'write'],
     ['demo', 'write', 'scenario-0'], ['demo', 'write', 'scenario-1', 'x'], ['demo', 'other']]) {
     assert.equal(call(artifacts(), argv).status, 2, argv.join(' '));
   }

@@ -117,7 +117,7 @@ gate and no later stage reads it.
 ## Demo scripts
 
 Do this section after the last deliverable step and before the first finding step, so that
-the screens of the demo scenarios exist. A demo script holds the browser actions of one
+the screens of the demo scenarios exist. A demo script contains the browser actions of one
 approved demo scenario. The skill `scripting-demos` of the module browser-screens writes it,
 and a stack without that module has no such skill.
 
@@ -128,15 +128,15 @@ and a stack without that module has no such skill.
      `scripting-demos`. Start no agent, and end as "Points" of `running-a-workflow` lists,
      with one `run_again` point. Its text is "The demo scenarios need a module that scripts
      browser screens, which the stack of this workspace lacks, so the run wrote no demo
-     script." and its `fix` is "Add the module browser-screens to the stack, then run another
-     round." Print the first line of `demo check` in your output.
+     script." and its `fix` is "Add the module browser-screens to the stack, then run
+     another round." Print the first line of `demo check` in your output.
    - With 2 or 3, end as "Failures" lists for the checks script, where the step is "the
      check of the demo scripts".
 2. Load the skill `scripting-demos` by its name, and follow it for the scenarios that the
    line "Write the demo script of" of `demo check` lists. When your runtime cannot load it,
-   read its `SKILL.md` where your runtime lists it. When it cannot be read, end as "Failures"
-   lists, with "The run could not load the rules for a demo script, so it wrote no demo
-   script."
+   read its `SKILL.md` where your runtime lists it. When it cannot be read, end as
+   "Failures" lists, with "The run could not load the rules for a demo script, so it wrote
+   no demo script."
 3. When the skill ends the run, end as it lists. Otherwise go on with "The order of the
    run".
 
@@ -244,10 +244,11 @@ file, and only a member can change the approved plan.
 ## The submission
 
 Do this section after the last step: at "The end", and in "A step that fails". A stop on the
-build plan, a work item with no build plan, a withdrawal that fails, a case of "Demo scripts"
-that ends the run and an end as "Failures" lists skip it. Skip it also when this session ran no `step end <id> done`, such as when the
-first step of the session fails: qory opens a pull request only from the commits of this run,
-and a step that an earlier run built, or that this session replayed, adds none.
+build plan, a work item with no build plan, a withdrawal that fails, a case of "Demo
+scripts" that ends the run and an end as "Failures" lists skip it. Skip it also when this
+session ran no `step end <id> done`, such as when the first step of the session fails: qory
+opens a pull request only from the commits of this run, and a step that an earlier run
+built, or that this session replayed, adds none.
 <!-- shortcut: a session whose done steps froze no new commit still does "The submission",
 and qory's submit step stops on a submission with no commit; skip it by
 `qory.start_commits` once qory writes it. -->

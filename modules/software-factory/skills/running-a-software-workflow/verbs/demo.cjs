@@ -26,19 +26,17 @@ const { SCHEMAS } = require('../lib/template.cjs');
 
 // The skill that the module browser-screens ships, which starts the demo author.
 const SKILL = 'scripting-demos';
-// The folder of the artifact folder that holds the actions of the demo author and the demo
+// The folder of the artifact folder that contains the actions of the demo author and the demo
 // script that demo write builds. It is no artifact: nothing in it is pushed unless the session
 // pushes the script.
 const FOLDER = '.demo';
 const EVIDENCE = /^Evidence: (film|pictures)$/;
-// The most bytes of an actions file: 8 steps of 10 actions of 2 KB each is far below it.
-const MOST_BYTES = 262144;
 const USAGE = 'Give demo surface, demo check, or demo write with the id of a scenario, such ' +
   'as scenario-1.';
 
 module.exports = (lib) => {
-  const { Context, Missing, approved, artifactFolder, isObject, plural, pluginFolders, readFile,
-    schema, scenarios, short, stepRows } = lib;
+  const { Context, MAX_BYTES, Missing, approved, artifactFolder, isObject, plural, pluginFolders,
+    readFile, schema, scenarios, short, stepRows, writeJson } = lib;
 
   // readScenarios returns { root, number, live } of the approved demo scenarios in the
   // artifact folder: the version number and each scenario that is not removed, or null for
@@ -52,10 +50,12 @@ module.exports = (lib) => {
     return { root, number: version.number, live };
   }
 
-  // hasSkill reports whether a composed skills folder has SKILL: the plugin folder, or, in
-  // the harness home, a module beside it.
-  const hasSkill = (io) => pluginFolders(io.plugin).some((folder) => fs.existsSync(
-    path.join(folder, 'skills', SKILL, 'SKILL.md')));
+  // hasSkill reports whether a composed skills folder has SKILL: the plugin folder, or, when the
+  // plugin folder is a module of the harness home, a module beside it, as the registry loads
+  // the skills folders. No other folder beside the plugin folder counts.
+  const hasSkill = (io) => (path.basename(path.dirname(io.plugin)) === 'modules'
+    ? pluginFolders(io.plugin) : [io.plugin])
+    .some((folder) => fs.existsSync(path.join(folder, 'skills', SKILL, 'SKILL.md')));
 
   // surface prints the line that a Shape run reads: the test of check, without a scenario.
   function surface(io) {
@@ -107,19 +107,28 @@ module.exports = (lib) => {
     return null;
   }
 
-  // actionsOf returns { actions } from the file, or { findings }: the actions file has the keys
-  // setup and steps and no other, and one list of steps for each row.
+  // actionsOf returns { actions } from the file, or { findings }: the actions file is a regular
+  // file of at most MAX_BYTES, has the keys setup and steps and no other, and has one list of
+  // steps for each row.
   function actionsOf(file, shown, rows) {
+    const cannot = { findings: [`Write ${shown} with the actions of the scenario, then run ` +
+      `demo write again.\n${shown} cannot be read.`] };
+    let stat;
+    try {
+      stat = fs.lstatSync(file);
+    } catch {
+      return cannot;
+    }
+    if (!stat.isFile()) return cannot;
+    if (stat.size > MAX_BYTES) {
+      return { findings: [`Write ${shown} in at most ${MAX_BYTES} bytes.\n${shown} is longer.`] };
+    }
     let text;
     try {
       text = readFile(file, shown);
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
-      return { findings: [`Write ${shown} with the actions of the scenario, then run demo ` +
-        `write again.\n${shown} cannot be read.`] };
-    }
-    if (Buffer.byteLength(text) > MOST_BYTES) {
-      return { findings: [`Write ${shown} in at most ${MOST_BYTES} bytes.\n${shown} is longer.`] };
+      return cannot;
     }
     let data;
     try {
@@ -141,9 +150,9 @@ module.exports = (lib) => {
     return { actions: data };
   }
 
-  // inActions names the place of a finding of the schema, such as /steps/0/actions/1 of
-  // scenario-1.json, by the actions file that the demo author fixes: action 2 of step 1 of
-  // <shown>.
+  // inActions returns finding with its place in the schema, such as /steps/0/actions/1 of
+  // scenario-1.json, replaced by its place in the actions file that the demo author fixes:
+  // action 2 of step 1 of <shown>.
   function inActions(finding, id, shown) {
     const of = ` of ${id}.json`;
     return finding.split(of).join(` of ${shown}`)
@@ -189,7 +198,8 @@ module.exports = (lib) => {
     if (found.length) {
       // A finding of the scenario's text (title, step title, expected result) is no fault of the
       // actions file: it comes first, with the fix for the scenario.
-      const inActionsFile = (one) => /\/(setup|steps\/\d+\/actions)(\/|\b)/.test(one.split('\n')[0]);
+      const inActionsFile = (one) => /\/(setup|steps\/\d+\/actions)(\/|\b)/
+        .test(one.split('\n')[0]);
       const text = found.filter((one) => !inActionsFile(one));
       const findings = found.filter(inActionsFile).map((one) => inActions(one, id, shown));
       if (text.length) {
@@ -200,12 +210,7 @@ module.exports = (lib) => {
       return 1;
     }
     const file = path.join(root, FOLDER, `${id}.json`);
-    try {
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, `${JSON.stringify(script, null, 2)}\n`);
-    } catch {
-      throw new Missing(`Make the artifact folder writable.\n${file} cannot be written.`);
-    }
+    writeJson(file, script);
     io.print([], `Wrote ${path.join(FOLDER, `${id}.json`)}, the demo script of ${id}.`);
     return 0;
   }
