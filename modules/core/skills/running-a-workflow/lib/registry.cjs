@@ -46,6 +46,9 @@ const LIBRARY = Object.freeze({
   draftFile: require('./drafts.cjs').draftFile,
   lockReader: require('../verbs/lock.cjs').lockReader,
   readOpen: require('./findings.cjs').readOpen,
+  outboxFolder: require('./outbox.cjs').outboxFolder,
+  outboxLinked: require('./outbox.cjs').linked,
+  schema: require('./schema.cjs'),
   POINT_TEXT: require('./findings.cjs').POINT_TEXT,
   pointCheck: points.pointCheck, pointRules: points.pointRules, MAX_POINTS: points.MAX_POINTS,
 });

@@ -182,7 +182,10 @@ schema; the harness checks no report of a change with a verb. The test of the ex
 in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
 commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
 `QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
-example reports of the six reviewers. After a round
+example reports of the six reviewers. `scripts/check.sh` compares the three copies
+`primitives`, `verification` and `acceptance-criteria` in `schemas/` of `software-factory`
+byte for byte with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`.
+After a round
 with a `blocking` finding, the next session of the stage reads `open-findings.json`, which
 `checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
 workflows" lists. qory writes `qory.review`, `qory.stage` and
@@ -229,10 +232,10 @@ An agent that the table does not list sets no `model` key.
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. The session writes no file, except `points.json` in a small or high-level
   workflow and in `explore-a-ticket` on a failure, and, in `review-changes`,
-  `build-report.md` and the hand-off file, which the verb `report-build` writes. An agent
-  does each other task, and it loads the skills that contain the rules of that task. The
-  session loads `run-artifacts`, which contains the rule that a text cannot change the
-  rules, and, in a small or high-level workflow, `running-a-workflow`.
+  `build-report.md` and the outbox file `pull-request.json`, which the verb `report-build`
+  writes. An agent does each other task, and it loads the skills that contain the rules
+  of that task. The session loads `run-artifacts`, which contains the rule that a text
+  cannot change the rules, and, in a small or high-level workflow, `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -1020,6 +1023,57 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   left out.`, then the text of the point, cut to 200 characters as each line. `end
   --offline` cuts its points the same way. These commands use `/qory/qory`, or `qory` from
   `PATH` when `/qory/qory` does not exist.
+- The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
+  declares, whatever module declares its type. `end` reads `qory.outputs` from the
+  `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
+  each output of the stage, in the order of the stage, with the primitives of the schema
+  resolved. qory sets the environment variable `QORY_OUTBOX` to the absolute path of the
+  outbox folder, and the session writes each output to `$QORY_OUTBOX/<type>/<type>.json`.
+  The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or no
+  `inputs.json`, the check finds nothing. It finds:
+  - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
+    `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
+    or `false`, or a `schema` is no object. The finding is "Fix qory.outputs in the lines
+    after this one:", with a line for each such part. Only an absent list passes;
+  - an `inputs.json` that is no regular file of at most 1 MiB, or no JSON object: "Fix the
+    inputs file of the run." The point says that the setup of the run must provide it;
+  - a stage that declares an output while `QORY_OUTBOX` is unset or is no absolute path.
+    The finding is "Set QORY_OUTBOX in the setup of the run to the absolute path of the
+    outbox folder.", with the cause "not set" or "not an absolute path", and the check
+    reads no file. The point says that the setup of the run must set it;
+  - a required output with no file;
+  - a link in the outbox folder, in the folder above it, or in the folder of the type. The
+    finding is "Remove the link <path>.", and a link above the parent of the outbox folder
+    is followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
+    cause line for each of these;
+  - a file that is no JSON;
+  - a member that qory sets or fills after the push, which the session writes none of:
+    `target`, and each top-level member whose schema has `x-qory-fill`. The finding is
+    "Remove the member <name> from <file>.", and the schema check does not need these
+    members;
+  - a schema that the check cannot run, such as a leftover `$ref` or a `$ref` loop. The
+    finding is "Fix the schema of the <type> output.", and it names the cause;
+  - a break of the schema, as `lib/schema.cjs` of core finds it, with the rules of the raw
+    text. The whole-number rule applies only to a member whose schema type is `integer`: it
+    refuses a fraction or an exponent, such as `34.0` or `3E1`, a value above
+    9223372036854775807, and a value below -9223372036854775808. A member of type `number`
+    may be written `2.0` or `1e3`. A null is refused anywhere that no schema of type `null`
+    applies, a member that the schema does not list included. A finding gives the member as
+    a JSON pointer, with `~` written as `~0` and `/` as `~1`;
+  - a pattern check that does not finish. The pattern checks of one end check share 10
+    seconds and run in a child process, which the check kills when the time is used up.
+    The finding names the type and the member whose pattern ran;
+  - each finding of the check that the module declares for the type, with the file
+    `<type>.json`. For `pull-request`, these are the four parts `## Problem`, `## Change`,
+    `## Tests` and `## Disclosed`, the title characters that qory drops, and the forms of a
+    secret. `check pull-request`, in check mode, leaves the schema to this check, and
+    `push pull-request` applies the schema with the rules of the raw text.
+
+  A file with findings gives the line "Fix the <n> findings of <file> in the lines after
+  this one:" and then the findings, and adds the `run_again` point "<The type> output
+  breaks its format rules, so the run could not deliver it, and another round writes it
+  again." A required output with no file adds the point "The stage needs <the type>, which
+  the run did not write, and another round writes it again."
 - `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
@@ -2041,7 +2095,7 @@ The checks:
   `/home/orders/12` or `/run/12` passes. A route in a code span is no such path when the
   span has a method, such as `GET /home/orders/12`, or a link of the text has the route.
 
-The types of Build and Verify are `submission`, `build-plan`, `build-report`,
+The types of Build and Verify are `pull-request`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
 `screenshot`, `verification` and `walkthrough`. The check of each JSON type checks the file
 against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`.
@@ -2097,17 +2151,16 @@ in d-1 of build-plan.md as its first sentence.", and gives the words on the line
 it is "Copy the first sentence from AC-2 in the criteria." Beyond the schema, the checks
 find:
 
-- `submission`: a `passed` verdict with no `text`; a description without the parts
-  `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in this order, or with text
-  before `## Problem`; the form of a
-  secret, such as a private key or an access token, in the title or the description; and,
-  from its schema, a `base` with no `commit`; a `commits[]` entry with no
-  `commit` or with a `step` of 0 or more than 128 characters; a `none` reason
-  `program-failed` with no `exit` of 0, 1 or 2, `login-needed` with no `exit` of 3, or
-  another reason with an `exit`; a title of 0 or more than 256 characters, of spaces only,
-  or with a control or invisible character, such as a tab, U+200B or U+202E; and a
-  description of more than 20000 characters, with a NUL, or with a line that starts with
-  `<!-- qory:start -->` or `<!-- qory:end -->`;
+- `pull-request`: a text without the parts `## Problem`, `## Change`, `## Tests` and
+  `## Disclosed`, in this order, or with text before `## Problem`; the form of a
+  secret, such as a private key or an access token, in the title or the text; a title
+  with a character that qory drops, as `report-build` lists; and, from its schema, a
+  `steps` entry with no `commit` or with a `step` of 0 or more than 128 characters; a
+  title of 0 or more than 256 characters, of spaces and joiners only, or with a control or
+  invisible character, such as a tab, U+200B, U+0600 or U+202E; and a text of more than
+  20000 characters, with a control character but tab, line feed and carriage return, with
+  an invisible character, or with a line that starts with `<!-- qory:start -->` or
+  `<!-- qory:end -->`;
 - `build-plan`: sections other than `## Summary`, `## Deliverables` and `## Commands`; more
   than 7 deliverables, or more than the number that a member's answer allows (see "The
   limit of 7"); an id other than `d-<N>`, or one id twice; a Criteria cell other than each
@@ -2372,8 +2425,9 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   left out, with a line that says why, and the verb exits 0.
 
 The chain of `base`, the commit a step started on, holds within one session only, because
-commits outside a step happen between sessions, such as the commit of the submit step, and a
-cancelled run can leave its commits on no branch. A row replays only when its `commit` is an
+commits outside a step happen between sessions, such as a commit that a person makes, and a
+cancelled run can leave its commits on no branch. qory pushes the pull request, so no
+commit of a session is for the push. A row replays only when its `commit` is an
 ancestor of the head, so a step whose commit is lost runs again at its next `pass`. Each row
 of a session takes the `commit` of the session's newest row that has one, else the head at
 which the session started, from the mark, and `step begin` refuses it when the head is
@@ -2959,23 +3013,27 @@ the local artifact folder. With every check passed, "The end" of the skill has f
 in this order:
 1. It starts `submission-writer`, which writes `.reports/submission.md` of the artifact
    folder: the title, then `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in the
-   order of the check of `submission`, from the build plan, the build ledger and the
+   order of the check of `pull-request`, from the build plan, the build ledger and the
    records of the checks, with no result typed. A runtime with no tool that starts an
    agent, a start that fails, a report that still fails its check after two fixes and a
    `blocked` report end the run as "Failures" of `running-a-workflow` lists.
 2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
-   in the artifact folder and writes the hand-off file at the value of
-   `QORY_SUBMISSION_HANDOFF`, under `.qory/handoff/`. The ledger's edit check skips
-   `.qory/`. With exit 1, a rule of the text broke: the session starts
-   `submission-writer` again with the lines that `report-build` printed, at most twice.
+   in the artifact folder and writes the outbox file
+   `$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
+   the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text
+   broke: the session starts `submission-writer` again with the lines that `report-build`
+   printed, at most twice.
    When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
-   because the description of the change still breaks the rules for it." With exit 2, 3 or
-   4, the run ends as "Failures" of `running-a-workflow` lists for the checks script.
+   because the text of the change still breaks the rules for it." With exit 3 and the first
+   line `Build the change in fewer commits`, the list of steps makes the output larger than
+   786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
+   the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists
+   for the checks script.
 3. It runs `checks.cjs check build-report --inputs <input file>
    <folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The
    change is not ready, because the build report differs from the records of the run.",
    and starts no writer, because the tables are the script's, so a difference is a defect.
-   Before it ends, it runs `checks.cjs report-build --drop`, which removes the hand-off
+   Before it ends, it runs `checks.cjs report-build --drop`, which removes the outbox
    file of step 2. With exit 2, 3 or 4, the run ends as "Failures" lists for the checks
    script.
 4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
@@ -3064,9 +3122,9 @@ The ends of steps 1 to 4 run no `qory run verdict passed`.
   - `output_tail` of `suite_result`, the last lines of the output of the suite, so
     `suite_result` has counts only;
   - the shape of `previous_findings`;
-  - `qory.review.submission` in the `inputs.json` of a reviewer, the title and the
-    description of the draft pull request, so `acceptance-reviewer` checks them only once
-    qory writes it.
+  - `qory.review.outputs` in the `inputs.json` of a reviewer, each declared output by
+    type, with the title and the text of the draft pull request in the entry for
+    `pull-request`, so `acceptance-reviewer` checks them only once qory writes it.
 
 ## The high-level workflow, shape-a-ticket
 
@@ -3457,10 +3515,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   with `check points` and ends: the end check sends them with the verdict `escalate`.
 - `report-build [--inputs <path>]` and `report-build --drop`: the first writes
   `build-report.md` of the standard track to the artifact folder, with every table rendered
-  from records, so no agent types a result, and writes the hand-off file that qory's submit
-  step reads. A fast-track report is written elsewhere. The second removes a regular file
-  at the path of `QORY_SUBMISSION_HANDOFF` and nothing else, prints one line, and exits 0;
-  it exits 3 with a fix line when the file cannot be removed. The sections come from these
+  from records, so no agent types a result, and writes the outbox file that qory's push
+  reads. A fast-track report is written elsewhere. The second removes the regular file
+  `$QORY_OUTBOX/pull-request/pull-request.json` and nothing else, prints one line, and
+  exits 0; it exits 3 with a fix line when the file cannot be removed. The sections come
+  from these
   sources:
   - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
   - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
@@ -3501,40 +3560,55 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   The same records give the same bytes, and the file ends with one newline. Without a
   ledger, the verb exits 3.
 
-  When `QORY_SUBMISSION_HANDOFF` is set, an absolute path with no `..` part, the verb also
-  writes the hand-off file there, as JSON with `text` and `steps`: `{"text": {"title",
-  "description"}, "steps": {"<commit>": "<ledger row id>"}}`. It creates the parent folder
-  first. A path with a `..` part exits 3. When the parent folder, or the nearest folder of
-  it that exists, resolves through a symbolic link to a place outside the top folder of the
-  checkout, the verb exits 3 with the fix "Set QORY_SUBMISSION_HANDOFF to a path inside the
-  checkout." and writes no file. `text` is `.reports/submission.md` of the artifact
-  folder, which `submission-writer` writes: the first line is `# <title>`, and the rest is
-  the description with `## Problem`, `## Change`, `## Tests` and `## Disclosed`. The title
-  and the description pass the rules of `text` in `submission.schema.json` (the title is 1
-  to 256 characters, with no control or invisible character, and is not only spaces; the
-  description has at most 20,000 characters, no NUL and no marker line), the description
-  has the four parts of the type `submission` and no text before the first part, and
-  neither has the form of a secret. The title also has no character of the Unicode class
-  Cf, such as U+200D, U+0600 or U+E0041, and no U+2028 or U+2029, because qory does not
-  accept such a title and drops the whole text; the fix has its code point. The verb removes
-  spaces before and after the title. `steps` maps each commit of `git rev-list
-  <base>..<commit>` of each `done` row to the id of the row, for the commits of `git
-  rev-list <base of the first row>..HEAD`, and a commit in two rows goes to the later row.
-  When the hand-off file would have more than 262,144 bytes, the verb leaves out the oldest
-  commits of `steps` until it fits, and qory shows each of them as unreviewed; the result
-  line shows how many it left out. A text that is missing or breaks a rule, a
-  `submission.md` that is no regular file or has more than 262,144 bytes, or a step of
-  more than 128 characters exits 1 with the fix, and the verb writes no file. A commit that
-  git does not have is a lost row of a cancelled run and has no entry in `steps`; any other
-  failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`, the verb
-  removes a regular file at the path of `QORY_SUBMISSION_HANDOFF`, so that qory never reads
-  the text of an earlier run, only when the real path of the folder of the file is inside
-  the real path of the checkout top, the rule of the write. Else it removes nothing, prints
-  one line, and `--drop` exits 3. It writes the hand-off file first and `build-report.md`
+  The verb always writes the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, as
+  JSON `{"title", "text", "steps", "draft"}`. qory sets `QORY_OUTBOX` to the absolute path
+  of the outbox folder. When `QORY_OUTBOX` is unset or is no absolute path, the verb writes
+  no file and exits 3 with the fix "Set QORY_OUTBOX to the absolute path of the outbox
+  folder." It creates the folder of the type first. When the outbox folder, the folder above
+  it, or the folder of the type is a link, as core's end check reads it, the verb exits 3
+  with the fix "Remove the link in the path of the outbox." and writes no file. A file that
+  would have more than 786432 bytes, the `size_limit` of the type `pull-request`, exits 3
+  with the fix "Build the change in fewer commits", because only the list of `steps` can
+  make it that large (the text has at most 20,000 characters), and the verb writes no
+  file. The links that the rule reads are those of the outbox folder, its parent and the
+  folder of the type; a link above them is followed.
+  The session writes no `target` and no member that qory fills (`commits`, `head`,
+  `base`, `branch`, `base_branch`, `earlier_commits`): qory sets and fills them after the
+  push, and the end check refuses a file that has one. `title` and `text` come from
+  `.reports/submission.md` of the artifact folder, which `submission-writer` writes: the
+  first line is `# <title>`, and the rest is the text with `## Problem`, `## Change`,
+  `## Tests` and `## Disclosed`. The title and the text pass the rules of `title` and `text`
+  in `pull-request.schema.json`, which refers to them by the `$id` of
+  `primitives.schema.json` (qory's file, beside it in `schemas/`, read with no network). The
+  title is 1 to 256 characters, with no control or invisible character, and is not only
+  spaces and joiners; the text has at most 20,000 characters, no marker line, and no
+  control character but tab, line feed and carriage return. The text has the four parts of
+  the type `pull-request` and no text before the first part, and neither has the form of a
+  secret. Both follow the rule of the characters
+  of a string in the schemas of `software-factory`: no Cc character, no U+2028 or U+2029,
+  and no Cf character but U+200C and U+200D (the joiners of emoji), such as U+0600 or
+  U+E0041. The fix for a title with such a character has its code point, because qory does
+  not accept such a title and drops the whole text. The verb removes spaces before and
+  after the title. `steps` is a list of
+  `{"commit", "step"}`, oldest first: it has each commit of `git rev-list <base>..<commit>`
+  of each `done` row, with the id of the row as `step`, for the commits of `git rev-list
+  <base of the first row>..HEAD`, and a commit in two rows goes to the later row. `draft`
+  is always `true`: qory sends the pull request after the gate of the stage passes
+  (`deliver: {send: after_gate}` in `process.yaml`), so the draft opens after the review
+  passes, and the schema refuses a `draft` of `false`. A text that is missing or breaks a
+  rule, or a `submission.md` that is no regular file or has more than 262,144 bytes (the
+  limit of the text file `.reports/submission.md`, not of the output), exits 1 with the
+  fix, and the verb writes no file. A `step` is the id of a ledger row, which the ledger
+  schema limits to 64 characters, so no step is too long. A commit
+  that git does not have is a lost row of a cancelled run and has no entry in `steps`; any
+  other failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`,
+  the verb removes a regular file at the path of the outbox file, so that qory never reads
+  the text of an earlier run. It removes nothing when `QORY_OUTBOX` is unset or relative.
+  When a link is in the path of the outbox, it removes nothing and prints a fix line, and
+  `--drop` exits 3. It writes the outbox file first and `build-report.md`
   second, each through a temporary file in its folder that it renames into place. When a
   write fails, it removes the temporary files, leaves neither file and exits 3 with a fix
-  line. Without the variable, it writes `build-report.md`, prints one line that it wrote
-  no hand-off file and exits 0. `check build-report`, in a session with the ledger in the
+  line. `check build-report`, in a session with the ledger in the
   artifact folder, renders the sections again from the same records and exits 1 for each
   section whose text differs from the file byte for byte, line breaks, trailing spaces,
   blank lines and heading spacing included, with the fix "Run report-build to write ##
@@ -3670,13 +3744,12 @@ and three calls run it:
   plan, which the fast track has none of. A failed proof exits 1 with its findings, and
   no push follows. A proposal on the standard track, or a folder with no proposal, runs no
   proof, and `scope --plan` judges the Files as before;
-- `check` and `end`, with the check of `submission`, in a checkout, with `--inputs`. The
+- `check` and `end`, with the check of `pull-request`, in a checkout, with `--inputs`. The
   files that need a parser, with `/opt/qory/parsers` missing, get no finding there: the call
   writes "Run the push step: it proves <kind>." on stderr, with the line "The parsers in
-  <folder> are not installed here." after it, and leaves them to `scope --plan`. `end`
-  checks a draft that differs from the newest stored version, so it runs no proof for a
-  submission that equals its stored version. With the fast track and no `--inputs`,
-  `check submission` has a finding, never a pass;
+  <folder> are not installed here." after it, and leaves them to `scope --plan`. `end` runs
+  it on the outbox file of the stage's output `pull-request`. With the fast track and no
+  `--inputs`, `check pull-request` has a finding, never a pass;
 - `prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]`, by hand.
 
 The push form (`push`) and `end --offline` run no proof: the working folder of a push is
@@ -3895,10 +3968,11 @@ template that a software-factory workspace starts with. The file sets these keys
   Release. Explore runs the workflow `explore-a-ticket` once per run, with no loop, and
   needs a `proposal`. Shape runs the workflow `shape-a-ticket` once per run, with no loop,
   reads a `proposal` when one exists, and needs a `spec` and `acceptance-criteria`, with
-  `decision-record`, `mockup` and `demo-scenarios` as optional outputs. Build, Verify and
-  Release run no workflow. Each stage ends with a gate at which a member approves the
-  result. Each stage has a `description`: one paragraph of plain text, at most 500
-  characters, on what the stage does and what exists when it ends.
+  `decision-record`, `mockup` and `demo-scenarios` as optional outputs. Build lists
+  `pull-request` as a required output. Build, Verify and Release run no workflow. Each
+  stage ends with a gate at which a member approves the result. Each stage has a
+  `description`: one paragraph of plain text, at most 500 characters, on what the stage
+  does and what exists when it ends.
 - `artifact_types`, an optional list of the artifact types that the template's workspaces
   use. `acceptance-criteria`, `verification`, `mockup`, `screenshot`, `demo-video`,
   `walkthrough` and `decision-record` are standard types, each with its name alone. The
@@ -3908,9 +3982,10 @@ template that a software-factory workspace starts with. The file sets these keys
   default of the draft check. `spec` and `demo-scenarios` are custom types with
   `base_view: document`, `size_limit: 1048576` and `max_files: 1`: one Markdown file of at
   most 1 MiB. The custom types of Build and Verify follow, each with `max_files: 1`:
-  `build-plan` and `build-report` with `base_view: document`, and `submission`,
+  `build-plan` and `build-report` with `base_view: document`, and `pull-request`,
   `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
-  `base_view: structured`, each with `size_limit: 1048576`, the default of Qory Apiary.
+  `base_view: structured`, each with `size_limit: 1048576`, the default of Qory Apiary,
+  except `pull-request`, whose `size_limit` is 786432.
   Each structured type has the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`. The draft check of
   `build-ledger` reads that size limit from `process.yaml` and refuses a file above it, as
@@ -3924,10 +3999,6 @@ template that a software-factory workspace starts with. The file sets these keys
   workspace made from a template with this list shows only the standard types on the list,
   plus `proposal`, `questions`, `review-comments` and `verdict`, which no workspace can
   hide, and every other standard type is hidden.
-- `submit: {type: submission, send: end_of_run}`, the submit step of a run. `type` is the
-  custom type `submission`, which has `base_view: structured`, and `send: end_of_run`
-  sends the submission at the end of the run. `qory config` checks that `artifact_types`
-  has the type.
 
 `qory config` checks the file: each required key is set, the texts are within their
 limits, `exports.stacks` lists the stack, and the stack declares every workflow of the
@@ -3955,8 +4026,9 @@ for that key, with the same notice next to the **Machine type** picker on the st
 
 An approval at a gate covers, for each type in the stage's `outputs`, the newest version
 made in that stage, and no other type. A later stage reads an approved version only for a
-type in its `inputs`. In this template Build has no `outputs`, so no approval at its gate
-covers a version, and Verify has no `inputs`, so it reads no approved version.
+type in its `inputs`. In this template Build has the output `pull-request`, so an approval
+at its gate covers that type's newest version, and Verify has no `inputs`, so it reads no
+approved version.
 
 ## AGENTS.md
 

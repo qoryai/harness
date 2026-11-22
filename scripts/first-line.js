@@ -8,10 +8,10 @@
 const assert = require('node:assert/strict');
 
 // The verbs that start a first line. Add the verb when a new finding starts with another one.
-const VERBS = new Set(['Add', 'Ask', 'Check', 'Cite', 'Change', 'Close', 'Commit', 'Compose',
-  'Cut', 'Delete', 'Empty', 'End', 'Find', 'Fix', 'Freeze', 'Give', 'Go', 'Install', 'Judge',
-  'Keep', 'Leave', 'List', 'Lock', 'Make', 'Name', 'Number', 'Open', 'Pass', 'Plant', 'Probe',
-  'Propose', 'Prove', 'Pull', 'Push', 'Put', 'Quote', 'Raise', 'Record', 'Remove',
+const VERBS = new Set(['Add', 'Ask', 'Build', 'Check', 'Cite', 'Change', 'Close', 'Commit',
+  'Compose', 'Cut', 'Delete', 'Empty', 'End', 'Find', 'Fix', 'Freeze', 'Give', 'Go', 'Install',
+  'Judge', 'Keep', 'Leave', 'List', 'Lock', 'Make', 'Name', 'Number', 'Open', 'Pass', 'Plant',
+  'Probe', 'Propose', 'Prove', 'Pull', 'Push', 'Put', 'Quote', 'Raise', 'Record', 'Remove',
   'Rename', 'Replace', 'Report', 'Restore', 'Return', 'Rewrite', 'Round', 'Run', 'Save', 'Send',
   'Set', 'Split', 'Start', 'Store', 'Take', 'Undo', 'Verify', 'Wait', 'Write']);
 

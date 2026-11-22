@@ -32,7 +32,7 @@ description: >-
   and, when every check passed, starts submission-writer; the skills checking-code,
   checking-tests, checking-acceptance and writing-submissions; the agents code-reviewer,
   test-reviewer and acceptance-reviewer, the reviewers of that round; the agent
-  submission-writer, which writes the title and the description of the draft pull request;
+  submission-writer, which writes the title and the text of the draft pull request;
   the skills checking-security, checking-data-changes and checking-failure-handling; the
   agents security-reviewer, data-reviewer and failure-reviewer, the members of the group
   role reviewers, which start only for a change in their paths; and live web search off on
@@ -61,8 +61,8 @@ push_checks:
   - type: demo-scenarios
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-scenarios]
     reads: [acceptance-criteria]
-  - type: submission
-    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, submission]
+  - type: pull-request
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, pull-request]
   - type: build-plan
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-plan]
     reads: [acceptance-criteria]
