@@ -30,11 +30,12 @@ Each value is one of "The values of the review" of `judging-findings`.
   request and go on. shortcut: `qory.review_session.outputs` is absent until qory adds it;
   with it absent, the acceptance reviewer checks no pull request text.
 
-The review also reads the newest version of the acceptance criteria, the spec and the
-build plan of the work item, from `<start>`, the folder in `qory.start_artifacts` of the
-input file. The copy at `commit` contains no `.qory` folder, so do not look for them there.
-Read `<start>/index.json`. Then, for each of the types `acceptance-criteria`, `spec` and
-`build-plan`:
+The review also reads the newest version of the acceptance criteria, the spec and the build
+plan of the work item, from `<start>`, the folder in `qory.start_artifacts` of the input
+file. When `qory.start_artifacts` is `""`, the run pulled no artifacts at the start, and
+`<start>` is `/tmp/qory-artifacts`, the artifact folder of the run. The copy at `commit`
+contains no `.qory` folder, so do not look for them there. Read `<start>/index.json`. Then,
+for each of the types `acceptance-criteria`, `spec` and `build-plan`:
 
 - Of the entries of `artifacts` with that `type`, leave out each withdrawn one: an entry
   whose version with the largest `number` in `versions`, of those with no `cancelled` set

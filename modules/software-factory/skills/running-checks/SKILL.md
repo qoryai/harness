@@ -37,6 +37,8 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
   and `freeze` use as the base, so that they check every commit since the start;
 - `qory.start_artifacts`, the folder of the build plans that qory pulled at the start of
   the run, which every verb reads the build plan from, in place of the artifact folder.
+  When it is `""`, the run pulled no build plans at the start, and every verb reads the
+  build plan from the artifact folder of the session.
 
 Both start members are required: with `--inputs`, a file without `qory.start_commits` or
 `qory.start_artifacts` exits 3 ("inputs.json has no member qory.start_commits, which qory
