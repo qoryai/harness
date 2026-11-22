@@ -588,10 +588,10 @@ function endOptions(ledger, id, state, rest) {
         cause = `The value is ${shown(value)}, which has ${plural(parts.length, 'part')}.`;
       } else if (!ok(agent) || !ok(role)) {
         const [what, name] = ok(agent) ? ['role', role] : ['agent', agent];
-        cause = `The ${what} ${shown(name)} is no name in lower case of at most ` +
+        cause = `The ${what} ${shown(name)} is not a lower-case name of at most ` +
           `${NAME_LENGTH} characters.`;
       } else if (!TIERS.includes(tier)) {
-        cause = `The tier ${shown(tier)} is none of the three.`;
+        cause = `The tier ${shown(tier)} is not light, balanced or thinking.`;
       }
       if (cause) {
         return { wrong: 'Give --attempt as <agent>,<role>,<tier>, with a tier of ' +

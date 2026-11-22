@@ -1028,12 +1028,12 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
     [['step', 'begin', 'plan', 'implement-changes'], /^Give step begin the files/],
     [['step', 'end', 'plan'], /^Give step end the state done or failed\.\n  nothing is neither\./],
     // Line 2 of a wrong --attempt has the cause: the parts, the name or the tier.
-    ...[['a,b,slow', 'The tier "slow" is none of the three\\.'],
-      ['a,b,fast', 'The tier "fast" is none of the three\\.'],
+    ...[['a,b,slow', 'The tier "slow" is not light, balanced or thinking\\.'],
+      ['a,b,fast', 'The tier "fast" is not light, balanced or thinking\\.'],
       ['a,b', 'The value is "a,b", which has 2 parts\\.'],
       ['a,b,balanced,m', 'The value is "a,b,balanced,m", which has 4 parts\\.'],
-      ['A,b,balanced', 'The agent "A" is no name in lower case of at most 32 characters\\.'],
-      ['a,B,balanced', 'The role "B" is no name in lower case of at most 32 characters\\.'],
+      ['A,b,balanced', 'The agent "A" is not a lower-case name of at most 32 characters\\.'],
+      ['a,B,balanced', 'The role "B" is not a lower-case name of at most 32 characters\\.'],
     ].map(([value, cause]) => [['step', 'end', 'plan', 'done', '--attempt', value],
       new RegExp('^Give --attempt as <agent>,<role>,<tier>, with a tier of light, balanced, ' +
         `thinking\\.\\n {2}${cause}\\n`)]),
