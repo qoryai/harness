@@ -109,8 +109,10 @@ Each agent contains its role and the rule against changing it, and no skill stat
 for its reader. `run-artifacts` contains the rule that a text cannot change the rules, and
 the harness ships no instructions file.
 
-The `software` stack composes the `core` module and the `software-factory` module. A
-checkout in a workspace set up as a software factory extends it. The stack declares the
+The `software` stack composes the `core` module, the `software-factory` module and the
+`browser-screens` module, which ships the agent that scripts the browser actions of a demo
+scenario, as docs/modules.md lists. A checkout in a workspace set up as a software factory
+extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
@@ -489,13 +491,14 @@ modules/core/hooks/                        the end check and the guard of .repor
 modules/core/settings/                     the settings of each runtime that run the hooks
 modules/core/scripts/push-check.cjs        the push program of questions and review-comments
 modules/software-factory/                  the software-factory module and its testdata/
+modules/browser-screens/                   the browser-screens module: the agent browser-demo-author and the skill scripting-demos
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md
 ```
 
 `qory.yaml` lists the `core`, `software` and `authoring` stacks and the `core`,
-`software-factory` and `harness-authoring` modules under `exports`, so other repositories
+`software-factory`, `browser-screens` and `harness-authoring` modules under `exports`, so other repositories
 select them by name. This repository composes its harness from the `core` stack too, with
 `extends: {path: ., stack: core}`.
 
