@@ -1526,7 +1526,8 @@ pass "$BADTIER"
 NOSCOPE="harness compose --dry-run exits 2 on plan: build-plan with no scope check of build-plan"
 run "$TMP/fault-scope/checkout" "$QORY" harness compose --dry-run --runtime claude
 if [ "$RC" -ne 2 ] ||
-	! printf '%s\n' "$OUT" | grep -Fq 'No module of the stack declares a scope check for build-plan.'; then
+	! printf '%s\n' "$OUT" |
+	grep -Fq 'No module of the stack declares a scope check for build-plan.'; then
 	fail "$NOSCOPE (exit status $RC)"
 fi
 pass "$NOSCOPE"

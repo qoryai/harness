@@ -43,6 +43,44 @@ const SKILL_FILE = path.join(SOFTWARE, 'skills/workflow-implement-changes/SKILL.
 const AGENT_FILES = ['software-developer', 'software-debugger']
   .map((name) => path.join(SOFTWARE, 'agents', `${name}.md`));
 
+// resolve returns node with each $ref resolved as qory resolves it in qory.outputs: the keywords
+// beside the $ref stay, and the definition goes under allOf. It is the resolve of
+// scripts/proof.test.js.
+function resolve(node, defs) {
+  if (Array.isArray(node)) return node.map((one) => resolve(one, defs));
+  if (node === null || typeof node !== 'object') return node;
+  const out = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (key !== '$ref') out[key] = resolve(value, defs);
+  }
+  if (typeof node.$ref !== 'string') return out;
+  const [id, pointer] = node.$ref.startsWith('#') ? [null, node.$ref.slice(1)]
+    : node.$ref.split('#');
+  const home = id === null ? defs : PRIMITIVES.$defs;
+  assert.ok(id === null || id === PRIMITIVES.$id, node.$ref);
+  const definition = home[pointer.replace('/$defs/', '')];
+  assert.ok(definition, node.$ref);
+  out.allOf = [...(out.allOf || []), resolve(definition, home)];
+  return out;
+}
+
+const SCHEMAS = path.join(SOFTWARE, 'skills/running-a-software-workflow/schemas');
+const PRIMITIVES = JSON.parse(read(SCHEMAS, 'primitives.schema.json'));
+const { $defs: DEFS, ...WITHOUT_DEFS } = JSON.parse(read(SCHEMAS, 'pull-request.schema.json'));
+// PULL_REQUEST is the schema of the output pull-request, which Build declares as required, as
+// qory writes it in qory.outputs.
+const PULL_REQUEST = resolve(WITHOUT_DEFS, DEFS);
+
+// withOutput writes a copy of the inputs of w whose qory.outputs lists pull-request as required,
+// as qory writes it for Build, and returns its path.
+function withOutput(w) {
+  const inputs = path.join(fresh('in'), 'inputs.json');
+  const qory = JSON.parse(read(w.inputs)).qory;
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, outputs: [{ type: 'pull-request',
+    required: true, schema: PULL_REQUEST }] } }));
+  return inputs;
+}
+
 // section returns the text of the ## section of text with that title, up to the next ## heading.
 function section(text, title) {
   const at = text.indexOf(`\n## ${title}\n`);
@@ -82,7 +120,8 @@ test('the session starts the developer twice and the debugger once per step, the
     '`<skill folder>/checks.cjs freeze <id> --inputs <inputs>`',
     'run `step end <id> done --report <file>`');
   contains(step, 'When the third attempt is red, do "A step that fails".');
-  contains(step, 'one `--attempt <agent>,<role>,thinking,unknown` per start of an attempt of the step');
+  contains(step, 'one `--attempt <agent>,<role>,thinking,unknown` per start of an attempt of ' +
+    'the step');
   // A blocked report other than the stop on the build plan ends the run; it is no red attempt.
   contains(step, 'Any other `blocked` report ends the run as "Failures" lists.');
   assert.doesNotMatch(oneLine(step), /makes the attempt red/);
@@ -105,12 +144,14 @@ test('the session starts the developer twice and the debugger once per step, the
     'repositories" of `running-a-software-workflow`.');
 });
 
-test('the session reads open-findings.json of the inputs folder, Verify\'s inputs and the lock', () => {
+test('the session reads open-findings.json of the inputs folder, Verify\'s inputs and the ' +
+  'lock', () => {
   contains(WORKFLOW, '`<in>` is the folder of that file.');
   const facts = section(WORKFLOW, 'The facts of the steps');
   contains(facts, 'qory writes `<in>/open-findings.json`, read-only, from the report of the last ' +
     'round of review. Run `findings open <in>/open-findings.json`');
-  assert.doesNotMatch(oneLine(WORKFLOW), /when the prompt contains the path of `open-findings\.json`/);
+  assert.doesNotMatch(oneLine(WORKFLOW),
+    /when the prompt contains the path of `open-findings\.json`/);
   contains(section(WORKFLOW, 'The order of the run'), 'take each entry of `inputs` whose `from` ' +
     'is `return`');
   contains(facts, 'Each point of `points` in the verdict is one finding');
@@ -122,7 +163,8 @@ test('the session reads open-findings.json of the inputs folder, Verify\'s input
   contains(facts, 'take `<L>`, the largest `number` of the versions of `acceptance-lock` in ' +
     '`<folder>/index.json` with no `cancelled` set to `true`');
   // The build plan comes from the start of the run only.
-  contains(section(WORKFLOW, 'The order of the run'), 'read `<start>/build-plan/main/v<N>/build-plan.md`');
+  contains(section(WORKFLOW, 'The order of the run'),
+    'read `<start>/build-plan/main/v<N>/build-plan.md`');
   assert.doesNotMatch(WORKFLOW, /when the input file has no `qory\.start_artifacts`/);
 });
 
@@ -173,7 +215,8 @@ test('the session writes the text of the change after the last step, and not on 
   contains(submission, 'with one `run_again` point: "The change is not ready, because the ' +
     'text of the change still breaks the rules for it."');
   contains(submission, 'With exit 3 and the first line `Build the change in fewer commits`');
-  // The steps committed, so a failure of the writer says that qory pushes them with no text.
+  // The steps committed, so the last line after a failure of the writer is that qory pushes
+  // them with no text.
   contains(submission, 'in place of the line of its case "Any other case", use "The run wrote ' +
     'no text of the change, because <the cause>, so qory pushes the commits of the steps ' +
     'without it."');
@@ -211,10 +254,10 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
     for (const tool of ['Bash', 'Write', 'Edit']) {
       assert.match(text, new RegExp(`\\nTool exception: ${tool}, because `), `${name}: ${tool}`);
     }
-    contains(section(text, 'Guardrails'), 'Change only the paths that the build plan lists for the ' +
-      'deliverable');
-    contains(section(text, 'Stop conditions'), 'report `Blocked: needs a change to the build plan: ' +
-      '<the change>`');
+    contains(section(text, 'Guardrails'),
+      'Change only the paths that the build plan lists for the deliverable');
+    contains(section(text, 'Stop conditions'),
+      'report `Blocked: needs a change to the build plan: <the change>`');
     assert.match(section(text, 'Expected output'), /\nLeft out: none\n<done or blocked>\n```/);
     // The guardrail forbids a change under .qory/, so no sentence sends a writer there.
     contains(text, 'the line "Further repositories: yes" or "no"');
@@ -226,8 +269,8 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
 
 test('the stack declares implement-changes, and the module fills developer and debugger', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
-  assert.match(stack,
-    /\n {2}implement-changes: \{tier: balanced, access: write, plan: build-plan, judges: false\}\n/);
+  assert.ok(stack.includes(
+    '\n  implement-changes: {tier: balanced, access: write, plan: build-plan, judges: false}\n'));
   const settings = JSON.parse(read(SOFTWARE, 'settings/claude/settings.json'));
   for (const rule of ['Skill(harness:workflow-implement-changes)',
     'Skill(harness:changing-code)', 'Skill(harness:debugging-failures)',
@@ -308,8 +351,10 @@ The order list gets an export, in two changes.
 
 | Id | Change | Criteria | Files | Check |
 |---|---|---|---|---|
-| d-1 | Write one line per order. | AC-1, "The export has one line per order" | \`src/orders.cjs\`, \`tests/\` | \`tests/lines.check.cjs\` |
-| d-2 | Start the export with a header line. | AC-2, "The export starts with a header line" | \`src/orders.cjs\`, \`tests/header.test.cjs\` | \`tests/header.test.cjs\` |
+| d-1 | Write one line per order. | AC-1, "The export has one line per order" | \
+\`src/orders.cjs\`, \`tests/\` | \`tests/lines.check.cjs\` |
+| d-2 | Start the export with a header line. | AC-2, "The export starts with a header line" | \
+\`src/orders.cjs\`, \`tests/header.test.cjs\` | \`tests/header.test.cjs\` |
 
 ## Commands
 
@@ -391,7 +436,8 @@ function withdrawCheck(file, type, name) {
   const one = index.artifacts.find((a) => a.type === type && a.name === name);
   const newest = (one ? one.versions : []).filter((v) => !v.cancelled)
     .sort((a, b) => a.number - b.number).at(-1);
-  const why = (newest && newest.id === one.approved_version && 'A member approved its newest version.') ||
+  const why = (newest && newest.id === one.approved_version &&
+    'A member approved its newest version.') ||
     (!newest && 'It has no version outside cancelled runs.') ||
     (newest.withdrawn && 'Its newest version is already a withdrawal.') ||
     (newest.writer.kind === 'person' && 'Its newest version is an upload by a member.');
@@ -434,7 +480,8 @@ function work({ script } = {}) {
   fs.writeFileSync(path.join(w.bin, 'withdraw-check.js'),
     `${withdrawCheck}\nwithdrawCheck(...process.argv.slice(2));\n`);
   w.qory = path.join(w.bin, 'qory');
-  const index_js = `'${process.execPath}' '${path.join(w.bin, 'index.js')}' '${w.store}/index.json'`;
+  const index_js = `'${process.execPath}' '${path.join(w.bin, 'index.js')}' ` +
+    `'${w.store}/index.json'`;
   // A withdrawal that withdrawCheck stops exits 4, as qory does.
   fs.writeFileSync(w.qory, `#!/bin/sh
 printf '%s\\n' "$*" >> '${w.log}'
@@ -442,7 +489,8 @@ case "$1 $2" in
 'artifact push')
   cd '${w.store}' || exit 1
   if [ "$4 $6" = '--name --withdraw' ]; then
-    '${process.execPath}' '${path.join(w.bin, 'withdraw-check.js')}' '${w.store}/index.json' "$3" "$5" ||
+    '${process.execPath}' '${path.join(w.bin, 'withdraw-check.js')}' \\
+      '${w.store}/index.json' "$3" "$5" ||
       exit 4
     n=$(( $(ls -d "$3/$5"/v* 2>/dev/null | wc -l) + 1 ))
     mkdir -p "$3/$5/v$n"
@@ -711,10 +759,18 @@ test('the session builds two deliverables as two frozen commits with two ledger 
   assert.match(fs.readFileSync(built, 'utf8'),
     /\| deliverable:d-2 \| 1 \| deliverable \| done \|/);
   // The end check passes on the artifact folder after the two steps, with judges false in the
-  // inputs; the log of the stub has no verdict call. That the session runs none is the rule
-  // of "The end" of running-a-workflow, which checks.test.js checks.
-  const ended = call('end', w.artifacts, '--inputs', w.inputs);
-  assert.equal(ended.status, 0, ended.out);
+  // inputs; the log of the stub has no verdict call. That the session runs none is the rule of
+  // "The end" of running-a-workflow, which checks.test.js checks. The end check reads the
+  // pull-request.json that report-build wrote: the same file with an empty title fails it.
+  const inputs = withOutput(w);
+  const written = fs.readFileSync(handoff, 'utf8');
+  fs.writeFileSync(handoff, JSON.stringify({ ...sent, title: '' }));
+  const broken = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(broken.status, 1);
+  assert.match(broken.out + broken.err, /\$QORY_OUTBOX\/pull-request\/pull-request\.json/);
+  fs.writeFileSync(handoff, written);
+  const ended = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((line) => line.startsWith('run verdict')), []);
   // A step that is built replays with the same inputs, so a later session builds it once.
   const again = call('step', 'begin', 'deliverable:d-1', 'implement-changes', '--inputs',
@@ -789,8 +845,8 @@ test('the session ends a step failed after its third red attempt, and starts no 
     /\| deliverable:d-1 \| 1 \| deliverable \| failed \|/);
   // The step stays open in the ledger, and the session ends with no point and no verdict.
   assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
-  const ended = call('end', w.artifacts, '--inputs', w.inputs);
-  assert.equal(ended.status, 0, ended.out);
+  const ended = call('end', w.artifacts, '--inputs', withOutput(w));
+  assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((line) => line.startsWith('run verdict')), []);
 });
 
@@ -917,7 +973,8 @@ test('the session ends a writer\'s stop on the build plan with one answer point,
     .split(/(?<=\.) /)[0].replace(/\.$/, '').replace(/`/g, '');
   assert.equal(change, 'the header needs src/csv.cjs, which no Files cell lists');
   const filled = text[1].replace('<the step>',
-    'the planned change d-2, "Start the export with a header line"').replace('<the change>', change);
+    'the planned change d-2, "Start the export with a header line"')
+    .replace('<the change>', change);
   const points = path.join(w.artifacts, 'points.json');
   fs.writeFileSync(points, JSON.stringify([{ text: filled, action: 'answer', question: 'q1' }]));
   const checked = call('check', 'points', points);
@@ -929,12 +986,8 @@ test('the session ends a writer\'s stop on the build plan with one answer point,
   fs.writeFileSync(points, JSON.stringify([{ text: filled, action: 'answer', question: 'q1' }]));
   // Build declares the output pull-request as required. A stop writes none, and the end check
   // passes: an end through points.json records escalate, and checks no output.
-  const inputs = path.join(fresh('in'), 'inputs.json');
-  const qory = JSON.parse(read(w.inputs)).qory;
-  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, outputs: [{ type: 'pull-request',
-    required: true, schema: { type: 'object' } }] } }));
   // judges is false, and the end check still sends escalate for the answer point.
-  const ended = call('end', w.artifacts, '--inputs', inputs);
+  const ended = call('end', w.artifacts, '--inputs', withOutput(w));
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')),
     [`run verdict escalate --points ${points}`]);
@@ -979,8 +1032,8 @@ function endThrice(w, call, agent, inputs) {
 
 const escalates = (w, results) => {
   assert.deepEqual(results.map((one) => one.status), [1, 1, 0]);
-  assert.match(results[2].out + results[2].err, new RegExp('; check 3 of 3, so the run ends: wrote 1 ' +
-    'point to points\\.json, and \\S+ run verdict escalate exited with 0'));
+  assert.match(results[2].out + results[2].err, new RegExp('; check 3 of 3, so the run ends: ' +
+    'wrote 1 point to points\\.json, and \\S+ run verdict escalate exited with 0'));
   assert.deepEqual(logOf(w).filter((line) => line.startsWith('run verdict')),
     [`run verdict escalate --points ${path.join(w.artifacts, 'points.json')}`]);
 };
