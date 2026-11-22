@@ -1939,15 +1939,15 @@ tool's error. The first line of each reason starts with what to do. The guard de
   as `python3 -c`, `node -e`, `tar -C` or `unzip -d`, is denied when it runs in the home or
   contains a path that reaches it, outside that working folder. The checks script passes
   with a verb that a review session runs (`resume`, `lock --verify`, `panel`,
-  `findings round` and `check points`), and so does a run of a file of the home, as
-  `node <home>/tool.cjs a b`, in a call with no other word that reaches the home and no
-  quotes, parentheses or `$`. The other verbs of `workflow-verify-a-ticket` (`matrix`,
-  `run locked`, `check`, `notes` and `starts`) are not in that list: they pass when the call
-  has no path of the home, and `run locked --inputs` with the input file inside the home is
-  denied. `scripts/tool-guard.test.js` runs each of them. A home that is the working folder or lies inside it gets no
-  such deny, so `implement-changes` can change the files of the harness when the target is
-  the harness repository. qory's checks use the bytes it wrote to `inputs.json`, not the
-  file.
+  `findings round`, `check points` and `run locked`), and so does a run of a file of the
+  home, as `node <home>/tool.cjs a b`, in a call with no other word that reaches the home
+  and no quotes, parentheses or `$`. A redirect or a chained command with a path of the home
+  is still denied after such a verb. The other verbs of `workflow-verify-a-ticket`
+  (`matrix`, `check`, `notes` and `starts`) are not in that list: they pass when the call
+  has no path of the home. `scripts/tool-guard.test.js` runs each of them. A home that is
+  the working folder or lies inside it gets no such deny, so `implement-changes` can change
+  the files of the harness when the target is the harness repository. qory's checks use the
+  bytes it wrote to `inputs.json`, not the file.
 - In a session with `qory.review_session`, only the verb `matrix` of the checks script
   writes `verification.json` and `.reports/matrix-record.json` of the artifact folder. The
   guard denies every other write of the main session and of each agent, with a first line

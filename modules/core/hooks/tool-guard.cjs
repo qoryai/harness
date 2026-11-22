@@ -3104,10 +3104,10 @@ function sessionExempt(command, env, script) {
 
 // The verbs of the checks script that workflow-review-changes and running-a-workflow run in a
 // review session. None of them writes a file that a word of the call names. The other verbs
-// of workflow-verify-a-ticket (matrix, run locked, check, notes, starts) are not listed: they
-// pass when the call has no path of the home, and run locked --inputs <home>/... is denied.
+// of workflow-verify-a-ticket (matrix, check, notes, starts) are not listed: they pass when
+// the call has no path of the home.
 const REVIEW_VERBS = [['resume'], ['lock', '--verify'], ['panel'], ['findings', 'round'],
-  ['check', 'points']];
+  ['check', 'points'], ['run', 'locked']];
 
 // reviewChecks reports whether command runs the checks script alone with a verb of
 // REVIEW_VERBS, which may contain a path of the harness home.

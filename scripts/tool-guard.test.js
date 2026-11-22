@@ -4826,24 +4826,30 @@ test('in a review session only checks.cjs matrix writes verification.json and it
   assert.equal(call(writeAs(path.join(runFolder, 'questions.json'), 'worker')), null);
 });
 
-// The commands that the skill of Verify runs from the checks script. Only run locked takes the
-// path of the input file, `.../in/inputs.json` in a run, which may lie in the harness home.
+// The commands that the skill of Verify runs from the checks script. run locked takes the path
+// of the input file, `.../in/inputs.json` in a run, which may lie in the harness home.
 test('the checks script runs each verb of Verify in a review session', () => {
   const review = sessionSetup();
+  const inHome = path.join(review.home, 'in', 'inputs.json');
   const outside = path.join(next('session-in'), 'in', 'inputs.json');
   const folder = review.runFolder;
   const verbs = ['resume', 'lock --verify --version 1', `run locked --inputs ${outside}`,
-    'matrix --version 1', `check verification ${folder}/verification.json`,
-    `check questions ${folder}/questions.json`,
+    `run locked --inputs ${inHome}`, 'matrix --version 1',
+    `check verification ${folder}/verification.json`, `check questions ${folder}/questions.json`,
     `findings round ${review.reports} --reviewers tamper-reviewer,verification-reviewer`,
     'notes tamper-reviewer', 'starts run-1 verify-a-ticket-1-tamper-reviewer 3'];
   for (const verb of verbs) {
     assert.equal(review.call(bashAs(`node ${SESSION_CHECKS} ${verb}`)), null, verb);
   }
-  // run locked with the input file inside the harness home is denied, because REVIEW_VERBS
-  // leaves it out. Reported to the owner of the guard: the list is not widened here.
-  const inHome = `run locked --inputs ${path.join(review.home, 'in', 'inputs.json')}`;
-  firstLine(review.call(bashAs(`node ${SESSION_CHECKS} ${inHome}`)), HOME_KEPT);
+  // run locked with a path of the home writes nothing there by a redirect or a chained command.
+  const run = `node ${SESSION_CHECKS} run locked --inputs ${inHome}`;
+  const guard = path.join(review.home, 'hooks', 'tool-guard.cjs');
+  for (const command of [`${run} > ${guard}`, `${run} 2> ${guard}`, `${run} | tee ${guard}`,
+    `${run}; echo x > ${guard}`, `${run} && python3 -c "open('${guard}','w')"`,
+    `${run} --out ${guard}; rm ${guard}`, `${run} $(touch ${guard})`]) {
+    firstLine(review.call(bashAs(command)), HOME_KEPT);
+    firstLine(review.call(bashAs(command, 'worker')), HOME_KEPT);
+  }
 });
 
 test('a session with a review key writes nothing below a harness home outside the checkout',
