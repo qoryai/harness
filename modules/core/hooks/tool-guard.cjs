@@ -35,6 +35,11 @@
 //   checks script alone with findings round, which reads the reports and writes no file. The
 //   session starts agents, none in the background; the main session and every other agent
 //   follow the rules of any other session outside <reports>;
+// - in a review session, a write of <artifacts>/verification.json or of
+//   <artifacts>/.reports/matrix-record.json, with <artifacts> as artifactFolder returns it:
+//   only the verb matrix of the checks script writes them, so no call of the main session
+//   or of an agent does, by a write tool or by a shell command with the path in its text. The
+//   shortcut limits of the next entry apply: a path that a variable or code makes passes;
 // - in a session with qory.review or qory.review_session, a write of the inputs.json of the
 //   harness home, wherever the home lies, and, when the home lies outside the working folder,
 //   every write below the home except qory.review.report, <reports> and a working folder
@@ -2025,7 +2030,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
   const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   const reviewer = agent && /-reviewer$/.test(String(input.agent_type));
-  const kept = keptFiles(env, session, nocase, root);
+  const kept = keptFiles(env, session, nocase, root, artifactFolder(root, env, runFolder));
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
       .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
@@ -2039,7 +2044,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
       exempt: sessionExempt(call.command, env, script),
-      checks: reviewChecks(call.command, env, script) });
+      checks: reviewChecks(call.command, env, script),
+      checked: (checksVerb(call.command, env, script) || [])[0] === 'check' });
     if (reason || !paths.length) return reason;
   }
   const homed = home && paths.find((full) => inside(full, home));
@@ -2269,7 +2275,7 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }, skip 
 // opaque command of it reaches one of them. lockOf returns the files of the lock; with
 // nocase, a name matches in any case. It spends a unit of spend for each comparison.
 function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [], exempt,
-  checks }) {
+  checks, checked }) {
   spend(command.length >> 10);
   const all = segments(command, cwd);
   const parts = all.filter(segmentWrites);
@@ -2326,7 +2332,8 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   }
   // A command whose writes the guard does not read, other than one of sessionExempt, writes
   // no word that reaches the report folder of a review session.
-  for (const one of dark && !exempt ? kept.filter((each) => each.folder && !each.home) : []) {
+  for (const one of dark ? kept.filter((each) => (each.folder && !each.home && !exempt) ||
+    (each.matrix && !checked)) : []) {
     const found = reaches(all, [], one.full, root, how);
     if (found) {
       return `${one.head}The guard cannot tell what ${path.basename(dark.words[0])} writes, ` +
@@ -2981,12 +2988,14 @@ function reportName(agentType, runtime, home) {
 // keptFiles returns the entries that no call writes, except as decideCall allows: in a session
 // with qory.review or qory.review_session, the file inputs.json of the harness home, wherever
 // the home lies, and the home itself when it lies outside root, the working folder; in a
-// review session, the report folder, read through its links. Each entry is { full, folder,
-// inputs, nocase, head, except }, with head the first two lines of its deny; inputs is true
+// review session, the report folder, read through its links, and verification.json and
+// .reports/matrix-record.json of the artifact folder, which only checks.cjs matrix writes.
+// Each entry is { full, folder, inputs, nocase, head, except }, with head the first two lines
+// of its deny; matrix is true for the two files of the artifact folder; inputs is true
 // for an entry of the home, whose deny comes before the rule of a reviewer's report. except
 // is the path that the entry of the home leaves to the rules of a review: qory.review.report,
 // or the report folder of a review session, with every path below it.
-function keptFiles(env, session, nocase, root) {
+function keptFiles(env, session, nocase, root, artifacts) {
   const out = [];
   const qory = qoryInputs(env);
   const home = env.QORY_HARNESS_HOME;
@@ -3009,6 +3018,17 @@ function keptFiles(env, session, nocase, root) {
     const full = real(session.reports);
     out.push({ full, folder: true, inputs: false, head: REPORTS_KEPT,
       nocase: nocase || caseless(full) || caseless(path.dirname(full)) });
+  }
+  // shortcut: the guard reads the text of a call, so the checks script run by another script,
+  // or a path that code joins from parts, passes; a verification.json that the main session
+  // writes in a call whose text has no such path is out of its reach. Replace it with a
+  // check at the push if qory ever runs that check where the record is.
+  if (session && artifacts) {
+    for (const file of [path.join(artifacts, MATRIX_FILE), path.join(artifacts, MATRIX_RECORD)]) {
+      const full = real(file);
+      out.push({ full, folder: false, inputs: false, matrix: true, head: MATRIX_KEPT,
+        nocase: nocase || caseless(path.dirname(full)) });
+    }
   }
   return out;
 }
@@ -3109,6 +3129,11 @@ const SESSION_SHELL = 'Run only read commands, such as cat, grep or ls: a review
   '<reports>/<agent name>.json, with Write or apply_patch, so each other command is denied. ';
 const REPORTS_KEPT = 'Leave the report folder to the reviewers.\n' +
   'Only the reviewer of that name writes <reports>/<agent name>.json in it. ';
+// The draft of Verify and the record under it, which only the verb matrix of checks.cjs writes.
+const MATRIX_FILE = 'verification.json';
+const MATRIX_RECORD = path.join('.reports', 'matrix-record.json');
+const MATRIX_KEPT = 'Leave verification.json and .reports/matrix-record.json of the artifact ' +
+  'folder to checks.cjs matrix.\nIn a review session only the verb matrix writes them. ';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
   'of the run in it.\nA session with qory.review or qory.review_session in it writes no ' +
   'inputs.json. ';

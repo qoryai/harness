@@ -1948,12 +1948,21 @@ tool's error. The first line of each reason starts with what to do. The guard de
   such deny, so `implement-changes` can change the files of the harness when the target is
   the harness repository. qory's checks use the bytes it wrote to `inputs.json`, not the
   file.
+- In a session with `qory.review_session`, only the verb `matrix` of the checks script
+  writes `verification.json` and `.reports/matrix-record.json` of the artifact folder. The
+  guard denies every other write of the main session and of each agent, with a first line
+  that starts "Leave verification.json and .reports/matrix-record.json": a write tool, a
+  shell command with the path in its text, and a command whose writes it cannot read, such
+  as `python3 -c`, with the path in its text, except the checks script alone with `check`,
+  which writes nothing. A reviewer writes its report only. Outside a review session the
+  two files keep the rules of a run.
 - The guard reads the writes of a shell command from its text, so a path in `<reports>`, of
-  `inputs.json` or below the harness home that a shell variable makes, such as `D=/x; echo >
-  "$D/r.json"`, passes. So does a script that one call writes to a file and a later call
-  runs, such as `cat > /tmp/p.py` and then `python3 /tmp/p.py`, and a path that code joins
-  from parts, such as `'ho' + 'me'`. The walled run, whose home is a read-only mount outside
-  the workspace, is the main control; the guard is the second.
+  `inputs.json`, below the harness home or in the two files of `matrix` that a shell
+  variable makes, such as `D=/x; echo > "$D/r.json"`, passes. So does a script that one call
+  writes to a file and a later call runs, such as `cat > /tmp/p.py` and then
+  `python3 /tmp/p.py`, and a path that code joins from parts, such as `'ho' + 'me'`. The
+  walled run, whose home is a read-only mount outside the workspace, is the main control;
+  the guard is the second.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,

@@ -4783,6 +4783,49 @@ test('a session with qory.review or qory.review_session writes no inputs.json of
   assert.equal(review.call(bashAs(`cat ${inputs}`, REVIEWER)), null);
 });
 
+const MATRIX_KEPT = 'Leave verification.json and .reports/matrix-record.json of the artifact';
+
+test('in a review session only checks.cjs matrix writes verification.json and its record', () => {
+  const { call, runFolder } = sessionSetup();
+  const draft = path.join(runFolder, 'verification.json');
+  const record = path.join(runFolder, '.reports', 'matrix-record.json');
+  const plain = sessionSetup(() => ({ run: { id: 'r-1' } }));
+  // The record also lies under .reports/, where an older rule denies a json file to each call;
+  // the new rule gives the same files one reason, and the draft has no other rule.
+  for (const file of [draft, record]) {
+    const kept = (reason) => (file === draft ? firstLine(reason, MATRIX_KEPT) : assert.ok(reason));
+    for (const type of [undefined, 'worker', REVIEWER]) {
+      assert.ok(call(writeAs(file, type)), `${type}: ${file}`);
+      if (type !== REVIEWER) {
+        kept(call(writeAs(file, type)));
+        kept(call(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' }, type)));
+      }
+    }
+    for (const command of [`echo '{}' > ${file}`, `cp ${LOCKED} ${file}`, `rm ${file}`,
+      `printf x | tee ${file}`, `cd ${runFolder} && echo x > ${path.relative(runFolder, file)}`,
+      `python3 -c 'open("${file}", "w")'`]) {
+      kept(call(bashAs(command)));
+      kept(call(bashAs(command, 'worker')));
+      assert.ok(call(bashAs(command, REVIEWER)), command);
+    }
+    // Outside a review session, and in a session of another kind, the file keeps its rules.
+    for (const input of [writeAs(file, 'worker'), bashAs(`echo x > ${file}`, 'worker')]) {
+      const reason = plain.call(input, RUN);
+      if (file === draft) assert.equal(reason, null, file);
+      else assert.ok(!reason.startsWith(MATRIX_KEPT), reason);
+    }
+  }
+  // The verb matrix, and a read of either file, run.
+  for (const command of [`node ${SESSION_CHECKS} matrix --version 1`,
+    `cd ${runFolder} && node ${SESSION_CHECKS} matrix --version 1`, `cat ${draft} ${record}`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  // A path that a shell variable makes is not read: the limit that the header states.
+  assert.equal(call(bashAs(`D=${runFolder}; echo x > "$D/verification.json"`)), null);
+  // Another file of the artifact folder keeps the rules of a run.
+  assert.equal(call(writeAs(path.join(runFolder, 'questions.json'), 'worker')), null);
+});
+
 // The commands that the skill of Verify runs from the checks script. Only run locked takes the
 // path of the input file, `.../in/inputs.json` in a run, which may lie in the harness home.
 test('the checks script runs each verb of Verify in a review session', () => {
