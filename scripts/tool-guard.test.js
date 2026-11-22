@@ -4783,6 +4783,26 @@ test('a session with qory.review or qory.review_session writes no inputs.json of
   assert.equal(review.call(bashAs(`cat ${inputs}`, REVIEWER)), null);
 });
 
+// The commands that the skill of Verify runs from the checks script. Only run locked takes the
+// path of the input file, `.../in/inputs.json` in a run, which may lie in the harness home.
+test('the checks script runs each verb of Verify in a review session', () => {
+  const review = sessionSetup();
+  const outside = path.join(next('session-in'), 'in', 'inputs.json');
+  const folder = review.runFolder;
+  const verbs = ['resume', 'lock --verify --version 1', `run locked --inputs ${outside}`,
+    'matrix --version 1', `check verification ${folder}/verification.json`,
+    `check questions ${folder}/questions.json`,
+    `findings round ${review.reports} --reviewers tamper-reviewer,verification-reviewer`,
+    'notes tamper-reviewer', 'starts run-1 verify-a-ticket-1-tamper-reviewer 3'];
+  for (const verb of verbs) {
+    assert.equal(review.call(bashAs(`node ${SESSION_CHECKS} ${verb}`)), null, verb);
+  }
+  // run locked with the input file inside the harness home is denied, because REVIEW_VERBS
+  // leaves it out. Reported to the owner of the guard: the list is not widened here.
+  const inHome = `run locked --inputs ${path.join(review.home, 'in', 'inputs.json')}`;
+  firstLine(review.call(bashAs(`node ${SESSION_CHECKS} ${inHome}`)), HOME_KEPT);
+});
+
 test('a session with a review key writes nothing below a harness home outside the checkout',
   () => {
   const review = sessionSetup();
