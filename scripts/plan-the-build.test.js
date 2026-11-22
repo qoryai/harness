@@ -502,9 +502,9 @@ test('a session on a test work item stores build-plan and ends passed', () => {
   assert.equal(pushed.status, 0, pushed.err);
   assert.equal(pushed.out, 'Pushed build-plan version 1.\n');
   const ended = call('step', 'end', 'plan', 'done', '--report', planner,
-    '--attempt', 'code-explorer,code-explorer,balanced,model-a',
-    '--attempt', 'build-planner,build-planner,thinking,model-b',
-    '--attempt', 'plan-reviewer,plan-reviewer,thinking,model-b',
+    '--attempt', 'code-explorer,code-explorer,balanced',
+    '--attempt', 'build-planner,build-planner,thinking',
+    '--attempt', 'plan-reviewer,plan-reviewer,thinking',
     '--pushed', 'build-plan/main/1');
   assert.equal(ended.status, 0, ended.out);
   assert.equal(qory(w, call, 'run', 'verdict', 'passed').status, 0);

@@ -540,8 +540,8 @@ test('a session on a test work item stores the checks and acceptance-lock and en
   assert.equal(locked.lines.at(-1), 'Locked 3 files in acceptance-lock: Pushed acceptance-lock ' +
     'version 1.');
   const ended = call('step', 'end', 'checks', 'done', '--report', writer,
-    '--attempt', 'acceptance-check-writer,acceptance-check-writer,thinking,model-b',
-    '--attempt', 'check-reviewer,check-reviewer,thinking,model-b',
+    '--attempt', 'acceptance-check-writer,acceptance-check-writer,thinking',
+    '--attempt', 'check-reviewer,check-reviewer,thinking',
     '--pushed', 'acceptance-lock/main/1');
   assert.equal(ended.status, 0, ended.out);
   // The run on the start commit: each locked check fails right, with a failed test.

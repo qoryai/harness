@@ -29,9 +29,11 @@
 // demo-scenarios.
 //
 // It also adds the verbs of the check runners, which running-checks (SKILL.md) lists: run,
-// scope, freeze, diff, probe, prove and preflight, each in verbs/, the verb
-// report-build, which writes build-report.md and the outbox file of the pull request, and the
-// verb matrix, which writes the draft verification.json of Verify from records.
+// scope, freeze, diff, probe, prove and preflight, each in verbs/, the verb report-build,
+// which writes build-report.md and the outbox file of the pull request, the verb matrix,
+// which writes the draft verification.json of Verify from records, and the verb demo, which
+// checks that the harness has the skill scripting-demos and builds a demo script from the
+// actions of the demo author.
 'use strict';
 
 const fs = require('node:fs');
@@ -40,7 +42,7 @@ const path = require('node:path');
 // The Blocked: lines that this skill lists by their start:
 // running-a-software-workflow (SKILL.md:31: "starts with `needs a change to criterion`"),
 // and the stop of the agents of a build step that the last line matches:
-// workflow-implement-changes (SKILL.md:193: "reports `Blocked: needs a change to the build plan").
+// workflow-implement-changes (SKILL.md:222: "reports `Blocked: needs a change to the build plan").
 const STOPS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,
@@ -65,6 +67,7 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/report-build.cjs')(lib));
   Object.assign(lib, require('./lib/track-record.cjs')(lib));
   Object.assign(lib, require('./lib/member-allowance.cjs')(lib));
+  Object.assign(lib, require('./lib/models.cjs')(lib));
   const spec = require('./types/spec.cjs')(lib);
   Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
   const scenarios = require('./types/demo-scenarios.cjs')(lib);
@@ -78,6 +81,7 @@ function workflowChecks(core) {
       ...require('./verbs/diff.cjs')(lib), ...require('./verbs/probe.cjs')(lib),
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
       ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
+      ...require('./verbs/demo.cjs')(lib),
     },
     types: [
       require('./types/proposal.cjs')(lib),

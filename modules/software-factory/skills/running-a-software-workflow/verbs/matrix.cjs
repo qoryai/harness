@@ -10,7 +10,9 @@
 // state to a criterion that rests on it. The records of `run locked` are read from the
 // artifact folder, where the guard denies an agent's write. The model families are those of
 // the models in Build's ledger, and of the Verify reviewers: the model: line of their agent
-// files, else the model of the settings.json beside the plugin folder, else unknown.
+// files, else the model of the settings.json in the plugin folder or beside it, else unknown;
+// on Codex, the model of their agents/<agent>.toml, else of config.toml; as lib/models.cjs
+// reads them.
 // It exits 3 outside a run, with no QORY_RUN_ID, where nothing can be pulled.
 'use strict';
 
@@ -38,49 +40,21 @@ function familyOf(id) {
 
 module.exports = (lib) => {
   const { pull } = lib.lockReader;
-  const { Context, MATRIX_RECORD, Missing, artifactFolder, cut, isObject, liveCriteria,
-    parseJson, plural, writeJson } = lib;
-
-  // modelOf returns the model of an agent: its file's model: line, which qory writes for the
-  // tier, unless the value is an unresolved ${qory:...} name; else the model of settings,
-  // the settings.json beside the plugin folder; else unknown.
-  function modelOf(plugin, agent, settings) {
-    for (const folder of lib.pluginFolders(plugin)) {
-      let text;
-      try {
-        text = fs.readFileSync(path.join(folder, 'agents', `${agent}.md`), 'utf8');
-      } catch {
-        continue;
-      }
-      const front = /^---\n([\s\S]*?)\n---/.exec(text.replace(/\r\n?/g, '\n'));
-      const line = front && /^model:[ \t]*["']?([^"'\s]+)["']?[ \t]*$/m.exec(front[1]);
-      if (line && !line[1].startsWith('$')) return line[1];
-    }
-    return settings;
-  }
-
-  // sessionModel returns the model of the settings.json beside the plugin folder, or unknown.
-  function sessionModel(plugin) {
-    try {
-      const data = JSON.parse(fs.readFileSync(path.join(plugin, '..', 'settings.json'), 'utf8'));
-      return isObject(data) && typeof data.model === 'string' ? data.model : 'unknown';
-    } catch {
-      return 'unknown';
-    }
-  }
+  const { Context, MATRIX_RECORD, Missing, agentModel, artifactFolder, cut, isObject,
+    liveCriteria, parseJson, plural, writeJson } = lib;
 
   // families returns the families of the models of Build's ledger, in the newest
   // version of build-ledger of context, and of the agents of Verify, once each. With no
-  // context, because the ledger could not be pulled, the family of its models is unknown.
-  function families(context, plugin) {
+  // context, because the ledger could not be pulled, the family of its models is unknown. env
+  // is the environment of the session.
+  function families(context, plugin, env) {
     const ledger = context ? context.newest('build-ledger', 'build-ledger.json') : null;
     const data = ledger ? parseJson(ledger.text, `build-ledger version ${ledger.number}`) : null;
     const steps = data && Array.isArray(data.steps) ? data.steps.filter(isObject) : [];
     const models = steps.flatMap((step) => (Array.isArray(step.attempts) ? step.attempts : []))
       .filter(isObject).map((attempt) => attempt.model);
-    const settings = sessionModel(plugin);
     if (!context) models.push('unknown');
-    models.push(...REVIEWERS.map((agent) => modelOf(plugin, agent, settings)));
+    models.push(...REVIEWERS.map((agent) => agentModel(plugin, agent, env)));
     return [...new Set(models.map(familyOf))];
   }
 
@@ -217,7 +191,7 @@ module.exports = (lib) => {
       else notVerified.push({ criterion: criterion.id, reason: got.reason });
     }
     writeJson(path.join(root, FILE), { target_version: commit, matrix, not_verified: notVerified,
-      model_families: families(pulled('build-ledger', false), io.plugin) });
+      model_families: families(pulled('build-ledger', false), io.plugin, io.env) });
     writeJson(path.join(root, MATRIX_RECORD), { commit, lock: number,
       matrix: matrix.map(({ criterion, state }) => ({ criterion, state })),
       not_verified: notVerified.map((one) => one.criterion) });

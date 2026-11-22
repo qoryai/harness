@@ -21,16 +21,20 @@ not load the rules it needs, so it pushed no spec."
 
 ## The order of the run
 
-1. Pull, then run `<qory> work-item show`.
+1. Pull, then run `<qory> work-item show`. Then run
+   `<skill folder>/checks.cjs demo surface`, and keep its line, the surface line, with the
+   notes. Under a higher workflow, this step only pulls, and the surface line is the one
+   that workflow gives.
 2. Copy the newest `spec` and `acceptance-criteria`, as "Copy the newest version" lists.
    Then start ${qory:agents/spec-writer} with the input file's path, the artifact folder,
-   the run's number, the notes and any fact or finding that a higher workflow gives.
+   the run's number, the notes, the surface line and any fact or finding that a higher
+   workflow gives.
 3. Do the first item of "Questions and replies".
 4. Start ${qory:agents/spec-review} with the input file's path, the artifact folder, the
-   run's number, the notes, any such fact or finding, the writer's newest lists "What only a
-   person can settle" and "Review comments", the lines under "Checks:" that "Check before
-   each review" lists for both drafts and, when the writer's report lists it, the path of
-   `declines.md`. Decide on each report as "Findings" lists.
+   run's number, the notes, the surface line, any such fact or finding, the writer's newest
+   lists "What only a person can settle" and "Review comments", the lines under "Checks:"
+   that "Check before each review" lists for both drafts and, when the writer's report lists
+   it, the path of `declines.md`. Decide on each report as "Findings" lists.
 5. Push the spec, then the acceptance criteria, and never `declines.md`. Check each of the
    two, one at a time, as "Push only what changed" lists, and push it only when its file
    changed. The two pushes together are the push of `<output>`, and the time is that of the

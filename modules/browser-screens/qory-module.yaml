@@ -1,0 +1,15 @@
+apiVersion: qory.dev/v1alpha1
+name: browser-screens
+description: >-
+  The surface module of a software factory whose product has screens in a browser: the
+  skill scripting-demos, which a Build session runs after the last deliverable to write one
+  demo script for each approved demo scenario; and the agent browser-demo-author, which
+  fills the role demo-author and writes only the browser actions of a script. A stack
+  without this module binds no agent to the role demo-author, so no workflow of it starts
+  that role.
+roles:
+  agents:
+    demo-author: one
+provides:
+  agents:
+    demo-author: browser-demo-author

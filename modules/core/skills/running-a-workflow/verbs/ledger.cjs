@@ -17,6 +17,8 @@
 //   resume, and crashed is the rows that a session of the same run started and left running,
 //   which resume of this session marked failed;
 // - replay(io, row): whether a done row with the same inputs replays;
+// - model(io, agent): the model of a start of agent, which step end adds to each --attempt,
+//   or unknown;
 // - finish(io, { ledger, place, state, report }): at step end, { findings, members }, where
 //   report is the text of --report, or null when the call has none or it is too long;
 // - point(io, { ledger, root }): the point { text, action, fix } that step begin writes at
@@ -58,12 +60,11 @@ const MAX_POINTS = 20;
 const REPORT_LENGTH = 8192;
 const REPORT_BYTES = 8192;
 
-// The forms of a workflow, an agent, a role or a type name, a tier and a model.
+// The forms of a workflow, an agent, a role or a type name, and a tier.
 const WORKFLOW = /^[a-z][a-z0-9-]{0,54}$/;
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const NAME_LENGTH = 32;
 const TIERS = ['light', 'balanced', 'thinking'];
-const MODEL = /^[!-~]{1,100}$/;
 
 // The longest finding line, so that each line keeps a quote of a value whole.
 const FINDING = 196;
@@ -552,7 +553,7 @@ function endLocked(io, root, ledger, { id, state, options }) {
   }
   const row = rows.steps[place];
   Object.assign(row, { state, ...finish.members, ...options.values, ended_at: now(),
-    attempts: options.attempts });
+    attempts: options.attempts.map((one) => ({ ...one, model: ledger.model(io, one.agent) })) });
   if (options.pushed.length) row.pushed = options.pushed;
   if (text !== null) row.report = text;
   push(io, root, ledger, rows, 'step end');
@@ -577,13 +578,26 @@ function endOptions(ledger, id, state, rest) {
       if (options.report !== undefined) return { wrong: 'Give --report once.' };
       options.report = value;
     } else if (flag === '--attempt') {
-      const [agent, role, tier, ...model] = value.split(',');
-      const joined = model.join(',');
-      if (!ok(agent) || !ok(role) || !TIERS.includes(tier) || !MODEL.test(joined)) {
-        return { wrong: 'Give --attempt as <agent>,<role>,<tier>,<model>, with a tier of ' +
-          `${TIERS.join(', ')}.\n${shown(value)} is not.` };
+      // A value has no model: step end reads the model from the files of the harness.
+      // shortcut: the session types the tier, and no check compares it with the tier of the
+      // agent file; check it once the run has a record of the tier of each agent.
+      const parts = value.split(',');
+      const [agent, role, tier] = parts;
+      let cause = null;
+      if (parts.length !== 3) {
+        cause = `The value is ${shown(value)}, which has ${plural(parts.length, 'part')}.`;
+      } else if (!ok(agent) || !ok(role)) {
+        const [what, name] = ok(agent) ? ['role', role] : ['agent', agent];
+        cause = `The ${what} ${shown(name)} is not a lower-case name of at most ` +
+          `${NAME_LENGTH} characters.`;
+      } else if (!TIERS.includes(tier)) {
+        cause = `The tier ${shown(tier)} is not light, balanced or thinking.`;
       }
-      options.attempts.push({ agent, role, tier, model: joined });
+      if (cause) {
+        return { wrong: 'Give --attempt as <agent>,<role>,<tier>, with a tier of ' +
+          `${TIERS.join(', ')}.\n${cause}` };
+      }
+      options.attempts.push({ agent, role, tier });
     } else if (flag === '--pushed') {
       const match = /^([^/]+)\/([^/]+)\/([1-9][0-9]{0,5})$/.exec(value);
       if (!match || !ok(match[1]) || !ok(match[2]) || Number(match[3]) > MAX_VERSION) {
@@ -683,7 +697,7 @@ module.exports = {
     step: {
       usage: [
         'step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>] <file>...',
-        'step end <id> done|failed [--report <file>] [--attempt <agent>,<role>,<tier>,<model>]...' +
+        'step end <id> done|failed [--report <file>] [--attempt <agent>,<role>,<tier>]...' +
           '\n       [--pushed <type>/<name>/<version>]... and the flags of the skill',
       ],
       crash: crash('step'),

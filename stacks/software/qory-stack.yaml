@@ -4,6 +4,7 @@ description: The software factory harness, for a checkout to extend
 modules:
   - name: core
   - name: software-factory
+  - name: browser-screens
 workflows:
   explore-a-ticket: {tier: thinking, access: read}
   write-specs: {tier: thinking, access: read}
