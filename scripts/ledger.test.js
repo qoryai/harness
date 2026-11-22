@@ -314,9 +314,9 @@ function pluginWith({ models = {}, files = {}, settings } = {}) {
 // twoRuntimes returns the folders of a harness home that qory composes for claude and codex
 // with --model main-model-x --tier thinking=think-model-y, as qory at 64e700db writes it: the
 // developer has the tier thinking, and the debugger stands for an agent whose tier has no
-// map, so its file has no model: line. Codex agents have no model in a home for two runtimes.
-// The skill folders link the skill of this repository. checkout is the .agents and .claude of
-// a checkout, which link the skills of the home.
+// map, so its file has no model: line. Codex agents have no model in a home for two runtimes,
+// and config.toml has the main model. The skill folders link the skill of this repository.
+// checkout is the .agents, .codex and .claude of a checkout, which link the files of the home.
 function twoRuntimes() {
   const home = fresh('harness');
   const put = (file, text) => {
@@ -341,8 +341,10 @@ function twoRuntimes() {
     skill(`${folder}/skills`);
   }
   put('checkout/.claude/settings.json', JSON.stringify({ model: 'main-model-x' }));
-  put('codex/config.toml', 'model = "main-model-x"\n');
-  put('codex/agents/software-developer.toml', 'name = "software-developer"\n');
+  for (const folder of ['codex', 'checkout/.codex']) {
+    put(`${folder}/config.toml`, 'model = "main-model-x"\n\n[features]\n');
+    put(`${folder}/agents/software-developer.toml`, 'name = "software-developer"\n');
+  }
   skill('codex/skills');
   skill('checkout/.agents/skills');
   return {
@@ -387,15 +389,64 @@ test('ledger: step end adds the model of each start: agent file, settings.json, 
   })), ['model-q', 'model-c']);
   // The layouts of a home for two runtimes. Claude Code in a run loads claude/plugin, and a
   // session that reads the checkout loads claude/ through .claude; both read
-  // claude/settings.json. Codex reads codex/ as CODEX_HOME, or .agents of the checkout, and
-  // runs each agent on the main model, so the model: lines of claude/ beside it do not apply.
+  // claude/settings.json. Codex reads codex/ as CODEX_HOME, or .agents of the checkout with
+  // the .codex beside it. Its agents have no model there, so each runs on the model of
+  // config.toml, and the model: lines of claude/ beside it do not apply.
   const home = twoRuntimes();
   for (const plugin of [home.plugin, home.claude, home.dotClaude]) {
     assert.deepEqual(models(plugin), ['think-model-y', 'main-model-x'], plugin);
   }
   for (const plugin of [home.codex, home.agents]) {
-    assert.deepEqual(models(plugin), ['unknown', 'unknown'], plugin);
+    assert.deepEqual(models(plugin), ['main-model-x', 'main-model-x'], plugin);
   }
+});
+
+// codexOnly returns the codex/ folder of a harness home composed for Codex alone, with
+// config.toml of the text config, an agents/<name>.toml of the text of each of agents, and
+// codex/skills, which links the skill of this repository.
+function codexOnly({ config, agents = {} }) {
+  const home = fresh('harness');
+  const put = (file, text) => {
+    fs.mkdirSync(path.dirname(path.join(home, file)), { recursive: true });
+    fs.writeFileSync(path.join(home, file), text);
+  };
+  put('codex/config.toml', config);
+  for (const [name, text] of Object.entries(agents)) put(`codex/agents/${name}.toml`, text);
+  fs.mkdirSync(path.join(home, 'codex/skills'), { recursive: true });
+  fs.symlinkSync(path.join(MODULES, 'software-factory/skills/running-a-software-workflow'),
+    path.join(home, 'codex/skills/running-a-software-workflow'));
+  return path.join(home, 'codex');
+}
+
+test('ledger: on Codex, step end adds the model of agents/<agent>.toml, else config.toml', () => {
+  const models = (plugin) => {
+    const w = work();
+    const call = resumed(w, { plugin });
+    assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
+    commit(w, 'd.txt', 'The change.\n');
+    const ended = call('step', 'end', 'deliverable:d-1', 'done',
+      '--attempt', 'software-developer,developer,thinking',
+      '--attempt', 'software-debugger,debugger,thinking');
+    assert.equal(ended.status, 0, ended.out);
+    return stored(w).ledger.steps[0].attempts.map((one) => one.model);
+  };
+  const main = 'model = "main-model-x"\n\n[features]\nunified_exec_tty = false\n';
+  // The model of the agent file comes first; the debugger has no file and takes config.toml.
+  assert.deepEqual(models(codexOnly({ config: main, agents: {
+    'software-developer': 'description = "d"\nmodel = "think-model-y"\nname = "x"\n' } })),
+  ['think-model-y', 'main-model-x']);
+  assert.deepEqual(models(codexOnly({ config: main })), ['main-model-x', 'main-model-x']);
+  // With neither, the agent runs on the runtime's default.
+  assert.deepEqual(models(codexOnly({ config: '[features]\nmodel = "in-a-table"\n' })),
+    ['unknown', 'unknown']);
+  // Single quotes, a comment and CRLF line ends; a model in a multi-line string or after the
+  // first table is no top-level model; an id that the ledger cannot take is unknown.
+  assert.deepEqual(models(codexOnly({
+    config: 'notes = """\nmodel = "in-a-string"\n"""\nmodel = "main-model-x"\n',
+    agents: { 'software-developer': "name = 'x'\r\nmodel = 'model-s' # thinking\r\n",
+      'software-debugger': 'name = "y"\n[features]\nmodel = "in-a-table"\n' } })),
+  ['model-s', 'main-model-x']);
+  assert.deepEqual(models(codexOnly({ config: 'model = "a b"\n' })), ['unknown', 'unknown']);
 });
 
 test('ledger: an edit outside a step fails step begin or step end', () => {

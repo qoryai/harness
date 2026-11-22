@@ -2531,9 +2531,12 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   `step end` adds the model: the `model:` of the agent file in the plugin folder, else the
   `model` of the `settings.json` in the plugin folder or beside it, else `unknown`, the
   runtime's default. The plugin folder is `claude/plugin` in a run and `claude/` or the
-  checkout's `.claude` in a session that reads the checkout. A Codex session gets
-  `unknown`, because the lookup reads no Codex file: the skill runs from a folder with
-  `config.toml`, the Codex home, or from the checkout's `.agents`. `step end` exits 2 for a
+  checkout's `.claude` in a session that reads the checkout. In a Codex session, which
+  runs the skill from the Codex home, a folder with `config.toml`, or from the checkout's
+  `.agents` beside its `.codex`, the model is the `model` of `agents/<agent>.toml` of the
+  Codex home, else the top-level `model` of its `config.toml`, else `unknown`. A home
+  composed for Codex and another runtime writes no tier into the Codex agents, so each of
+  them gets the model of `config.toml`. `step end` exits 2 for a
   value with other than 3 parts, such as a model as a fourth part, and line 2 of its error
   has the cause: the number of parts, the agent or role that is no name, or the tier;
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
@@ -3883,10 +3886,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     last `/`, up to the first `-`, so `claude-sonnet-5` and `openrouter/claude-opus-5` are
     `claude`. A reviewer's id is the `model:` line of its agent file, which qory writes for
     the tier, unless it is a `${qory:` name; else the `model` of the `settings.json` in the
-    plugin folder or beside it; else `unknown`, and `unknown` in a Codex session, as
-    `step end` reads it. An id that is `unknown`, missing or no 1 to 100
-    printable characters gives `unknown`. No list of families exists, because nothing in
-    qory, the forager or this harness maps a model id to its family.
+    plugin folder or beside it; else `unknown`, and in a Codex session the model of the
+    agent's `.toml`, else of `config.toml`, as `step end` reads it. An id that is
+    `unknown`, missing or no 1 to 100 printable characters gives `unknown`. No list of
+    families exists, because nothing in qory, the forager or this harness maps a model id to
+    its family.
 
   `target_version` is the commit of HEAD. The record has the commit, the lock version, each
   row's state, and the criteria not verified. `check verification` reads it, as the type

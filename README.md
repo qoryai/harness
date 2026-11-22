@@ -339,7 +339,8 @@ workflows:
   most, and after each start runs `scope`, `run lint`, `run types`, `run build` and the
   targeted checks. When every check is green, `freeze` commits the step and `step end done`
   records it, with the role, tier and model of each agent start, the model from the agent
-  file or the session's `settings.json`, else `unknown`; after a third red attempt,
+  file or the session's `settings.json`, on Codex from the agent's `.toml` or `config.toml`,
+  else `unknown`; after a third red attempt,
   `step end failed` records it and the session ends with no point, or, when it ran no
   `step end done`, with one `run_again` point and `escalate`. A writer's line
   `Blocked: needs a change to the build plan: <the change>` ends the session with one

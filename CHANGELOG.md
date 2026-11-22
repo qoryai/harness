@@ -1066,8 +1066,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - `checks.cjs step end` takes `--attempt <agent>,<role>,<tier>` and adds the model of each
   agent start to the build ledger: the `model:` of the agent file in the plugin folder, else
   the `model` of the `settings.json` in the plugin folder or beside it, else `unknown`, when
-  the agent runs on the runtime's default. A Codex session gets `unknown`, because the
-  lookup reads no Codex file. For a value with a fourth part, the model of the earlier form,
+  the agent runs on the runtime's default. In a Codex session, the model is the `model` of
+  the agent's `agents/<agent>.toml` in the Codex home, else the `model` of its `config.toml`,
+  else `unknown`. For a value with a fourth part, the model of the earlier form,
   `step end` exits 2. `matrix` reads the models of Verify's agents by the same code.
   `## Steps` of `build-report.md` has the columns Role, Tier and Model, with one value per
   agent start of the row, or `none`.
