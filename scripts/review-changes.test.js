@@ -60,8 +60,8 @@ const REVIEWERS = ['code-reviewer', 'test-reviewer', 'acceptance-reviewer'];
 // The members of qory.review_session that each reviewer of a review session reads, in the
 // words of judging-findings. Change the names here, and the test shows each text to change.
 const SESSION_VALUES = 'Read each value from `qory.review_session`, which qory writes: ' +
-  '`commit`, `diff`, `suite_result` and, when qory writes them, `previous_findings` and ' +
-  '`build_report`.';
+  '`commit`, `diff`, `suite_result` and, when qory writes them, `previous_findings`, ' +
+  '`build_report` and `outputs`.';
 // The members of the group role reviewers with paths; REVIEWERS have none, so they start for
 // every change.
 const GROUP = ['security-reviewer', 'data-reviewer', 'failure-reviewer'];
@@ -127,6 +127,12 @@ test('each reviewer reads qory.review, or qory.review_session in a review sessio
   says(judging, 'When `inputs.json` has no `qory.review` and has the member ' +
     '`qory.review_session`, the session of `review-changes` started you as one of its agents.');
   says(judging, SESSION_VALUES);
+  // outputs is no path: the outputs that passed their schema check, inline, by type.
+  says(judging, '`outputs`: no path. An object in the input file whose members are the ' +
+    'outputs that the stage declares, keyed by type, written inline');
+  says(judging, 'When `outputs` is missing, go on: it is no reason to stop.');
+  says(agent('acceptance-reviewer'), 'With no `outputs`, check no text of a pull request and ' +
+    'go on.');
   says(judging, '`report` is `<reports>/<your agent name>.json`, where `<reports>` is ' +
     '`qory.review_session.reports`');
   for (const name of [...REVIEWERS, ...GROUP]) {
