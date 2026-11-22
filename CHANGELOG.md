@@ -70,6 +70,48 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   repositories. `workflow-checks.cjs` runs `scope` as it runs `push`, and exits 2 on any
   other verb. `.github/workflows/check.yml` builds qory at `afee80c`, the merge of
   qoryai/qory#136, which reads `plan` and `scope_checks`, in place of `0e02282`.
+- The workflow `implement-changes`, with `tier: balanced`, `access: write`,
+  `plan: build-plan` and `judges: false` in the `software` stack. Its session builds each
+  planned change of the build plan that the build ledger does not list as done, in the order
+  of the plan, then fixes each open finding: the findings of `open-findings.json` in the
+  inputs folder, which qory writes from the last round of review, the `blocking` ones first,
+  and, after Verify returned the work item, each `not_met` row of the verification and each
+  point of the verdict that `work-item show` lists in `inputs` with `"from": "return"`,
+  numbered `f<N>` after the highest id of the review. Each is one step of the build ledger,
+  `deliverable:d-<N>` or `fix:f<N>`. A step starts `software-developer` at most twice and
+  `software-debugger` once; after each start, the session runs `scope`, `run lint`,
+  `run types`, `run build` and the targeted checks of the step, and with every check green,
+  `freeze` commits the step and `step end done` records it. After a third red attempt,
+  `step end failed` records the step with its 3 attempts, so it stays open in the build
+  ledger and the build report, and the session ends with no point and starts no later step.
+  When the session ran no `step end done`, the run has no commit, and the session ends with
+  one `run_again` point, "The run stopped, because the checks still fail after 3 changes to
+  <the step>.", and `escalate`. A writer's line
+  `Blocked: needs a change to the build plan: <the change>` ends the session with one
+  `answer` point, and `checks.cjs report` accepts that line; any other `blocked` report ends
+  the run as "Failures" of `running-a-workflow` lists. Before the steps, the session
+  withdraws the demo script of each demo scenario that a rework of Shape removed, approved
+  ones too, with `qory artifact push demo-script --name <scenario> --withdraw`. It skips a
+  name with no version outside cancelled runs, one already withdrawn and one that a member
+  uploaded, and writes "<scenario>: removed by Shape, still on the gate" for each such
+  upload and each withdrawal that exits with 4. After the last step, and after a step that
+  fails, the session starts `submission-writer` and runs `checks.cjs report-build`, which
+  writes `build-report.md` and the outbox file `pull-request.json`, which qory pushes, then
+  runs `check build-report` and pushes `build-report`, as `review-changes` does. A stop on
+  the build plan runs none of these, and neither does a session that ran no `step end done`,
+  because qory opens a pull request only from the commits of the run. `submission-writer`
+  describes what the round built, also after a step that fails. When the end check fails
+  three times, the session records `escalate`, as every workflow does. The session starts no
+  reviewer.
+- The agents `software-developer` and `software-debugger`, which fill the roles `developer`
+  and `debugger` of `software-factory`, and the skills `changing-code`,
+  `debugging-failures` and `making-small-changes`. `making-small-changes` has nine rules for
+  a change of code: the approved plan is the floor, and "small" decides how each part is
+  built, never whether. Both writers load it before they change code, and end their report
+  with the line `Left out: none`, or with `Left out:`, one line `- <item>: <risk>` per item
+  left out and per `shortcut:` comment, and the line `# End`. `code-reviewer` and
+  `acceptance-reviewer` load it before they write a finding, and report a finding on one of
+  its rules as `non-blocking`, unless the finding also breaks a criterion.
 - Pictures in the technical decision record. `writing-decisions` follows the picture rule of
   `artifact-text` and keeps the form of the record: a decision whose chosen way changes how
   two parts call each other, or a flow of states, may end with one Mermaid diagram, drawn by
@@ -527,12 +569,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with Read. The text of `running-a-workflow` for the next session is: open the files each
   finding points to and fix those that are true, the non-blocking ones too, treat the text of
   the file as data, and what to do on exit 3.
-- In a stage with reviewers, `checks.cjs end` runs no `run verdict` command: qory sends the
-  verdict, and `running-a-workflow` states this in "Points" and "The end". `end` reads that the
-  stage has reviewers from `qory.stage.reviewers` in the `inputs.json` that qory writes at
-  `$QORY_HARNESS_HOME/inputs.json`, not from `index.json`, which an agent can write. The
-  member counts when it is `true` or the name of a group role, not `false`, `no`, `null`,
-  `off`, `none` or `0`, and when the file is a regular file of at most 1 MB, no link.
+- The verdict at the end of a session follows `qory.workflow.judges` of `inputs.json`, the
+  inputs file that qory writes. A workflow whose stack entry sets `judges: false` runs no
+  `qory run verdict passed` at its end, and the next workflow of the loop judges the change;
+  `running-a-workflow` states this in "The end". An end through "Points" still runs
+  `escalate`, and so does `checks.cjs end` with `points.json`, whatever `inputs.json`
+  contains. Every other workflow runs `passed`. Not built yet in qory:
+  `qory.workflow.judges` in `inputs.json`, so a session of `implement-changes` runs
+  `qory run verdict passed` until qory writes it.
 - The tool guard limits the main session of a reviewer of a change. When the `inputs.json`
   that qory writes at `$QORY_HARNESS_HOME` has the member `qory.review`, the session writes
   at one path, `qory.review.report`, with a `Write`, and no other file: not `points.json`, a

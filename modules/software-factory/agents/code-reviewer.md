@@ -56,6 +56,9 @@ Load each skill when its step comes, and no other:
   Point of a finding.
 - ${qory:skills/simple-communication}, before you write a finding: the sentence rules of
   each `point`.
+- ${qory:skills/making-small-changes}, before you write a finding: the rules that a
+  `broken rule` proof quotes. A finding on one of these rules is `non-blocking`, unless the
+  finding also breaks a criterion.
 
 The prompt contains the path of the input file. Read `qory.review` in it. You get no summary
 from another session. You fetch no web page. A refused tool call stays refused. Read through

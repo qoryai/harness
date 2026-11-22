@@ -115,9 +115,10 @@ workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-tic
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
 `access: write`, the workflow `write-acceptance-checks`, with `tier: balanced` and
+`access: write`, the workflow `implement-changes`, with `tier: balanced` and
 `access: write`, and the workflow `review-changes`, with `tier: thinking` and
-`access: write`. The `software-factory` module ships the process template, nine workflows'
-skills, twenty-six other skills, twenty-three agents and the settings for a run of those
+`access: write`. The `software-factory` module ships the process template, ten workflows'
+skills, thirty other skills, twenty-six agents and the settings for a run of those
 workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -330,6 +331,38 @@ workflows:
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
   `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
   as text. The session passes it the changed paths of the working folder.
+- `workflow-implement-changes`: orchestrate the code change of one ticket in a Build run.
+  The session builds each planned change that is not built, in the order of the build plan,
+  then fixes each open finding of the review and each finding of Verify after a return: each
+  `not_met` row of the verification and each point of the verdict. Each is one step of the
+  build ledger. A step starts `software-developer` twice and `software-debugger` once at
+  most, and after each start runs `scope`, `run lint`, `run types`, `run build` and the
+  targeted checks. When every check is green, `freeze` commits the step and `step end done`
+  records it; after a third red attempt, `step end failed` records it and the session ends
+  with no point, or, when it ran no `step end done`, with one `run_again` point and
+  `escalate`. A writer's line `Blocked: needs a change to the build plan: <the change>` ends
+  the session with one `answer` point. Before the steps, the session withdraws the demo
+  script of each removed demo scenario. After the last step, and after a step that fails, it
+  starts `submission-writer` and runs `checks.cjs report-build`, which writes
+  `build-report.md` and the outbox file `pull-request.json`, then checks and pushes
+  `build-report`. A session that ran no `step end done` skips these, because qory
+  opens a pull request only from at least one commit. Its stack entry sets `judges: false`,
+  so it ends with no verdict command once qory writes `qory.workflow.judges` (see the
+  `shortcut:` note in `scripts/checks.test.js`), and `review-changes` runs next.
+- `changing-code`: load it before you change code for one step of a build. The skill
+  contains the step you get, the paths you may change, the tests of the change, the checks
+  you run and the list `Left out:` of the report.
+- `debugging-failures`: load it before you look for the cause of a check that stays red
+  after two changes of a step. The skill contains how you find and prove the cause from the
+  records of the checks.
+- `making-small-changes`: load it before you change code or review a change. The skill
+  contains nine rules: how small a change is, and what it never cuts.
+- `software-developer`: an agent that changes the code of one step in the paths of the
+  build plan by `changing-code` and `making-small-changes`, runs the targeted checks, and
+  reports what it left out. It fills the role `developer`.
+- `software-debugger`: an agent that finds and fixes the cause of the red checks of a step
+  by `debugging-failures`, as the third and last start of the step. It fills the role
+  `debugger`.
 - `workflow-review-changes`: check a Build run before its review round. With no build plan,
   it ends with a `run_again` point. While a planned change is not built, or a locked file
   differs from the acceptance lock, it ends with `qory run verdict changes-requested`. When
@@ -366,19 +399,20 @@ workflows:
 - `submission-writer`: an agent that writes `.reports/submission.md` of the artifact
   folder by `writing-submissions`: the title and the parts `## Problem`, `## Change`,
   `## Tests` and `## Disclosed`, from the build plan, the build ledger and the records of
-  the checks. It types no result. `workflow-review-changes` starts it when every check
-  passed.
+  the checks. It types no result. `workflow-implement-changes` starts it at the end of each
+  round, also after a step that fails, and `workflow-review-changes` starts it when every
+  check passed.
 - `code-reviewer`: an agent that reviews the code of a change, apart from its tests, by
   `reviewing-changes`, `judging-findings` and `checking-code`, and writes one report file.
-  It also reports a security hole, data loss or a secret in a test. qory starts it in the
-  review round.
+  It also reports a security hole, data loss or a secret in a test, and a broken rule of
+  `making-small-changes` as `non-blocking`. qory starts it in the review round.
 - `test-reviewer`: an agent that reviews the tests of a change by `reviewing-changes`,
   `judging-findings` and `checking-tests`, and writes one report file. qory starts it in the
   review round.
 - `acceptance-reviewer`: an agent that reviews by `reviewing-changes`, `judging-findings`
   and `checking-acceptance` whether a change meets each approved acceptance criterion and
-  builds each planned change, and writes one report file. qory starts it in the review
-  round.
+  builds each planned change, and writes one report file. It reports a broken rule of
+  `making-small-changes` as `non-blocking`. qory starts it in the review round.
 - `checking-security`: load it before you review a change for security holes, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area and the proof it needs, and the

@@ -160,7 +160,8 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
     'or lies below it');
 });
 
-test('the stack declares write-acceptance-checks with tier balanced, access write and its plan', () => {
+test('the stack declares write-acceptance-checks with tier balanced, access write and its ' +
+  'plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
   assert.match(stack,
     /\n {2}write-acceptance-checks: \{tier: balanced, access: write, plan: build-plan\}\n/);
