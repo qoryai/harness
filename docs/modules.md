@@ -319,17 +319,32 @@ documentation, untested: a subagent cannot start another by default on Codex
 (`agents.max_depth` is 1), Gemini CLI or Goose, and on OpenCode only with a `task`
 permission. Claude Code allows it only when `tools` lists `Agent`, and no agent here does.
 
-qory creates `.qory/repositories` only when the run has further repositories, and an agent
-with only Read, Grep and Glob cannot check for a folder: a Glob or Grep on a missing path
-fails, and one with no path leaves that folder out. So the session of
-`workflow-explore-a-ticket` runs `find . -maxdepth 2 -path ./.qory/repositories -type d`
-once, before the first agent. It gives `code-explorer` and `proposal-writer` the line
-"Further repositories: yes" or "Further repositories: no", and, with "yes",
-`questions-writer` and `questions-reviewer` the line "Also search: .qory/repositories". An
-agent that follows `exploring-code` searches `.qory/repositories` only with "yes". An agent
-that follows `checking-questions` searches a folder under `.qory`, other than the artifact
-folder, only when a line "Also search:" names it. An agent with no such line searches only
-the working folder.
+qory copies no destination before an Explore session: the `destinations` of the input file
+list the places of the workspace, each with an id such as `tg_8k2m4n6p8q0r2s4t`. The first
+start of `code-explorer` reads only the input file and lists the ids that the ticket
+concerns under "Destinations:". The session checks them with `checks.cjs destinations
+--inputs <input file> <id>...`, runs one `qory destination clone <id>...` with the ids that
+it printed, and gives the printed lines `<id> <folder>` under "Destinations:" to
+`code-explorer`, `proposal-writer`, `proposal-reviewer`, `questions-writer` and
+`questions-reviewer`, and the last two one line "Also search: <folder>" per folder. It
+copies once more at most, when a later report of `code-explorer` lists an id that the
+session did not copy, with every id so far and the new ones, within the 100 of the script.
+When the script refuses the ids, `code-explorer` starts once more, and a second refusal ends
+the run with `escalate` and the first line of the refusal as the text of the first point. A
+copy that fails runs once more. A second failure ends the run with `escalate` and the error
+line of the copy as the text of the first point, or, when `check points` refuses that line,
+the line "Report this run to the instance admin of Qory Apiary: copying the destinations
+failed twice." With no "Destinations:" list, or no input file, the session copies nothing.
+
+Shape and plan-the-build keep `.qory/repositories`, which qory creates only when the run has
+further repositories. An agent with only Read, Grep and Glob cannot check for a folder: a
+Glob or Grep on a missing path fails, and one with no path leaves that folder out. An agent
+that follows `exploring-code` searches `.qory/repositories` only with the line "Further
+repositories: yes". An agent that follows `checking-questions` searches a folder under
+`.qory`, other than the artifact folder, only when a line "Also search:" contains it. It
+searches the working folder when the input file has `target`, and the folder of each line
+"Also search:" also when the input file has no `target`, as with the destinations of
+Explore.
 
 Every proposal is reviewed before the run pushes it. `proposal-writer` drafts it, and
 `proposal-reviewer` reviews the draft, by the skills `reviewing-drafts` and
@@ -533,12 +548,11 @@ It is in `core`, and uses no word of software work. The small workflows of
 `software-factory` also load `running-a-software-workflow`, which adds the `find` of further
 repositories, the "Blocked:" lines on the spec, and the types that "Check before each
 review" checks. With it, the session runs the `find` for `.qory/repositories` once per run,
-also under a higher workflow, as in Explore. It gives the code explorer, the spec writer,
-and the decision writer and reviewer the line "Further repositories: yes" or "no", and, with
-"yes", the questions writer and reviewer the line "Also search: .qory/repositories". A
-decision reviewer lists that folder only with "yes". Qory Apiary's rules stay in
-`run-artifacts`. `workflow-explore-a-ticket` keeps its text and does not use
-`running-a-workflow`.
+also under a higher workflow. It gives the code explorer, the spec writer, and the decision
+writer and reviewer the line "Further repositories: yes" or "no", and, with "yes", the
+questions writer and reviewer the line "Also search: .qory/repositories". A decision
+reviewer lists that folder only with "yes". Qory Apiary's rules stay in `run-artifacts`.
+`workflow-explore-a-ticket` keeps its text and does not use `running-a-workflow`.
 
 A round that follows a verdict `changes-requested` of the current stage with `run_again`
 points fixes those points first. The session of a run alone runs `checks.cjs fixes` once,
@@ -856,6 +870,13 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   string or a `points` value other than a list or null gives exit 3. An absent `verdict`
   counts as null, because a `.qory/work-item.json` outside a run may have none. It uses
   `/qory/qory`, or `qory` from `PATH`, as `end` does, and writes no file.
+- `checks.cjs destinations --inputs <file> <id>...`: the session of Explore runs it before
+  each `qory destination clone`, on the ids that `code-explorer` names. Each id must be
+  `tg_` and 16 characters, an id of `destinations` in the inputs.json at `--inputs` with a
+  `target.address`, and given once, and the call has at most 100 ids. With no finding, it
+  exits with 0 and prints each id on a line of stdout, in the order given, and the line of
+  what it checked on stderr. Each finding exits with 1, a missing id or `--inputs` with 2,
+  and an inputs.json with no list `destinations` with 3. It writes no file.
 - `checks.cjs findings open <file>`: the session of a stage with reviewers runs it at its
   start, on `open-findings.json` in its inputs folder. qory writes that file, read-only,
   from the findings of the latest round of review, `blocking` and `non-blocking`: `{"round":
@@ -2085,15 +2106,24 @@ The checks:
   once, at the end of each report of `proposal-reviewer` that is not `blocked`;
 - the proposal's `## Sources`: only list items, or only the line "No public page and no
   file.", and the same pages and files as `sources.json`; and each `file` ref;
+- `targets.json`, with `--inputs` of an inputs.json that lists `destinations`, required, and
+  else only when the proposal has it: only the member `targets`, 1 to 20 entries, each with
+  only `id` and `why`; each `id` of the form `tg_` and 16 characters, once, and with
+  `destinations`, one of their ids; each `why` plain text on one line of 1 to 500
+  characters. Each `###` part of `## Proposed solution`, or the solution when it has no
+  part, opens with the line `` Destination: `<id>` `` of an id of `targets.json`, and has no
+  second such line. With `--inputs`, a `container` of `sources.json` that starts with `tg_`
+  is an id of `destinations`. An empty `destinations` list counts as none;
 - the refused characters and control characters of `artifact-text`, each link and image,
   `.qory/repositories`, and a path of the machine the run is on: `/tmp/qory-artifacts`,
-  `/qory/`, `/workspace/`, a folder of `.qory`, a home folder by `~/`, `/Users/<name>/`,
-  `/home/agent/` (the home folder in qory's agent image), the home folder of the user that
-  runs the script, from `HOME` (only with two or more parts, or `/root`), and
-  `/var/folders/`. A general top folder such as `/run/`, `/lib/` or `/tmp/` is no such
-  path, and neither is another folder under `/home/`, so an app route such as
-  `/home/orders/12` or `/run/12` passes. A route in a code span is no such path when the
-  span has a method, such as `GET /home/orders/12`, or a link of the text has the route.
+  `/tmp/qory-destinations`, where qory copies the destinations, `/qory/`, `/workspace/`, a
+  folder of `.qory`, a home folder by `~/`, `/Users/<name>/`, `/home/agent/` (the home
+  folder in qory's agent image), the home folder of the user that runs the script, from
+  `HOME` (only with two or more parts, or `/root`), and `/var/folders/`. A general top
+  folder such as `/run/`, `/lib/` or `/tmp/` is no such path, and neither is another folder
+  under `/home/`, so an app route such as `/home/orders/12` or `/run/12` passes. A route in
+  a code span is no such path when the span has a method, such as `GET /home/orders/12`, or
+  a link of the text has the route.
 
 The types of Build and Verify are `pull-request`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,

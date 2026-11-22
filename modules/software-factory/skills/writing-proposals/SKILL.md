@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, track and sources, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, track, sources and targets, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -24,12 +24,13 @@ Describe the work in the words of that kind of work.
 
 ## Write the proposal
 
-Write the proposal in `proposal.md` at the top of the artifact folder, and its sources in
-`sources.json` next to it.
+Write the proposal in `proposal.md` at the top of the artifact folder, its sources in
+`sources.json` next to it, and, when the input file has `destinations`, its targets in
+`targets.json`, as the section "Targets" lists.
 
-When a newest proposal exists, the run copies its `proposal.md`, its `sources.json` and its
-wireframes to the top of the artifact folder before your first start. Edit those files in
-place, as `reading-the-work` lists.
+When a newest proposal exists, the run copies its `proposal.md`, its `sources.json`, its
+`targets.json` and its wireframes to the top of the artifact folder before your first start.
+Edit those files in place, as `reading-the-work` lists.
 
 - Keep its background, its sources and each entry of its `sources.json`, unless an
   answer, a review comment or what you read shows that a part of them is wrong.
@@ -42,7 +43,7 @@ place, as `reading-the-work` lists.
   check that each outcome the ticket or an answer settles is still stated in it. A cut
   removes words, never such an outcome. When two points state one fact, keep the one that
   matches the answer.
-- A version can have no `sources.json`: then start the sources from nothing.
+- A version can have no `sources.json` or `targets.json`: then start that file from nothing.
 
 ## The sections
 
@@ -56,7 +57,8 @@ replaces these rules of that section:
 - The summary: the section "Limits" lists it.
 - The first paragraph of the background: the section "Limits" lists it.
 - One picture under each part's heading: a part with a single change starts with that
-  change's sentence instead, as the section "Limits" lists.
+  change's sentence instead, as the section "Limits" lists. With `targets.json`, the line
+  of the part's destination comes first, as the section "Targets" lists.
 - The reason as the first point of a part with no picture: a part with a single change has
   its sentence instead.
 - The points: the sections "Limits" and "Leave out" list them.
@@ -338,6 +340,10 @@ with it, as `checking-proposals` lists. When it refuses, write "Standard track."
     name, a colon, then the path inside that folder, such as `web: src/cart.ts`, with no
     link. Never write `.qory/repositories` in the proposal: the member who reads the
     proposal does not know that folder.
+  - A file of a destination, in a folder that you got under "Destinations:": the
+    destination's id, a colon, then the path inside that folder, such as
+    `tg_8k2m4n6p8q0r2s4t: src/cart.ts`, with no link. Never write the folder of a
+    destination, such as a path under `/tmp/qory-destinations`.
 - List no ticket, instruction, comment, answer or review comment, and no wireframe: a
   wireframe's file name is not a source.
 - When you used no public page and no file, write only this line under the heading: "No
@@ -347,6 +353,27 @@ with it, as `checking-proposals` lists. When it refuses, write "Standard track."
 - Add no source to a sentence of the summary, the background or the proposed solution,
   such as "(the ticket's body)" or a file's path: list sources only under `## Sources`. The
   one exception is the sentence that states where a secret is.
+
+## Targets
+
+A target is a destination that a change of the proposal goes to: an entry of `destinations`
+in the input file, by its id, such as `tg_8k2m4n6p8q0r2s4t`. When the input file has
+`destinations`, write `targets.json` next to `proposal.md`, in this shape:
+
+```json
+{"targets":[{"id":"tg_8k2m4n6p8q0r2s4t","why":"Keeps the text of the saved reply."}]}
+```
+
+- List 1 to 20 targets, each id once, and only ids of `destinations`. Write no other
+  member.
+- `why` states why a change goes to that destination, in plain text on one line of 1 to 500
+  characters.
+- Open each part of `## Proposed solution` with one line right under its heading:
+  `Destination: ` and the target's id in a code span, such as
+  `` Destination: `tg_8k2m4n6p8q0r2s4t` ``. Then the part goes on with its picture, or with
+  its sentence for a single change.
+- A part has one destination: write a change that goes to two destinations as two parts.
+  A solution with no `###` part opens with that line right under `## Proposed solution`.
 
 ## Public pages and documentation
 

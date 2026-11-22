@@ -14,9 +14,10 @@ process:
     - id: st_r79kph11eg
       name: Explore
       description: >-
-        Agents read the ticket, its comments and the target, and write questions
-        for members about what the ticket leaves open. The stage ends with a proposal: the
-        general direction for solving the ticket.
+        Agents read the ticket and its comments, read the destinations that the ticket
+        concerns, and write questions for members about what the ticket leaves open. The
+        stage ends with a proposal: the general direction for solving the ticket and the
+        destinations it changes.
       inputs: []
       sequence:
         - workflow: explore-a-ticket
@@ -73,8 +74,8 @@ process:
       name: Release
       description: >-
         Agents send the change through the destination you connect, for example
-        as a pull request in each repository. The stage ends when the destination has the
-        change for each repository.
+        as a pull request for the run's target. The stage ends when the destination has
+        the change.
       inputs: []
       sequence: []
       outputs: []
