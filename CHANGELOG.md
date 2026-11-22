@@ -13,19 +13,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   starts for the paths of the change, in turn, as agents of the session. `code-reviewer`,
   `test-reviewer` and `acceptance-reviewer` are members with no `paths`, so they start for
   every change. Each writes one report, `<reports>/<agent>.json`, where `<reports>` is
-  `qory.review_session.reports` of `inputs.json`. qory runs the full suite before the
-  session and passes in `qory.review_session.suite_result` the absolute path of a file with
-  its result, `{tests, failed, skipped, output_tail}`; qory writes the finding of a locked
-  check that fails. The new verb `checks.cjs findings round <reports> --reviewers <names>
-  --suite <file>` reads each report and the suite result once; a reviewer with no valid
-  report and a suite with a failed test, with every test skipped or with no result are one
-  blocking finding each. While a finding is blocking, it exits 1, and the session records
-  `changes-requested` with no point, so qory writes the findings from the reports; otherwise
-  it records `passed`. The session writes no build report and no submission text. Build is a
-  loop of at most 3 rounds of `implement-changes` and `review-changes`, which Apiary runs.
-  Rule 13 of `scripts/check.sh` fails when such a workflow starts a `-reviewer` agent that
-  is no member of its `review_group`, or when a member of a group is no agent that a module
-  defines.
+  `qory.review_session.reports` of `inputs.json`, which qory does not write yet. qory is to
+  run the full suite before the session and pass in `qory.review_session.suite_result` the
+  absolute path of a file with its result, `{tests, failed, skipped, output_tail}`; qory
+  writes the finding of a locked check that fails. The new verb `checks.cjs findings round
+  <reports> --reviewers <names> --suite <file>` reads each report and the suite result once;
+  a reviewer with no valid report and a suite with a failed test, with every test skipped or
+  with no result are one blocking finding each. While a finding is blocking, it exits 1, and
+  the session records `changes-requested` with no point, so qory writes the findings from
+  the reports; otherwise it records `passed`. The session writes no build report and no
+  submission text. Build is a loop of at most 3 rounds of `implement-changes` and
+  `review-changes`, which Apiary runs. Rule 13 of `scripts/check.sh` fails when such a
+  workflow starts a `-reviewer` agent that is no member of its `review_group`, or when a
+  member of a group is no agent that a module defines.
 - The tool guard knows a review session: a session whose `inputs.json` has
   `qory.review_session` as an object. There it allows agent starts, and an agent whose type
   ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case

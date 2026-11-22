@@ -365,17 +365,18 @@ workflows:
   `debugger`.
 - `workflow-review-changes`: the review session of a Build run. Build runs a loop of at most
   3 rounds of `implement-changes` and `review-changes`, which Apiary runs: `passed` leaves
-  the loop, `changes-requested` runs `implement-changes` again. qory runs the full suite
-  before the session. With no build plan, the session ends with a `run_again` point. While a
-  planned change is not built, or a locked file differs from the acceptance lock, it ends
-  with `qory run verdict changes-requested`. Otherwise it starts each member of the group
-  role `reviewers` that `checks.cjs panel` starts for the paths of the change, in turn:
-  `code-reviewer`, `test-reviewer` and `acceptance-reviewer` for every change, and the
-  others for a change in their paths. Each writes one report into the report folder.
-  `checks.cjs findings round` decides the round from the reports and the result of the full
-  suite: a blocking finding, a reviewer with no report and a red suite end with `qory run
-  verdict changes-requested`. With no blocking finding, the session runs `qory run verdict
-  passed`. It writes nothing into the checkout, and no build report or submission text.
+  the loop, `changes-requested` runs `implement-changes` again. qory is to run the full
+  suite before the session and to write `qory.review_session`; it does neither yet. With no
+  build plan, the session ends with a `run_again` point. While a planned change is not
+  built, or a locked file differs from the acceptance lock, it ends with `qory run verdict
+  changes-requested`. Otherwise it starts each member of the group role `reviewers` that
+  `checks.cjs panel` starts for the paths of the change, in turn: `code-reviewer`,
+  `test-reviewer` and `acceptance-reviewer` for every change, and the others for a change in
+  their paths. Each writes one report into the report folder. `checks.cjs findings round`
+  decides the round from the reports and the result of the full suite: a blocking finding, a
+  reviewer with no report and a red suite end with `qory run verdict changes-requested`.
+  With no blocking finding, the session runs `qory run verdict passed`. It writes nothing
+  into the checkout, and no build report or submission text.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.

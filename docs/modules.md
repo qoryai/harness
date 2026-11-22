@@ -185,12 +185,13 @@ note, takes no role note away from an earlier start. A blocked report needs no l
 A change is reviewed in one of two ways, and the reviewers and their report are the same in
 both:
 
-- **A review session.** Build's workflow `review-changes` is a review session: qory writes
-  `qory.review_session` into its `inputs.json`, with `reports`, the report folder, and
+- **A review session.** Build's workflow `review-changes` is a review session: its
+  `inputs.json` has `qory.review_session`, which qory does not write yet, as "Not built yet"
+  in the section on `review-changes` lists. It has `reports`, the report folder, and
   `suite_result`, the absolute path of the file with the result of the full suite, which
-  qory runs before the session; `diff`, `previous_findings` and `build_report` are absolute
-  paths of files too. The session starts each reviewer as one of its agents, and each writes
-  one report, `<reports>/<agent>.json`. Each reviewer reads `commit`, `diff`,
+  qory is to run before the session; `diff`, `previous_findings` and `build_report` are
+  absolute paths of files too. The session starts each reviewer as one of its agents, and
+  each writes one report, `<reports>/<agent>.json`. Each reviewer reads `commit`, `diff`,
   `previous_findings` after the first round, `build_report` when there is one, and the two
   other members from `qory.review_session`, and the prompt passes only the path of the input
   file, so the session cannot point a reviewer at another commit.
@@ -200,50 +201,50 @@ both:
   `diff`, `suite_result`, `previous_findings`, `build_report` and `report`, the path where
   the reviewer writes its report.
 
-The reviewers of Build in `software-factory` are `code-reviewer`, `test-reviewer` and
-`acceptance-reviewer`, and the members of the group role `reviewers`: `security-reviewer`,
-`data-reviewer` and `failure-reviewer`. The skill `reviewing-changes` of `core` lists the
-report: one JSON file with a `reviewer` and a list of findings, each with a `severity` of
-`blocking` or `non-blocking`, `quote`, `problem`, `fix`, `proof`, `point`, and `file`,
-`line` and `id` when they apply. The report has no result word and no list of unverified
-claims, and nobody closes a finding. The skill `judging-findings` of `software-factory`
-defines `blocking` and lists the values of the review from both places: `core` cannot
-contain those words, as rule 11 of `scripts/check.sh` lists. A reviewer that cannot finish
-stops and writes no file. qory reads each report against its schema. In a review session,
-`checks.cjs findings round` reads the reports too, with the rules of that schema, as the
-section on `findings` lists. The test of the example report in `reviewing-changes` reads
-`contracts/harness/v1/review-report.schema.json` of qory at the commit
-`QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder `QORY_SOURCE`.
-`scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the example reports of
-the eight reviewers. `scripts/check.sh` compares the three copies `primitives`,
-`verification` and `acceptance-criteria` in `schemas/` of `software-factory` byte for byte
-with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`. After a round
-with a `blocking` finding, qory writes `open-findings.json` from the reports for the next
-session of `implement-changes`, which `checks.cjs findings open` prints as lines to fix
-first, as its bullet in the section "Small workflows" lists. qory writes `qory.review`,
-`qory.review_session`, `qory.stage` and `open-findings.json`; this harness only reads them.
-The tool guard denies a write to a report path below `.git` or `.claude` of the working
-folder. When the harness home is below the working folder, the deny of a write below the
-harness home applies to the report path too, so the report folder must be outside the home;
-when the home is outside the working folder, the report path may be in it. A Codex reviewer
-writes its report with an `apply_patch` that adds that one file, as the bullet "a write from
-the main session outside the artifact folder" lists.
+The reviewers of Build in `software-factory` are the six members of the group role
+`reviewers`: `code-reviewer`, `test-reviewer` and `acceptance-reviewer`, with no `paths`,
+and `security-reviewer`, `data-reviewer` and `failure-reviewer`, with paths. The skill
+`reviewing-changes` of `core` lists the report: one JSON file with a `reviewer` and a list
+of findings, each with a `severity` of `blocking` or `non-blocking`, `quote`, `problem`,
+`fix`, `proof`, `point`, and `file`, `line` and `id` when they apply. The report has no
+result word and no list of unverified claims, and nobody closes a finding. The skill
+`judging-findings` of `software-factory` defines `blocking` and lists the values of the
+review from both places: `core` cannot contain those words, as rule 11 of `scripts/check.sh`
+lists. A reviewer that cannot finish stops and writes no file. qory reads each report
+against its schema. In a review session, `checks.cjs findings round` reads the reports too,
+with the rules of that schema, as the section on `findings` lists. The test of the example
+report in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory
+at the commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
+`QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
+example reports of the eight reviewers. `scripts/check.sh` compares the three copies
+`primitives`, `verification` and `acceptance-criteria` in `schemas/` of `software-factory`
+byte for byte with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`.
+After a round with a `blocking` finding, qory writes `open-findings.json` from the reports
+for the next session of `implement-changes`, which `checks.cjs findings open` prints as
+lines to fix first, as its bullet in the section "Small workflows" lists. qory writes
+`qory.review`, `qory.stage` and `open-findings.json`, and is to write `qory.review_session`;
+this harness only reads them. The tool guard denies a write to a report path below `.git` or
+`.claude` of the working folder. When the harness home is below the working folder, the deny
+of a write below the harness home applies to the report path too, so the report folder must
+be outside the home; when the home is outside the working folder, the report path may be in
+it. A Codex reviewer writes its report with an `apply_patch` that adds that one file, as the
+bullet "a write from the main session outside the artifact folder" lists.
 
 ### The reviewers of Verify
 
 Two agents of `software-factory` review Verify's work: `tamper-reviewer` with the skill
 `checking-tampering`, and `verification-reviewer` with the skill `judging-criteria`. They
 are agents of the `verify-a-ticket` session, which starts them. They are no reviewer
-sessions that qory starts, and they read no `qory.review`. qory writes `qory.review_session`
-into the `inputs.json` of the session, with `commit`, the pushed head of the fresh copy,
-`diff`, the path of the diff, `previous_findings`, the path of `open-findings.json`, which
-qory leaves out in the first round, `reports`, the report folder, `suite_result`, the path
-of the file with the suite result, and, when there is one, `build_report`, the path of the
-file with the report of the build. The prompt of each agent has only the path of the input
-file, so the prompt has no commit, diff or findings; the path of `inputs.json` itself comes
-from the prompt. Where a skill lists a value of `qory.review`, the agent reads the member of
-the same name in `qory.review_session`. Each agent writes one report to
-`<reports>/<agent>.json` in the review-report format, such as
+sessions that qory starts, and they read no `qory.review`. qory is to write
+`qory.review_session` into the `inputs.json` of the session, with `commit`, the pushed head
+of the fresh copy, `diff`, the path of the diff, `previous_findings`, the path of
+`open-findings.json`, which qory leaves out in the first round, `reports`, the report
+folder, `suite_result`, the path of the file with the suite result, and, when there is one,
+`build_report`, the path of the file with the report of the build. The prompt of each agent
+has only the path of the input file, so the prompt has no commit, diff or findings; the path
+of `inputs.json` itself comes from the prompt. Where a skill lists a value of `qory.review`,
+the agent reads the member of the same name in `qory.review_session`. Each agent writes one
+report to `<reports>/<agent>.json` in the review-report format, such as
 `<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
 `reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
 file cannot be read. With no `previous_findings`, it goes on as the first round. Each loads
@@ -3292,11 +3293,11 @@ blocking finding open the stage goes to a person with the newest findings. The s
 the workflow with `tier: thinking`, `access: read` and `review_group: reviewers`, the group
 role whose reports qory checks the verdict against, and no `plan`, because qory refuses a
 `plan` on a workflow that cannot write: the checkout is read-only, and the session writes
-only into the artifact folder and the report folder `qory.review_session.reports`. qory runs
-the full suite before the session, and passes the absolute path of its result file in
-`qory.review_session.suite_result`; `findings round` reads that file, and a file that it
-cannot read is one blocking finding. qory writes the finding of a locked check that fails.
-The session runs no ledger step. In this order:
+only into the artifact folder and the report folder `qory.review_session.reports`. qory is
+to run the full suite before the session, and to pass the absolute path of its result file
+in `qory.review_session.suite_result`, as "Not built yet" lists; `findings round` reads that
+file, and a file that it cannot read is one blocking finding. qory writes the finding of a
+locked check that fails. The session runs no ledger step. In this order:
 
 1. It pulls and runs `checks.cjs resume`, and stops when the input file has no
    `qory.review_session`.
@@ -3391,11 +3392,14 @@ The session runs no ledger step. In this order:
   A name in another case than the globs have, such as `Passwords.java`, starts none.
   Each of the three also reports what `code-reviewer` reports in its area, so a finding
   may be in two reports. `code-reviewer`, `test-reviewer` and `acceptance-reviewer` are
-  no members of the group.
+  members of the group too, with no `paths`, so they start for every change.
 - **Earlier findings.** Each reviewer re-reads each finding of `previous_findings`, as
   `reviewing-changes` and `judging-findings` list, and repeats with its id each finding of
   its area that is still true.
 - **Not built yet.** These parts are not built yet:
+  - `qory.review_session` in the `inputs.json` of the `review-changes` session, and the
+    run of the full suite before it: at qory `64e700db`, `newReviewSessionInputs` and the
+    check of the round have `shortcut: not called yet`, so qory writes neither;
   - the run of the loop of Build, which Apiary runs;
   - the shape of `previous_findings`;
   - `qory.review.outputs` in the `inputs.json` of a reviewer, each declared output by
