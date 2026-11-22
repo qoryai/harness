@@ -65,7 +65,7 @@ function artifacts(text = SCENARIOS, scripted = []) {
 }
 
 // pushScript writes version 1 of the demo script of name into root, as the pull of a pushed
-// script does: demo write builds it from the actions of ONE or TWO in a folder of its own.
+// script does: demo write builds it from the actions of ONE or TWO in a separate folder.
 function pushScript(root, name, text) {
   const side = artifacts(text);
   actions(side, name, name === 'scenario-1' ? ONE : TWO);
@@ -284,7 +284,7 @@ test('demo write builds the title, the expected results and the evidence from th
 
 test('demo write types no title: a title in the actions file is a fault', () => {
   const root = artifacts();
-  actions(root, 'scenario-2', { ...TWO, title: 'My own title' });
+  actions(root, 'scenario-2', { ...TWO, title: 'Another title' });
   const got = call(root, ['demo', 'write', 'scenario-2']);
   assert.equal(got.status, 1, got.out);
   assert.match(got.lines[0],
@@ -508,8 +508,9 @@ function drafted(ids = ['scenario-1'], change = () => {}, scripted = []) {
   return root;
 }
 
-// plan adds a build plan with a serve row and the line App address: address to root.
-function plan(root, address) {
+// plan adds a build plan with a serve row that runs command, none for no row, and the line
+// App address: address to root.
+function plan(root, address, command = 'node app/server.cjs') {
   const dir = path.join(root, 'build-plan/main/v1');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'build-plan.md'), `## Summary
@@ -533,8 +534,7 @@ App address: \`${address}\`
 | types | none | none | The repository has no type check. |
 | build | none | none | The repository has no build. |
 | full | none | none | The repository has no tests. |
-| serve | \`node app/server.cjs\` | none | repository: \`app/server.cjs\` |
-`);
+${command ? `| serve | \`${command}\` | none | repository: \`app/server.cjs\` |\n` : ''}`);
   const file = path.join(root, 'index.json');
   const index = JSON.parse(fs.readFileSync(file, 'utf8'));
   index.artifacts.push(listing('build-plan', 'main', 1));
@@ -592,7 +592,8 @@ test('demo check refuses a script with an action that is not listed', () => {
     script.steps[0].actions.push({ do: 'hover', target: '#hours' });
   }), ['demo', 'check']);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Use only open, click, type, press and wait in scenario-1, then run demo write scenario-1\.$/);
+  assert.match(got.lines[0],
+    /^Use only open, click, type, press and wait in scenario-1, then run demo write scenario-1\.$/);
 });
 
 test('demo check <scenario> reads that scenario alone', () => {
@@ -645,6 +646,16 @@ test('a change to a frozen script starts check-reviewer, and a third correction 
   assert.equal(refused.status, 1, refused.out);
   assert.equal(refused.lines[0], 'Keep the script of scenario-1 as it is: it has had 2 ' +
     'corrections, and a third is refused.');
+  // A pushed script that differs from the newest row names the way out.
+  const pushed = artifacts(SCENARIOS, ['scenario-1']);
+  ledger(pushed, ['script:scenario-1', 'script:scenario-1#2', 'script:scenario-1#3'],
+    ['a', 'b', 'c']);
+  const stuck = call(pushed, ['demo', 'check', 'scenario-1']);
+  assert.equal(stuck.status, 1, stuck.out);
+  assert.equal(stuck.lines[0], 'Keep the script of scenario-1 as it is: it has had 2 ' +
+    'corrections, and a third is refused.');
+  assert.equal(stuck.lines[2], '  Push the frozen script of scenario-1 again, the file that the ' +
+    'done step script:scenario-1#3 froze: it is the only way out.');
 });
 
 test('a faulty script after one pass asks for the correction step', () => {
@@ -718,22 +729,79 @@ test('demo check refuses a sign-in step outside the path of the App address', ()
   assert.equal(lines[2], `  The App address is ${long}.`);
 });
 
-test('demo check compares the newest pushed version with the newest done row', () => {
-  const root = drafted(['scenario-1'], () => {}, ['scenario-1']);
-  const draft = text(root, 'scenario-1');
-  // The pushed script is the frozen one: no fault.
-  ledger(root, ['script:scenario-1'], [draft]);
-  fs.writeFileSync(path.join(root, 'demo-script/scenario-1/v1/scenario-1.json'), draft);
-  assert.equal(call(root, ['demo', 'check', 'scenario-1']).status, 0);
-  // The pushed script differs from the done row, as when a session skipped step end.
-  ledger(root, ['script:scenario-1'], ['other']);
-  const got = call(root, ['demo', 'check', 'scenario-1']);
+test('a copy of the pushed script as the draft is a correction of the frozen script', () => {
+  const root = artifacts(SCENARIOS, ['scenario-1']);
+  const file = path.join(root, 'demo-script/scenario-1/v1/scenario-1.json');
+  const pushed = fs.readFileSync(file, 'utf8');
+  ledger(root, ['script:scenario-1'], ['frozen']);
+  // With no draft, the pushed script that differs from the done row is a fault.
+  const fault = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(fault.status, 1, fault.out);
+  assert.equal(fault.lines[0], 'Push the frozen script of scenario-1 again, or run the step ' +
+    'script:scenario-1#2 for the pushed one.');
+  // The copy as the draft is a correction: check-reviewer starts, and the fault is gone.
+  fs.mkdirSync(path.join(root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), pushed);
+  const note = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(note.status, 0, note.out);
+  assert.equal(note.lines[0], 'Start check-reviewer on the change to scenario-1, then run the ' +
+    'step script:scenario-1#2.');
+  assert.ok(!note.out.includes('Push the frozen script'), note.out);
+  // After the correction step is done with the hash of the copy, nothing is left to do.
+  ledger(root, ['script:scenario-1', 'script:scenario-1#2'], ['frozen', pushed]);
+  const done = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(done.status, 0, done.out);
+  assert.ok(!done.out.includes('Start check-reviewer'), done.out);
+});
+
+test('a draft equal to a pushed script that the done row did not freeze ends with review', () => {
+  // Every scenario is pushed. The draft is the pushed script, and the done row froze another.
+  const root = artifacts(SCENARIOS, ['scenario-1', 'scenario-2']);
+  const pushed = fs.readFileSync(path.join(root, 'demo-script/scenario-1/v1/scenario-1.json'),
+    'utf8');
+  fs.mkdirSync(path.join(root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), pushed);
+  ledger(root, ['script:scenario-1'], ['frozen']);
+  const got = call(root, ['demo', 'check']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(got.lines[0], 'Start check-reviewer on the change to scenario-1, then run the ' +
+    'step script:scenario-1#2.');
+  assert.equal(got.lines.at(-1),
+    'Review the change to the demo script of scenario-1 with check-reviewer.');
+  assert.ok(!got.out.includes('No demo script to write'), got.out);
+  // With the correction recorded, the skip line is back.
+  ledger(root, ['script:scenario-1', 'script:scenario-1#2'], ['frozen', pushed]);
+  assert.equal(call(root, ['demo', 'check']).lines.at(-1),
+    'No demo script to write: each scenario has one.');
+});
+
+test('a stale draft that equals the done row does not hide a changed pushed script', () => {
+  // The draft of the first pass stays in .demo. A later round pushes another script.
+  const root = artifacts(SCENARIOS, ['scenario-1', 'scenario-2']);
+  const file = path.join(root, 'demo-script/scenario-1/v1/scenario-1.json');
+  const frozen = fs.readFileSync(file, 'utf8');
+  fs.mkdirSync(path.join(root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), frozen);
+  ledger(root, ['script:scenario-1'], [frozen]);
+  assert.equal(call(root, ['demo', 'check']).lines.at(-1),
+    'No demo script to write: each scenario has one.');
+  const other = JSON.parse(frozen);
+  other.steps[0].actions.push({ do: 'wait', text: 'Order' });
+  fs.writeFileSync(file, JSON.stringify(other));
+  const got = call(root, ['demo', 'check']);
   assert.equal(got.status, 1, got.out);
   assert.equal(got.lines[0], 'Push the frozen script of scenario-1 again, or run the step ' +
     'script:scenario-1#2 for the pushed one.');
+  assert.ok(!got.out.includes('No demo script to write'), got.out);
+  // A draft that is a copy of the pushed file is the correction path: the note, not the fault.
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), JSON.stringify(other));
+  const copy = call(root, ['demo', 'check']);
+  assert.equal(copy.status, 0, copy.out);
+  assert.equal(copy.lines.at(-1),
+    'Review the change to the demo script of scenario-1 with check-reviewer.');
 });
 
-test('demo run exits 3 with the fix when the build plan has no serve row or no browser', () => {
+test('demo run exits 3 with the fix when the machine has no browser', () => {
   const root = drafted();
   plan(root, 'http://localhost:3000');
   const git = fs.mkdtempSync(path.join(tmp, 'git-'));
@@ -746,6 +814,104 @@ test('demo run exits 3 with the fix when the build plan has no serve row or no b
   assert.equal(missing.status, 3, missing.out);
   assert.equal(missing.lines[0],
     'Run demo write scenario-1, then run demo run again.');
+});
+
+// repo returns a folder that is a git repository, with an app that listens on its port, and the
+// port.
+function repo() {
+  const dir = fs.mkdtempSync(path.join(tmp, 'git-'));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  fs.mkdirSync(path.join(dir, 'app'));
+  fs.writeFileSync(path.join(dir, 'app/server.cjs'),
+    'require("node:http").createServer((q, r) => r.end("ok"))\n' +
+    '  .listen(Number(process.env.APP_PORT || 0));\n');
+  const port = 20000 + Math.floor(Math.random() * 20000);
+  return { dir, port };
+}
+
+test('demo run: no serve row, an app that does not start, and a browser that fails', () => {
+  const here = repo();
+  const root = drafted();
+  plan(root, 'http://127.0.0.1:9', null);
+  const deps = { cwd: here.dir, preflight: { browsers: [process.execPath], startMs: 1500 } };
+  const none = call(root, ['demo', 'run', 'scenario-1'], CORE, deps);
+  assert.equal(none.status, 3, none.out);
+  assert.equal(none.lines[0], 'Add a serve row with a command to ## Commands of the build plan, ' +
+    'then plan the build again.');
+  const down = drafted();
+  plan(down, 'http://127.0.0.1:9', 'node app/missing.cjs');
+  const stopped = call(down, ['demo', 'run', 'scenario-1'], CORE, deps);
+  assert.equal(stopped.status, 3, stopped.out);
+  assert.match(stopped.lines[0],
+    /^Make "node app\/missing\.cjs" start the app in the dev container, /);
+  const up = drafted();
+  plan(up, `http://127.0.0.1:${here.port}/`);
+  const started = call(up, ['demo', 'run', 'scenario-1'], CORE, { ...deps,
+    env: { ...process.env, APP_PORT: String(here.port) } });
+  assert.equal(started.status, 3, started.out);
+  assert.equal(started.lines[0], 'End the run: the browser did not finish the script.');
+});
+
+test('demo check: a script that is no JSON, no regular file, or of another scenario', () => {
+  const root = drafted();
+  const file = path.join(root, DRAFT('scenario-1'));
+  fs.writeFileSync(file, '{');
+  let got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Run demo write scenario-1 again.');
+  assert.equal(got.lines[1], '  .demo/scenario-1.json does not parse.');
+  const other = JSON.parse(text(drafted(), 'scenario-1'));
+  other.scenario = 'scenario-2';
+  fs.writeFileSync(file, JSON.stringify(other));
+  got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.lines[0], 'Run demo write scenario-1 again.');
+  assert.match(got.lines[1], /^ {2}\.demo\/scenario-1\.json is the script of .*scenario-2/);
+  fs.rmSync(file);
+  fs.mkdirSync(file);
+  got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.lines[0], 'Run demo write scenario-1 again.');
+  assert.match(got.lines[1], /is no regular file of at most 262144 bytes\.$/);
+  // demo run reads the draft through the same check, and exits 3.
+  fs.rmSync(file, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(other));
+  const run = call(root, ['demo', 'run', 'scenario-1']);
+  assert.equal(run.status, 3, run.out);
+  assert.equal(run.lines[0], 'Run demo write scenario-1 again.');
+});
+
+test('demo check: a pushed version that cannot be read is pulled again', () => {
+  const root = artifacts(SCENARIOS, ['scenario-1']);
+  fs.rmSync(path.join(root, 'demo-script/scenario-1/v1/scenario-1.json'));
+  const got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Pull the artifacts again, then run demo check again.');
+  assert.equal(got.lines[1], '  demo-script/scenario-1/v1/scenario-1.json cannot be read.');
+});
+
+test('demo check: a pushed script that differs from its done row is a fault with no draft', () => {
+  const root = artifacts(SCENARIOS, ['scenario-1']);
+  const pushed = fs.readFileSync(path.join(root, 'demo-script/scenario-1/v1/scenario-1.json'),
+    'utf8');
+  ledger(root, ['script:scenario-1'], [pushed]);
+  const same = call(root, ['demo', 'check']);
+  assert.equal(same.status, 0, same.out);
+  ledger(root, ['script:scenario-1'], ['frozen']);
+  const got = call(root, ['demo', 'check']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Push the frozen script of scenario-1 again, or run the step ' +
+    'script:scenario-1#2 for the pushed one.');
+  assert.equal(got.lines.at(-1),
+    'Write the demo script of scenario-2, from version 1 of the demo scenarios.');
+});
+
+test('demo check counts a step id once, however often it passed', () => {
+  const root = drafted(['scenario-1'], (id, script) => { script.setup[0].url = '/changed'; });
+  // Two passes of script:scenario-1 are one done step, so the next correction is #2.
+  ledger(root, ['script:scenario-1', 'script:scenario-1'], ['old', 'older']);
+  const got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(got.lines[0], 'Start check-reviewer on the change to scenario-1, then run the ' +
+    'step script:scenario-1#2.');
 });
 
 // ---- The skill and the agent texts of the freeze --------------------------------------------
@@ -780,10 +946,21 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '9. Push it, as "Push only what changed"',
     '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
-    'its script needs a third correction, and a script has 2',
+    'When a line of the finding starts with',
+    '"Push the frozen script"',
+    'Otherwise run',
+    'a script has 2',
+    'With 0 and a line that starts with "Start check-reviewer"');
+  inText(SCRIPTING, 'starts with "Start check-reviewer", `.demo/<id>.json` exists and differs',
+    'skip steps 2 to 4, do step 1, and go on from step 5',
+    'starts with "Push the frozen script", the pushed script differs from the newest done ' +
+      'step, and `.demo/<id>.json` does not exist or is a draft of an earlier pass',
+    'skip steps 2 to 4: copy the pushed file', 'do step 1, and go on from step 5 on that copy',
+    'Run this step once for each `<step>`');
+  inText(SCRIPTING, '5. Run `<skill folder>/checks.cjs demo check <id>',
     'Open only pages under <App address> in the sign-in steps of <script>.',
-    'When the first line starts with "Push the frozen script"',
-    'With 0 and a line that starts with "Start check-reviewer"',
+    'With 0 and a line that starts with "Start check-reviewer", the draft changes a script ' +
+      'that passed, whether the author wrote it or it is a copy of the pushed file',
     'Review the change to a demo script', 'With `changes-needed`, do "Start the author again"');
   // The limit of the sign-in check with no build plan is stated.
   inText(SCRIPTING, 'only when the build plan is readable and has the line `App address:`',

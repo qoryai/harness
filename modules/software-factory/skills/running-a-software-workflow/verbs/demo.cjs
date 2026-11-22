@@ -11,11 +11,12 @@
 //                         one, against the scenario: a title, an evidence, a step title or an
 //                         expected result that differs by one character, an action other than
 //                         open, click, type, press and wait, and an open of the setup, the
-//                         sign-in, outside the origin of the App address of the build plan.
+//                         sign-in, that is no page under the App address of the build plan.
 //                         It exits 1 with the fix first for each fault. A script that differs
 //                         from the one that its newest done script step of the build ledger
 //                         froze is a correction: the third one exits 1, and the first and the
-//                         second print a line that tells the session to start check-reviewer.
+//                         second print the line "Start check-reviewer". A pushed script that
+//                         differs from that script and has no draft is a fault: it exits 1.
 //                         Its last line lists the scenarios that have no demo script yet. With
 //                         a scenario, it checks that scenario's script alone.
 //   demo write <scenario> builds <folder>/.demo/<scenario>.json from the approved scenario and
@@ -104,8 +105,8 @@ module.exports = (lib) => {
     return { inputs, artifacts, rest };
   }
 
-  // addressOf returns the App address of the build plan that --inputs or --artifacts gives, else
-  // of the artifact folder, or null when there is no plan or it has no address. The sign-in of
+  // addressOf returns the App address of the build plan in --inputs or --artifacts, else in
+  // the artifact folder, or null when there is no plan or it has no address. The sign-in of
   // a script is checked against it only then.
   // shortcut: with no readable build plan or no App address, the sign-in is not compared; the
   // run of demo run still loads only pages of the origin of the app, so replace this with a
@@ -121,10 +122,18 @@ module.exports = (lib) => {
     }
   }
 
-  // doneRows returns the done rows of the script steps of scenario id in ledger, which may be
-  // null: script:<id>, then script:<id>#2 and script:<id>#3, in the order of the ledger.
-  const doneRows = (ledger, id) => (ledger ? ledger.steps : []).filter((row) =>
-    row.state === 'done' && row.kind === 'script' && row.id.split('#')[0] === `script:${id}`);
+  // doneRows returns one done row for each step id of the script steps of scenario id in ledger,
+  // which may be null: script:<id>, script:<id>#2 and script:<id>#3, the newest pass of an id
+  // when it has more, in the order of the ids.
+  function doneRows(ledger, id) {
+    const rows = new Map();
+    for (const row of ledger ? ledger.steps : []) {
+      const mine = row.kind === 'script' && row.id.split('#')[0] === `script:${id}`;
+      if (row.state === 'done' && mine) rows.set(row.id, row);
+    }
+    return [...rows.values()].sort((a, b) => Number(a.id.split('#')[1] || 1) -
+      Number(b.id.split('#')[1] || 1));
+  }
 
   // pushedFile returns the path in the artifact folder of the newest version of the demo script
   // of id that counts.
@@ -182,23 +191,31 @@ module.exports = (lib) => {
         (address.length > room ? `\nThe App address is ${address}.` : ''));
   }
 
-  // unrecorded returns a finding when the newest pushed version of the script of id, which the
-  // freeze must record, has another sha256 than the newest done row of the ledger: a session
-  // that pushed a script and skipped `step end`. It returns null with no draft, no row or no
-  // pushed version that can be read: with no draft, the script read is the pushed one.
+  // shortcut: the push check of demo-script does not read the ledger, so a changed frozen script
+  // is found by the next demo check, and an unchanged script that Verify faults starts no
+  // correction; replace both with a check of the ledger at the push, with the Verify work.
+  // unrecorded returns a finding when the pushed script of id, the newest version that counts,
+  // has another sha256 than the newest done row of the ledger, whatever the draft is: a session
+  // that pushed a script and skipped `step end`, or that pushed a change to a frozen script.
+  // The exception is a draft that is a copy of the pushed file, the correction path of
+  // scripting-demos, which gets the line for check-reviewer. It returns null with no row.
   function unrecorded(root, io, got, id, rows, done) {
-    if (!got.drafted || !rows.length || !done.has(id)) return null;
-    const shown = pushedFile(root, io, id);
-    const pushed = boundedText(path.join(root, shown));
-    if (pushed.why || sha256(pushed.text) === rows[rows.length - 1].script_sha256) return null;
+    if (!rows.length || !done.has(id)) return null;
+    const shown = got.drafted ? pushedFile(root, io, id) : got.shown;
+    const pushed = got.drafted ? boundedText(path.join(root, shown)) : { text: got.text };
+    const last = rows[rows.length - 1];
+    if (pushed.why || sha256(pushed.text) === last.script_sha256 ||
+      (got.drafted && sha256(got.text) === sha256(pushed.text))) return null;
     return `Push the frozen script of ${id} again, or run the step script:${id}#` +
       `${rows.length + 1} for the pushed one.\n${shown} has another sha256 than the newest ` +
-      `done step ${rows[rows.length - 1].id}.`;
+      `done step ${last.id}.`;
   }
 
   // inspect returns { findings, notes } of the script of scenario: its faults, with the fix
-  // first, then the line for check-reviewer when it changes a script that a pass froze. A
-  // change to a script that has had 2 corrections is a fault.
+  // first, then the line for check-reviewer when a draft changes a script that a pass froze,
+  // whether the author wrote it or it is a copy of the pushed file. A change to a script that
+  // has had 2 corrections is a fault, and so is a pushed change to a frozen script that the
+  // draft does not copy.
   function inspect(scenario, got, where) {
     const { address, ledger, root, io, done } = where;
     const id = scenario.id;
@@ -210,7 +227,9 @@ module.exports = (lib) => {
     if ((findings.length || changed || skipped) && rows.length >= MOST_ROWS) {
       return { findings: [`Keep the script of ${id} as it is: it has had 2 corrections, and a ` +
         `third is refused.\nThe build ledger has the done steps script:${id}, script:${id}#2 ` +
-        `and script:${id}#3.`], notes: [] };
+        `and script:${id}#3.` + (skipped ? `\nPush the frozen script of ${id} again, the file ` +
+          `that the done step ${rows[rows.length - 1].id} froze: it is the only way out.` : ''),
+      ], notes: [] };
     }
     const step = `script:${id}#${rows.length + 1}`;
     if (findings.length && rows.length) {
@@ -245,6 +264,7 @@ module.exports = (lib) => {
     const ledger = readLedger(root);
     const findings = [];
     const notes = [];
+    const reviews = [];
     for (const scenario of live.filter((one) => !only || one.id === only)) {
       const got = scriptOf(root, io, scenario.id, done);
       if (got.none) continue;
@@ -252,13 +272,15 @@ module.exports = (lib) => {
         : inspect(scenario, got, { address, ledger, root, io, done });
       findings.push(...found.findings);
       notes.push(...(found.notes || []));
+      if (found.notes && found.notes.length) reviews.push(scenario.id);
     }
     const todo = live.filter((one) => !done.has(one.id)).map((one) => one.id);
     const last = todo.length
       ? `Write the demo script of ${todo.join(', ')}, from version ${number} of the demo ` +
         'scenarios.'
       : findings.length ? `Found ${plural(findings.length, 'fault')} in the demo scripts.`
-        : 'No demo script to write: each scenario has one.';
+        : reviews.length ? `Review the change to the demo script of ${reviews.join(', ')} with ` +
+          'check-reviewer.' : 'No demo script to write: each scenario has one.';
     io.print([...findings, ...notes], last);
     return findings.length ? 1 : 0;
   }

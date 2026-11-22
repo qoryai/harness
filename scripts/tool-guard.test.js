@@ -4425,6 +4425,536 @@ test('the report path matches in the case of the disk', () => {
   assert.equal(guard(write(file), env), null);
 });
 
+// ---- A review session -----------------------------------------------------------------------
+
+// The roles of the composed Codex home of a review session, as qory writes them.
+const SESSION_ROLES = ['code-reviewer', 'spec-reviewer', 'test-reviewer'];
+
+// sessionSetup makes a harness home whose inputs.json has qory.review_session.reports, with a
+// Codex role file for each of SESSION_ROLES, a report folder and an artifact folder of the
+// run, both outside WORK. qory, when set, returns the member qory of inputs.json from the
+// report folder. call(input, env) decides input in WORK with that artifact folder, in the
+// review session unless env is set, on Codex for a Codex input and on Claude Code otherwise.
+function sessionSetup(qory) {
+  const home = next('session-home');
+  const reports = next('session-reports');
+  const runFolder = next('session-artifacts');
+  for (const dir of [home, reports, runFolder]) fs.mkdirSync(dir);
+  fs.mkdirSync(path.join(home, 'codex', 'agents'), { recursive: true });
+  for (const role of SESSION_ROLES) {
+    fs.writeFileSync(path.join(home, 'codex', 'agents', `${role}.toml`), `name = "${role}"\n`);
+  }
+  const inputs = { qory: qory ? qory(reports) : { review_session: { reports } } };
+  fs.writeFileSync(path.join(home, 'inputs.json'), JSON.stringify(inputs));
+  const session = { ...RUN, QORY_HARNESS_HOME: home };
+  const call = (input, env = session) => decide({ input, env, locked, root: WORK, runFolder,
+    script: SESSION_SCRIPT, runtime: input.turn_id ? 'codex' : 'claude' });
+  return { env: session, home, reports, runFolder, call };
+}
+
+// A script of the hooks of a harness home whose checks.cjs is the one of this repository.
+const SESSION_SCRIPT = path.join(MODULES, '..', 'hooks', 'tool-guard-claude.cjs');
+const SESSION_CHECKS = path.join(MODULES, 'core', 'skills', 'running-a-workflow', 'checks.cjs');
+const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write or apply_patch';
+const SESSION_NAME = 'Report in your text and write no file: the name of this agent is no';
+const SESSION_NONE = 'Report in your text and write no file: qory.review_session.reports';
+const SESSION_SHELL = 'Run only read commands, such as cat, grep or ls: a reviewer writes its';
+const REPORTS_KEPT = 'Leave the report folder to the reviewers.';
+const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is';
+const HOME_KEPT = 'Leave the harness home as it is: a review runs with the guards and agents';
+// The reviewer agent on Claude Code, an agent of the harness's plugin.
+const REVIEWER = 'harness:code-reviewer';
+
+// writeAs returns the Write of file by an agent of type on Claude Code.
+const writeAs = (file, type) => claude('Write', { file_path: file, content: '{}' }, type);
+// bashAs returns the shell command by an agent of type on Claude Code, from cwd.
+const bashAs = (command, type, cwd = WORK) => ({ ...claude('Bash', { command }, type), cwd });
+
+test('a reviewer agent of a review session writes <reports>/<name>.json with Write', () => {
+  const { reports, call } = sessionSetup();
+  const file = path.join(reports, 'code-reviewer.json');
+  assert.equal(call(writeAs(file, REVIEWER)), null);
+  assert.equal(call(writeAs(path.join(reports, 'spec-reviewer.json'), 'harness:spec-reviewer')),
+    null);
+  // A file that exists, regular and with one link, is written again.
+  fs.writeFileSync(file, '{}');
+  assert.equal(call(writeAs(file, REVIEWER)), null);
+  // A relative path from the folder of the call is read as the system reads it.
+  assert.equal(call({ ...writeAs('code-reviewer.json', REVIEWER), cwd: reports }), null);
+  // Outside a review session the write tools stay denied to such an agent.
+  firstLine(call(writeAs(file, REVIEWER), RUN), 'Report in your text: the write tools');
+});
+
+test('the report path of a reviewer agent matches in the case of the disk', () => {
+  const { reports, call } = sessionSetup();
+  const swapped = reports.replace(/[A-Za-z]/g, (one) => (one === one.toLowerCase()
+    ? one.toUpperCase() : one.toLowerCase()));
+  const upper = path.join(reports, 'CODE-REVIEWER.JSON');
+  if (swapped !== reports && fs.existsSync(swapped)) {
+    assert.equal(call(writeAs(upper, REVIEWER)), null);
+    assert.equal(call(writeAs(path.join(swapped, 'code-reviewer.json'), REVIEWER)), null);
+    assert.equal(call(codex('apply_patch', { command: add(upper) }, 'code-reviewer')), null);
+  } else {
+    // On a disk that tells case apart, CODE-REVIEWER.JSON is another file.
+    firstLine(call(writeAs(upper, REVIEWER)), SESSION_ONLY);
+  }
+  assert.equal(call(writeAs(path.join(reports, 'code-reviewer.json'), REVIEWER)), null);
+});
+
+test('a reviewer agent of a review session writes <reports>/<name>.json with apply_patch', () => {
+  const { reports, call } = sessionSetup();
+  const file = path.join(reports, 'code-reviewer.json');
+  assert.equal(call(codex('apply_patch', { command: add(file) }, 'code-reviewer')), null);
+  assert.equal(call(claude('apply_patch', { command: add(file) }, REVIEWER)), null);
+  // A patch of another form is denied, also when it adds the one file.
+  for (const command of [add(file).replace('*** Add File', '*** Update File'),
+    add(file, ['+{}', `*** Add File: ${path.join(reports, 'other.json')}`, '+{}']),
+    add(file).replace('\n', '\r\n')]) {
+    firstLine(call(codex('apply_patch', { command }, 'code-reviewer')), SESSION_ONLY);
+  }
+  // A patch adds only an absolute path, also from the report folder.
+  firstLine(call({ ...codex('apply_patch', { command: add('code-reviewer.json') },
+    'code-reviewer'), cwd: reports }), SESSION_ONLY);
+});
+
+test('a reviewer agent of a review session writes no file but its report', () => {
+  const { reports, runFolder, call } = sessionSetup();
+  const elsewhere = next('session-elsewhere');
+  fs.mkdirSync(elsewhere);
+  const file = path.join(reports, 'code-reviewer.json');
+  // The report of another reviewer, another file, a file below the report folder, the folder,
+  // a file outside it, a file of the artifact folder and a file of the working folder.
+  for (const other of [path.join(reports, 'spec-reviewer.json'), path.join(reports, 'notes.json'),
+    path.join(reports, 'code-reviewer.json.bak'), path.join(reports, 'sub', 'code-reviewer.json'),
+    reports, path.join(elsewhere, 'code-reviewer.json'),
+    path.join(runFolder, 'code-reviewer.json'), path.join(WORK, 'src', 'reply.ts')]) {
+    firstLine(call(writeAs(other, REVIEWER)), SESSION_ONLY);
+    firstLine(call(codex('apply_patch', { command: add(other) }, 'code-reviewer')), SESSION_ONLY);
+  }
+  // Another write tool, also on the report path, is denied.
+  for (const [tool, args] of [['Edit', { file_path: file, old_string: 'a', new_string: 'b' }],
+    ['MultiEdit', { file_path: file, edits: [] }], ['NotebookEdit', { notebook_path: file }]]) {
+    firstLine(call(claude(tool, args, REVIEWER)), SESSION_ONLY);
+  }
+  firstLine(call(claude('Write', { content: '{}' }, REVIEWER)), SESSION_ONLY);
+});
+
+test('a reviewer agent runs only read commands in a review session', () => {
+  const { reports, call } = sessionSetup();
+  const file = path.join(reports, 'code-reviewer.json');
+  for (const type of [REVIEWER, 'harness:spec-reviewer', 'code-reviewer', 'x-reviewer']) {
+    for (const command of [`echo '{}' > ${file}`, `cp ${LOCKED} ${file}`, 'touch notes.md',
+      'npm test', `node ${SESSION_CHECKS} findings round ${reports} --reviewers a --suite s`,
+      `cat <<'EOF' > ${file}\n{}\nEOF`, 'qory run verdict passed']) {
+      const reason = firstLine(call(bashAs(command, type)), SESSION_SHELL);
+      assert.ok(reason.split('\n')[1].includes('a reviewer agent writes only'), reason);
+    }
+    for (const command of ['cat f', 'ls -la src', 'grep -n x f', `head -5 ${file}`]) {
+      assert.equal(call(bashAs(command, type)), null, `${type}: ${command}`);
+    }
+  }
+  // On Codex too, and outside a review session such an agent keeps the shell of a run.
+  firstLine(call({ ...codex('Bash', { command: `echo x > ${file}` }, 'code-reviewer') }),
+    SESSION_SHELL);
+  assert.equal(call(bashAs('touch notes.md', REVIEWER), RUN), null);
+});
+
+test('an agent whose name only looks like a reviewer writes no report', () => {
+  const { reports, call } = sessionSetup();
+  const file = path.join(reports, 'code-reviewer.json');
+  // The type does not end in -reviewer: the guard of the report folder denies the write.
+  for (const type of ['harness:Code-Reviewer', 'Code-Reviewer', 'harness:code\u2010reviewer',
+    'code\u2010reviewer', 'harness:code-reviewer-2', 'code-reviewer-2']) {
+    firstLine(call(writeAs(file, type)), REPORTS_KEPT);
+    firstLine(call(codex('apply_patch', { command: add(file) }, type)), REPORTS_KEPT);
+  }
+  // The type ends in -reviewer, and the name is no report name on its runtime.
+  for (const type of ['code-reviewer', 'evil:code-reviewer', 'a/b:test-reviewer',
+    'harness:Code-reviewer', 'harness:-reviewer', `harness:${'a'.repeat(56)}-reviewer`,
+    'harness:code_x-reviewer', 'harness:harness:code-reviewer']) {
+    const name = type.slice(type.lastIndexOf(':') + 1);
+    firstLine(call(writeAs(path.join(reports, `${name}.json`), type)), SESSION_NAME);
+  }
+  // On Codex, only a role of the composed home writes a report.
+  for (const type of ['data-reviewer', REVIEWER, 'evil:code-reviewer', 'a/b:test-reviewer']) {
+    const name = type.slice(type.lastIndexOf(':') + 1);
+    firstLine(call(codex('apply_patch', { command: add(path.join(reports, `${name}.json`)) },
+      type)), SESSION_NAME);
+  }
+});
+
+test('reportName reads harness:<name> on Claude Code and a role of the home on Codex', () => {
+  const { reportName } = guardModule;
+  const { home } = sessionSetup();
+  fs.writeFileSync(path.join(home, 'codex', 'agents', 'full-suite.toml'), 'name = "full-suite"\n');
+  fs.mkdirSync(path.join(home, 'codex', 'agents', 'dir-reviewer.toml'));
+  assert.equal(reportName(REVIEWER, 'claude', home), 'code-reviewer');
+  assert.equal(reportName('code-reviewer', 'codex', home), 'code-reviewer');
+  assert.equal(reportName(`harness:${'a'.repeat(64)}`, 'claude', home), 'a'.repeat(64));
+  for (const [type, runtime] of [['code-reviewer', 'claude'], ['evil:code-reviewer', 'claude'],
+    ['a/b:test-reviewer', 'claude'], ['harness:full-suite', 'claude'], ['full-suite', 'codex'],
+    [REVIEWER, 'codex'], ['evil:code-reviewer', 'codex'], ['a/b:test-reviewer', 'codex'],
+    ['data-reviewer', 'codex'], ['dir-reviewer', 'codex'], [REVIEWER, 'gemini'],
+    [REVIEWER, undefined], [`harness:${'a'.repeat(65)}`, 'claude'], ['harness:Code', 'claude'],
+    ['harness:a.b', 'claude'], ['harness:', 'claude'], [undefined, 'claude'], [7, 'codex']]) {
+    assert.equal(reportName(type, runtime, home), null, `${type} on ${runtime}`);
+  }
+  // On Codex with no absolute harness home there is no role.
+  assert.equal(reportName('code-reviewer', 'codex', undefined), null);
+  assert.equal(reportName('code-reviewer', 'codex', 'home'), null);
+});
+
+test('a link at the report, a linked report folder or a .. part allows no report write', () => {
+  // A link at the target, to a file in the report folder.
+  const linked = sessionSetup();
+  const target = path.join(linked.reports, 'code-reviewer.json');
+  const real = path.join(linked.reports, 'real.json');
+  fs.writeFileSync(real, '{}');
+  fs.symlinkSync(real, target);
+  firstLine(linked.call(writeAs(target, REVIEWER)), SESSION_ONLY);
+  firstLine(linked.call(codex('apply_patch', { command: add(target) }, 'code-reviewer')),
+    SESSION_ONLY);
+  // A file with more than one link, and a folder at the target.
+  const hard = sessionSetup();
+  const twice = path.join(hard.reports, 'code-reviewer.json');
+  fs.writeFileSync(path.join(hard.reports, 'first.json'), '{}');
+  fs.linkSync(path.join(hard.reports, 'first.json'), twice);
+  firstLine(hard.call(writeAs(twice, REVIEWER)), SESSION_ONLY);
+  const folder = sessionSetup();
+  fs.mkdirSync(path.join(folder.reports, 'code-reviewer.json'));
+  firstLine(folder.call(writeAs(path.join(folder.reports, 'code-reviewer.json'), REVIEWER)),
+    SESSION_ONLY);
+  // A report folder that is a link, through the link and through its target.
+  const away = next('session-away');
+  fs.mkdirSync(away);
+  const link = sessionSetup((reports) => ({ review_session: { reports: `${reports}-link` } }));
+  fs.symlinkSync(away, `${link.reports}-link`);
+  for (const file of [path.join(`${link.reports}-link`, 'code-reviewer.json'),
+    path.join(away, 'code-reviewer.json')]) {
+    firstLine(link.call(writeAs(file, REVIEWER)), SESSION_ONLY);
+  }
+  // A path with a .. part, also one that leads to the report, is denied, as the same path
+  // with no .. part is allowed.
+  const { reports, call } = sessionSetup();
+  const up = `${reports}/../${path.basename(reports)}/code-reviewer.json`;
+  firstLine(call(writeAs(up, REVIEWER)), SESSION_ONLY);
+  firstLine(call({ ...writeAs(`../${path.basename(reports)}/code-reviewer.json`, REVIEWER),
+    cwd: reports }), SESSION_ONLY);
+  // A link whose target has a .. after a folder that does not exist yet is denied first by
+  // the rule of every session.
+  fs.symlinkSync('gone/..', path.join(reports, 'turn'));
+  firstLine(call(writeAs(path.join(reports, 'turn', 'code-reviewer.json'), REVIEWER)),
+    'Write the path without a .. after a folder');
+  assert.equal(call(writeAs(path.join(reports, 'code-reviewer.json'), REVIEWER)), null);
+});
+
+test('a report folder that cannot be used or lies in the working folder takes no report',
+  () => {
+  for (const bad of ['reports', '/a/../b', '/a//b', '/a/b/', 7, null]) {
+    const { reports, call } = sessionSetup(() => ({ review_session: { reports: bad } }));
+    firstLine(call(writeAs(path.join(reports, 'code-reviewer.json'), REVIEWER)), SESSION_NONE);
+  }
+  const none = sessionSetup(() => ({ review_session: {} }));
+  firstLine(none.call(writeAs(path.join(none.reports, 'code-reviewer.json'), REVIEWER)),
+    SESSION_NONE);
+  // A report folder in a working folder, below .git or .claude of it, or elsewhere in it.
+  const work = working();
+  for (const sub of ['.git', '.claude', 'reviews']) {
+    const inside = path.join(work, sub, 'session-reports');
+    fs.mkdirSync(inside, { recursive: true });
+    const { env } = sessionSetup(() => ({ review_session: { reports: inside } }));
+    const input = { ...writeAs(path.join(inside, 'code-reviewer.json'), REVIEWER), cwd: work };
+    firstLine(decide({ input, env, locked: () => ({ files: [] }), root: work,
+      runtime: 'claude' }), SESSION_ONLY);
+  }
+});
+
+test('no call but the report of its reviewer writes in the report folder', () => {
+  const { reports, call } = sessionSetup();
+  const file = path.join(reports, 'code-reviewer.json');
+  const tools = (target) => [['Write', { file_path: target, content: '{}' }],
+    ['Edit', { file_path: target, old_string: 'a', new_string: 'b' }],
+    ['MultiEdit', { file_path: target, edits: [] }], ['NotebookEdit', { notebook_path: target }]];
+  // The main session, an agent of each type and an agent with no type, by each write tool.
+  const noType = (input) => ({ ...input, agent_id: 'a-1' });
+  for (const target of [file, path.join(reports, 'notes.json'), path.join(reports, 'x', 'y')]) {
+    for (const [tool, args] of tools(target)) {
+      firstLine(call(claude(tool, args)), REPORTS_KEPT);
+      firstLine(call(noType(claude(tool, args))), REPORTS_KEPT);
+      for (const type of ['worker', 'implementer', 'harness:spec-writer']) {
+        firstLine(call(claude(tool, args, type)), REPORTS_KEPT);
+      }
+    }
+    firstLine(call(codex('apply_patch', { command: add(target) })), REPORTS_KEPT);
+    firstLine(call(codex('apply_patch', { command: add(target) }, 'default')), REPORTS_KEPT);
+  }
+  // A shell command that writes there, as its text shows, of the main session and an agent.
+  for (const command of [`echo '{}' > ${file}`, `touch ${reports}/spec-reviewer.json`,
+    `rm -rf ${reports}`, `printf x | tee ${reports}/notes.json`, `sed -i s/a/b/ ${file}`,
+    `cd ${reports} && echo x > code-reviewer.json`]) {
+    firstLine(call(bashAs(command)), REPORTS_KEPT);
+    firstLine(call(bashAs(command, 'worker')), REPORTS_KEPT);
+  }
+  // A command whose writes the guard does not read and that contains a path in the folder.
+  for (const command of [`node -e "require('fs').writeFileSync(process.argv[1], '{}')" ${file}`,
+    `python3 -c 'open("${file}", "w")'`, `node ${SESSION_CHECKS} diff --out ${reports}`,
+    `/qory/qory run verdict passed --points ${reports}/notes.json; rm x`]) {
+    firstLine(call(bashAs(command)), REPORTS_KEPT);
+  }
+  // The checks script alone with findings round, which reads the reports, runs. qory run
+  // verdict with a path in the folder is denied: the session passes qory no file of it.
+  for (const command of [
+    `node ${SESSION_CHECKS} findings round ${reports} --reviewers a,b --suite s.json`,
+    `${SESSION_CHECKS} findings round ${reports} --reviewers a --suite s.json 2>&1`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  for (const command of [`/qory/qory run verdict changes-requested --points ${reports}/p.json`,
+    `qory run verdict escalate --points ${reports}/notes.json`]) {
+    firstLine(call(bashAs(command)), REPORTS_KEPT);
+  }
+  // A path that a shell variable makes is not read: the limit of the header of tool-guard.cjs.
+  const limit = `D=${path.dirname(reports)}; echo x > "$D/${path.basename(reports)}/x.json"`;
+  assert.equal(call(bashAs(limit)), null);
+  // Outside a review session the same writes pass for an agent.
+  assert.equal(call(writeAs(file, 'worker'), RUN), null);
+  assert.equal(call(bashAs(`echo x > ${file}`, 'worker'), RUN), null);
+});
+
+test('a link, a .. path, mv, cp or ln into the report folder is denied', () => {
+  const { reports, call } = sessionSetup();
+  const base = path.basename(reports);
+  const linkDir = next('session-link');
+  fs.symlinkSync(reports, linkDir);
+  const source = path.join(next('session-source'), 'a.json');
+  fs.mkdirSync(path.dirname(source));
+  fs.writeFileSync(source, '{}');
+  // A link to the folder and a .. path, by Write and by a shell command.
+  for (const target of [path.join(linkDir, 'code-reviewer.json'),
+    `${reports}/../${base}/code-reviewer.json`, `${linkDir}/../${base}/notes.json`]) {
+    for (const type of [undefined, 'worker']) {
+      firstLine(call(writeAs(target, type)), REPORTS_KEPT);
+      firstLine(call(bashAs(`echo x > ${target}`, type)), REPORTS_KEPT);
+    }
+  }
+  // A rename, a copy or a link into the folder, also into the folder itself.
+  for (const command of [`mv ${source} ${reports}/code-reviewer.json`, `mv ${source} ${reports}`,
+    `cp ${source} ${reports}/code-reviewer.json`, `cp ${source} ${reports}/`,
+    `cp -r ${path.dirname(source)} ${linkDir}/x`, `ln ${source} ${reports}/code-reviewer.json`,
+    `ln -s ${source} ${reports}/code-reviewer.json`, `ln -sf /etc/hosts ${linkDir}/notes.json`,
+    `cd ${path.dirname(reports)} && mv ${source} ${base}/spec-reviewer.json`]) {
+    for (const type of [undefined, 'worker']) {
+      firstLine(call(bashAs(command, type)), REPORTS_KEPT);
+    }
+    // A reviewer runs no such command at all.
+    firstLine(call(bashAs(command, REVIEWER)), SESSION_SHELL);
+  }
+  // A link that the command itself makes is read as it is now.
+  firstLine(call(bashAs(`ln -s ${reports} l && echo x > l/code-reviewer.json`)),
+    REPORTS_KEPT);
+});
+
+test('a session with qory.review or qory.review_session writes no inputs.json of its home', () => {
+  const review = sessionSetup();
+  const reviewer = sessionSetup((dir) => ({ review: { report: path.join(dir, 'report.json') } }));
+  const plain = sessionSetup(() => ({ run: { id: 'r-1' } }));
+  for (const { home, call } of [review, reviewer]) {
+    const inputs = path.join(home, 'inputs.json');
+    for (const type of [undefined, 'worker', REVIEWER]) {
+      firstLine(call(writeAs(inputs, type)), INPUTS_KEPT);
+      firstLine(call(codex('apply_patch', { command: add(inputs) }, type)), INPUTS_KEPT);
+    }
+    firstLine(call(claude('Edit', { file_path: inputs, old_string: 'a', new_string: 'b' },
+      'worker')), INPUTS_KEPT);
+  }
+  // A shell command of the main session or an agent of a review session.
+  const inputs = path.join(review.home, 'inputs.json');
+  for (const command of [`echo '{}' > ${inputs}`, `cp ${LOCKED} ${inputs}`, `rm ${inputs}`,
+    `cd ${review.home} && echo x > inputs.json`]) {
+    firstLine(review.call(bashAs(command)), INPUTS_KEPT);
+    firstLine(review.call(bashAs(command, 'worker')), INPUTS_KEPT);
+  }
+  // Through a link to the home.
+  const linked = next('session-home-link');
+  fs.symlinkSync(review.home, linked);
+  firstLine(review.call(writeAs(path.join(linked, 'inputs.json'), 'worker')), INPUTS_KEPT);
+  // A session with neither member keeps the rules of a run: an agent writes the file.
+  assert.equal(plain.call(writeAs(path.join(plain.home, 'inputs.json'), 'worker')), null);
+  // Reading the file stays allowed.
+  assert.equal(review.call(bashAs(`cat ${inputs}`, REVIEWER)), null);
+});
+
+test('a session with a review key writes nothing below a harness home outside the checkout',
+  () => {
+  const review = sessionSetup();
+  const reviewer = sessionSetup((dir) => ({ review: { report: path.join(dir, 'report.json') } }));
+  const plain = sessionSetup(() => ({ run: { id: 'r-1' } }));
+  const files = (home) => [path.join(home, 'hooks', 'tool-guard.cjs'),
+    path.join(home, 'codex', 'agents', 'code-reviewer.toml'),
+    path.join(home, 'modules', 'software-factory', 'agents', 'code-reviewer.md')];
+  for (const { home, call } of [review, reviewer]) {
+    for (const file of files(home)) {
+      for (const type of [undefined, 'worker', REVIEWER]) {
+        firstLine(call(writeAs(file, type)), HOME_KEPT);
+        firstLine(call(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' },
+          type)), HOME_KEPT);
+      }
+    }
+  }
+  // A shell command in a review session; a reviewer session runs only its read commands.
+  for (const file of files(review.home)) {
+    firstLine(review.call(bashAs(`echo x > ${file}`)), HOME_KEPT);
+    firstLine(review.call(bashAs(`sed -i s/a/b/ ${file}`, 'worker')), HOME_KEPT);
+  }
+  // A command whose writes the guard does not read, with the path of the home in it, or run
+  // in the home, is denied; a read, a run of a file of the home and the checks script run.
+  const guard = path.join(review.home, 'hooks', 'tool-guard.cjs');
+  for (const command of [`python3 -c "open('${guard}','w')"`,
+    `node -e "require('fs').writeFileSync('${guard}', 'x')"`,
+    `cd ${review.home} && python3 -c "open('hooks/tool-guard.cjs','w')"`,
+    `tar -xf a.tar -C ${review.home}`, `unzip -o a.zip -d ${review.home}`,
+    `perl -e 'unlink(q(${guard}))'`, `ruby -e 'File.delete(%q(${guard}))'`,
+    `python3 -c "f(${guard})"`, `node ${path.join(review.home, 'tool.cjs')} ${guard}`,
+    `node ${SESSION_CHECKS} notes a; python3 -c "open('${guard}','w')"`]) {
+    firstLine(review.call(bashAs(command)), HOME_KEPT);
+    firstLine(review.call(bashAs(command, 'worker')), HOME_KEPT);
+  }
+  for (const command of [`cat ${guard}`, `node ${path.join(review.home, 'tool.cjs')} a b`,
+    `node ${SESSION_CHECKS} panel --names a --files ${path.join(review.home, 'f.txt')}`,
+    `node ${SESSION_CHECKS} findings round ${review.reports} --reviewers a --suite ` +
+      path.join(review.home, 's.json')]) {
+    assert.equal(review.call(bashAs(command)), null, command);
+  }
+  // The checks script with a verb that a review session does not run gets the same deny.
+  for (const command of [`node ${SESSION_CHECKS} end --offline --out ${review.home}/hooks`,
+    `node ${SESSION_CHECKS} notes a --files ${path.join(review.home, 'f.txt')}`]) {
+    firstLine(review.call(bashAs(command)), HOME_KEPT);
+  }
+  // With no review key, no deny of the home applies.
+  for (const file of files(plain.home)) {
+    assert.equal(plain.call(writeAs(file, 'worker')), null, file);
+    assert.equal(plain.call(bashAs(`echo x > ${file}`, 'worker')), null, file);
+  }
+  // A home in the checkout gets no new deny: each write there has the same result with a
+  // review key as without one, so a change of the harness's files keeps today's rules.
+  const inside = path.join(WORK, 'harness-home');
+  fs.mkdirSync(inside, { recursive: true });
+  const file = path.join(inside, 'hooks', 'tool-guard.cjs');
+  const env = { ...RUN, QORY_HARNESS_HOME: inside };
+  const results = (qory) => {
+    fs.writeFileSync(path.join(inside, 'inputs.json'), JSON.stringify({ qory }));
+    return [writeAs(file, 'implementer'), bashAs(`echo x > ${file}`, 'implementer')]
+      .map((input) => review.call(input, env));
+  };
+  const first = (list) => list.map((one) => one && one.split('\n')[0]);
+  const before = first(results({ run: { id: 'r-1' } }));
+  assert.deepEqual(first(results({ review_session: { reports: review.reports } })), before);
+  // A reviewer session runs only read commands, a deny that comes before this rule.
+  const reviewing = results({ review: { report: path.join(review.reports, 'r.json') } });
+  assert.equal(first(reviewing)[0], before[0]);
+  assert.ok(!reviewing[1].startsWith(HOME_KEPT), reviewing[1]);
+  // The checks script runs from a home outside the checkout in a review session.
+  assert.equal(review.call(bashAs(`node ${path.join(review.home, 'checks.cjs')} notes a`)),
+    null);
+  fs.rmSync(inside, { recursive: true, force: true });
+});
+
+test('a checkout inside a harness home keeps its rules, and the rest of the home is denied',
+  () => {
+  const outer = next('home-outer');
+  const root = path.join(outer, 'work');
+  fs.mkdirSync(path.join(outer, 'hooks'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  childProcess.execFileSync('git', ['init', '-q', root]);
+  const reports = next('session-reports');
+  fs.mkdirSync(reports);
+  const env = { ...RUN, QORY_HARNESS_HOME: outer };
+  const call = (input) => decide({ input, env, locked: () => ({ files: [] }), root,
+    runFolder: next('session-artifacts'), script: SESSION_SCRIPT, runtime: 'claude' });
+  const inputs = (qory) => fs.writeFileSync(path.join(outer, 'inputs.json'),
+    JSON.stringify({ qory }));
+  const file = path.join(root, 'src', 'reply.ts');
+  const edits = [writeAs(file, 'implementer'), bashAs(`echo x > ${file}`, 'implementer', root)];
+  inputs({ run: { id: 'r-1' } });
+  const before = edits.map((input) => call(input));
+  inputs({ review_session: { reports } });
+  // An edit in the checkout has the result that it has with no review key.
+  assert.deepEqual(edits.map((input) => call(input)), before);
+  const guard = path.join(outer, 'hooks', 'tool-guard.cjs');
+  firstLine(call(writeAs(guard, 'implementer')), HOME_KEPT);
+  firstLine(call(bashAs(`echo x > ${guard}`, 'implementer', root)), HOME_KEPT);
+  firstLine(call(bashAs(`python3 -c "open('${guard}','w')"`, 'implementer', root)), HOME_KEPT);
+  // A command whose writes the guard does not read may run in the checkout, not elsewhere in
+  // the home.
+  for (const command of [`tar -xf a.tar -C ${outer}`, `unzip -o a.zip -d ${outer}`,
+    `cd ${outer} && tar -xf a.tar`, 'tar -xf a.tar -C ..']) {
+    firstLine(call(bashAs(command, 'implementer', root)), HOME_KEPT);
+  }
+  assert.equal(call(bashAs('tar -xf a.tar -C src', 'implementer', root)), null);
+});
+
+test('outside the report folder, the main session and other agents keep the rules of a run',
+  () => {
+  const { reports, runFolder, call } = sessionSetup();
+  const file = path.join(WORK, 'src', 'reply.ts');
+  // The main session runs any command and writes in the artifact folder, as in any run.
+  for (const command of ['npm test', 'touch f', 'echo x > src/reply.ts', 'rm -rf build']) {
+    assert.equal(call(bashAs(command)), null, command);
+    assert.equal(call(bashAs(command, 'implementer')), null, command);
+  }
+  assert.equal(call(write(path.join(runFolder, 'points.json'))), null);
+  firstLine(call(write(file)), 'Start an agent to change');
+  // Another agent writes in the working folder and elsewhere, as in any run, but not in the
+  // report folder.
+  for (const type of ['implementer', 'worker', 'reviewer-notes']) {
+    assert.equal(call(writeAs(file, type)), null, type);
+    assert.equal(call(codex('apply_patch', patch('src/reply.ts'), type)), null, type);
+    firstLine(call(writeAs(path.join(reports, 'notes.json'), type)), REPORTS_KEPT);
+  }
+  // A reviewer agent writes its report, and not in the working folder.
+  assert.equal(call(writeAs(path.join(reports, 'code-reviewer.json'), REVIEWER)), null);
+  firstLine(call(writeAs(file, REVIEWER)), SESSION_ONLY);
+  firstLine(call(codex('apply_patch', patch('src/reply.ts'), 'code-reviewer')), SESSION_ONLY);
+  // The lock still holds for each of them.
+  firstLine(call(writeAs(LOCKED, 'implementer')), 'Leave the locked file as it is');
+});
+
+test('an agent starts in a review session, not in the background, and other tools run', () => {
+  const { call } = sessionSetup();
+  for (const [tool, args] of [['Agent', { prompt: 'x', subagent_type: 'code-reviewer' }],
+    ['Task', { prompt: 'x' }], ['spawn_agent', { message: 'x' }]]) {
+    assert.equal(call(claude(tool, args)), null, tool);
+    assert.equal(call(claude(tool, args, 'worker')), null, tool);
+  }
+  firstLine(call(claude('Agent', { prompt: 'x', run_in_background: true })), 'Start the agent');
+  for (const tool of ['WebFetch', 'Read', 'Grep', 'mcp__other__tool']) {
+    assert.equal(call(claude(tool, {})), null, tool);
+  }
+});
+
+test('a session with qory.review and qory.review_session keeps the reviewer session rules',
+  () => {
+  const { reports, call } = sessionSetup((dir) => ({
+    review: { report: path.join(dir, 'report.json') }, review_session: { reports: dir } }));
+  firstLine(call(claude('Agent', { prompt: 'x' })), 'Start no agent');
+  firstLine(call(writeAs(path.join(reports, 'code-reviewer.json'), REVIEWER)),
+    'Report in your text: the write tools are denied');
+  assert.equal(call(write(path.join(reports, 'report.json'))), null);
+  firstLine(call(claude('Bash', { command: 'qory artifact pull' })), READ_SHELL);
+  firstLine(call(claude('WebFetch', {})), 'Use Read, Grep, Glob');
+});
+
+test('a review session keeps the lock, .qory/build/ and the guard of .reports/', () => {
+  const { reports, call } = sessionSetup();
+  firstLine(call(writeAs(LOCKED, REVIEWER)), 'Leave the locked file as it is');
+  firstLine(call(writeAs(path.join(WORK, '.qory', 'build', 'x.json'), REVIEWER)),
+    'Leave .qory/build/ as it is');
+  const dotted = path.join(reports, '.reports');
+  fs.mkdirSync(dotted);
+  const inside = sessionSetup(() => ({ review_session: { reports: dotted } }));
+  firstLine(inside.call(writeAs(path.join(dotted, 'code-reviewer.json'), REVIEWER)),
+    'Write no file under .reports/');
+});
+
 test('a backslash in a glob, braces that count more than they seem, and braces that make .reports are denied before a call of fs.globSync', async () => {
   const reports = require(path.join(HOOKS, 'reports-guard.cjs'));
   const work = next('pass8');

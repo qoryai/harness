@@ -267,6 +267,7 @@ The order list gets an export, in three changes.
 | types | none | none | The repository has no type check. |
 | build | none | none | The repository has no build. |
 | full | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
+| locked | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
 `;
 
 function version(root, type, number, file, text) {
@@ -1076,7 +1077,7 @@ const SCRIPT_1 = { scenario: 'scenario-1', title: 'The export', evidence: 'film'
   steps: [{ step: 1, title: 'Open the export.', expected: 'The export shows.',
     actions: [{ do: 'click', target: 'text=Export' }] }] };
 
-test('preflight: an app that does not start ends the session, and a draft script counts', async () => {
+test('preflight: an app that does not start ends the session, and a draft counts', async () => {
   const port = await freePort();
   const command = 'node app/missing.cjs';
   const plan = PLAN.replace('The order list gets an export, in three changes.\n',

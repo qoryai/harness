@@ -113,6 +113,7 @@ const PLAN = (commands = {}) => {
     types: row('types', 'none', 'none', 'The repository has no types.'),
     build: row('build', 'none', 'none', 'The repository has no build.'),
     full: row('full', '`node tool/runner.js`', '`out/junit.xml`'),
+    locked: row('locked', '`node tool/runner.js`', '`out/junit.xml`'),
     ...commands,
   };
   return [

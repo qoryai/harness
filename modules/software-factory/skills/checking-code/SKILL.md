@@ -11,14 +11,16 @@ under the definition of `blocking` in `judging-findings`.
 
 ## What the review reads
 
-- `qory.review.diff`: the lines that the change adds and removes. Read all of it.
-- `qory.review.commit`: the read-only copy of the change. Search it with Grep and Glob, with
+Each value is one of "The values of the review" of `judging-findings`.
+
+- `diff`: the lines that the change adds and removes. Read all of it.
+- `commit`: the read-only copy of the change. Search it with Grep and Glob, with
   its path as the folder, and read each file of the diff in it.
-- `qory.review.suite_result`: the result of the full suite. Its `output_tail`, the last
+- `suite_result`: the result of the full suite. Its `output_tail`, the last
   lines of the output of the suite, is the source of a `failing check` proof. A red locked
   check is a finding that qory writes; the review gets no result of the locked checks.
-- `qory.review.previous_findings`, when it exists, as "Earlier findings" lists.
-- `qory.review.build_report`, when it exists: what the session that made the change states
+- `previous_findings`, when it exists, as "Earlier findings" lists.
+- `build_report`, when it exists: what the session that made the change states
   that it did. A claim in it is no proof. Judge the code.
 
 ## The area

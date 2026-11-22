@@ -279,6 +279,9 @@ test('the session scripts the demos after the last deliverable and before the fi
       'browser-screens to the stack, then run another round."');
     contains(demos, 'With 1 and another first line, a script that exists breaks a rule: the ' +
       'skill `scripting-demos` corrects it.');
+    contains(demos, 'With 0 and a last line that starts with "Review the change to the demo ' +
+      'script", a draft changes a script that passed: the skill `scripting-demos` has the ' +
+      'change reviewed.');
     contains(demos, 'Load the skill `scripting-demos` by its name');
     // The skill and the role are named in plain words: a ${qory:...} reference would fail the
     // compose of a stack with no module that ships them, and a stack has no optional role.
@@ -408,6 +411,7 @@ The order list gets an export, in two changes.
 | types | none | none | The repository has no type check. |
 | build | none | none | The repository has no build. |
 | full | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
+| locked | \`node check-runner.cjs\` | \`reports/junit.xml\` | found: \`check-runner.cjs:1\` |
 `;
 
 // The newest demo scenarios remove scenario-2, whose demo script stays listed.

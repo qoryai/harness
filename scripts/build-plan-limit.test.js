@@ -82,6 +82,7 @@ ${rows.join('\n')}
 |---|---|---|---|
 | targeted | \`npm test --\` | \`reports/junit.xml\` | repository: \`qory.yaml\` |
 | full | \`npm test\` | \`reports/junit.xml\` | found: \`package.json:12\` |
+| locked | \`npm test -- tests/acceptance\` | \`reports/junit.xml\` | repository: \`qory.yaml\` |
 | lint | none | none | The storefront has no linter. |
 | types | \`npx tsc --noEmit\` | none | module: typescript |
 | build | none | none | \`package.json\` has no build script. |

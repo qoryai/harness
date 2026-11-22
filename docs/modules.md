@@ -182,33 +182,50 @@ note, takes no role note away from an earlier start. A blocked report needs no l
 
 ### The review of a change
 
-When qory runs a round of review, the writing session of the stage starts no reviewer. It
-records its change and ends, and qory runs the round of review afterwards: each reviewer is
-a separate session, with the tools Read, Grep, Glob, Skill and Write, no shell and no
-network. The values of the round are in the member `qory.review` of the `inputs.json` that
-qory writes: `commit`, `diff`, `suite_result`, `previous_findings`, `build_report` and
-`report`, the path where the reviewer writes its report. The reviewers of Build in
-`software-factory` are `code-reviewer`, `test-reviewer` and `acceptance-reviewer`, and the
-members of the group role `reviewers`: `security-reviewer`, `data-reviewer` and
-`failure-reviewer`. The skill `reviewing-changes` of `core` lists the report: one JSON file
-with a `reviewer` and a list of findings, each with a `severity` of `blocking` or
-`non-blocking`, `quote`, `problem`, `fix`, `proof`, `point`, and `file`, `line` and `id`
-when they apply. The report has no result word and no list of unverified claims, and nobody
-closes a finding. The skill `judging-findings` of `software-factory` defines `blocking` and
-lists the values of `qory.review`: `core` cannot contain those words, as rule 11 of
-`scripts/check.sh` lists. A reviewer that cannot finish stops and writes no file. qory reads
-the report against its schema; the harness checks no report of a change with a verb. The
-test of the example report in `reviewing-changes` reads
-`contracts/harness/v1/review-report.schema.json` of qory at the commit
-`QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder `QORY_SOURCE`.
-`scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the example reports of
-the eight reviewers. `scripts/check.sh` compares the three copies `primitives`,
-`verification` and `acceptance-criteria` in `schemas/` of `software-factory` byte for byte
-with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`. After a round
-with a `blocking` finding, the next session of the stage reads `open-findings.json`, which
-`checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
-workflows" lists. qory writes `qory.review`, `qory.stage` and `open-findings.json`; this
-harness only reads them. The tool guard denies a write to a report path below `.git` or
+A change is reviewed in one of two ways, and the reviewers and their report are the same in
+both:
+
+- **A review session.** Build's workflow `review-changes` is a review session: its
+  `inputs.json` has `qory.review_session`, which qory does not write yet, as "Not built yet"
+  in the section on `review-changes` lists. It has `reports`, the report folder, and
+  `suite_result`, the absolute path of the file with the result of the full suite, which
+  qory is to run before the session; `diff`, `previous_findings` and `build_report` are
+  absolute paths of files too. `outputs`, when qory writes it, is no path: the outputs that
+  passed the check of their schema, inline, keyed by type. The session starts each reviewer
+  as one of its agents, and each writes one report, `<reports>/<agent>.json`. Each reviewer
+  reads `commit`, `diff`, `previous_findings` after the first round, `build_report` and
+  `outputs` when qory writes them, and the two other members from `qory.review_session`, and
+  the prompt passes only the path of the input file, so the session cannot point a reviewer
+  at another commit.
+- **A separate session per reviewer.** qory starts the reviewer as the main agent of a
+  session, with the tools Read, Grep, Glob, Skill and Write, no shell and no network. The
+  values are in the member `qory.review` of the `inputs.json` that qory writes: `commit`,
+  `diff`, `suite_result`, `previous_findings`, `build_report` and `report`, the path where
+  the reviewer writes its report.
+
+The reviewers of Build in `software-factory` are the six members of the group role
+`reviewers`: `code-reviewer`, `test-reviewer` and `acceptance-reviewer`, with no `paths`,
+and `security-reviewer`, `data-reviewer` and `failure-reviewer`, with paths. The skill
+`reviewing-changes` of `core` lists the report: one JSON file with a `reviewer` and a list
+of findings, each with a `severity` of `blocking` or `non-blocking`, `quote`, `problem`,
+`fix`, `proof`, `point`, and `file`, `line` and `id` when they apply. The report has no
+result word and no list of unverified claims, and nobody closes a finding. The skill
+`judging-findings` of `software-factory` defines `blocking` and lists the values of the
+review from both places: `core` cannot contain those words, as rule 11 of `scripts/check.sh`
+lists. A reviewer that cannot finish stops and writes no file. qory reads each report
+against its schema. In a review session, `checks.cjs findings round` reads the reports too,
+with the rules of that schema, as the section on `findings` lists. The test of the example
+report in `reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory
+at the commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
+`QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
+example reports of the eight reviewers. `scripts/check.sh` compares the three copies
+`primitives`, `verification` and `acceptance-criteria` in `schemas/` of `software-factory`
+byte for byte with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`.
+After a round with a `blocking` finding, qory writes `open-findings.json` from the reports
+for the next session of `implement-changes`, which `checks.cjs findings open` prints as
+lines to fix first, as its bullet in the section "Small workflows" lists. qory writes
+`qory.review`, `qory.stage` and `open-findings.json`, and is to write `qory.review_session`;
+this harness only reads them. The tool guard denies a write to a report path below `.git` or
 `.claude` of the working folder. When the harness home is below the working folder, the deny
 of a write below the harness home applies to the report path too, so the report folder must
 be outside the home; when the home is outside the working folder, the report path may be in
@@ -220,16 +237,16 @@ bullet "a write from the main session outside the artifact folder" lists.
 Two agents of `software-factory` review Verify's work: `tamper-reviewer` with the skill
 `checking-tampering`, and `verification-reviewer` with the skill `judging-criteria`. They
 are agents of the `verify-a-ticket` session, which starts them. They are no reviewer
-sessions that qory starts, and they read no `qory.review`. qory writes `qory.review_session`
-into the `inputs.json` of the session, with `commit`, the pushed head of the fresh copy,
-`diff`, the path of the diff, `previous_findings`, the path of `open-findings.json`, which
-qory leaves out in the first round, `reports`, the report folder, `suite_result`, the path
-of the file with the suite result, and, when there is one, `build_report`, the path of the
-file with the report of the build. The prompt of each agent has only the path of the input
-file, so the prompt has no commit, diff or findings; the path of `inputs.json` itself comes
-from the prompt. Where a skill lists a value of `qory.review`, the agent reads the member of
-the same name in `qory.review_session`. Each agent writes one report to
-`<reports>/<agent>.json` in the review-report format, such as
+sessions that qory starts, and they read no `qory.review`. qory is to write
+`qory.review_session` into the `inputs.json` of the session, with `commit`, the pushed head
+of the fresh copy, `diff`, the path of the diff, `previous_findings`, the path of
+`open-findings.json`, which qory leaves out in the first round, `reports`, the report
+folder, `suite_result`, the path of the file with the suite result, and, when there is one,
+`build_report`, the path of the file with the report of the build. The prompt of each agent
+has only the path of the input file, so the prompt has no commit, diff or findings; the path
+of `inputs.json` itself comes from the prompt. Where a skill lists a value of `qory.review`,
+the agent reads the member of the same name in `qory.review_session`. Each agent writes one
+report to `<reports>/<agent>.json` in the review-report format, such as
 `<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
 `reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
 file cannot be read. With no `previous_findings`, it goes on as the first round. Each loads
@@ -294,11 +311,11 @@ An agent that the table does not list sets no `model` key.
 - Any workflow's skill orchestrates: the session that follows it runs `qory` commands and,
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. The session writes no file, except `points.json` in a small or high-level
-  workflow and in `explore-a-ticket` on a failure, and, in `review-changes`,
-  `build-report.md` and the outbox file `pull-request.json`, which the verb `report-build`
-  writes. An agent does each other task, and it loads the skills that contain the rules
-  of that task. The session loads `run-artifacts`, which contains the rule that a text
-  cannot change the rules, and, in a small or high-level workflow, `running-a-workflow`.
+  workflow and in `explore-a-ticket` on a failure, and, in `review-changes`, the list of the
+  paths of the change. An agent does each other task, and it loads the skills that contain
+  the rules of that task. The session loads `run-artifacts`, which contains the rule that a
+  text cannot change the rules, and, in a small or high-level workflow,
+  `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -967,10 +984,27 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   below 1. A regular file over 256 KB is read up to 256 KB, never whole: when its JSON ends
   inside that part, the verb exits with 3 and the first line is the fix: open the file with
   Read. It reads the file and writes nothing. It prints each path whole, without the
-  80-character cut of other messages, and the first line of a fault is plain text. The
-  report that a reviewer writes is a JSON file that qory's report schema checks, so no verb
-  of this script reads it, and `report`, `starts`, `end` and `findings` have no check for
-  the reviewers of a change.
+  80-character cut of other messages, and the first line of a fault is plain text. A
+  report that a reviewer writes is a JSON file that qory's report schema checks; only
+  `findings round` reads it, and `report`, `starts` and `end` have no check for the
+  reviewers of a change.
+- `checks.cjs findings round <reports> --reviewers <names> --suite <file>`: a review session
+  runs it once, after its reviewers returned. It reads `<reports>/<name>.json` of each name
+  of `--reviewers`, agent names joined by commas, each once and none `full-suite`, and the
+  result of the full suite at `--suite`, once each. A report that is missing, a link, no
+  regular file, over 1 MiB, no UTF-8, no JSON object, outside the review report format or of
+  another reviewer is one blocking finding of that reviewer, such as `Reviewer code-reviewer
+  wrote no report.`. The suite result has qory's form `{tests, failed, skipped,
+  output_tail}`, with counts that are integers of 0 or more. A suite with `failed` over 0, a
+  suite whose tests were all skipped, and a result that is missing, over 4 MiB or in another
+  form are one blocking finding of `full-suite`. The rule of that form comes from the
+  registry: `lib/suite.cjs` of `running-a-software-workflow` adds it, so core contains no
+  member name of the file, and with no such rule the suite has no result. It prints
+  `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and `Non-blocking finding of
+  ...`, the blocking ones first, each with `Proof: <proof>` on the next line when it has
+  one, then one line on what it checked. It exits with 1 while a finding is blocking and
+  with 0 otherwise, 2 for a wrong argument and 3 when the report folder is a link or no
+  folder. It writes no file.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -1691,16 +1725,16 @@ tool's error. The first line of each reason starts with what to do. The guard de
   lies neither below `.git` nor below `.claude` of the working folder. The compare ignores
   case on a disk that ignores case. The guard denies the write tools (`Write`, `Edit`,
   `MultiEdit`, `NotebookEdit` and `apply_patch`) of an agent, the report path included, when
-  its type ends in `-reviewer`, in any session, and when it runs in a session of a reviewer,
-  whatever its type: only the main session of a reviewer writes the report. Outside a
-  reviewer session the guard does not apply the read-only shell rule of a reviewer session
-  to a `-reviewer` agent; its shell is limited only by the other rules of the guard. An
-  agent of any other type in a session that is no reviewer's writes as it does outside a
-  review. The main session of a reviewer starts no agent (`Agent`, `Task` and `spawn_agent`,
-  also for an agent of that session). In a reviewer session, the main session and each agent
-  deny by default. They may use only: the tools `Read`, `Grep`, `Glob` and `Skill`; the
-  planning tools `TodoWrite` and `update_plan`, which change no file and run no program; the
-  one report write; on Codex, the three tools of the qory review server,
+  its type ends in `-reviewer`, in any session but a review session, and when it runs in a
+  session of a reviewer, whatever its type: only the main session of a reviewer writes the
+  report. Outside a reviewer session the guard does not apply the read-only shell rule of a
+  reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
+  the guard. An agent of any other type in a session that is no reviewer's writes as it does
+  outside a review. The main session of a reviewer starts no agent (`Agent`, `Task` and
+  `spawn_agent`, also for an agent of that session). In a reviewer session, the main session
+  and each agent deny by default. They may use only: the tools `Read`, `Grep`, `Glob` and
+  `Skill`; the planning tools `TodoWrite` and `update_plan`, which change no file and run no
+  program; the one report write; on Codex, the three tools of the qory review server,
   `mcp__qory_review__read_file`, `mcp__qory_review__list_directory` and
   `mcp__qory_review__search_in_files`, by these exact names; and a shell that only reads.
   The guard denies each other tool, such as `Edit`, `MultiEdit`, `NotebookEdit`, `WebFetch`,
@@ -1823,6 +1857,46 @@ tool's error. The first line of each reason starts with what to do. The guard de
   that a command expands itself: `grep -e` and `find -name` take a pattern, so a quoted `*`
   stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard denies
   both.
+- A review session is a session whose `inputs.json` has `qory.review_session` as an object
+  and no `qory.review`. There the guard changes these rules. The session may start agents in
+  the foreground, as in any run. An agent whose type ends in `-reviewer` writes only
+  `<reports>/<agent name>.json`, where `<reports>` is `qory.review_session.reports`, with
+  Write or `apply_patch`, and runs only a shell command of read commands. On Claude Code its
+  type is `harness:<name>`; on Codex it is a role that the composed home defines in
+  `<home>/codex/agents/<name>.toml`. A bare name, `evil:code-reviewer` and
+  `a/b:test-reviewer` get no report. The name matches `^[a-z0-9][a-z0-9-]{0,63}$` and is not
+  `full-suite`, the rule of qory's review round. The guard denies a link, a file with more
+  than one link, a `..` part and a report folder inside the working folder, each with a
+  first line that starts with "Write only" or "Report in your text". No other call writes in
+  `<reports>`: not the main session, no agent of another type or of none, by no tool, also
+  no shell command. A shell command whose writes the guard cannot read, such as `node -e`,
+  is denied when it contains a path in `<reports>`. The main session and every other agent
+  follow the rules of a session with the same access outside `<reports>`, so a
+  `write-no-push` session with `qory.review_session` writes and runs commands as before. The
+  functions are `reviewSession`, `reportName`, `keptFiles`, `sessionDeny` and
+  `sessionReport` of `tool-guard.cjs`.
+- In a session with `qory.review` or `qory.review_session`, the guard denies a write of
+  `inputs.json` of the harness home, wherever the home lies, with a first line that starts
+  with "Leave inputs.json". When the home lies outside the working folder, it denies every
+  write below the home too, such as `hooks/tool-guard.cjs`, `codex/agents/<name>.toml` and
+  the agent files under `modules/`, with a first line that starts with "Leave the harness
+  home". `qory.review.report`, the report folder of a review session and a working folder
+  inside the home keep their rules there. A command whose writes the guard cannot read, such
+  as `python3 -c`, `node -e`, `tar -C` or `unzip -d`, is denied when it runs in the home or
+  contains a path that reaches it, outside that working folder. The checks script passes
+  with a verb that a review session runs (`resume`, `lock --verify`, `panel`,
+  `findings round` and `check points`), and so does a run of a file of the home, as
+  `node <home>/tool.cjs a b`, in a call with no other word that reaches the home and no
+  quotes, parentheses or `$`. A home that is the working folder or lies inside it gets no
+  such deny, so `implement-changes` can change the files of the harness when the target is
+  the harness repository. qory's checks use the bytes it wrote to `inputs.json`, not the
+  file.
+- The guard reads the writes of a shell command from its text, so a path in `<reports>`, of
+  `inputs.json` or below the harness home that a shell variable makes, such as `D=/x; echo >
+  "$D/r.json"`, passes. So does a script that one call writes to a file and a later call
+  runs, such as `cat > /tmp/p.py` and then `python3 /tmp/p.py`, and a path that code joins
+  from parts, such as `'ho' + 'me'`. The walled run, whose home is a read-only mount outside
+  the workspace, is the main control; the guard is the second.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
@@ -2275,11 +2349,12 @@ find:
   in no row; a criterion planned as Tests with no path of a file with an extension in Check,
   such as `tests/export.test.ts`; a criterion planned as Demo with no scenario id in Check,
   such as `scenario-1`; a kind of command other than `targeted`, `lint`, `types`, `build`,
-  `full` and `serve`, or one kind twice; no row for one of `targeted`, `lint`, `types`,
-  `build` and `full`; a Source other than `repository: <file>`, `module: <name>` or
-  `found: <file>:<line>`, or none for a kind with the command `none`; no `serve` when a
-  criterion is planned as Demo; with a `serve` row, no line `App address: <url>` in
-  `## Summary`, or a value that is no http or https URL whose host has only letters,
+  `full`, `locked` and `serve`, or one kind twice; no row for one of `targeted`, `lint`,
+  `types`, `build`, `full` and `locked`; a Source other than `repository: <file>`,
+  `module: <name>` or `found: <file>:<line>`, or none for a kind with the command `none`;
+  no `serve` when a criterion is planned as Demo; with a `serve` row, no line
+  `App address: <url>` in `## Summary`, or a value that is no http or https URL whose
+  host has only letters,
   digits, `.` and `-`, starts and ends with a letter or digit and has no `..`, or is an
   IPv6 address in brackets, where an http address goes in
   backticks, such as ``App address: `http://localhost:3000/` ``, because the check of links
@@ -3168,8 +3243,9 @@ id.
   lacks, so the run wrote no demo script.", with the fix "Add the module browser-screens to
   the stack, then run another round." Otherwise it loads `scripting-demos` by name, which
   scripts each scenario that has no script and corrects each script that `demo check`
-  refuses, as "The module browser-screens" lists. The name is no `${qory:...}` reference,
-  so a stack without the module still composes `implement-changes`.
+  refuses or whose draft changes a frozen script, as "The module browser-screens" lists.
+  The name is no `${qory:...}` reference, so a stack without the module still composes
+  `implement-changes`.
 - **A step.** The session runs `step begin` with the build plan, the skill, the two agent
   files and, for a fix, the file of its finding. It starts `software-developer` (the role
   `developer`) for the first and the second attempt and `software-debugger` (the role
@@ -3212,7 +3288,7 @@ id.
   `submission-writer` and runs `checks.cjs report-build --inputs <input file>`, which writes
   `build-report.md` and the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, which
   qory pushes after the session. It then runs `checks.cjs check build-report` and pushes
-  `build-report`, as `review-changes` does. With exit 1 of `report-build`, it starts
+  `build-report`. With exit 1 of `report-build`, it starts
   `submission-writer` again, at most twice, then ends with one `run_again` point. With exit
   3 and the line `Build the change in fewer commits`, it ends as Failures with that line;
   with another exit 2, 3 or 4, it ends as Failures. When the writer fails, the run ends with
@@ -3236,80 +3312,73 @@ id.
   before they write a finding, and report a finding on one of its rules as `non-blocking`,
   unless the finding also breaks a criterion.
 
-`workflow-review-changes`, process entry `review-changes`, checks a Build run and ends it
-ready, for the review round when the stage has reviewers. The stack lists the workflow with
-`tier: thinking`, `access: write` and `plan: build-plan`. The session starts no agent before
-its end, and runs no ledger step. It pulls and runs `checks.cjs resume`. Then it reads the
-build plan of the run's start: the version that `newest_version` of `build-plan` lists in
-the `index.json` of the folder of `qory.start_artifacts`, as `lib/plan.cjs` of
-`running-a-software-workflow` reads it. It also reads `.reports/build-ledger.json` of the
-artifact folder, which `resume` writes from the version of the ledger that counts. A
-deliverable is built when the ledger row of `deliverable:<id>` with the highest `pass` has
-the `state` `done`. With no build plan, or one that is withdrawn, the session ends with a
-`run_again` point whose fix is "Plan the build, so that a run pushes the build plan." While
-a deliverable is not built, it runs `qory run verdict changes-requested` with no point and
-ends with "<k> of <n> planned changes are not built: d-2, "<Change cell>".", cut to 500
-characters. It writes no `points.json` then, because qory sends `escalate` or `answer` from
-that file. Otherwise, in a run, it runs `checks.cjs lock --verify`, and ends the same way
-with the paths of the locked files that differ. Outside a run it skips the verify, because
-the verify would read the local artifact folder. With every check passed, "The end" of the
-skill has five steps, in this order:
-1. It starts `submission-writer`, which writes `.reports/submission.md` of the artifact
-   folder: the title, then `## Problem`, `## Change`, `## Tests` and `## Disclosed`, in the
-   order of the check of `pull-request`, from the build plan, the build ledger and the
-   records of the checks, with no result typed. A runtime with no tool that starts an
-   agent, a start that fails, a report that still fails its check after two fixes and a
-   `blocked` report end the run as "Failures" of `running-a-workflow` lists.
-2. It runs `checks.cjs report-build --inputs <input file>`, which renders `build-report.md`
-   in the artifact folder and writes the outbox file
-   `$QORY_OUTBOX/pull-request/pull-request.json`. The ledger's edit check skips `.qory/`, so
-   the outbox file under `.qory/` causes no such exit. With exit 1, a rule of the text
-   broke: the session starts `submission-writer` again with the lines that `report-build`
-   printed, at most twice.
-   When exit 1 stays, the run ends with one `run_again` point, "The change is not ready,
-   because the text of the change still breaks the rules for it." With exit 3 and the first
-   line `Build the change in fewer commits`, the list of steps makes the output larger than
-   786432 bytes; no writer can shorten it, so the run ends as "Failures" with that line as
-   the cause. With exit 2, 3 or 4, the run ends as "Failures" of `running-a-workflow` lists
-   for the checks script.
-3. It runs `checks.cjs check build-report --inputs <input file>
-   <folder>/build-report.md`. With exit 1, the run ends with one `run_again` point, "The
-   change is not ready, because the build report differs from the records of the run.",
-   and starts no writer, because the tables are the script's, so a difference is a defect.
-   Before it ends, it runs `checks.cjs report-build --drop`, which removes the outbox
-   file of step 2. With exit 2, 3 or 4, the run ends as "Failures" lists for the checks
-   script.
-4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
-   again and pushes again, at most twice more, and then runs `checks.cjs report-build
-   --drop` and ends with "The run could not push its build report."
-5. In a stage that has reviewers, it runs no verdict command, and qory then runs the review
-   round. In a stage with none, such as when `inputs.json` has no `qory.stage.reviewers`,
-   it runs `qory run verdict passed` first. It ends with "The change is ready: each planned
-   change is built."
+`workflow-review-changes`, process entry `review-changes`, is the review session of a Build
+run. Build runs `plan-the-build` and `write-acceptance-checks`, then a loop of at most 3
+rounds of `implement-changes` and `review-changes`: Apiary runs the loop, `passed` leaves
+it, `changes-requested` runs `implement-changes` again, and after the third round with a
+blocking finding open the stage goes to a person with the newest findings. The stack lists
+the workflow with `tier: thinking`, `access: read` and `review_group: reviewers`, the group
+role whose reports qory checks the verdict against, and no `plan`, because qory refuses a
+`plan` on a workflow that cannot write: the checkout is read-only, and the session writes
+only into the artifact folder and the report folder `qory.review_session.reports`. qory is
+to run the full suite before the session, and to pass the absolute path of its result file
+in `qory.review_session.suite_result`, as "Not built yet" lists; `findings round` reads that
+file, and a file that it cannot read is one blocking finding. qory writes the finding of a
+locked check that fails. The session runs no ledger step. In this order:
 
-The ends of steps 1 to 4 run no `qory run verdict passed`.
+1. It pulls and runs `checks.cjs resume`, and stops when the input file has no
+   `qory.review_session`.
+2. It reads the build plan of the run's start: the version that `newest_version` of
+   `build-plan` lists in the `index.json` of the folder of `qory.start_artifacts`, as
+   `lib/plan.cjs` of `running-a-software-workflow` reads it. It also reads
+   `.reports/build-ledger.json` of the artifact folder, which `resume` writes from the
+   version of the ledger that counts. A deliverable is built when the ledger row of
+   `deliverable:<id>` with the highest `pass` has the `state` `done`. With no build plan, or
+   one that is withdrawn, the session ends with a `run_again` point whose fix is "Plan the
+   build, so that a run pushes the build plan." While a deliverable is not built, it runs
+   `qory run verdict changes-requested` with no point and ends with "<k> of <n> planned
+   changes are not built: d-2, "<Change cell>".", cut to 500 characters.
+3. In a run, it runs `checks.cjs lock --verify`, and ends the same way with the paths of
+   the locked files that differ.
+4. It writes the paths of the change, from the header lines of the diff, to
+   `.notes/changed-files.txt` of the artifact folder, and starts each member of the group
+   role `reviewers` that `checks.cjs panel` starts for those paths, in turn. Each
+   reviewer writes `<reports>/<agent>.json`. The session reads no report and starts no
+   reviewer again.
+5. It runs `checks.cjs findings round <reports> --reviewers <names> --suite <suite>` once. A
+   reviewer with no valid report is one blocking finding, and so is a suite that failed or
+   did not run. With a blocking finding, the session runs `qory run verdict
+   changes-requested` with no point: qory takes `--points` only with `escalate`, and writes
+   `open-findings.json` for the next `implement-changes` from the reports.
+6. With no blocking finding, it runs `qory run verdict passed`. The session writes no build
+   report and no submission text, starts no `submission-writer` and pushes no artifact:
+   its checkout is read-only, so it cannot write `pull-request.json` into the outbox.
 
-- **The reviewers.** qory starts `code-reviewer`, `test-reviewer` and
-  `acceptance-reviewer`, each as a separate session, as "The review of a change" lists.
-  Each loads `reviewing-changes`, `judging-findings` and its checking skill,
-  `checking-code`, `checking-tests` or `checking-acceptance`. A finding in another area is
-  left out: its reviewer writes it. `code-reviewer` reports bugs in each file that is
-  not a test, and security holes, data loss and secrets in every file of the change, tests
-  and fixtures too. Only `test-reviewer` reports a failing test that the change skips,
-  deletes or loosens, with the old test traced through the new code; it also reports code
-  with no test and tests that show nothing. `code-reviewer` reports the bug behind such a
-  failing test. Only `acceptance-reviewer` reports a criterion that the change does not
-  meet; it also reports a planned change that is not in the diff, a changed path that no
-  Files cell of the build plan lists, and work that no rule of the spec requires. It reads
-  the acceptance criteria, the spec and the build plan from the folder of
-  `qory.start_artifacts`, each at the `newest_version` of its entry `main`, or of its one
-  entry, in `index.json`, with withdrawn entries left out. A bug that also breaks a
-  criterion gets two findings: the cause from `code-reviewer`, and the criterion from
-  `acceptance-reviewer`. A red suite and a red locked check are findings that qory writes.
-  A `failing check` proof cites the lines of `output_tail` of `suite_result`.
+- **The reviewers.** `code-reviewer`, `test-reviewer` and `acceptance-reviewer` start for
+  every change, as "The review of a change" lists. Each loads `reviewing-changes`,
+  `judging-findings` and its checking skill, `checking-code`, `checking-tests` or
+  `checking-acceptance`. A finding in another area is left out: its reviewer writes it.
+  `code-reviewer` reports bugs in each file that is not a test, and security holes, data
+  loss and secrets in every file of the change, tests and fixtures too. Only `test-reviewer`
+  reports a failing test that the change skips, deletes or loosens, with the old test traced
+  through the new code; it also reports code with no test and tests that show nothing.
+  `code-reviewer` reports the bug behind such a failing test. Only `acceptance-reviewer`
+  reports a criterion that the change does not meet; it also reports a planned change that
+  is not in the diff, a changed path that no Files cell of the build plan lists, and work
+  that no rule of the spec requires. It reads the acceptance criteria, the spec and the
+  build plan from the folder of `qory.start_artifacts`, each at the `newest_version` of its
+  entry `main`, or of its one entry, in `index.json`, with withdrawn entries left out. A bug
+  that also breaks a criterion gets two findings: the cause from `code-reviewer`, and the
+  criterion from `acceptance-reviewer`. A red suite is a finding that `findings round`
+  writes from `suite_result`; qory writes the finding of a red locked check. A `failing
+  check` proof cites the lines of `output_tail` of `suite_result`.
 - **The group role `reviewers`.** `software-factory` declares `roles: {agents: {reviewers:
-  many}}` and lists `security-reviewer`, `data-reviewer` and `failure-reviewer` under
-  `provides.agents.reviewers`. Each agent file sets `paths`, a list of globs from the top
+  many}}` and lists all six reviewers under `provides.agents.reviewers`. `code-reviewer`,
+  `test-reviewer` and `acceptance-reviewer` have no `paths` key, so qory expects their
+  reports for every change; qory refuses `paths: []`. Rule 13 of `scripts/check.sh` fails
+  when the skill of a workflow with a `review_group` starts a `-reviewer` agent that is no
+  member of that group, or when a member is no agent that a module defines: qory expects a
+  report from each member. Each other agent file sets `paths`, a list of globs from the top
   of the working folder, which qory writes into `roles.json` and leaves out of the agent
   file for a runtime. `checks.cjs panel` starts a member only when a path of the change
   matches one of its globs, so the reviewers start as follows:
@@ -3350,24 +3419,23 @@ The ends of steps 1 to 4 run no `qory run verdict passed`.
   A name in another case than the globs have, such as `Passwords.java`, starts none.
   Each of the three also reports what `code-reviewer` reports in its area, so a finding
   may be in two reports. `code-reviewer`, `test-reviewer` and `acceptance-reviewer` are
-  no members of the group.
+  members of the group too, with no `paths`, so they start for every change.
 - **Earlier findings.** Each reviewer re-reads each finding of `previous_findings`, as
   `reviewing-changes` and `judging-findings` list, and repeats with its id each finding of
   its area that is still true.
-- **Not built yet.** The `reviewers` key of Build, which makes qory start the members of
-  the group, is not built. These parts of qory are not built yet:
-  - `qory.stage.reviewers` in `inputs.json`: qory does not write it yet, so the
-    `review-changes` session runs `qory run verdict passed` in every stage;
-  - how qory takes `changes-requested` from the `review-changes` session in a stage with
-    reviewers;
-  - `qory.start_artifacts` in the `inputs.json` of a reviewer, so `acceptance-reviewer`
-    stops with no report;
-  - `output_tail` of `suite_result`, the last lines of the output of the suite, so
-    `suite_result` has counts only;
+- **Not built yet.** These parts are not built yet:
+  - `qory.review_session` in the `inputs.json` of the `review-changes` session, and the
+    run of the full suite before it: at qory `64e700db`, `newReviewSessionInputs` and the
+    check of the round have `shortcut: not called yet`, so qory writes neither;
+  - the run of the `locked` row of the build plan: qory is to run it after the session as it
+    runs `full`, and at qory `64e700db` `FullRow` reads only the `full` row;
+  - the run of the loop of Build, which Apiary runs;
   - the shape of `previous_findings`;
-  - `qory.review.outputs` in the `inputs.json` of a reviewer, each declared output by
-    type, with the title and the text of the draft pull request in the entry for
-    `pull-request`, so `acceptance-reviewer` checks them only once qory writes it.
+  - `qory.review_session.outputs` in the `inputs.json` of the session: the outputs that
+    passed the check of their schema, inline, keyed by type, with the title and the text of
+    the draft pull request in the member `pull-request`. Until qory writes it,
+    `acceptance-reviewer` checks no text of a pull request.
+  Build's `sequence` in `process.yaml` is still empty.
 
 ## The high-level workflow, shape-a-ticket
 
@@ -3599,19 +3667,25 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `/app/../admin` fail. The finding is "Open only pages under <App address> in the sign-in
     steps of <script>." and the line "The step opens <url>." An address too long for 100
     characters in the first line is cut there and shown whole in the line "The App address
-    is <address>." The build plan is the one that `--inputs` or `--artifacts` gives, as
-    `preflight` reads it, else the one in the artifact folder. When no build plan can be
-    read or it has no address, the sign-in is not compared, and `demo run` still loads only
-    pages of the origin of the app. Its last line is "Write the demo script of <scenarios>,
+    is <address>." The build plan is the one in `--inputs` or `--artifacts`, as `preflight`
+    reads it, else the one in the artifact folder. When no build plan can be read or it has
+    no address, the sign-in is not compared, and `demo run` still loads only pages of the
+    origin of the app. Its last line is "Write the demo script of <scenarios>,
     from version <N> of the demo scenarios." for a scenario with no `demo-script` version
-    that counts, and "No demo script to write: each scenario has one." otherwise.
+    that counts, "Review the change to the demo script of <scenarios> with check-reviewer."
+    when a draft changes a frozen script and no scenario lacks a script, and "No demo script
+    to write: each scenario has one." otherwise. A session skips the demo section only on
+    the last line "No demo script to write".
   - The freeze and the corrections: `demo check` reads `.reports/build-ledger.json` and the
     done rows of the steps `script:<id>`, `script:<id>#2` and `script:<id>#3`, kind
     `script`. A script whose sha256 differs from the `script_sha256` of the newest done row
     is a correction. The first and the second print "Start check-reviewer on the change to
     <id>, then run the step script:<id>#<k>." and exit 0. With 3 done rows and a changed
     script or a fault, it exits 1 with "Keep the script of <id> as it is: it has had 2
-    corrections, and a third is refused." A script that breaks a rule after a pass has the
+    corrections, and a third is refused." When the pushed script also differs from the
+    newest done row, a line "Push the frozen script of <id> again" follows: pushing the
+    file of the frozen script again is the only way out. A script that breaks a rule after
+    a pass has the
     extra line "Write <id> again as the step script:<id>#<k>, then run demo check <id>."
     `<k>` is the number of done rows of the scenario plus 1; the skill reads it from the
     ledger, since `demo check` prints no step for a script that has not changed. With a
@@ -3867,29 +3941,27 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   plans: of each name that `index.json` lists, the newest version that it counts, so a
   version folder or a name that `index.json` does not list is not read. A draft
   `.demo/<scenario>.json` that `demo write` built replaces the pushed script of its
-  scenario, so the session runs `preflight` before it pushes the first script. The output of
-  the
-  serve command goes to `.reports/preflight/serve.log`, a new file in place of whatever was
-  at that path. After the check, also on a failure or a signal, the process group of the
-  command stops, and on Linux each process with the mark of the supervisor of `run`. The
-  runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
-  in the group kills the process group of the browser and then the group when the runner
-  ends, also on SIGKILL. The browser starts as
-  the leader of a new process group, and each stop of the browser kills that group, so a
-  child of the browser that stays in the group stops with it. A process that leaves
-  the group by `setsid` and removes the mark from its environment keeps running, as
-  `lib/supervise.cjs` states, and after a SIGKILL of the runner, so does every process that
-  left the group. The sign-ins stop after at most 570
+  scenario, so the session runs `preflight` before it pushes the first script. The output
+  of the serve command goes to `.reports/preflight/serve.log`, a new file in place of
+  whatever was at that path. After the check, also on a failure or a signal, the process
+  group of the command stops, and on Linux each process with the mark of the supervisor of
+  `run`. The runner of the check stops them too within 500 ms of the end of `preflight`, and
+  a watcher in the group kills the process group of the browser and then the group when the
+  runner ends, also on SIGKILL. The browser starts as the leader of a new process group, and
+  each stop of the browser kills that group, so a child of the browser that stays in the
+  group stops with it. A process that leaves the group by `setsid` and removes the mark from
+  its environment keeps running, as `lib/supervise.cjs` states, and after a SIGKILL of the
+  runner, so does every process that left the group. The sign-ins stop after at most 570
   seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
   Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
   no build plan, a `serve` command with no address of the app or one whose host breaks the
-  host rule, no demo script, a demo script that cannot be read or breaks its format rules,
-  a demo script that types a key of qory or of an agent, or a check of the app that fails
-  or runs past its limit. With each of these exits 3, a line that starts with `Cause:`
-  contains the cause for the line that ends the run, as `running-checks` lists it; after a
-  check that did not finish, the session ends the run. The session then checks the points
-  with `check points` and ends: the end check sends them with the verdict `escalate`.
+  host rule, no demo script, a demo script that cannot be read or breaks its format rules, a
+  demo script that types a key of qory or of an agent, or a check of the app that fails or
+  runs past its limit. With each of these exits 3, a line that starts with `Cause:` contains
+  the cause for the line that ends the run, as `running-checks` lists it; after a check that
+  did not finish, the session ends the run. The session then checks the points with `check
+  points` and ends: the end check sends them with the verdict `escalate`.
 - `report-build [--inputs <path>]` and `report-build --drop`: the first writes
   `build-report.md` of the standard track to the artifact folder, with every table rendered
   from records, so no agent types a result, and writes the outbox file that qory's push
@@ -4518,7 +4590,17 @@ The check and the freeze of a script:
   `script_sha256` of the script. A script that differs from the newest done row is a
   correction, the step `script:<id>#2` or `#3`; `check-reviewer` reads it, started by the
   skill with the line "Review the change to a demo script", before the correction runs. A
-  third correction is refused by `demo check`, and by the limit of 3 rows in the ledger.
+  third correction is refused by `demo check`, and the ledger refuses the id
+  `script:<id>#4`.
+  A draft that differs from the newest done row is a correction, also a copy of the pushed
+  file in `.demo/<id>.json`. A pushed script that differs from the newest done row is a
+  fault of `demo check`, whatever the draft is, unless the draft is a copy of the pushed
+  file: the draft may be missing, or a draft of an earlier pass may stay in `.demo/`. The
+  fix is to copy the pushed file to `.demo/<id>.json` and run the correction step on it,
+  or to push the frozen script again. The limits: the push check of `demo-script` does not
+  read the ledger, so a changed frozen script is found by the next `demo check`, not at
+  the push; and `demo check` finds no correction that Verify asks for when the script is
+  unchanged, because it compares only the script with the scenario and the ledger.
 - `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
   `App address:` of the build plan, by origin or by path. The agent corrects the script in
   its session. With no readable build plan or no address, `demo check` compares nothing.
@@ -4701,6 +4783,13 @@ the rule passes on that file.
 12. No file under `modules/` ends in `.js`. The finding of each file starts with its fix,
     "Rename <path> to .cjs.", and the reason follows: a module's scripts must load as
     CommonJS in a repository whose `package.json` sets `"type": "module"`.
+13. For each workflow of a stack with a `review_group`, each `-reviewer` agent that its
+    skill `workflow-<name>` starts as `${qory:agents/<agent>}` is a member of that group,
+    and each member of a group under `provides.agents` of a module is an agent file of a
+    module. qory expects a report from each member and only from a member, also from a
+    member that no module defines. `scripts/review-groups.cjs` prints a finding that starts
+    with its fix, such as "Add b-reviewer to the group grp, or start no b-reviewer in
+    workflow-flow".
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
@@ -4708,12 +4797,13 @@ there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order m
 read the same file without it.
 
 The script also checks that the compose of the `software` stack writes `roles.json` with
-`security-reviewer`, `data-reviewer` and `failure-reviewer` as the members of
-`agents/reviewers`, each with `paths`.
+six members of `agents/reviewers`: `code-reviewer`, `test-reviewer` and
+`acceptance-reviewer` with no `paths`, then `security-reviewer`, `data-reviewer` and
+`failure-reviewer`, each with `paths`.
 
 The script also checks that `roles.json` of the `software` stack has `tamper-reviewer` and
 `verification-reviewer` as the members of `agents/verify-reviewers`, with no `paths`, and
-still has `agents/reviewers`.
+still has those six members of `agents/reviewers`.
 
 The script also checks that each agent of `software-factory` whose description contains "as
 an agent of the verify-a-ticket session" is a member of `verify-reviewers` in
