@@ -3752,7 +3752,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   - `## Steps`: one row for each row of `.reports/build-ledger.json`, in its order, with
     the columns Step, Pass, Kind, State, Commit, Role, Tier and Model. Role, Tier and
     Model have one value per agent start of the row, in the order of the starts, joined
-    by `, `, or `none` for a row with no start;
+    by `, `, or `none` for a row with no start. A model that fails the check of the
+    report, such as a link that is not `https://`, is `unknown`;
   - `## Review rounds`: the latest round from `open-findings.json`, in the folder of the
     file of `--inputs`, as `### Round <N>`, a line with the frozen commit, when the file
     has one, and the reviewers, and the table Finding, Reviewer, Blocking and Proof. The

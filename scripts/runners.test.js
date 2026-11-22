@@ -3310,6 +3310,19 @@ test('check build-report: renders the tables again and refuses a table with one 
   assert.match(noLedger.err, /^The tables of the report were not checked: the artifact folder has no build-ledger\.json\.$/m);
 });
 
+test('report-build: a model that fails the check of the report is unknown in Steps', () => {
+  const { dir, ledger } = buildRepo();
+  ledger.steps[2].attempts = [{ agent: 'software-developer', role: 'developer',
+    tier: 'thinking', model: 'http://models.example/m' }];
+  write(dir, '.qory/artifacts/.reports/build-ledger.json', JSON.stringify(ledger));
+  const inputs = putRound(ROUND(1));
+  assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
+  assert.ok(reportOf(dir).includes('| developer | thinking | unknown |\n'), reportOf(dir));
+  const file = path.join(dir, '.qory/artifacts/build-report.md');
+  const checked = call(dir, ['check', 'build-report', '--inputs', inputs, file]);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+});
+
 test('check build-report: compares the raw text, so a CRLF copy, a trailing space, an extra blank line and a changed heading fail', () => {
   const { dir } = buildRepo();
   const inputs = putRound(ROUND(1));

@@ -255,13 +255,15 @@ module.exports = (lib) => {
     const out = [];
     out.push(['Summary', [`Commit: ${head}. Review rounds: ${count}. Ready for review.`]]);
     // Role, Tier and Model have one value per agent start of the row, in the order of the
-    // starts, or none.
-    const each = (row, key) => (row.attempts.length
-      ? row.attempts.map((one) => one[key]).join(', ') : 'none');
+    // starts, or none. A model that fails the check of the report, such as a link that is
+    // not https://, is unknown: a done row never changes, so the check would fail each run.
+    const each = (row, value) => (row.attempts.length
+      ? row.attempts.map(value).join(', ') : 'none');
+    const model = (one) => (refused(one.model, data.machine) ? 'unknown' : one.model);
     out.push(['Steps', rows.length
       ? table(['Step', 'Pass', 'Kind', 'State', 'Commit', 'Role', 'Tier', 'Model'],
         rows.map((row) => [row.id, row.pass, row.kind, row.state, row.commit || 'none',
-          each(row, 'role'), each(row, 'tier'), each(row, 'model')]))
+          each(row, (one) => one.role), each(row, (one) => one.tier), each(row, model)]))
       : ['None.']]);
     out.push(['Review rounds', [
       ...(rounds.length ? rounds.flatMap((one) => [one.text, '']) : ['None.', '']), CLOSING]]);
