@@ -1803,6 +1803,31 @@ test('--artifacts: a newer build plan version in the artifact folder of the sess
   assert.equal(call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: { harness_extensions: {}, start_artifacts: 'relative' } })]).status, 3);
 });
 
+test('start: an empty qory.start_artifacts reads the build plan from the session folder', () => {
+  const dir = checkout();
+  // Version 2 in the session folder runs a lint tool that does not exist; version 1 passes.
+  write(dir, '.qory/artifacts/build-plan/main/v2/build-plan.md',
+    PLAN({ lint: '| lint | `no-such-tool-y` | none | x |' }));
+  pulled(dir, 2);
+  const inputs = inputsFile({ qory: { harness_extensions: {}, start_commits: [],
+    start_artifacts: '' } });
+  const got = call(dir, ['run', 'lint', '--inputs', inputs]);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(lastRecord(dir).build_plan, 2);
+});
+
+test('start: a relative qory.start_artifacts exits 3 with the fix', () => {
+  const dir = checkout();
+  for (const value of ['relative', '.', 'a/b']) {
+    const got = call(dir, ['run', 'lint', '--inputs', inputsFile({ qory: {
+      harness_extensions: {}, start_commits: [], start_artifacts: value } })]);
+    assert.equal(got.status, 3, `${value}: ${got.out}`);
+    assert.equal(got.lines[0], 'Give --inputs the inputs.json that qory wrote for the run.');
+    assert.equal(got.lines[1], '  qory.start_artifacts in inputs.json is no absolute path, so ' +
+      'the start of the run is unknown.');
+  }
+});
+
 test('start: no line shows a key or a secret value of the environment in a path or a commit', () => {
   const dir = checkout();
   const start = sh(dir, 'rev-parse', 'HEAD');

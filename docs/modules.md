@@ -4213,7 +4213,9 @@ writes before the session, set the base and the build plan that the checks use i
   a full commit id; or a HEAD that does not descend from the commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
   `run`, `probe`, `scope`, `freeze` and `preflight` use it as `--artifacts` when
-  `--artifacts` is not given; both, with different real paths, exit 3.
+  `--artifacts` is not given; both, with different real paths, exit 3. An empty string is a
+  run that pulled no build plans at the start: the build plan then comes from the artifact
+  folder of the session, as without `--inputs`. Any other relative path exits 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with

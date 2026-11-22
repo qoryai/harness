@@ -9,7 +9,8 @@
 // - start_artifacts, the absolute path of the folder of the build plans that qory pulled at
 //   the start. run, probe, scope and freeze read the build plan from it, as --artifacts
 //   does, so that a version that an agent writes into the artifact folder of the session
-//   counts as none.
+//   counts as none. An empty string is a run that pulled no build plans at the start: the
+//   build plan then comes from the artifact folder of the session, as without --inputs.
 // With --inputs, a file without either member exits 3, as one without harness_extensions
 // does: qory writes both in every run. Without --inputs, the base is --base, and the build
 // plan comes from --artifacts, else from the artifact folder of the session.
@@ -57,9 +58,9 @@ module.exports = (lib) => {
 
   // readStart returns { commits, artifacts } of the file inputs, the path of --inputs from
   // the folder cwd, or of none when inputs is undefined. commits is the list start_commits,
-  // each { path, commit }; artifacts is start_artifacts; both are null without inputs. A
-  // file without a member or with a bad one throws Missing. No line shows a secret value of
-  // env.
+  // each { path, commit }; artifacts is start_artifacts, null when it is empty; both are null
+  // without inputs. A file without a member or with a bad one throws Missing. No line shows a
+  // secret value of env.
   function readStart(cwd, inputs, env) {
     if (inputs === undefined) return { commits: null, artifacts: null };
     const got = extensions.readQory(cwd, inputs, env);
@@ -88,11 +89,11 @@ module.exports = (lib) => {
       }
       return { path: entry.path, commit: entry.commit };
     });
+    if (qory.start_artifacts === '') return { commits, artifacts: null };
     if (typeof qory.start_artifacts !== 'string' || !path.isAbsolute(qory.start_artifacts)) {
       throw fault('qory.start_artifacts in inputs.json is no absolute path');
     }
-    const artifacts = qory.start_artifacts;
-    return { commits, artifacts };
+    return { commits, artifacts: qory.start_artifacts };
   }
 
   // planIo returns io with the artifact folder that readPlan reads the build plan from: the
