@@ -16,14 +16,18 @@ shows what the state says.
 
 ## What the review reads
 
-- The newest `verification`, the newest `acceptance-criteria` and the newest
-  `acceptance-lock`, from `<start>`, the folder in `qory.start_artifacts` of the input file.
-  For each type, read `<start>/index.json`, leave out each withdrawn entry (the version with
-  the largest `number` in `versions`, of those with no `cancelled` set to `true`, has
-  `withdrawn` set to `true`), and take the entry left whose `name` is `main`, missing or
-  empty, else the one entry left. `<N>` is its `newest_version`, and `<name>` is its `name`,
-  or `main` when it has none. Read `<start>/<type>/<name>/v<N>/<file>`, where `<file>` is
-  `verification.json`, `acceptance-criteria.json` or `acceptance-lock.json`.
+- The draft `verification.json` that `matrix` wrote at the top of the artifact folder of the
+  run, `/tmp/qory-artifacts/verification.json`. This is the file that the session pushes.
+  Read no `verification` from `qory.start_artifacts`: that folder is the pull of the start,
+  which has no draft of this session.
+- The newest `acceptance-criteria` and the newest `acceptance-lock`, from `<start>`, the
+  folder in `qory.start_artifacts` of the input file. For each type, read
+  `<start>/index.json`, leave out each withdrawn entry (the version with the largest
+  `number` in `versions`, of those with no `cancelled` set to `true`, has `withdrawn` set to
+  `true`), and take the entry left whose `name` is `main`, missing or empty, else the one
+  entry left. `<N>` is its `newest_version`, and `<name>` is its `name`, or `main` when it
+  has none. Read `<start>/<type>/<name>/v<N>/<file>`, where `<file>` is
+  `acceptance-criteria.json` or `acceptance-lock.json`.
 - For each row whose `evidence` starts with `Demo video: ` or `Pictures: `, the newest
   `demo-evidence` of the scenario that it names, `scenario-N`. Read `<start>/index.json` as
   above, for the entry whose `type` is `demo-evidence` and whose `name` is the scenario, and
@@ -33,12 +37,13 @@ shows what the state says.
 - The file at `qory.review_session.previous_findings`, when the member exists, as "Earlier
   findings" lists. The member is missing in the first round.
 
-A file cannot be read when `<start>/index.json` or its file does not exist or cannot be
-read, when no entry is left, when `newest_version` is null, when more than one entry is left
-and none has the name `main`, or when `<name>` is no folder name. A folder name has only
-letters, digits, `.`, `_` and `-`, and is not `.` or `..`. When `qory.start_artifacts` is
-missing, or one of the three files, or the `demo-evidence` of a scenario that a row names,
-cannot be read, stop and write no file.
+The draft cannot be read when `/tmp/qory-artifacts/verification.json` does not exist, is a
+link, or is no JSON. A file of `<start>` cannot be read when `<start>/index.json` or its
+file does not exist or cannot be read, when no entry is left, when `newest_version` is null,
+when more than one entry is left and none has the name `main`, or when `<name>` is no folder
+name. A folder name has only letters, digits, `.`, `_` and `-`, and is not `.` or `..`. When
+the draft, `qory.start_artifacts`, one of the two files of `<start>`, or the `demo-evidence`
+of a scenario that a row names cannot be read, stop and write no file.
 
 ## Lowering a state
 

@@ -768,15 +768,43 @@ test('findings round: more than 100 blocking findings print 100 and count the re
   assert.deepEqual(fs.readdirSync(dir), ['code-reviewer.json']);
 });
 
+test('findings round: with no --suite the round has no suite finding', () => {
+  const { dir } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [LATER] } }, null);
+  const got = call(['findings', 'round', dir, '--reviewers', 'code-reviewer']);
+  assert.equal(got.status, 0, got.out);
+  assert.deepEqual(got.lines, [
+    'Non-blocking finding of code-reviewer, src/export.js:42: The name of the helper is unclear.',
+    '  Proof: broken rule: the name is unclear.',
+    'Checked 1 report: 0 blocking and 1 non-blocking findings; no blocking finding is open.']);
+  const missing = call(['findings', 'round', dir, '--reviewers', 'test-reviewer']);
+  assert.equal(missing.status, 1);
+  assert.equal(missing.lines[0], 'Blocking finding of test-reviewer: Reviewer test-reviewer ' +
+    'wrote no report.');
+});
+
+test('findings round: a --suite file that is missing is still a blocking finding', () => {
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [] } }, null);
+  const got = round(dir, suite, ['code-reviewer']);
+  assert.equal(got.status, 1);
+  assert.equal(got.lines[0], 'Blocking finding of full-suite: The full suite has no result ' +
+    'for the reviewed change.');
+});
+
 test('findings round: wrong arguments exit 2, and a file as the report folder exits 3', () => {
   const { dir, suite } = sessionFolder({});
   for (const argv of [['findings', 'round'], ['findings', 'round', dir],
-    ['findings', 'round', dir, '--reviewers', 'code-reviewer'],
+    ['findings', 'round', dir, '--suite', suite],
+    ['findings', 'round', dir, '--reviewers', 'a', '--suite'],
+    ['findings', 'round', dir, '--reviewers', 'a', '--suite', suite, '--suite', suite],
     ['findings', 'round', dir, '--reviewers', 'Code', '--suite', suite],
     ['findings', 'round', dir, '--reviewers', 'full-suite', '--suite', suite],
     ['findings', 'round', dir, '--reviewers', 'a,a', '--suite', suite],
     ['findings', 'round', dir, '--reviewers', 'a', '--suite', suite, '--x', 'y']]) {
     assert.equal(call(argv).status, 2, argv.join(' '));
   }
+  assert.match(call(['findings', 'round', dir, '--suite', suite]).err,
+    /--reviewers <names> once and --suite <file> at most once\./);
   assert.equal(round(path.join(dir, 'none'), suite, ['code-reviewer']).status, 3);
 });

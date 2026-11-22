@@ -40,8 +40,8 @@ function familyOf(id) {
 
 module.exports = (lib) => {
   const { pull } = lib.lockReader;
-  const { Context, MATRIX_RECORD, Missing, agentModel, artifactFolder, cut, isObject,
-    liveCriteria, parseJson, plural, writeJson } = lib;
+  const { Context, MATRIX_RECORD, Missing, agentModel, approvedNumber, artifactFolder, cut,
+    isObject, liveCriteria, parseJson, plural, writeJson } = lib;
 
   // families returns the families of the models of Build's ledger, in the newest
   // version of build-ledger of context, and of the agents of Verify, once each. With no
@@ -58,13 +58,15 @@ module.exports = (lib) => {
     return [...new Set(models.map(familyOf))];
   }
 
-  // locked returns the newest record of run locked for the lock number on commit, when it is a
-  // full, clean run that ended with the results of its checks, else null. An older record
+  // locked returns the newest record of run locked for the lock number on commit, written in
+  // the run runId, when it is a full, clean run that ended with the results of its checks,
+  // else null. A record of another run, or with no run, is left out. An older record
   // never stands in for a newer one that failed, and a record of a call that ended red with
   // every check green, because a locked file changed, shows nothing.
-  function locked(root, number, commit) {
+  function locked(root, number, commit, runId) {
     const newest = lib.readRecords(root).filter((record) => record.verb === 'run' &&
-      record.kind === 'locked' && record.lock === number && record.commit === commit).pop();
+      record.kind === 'locked' && record.run_id === runId && record.lock === number &&
+      record.commit === commit).pop();
     if (!newest || newest.clean !== true || !Array.isArray(newest.criteria) ||
       newest.criteria.length !== 0 || !Array.isArray(newest.checks)) return null;
     if (Array.isArray(newest.changed) && newest.changed.length) return null;
@@ -169,13 +171,20 @@ module.exports = (lib) => {
     const live = liveCriteria(probe, 'the verification');
     if (!live) throw new Missing(finds[0]);
     const number = Number(version);
+    // The lock that Verify checks is the one that a member approved, as lock --verify checks.
+    const approved = approvedNumber(context, 'acceptance-lock');
+    if (approved !== number) {
+      throw new Missing('Pass --version the acceptance-lock version that a member approved.',
+        [approved === null ? 'acceptance-lock has no approved version.'
+          : `Version ${approved} is the approved one, not ${number}.`]);
+    }
     // The demo evidence is pulled once, when a criterion has a demo check.
     let demos;
     const evidence = () => {
       if (demos === undefined) demos = pulled('demo-evidence', false);
       return demos;
     };
-    const record = locked(root, number, commit);
+    const record = locked(root, number, commit, io.env.QORY_RUN_ID);
     const matrix = [];
     const notVerified = [];
     for (const criterion of live) {

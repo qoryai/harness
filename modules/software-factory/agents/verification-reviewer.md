@@ -63,12 +63,12 @@ The prompt contains the path of the input file. Read `qory.review_session` and
 of the same name in `qory.review_session`. In `qory.review_session`, `commit` is the commit
 under review, `diff` is the path of the file with the diff of the change,
 `previous_findings`, when it exists, is the path of `open-findings.json`, `reports` is the
-report folder, `suite_result` is the path of the file with the suite result, `{tests,
-failed, skipped, output_tail}`, and `build_report`, when it exists, is the path of the file
-with the report of the build. The working folder is the read-only copy of the change at
-`commit`. The report goes to `<reports>/verification-reviewer.json`, not to the path that
-`reviewing-changes` gives. You get no summary from another session. You fetch no web page. A
-refused tool call stays refused. Read through no link.
+report folder, `suite_result`, when it exists, is the path of the file with the suite
+result, `{tests, failed, skipped, output_tail}`, and `build_report`, when it exists, is the
+path of the file with the report of the build. The working folder is the read-only copy of
+the change at `commit`. The report goes to `<reports>/verification-reviewer.json`, not to
+the path that `reviewing-changes` gives. You get no summary from another session. You fetch
+no web page. A refused tool call stays refused. Read through no link.
 
 ## Stop conditions
 
@@ -81,10 +81,11 @@ because your session ended with no report.
 - The copy of the change or the file of the diff cannot be read, or `previous_findings` is
   set and its file cannot be read.
 - The write of the report is denied.
-- `qory.start_artifacts` is missing from the input file, or the newest version of the
-  verification, the acceptance criteria, the acceptance lock or the `demo-evidence` of a
-  scenario that a row names cannot be read, as "What the review reads" of `judging-criteria`
-  lists: without them, this review has nothing to compare the evidence with.
+- The draft `/tmp/qory-artifacts/verification.json` cannot be read, `qory.start_artifacts`
+  is missing from the input file, or the newest version of the acceptance criteria, the
+  acceptance lock or the `demo-evidence` of a scenario that a row names cannot be read, as
+  "What the review reads" of `judging-criteria` lists: without them, this review has
+  nothing to compare the evidence with.
 
 These cases are no reason to stop:
 
