@@ -805,6 +805,6 @@ test('findings round: wrong arguments exit 2, and a file as the report folder ex
     assert.equal(call(argv).status, 2, argv.join(' '));
   }
   assert.match(call(['findings', 'round', dir, '--suite', suite]).err,
-    /--reviewers <names> once, and --suite <file> at most once\./);
+    /--reviewers <names> once and --suite <file> at most once\./);
   assert.equal(round(path.join(dir, 'none'), suite, ['code-reviewer']).status, 3);
 });

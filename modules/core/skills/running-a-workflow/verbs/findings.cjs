@@ -116,7 +116,7 @@ const REPORT_BYTES = 1024 * 1024;
 const SUITE_BYTES = 4 * 1024 * 1024;
 
 // The fix that findings round prints for a wrong argument.
-const ROUND_FIX = 'Give findings round the report folder, then --reviewers <names> once, and ' +
+const ROUND_FIX = 'Give findings round a report folder, --reviewers <names> once and ' +
   '--suite <file> at most once.';
 
 // roundArgs returns { reports, names, suite } of the arguments of findings round, or the fix
