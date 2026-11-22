@@ -88,7 +88,8 @@ These cases are no reason to stop:
 
 - With no `previous_findings`, this is the first round: go on. With no `build_report`, judge
   the change from the diff alone. With a `suite_result` that is missing or cannot be read,
-  go on and write no finding for it: the run writes the finding of the suite.
+  go on and write no finding for it: the run writes the finding of the suite. With no
+  `outputs`, check no text of a pull request and go on.
 - A finding that only a person can settle is a finding: write it, with the severity that
   the definition of `blocking` sets. A review of a change has no route to a person.
 - A finding outside the area of this review: leave it out, because the reviewer of that

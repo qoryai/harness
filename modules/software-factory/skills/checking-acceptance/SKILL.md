@@ -24,9 +24,11 @@ Each value is one of "The values of the review" of `judging-findings`.
 - `previous_findings`, when it exists, as "Earlier findings" lists.
 - `build_report`, when it exists: what the session that made the change states
   that it did.
-- `outputs`, when it exists: each declared output, by type, from the outbox. The entry for
-  `pull-request` has the `title` and the `text` of the draft
-  pull request, as qory stores them. Either part can be absent.
+- `outputs`, when it exists: read the `title` and the `text` of the draft pull request
+  from its member `pull-request`, which the input file contains inline. Either part can be
+  absent. When `outputs` or its member `pull-request` is missing, check no text of a pull
+  request and go on. shortcut: `qory.review_session.outputs` is absent until qory adds it;
+  with it absent, the acceptance reviewer checks no pull request text.
 
 The review also reads the newest version of the acceptance criteria, the spec and the
 build plan of the work item, from `<start>`, the folder in `qory.start_artifacts` of the

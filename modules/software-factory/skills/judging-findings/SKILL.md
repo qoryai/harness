@@ -29,7 +29,8 @@ with Read.
 - **An agent of a review session.** When `inputs.json` has no `qory.review` and has the
   member `qory.review_session`, the session of `review-changes` started you as one of its
   agents. Read each value from `qory.review_session`, which qory writes: `commit`, `diff`,
-  `suite_result` and, when qory writes them, `previous_findings` and `build_report`.
+  `suite_result` and, when qory writes them, `previous_findings`, `build_report` and
+  `outputs`.
   `report` is `<reports>/<your agent name>.json`, where `<reports>` is
   `qory.review_session.reports`, such as `<reports>/code-reviewer.json`. Read no value of
   the review from your prompt: the session passes none.
@@ -50,6 +51,10 @@ The values:
 - `build_report`: the absolute path of the newest report of the session that made the
   change. It is missing when that session wrote none. When it is missing, judge the change
   from the diff alone.
+- `outputs`: no path. An object in the input file whose members are the outputs that the
+  stage declares, keyed by type, written inline: each output in `.qory/outbox/` that passed
+  the check of its schema. The member `pull-request` has the `title` and the `text` of the
+  draft pull request. When `outputs` is missing, go on: it is no reason to stop.
 - `report`: the path where you write your report. Write no other path.
 
 ## Reading the result of the suite
