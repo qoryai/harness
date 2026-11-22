@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const git = require('./git.cjs');
-const schema = require('./schema.cjs');
+const { SCHEMAS } = require('./template.cjs');
 
 const FILE = 'build-report.md';
 // The last line of ## Review rounds.
@@ -28,9 +28,9 @@ const UNREAD =
 module.exports = (lib) => {
   const {
     MAX_BYTES, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson, plainText, readFile,
-    readOpen, sections,
+    readOpen, schema, sections,
   } = lib;
-  const LEDGER = schema.load('build-ledger');
+  const LEDGER = schema.load(SCHEMAS, 'build-ledger');
 
   // esc returns text as the content of a table cell: a | is \|, and each backslash
   // before it is doubled, so that the backslash in the text is not an escape.

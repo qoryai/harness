@@ -18,13 +18,13 @@ const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const schema = require('./schema.cjs');
+const { SCHEMAS } = require('./template.cjs');
 
 module.exports = (lib) => {
-  const { Missing, quote } = lib;
+  const { Missing, quote, schema } = lib;
 
   const TYPE = 'build-ledger';
-  const LOADED = schema.load(TYPE);
+  const LOADED = schema.load(SCHEMAS, TYPE);
   const DEFS = LOADED.schema.$defs;
   const ID = new RegExp(DEFS.step.properties.id.pattern);
   const SHA256 = new RegExp(DEFS.sha256.pattern);
