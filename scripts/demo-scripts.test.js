@@ -7,6 +7,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -55,20 +56,34 @@ function artifacts(text = SCENARIOS, scripted = []) {
   fs.writeFileSync(path.join(dir, 'demo-scenarios.md'), text);
   const list = [listing('demo-scenarios', 'main', 1,
     { approved_version: 'av_demo-scenarios_main_1' })];
-  for (const name of scripted) list.push(listing('demo-script', name, 1));
+  for (const name of scripted) {
+    list.push(listing('demo-script', name, 1));
+    pushScript(root, name, text);
+  }
   fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts: list }));
   return root;
 }
 
+// pushScript writes version 1 of the demo script of name into root, as the pull of a pushed
+// script does: demo write builds it from the actions of ONE or TWO in a folder of its own.
+function pushScript(root, name, text) {
+  const side = artifacts(text);
+  actions(side, name, name === 'scenario-1' ? ONE : TWO);
+  assert.equal(call(side, ['demo', 'write', name]).status, 0);
+  const dir = path.join(root, 'demo-script', name, 'v1');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(path.join(side, '.demo', `${name}.json`), path.join(dir, `${name}.json`));
+}
+
 // call runs the checks script on root with the plugin folder plugin.
-function call(root, argv, plugin = CORE) {
+function call(root, argv, plugin = CORE, deps = {}) {
   let out = '';
   let err = '';
   const first = watch();
   const status = main(argv, {
     out: { write: (chunk) => { out += chunk; } },
     err: { write: (chunk) => { err += chunk; } },
-    plugin, cwd: tmp, artifacts: [root], firstLine: first.firstLine,
+    plugin, cwd: tmp, artifacts: [root], firstLine: first.firstLine, ...deps,
   });
   first.check(status, err);
   return { status, out, lines: out.split('\n').filter(Boolean) };
@@ -105,6 +120,7 @@ const ONE = { setup: SIGN_IN, steps: [
   [{ do: 'click', target: '.reply-hours' }],
 ] };
 const TWO = { setup: SIGN_IN, steps: [[{ do: 'click', target: 'text=Delayed order' }]] };
+const DRAFT = (id) => path.join('.demo', `${id}.json`);
 
 test('demo check lists the scenarios that have no demo script', () => {
   const root = artifacts(SCENARIOS, ['scenario-2']);
@@ -422,8 +438,9 @@ test('a session on a test application writes one script per scenario, with made 
     ['No demo script to write: each scenario has one.']);
 });
 
-test('demo takes surface, check, or write with a scenario id, and no other argument', () => {
+test('demo takes surface, check, write or run with a scenario id, and no other argument', () => {
   for (const argv of [['demo'], ['demo', 'surface', 'x'], ['demo', 'check', 'x'], ['demo', 'write'],
+    ['demo', 'run'], ['demo', 'run', 'x'], ['demo', 'check', 'scenario-1', 'scenario-2'],
     ['demo', 'write', 'scenario-0'], ['demo', 'write', 'scenario-1', 'x'], ['demo', 'other']]) {
     assert.equal(call(artifacts(), argv).status, 2, argv.join(' '));
   }
@@ -472,4 +489,207 @@ test('browser-screens ships the agent that fills the role demo-author and the sk
   for (const file of walk(factory)) {
     assert.ok(!/\$\{qory:(agents\/demo-author|skills\/scripting-demos)\}/.test(text(file)), file);
   }
+});
+
+// ---- The check and the freeze of a script --------------------------------------------------
+
+// drafted returns a folder with the approved demo scenarios, and the draft script of each
+// scenario of ids that demo write built, with change(id, script) applied to the script.
+function drafted(ids = ['scenario-1'], change = () => {}) {
+  const root = artifacts();
+  for (const id of ids) {
+    actions(root, id, id === 'scenario-1' ? ONE : TWO);
+    assert.equal(call(root, ['demo', 'write', id]).status, 0);
+    const file = path.join(root, DRAFT(id));
+    const script = JSON.parse(fs.readFileSync(file, 'utf8'));
+    change(id, script);
+    fs.writeFileSync(file, JSON.stringify(script));
+  }
+  return root;
+}
+
+// plan adds a build plan with a serve row and the line App address: address to root.
+function plan(root, address) {
+  const dir = path.join(root, 'build-plan/main/v1');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'build-plan.md'), `## Summary
+
+The saved replies get new hours.
+
+App address: \`${address}\`
+
+## Deliverables
+
+| Id | Change | Criteria | Files | Check |
+|---|---|---|---|---|
+| d-1 | Show the hours. | AC-1 | \`src/replies.cjs\` | n/a |
+
+## Commands
+
+| Kind | Command | Result file | Source |
+|---|---|---|---|
+| targeted | none | none | The repository has no tests. |
+| lint | none | none | The repository has no linter. |
+| types | none | none | The repository has no type check. |
+| build | none | none | The repository has no build. |
+| full | none | none | The repository has no tests. |
+| serve | \`node app/server.cjs\` | none | repository: \`app/server.cjs\` |
+`);
+  const file = path.join(root, 'index.json');
+  const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+  index.artifacts.push(listing('build-plan', 'main', 1));
+  fs.writeFileSync(file, JSON.stringify(index));
+}
+
+// ledger writes the build ledger of root with a done script step for each id of ids, whose
+// hash is the sha256 of hashes[place].
+function ledger(root, ids, hashes) {
+  const row = (id, place) => ({ id, pass: 1, kind: 'script', workflow: 'implement-changes',
+    inputs: 'a'.repeat(64), state: 'done', base: 'b'.repeat(40), commit: 'b'.repeat(40),
+    script_sha256: crypto.createHash('sha256').update(hashes[place]).digest('hex'),
+    attempts: [], replays: 0, started_at: AT, ended_at: AT });
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.reports', 'build-ledger.json'),
+    JSON.stringify({ steps: ids.map(row), escalations: [] }));
+}
+
+const text = (root, id) => fs.readFileSync(path.join(root, DRAFT(id)), 'utf8');
+
+test('demo check refuses a script with a changed expected result, title or evidence', () => {
+  const faults = [
+    ['an expected result', (id, script) => { script.steps[0].expected = 'The hours show.'; },
+      'Set the expected of step 1 of scenario-1.json to What the viewer sees of the scenario.'],
+    ['a step title', (id, script) => { script.steps[1].title = 'Read the hours.'; },
+      'Set the title of step 2 of scenario-1.json to the Action of the scenario.'],
+    ['a title', (id, script) => { script.title = 'Read the hours'; },
+      'Set /title of scenario-1.json to the title of scenario-1.'],
+    ['an evidence', (id, script) => { script.evidence = 'film'; },
+      'Set /evidence of scenario-1.json to the Evidence line of scenario-1.'],
+  ];
+  for (const [what, change, line] of faults) {
+    const got = call(drafted(['scenario-1'], change), ['demo', 'check']);
+    assert.equal(got.status, 1, `${what}: ${got.out}`);
+    assert.equal(got.lines[0], line, what);
+  }
+  const good = call(drafted(), ['demo', 'check']);
+  assert.equal(good.status, 0, good.out);
+});
+
+test('demo check refuses a pushed script after the approved scenario changed', () => {
+  const root = artifacts(SCENARIOS, ['scenario-1']);
+  assert.equal(call(root, ['demo', 'check']).status, 0);
+  const file = path.join(root, 'demo-scenarios/main/v1/demo-scenarios.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8')
+    .replace('The reply lists the support hours as 8:00 to 20:00.', 'The reply lists hours.'));
+  const got = call(root, ['demo', 'check']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0],
+    'Set the expected of step 1 of scenario-1.json to What the viewer sees of the scenario.');
+});
+
+test('demo check refuses a script with an action that is not listed', () => {
+  const got = call(drafted(['scenario-1'], (id, script) => {
+    script.steps[0].actions.push({ do: 'hover', target: '#hours' });
+  }), ['demo', 'check']);
+  assert.equal(got.status, 1, got.out);
+  assert.match(got.lines[0], /^Use only open, click, type, press and wait in scenario-1, then run demo write scenario-1\.$/);
+});
+
+test('demo check <scenario> reads that scenario alone', () => {
+  const root = drafted(['scenario-1', 'scenario-2'], (id, script) => {
+    if (id === 'scenario-2') script.title = 'Other';
+  });
+  assert.equal(call(root, ['demo', 'check', 'scenario-1']).status, 0);
+  assert.equal(call(root, ['demo', 'check', 'scenario-2']).status, 1);
+  assert.equal(call(root, ['demo', 'check', 'scenario-3']).status, 1);
+});
+
+test('the push check of demo-script refuses an evidence that differs from the scenario', () => {
+  const root = drafted(['scenario-1'], (id, script) => { script.evidence = 'film'; });
+  const got = call(root, ['check', 'demo-script', path.join(root, DRAFT('scenario-1'))]);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0],
+    'Set /evidence of scenario-1.json to the Evidence line of scenario-1.');
+  assert.equal(got.lines[1], '  That line is "Evidence: pictures". /evidence is "film".');
+});
+
+test('a change to a frozen script starts check-reviewer, and a third correction is refused', () => {
+  const changed = (root, id, target) => {
+    const script = JSON.parse(text(root, id));
+    script.steps[0].actions[0].target = target;
+    fs.writeFileSync(path.join(root, DRAFT(id)), JSON.stringify(script));
+  };
+  const root = drafted();
+  const first = text(root, 'scenario-1');
+  // The script that passed is frozen: the same script is no correction.
+  ledger(root, ['script:scenario-1'], [first]);
+  assert.deepEqual(call(root, ['demo', 'check', 'scenario-1']).lines,
+    ['Write the demo script of scenario-1, scenario-2, from version 1 of the demo scenarios.']);
+  // A change to it is the first correction, and check-reviewer reads it.
+  changed(root, 'scenario-1', '.hours');
+  const second = text(root, 'scenario-1');
+  const got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(got.lines[0], 'Start check-reviewer on the change to scenario-1, then ' +
+    'run the step script:scenario-1#2.');
+  // After that correction passed, the next change is the second.
+  ledger(root, ['script:scenario-1', 'script:scenario-1#2'], [first, second]);
+  changed(root, 'scenario-1', '.hours-2');
+  assert.equal(call(root, ['demo', 'check', 'scenario-1']).lines[0], 'Start check-reviewer ' +
+    'on the change to scenario-1, then run the step script:scenario-1#3.');
+  // After 2 corrections, a third is refused, with the fix first.
+  ledger(root, ['script:scenario-1', 'script:scenario-1#2', 'script:scenario-1#3'],
+    [first, second, text(root, 'scenario-1')]);
+  changed(root, 'scenario-1', '.hours-3');
+  const refused = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[0], 'Keep the script of scenario-1 as it is: it has had 2 ' +
+    'corrections, and a third is refused.');
+});
+
+test('a faulty script after one pass asks for the correction step', () => {
+  const root = drafted(['scenario-1'], (id, script) => { script.title = 'Other'; });
+  ledger(root, ['script:scenario-1'], ['x']);
+  const got = call(root, ['demo', 'check', 'scenario-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines.at(-2), 'Write scenario-1 again as the step ' +
+    'script:scenario-1#2, then run demo check scenario-1.');
+});
+
+test('demo check refuses a sign-in step that opens an address outside the App address', () => {
+  const outside = (url) => drafted(['scenario-1'], (id, script) => {
+    script.setup[0].url = url;
+  });
+  for (const url of ['https://other.example/sign-in', '//other.example/sign-in',
+    'http://localhost:3001/sign-in']) {
+    const root = outside(url);
+    plan(root, 'http://localhost:3000');
+    const got = call(root, ['demo', 'check']);
+    assert.equal(got.status, 1, `${url}: ${got.out}`);
+    assert.equal(got.lines[0], 'Open only pages under http://localhost:3000/ in the sign-in ' +
+      'steps of scenario-1.json.', url);
+    assert.equal(got.lines[1], `  The step opens ${url}.`);
+  }
+  // A path and an address of the app pass, and with no build plan nothing is compared.
+  for (const url of ['/sign-in', 'http://localhost:3000/sign-in']) {
+    const root = outside(url);
+    plan(root, 'http://localhost:3000');
+    assert.equal(call(root, ['demo', 'check']).status, 0, url);
+  }
+  assert.equal(call(outside('https://other.example/sign-in'), ['demo', 'check']).status, 0);
+});
+
+test('demo run exits 3 with the fix when the build plan has no serve row or no browser', () => {
+  const root = drafted();
+  plan(root, 'http://localhost:3000');
+  const git = fs.mkdtempSync(path.join(tmp, 'git-'));
+  execFileSync('git', ['init', '-q'], { cwd: git });
+  const none = call(root, ['demo', 'run', 'scenario-1'], CORE, { cwd: git,
+    preflight: { browsers: [] } });
+  assert.equal(none.status, 3, none.out);
+  assert.equal(none.lines[0], 'Add a browser to the dev container, then run preflight again.');
+  const missing = call(artifacts(), ['demo', 'run', 'scenario-1']);
+  assert.equal(missing.status, 3, missing.out);
+  assert.equal(missing.lines[0],
+    'Run demo write scenario-1, then run demo run again.');
 });

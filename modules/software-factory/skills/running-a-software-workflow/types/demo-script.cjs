@@ -3,7 +3,7 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { approved, jsonFile, scenarioFile, scenarios, short, stepRows, SCENARIO_JSON } = lib;
+  const { approved, jsonFile, scenarioFile, scenarios, scriptFindings, SCENARIO_JSON } = lib;
 
   // approvedScenario returns the scenario of id in the approved demo scenarios, or null after a
   // finding.
@@ -30,32 +30,7 @@ module.exports = (lib) => {
     }
     const scenario = approvedScenario(run, one.name, data.scenario);
     if (!scenario) return;
-    if (data.title !== scenario.title) {
-      run.find(`Set /title of ${one.name} to the title of ${data.scenario}.\nThat title is ` +
-        `${short(scenario.title, 80)}. /title is ${short(data.title, 80)}.`);
-    }
-    const rows = stepRows(scenario) || [];
-    if (data.steps.length !== rows.length) {
-      run.find(`Give ${one.name} the ${rows.length} steps of ${data.scenario}, in order: it ` +
-        `has ${data.steps.length}.`);
-    }
-    data.steps.forEach((step, place) => {
-      const at = `step ${place + 1} of ${one.name}`;
-      if (step.step !== place + 1) {
-        run.find(`Number ${at} ${place + 1}: the steps go in the order of the scenario, and ` +
-          `it is ${step.step}.`);
-      }
-      const row = rows[place];
-      if (!row) return;
-      if (step.title !== row.action) {
-        run.find(`Set the title of ${at} to the Action of the scenario.\nThe Action is ` +
-          `${short(row.action, 80)}.`);
-      }
-      if (step.expected !== row.sees) {
-        run.find(`Set the expected of ${at} to What the viewer sees of the scenario.\nWhat the ` +
-          `viewer sees is ${short(row.sees, 80)}.`);
-      }
-    });
+    for (const finding of scriptFindings(scenario, data, one.name)) run.find(finding);
   }
 
   return {

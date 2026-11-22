@@ -4,21 +4,20 @@
 // plan from the folder of --artifacts, or of qory.start_artifacts in inputs.json, else from
 // the artifact folder of the session, as run does. It reads the demo scripts from the
 // artifact folder of the session, the store of the run, since the folder of the build plans
-// holds only build plans. It writes points.json and .reports/preflight/serve.log to the
-// artifact folder of the session. It exits 0 when each part is there, 1 with a point
+// holds only build plans, and the drafts .demo/<scenario>.json of that folder, which replace
+// the pushed script of their scenario. It writes points.json and .reports/preflight/serve.log
+// to the artifact folder of the session. It exits 0 when each part is there, 1 with a point
 // run_again in points.json for each missing part, and 3 when an input is missing or the
 // runner of the app returns no result: then a line that starts with "Cause: " states the
 // cause, in the words of the line that ends the run in running-checks/SKILL.md.
 'use strict';
 
-const git = require('../lib/git.cjs');
 const { takeInputs, takeValue } = require('../lib/limits.cjs');
 const { ARTIFACTS_USAGE } = require('../lib/start.cjs');
 const { INPUTS_USAGE } = require('./run.cjs');
 
 module.exports = (lib) => {
   const { Missing, artifactFolder } = lib;
-  const starts = require('../lib/start.cjs')(lib);
   const checks = require('../lib/preflight.cjs')(lib);
 
   // options returns { inputs, artifacts } of the arguments, each undefined when it is not
@@ -32,30 +31,18 @@ module.exports = (lib) => {
     return { inputs, artifacts };
   }
 
+  // withDrafts returns pushed with the script of each draft in the place of the pushed script of
+  // its scenario, else after them, in the order of the scenarios.
+  const withDrafts = (pushed, drafts) => [
+    ...pushed.filter((one) => !drafts.some((draft) => draft.scenario === one.scenario)), ...drafts,
+  ].sort((a, b) => Number(a.scenario.split('-')[1]) - Number(b.scenario.split('-')[1]));
+
   function run(io, given) {
-    const start = starts.readStart(io.cwd, given.inputs, io.env);
-    const pinned = starts.planIo(io, given.artifacts, start);
-    const plan = checks.withCause('the build plan is missing', () => lib.readPlan(pinned));
-    const row = plan.commands.serve;
-    let serve = null;
-    if (row && row.command) {
-      if (plan.badHost !== null && plan.badHost !== undefined) {
-        throw new Missing('Set the App address host to letters, digits, . and -, then push the ' +
-          'build plan.', [`The App address of version ${plan.version} is ` +
-          `${lib.short(plan.badHost, 80)}, whose host is not letters, digits, . and -, starting ` +
-          'and ending with a letter or digit, with no .., or an IPv6 address in brackets.',
-        'Cause: the App address of the build plan has a host other than letters, digits, . and ' +
-          '-.']);
-      }
-      if (!plan.address) {
-        throw new Missing('Add the line "App address: <url>" to ## Summary of the build plan, ' +
-          'then push it.', [`Version ${plan.version} has a serve command, and no http or ` +
-          'https address of the app.', 'Cause: the build plan has no App address.']);
-      }
-      serve = { command: row.command, url: plan.address,
-        cwd: git.top(Missing, io.cwd, io.env) };
-    }
-    const scripts = serve ? checks.demoScripts(artifactFolder(io), io) : [];
+    const serve = checks.serveOf(io, given);
+    // A draft .demo/<scenario>.json that demo write built takes the place of the pushed script
+    // of its scenario: the session runs the preflight before it pushes a script.
+    const scripts = serve ? withDrafts(checks.demoScripts(artifactFolder(io), io),
+      lib.draftScripts(artifactFolder(io))) : [];
     if (serve && !scripts.length) {
       throw new Missing('Run `qory artifact pull demo-script`, then run preflight again.',
         ['The artifact folder has no demo script, and the build plan has a serve command.',

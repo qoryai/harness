@@ -321,8 +321,9 @@ workflows:
   the acceptance criteria have a live criterion with `check` set to `Tests` and the build
   plan has a check path for it, the session starts `acceptance-check-writer` and
   `check-reviewer`, commits the checks, locks them with `acceptance-lock`, and runs each
-  locked check on the start commit, where it must fail. It runs the app check only when a
-  demo script exists. A locked check that does not fail in two runs ends with
+  locked check on the start commit, where it must fail. It runs no app check: the skill
+  `scripting-demos` runs `preflight` before the first run of a demo script. A locked check
+  that does not fail in two runs ends with
   `qory run verdict escalate` and one question to a member.
 - `writing-acceptance-checks`: load it before you write the acceptance checks. The skill
   contains where each check goes, its command, the run on the start commit, the support
