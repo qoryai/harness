@@ -1196,7 +1196,7 @@ test('run locked: refuses a commit that tracks a file in .reports/', () => {
   const dir = lockedCheckout();
   const own = call(dir, ['run', 'locked']);
   assert.equal(own.status, 0, own.out);
-  // Outside a run the record names no run, so matrix, which needs a run, never reads it.
+  // Outside a run the record has no run id, so matrix, which needs a run, never reads it.
   assert.equal(lastRecord(dir).run_id, null);
   write(dir, '.reports/runs/9999-12-31T00-00-00-1-aaaaaa.json', '{}');
   sh(dir, 'add', '-A');
@@ -1204,9 +1204,11 @@ test('run locked: refuses a commit that tracks a file in .reports/', () => {
   const refused = call(dir, ['run', 'locked']);
   assert.equal(refused.status, 3, refused.out);
   assert.equal(refused.lines[0],
-    'Remove .reports/runs/9999-12-31T00-00-00-1-aaaaaa.json from the commit, then run locked again.');
+    'Remove .reports/runs/9999-12-31T00-00-00-1-aaaaaa.json from the commit, then run locked ' +
+      'again.');
   assert.equal(refused.lines[1],
-    '  Git tracks 1 file in .reports/ of the checkout: .reports/runs/9999-12-31T00-00-00-1-aaaaaa.json.');
+    '  Git tracks 1 file in .reports/ of the checkout: ' +
+      '.reports/runs/9999-12-31T00-00-00-1-aaaaaa.json.');
 });
 
 test('run locked: takes a criterion up to ac-9999, and no ac-0, ac-01 or ac-10000', () => {

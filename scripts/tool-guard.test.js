@@ -4826,7 +4826,7 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     `unzip -o a.zip -d ${runFolder}`, `tar -xf a.tar -C ${runFolder}/.reports`,
     `tar xzf a.tgz --directory=${runFolder}`, `cd ${runFolder}/.reports && unzip -o a.zip`,
     `unzip a.zip -d ${path.dirname(runFolder)}`]) {
-    // An older rule gives its own reason for a command that names .reports/.
+    // An older rule denies a command that has .reports/, with another first line.
     for (const type of [undefined, 'worker']) {
       if (command.includes('.reports')) assert.ok(call(bashAs(command, type)), command);
       else firstLine(call(bashAs(command, type)), MATRIX_KEPT);
@@ -4846,7 +4846,8 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     `${push} verification ${draft} /tmp/forged.json`, `${push} verification "$F"`,
     `${push} verification --note x ${path.join(runFolder, '..', 'forged.json')}`,
     `cd /tmp && ${push} verification verification.json`,
-    `cd ${runFolder} && ${push} verification verification.json`, `/qory/qory artifact push verification -`,
+    `cd ${runFolder} && ${push} verification verification.json`,
+    '/qory/qory artifact push verification -',
     `${push} "$T" /tmp/forged.json`,
     // A -- before the type, a root flag of qory, and a variable or a substitution as qory.
     `${push} -- verification /tmp/f.json`, `${push} --name=main -- verification /tmp/f.json`,

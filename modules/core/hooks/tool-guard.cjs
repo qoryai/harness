@@ -2405,7 +2405,7 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
       }));
     if (word !== undefined) return `${UNSURE}The command writes ${word}.`;
   }
-  // tar or unzip that extracts into a folder above full writes what its archive holds there.
+  // tar or unzip that extracts into a folder above full writes the files of its archive there.
   const unpacked = (full) => all.some((one) => {
     if (!/^(?:tar|unzip)$/.test(path.basename(plainWords(one.words)[0] || ''))) return false;
     const into = madeAt(one);
@@ -2415,7 +2415,7 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
     }));
   });
   const matrixFile = kept.find((one) => one.matrix && unpacked(one.full));
-  if (matrixFile) return `${matrixFile.head}The command extracts into a folder that holds it.`;
+  if (matrixFile) return `${matrixFile.head}The command extracts into a folder above it.`;
   return null;
 }
 

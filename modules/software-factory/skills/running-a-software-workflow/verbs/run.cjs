@@ -186,8 +186,8 @@ module.exports = (lib) => {
     const plan = lib.readPlan(pinned);
     const row = plan.commands.targeted;
     const work = git.checkout(Missing, io);
-    // A record that the commit holds in .reports/ is no record of this call, and matrix
-    // ignores it; the call refuses a commit that holds one, so the writer learns it at once.
+    // A record under .reports/ that git tracks is no record of this call, and matrix ignores
+    // it; the call refuses a commit that tracks one, so the writer learns it at once.
     const held = git.ok(Missing, work.top, ['ls-files', '-z', '--', '.reports'],
       'Run the verb in the checkout of the work', { env: io.env }).split('\0').filter(Boolean);
     if (held.length) {

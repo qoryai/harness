@@ -327,9 +327,9 @@ the matrix and its questions, and no code. Its steps, in order:
 A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
 rule 13 read `review_group` of the stack entry.
 
-`shortcut:` nothing ties `run verdict passed` to the round or the matrix, so the text of the
-skill decides the verdict, and nothing checks the `--reviewers` list against the group
-`verify-reviewers`. The replacement is a verb that runs the round, reads the matrix and
+`shortcut:` nothing ties `run verdict passed` to the round or the matrix, so the verdict
+follows only the text of the skill, and nothing checks the `--reviewers` list against the
+group `verify-reviewers`. The replacement is a verb that runs the round, reads the matrix and
 records the verdict.
 
 ## Agents
@@ -3449,8 +3449,8 @@ locked check that fails. The session runs no ledger step. In this order:
    report and no submission text, starts no `submission-writer` and pushes no artifact:
    its checkout is read-only, so it cannot write `pull-request.json` into the outbox.
 
-`shortcut:` nothing ties `run verdict passed` to the round, so the text of the skill decides
-the verdict, and nothing checks the `--reviewers` list against the group `reviewers`. The
+`shortcut:` nothing ties `run verdict passed` to the round, so the verdict follows only the
+text of the skill, and nothing checks the `--reviewers` list against the group `reviewers`. The
 replacement is a verb that runs the round and records the verdict.
 
 - **The reviewers.** `code-reviewer`, `test-reviewer` and `acceptance-reviewer` start for
@@ -3776,7 +3776,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   least 1 test and no skipped or failed test. The build plan comes from the same folder as
   for `run targeted`. No lock that counts exits 3, and so does a commit in which git tracks
   a file under `.reports/` of the checkout, with the first line "Remove <file> from the
-  commit, then run locked again." and a second line that names up to 3 files. One record has
+  commit, then run locked again." and a second line that lists up to 3 files. One record has
   every check, and `run_id`, the `QORY_RUN_ID` of the call or null, shows the run that wrote
   it. In Build, the session runs it beside `lock --verify` as an early warning, because both
   read a store that the agent can change; Verify runs the locked checks that bind, on the
@@ -4094,7 +4094,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   - a criterion whose check does not start with `Demo: `: the newest record of `run locked`
     in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria,
     with a `run_id` that is the `QORY_RUN_ID` of the session: a record of another run, or
-    with no `run_id`, is left out, and the file name decides nothing. An older record never
+    with no `run_id`, is left out, and the file name is not read. An older record never
     stands in for a newer one. The record counts only when it is a
     full run (no criterion given), with no uncommitted change, with the results of its
     checks, no `changed` list, and not red with every check green, which is how a call ends
