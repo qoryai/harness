@@ -134,7 +134,8 @@ and a stack without that module has no such skill.
    - With 1 and another first line, a script that exists breaks a rule: the skill
      `scripting-demos` corrects it.
    - With 0 and a last line that starts with "Review the change to the demo script", a
-     draft changes a script that passed: the skill `scripting-demos` has the change reviewed.
+     draft changes a script that passed: the skill `scripting-demos` has the change
+     reviewed.
    - With 2 or 3, end as "Failures" lists for the checks script, where the step is "the
      check of the demo scripts".
 2. Load the skill `scripting-demos` by its name, and follow it for the scenarios that the

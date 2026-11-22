@@ -46,12 +46,12 @@ check` prints no step for a script that has not changed.
 When the line of `demo check` that loaded this skill for `<id>` starts with "Start
 check-reviewer", `.demo/<id>.json` exists and differs from the newest done step: skip
 steps 2 to 4, do step 1, and go on from step 5. When it starts with "Push the frozen
-script", `.demo/<id>.json` does not exist, and the pushed script differs from the newest
-done step. `demo run` runs only a draft, so skip steps 2 to 4: copy the pushed file
-`<folder>/demo-script/<id>/v<N>/<id>.json`, with the largest `<N>`, to
-`<folder>/.demo/<id>.json`, do step 1, and go on from step 5 on that copy. The copy is a
-correction, so the case "Start check-reviewer" of step 5 applies. To keep the frozen
-script instead, push the file of the frozen script again, which makes it the newest
+script", the pushed script differs from the newest done step, and `.demo/<id>.json` does
+not exist or is a draft of an earlier pass. `demo run` runs only a draft, so skip steps 2
+to 4: copy the pushed file `<folder>/demo-script/<id>/v<N>/<id>.json`, with the largest
+`<N>`, to `<folder>/.demo/<id>.json`, do step 1, and go on from step 5 on that copy. The
+copy is a correction, so the case "Start check-reviewer" of step 5 applies. To keep the
+frozen script instead, push the file of the frozen script again, which makes it the newest
 version; do this only for a script that this session wrote and still has as a file.
 
 1. Run `<skill folder>/checks.cjs step begin <step> implement-changes --inputs <inputs>

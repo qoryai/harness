@@ -42,7 +42,7 @@ const path = require('node:path');
 // The Blocked: lines that this skill lists by their start:
 // running-a-software-workflow (SKILL.md:31: "starts with `needs a change to criterion`"),
 // and the stop of the agents of a build step that the last line matches:
-// workflow-implement-changes (SKILL.md:228: "reports `Blocked: needs a change to the build plan").
+// workflow-implement-changes (SKILL.md:229: "reports `Blocked: needs a change to the build plan").
 const STOPS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,

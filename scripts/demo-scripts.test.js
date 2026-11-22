@@ -765,6 +765,32 @@ test('a draft equal to a pushed script that the done row did not freeze ends wit
     'No demo script to write: each scenario has one.');
 });
 
+test('a stale draft that equals the done row does not hide a changed pushed script', () => {
+  // The draft of the first pass stays in .demo. A later round pushes another script.
+  const root = artifacts(SCENARIOS, ['scenario-1', 'scenario-2']);
+  const file = path.join(root, 'demo-script/scenario-1/v1/scenario-1.json');
+  const frozen = fs.readFileSync(file, 'utf8');
+  fs.mkdirSync(path.join(root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), frozen);
+  ledger(root, ['script:scenario-1'], [frozen]);
+  assert.equal(call(root, ['demo', 'check']).lines.at(-1),
+    'No demo script to write: each scenario has one.');
+  const other = JSON.parse(frozen);
+  other.steps[0].actions.push({ do: 'wait', text: 'Order' });
+  fs.writeFileSync(file, JSON.stringify(other));
+  const got = call(root, ['demo', 'check']);
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.lines[0], 'Push the frozen script of scenario-1 again, or run the step ' +
+    'script:scenario-1#2 for the pushed one.');
+  assert.ok(!got.out.includes('No demo script to write'), got.out);
+  // A draft that is a copy of the pushed file is the correction path: the note, not the fault.
+  fs.writeFileSync(path.join(root, DRAFT('scenario-1')), JSON.stringify(other));
+  const copy = call(root, ['demo', 'check']);
+  assert.equal(copy.status, 0, copy.out);
+  assert.equal(copy.lines.at(-1),
+    'Review the change to the demo script of scenario-1 with check-reviewer.');
+});
+
 test('demo run exits 3 with the fix when the machine has no browser', () => {
   const root = drafted();
   plan(root, 'http://localhost:3000');
@@ -914,7 +940,8 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     'With 0 and a line that starts with "Start check-reviewer"');
   inText(SCRIPTING, 'starts with "Start check-reviewer", `.demo/<id>.json` exists and differs',
     'skip steps 2 to 4, do step 1, and go on from step 5',
-    'starts with "Push the frozen script", `.demo/<id>.json` does not exist',
+    'starts with "Push the frozen script", the pushed script differs from the newest done ' +
+      'step, and `.demo/<id>.json` does not exist or is a draft of an earlier pass',
     'skip steps 2 to 4: copy the pushed file', 'do step 1, and go on from step 5 on that copy',
     'Run this step once for each `<step>`');
   inText(SCRIPTING, '5. Run `<skill folder>/checks.cjs demo check <id>',
