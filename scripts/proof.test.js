@@ -732,6 +732,30 @@ test('end: the output that report-build writes passes the end check', () => {
     /^Set \/draft of <outbox>\/pull-request\/pull-request\.json to true\./);
 });
 
+// emptyStart writes the inputs.json of a run of the scene with an empty start_artifacts, a run
+// that pulled nothing at the start, with the outputs and the outbox of the session folder.
+function emptyStart(run, folder) {
+  const file = path.join(tmp, `inputs-${++count}`, 'inputs.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ qory: { harness_extensions: {},
+    start_commits: [{ path: run.dir, commit: run.base }], start_artifacts: '',
+    outputs: OUTPUTS, outbox: outboxOf(folder) } }));
+  return file;
+}
+
+test('end and prove: an empty start_artifacts does not stop the check', () => {
+  const run = scene(BASE);
+  commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  const folder = session(run);
+  const inputs = emptyStart(run, folder);
+  // prove reads the fast-track proposal of the session folder, and the code change fails it.
+  fails(call(run.dir, ['prove', '--inputs', inputs], { artifacts: [folder] }), NOT_DOCUMENT);
+  // The check of the output in end reads the proposal as without --inputs: from the store of
+  // the output, the outbox, which has none, so it runs no proof and ends without a fault.
+  passes(call(run.dir, ['end', folder, '--inputs', inputs], { artifacts: [folder],
+    env: { ...ENV, QORY_RUN_ID: 'run_1' } }));
+});
+
 // aliased moves the outbox of the session to <top>/x/outbox and returns in outbox its path
 // through ALIAS, a link to top, for qory.outbox: the written path and the real path differ,
 // and the link is above the parent folder of the outbox.

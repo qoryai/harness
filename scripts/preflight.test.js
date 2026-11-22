@@ -1383,6 +1383,21 @@ test('preflight verb: each input that is missing or broken, and a runner with no
   }
 });
 
+test('preflight verb: an empty qory.start_artifacts reads the build plan of the session', () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const inputs = path.join(here.dir, 'inputs.json');
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { harness_extensions: {}, start_commits: [],
+    start_artifacts: '' } }));
+  // The plan of the session folder has no App address, so preflight exits 3 on it.
+  const done = call(['preflight', '--inputs', inputs], { cwd: here.dir,
+    artifacts: [pinnedPlan([], 'npm run dev')],
+    preflight: { browsers: [process.execPath], startMs: 1000 } });
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0], 'Add the line "App address: <url>" to ## Summary of the ' +
+    'build plan, then push it.');
+});
+
 // The pages of the guard tests, each with a sign-in form whose submit sends the password to
 // the origin other: a form or window.open in a new window, fetch, sendBeacon, an image, a
 // WebSocket, a service worker of the app that sends each form it gets there, a script that
