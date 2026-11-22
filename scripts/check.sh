@@ -2836,7 +2836,8 @@ const rows = (role) => roles.filter((row) => row.role === role && row.group === 
 const names = (role) => rows(role).map((row) => row.agent).join(" ");
 const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
   rows("agents/verify-reviewers").every((row) => !("paths" in row)) &&
-  names("agents/reviewers") === "security-reviewer data-reviewer failure-reviewer";
+  names("agents/reviewers") === "code-reviewer test-reviewer acceptance-reviewer " +
+    "security-reviewer data-reviewer failure-reviewer";
 if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
 # The agents of software-factory whose description is about the verify-a-ticket session
 # are the members of verify-reviewers in qory-module.yaml.
