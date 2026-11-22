@@ -18,8 +18,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   committed:` with at most 20 paths and their count. At the third failed check, the point is
   "The Build session ended <n> times with changes it did not commit, so the suite and the
   review could not check them.", where `<n>` counts the checks that found a change. The
-  check is the new registry member `end(io)`, which `running-a-software-workflow` adds; other
-  stacks are unchanged.
+  check is the new registry member `end(io)`, which `running-a-software-workflow` adds;
+  other stacks are unchanged.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
