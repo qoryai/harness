@@ -1140,6 +1140,30 @@ test('lock --verify in a run reads no lock or index.json that an agent changed',
   exitsWith(result, 1, /^ {2}The bytes of "checks\/corrected-reply\.check\.ts" differ/);
 });
 
+test('a forged local lock passes the early check of Build and fails the check of Verify', () => {
+  const { store, qory, work } = inRun();
+  const changed = 'expect(true).toBe(true);\n';
+  writeJson(path.join(work, CHECK_PATH), changed);
+  // The agent writes its check, the hash of it in the stored lock, and the hash of that lock
+  // in index.json, so that the files of the local store agree with each other.
+  const edited = clone(LOCK);
+  edited.checks[0].sha256 = sha(changed);
+  const text = JSON.stringify(edited, null, 2);
+  writeJson(path.join(store, 'acceptance-lock', 'main', 'v1', 'acceptance-lock.json'), text);
+  indexed(store, (index) => {
+    const file = index.artifacts.find((one) => one.type === 'acceptance-lock').versions[0].files[0];
+    file.sha256 = sha(text);
+    file.size = Buffer.byteLength(text);
+  });
+  // Build's early check, outside a run, reads that local store and passes.
+  exitsWith(verify(store, work), 0);
+  // Verify's check pulls the lock of version 1 again from the run API and refuses the edit.
+  const result = verify(store, work, ['--version', '1'], qory);
+  exitsWith(result, 1, /^ {2}The bytes of "checks\/corrected-reply\.check\.ts" differ/);
+  assert.deepEqual(result.calls, ['artifact pull acceptance-lock',
+    'artifact pull acceptance-lock --version 1']);
+});
+
 test('lock --verify in a run exits 3 when the pull fails, and needs the SHA-256 in index.json', () => {
   const { store, work } = inRun();
   const failed = verify(store, work, [], fakeQory({ run: true, store, pullStatus: 4 }));

@@ -18,6 +18,10 @@ module.exports = (lib) => {
   // A full commit id, as qory's branch format has it: 40 or 64 lower-case hexadecimal digits.
   const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
+  // The record that the verb matrix writes in the artifact folder, which check verification
+  // reads.
+  const MATRIX_RECORD = '.reports/matrix-record.json';
+
   // The longest first line of a finding, which has the fix: a log viewer or an agent often
   // reads only that line.
   const FIRST = 100;
@@ -438,7 +442,8 @@ module.exports = (lib) => {
   }
 
   return {
-    COMMIT, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile, sectionTitles,
+    COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile,
+    sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
     noCriteria,

@@ -2622,6 +2622,9 @@ expect "the build ledger's tests pass" 0 "$ROOT" node --test scripts/ledger.test
 # The tests of the lock on the acceptance checks: lock, lock --verify, and a cancelled run's
 # lock in the check and the push of acceptance-lock.
 expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
+# The tests of Verify: the skills and agents of its reviewers, and the verb matrix on the
+# records of run locked, the demo evidence and Build's ledger.
+expect "the verify-a-ticket tests pass" 0 "$ROOT" node --test scripts/verify-a-ticket.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # The tests of the preflight: the browser, the app of the serve command and the sign-in of
@@ -2731,6 +2734,36 @@ const names = members.map((row) => row.agent).join(" ");
 const good = names === "security-reviewer data-reviewer failure-reviewer" &&
   members.every((row) => row.group === true && Array.isArray(row.paths) && row.paths.length > 0);
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
+# The group role verify-reviewers has the two reviewers of Verify, with no paths, and
+# roles.json still has the group role reviewers.
+expect "roles.json has tamper-reviewer and verification-reviewer in agents/verify-reviewers" \
+	0 "$TMP/software" node -e '
+const roles = JSON.parse(require("fs").readFileSync(".qory/harness/roles.json", "utf8")).roles;
+const rows = (role) => roles.filter((row) => row.role === role && row.group === true);
+const names = (role) => rows(role).map((row) => row.agent).join(" ");
+const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
+  rows("agents/verify-reviewers").every((row) => !("paths" in row)) &&
+  names("agents/reviewers") === "security-reviewer data-reviewer failure-reviewer";
+if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
+# The agents of software-factory whose description is about the verify-a-ticket session
+# are the members of verify-reviewers in qory-module.yaml.
+# shortcut: the group name is fixed; read review_group of the stack entry when it exists.
+expect "each agent of the verify-a-ticket session is in verify-reviewers in qory-module.yaml" \
+	0 "$ROOT" node -e '
+const fs = require("fs");
+const dir = "modules/software-factory/";
+const yaml = fs.readFileSync(dir + "qory-module.yaml", "utf8");
+const line = /^\s{4}verify-reviewers: \[([^\]]*)\]/m.exec(yaml);
+const members = line ? line[1].split(",").map((name) => name.trim()) : [];
+const agents = fs.readdirSync(dir + "agents").filter((file) => file.endsWith(".md"))
+  .filter((file) => /as an agent of the verify-a-ticket session/.test(
+    fs.readFileSync(dir + "agents/" + file, "utf8").split("\n---")[0]))
+  .map((file) => file.slice(0, -3)).sort();
+const good = agents.length > 0 && agents.join(" ") === [...members].sort().join(" ");
+if (!good) {
+  console.error("agents: " + agents.join(" ") + "; members: " + members.join(" "));
+  process.exit(1);
+}'
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||
