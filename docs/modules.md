@@ -4205,11 +4205,13 @@ that hides its commits from the key scan. Two members of `qory` in `inputs.json`
 writes before the session, set the base and the build plan that the checks use instead:
 
 - `start_commits`, `[{"path": "<absolute checkout path as the agent sees it>", "commit":
-  "<40 or 64 hex digits>"}]`. `scope` and `freeze` take the entry whose real path is the
-  real path of the top of the checkout, and use its commit as the base. Exit 3: a `--base`
-  that resolves to another commit, as an older base widens the range and a newer one hides
-  commits; no entry for the checkout; an entry that is not a map with an absolute path and
-  a full commit id; or a HEAD that does not descend from the commit.
+  "<40 or 64 hex digits>"}]`. `start_commits` lists each repository the run may push, with
+  its commit at the start; a read-only repository has no entry. `scope` and `freeze` take
+  the entry whose real path is the real path of the top of the checkout, and use its commit
+  as the base. Exit 3: a `--base` that resolves to another commit, as an older base widens
+  the range and a newer one hides commits; no entry for the checkout; an entry that is not a
+  map with an absolute path and a full commit id; or a HEAD that does not descend from the
+  commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
   `run`, `probe`, `scope`, `freeze` and `preflight` use it as `--artifacts` when
   `--artifacts` is not given; both, with different real paths, exit 3. An empty string is a

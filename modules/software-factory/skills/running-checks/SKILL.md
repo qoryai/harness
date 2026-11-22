@@ -33,8 +33,9 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
 `freeze`, `probe` and `preflight`. The script reads these from it:
 
 - the time limits, when the file has them;
-- `qory.start_commits`, the commit of the checkout at the start of the run, which `scope`
-  and `freeze` use as the base, so that they check every commit since the start;
+- `qory.start_commits`, which `scope` and `freeze` use as the base, so that they check
+  every commit since the start. `start_commits` lists each repository the run may push,
+  with its commit at the start; a read-only repository has no entry;
 - `qory.start_artifacts`, the folder of the build plans that qory pulled at the start of
   the run, which every verb reads the build plan from, in place of the artifact folder.
   When it is `""`, the run pulled no build plans at the start, and every verb reads the
