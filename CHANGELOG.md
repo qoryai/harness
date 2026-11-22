@@ -17,11 +17,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
   pictures of pages at 360, 768 and 1280 px, for the screen reviewers. A call ends within
   585 s, so give its Bash call the timeout 600000 ms: 15 s to stop the runner, 35 s for the
-  encode (Tessio's measure on b19ea703) and 535 s for the runner. The runner's 535 s are
+  encode (measured: 35 s for about 28,000 frames) and 535 s for the runner. The runner's 535 s are
   120 s for the start of the app, the browser and the sign-in, and 415 s for the waits of
-  the steps. A film keeps each frame that the page paints, so every cue of
-  `<scenario>.vtt` lies within the film, and the runner returns its frames in a file, so
-  the number of frames is no limit.
+  the steps. ffmpeg gets what is left of the 585 s, at most 90 s and at least 5 s. A film
+  keeps each frame that the page paints, so every cue of `<scenario>.vtt` lies within the
+  film, and the runner returns its frames in a file, so the number of frames is no limit. The
+  first frame is at 0 s, and a step title is escaped in its cue. A call that fails after it
+  made the folder `.film/<scenario>` removes it, and a missing browser keeps the folder.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a
@@ -32,8 +34,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   correction. The call of `preflight` moved from the run of the locked checks to before the
   first run of a script, and it reads the drafts in `.demo/`. `demo check` and the push
   check of `demo-script` also refuse a script whose waits add up to more than 415 s: "Shorten
-  the waits in <script> to at most 415 s in total.", with the line "They add up to <m> s, and a
-  demo film has room for 415 s of waits." A wait with no `timeout_ms` counts 5 s.
+  the waits in <script> to at most 415 s in total.", with the line "They add up to <m> s (a
+  wait with no timeout_ms counts 5 s), and a demo film has room for 415 s of waits." The
+  waits of the setup count too.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a

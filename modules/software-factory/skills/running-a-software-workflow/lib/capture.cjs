@@ -41,9 +41,11 @@ async function startFilm(page, dir) {
         starts.push(Date.now() - t0);
         return;
       }
+      const first = await page.screenshot('jpeg');
       t0 = Date.now();
       starts.push(0);
-      frame(await page.screenshot('jpeg'));
+      frame(first);
+      frames[0].at = 0;
       stop = await page.screencast(frame);
     },
     async end() {},

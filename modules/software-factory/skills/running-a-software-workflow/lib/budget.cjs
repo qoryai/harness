@@ -11,8 +11,8 @@ const MARGIN_MS = 15000;
 const CALL_MS = TOOL_CALL_MS - MARGIN_MS;
 // The time that lib/preflight.cjs adds to the limit of the runner to stop it.
 const STOP_MS = 15000;
-// The time of pass 1, the encode of verbs/film.cjs, in a call: Tessio's measure on b19ea703, 35 s
-// for about 28,000 frames. Replace it with a new measure when the encode changes.
+// The time of pass 1, the encode of verbs/film.cjs, in a call, measured: 35 s for about
+// 28,000 frames. Replace it with a new measure when the encode changes.
 const ENCODE_MS = 35000;
 // The most time of the runner of a film.
 const RUN_BUDGET_MS = CALL_MS - STOP_MS - ENCODE_MS;

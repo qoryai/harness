@@ -30,7 +30,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { findBrowser } = require('../lib/browser.cjs');
-const { RUN_BUDGET_MS } = require('../lib/budget.cjs');
+const { CALL_MS, RUN_BUDGET_MS } = require('../lib/budget.cjs');
 const { FILM_HEIGHT } = require('../lib/capture.cjs');
 const { takeInputs, takeValue } = require('../lib/limits.cjs');
 const { ARTIFACTS_USAGE } = require('../lib/start.cjs');
@@ -43,8 +43,9 @@ const FRAME = /^f[0-9]{6}\.jpg$/;
 const USAGE = 'Give film with a scenario id, or film pages with one path or more.';
 // The path of ffmpeg in the image of qory, which apt installs, and the name for the PATH.
 const FFMPEG = ['/usr/bin/ffmpeg', 'ffmpeg'];
-// The time after which ffmpeg is stopped. The call counts ENCODE_MS of lib/budget.cjs of it.
+// The most time of ffmpeg, and the least: ffmpegLimitMs gives it what is left of CALL_MS.
 const FFMPEG_MS = 90000;
+const FFMPEG_LEAST_MS = 5000;
 const FRAMES_PER_SECOND = 25;
 
 // ffmpegArguments returns the arguments of ffmpeg that make <id>.mp4.tmp from frames.txt, the
@@ -54,6 +55,10 @@ const ffmpegArguments = (id, hold) => ['-y', '-hide_banner', '-loglevel', 'error
   `stop_duration=${hold},scale=1280:${FILM_HEIGHT},format=yuv420p`, '-c:v', 'libx264',
   '-preset', 'veryfast', '-movflags', '+faststart', '-an', '-f', 'mp4', `${id}.mp4.tmp`];
 
+// ffmpegLimitMs returns the time for ffmpeg when the call has run for spent ms: what is left
+// of CALL_MS, at most FFMPEG_MS and at least FFMPEG_LEAST_MS.
+const ffmpegLimitMs = (spent) => Math.max(Math.min(FFMPEG_MS, CALL_MS - spent), FFMPEG_LEAST_MS);
+
 // stamp returns ms as a WebVTT time, 00:00:03.250.
 function stamp(ms) {
   const part = (value, size) => String(Math.floor(value)).padStart(size, '0');
@@ -61,13 +66,18 @@ function stamp(ms) {
     `${part(ms % 1000, 3)}`;
 }
 
+// cueText returns text for a WebVTT cue: & < and > are escaped, so that the text holds no tag
+// and no --> that ends the cue.
+const cueText = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;');
+
 // captions returns the WebVTT file of script: one cue per step, from the start of the step to
 // the start of the next, and the last to the end of the film.
 function captions(script, capture) {
   const cues = script.steps.map((step, at) => {
     const start = capture.starts[at];
     const end = at + 1 < capture.starts.length ? capture.starts[at + 1] : capture.end;
-    return `${at + 1}\n${stamp(start)} --> ${stamp(Math.max(end, start + 1))}\n${step.title}`;
+    return `${at + 1}\n${stamp(start)} --> ${stamp(Math.max(end, start + 1))}\n${cueText(step.title)}`;
   });
   return `WEBVTT\n\n${cues.join('\n\n')}\n`;
 }
@@ -103,13 +113,27 @@ module.exports = (lib) => {
     return dir;
   }
 
-  // ended throws the Missing of a run that has no result, or returns the result run. again is
-  // the command that the fix repeats.
-  function ended(ran, serve, again) {
-    if (!ran.browser) {
+  // browserOf throws the Missing of a machine that has no browser.
+  function browserOf(io) {
+    if (!findBrowser(io.env, (io.preflight || {}).browsers)) {
       throw new Missing('Add a browser to the dev container, then run preflight again.\nNo ' +
         'browser such as /usr/bin/chromium exists on this machine.');
     }
+  }
+
+  // cleaned returns work(), and removes dir, the new folder of the call, when work throws.
+  function cleaned(dir, work) {
+    try {
+      return work();
+    } catch (error) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
+  // ended throws the Missing of a run that has no result, or returns the result run. again is
+  // the command that the fix repeats.
+  function ended(ran, serve, again) {
     if (!ran.app.started) {
       throw new Missing(`Make ${short(serve.command, 40)} start the app in the dev container, ` +
         `then run ${again} again.\nThe app did not start: ${ran.app.why}.`);
@@ -164,7 +188,7 @@ module.exports = (lib) => {
 
   // encode makes <scenario>.mp4 and <scenario>.vtt in dir from the frames of capture, and
   // removes the frames.
-  function encode(io, dir, script, capture, ffmpeg) {
+  function encode(io, dir, script, capture, ffmpeg, limitMs) {
     const id = script.scenario;
     if (!capture || capture.kind !== 'film' || !Array.isArray(capture.frames) ||
       !capture.frames.length || !Array.isArray(capture.starts) ||
@@ -179,7 +203,7 @@ module.exports = (lib) => {
     const hold = Math.max((capture.end - capture.frames[capture.frames.length - 1].at) / 1000 -
       1 / FRAMES_PER_SECOND, 0).toFixed(3);
     const made = childProcess.spawnSync(ffmpeg, ffmpegArguments(id, hold), { cwd: dir,
-      env: { PATH: io.env.PATH || '/usr/bin:/bin' }, encoding: 'utf8', timeout: FFMPEG_MS,
+      env: { PATH: io.env.PATH || '/usr/bin:/bin' }, encoding: 'utf8', timeout: limitMs,
       killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 });
     if (made.status !== 0) {
       const why = String(made.stderr || '').trim().split('\n')[0] || (made.error
@@ -197,6 +221,7 @@ module.exports = (lib) => {
 
   // filmOf runs the script of scenario `id` and stores its film or its pictures.
   function filmOf(io, id, given) {
+    const began = Date.now();
     const root = artifactFolder(io);
     const serve = checks.serveOf(io, given);
     if (!serve) {
@@ -214,27 +239,28 @@ module.exports = (lib) => {
       throw new Missing('Add ffmpeg to the dev container, then run film again.\nNo ffmpeg exists ' +
         `on this machine, and ${id} has the evidence film.`);
     }
+    browserOf(io);
     const dir = freshFolder(root, id);
-    const capture = { kind: script.evidence, dir, name: id };
-    const shorter = { ...io, preflight: { ...io.preflight,
-      maxMs: Math.min((io.preflight || {}).maxMs || RUN_BUDGET_MS,
-        RUN_BUDGET_MS) } };
-    const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
-      `film ${id}`);
-    const what = script.evidence === 'film' ? 'film' : 'pictures';
-    if (!run.ok) {
-      fs.rmSync(dir, { recursive: true, force: true });
-      return failure(io, run, what, `film ${id}`);
-    }
-    if (script.evidence === 'film') {
-      encode(io, dir, script, run.capture, ffmpeg);
-      io.print([], `Filmed ${id}: ${plural(script.steps.length, 'step')} in ` +
-        `${path.join(FOLDER, id, `${id}.mp4`)}, with the captions ${id}.vtt.`);
-    } else {
-      io.print([], `Took ${plural(run.capture.files.length, 'picture')} of ${id} in ` +
-        `${path.join(FOLDER, id)}/, one for each step.`);
-    }
-    return 0;
+    return cleaned(dir, () => {
+      const capture = { kind: script.evidence, dir, name: id };
+      const shorter = { ...io, preflight: { ...io.preflight,
+        maxMs: Math.min((io.preflight || {}).maxMs || RUN_BUDGET_MS, RUN_BUDGET_MS) } };
+      const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
+        `film ${id}`);
+      if (!run.ok) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        return failure(io, run, script.evidence === 'film' ? 'film' : 'pictures', `film ${id}`);
+      }
+      if (script.evidence === 'film') {
+        encode(io, dir, script, run.capture, ffmpeg, ffmpegLimitMs(Date.now() - began));
+        io.print([], `Filmed ${id}: ${plural(script.steps.length, 'step')} in ` +
+          `${path.join(FOLDER, id, `${id}.mp4`)}, with the captions ${id}.vtt.`);
+      } else {
+        io.print([], `Took ${plural(run.capture.files.length, 'picture')} of ${id} in ` +
+          `${path.join(FOLDER, id)}/, one for each step.`);
+      }
+      return 0;
+    });
   }
 
   // pagesOf takes the pictures of the pages that paths open.
@@ -254,18 +280,21 @@ module.exports = (lib) => {
     const first = checks.demoScripts(root, io)[0];
     const script = { scenario: 'pages', setup: first ? first.setup : [], steps: paths.map(
       (url) => ({ actions: [{ do: 'open', url }] })) };
+    browserOf(io);
     const dir = freshFolder(root, 'pages');
-    const capture = { kind: 'pages', dir, name: 'pages', widths: WIDTHS };
-    const run = ended(checks.runScript(io, root, { serve, script, capture }), serve,
-      'film pages');
-    if (!run.ok) {
-      fs.rmSync(dir, { recursive: true, force: true });
-      return failure(io, run, 'pictures of pages', 'film pages');
-    }
-    io.print([], `Took ${plural(run.capture.files.length, 'picture')} of ` +
-      `${plural(paths.length, 'page')} in ${path.join(FOLDER, 'pages')}/ at ${WIDTHS.join(', ')} ` +
-      'px: pages-<N>-<width>.png is the Nth path.');
-    return 0;
+    return cleaned(dir, () => {
+      const capture = { kind: 'pages', dir, name: 'pages', widths: WIDTHS };
+      const run = ended(checks.runScript(io, root, { serve, script, capture }), serve,
+        'film pages');
+      if (!run.ok) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        return failure(io, run, 'pictures of pages', 'film pages');
+      }
+      io.print([], `Took ${plural(run.capture.files.length, 'picture')} of ` +
+        `${plural(paths.length, 'page')} in ${path.join(FOLDER, 'pages')}/ at ` +
+        `${WIDTHS.join(', ')} px: pages-<N>-<width>.png is the Nth path.`);
+      return 0;
+    });
   }
 
   return {
@@ -290,6 +319,7 @@ module.exports = (lib) => {
   };
 };
 module.exports.FFMPEG_MS = FFMPEG_MS;
+module.exports.ffmpegLimitMs = ffmpegLimitMs;
 module.exports.FRAMES_PER_SECOND = FRAMES_PER_SECOND;
 module.exports.ffmpegArguments = ffmpegArguments;
 module.exports.captions = captions;

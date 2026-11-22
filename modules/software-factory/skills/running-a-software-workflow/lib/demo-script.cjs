@@ -67,17 +67,17 @@ module.exports = (lib) => {
     const waits = waitsMs(data);
     if (waits > WAITS_MS) {
       found.push(`Shorten the waits in ${name} to at most ${WAITS_MS / 1000} s in total.\n` +
-        `They add up to ${Math.ceil(waits / 1000)} s, and a demo film has room for ` +
-        `${WAITS_MS / 1000} s of waits.`);
+        `They add up to ${Math.ceil(waits / 1000)} s (a wait with no timeout_ms counts ` +
+        `${ACTION_MS / 1000} s), and a demo film has room for ${WAITS_MS / 1000} s of waits.`);
     }
     return found;
   }
 
-  // waitsMs returns the time that the wait actions of the steps of data, a demo script, take
-  // at most: the timeout_ms of each, or ACTION_MS when it sets none.
+  // waitsMs returns the time that the wait actions of the setup and the steps of data, a demo
+  // script, take at most: the timeout_ms of each, or ACTION_MS when it sets none.
   // shortcut: the open, click, type and press actions are not counted, which add time only
   // when the page is slow; count them when a film of a slow app runs past its limit.
-  const waitsMs = (data) => data.steps.flatMap((step) => step.actions)
+  const waitsMs = (data) => [...data.setup, ...data.steps.flatMap((step) => step.actions)]
     .filter((action) => action.do === 'wait')
     .reduce((sum, action) => sum + (action.timeout_ms || ACTION_MS), 0);
 

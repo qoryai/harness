@@ -277,18 +277,17 @@ Probe a test file that runs faster, or, for a limit under 60, raise
 
 ### The Bash timeout on Claude Code
 
-On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
-set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run` and
-`probe` the timeout 3600000 ms, and each call of `preflight` and `film` the timeout 600000 ms:
-`preflight` stops its sign-ins after at most 570 seconds, and both end within 585 seconds.
-In `run` and `probe`, the script stops every command
-of a call 60 seconds before those 60 minutes, counted from the start of the script, so the
-call still writes its record and its red line. The commands of one call share that time:
-the reruns of `run targeted`, the two runs of `probe` and the checks of `run locked`. A
-locked check that the call has no time left for does not run, and is red: run fewer checks
-per call. Run the verb as the only command of the Bash call: the script counts the 60
-minutes from the start of the script, so a command before it in the same call, such as
-`npm ci`, uses up the reserve.
+On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory` set
+its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run` and
+`probe` the timeout 3600000 ms, and each call of `preflight` and `film` the timeout 600000
+ms: `preflight` stops its sign-ins after at most 570 seconds, and both end within 585
+seconds. In `run` and `probe`, the script stops every command of a call 60 seconds before
+those 60 minutes, counted from the start of the script, so the call still writes its record
+and its red line. The commands of one call share that time: the reruns of `run targeted`,
+the two runs of `probe` and the checks of `run locked`. A locked check that the call has no
+time left for does not run, and is red: run fewer checks per call. Run the verb as the only
+command of the Bash call: the script counts the 60 minutes from the start of the script, so
+a command before it in the same call, such as `npm ci`, uses up the reserve.
 
 ## Scope
 

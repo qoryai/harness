@@ -600,16 +600,18 @@ test('demo check refuses a script with an action that is not listed', () => {
 // and the sign-in may take.
 const WAIT = (ms) => ({ do: 'wait', text: 'Hours', timeout_ms: ms });
 const SHORTEN = (total) => ['Shorten the waits in scenario-1.json to at most 415 s in total.',
-  `  They add up to ${total} s, and a demo film has room for 415 s of waits.`];
+  `  They add up to ${total} s (a wait with no timeout_ms counts 5 s), and a demo film has ` +
+    'room for 415 s of waits.'];
 
 test('demo check: waits that add up to the share of a film pass, and one second over is refused', () => {
   const waits = (...list) => (id, script) => {
     script.steps[0].actions = list.map(WAIT);
   };
+  // The sign-in of the test script has one wait with no timeout_ms, 5 s, so the steps have 410 s.
   const six = [60000, 60000, 60000, 60000, 60000, 60000];
-  const at = call(drafted(['scenario-1'], waits(...six, 55000)), ['demo', 'check']);
+  const at = call(drafted(['scenario-1'], waits(...six, 50000)), ['demo', 'check']);
   assert.equal(at.status, 0, at.out);
-  const over = call(drafted(['scenario-1'], waits(...six, 56000)), ['demo', 'check']);
+  const over = call(drafted(['scenario-1'], waits(...six, 51000)), ['demo', 'check']);
   assert.equal(over.status, 1, over.out);
   assert.deepEqual(over.lines.slice(0, 2), SHORTEN(416));
   // A wait with no timeout_ms counts for the 5 s of the replay.
@@ -617,7 +619,18 @@ test('demo check: waits that add up to the share of a film pass, and one second 
     script.steps[0].actions = [...six, 60000, { do: 'wait', text: 'Hours' }].map((one) =>
       (typeof one === 'number' ? WAIT(one) : one));
   }), ['demo', 'check']);
-  assert.deepEqual(bare.lines.slice(0, 2), SHORTEN(425));
+  assert.deepEqual(bare.lines.slice(0, 2), SHORTEN(430));
+});
+
+test('demo check counts the waits of the setup too', () => {
+  const got = call(drafted(['scenario-1'], (id, script) => {
+    // 4 waits of 50 s in the sign-in, 200 s, 5 s of the wait that it has, and 360 s in the
+    // first step.
+    script.setup = [...script.setup, ...Array.from({ length: 4 }, () => WAIT(50000))];
+    script.steps[0].actions = Array.from({ length: 6 }, () => WAIT(60000));
+  }), ['demo', 'check']);
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), SHORTEN(565));
 });
 
 test('demo check refuses the longest script that the schema allows: 8 steps of 10 waits of 60 s', () => {
@@ -627,7 +640,7 @@ test('demo check refuses the longest script that the schema allows: 8 steps of 1
       actions: Array.from({ length: 10 }, () => WAIT(60000)) }));
   }), ['demo', 'check']);
   assert.equal(got.status, 1, got.out);
-  assert.ok(got.out.includes(SHORTEN(4800).join('\n')), got.out);
+  assert.ok(got.out.includes(SHORTEN(4805).join('\n')), got.out);
 });
 
 test('demo check <scenario> reads that scenario alone', () => {

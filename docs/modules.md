@@ -3791,9 +3791,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `http://localhost:3000/app`, `/app` and `/app/x` pass, and `/application`, `/admin` and
     `/app/../admin` fail. It exits 1 too for a script whose waits add up to more than the
     415 seconds that a film has for them (`WAITS_MS` of `lib/budget.cjs`), the sum of the
-    `timeout_ms` of each `wait` of the steps, 5 seconds for a wait with none: "Shorten the
-    waits in <script> to at most 415 s in total.", and the line "They add up to <m> s, and a
-    demo film has room for 415 s of waits." The push check of `demo-script` finds it too. The
+    `timeout_ms` of each `wait` of the setup and the steps, 5 seconds for a wait with none:
+    "Shorten the waits in <script> to at most 415 s in total.", and the line "They add up to
+    <m> s (a wait with no timeout_ms counts 5 s), and a demo film has room for 415 s of
+    waits." The push check of `demo-script` finds it too. The
     finding of an outside `open` is "Open only pages under <App address> in the sign-in
     steps of <script>." and the line "The step opens <url>." An address too long for 100
     characters in the first line is cut there and shown whole in the line "The App address
@@ -3853,8 +3854,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `lib/budget.cjs`): the 600 seconds of a Bash call with the timeout 600000 ms, less 15
   seconds of margin, which also covers the time that the stop of the app and the browser
   add. Give the Bash call that timeout. The 585 seconds are 15 seconds to stop the runner,
-  35 seconds for the encode (`ENCODE_MS`, Tessio's measure on b19ea703 for about 28,000
-  frames; ffmpeg itself is stopped at 90 seconds), and 535 seconds for the runner
+  35 seconds for the encode (`ENCODE_MS`, measured: 35 seconds for about 28,000 frames;
+  ffmpeg gets what is left of the 585 seconds, at most 90 and at least 5 seconds), and 535 seconds for the runner
   (`RUN_BUDGET_MS`). The runner's 535 seconds are 120 seconds for the start of the app, the
   start of the browser and the sign-in (`START_MS`), and 415 seconds for the waits of the
   steps (`WAITS_MS`). An app or a sign-in that takes longer than the 120 seconds takes
@@ -3885,7 +3886,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     no typed value, and the last line "Stored no film: it failed in step <k>." A film
     scenario with no ffmpeg, a scenario with no pushed script that counts, a plan with no
     `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
-    run, and an ffmpeg that fails exit 3 with the fix first.
+    run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
+    `.film/<scenario>/` removes that folder, and a call with no browser exits before it
+    makes the folder, so the film of an earlier call stays. The text of a step in the
+    captions has `&`, `<` and `>` escaped as `&amp;`, `&lt;` and `&gt;`, so it holds no tag
+    and no `-->`. The first frame of the film is at 0 ms.
   - `film pages <path>...` takes pictures of the pages that the paths open, for the two
     screen reviewers: `.film/pages/pages-<N>-<width>.png` for the Nth path at 360, 768 and
     1280 px, each taken after the page loads. A path starts with `/` and is a page under the

@@ -329,7 +329,7 @@ async function main() {
   }
   if (aborted) return;
   const text = `${JSON.stringify(result)}\n`;
-  if (spec.resultFile) fs.writeFileSync(spec.resultFile, text, { flag: 'wx' });
+  if (spec.resultFile) fs.writeFileSync(spec.resultFile, text, { flag: 'wx', mode: 0o600 });
   else fs.writeSync(1, text);
   process.exit(0);
 }
