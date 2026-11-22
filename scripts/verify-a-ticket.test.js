@@ -475,6 +475,29 @@ test('matrix: two families, and unknown for no model', () => {
   assert.deepEqual(verification(unknown).model_families, ['unknown']);
 });
 
+test('matrix: the families of a build that stopped at its round limit, and of no ledger', () => {
+  // The round limit leaves a deliverable failed after 3 attempts and a fix of pass 2 that
+  // failed too. Each attempt counts, once per family, and an attempt with no model counts as
+  // unknown.
+  const attempt = (model) => ({ agent: 'software-developer', role: 'developer', tier: 'balanced',
+    model });
+  const stopped = { steps: [
+    { id: 'deliverable:d-1', pass: 1, state: 'done', attempts: [attempt('claude-sonnet-5')] },
+    { id: 'deliverable:d-2', pass: 1, state: 'failed', attempts: [attempt('deepseek-v4-pro'),
+      attempt('openrouter/deepseek-v4-pro'), attempt('qwen-3-coder')] },
+    { id: 'fix:f1', pass: 2, state: 'failed', attempts: [attempt('unknown')] }] };
+  const plugin = () => layout({ models: { 'tamper-reviewer': 'claude-opus-5',
+    'verification-reviewer': 'claude-opus-5' } });
+  const limit = work({ records: [{ checks: [check('ac-4', 'green')] }], ledger: stopped,
+    plugin: plugin() });
+  assert.equal(matrix(limit).status, 0);
+  assert.deepEqual(verification(limit).model_families, ['claude', 'deepseek', 'qwen', 'unknown']);
+  // With no version of the ledger, only the reviewers of Verify give a family.
+  const none = work({ records: [{ checks: [check('ac-4', 'green')] }], plugin: plugin() });
+  assert.equal(matrix(none).status, 0);
+  assert.deepEqual(verification(none).model_families, ['claude']);
+});
+
 test('matrix: a forged local store gives no state: it reads the criteria, demo evidence and ledger from the run', () => {
   const forged = work({ records: [{ checks: [check('ac-4', 'green')] }],
     forge: (store, commit) => {
