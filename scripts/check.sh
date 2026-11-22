@@ -2721,21 +2721,21 @@ const names = members.map((row) => row.agent).join(" ");
 const good = names === "security-reviewer data-reviewer failure-reviewer" &&
   members.every((row) => row.group === true && Array.isArray(row.paths) && row.paths.length > 0);
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
-# The group role verify-reviewers holds the two reviewers of Verify next to the group role
-# reviewers: both groups are in roles.json, and the members have no paths.
-expect "the software stack's roles.json lists tamper-reviewer and verification-reviewer as the members of agents/verify-reviewers, and keeps agents/reviewers" \
+# The group role verify-reviewers has the two reviewers of Verify, with no paths, and
+# roles.json still has the group role reviewers.
+expect "roles.json has tamper-reviewer and verification-reviewer in agents/verify-reviewers" \
 	0 "$TMP/software" node -e '
 const roles = JSON.parse(require("fs").readFileSync(".qory/harness/roles.json", "utf8")).roles;
-const names = (role) => roles.filter((row) => row.role === role && row.group === true)
-  .map((row) => row.agent).join(" ");
+const rows = (role) => roles.filter((row) => row.role === role && row.group === true);
+const names = (role) => rows(role).map((row) => row.agent).join(" ");
 const good = names("agents/verify-reviewers") === "tamper-reviewer verification-reviewer" &&
+  rows("agents/verify-reviewers").every((row) => !("paths" in row)) &&
   names("agents/reviewers") === "security-reviewer data-reviewer failure-reviewer";
 if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }'
-# Each reviewer agent that the verify-a-ticket session starts is a member of the group role
-# verify-reviewers in qory-module.yaml. The agents are the files of software-factory whose
-# description says so. shortcut: the group name is fixed here because the stack has no
-# verify-a-ticket entry yet; read it from review_group of that entry when it is added.
-expect "each agent of the verify-a-ticket session is a member of verify-reviewers in qory-module.yaml" \
+# The agents of software-factory that name the verify-a-ticket session in their description
+# are the members of verify-reviewers in qory-module.yaml.
+# shortcut: the group name is fixed; read review_group of the stack entry when it exists.
+expect "each agent of the verify-a-ticket session is in verify-reviewers in qory-module.yaml" \
 	0 "$ROOT" node -e '
 const fs = require("fs");
 const dir = "modules/software-factory/";
@@ -2747,7 +2747,10 @@ const agents = fs.readdirSync(dir + "agents").filter((file) => file.endsWith(".m
     fs.readFileSync(dir + "agents/" + file, "utf8").split("\n---")[0]))
   .map((file) => file.slice(0, -3)).sort();
 const good = agents.length > 0 && agents.join(" ") === [...members].sort().join(" ");
-if (!good) { console.error("agents: " + agents.join(" ") + "; members: " + members.join(" ")); process.exit(1); }'
+if (!good) {
+  console.error("agents: " + agents.join(" ") + "; members: " + members.join(" "));
+  process.exit(1);
+}'
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||

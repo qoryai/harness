@@ -199,14 +199,17 @@ the artifact folder" lists.
 Two agents of `software-factory` review Verify's work: `tamper-reviewer` with the skill
 `checking-tampering`, and `verification-reviewer` with the skill `judging-criteria`. They
 are agents of the `verify-a-ticket` session, which starts them. They are no reviewer
-sessions that qory starts, and they read no `qory.review`. The session passes
-`qory.review_session` in `inputs.json`, which qory writes, with `commit`, the pushed head of
-the fresh copy, `diff`, the path of the diff, `previous_findings`, the path of
-`open-findings.json`, which qory leaves out in the first round, `reports`, the report
-folder, `suite_result` and, when there is one, `build_report`. The prompt of each agent has
-only the path of the input file, so a session cannot point its agents at another commit.
-Each agent writes one report to `<reports>/<agent>.json` in the review-report format, such
-as `<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
+sessions that qory starts, and they read no `qory.review`. qory writes `qory.review_session`
+into the `inputs.json` of the session, with `commit`, the pushed head of the fresh copy,
+`diff`, the path of the diff, `previous_findings`, the path of `open-findings.json`, which
+qory leaves out in the first round, `reports`, the report folder, `suite_result`, the path
+of the file with the suite result, and, when there is one, `build_report`, the path of the
+file with the report of the build. The prompt of each agent has only the path of the input
+file, so the prompt names no commit, diff or findings; the path of `inputs.json` itself
+comes from the prompt. Where a skill names a value of `qory.review`, the agent reads the
+member of the same name in `qory.review_session`. Each agent writes one report to
+`<reports>/<agent>.json` in the review-report format, such as
+`<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
 `reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
 file cannot be read. With no `previous_findings`, it goes on as the first round. Each loads
 `reviewing-changes`, `judging-findings`, the skill of the agent, `reviewing-drafts` and
@@ -4256,10 +4259,15 @@ The script also checks that the compose of the `software` stack writes `roles.js
 `security-reviewer`, `data-reviewer` and `failure-reviewer` as the members of
 `agents/reviewers`, each with `paths`.
 
-The script also checks that each agent of `software-factory` whose description says it is an
-agent of the `verify-a-ticket` session is a member of `verify-reviewers` in
-`qory-module.yaml`, and the reverse. It reads the group name from the script until the stack
-has a `verify-a-ticket` entry, and then from `review_group` of that entry.
+The script also checks that `roles.json` of the `software` stack has `tamper-reviewer` and
+`verification-reviewer` as the members of `agents/verify-reviewers`, with no `paths`, and
+still has `agents/reviewers`.
+
+The script also checks that each agent of `software-factory` whose description contains "as
+an agent of the verify-a-ticket session" is a member of `verify-reviewers` in
+`qory-module.yaml`, and that the group has no other member. The check uses the group name
+`verify-reviewers` until the stack has a `verify-a-ticket` entry, and then the
+`review_group` of that entry.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
