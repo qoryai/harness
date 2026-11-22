@@ -54,11 +54,14 @@ submission text. Start no agent that is not one of the two reviewers.
    input file has no review session."
 3. Find `<N>`. Read `<start>/index.json` with the file tool of your runtime. In its entry of
    `artifacts` whose `type` is `acceptance-lock`, `approved_version` is the `id` of a
-   version of `versions`: `<N>` is the `number` of that version. When the entry is missing,
-   or `approved_version` is null, or no version has that `id`, start nothing and end as
-   "Points" lists, with one `run_again` point. Its text is "No member approved an
-   acceptance lock, so the change was not verified." and its `fix` is "Approve the
-   acceptance lock, then run Verify again."
+   version of `versions`: `<N>` is the `number` of that version. Otherwise start nothing and
+   end as "Points" lists, with one `run_again` point:
+   - With no such entry, the text is "The work item has no acceptance lock, so the change
+     was not verified." and the `fix` is "Lock the acceptance checks in Build and approve
+     the lock, then run Verify again."
+   - With the entry, and `approved_version` null or the `id` of no version, the text is "No
+     member approved an acceptance lock, so the change was not verified." and the `fix` is
+     "Approve the acceptance lock, then run Verify again."
 4. Run `<skill folder>/checks.cjs lock --verify --version <N>` from the working folder, as
    "Locked files" of `running-a-workflow` lists. This is the verify that binds: it pulls the
    lock again from the run.
@@ -70,7 +73,12 @@ submission text. Start no agent that is not one of the two reviewers.
      with "Restore" or "Make", joined by ", ". With one file, write "1 locked file
      differs". When no line contains a path, use "The stored acceptance lock differs from
      its record, so the change was not verified."
-   - With 2, 3 or 4, end as "Failures" lists for the checks script.
+   - With 3 and the first line "Ask a member to approve acceptance-lock version <M>.", a
+     newer lock version that no member approved exists. Start nothing and end as "Points"
+     lists, with one `run_again` point. Its text is "A member approved acceptance-lock
+     version <N>, but version <M> is newer, so the change was not verified." and its `fix`
+     is "Approve acceptance-lock version <M>, then run Verify again."
+   - With 2, 4, or 3 with another first line, end as "Failures" lists for the checks script.
 5. Run `<skill folder>/checks.cjs run locked --inputs <inputs>` from the working folder,
    once. It runs the locked checks on the checkout of the commit
    under review and writes its record under `<folder>/.reports/runs/`. With 0 or 1, go on:
@@ -85,7 +93,7 @@ submission text. Start no agent that is not one of the two reviewers.
    `<folder>/index.json`. For each entry of `artifacts` whose `type` is `demo-evidence`,
    leave out the entry when its version with the largest `number` in `versions`, of those
    with no `cancelled` set to `true`, has `withdrawn` set to `true`. Read
-   `<folder>/demo-evidence/<name>/v<N>/<name>.json` of each entry left, where `<N>` is its
+   `<folder>/demo-evidence/<name>/v<D>/<name>.json` of each entry left, where `<D>` is its
    `newest_version`. A scenario is failed when its `commit` is
    `qory.review_session.commit` and its `verdict` is not `passed`. Keep the names of the
    failed scenarios, also when no criterion rests on them.
@@ -98,8 +106,9 @@ submission text. Start no agent that is not one of the two reviewers.
     `<skill folder>/versions.cjs compare verification <V> <folder>/verification.json`,
     where `<V>` is the `newest_version` of `verification` in `<folder>/index.json`, and push
     when it exits with a status other than 0 or the type has no version. Push the matrix
-    for each verdict, so that the members read what the verdict rests on. When the push is
-    still refused after the third attempt, end with "The run could not push its
+    for each verdict, so that the members read what the verdict rests on. Only step 4 with
+    exit 1 pushes nothing, because it ends the run before `matrix` writes the draft. When
+    the push is still refused after the third attempt, end with "The run could not push its
     verification." and record no verdict.
 11. Take the time of the version, as "The time of a version" of `run-artifacts` lists.
 12. Do "The questions", then "The end".
@@ -117,9 +126,10 @@ for that name: its missing report counts in "The round".
 
 Pass each reviewer the path of the input file, `<inputs>`, and nothing else. Each reviewer
 reads every value of the review from `qory.review_session` of the input file, which qory
-writes, and the draft `verification.json` at the top of the artifact folder. It writes
-`<reports>/<agent>.json`, such as `<reports>/verification-reviewer.json`. Read no report of
-a reviewer, start no reviewer again, and fix no report: "The round" decides.
+writes. `verification-reviewer` also reads the draft `verification.json` at the top of the
+artifact folder. Each reviewer writes `<reports>/<agent>.json`, such as
+`<reports>/verification-reviewer.json`. Read no report of a reviewer, start no reviewer
+again, and fix no report: "The round" decides.
 
 ## The round
 
@@ -192,21 +202,29 @@ Record the verdict once, as the last command, with `<qory> run verdict` and no p
 - `passed`, when all of these hold: the verify of step 4 exited with 0; `matrix` printed
   "0 not met, 0 not verified"; step 7 found no failed scenario; and `findings round` exited
   with 0. Every criterion is then met, or a person withdrew it and it has no row.
-- `changes-requested`, when any of them fails: a criterion is not met or not verified, a
-  scenario failed, or a finding is blocking. Never record `passed` while a scenario of the
-  commit under review has the verdict `failed`.
+- `changes-requested`, when any of them fails: a criterion is not met or not verified, step
+  7 found a failed scenario, or a finding is blocking. Never record `passed` while step 7
+  has a failed scenario.
 
 With `changes-requested`, qory writes the findings for the next session of
 `implement-changes` from the reports. When the command fails, the run ends with no verdict.
 
 End with one line. After `passed`: "The change passed Verify: <m> criteria are met and no
-finding is blocking." After `changes-requested`, the line of `matrix` and the last line of
-`findings round`, such as "Wrote verification.json for 4e1c9b0a21ff: 3 met, 1 not met, 0 not
-verified. Checked 2 reports: 1 blocking and 0 non-blocking findings."
+finding is blocking.", or, with one criterion, "The change passed Verify: 1 criterion is met
+and no finding is blocking." After `changes-requested`, the line of `matrix` and the last
+line of `findings round`, and, when step 7 kept names, "Failed scenarios: <names>." with the
+names joined by ", ". Such a line reads "Wrote verification.json for 4e1c9b0a21ff: 3 met, 1
+not met, 0 not verified. Checked 2 reports: 1 blocking and 0 non-blocking findings. Failed
+scenarios: scenario-2."
 
 ## Failures
 
 A checks script exit of 2, 3 or 4, a skill that does not load, an input file with no review
 session, and a push that fails end the run as "Failures" of `running-a-workflow` lists, with
-the lines that this skill gives. No agent can fix a file that a script wrote, so no step of
+the lines that this skill lists. No agent can fix a file that a script wrote, so no step of
 this skill starts an agent to fix one.
+
+<!-- shortcut: nothing ties `run verdict passed` to the round or the matrix, so the text
+of this skill decides the verdict, and nothing checks the `--reviewers` list against the
+group `verify-reviewers`; replace with a verb that runs the round, reads the matrix and
+records the verdict. -->

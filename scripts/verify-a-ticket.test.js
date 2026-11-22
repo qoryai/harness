@@ -664,8 +664,22 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
   assert.ok(oneLine(steps).includes('start nothing and end as "Failures" lists'));
   // N is the approved version of the lock, and an unapproved lock is a point.
   assert.ok(oneLine(steps).includes('`<N>` is the `number` of that version'));
-  assert.ok(oneLine(steps).includes('"No member approved an acceptance lock, so the change ' +
-    'was not verified."'));
+  const flat = oneLine(steps);
+  for (const text of ['"The work item has no acceptance lock, so the change was not verified."',
+    '"Lock the acceptance checks in Build and approve the lock, then run Verify again."',
+    '"No member approved an acceptance lock, so the change was not verified."',
+    '"Approve the acceptance lock, then run Verify again."',
+    '"A member approved acceptance-lock version <N>, but version <M> is newer, so the change ' +
+      'was not verified."',
+    '"Approve acceptance-lock version <M>, then run Verify again."',
+    'With 3 and the first line "Ask a member to approve acceptance-lock version <M>."']) {
+    assert.ok(flat.includes(text), text);
+  }
+  // The demo evidence version has its own letter, and the lock version keeps N.
+  assert.ok(flat.includes('demo-evidence/<name>/v<D>/<name>.json'));
+  assert.ok(!flat.includes('v<N>/<name>.json'));
+  // The matrix is pushed for each verdict, except the end of step 4 with exit 1.
+  assert.ok(flat.includes('Only step 4 with exit 1 pushes nothing'));
 });
 
 test('the skill starts the two reviewers, pushes the matrix and records the verdict', () => {
@@ -682,10 +696,18 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.ok(round.includes('With no `--suite`, the round has no suite finding.'));
   const end = oneLine(section(WORKFLOW, 'The end'));
   assert.ok(end.includes('`passed`, when all of these hold'));
-  assert.ok(end.includes('Never record `passed` while a scenario of the commit under review ' +
-    'has the verdict `failed`.'));
+  assert.ok(end.includes('Never record `passed` while step 7 has a failed scenario.'));
   assert.ok(end.includes('`changes-requested`, when any of them fails: a criterion is not met ' +
-    'or not verified, a scenario failed, or a finding is blocking.'));
+    'or not verified, step 7 found a failed scenario, or a finding is blocking.'));
+  assert.ok(end.includes('"The change passed Verify: 1 criterion is met and no finding is ' +
+    'blocking."'));
+  assert.ok(end.includes('"Failed scenarios: <names>." with the names joined by ", "'));
+  assert.ok(oneLine(WORKFLOW).includes('<!-- shortcut: nothing ties `run verdict passed` to ' +
+    'the round or the matrix'));
+  assert.ok(oneLine(read('skills', 'workflow-review-changes', 'SKILL.md')).includes(
+    '<!-- shortcut: nothing ties `run verdict passed` to the round'));
+  assert.ok(oneLine(reviewers).includes('`verification-reviewer` also reads the draft ' +
+    '`verification.json` at the top of the artifact folder.'));
   assert.doesNotMatch(WORKFLOW, /changes-requested --points/);
   assert.doesNotMatch(WORKFLOW,
     /submission-writer|QORY_SUBMISSION_HANDOFF|QORY_OUTBOX|report-build|pull-request\.json/);

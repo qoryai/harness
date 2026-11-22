@@ -110,8 +110,8 @@ scope check of that type under `scope_checks` (see [The manifest,
 qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
 `explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
 `plan-the-build`, `review-changes` and `verify-a-ticket` run on `thinking`, and
-`make-mockups`,
-`write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on `balanced`.
+`make-mockups`, `write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on
+`balanced`.
 Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
 reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
 a write entry with no `plan: build-plan`.
@@ -244,26 +244,25 @@ of the fresh copy, `diff`, the path of the diff, `previous_findings`, the path o
 `open-findings.json`, which qory leaves out in the first round, `reports`, the report
 folder, `suite_result`, the path of the file with the suite result, which qory leaves out
 when Verify has no suite, and, when there is one, `build_report`, the path of the file with
-the report of the build. The prompt of each agent
-has only the path of the input file, so the prompt has no commit, diff or findings; the path
-of `inputs.json` itself comes from the prompt. Where a skill lists a value of `qory.review`,
-the agent reads the member of the same name in `qory.review_session`. Each agent writes one
-report to `<reports>/<agent>.json` in the review-report format, such as
-`<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
-`reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
-file cannot be read. With no `previous_findings`, it goes on as the first round. Each loads
-`reviewing-changes`, `judging-findings`, the skill of the agent, `reviewing-drafts` and
-`simple-communication`, lists the tools Read, Grep, Glob, Skill and Write, and runs on the
-tier `thinking`, which the pattern `*-reviewer` of the tier table gives it. Each reads the
-newest versions of the types that it needs from the folder of `qory.start_artifacts`, as
-`checking-acceptance` does, and stops with no report when one cannot be read.
-`verification-reviewer` reads the draft `verification.json` at the top of the artifact
-folder of the run, `/tmp/qory-artifacts`, where `matrix` wrote it, and not a `verification`
-version of `qory.start_artifacts`. The session pushes that draft, so the review reads the
-file that the push sends.
-`software-factory` declares them as the group role `verify-reviewers`, with the members
-`tamper-reviewer` and `verification-reviewer`, in `roles.agents` and `provides.agents`, as
-it declares `reviewers`. The members set no `paths`.
+the report of the build. The prompt of each agent has only the path of the input file, so
+the prompt has no commit, diff or findings; the path of `inputs.json` itself comes from the
+prompt. Where a skill lists a value of `qory.review`, the agent reads the member of the same
+name in `qory.review_session`. Each agent writes one report to `<reports>/<agent>.json` in
+the review-report format, such as `<reports>/verification-reviewer.json`, and stops with no
+report when `commit`, `diff` or `reports` is missing from `qory.review_session`, or when
+`previous_findings` is set and its file cannot be read. With no `previous_findings`, it goes
+on as the first round. Each loads `reviewing-changes`, `judging-findings`, the skill of the
+agent, `reviewing-drafts` and `simple-communication`, lists the tools Read, Grep, Glob,
+Skill and Write, and runs on the tier `thinking`, which the pattern `*-reviewer` of the tier
+table gives it. Each reads the newest versions of the types that it needs from the folder of
+`qory.start_artifacts`, as `checking-acceptance` does, and stops with no report when one
+cannot be read. `verification-reviewer` reads the draft `verification.json` at the top of
+the artifact folder of the run, `/tmp/qory-artifacts`, where `matrix` wrote it, and not a
+`verification` version of `qory.start_artifacts`. The session pushes that draft, so the
+review reads the file that the push sends. `software-factory` declares them as the group
+role `verify-reviewers`, with the members `tamper-reviewer` and `verification-reviewer`, in
+`roles.agents` and `provides.agents`, as it declares `reviewers`. The members set no
+`paths`.
 
 - `tamper-reviewer` reads the diff against the newest acceptance lock. It reports a changed
   file that a locked check runs or imports and that the lock does not list, and each test
@@ -294,25 +293,36 @@ the matrix and its questions, and no code. Its steps, in order:
 1. It pulls, runs `work-item show` and `resume`, and ends with "Failures" when the run has
    no `run.id` or the input file has no `qory.review_session`.
 2. It reads `approved_version` of the `acceptance-lock` entry of `<start>/index.json`, the
-   version that a member approved, as `<N>`. With no approved lock it ends with one
-   `run_again` point.
+   version that a member approved, as `<N>`. With no `acceptance-lock` entry it ends with
+   one `run_again` point, "The work item has no acceptance lock, so the change was not
+   verified." with the fix "Lock the acceptance checks in Build and approve the lock, then
+   run Verify again." With the entry and no approved version, the point is "No member
+   approved an acceptance lock, so the change was not verified." with the fix "Approve the
+   acceptance lock, then run Verify again."
 3. It runs `lock --verify --version <N>`. With exit 1 it records `changes-requested`, and
-   starts no agent.
+   starts no agent. With exit 3 and the first line "Ask a member to approve acceptance-lock
+   version <M>.", a newer lock version has no approval, and it ends with one `run_again`
+   point, "A member approved acceptance-lock version <N>, but version <M> is newer, so the
+   change was not verified." with the fix "Approve acceptance-lock version <M>, then run
+   Verify again."
 4. It runs `run locked`, then `matrix --version <N>`, then reads the newest `demo-evidence`
    of each scenario, and runs `check verification` on the draft.
 5. It starts `tamper-reviewer` and `verification-reviewer`, in turn, each with the path of
    the input file only, and runs `findings round <reports> --reviewers
    tamper-reviewer,verification-reviewer`, with `--suite` only when
    `qory.review_session.suite_result` exists.
-6. It pushes `verification`, whatever the verdict, and takes the time of the version.
+6. It pushes `verification` with either verdict, and takes the time of the version. Only
+   step 3 with exit 1 pushes nothing, because it ends the run before `matrix` writes the
+   draft.
 7. For each row of `verification.json` with the state `not_met`, it writes one question
    about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
    and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
    `questions`.
 8. It records `passed` when the lock verified, the matrix has no `not_met` and no
-   `not_verified` row, no scenario of the commit under review has the verdict `failed`, and
-   no finding is blocking. Otherwise it records `changes-requested` with no point, and qory
-   writes the findings for the next session of `implement-changes` from the reports.
+   `not_verified` row, no scenario of the commit under review has a `verdict` other than
+   `passed`, and no finding is blocking. Otherwise it records `changes-requested` with no
+   point, and qory writes the findings for the next session of `implement-changes` from the
+   reports.
 
 A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
 rule 13 read `review_group` of the stack entry.
@@ -1028,26 +1038,25 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   report that a reviewer writes is a JSON file that qory's report schema checks; only
   `findings round` reads it, and `report`, `starts` and `end` have no check for the
   reviewers of a change.
-- `checks.cjs findings round <reports> --reviewers <names> [--suite <file>]`: a review
+- - `checks.cjs findings round <reports> --reviewers <names> [--suite <file>]`: a review
   session runs it once, after its reviewers returned. It reads `<reports>/<name>.json` of
   each name of `--reviewers`, agent names joined by commas, each once and none `full-suite`,
   and the result of the full suite at `--suite`, once each. With no `--suite`, the round has
   no finding of `full-suite`: a session that has no suite result, such as Verify, leaves the
   flag out. A given file that is missing, unreadable, failed or all skipped is still one
-  blocking finding. A report that is missing, a link, no
-  regular file, over 1 MiB, no UTF-8, no JSON object, outside the review report format or of
-  another reviewer is one blocking finding of that reviewer, such as `Reviewer code-reviewer
-  wrote no report.`. The suite result has qory's form `{tests, failed, skipped,
-  output_tail}`, with counts that are integers of 0 or more. A suite with `failed` over 0, a
-  suite whose tests were all skipped, and a result that is missing, over 4 MiB or in another
-  form are one blocking finding of `full-suite`. The rule of that form comes from the
-  registry: `lib/suite.cjs` of `running-a-software-workflow` adds it, so core contains no
-  member name of the file, and with no such rule the suite has no result. It prints
-  `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and `Non-blocking finding of
-  ...`, the blocking ones first, each with `Proof: <proof>` on the next line when it has
-  one, then one line on what it checked. It exits with 1 while a finding is blocking and
-  with 0 otherwise, 2 for a wrong argument and 3 when the report folder is a link or no
-  folder. It writes no file.
+  blocking finding. A report that is missing, a link, no regular file, over 1 MiB, no UTF-8,
+  no JSON object, outside the review report format or of another reviewer is one blocking
+  finding of that reviewer, such as `Reviewer code-reviewer wrote no report.`. The suite
+  result has qory's form `{tests, failed, skipped, output_tail}`, with counts that are
+  integers of 0 or more. A suite with `failed` over 0, a suite whose tests were all skipped,
+  and a result that is missing, over 4 MiB or in another form are one blocking finding of
+  `full-suite`. The rule of that form comes from the registry: `lib/suite.cjs` of
+  `running-a-software-workflow` adds it, so core contains no member name of the file, and
+  with no such rule the suite has no result. It prints `Blocking finding of <reviewer>[,
+  <file>[: <line>]]: <point>` and `Non-blocking finding of ...`, the blocking ones first,
+  each with `Proof: <proof>` on the next line when it has one, then one line on what it
+  checked. It exits with 1 while a finding is blocking and with 0 otherwise, 2 for a wrong
+  argument and 3 when the report folder is a link or no folder. It writes no file.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -4725,7 +4734,7 @@ six members of `agents/reviewers`: `code-reviewer`, `test-reviewer` and
 
 The script also checks that `roles.json` of the `software` stack has `tamper-reviewer` and
 `verification-reviewer` as the members of the group role that `review_group` of the stack
-entry `verify-a-ticket` names, `agents/verify-reviewers`, with no `paths`, and still has
+entry `verify-a-ticket` is set to, `agents/verify-reviewers`, with no `paths`, and still has
 those six members of `agents/reviewers`.
 
 The script also checks that each agent of `software-factory` whose description contains "as
