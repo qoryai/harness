@@ -431,12 +431,13 @@ function sameFile(real, checks) {
   }
 }
 
-// runsChecks reports whether command runs the checks.cjs next to script and nothing else.
-function runsChecks(command, env, script) {
+// runsChecks reports whether command runs the checks.cjs next to script and nothing else; with
+// name, the file of that name in the same folder, such as versions.cjs.
+function runsChecks(command, env, script, name = 'checks.cjs') {
   const first = checksWord(command, env);
   if (first === null) return false;
   const checks = path.join(path.resolve(path.dirname(script), '..'), 'modules',
-    'core', 'skills', 'running-a-workflow', 'checks.cjs');
+    'core', 'skills', 'running-a-workflow', name);
   const real = realPath(first);
   if (real === null) return false;
   if (real === realPath(checks)) return true;

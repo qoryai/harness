@@ -31,6 +31,7 @@
       "Skill(harness:writing-acceptance-checks)",
       "Skill(harness:checking-acceptance-checks)",
       "Skill(harness:workflow-review-changes)",
+      "Skill(harness:workflow-verify-a-ticket)",
       "Skill(harness:checking-code)",
       "Skill(harness:checking-tests)",
       "Skill(harness:checking-acceptance)",

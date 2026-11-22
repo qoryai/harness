@@ -100,6 +100,10 @@ function listed(root, type, number, fields = {}) {
       writer: { kind: 'run', run_id: 'run_7c3k1' }, cancelled: false, stage_id: artifact.stage_id,
       note: null, at: LOCKED, files: [], approvals: [], ...fields });
     artifact.newest_version = number;
+    // A member approves each lock that a person or a run stores, unless a cancelled run wrote it.
+    if (type === 'acceptance-lock' && fields.cancelled !== true) {
+      artifact.approved_version = `av_${type}${number}`;
+    }
   });
 }
 
@@ -1410,12 +1414,34 @@ test('lock --verify refuses a --version older than the newest lock that counts',
   exitsWith(verify(root, working(), ['--version', '2']), 0);
 });
 
+test('lock --verify refuses a --version that is not the approved one', () => {
+  const root = stored(stored(artifacts(), 1, LOCK), 2, LOCK, { at: LATER });
+  indexed(root, (index) => {
+    index.artifacts.find((one) => one.type === 'acceptance-lock').approved_version = null;
+  });
+  const none = verify(root, working(), ['--version', '2']);
+  assert.equal(none.status, 3, none.out);
+  assert.deepEqual(none.lines.slice(0, 2), [PASS_VERSION, '  acceptance-lock has no approved ' +
+    'version.']);
+  indexed(root, (index) => {
+    index.artifacts.find((one) => one.type === 'acceptance-lock').approved_version =
+      'av_acceptance-lock1';
+  });
+  const other = verify(root, working(), ['--version', '2']);
+  assert.equal(other.status, 3, other.out);
+  assert.deepEqual(other.lines.slice(0, 2),
+    [PASS_VERSION, '  Version 1 is the approved one, not 2.']);
+});
+
 test('lock --verify in a run exits 3 when the version changes during the second pull', () => {
   const changed = 'Verify the lock again: acceptance-lock version 1 changed in index.json during ' +
     'the pull.';
   const cases = {
     cancelled: (index, lock) => { lock.versions[0].cancelled = true; },
-    'another id': (index, lock) => { lock.versions[0].id = 'av_other'; },
+    'another id': (index, lock) => {
+      lock.versions[0].id = 'av_other';
+      lock.approved_version = 'av_other';
+    },
     removed: (index) => { index.artifacts = index.artifacts.filter((one) =>
       one.type !== 'acceptance-lock'); },
   };

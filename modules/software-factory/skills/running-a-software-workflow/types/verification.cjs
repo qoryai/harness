@@ -76,6 +76,8 @@ module.exports = (lib) => {
   // aboveRecord finds a state of the file above the record that the verb matrix wrote, in a
   // check, and a record that is missing or that matrix did not write: a verification typed by
   // hand has no record. A criterion that the record lacks counts as not verified.
+  // shortcut: the push reads no record; the guard stops an edit after step 8. Replace if
+  // qory's push check gets the checkout.
   function aboveRecord(run, data) {
     if (run.context.mode !== 'check') return;
     run.did('matrix record');

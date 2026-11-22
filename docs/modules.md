@@ -109,8 +109,9 @@ entry with `access: write` sets `plan: build-plan`, and a module of the stack de
 scope check of that type under `scope_checks` (see [The manifest,
 qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
 `explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
-`plan-the-build` and `review-changes` run on `thinking`, and `make-mockups`,
-`write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on `balanced`.
+`plan-the-build`, `review-changes` and `verify-a-ticket` run on `thinking`, and
+`make-mockups`, `write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on
+`balanced`.
 Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
 reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
 a write entry with no `plan: build-plan`.
@@ -241,23 +242,27 @@ sessions that qory starts, and they read no `qory.review`. qory is to write
 `qory.review_session` into the `inputs.json` of the session, with `commit`, the pushed head
 of the fresh copy, `diff`, the path of the diff, `previous_findings`, the path of
 `open-findings.json`, which qory leaves out in the first round, `reports`, the report
-folder, `suite_result`, the path of the file with the suite result, and, when there is one,
-`build_report`, the path of the file with the report of the build. The prompt of each agent
-has only the path of the input file, so the prompt has no commit, diff or findings; the path
-of `inputs.json` itself comes from the prompt. Where a skill lists a value of `qory.review`,
-the agent reads the member of the same name in `qory.review_session`. Each agent writes one
-report to `<reports>/<agent>.json` in the review-report format, such as
-`<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
-`reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
-file cannot be read. With no `previous_findings`, it goes on as the first round. Each loads
-`reviewing-changes`, `judging-findings`, the skill of the agent, `reviewing-drafts` and
-`simple-communication`, lists the tools Read, Grep, Glob, Skill and Write, and runs on the
-tier `thinking`, which the pattern `*-reviewer` of the tier table gives it. Each reads the
-newest versions of the types that it needs from the folder of `qory.start_artifacts`, as
-`checking-acceptance` does, and stops with no report when one cannot be read.
-`software-factory` declares them as the group role `verify-reviewers`, with the members
-`tamper-reviewer` and `verification-reviewer`, in `roles.agents` and `provides.agents`, as
-it declares `reviewers`. The members set no `paths`.
+folder, `suite_result`, the path of the file with the suite result, which qory leaves out
+when Verify has no suite, and, when there is one, `build_report`, the path of the file with
+the report of the build. The prompt of each agent has only the path of the input file, so
+the prompt has no commit, diff or findings; the path of `inputs.json` itself comes from the
+prompt. Where a skill lists a value of `qory.review`, the agent reads the member of the same
+name in `qory.review_session`. Each agent writes one report to `<reports>/<agent>.json` in
+the review-report format, such as `<reports>/verification-reviewer.json`, and stops with no
+report when `commit`, `diff` or `reports` is missing from `qory.review_session`, or when
+`previous_findings` is set and its file cannot be read. With no `previous_findings`, it goes
+on as the first round. Each loads `reviewing-changes`, `judging-findings`, the skill of the
+agent, `reviewing-drafts` and `simple-communication`, lists the tools Read, Grep, Glob,
+Skill and Write, and runs on the tier `thinking`, which the pattern `*-reviewer` of the tier
+table gives it. Each reads the newest versions of the types that it needs from the folder of
+`qory.start_artifacts`, as `checking-acceptance` does, and stops with no report when one
+cannot be read. `verification-reviewer` reads the draft `verification.json` at the top of
+the artifact folder of the run, `/tmp/qory-artifacts`, where `matrix` wrote it, and not a
+`verification` version of `qory.start_artifacts`. The session pushes that draft, so the
+review reads the file that the push sends. `software-factory` declares them as the group
+role `verify-reviewers`, with the members `tamper-reviewer` and `verification-reviewer`, in
+`roles.agents` and `provides.agents`, as it declares `reviewers`. The members set no
+`paths`.
 
 - `tamper-reviewer` reads the diff against the newest acceptance lock. It reports a changed
   file that a locked check runs or imports and that the lock does not list, and each test
@@ -266,16 +271,66 @@ it declares `reviewers`. The members set no `paths`.
   exists before the change is a `blocking` finding. It reads only the diff and the
   copy, so a file that a check changes and restores during its run stays unseen, as the
   limit of `run locked` in the section "The check runners" states.
-- `verification-reviewer` reads the verification matrix, the criteria, the lock and the
-  copy. It lowers a state and never raises one. A lowered state is one `blocking` finding
-  with a `failing input` proof, and the matrix is not edited. No other part of the report
-  records the lowering. A criterion in a finding has the form `AC-3, "<first sentence>"`.
+- `verification-reviewer` reads the draft verification matrix, the criteria, the lock and
+  the copy. It lowers a state and never raises one. A lowered state is one `blocking`
+  finding with a `failing input` proof, and the matrix is not edited. No other part of the
+  report records the lowering. A criterion in a finding has the form
+  `AC-3, "<first sentence>"`.
 
-The written parts of Verify are the skills `checking-tampering` and `judging-criteria`, the
-two agents, and the verb `matrix` of the check runners. The skill `workflow-verify-a-ticket`
-and the stack entry of the workflow are not built, and neither is `qory.review_session` in
-the `inputs.json` of the session, which qory writes. The agents read it as described here;
-its shape is not in a contract of qory yet.
+The parts of Verify are the skills `checking-tampering` and `judging-criteria`, the two
+agents, the verb `matrix` of the check runners, the skill `workflow-verify-a-ticket` and the
+stack entry `verify-a-ticket: {tier: thinking, access: write-no-push, review_group:
+verify-reviewers}`. `qory.review_session` in the `inputs.json` of the session is not built:
+qory does not write it yet, and its shape is not in a contract of qory. The agents read it
+as described here. Verify's stage in `process.yaml` has no `sequence` yet, so no run starts
+the workflow.
+
+### The workflow of Verify
+
+`workflow-verify-a-ticket` is a review session with the access `write-no-push`: it pushes
+the matrix and its questions, and no code. Its steps, in order:
+
+1. It pulls, runs `work-item show` and `resume`, and ends with "Failures" when the run has
+   no `run.id` or the input file has no `qory.review_session`.
+2. It reads `approved_version` of the `acceptance-lock` entry of `<start>/index.json`, the
+   version that a member approved, as `<N>`. With no `acceptance-lock` entry it ends with
+   one `run_again` point, "The work item has no acceptance lock, so the change was not
+   verified." with the fix "Lock the acceptance checks in Build and approve the lock, then
+   run Verify again." With the entry and no approved version, the point is "No member
+   approved an acceptance lock, so the change was not verified." with the fix "Approve the
+   acceptance lock, then run Verify again."
+3. It runs `lock --verify --version <N>`. With exit 1 it records `changes-requested`, and
+   starts no agent. With exit 3 and the first line "Ask a member to approve acceptance-lock
+   version <M>.", a newer lock version has no approval, and it ends with one `run_again`
+   point, "A member approved acceptance lock version <N>, but version <M> is newer, so the
+   change was not verified." with the fix "Approve acceptance lock version <M>, then run
+   Verify again."
+4. It runs `run locked`, then `matrix --version <N>`, then reads the newest `demo-evidence`
+   of each scenario, and runs `check verification` on the draft.
+5. It starts `tamper-reviewer` and `verification-reviewer`, in turn, each with the path of
+   the input file only, and runs `findings round <reports> --reviewers
+   tamper-reviewer,verification-reviewer`, with `--suite` only when
+   `qory.review_session.suite_result` exists.
+6. It pushes `verification` with either verdict, and takes the time of the version. A run
+   that ends before this step pushes nothing: each `run_again` end, the `changes-requested`
+   end of step 3 and each end as "Failures" lists.
+7. For each row of `verification.json` with the state `not_met`, it writes one question
+   about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
+   and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
+   `questions`.
+8. It records `passed` when the lock verified, the matrix has no `not_met` and no
+   `not_verified` row, no scenario of the commit under review has a `verdict` other than
+   `passed`, and no finding is blocking. Otherwise it records `changes-requested` with no
+   point, and qory writes the findings for the next session of `implement-changes` from the
+   reports.
+
+A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
+rule 13 read `review_group` of the stack entry.
+
+`shortcut:` nothing ties `run verdict passed` to the round or the matrix, so the verdict
+follows only the text of the skill, and nothing checks the `--reviewers` list against the
+group `verify-reviewers`. The replacement is a verb that runs the round, reads the matrix and
+records the verdict.
 
 ## Agents
 
@@ -988,23 +1043,25 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   report that a reviewer writes is a JSON file that qory's report schema checks; only
   `findings round` reads it, and `report`, `starts` and `end` have no check for the
   reviewers of a change.
-- `checks.cjs findings round <reports> --reviewers <names> --suite <file>`: a review session
-  runs it once, after its reviewers returned. It reads `<reports>/<name>.json` of each name
-  of `--reviewers`, agent names joined by commas, each once and none `full-suite`, and the
-  result of the full suite at `--suite`, once each. A report that is missing, a link, no
-  regular file, over 1 MiB, no UTF-8, no JSON object, outside the review report format or of
-  another reviewer is one blocking finding of that reviewer, such as `Reviewer code-reviewer
-  wrote no report.`. The suite result has qory's form `{tests, failed, skipped,
-  output_tail}`, with counts that are integers of 0 or more. A suite with `failed` over 0, a
-  suite whose tests were all skipped, and a result that is missing, over 4 MiB or in another
-  form are one blocking finding of `full-suite`. The rule of that form comes from the
-  registry: `lib/suite.cjs` of `running-a-software-workflow` adds it, so core contains no
-  member name of the file, and with no such rule the suite has no result. It prints
-  `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and `Non-blocking finding of
-  ...`, the blocking ones first, each with `Proof: <proof>` on the next line when it has
-  one, then one line on what it checked. It exits with 1 while a finding is blocking and
-  with 0 otherwise, 2 for a wrong argument and 3 when the report folder is a link or no
-  folder. It writes no file.
+- `checks.cjs findings round <reports> --reviewers <names> [--suite <file>]`: a review
+  session runs it once, after its reviewers returned. It reads `<reports>/<name>.json` of
+  each name of `--reviewers`, agent names joined by commas, each once and none `full-suite`,
+  and the result of the full suite at `--suite`, once each. With no `--suite`, the round has
+  no finding of `full-suite`: a session that has no suite result, such as Verify, leaves the
+  flag out. A given file that is missing, unreadable, failed or all skipped is still one
+  blocking finding. A report that is missing, a link, no regular file, over 1 MiB, no UTF-8,
+  no JSON object, outside the review report format or of another reviewer is one blocking
+  finding of that reviewer, such as `Reviewer code-reviewer wrote no report.`. The suite
+  result has qory's form `{tests, failed, skipped, output_tail}`, with counts that are
+  integers of 0 or more. A suite with `failed` over 0, a suite whose tests were all skipped,
+  and a result that is missing, over 4 MiB or in another form are one blocking finding of
+  `full-suite`. The rule of that form comes from the registry: `lib/suite.cjs` of
+  `running-a-software-workflow` adds it, so core contains no member name of the file, and
+  with no such rule the suite has no result. It prints `Blocking finding of <reviewer>[,
+  <file>[: <line>]]: <point>` and `Non-blocking finding of ...`, the blocking ones first,
+  each with `Proof: <proof>` on the next line when it has one, then one line on what it
+  checked. It exits with 1 while a finding is blocking and with 0 otherwise, 2 for a wrong
+  argument and 3 when the report folder is a link or no folder. It writes no file.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -1053,27 +1110,28 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   <N>`, the version that a member approved, which may not be older than that version. An
   older `--version` exits 3 with "Ask a member to approve acceptance-lock version M." and
   the line "Version N is older.", and a `--version` that `index.json` does not list, or that
-  a cancelled run wrote, with "Pass --version the acceptance-lock version that a member
-  approved." and a second line with the cause, such as "index.json lists no version 7.". In
-  a run, when `QORY_RUN_ID` is set, it runs `qory artifact pull <type>` and then `qory
-  artifact pull <type> --version <N>`, and compares the SHA-256 of the stored file with the
-  one in `index.json`, so a lock or an `index.json` that an agent changed in the store
-  before the call counts for nothing. When the second pull changes the id of version N in
-  `index.json`, removes it or marks it cancelled, it exits 3 with "Verify the lock again:
-  acceptance-lock version N changed in index.json during the pull.". Outside a run, it reads
-  the first artifact folder that exists, and compares the SHA-256 when `index.json` lists
-  one. It prints one finding for each listed file that is missing, cannot be read, is a
-  link, is no regular file or has another SHA-256, and exits 1. Such a finding is "Restore
-  "checks/reply.check.ts".", with the line "The bytes of "checks/reply.check.ts" differ from
-  acceptance-lock version 1." after it. With no version that counts, it prints "Verified
-  nothing: index.json lists no acceptance-lock version that counts." and exits 0. A stored
-  lock file whose SHA-256 differs from `index.json` exits 1 with "Pull acceptance-lock
-  version N again: the stored acceptance-lock.json differs from index.json.". A failed pull,
-  a version with no stored file or a link in its place, a `--version` that `index.json` does
-  not list or that a cancelled run wrote, and, in a run, a version with no SHA-256 in
-  `index.json` exit 3. Past 50 lines, `lock` and `lock --verify` print whole findings up to
-  49 lines, then a line that counts the findings not shown, such as "Fix the findings above
-  and lock again: 2 more are not shown.".
+  a cancelled run wrote, or that is not the version that `approved_version` of the lock is
+  set to, with "Pass --version the acceptance-lock version that a member approved." and a
+  second line with the cause, such as "index.json lists no version 7." or "Version 1 is the
+  approved one, not 2.". In a run, when `QORY_RUN_ID` is set, it runs `qory artifact pull
+  <type>` and then `qory artifact pull <type> --version <N>`, and compares the SHA-256 of
+  the stored file with the one in `index.json`, so a lock or an `index.json` that an agent
+  changed in the store before the call counts for nothing. When the second pull changes the
+  id of version N in `index.json`, removes it or marks it cancelled, it exits 3 with "Verify
+  the lock again: acceptance-lock version N changed in index.json during the pull.". Outside
+  a run, it reads the first artifact folder that exists, and compares the SHA-256 when
+  `index.json` lists one. It prints one finding for each listed file that is missing, cannot
+  be read, is a link, is no regular file or has another SHA-256, and exits 1. Such a finding
+  is "Restore "checks/reply.check.ts".", with the line "The bytes of "checks/reply.check.ts"
+  differ from acceptance-lock version 1." after it. With no version that counts, it prints
+  "Verified nothing: index.json lists no acceptance-lock version that counts." and exits 0.
+  A stored lock file whose SHA-256 differs from `index.json` exits 1 with "Pull
+  acceptance-lock version N again: the stored acceptance-lock.json differs from
+  index.json.". A failed pull, a version with no stored file or a link in its place, a
+  `--version` that `index.json` does not list or that a cancelled run wrote, and, in a run,
+  a version with no SHA-256 in `index.json` exit 3. Past 50 lines, `lock` and `lock
+  --verify` print whole findings up to 49 lines, then a line that counts the findings not
+  shown, such as "Fix the findings above and lock again: 2 more are not shown.".
 
   The verify that binds is the one of Verify, `lock --verify --version <N>`, in a later run,
   on a new working folder, before any agent of that run starts. It pulls the lock again, and
@@ -1907,18 +1965,59 @@ tool's error. The first line of each reason starts with what to do. The guard de
   as `python3 -c`, `node -e`, `tar -C` or `unzip -d`, is denied when it runs in the home or
   contains a path that reaches it, outside that working folder. The checks script passes
   with a verb that a review session runs (`resume`, `lock --verify`, `panel`,
-  `findings round` and `check points`), and so does a run of a file of the home, as
-  `node <home>/tool.cjs a b`, in a call with no other word that reaches the home and no
-  quotes, parentheses or `$`. A home that is the working folder or lies inside it gets no
-  such deny, so `implement-changes` can change the files of the harness when the target is
-  the harness repository. qory's checks use the bytes it wrote to `inputs.json`, not the
-  file.
+  `findings round`, `check points` and `run locked`), and so does a run of a file of the
+  home, as `node <home>/tool.cjs a b`, in a call with no other word that reaches the home
+  and no quotes, parentheses or `$`. A redirect or a chained command with a path of the home
+  is still denied after such a verb. The other verbs of `workflow-verify-a-ticket`
+  (`matrix`, `check`, `notes` and `starts`) are not in that list: they pass when the call
+  has no path of the home. `scripts/tool-guard.test.js` runs each of them. A home that is
+  the working folder or lies inside it gets no such deny, so `implement-changes` can change
+  the files of the harness when the target is the harness repository. qory's checks use the
+  bytes it wrote to `inputs.json`, not the file.
+- In a session with `qory.review_session`, only the verb `matrix` of the checks script
+  writes `verification.json` and `.reports/matrix-record.json` of the artifact folder. The
+  guard denies every other write of the main session and of each agent, with a first line
+  that starts "Leave verification.json and .reports/matrix-record.json": a write tool, a
+  shell command with the path in its text, and a command whose writes it cannot read, such
+  as `python3 -c`, with the path in its text, except the checks script alone with `check`
+  and `versions.cjs compare`, which write nothing. A reviewer writes its report only.
+  Outside a review session the two files keep the rules of a run.
+- In that session, a shell command that is no read denies each call that names the artifact
+  folder or `.reports`, as an argument or after an option as in `-C<folder>`, or a folder
+  above them as the target of `cd`, `pushd`, `-C`, `-d`, `-o` or `--directory`, or as the
+  last word of `ditto` or of `python3 -m zipfile -e` or `--extract`, and each call that runs
+  in the artifact folder, with a first line that starts "Leave the artifact folder". A call
+  that has a folder above them as another argument, such as `cp a.ts /tmp/`, runs. The guard
+  lists no tool: `tar`, `bsdtar`, `ditto`, `7z`, `pax`, `cpio` and `jar` fall under this
+  rule alike. Two kinds of call may name the folder: the checks script alone with `resume`,
+  `lock --verify`, `run locked`, `matrix`, `check`, `notes`, `starts`, `panel` or `findings
+  round`, or `versions.cjs compare` alone; and the push of an artifact. No other call runs
+  `versions.cjs`: `copy` would write a stored version over the draft. No call writes a file
+  of a stored version, `<artifact folder>/<type>/<name>/v<N>/<file>`, by a write tool or a
+  shell command, with a first line that starts "Leave the version store"; a file at the top
+  of the folder or in `.notes/`, such as `questions.json` or `.notes/changed-files.txt`,
+  stays open to a write tool.
+- The one push that the session runs is `<qory> artifact push [--name X] [--note Y] <type>
+  <full path> [--name X] [--note Y]`, with the options before the type or after the path,
+  and nothing before `<type>`, no `--` and no redirect or second command. For `verification`
+  the path is the full path of `verification.json` of the artifact folder, and only that
+  form passes: a relative path, also after `cd <folder>`, another file, `-` for standard
+  input, a root flag of qory such as `--verbose`, `command`, `env`, `sh -c` and a variable
+  or a command substitution as the program or the path are denied, with a first line that
+  starts "Push verification only from verification.json". Every command that has the word
+  `push` and either `verification` or a variable or a substitution is held to that form,
+  unless it is a read.
+- `shortcut:` a locked check runs as a child process that the guard does not see, and it can
+  rewrite `verification.json` and `.reports/matrix-record.json`, or plant a record in
+  `.reports/runs/`. The replacement is for qory to run the locked checks and `matrix`
+  outside the session.
 - The guard reads the writes of a shell command from its text, so a path in `<reports>`, of
-  `inputs.json` or below the harness home that a shell variable makes, such as `D=/x; echo >
-  "$D/r.json"`, passes. So does a script that one call writes to a file and a later call
-  runs, such as `cat > /tmp/p.py` and then `python3 /tmp/p.py`, and a path that code joins
-  from parts, such as `'ho' + 'me'`. The walled run, whose home is a read-only mount outside
-  the workspace, is the main control; the guard is the second.
+  `inputs.json`, below the harness home or in the two files of `matrix` that a shell
+  variable makes, such as `D=/x; echo > "$D/r.json"`, passes. So does a script that one call
+  writes to a file and a later call runs, such as `cat > /tmp/p.py` and then
+  `python3 /tmp/p.py`, and a path that code joins from parts, such as `'ho' + 'me'`. The
+  walled run, whose home is a read-only mount outside the workspace, is the main control;
+  the guard is the second.
 
 A write is a call of a write tool or of `apply_patch`, with the paths in `file_path`,
 `notebook_path` or the patch. Codex also runs a patch as a shell command,
@@ -3379,6 +3478,10 @@ locked check that fails. The session runs no ledger step. In this order:
    report and no submission text, starts no `submission-writer` and pushes no artifact:
    its checkout is read-only, so it cannot write `pull-request.json` into the outbox.
 
+`shortcut:` nothing ties `run verdict passed` to the round, so the verdict follows only the
+text of the skill, and nothing checks the `--reviewers` list against the group `reviewers`. The
+replacement is a verb that runs the round and records the verdict.
+
 - **The reviewers.** `code-reviewer`, `test-reviewer` and `acceptance-reviewer` start for
   every change, as "The review of a change" lists. Each loads `reviewing-changes`,
   `judging-findings` and its checking skill, `checking-code`, `checking-tests` or
@@ -3700,24 +3803,27 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   with no path and no rerun, under the limit of `targeted_checks`, and is green only when
   the command exits 0 and writes the targeted Result file of the build plan anew, with at
   least 1 test and no skipped or failed test. The build plan comes from the same folder as
-  for `run targeted`. No lock that counts exits 3. One record has every check. In Build,
-  the session runs it beside `lock --verify` as an early warning, because both read a
-  store that the agent can change; Verify runs the locked checks that bind, on the clean
-  checkout of the submitted commit. Code under test runs inside the check, so it can
+  for `run targeted`. No lock that counts exits 3, and so does a commit in which git tracks
+  a file under `.reports/` of the checkout, with the first line "Remove <file> from the
+  commit, then run locked again." and a second line that lists up to 3 files. One record has
+  every check, and `run_id`, the `QORY_RUN_ID` of the call or null, shows the run that wrote
+  it. In Build, the session runs it beside `lock --verify` as an early warning, because both
+  read a store that the agent can change; Verify runs the locked checks that bind, on the
+  clean checkout of the submitted commit. Code under test runs inside the check, so it can
   change a locked file and restore it within one check, and the hashes after the check see
-  only a change still on disk. The only guard against that in this repository is the stop
-  at the end of each check: the script stops the process group of the command and, on
-  Linux, each marked process, so a process left running by accident does not change a file
-  during a later check. Before the lock, `check-reviewer` of `write-acceptance-checks`
-  reports a check whose command or files change the setup of the tests, and a command that
-  runs, or a check that imports, a file whose only use is the tests, such as a helper, that
-  the lock lists neither as a check nor under `support[]`. It reads the files before the
-  lock and watches no run, so no check here looks at what code under test does to a locked
-  file during a check. A change that a check leaves on disk and that a commit takes in
-  counts at the push: the scope check of `build-plan` exits 1 on a committed path outside
-  the Files of the build plan. After the lock, `tamper-reviewer` of Verify reads the diff
-  for a locked file that a change edited, and for a test that it newly skips; it reads only
-  the diff, so it does not see a file that a check changes and restores within one run.
+  only a change still on disk. The only guard against that in this repository is the stop at
+  the end of each check: the script stops the process group of the command and, on Linux,
+  each marked process, so a process left running by accident does not change a file during a
+  later check. Before the lock, `check-reviewer` of `write-acceptance-checks` reports a
+  check whose command or files change the setup of the tests, and a command that runs, or a
+  check that imports, a file whose only use is the tests, such as a helper, that the lock
+  lists neither as a check nor under `support[]`. It reads the files before the lock and
+  watches no run, so no check here looks at what code under test does to a locked file
+  during a check. A change that a check leaves on disk and that a commit takes in counts at
+  the push: the scope check of `build-plan` exits 1 on a committed path outside the Files of
+  the build plan. After the lock, `tamper-reviewer` of Verify reads the diff for a locked
+  file that a change edited, and for a test that it newly skips; it reads only the diff, so
+  it does not see a file that a check changes and restores within one run.
 - `scope <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: each
   changed path, untracked files, both paths of a rename and, with a base, the paths of the
   commits since then, against the Files of the step's deliverable, or of every deliverable
@@ -4010,11 +4116,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `.reports/runs/`, where the guard denies an agent's write. A criterion whose
   `demo-evidence` cannot be pulled is not verified, and a ledger that cannot be pulled adds
   the family `unknown`. `<N>` is the acceptance-lock version that Build's approval lists,
-  the one that `lock --verify --version <N>` verified. The matrix has one row for each live
-  criterion, in the order of the criteria, from these sources:
+  the one that `lock --verify --version <N>` verified. A `--version` that is not the version
+  that `approved_version` of the lock is set to exits 3 with the same first line, and the
+  matrix writes no file. The matrix has one row for each live criterion, in the order of the
+  criteria, from these sources:
   - a criterion whose check does not start with `Demo: `: the newest record of `run locked`
-    in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria.
-    An older record never stands in for a newer one. The record counts only when it is a
+    in `.reports/runs/` for lock version `<N>` on the commit of HEAD, whatever its criteria,
+    with a `run_id` that is the `QORY_RUN_ID` of the session: a record of another run, or
+    with no `run_id`, is left out, and the file name is not read. An older record never
+    stands in for a newer one. The record counts only when it is a
     full run (no criterion given), with no uncommitted change, with the results of its
     checks, no `changed` list, and not red with every check green, which is how a call ends
     when a locked file changed. The criterion is `met` when each of its checks is green,
@@ -4707,13 +4817,14 @@ six members of `agents/reviewers`: `code-reviewer`, `test-reviewer` and
 `failure-reviewer`, each with `paths`.
 
 The script also checks that `roles.json` of the `software` stack has `tamper-reviewer` and
-`verification-reviewer` as the members of `agents/verify-reviewers`, with no `paths`, and
-still has those six members of `agents/reviewers`.
+`verification-reviewer` as the members of the group role that `review_group` of the stack
+entry `verify-a-ticket` is set to, `agents/verify-reviewers`, with no `paths`, and still has
+those six members of `agents/reviewers`.
 
 The script also checks that each agent of `software-factory` whose description contains "as
-an agent of the verify-a-ticket session" is a member of `verify-reviewers` in
-`qory-module.yaml`, and that the group has no other member. The group name is fixed in the
-check.
+an agent of the verify-a-ticket session" is a member of that group in
+`qory-module.yaml`, and that the group has no other member. The check reads the group
+name from `review_group` of the stack entry `verify-a-ticket`.
 
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
