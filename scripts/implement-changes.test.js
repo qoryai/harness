@@ -880,7 +880,8 @@ test('the session fixes a finding of open-findings.json in the inputs folder', (
   assert.deepEqual(newest(w, 'build-ledger', 'build-ledger.json').steps.at(-1).id, id);
 });
 
-test('the session ends a writer\'s stop on the build plan with one answer point', () => {
+test('the session ends a writer\'s stop on the build plan with one answer point, escalate ' +
+  'and no pull-request output', () => {
   const stop = section(WORKFLOW, 'A stop on the build plan');
   contains(stop, 'for one `answer` point, with `none` as the list "Decided"');
   // A point is plain text of one sentence: the first sentence of the change, with no backtick.
@@ -926,11 +927,18 @@ test('the session ends a writer\'s stop on the build plan with one answer point'
     'lists src/orders.cjs only'), action: 'answer', question: 'q1' }]));
   assert.equal(call('check', 'points', points).status, 1);
   fs.writeFileSync(points, JSON.stringify([{ text: filled, action: 'answer', question: 'q1' }]));
+  // Build declares the output pull-request as required. A stop writes none, and the end check
+  // passes: an end through points.json records escalate, and checks no output.
+  const inputs = path.join(fresh('in'), 'inputs.json');
+  const qory = JSON.parse(read(w.inputs)).qory;
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, outputs: [{ type: 'pull-request',
+    required: true, schema: { type: 'object' } }] } }));
   // judges is false, and the end check still sends escalate for the answer point.
-  const ended = call('end', w.artifacts, '--inputs', w.inputs);
-  assert.equal(ended.status, 0, ended.out);
+  const ended = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')),
     [`run verdict escalate --points ${points}`]);
+  assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
 });
 
 test('the session ends on another blocked report as "Failures" lists, with no red attempt', () => {
