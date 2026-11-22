@@ -652,7 +652,7 @@ function sessionFolder(reports, suite = SUITES.passed) {
 const round = (dir, suite, names) => call(['findings', 'round', dir, '--reviewers',
   names.join(','), '--suite', suite]);
 
-test('findings round: a blocking finding exits 1, prints its proof and writes its point', () => {
+test('findings round: a blocking finding exits 1, prints its proof and writes no file', () => {
   const { dir, suite } = sessionFolder({
     'code-reviewer': { reviewer: 'code-reviewer', findings: [LATER, REVIEWED] },
     'test-reviewer': { reviewer: 'test-reviewer', findings: [] } });
@@ -664,22 +664,18 @@ test('findings round: a blocking finding exits 1, prints its proof and writes it
     '  Proof: failing input: 11 rows with a limit of 10 give 9.',
     'Non-blocking finding of code-reviewer, src/export.js:42: The name of the helper is unclear.',
     '  Proof: broken rule: the name is unclear.',
-    'Checked 2 reports and the suite result: 1 blocking and 1 non-blocking findings; wrote ' +
-      `${quoted(path.join(dir, 'points.json'))}.`,
+    'Checked 2 reports and the suite result: 1 blocking and 1 non-blocking findings.',
   ]);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'points.json'), 'utf8')), [
-    { text: REVIEWED.point, action: 'run_again', fix: REVIEWED.fix }]);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['code-reviewer.json', 'test-reviewer.json']);
 });
 
-test('findings round: only non-blocking findings exit 0 and remove an earlier points.json', () => {
+test('findings round: only non-blocking findings exit 0', () => {
   const { dir, suite } = sessionFolder({
     'code-reviewer': { reviewer: 'code-reviewer', findings: [LATER] } });
-  fs.writeFileSync(path.join(dir, 'points.json'), '[]');
   const got = round(dir, suite, ['code-reviewer']);
   assert.equal(got.status, 0, got.out);
   assert.equal(got.lines.at(-1), 'Checked 1 report and the suite result: 0 blocking and 1 ' +
     'non-blocking findings; no blocking finding is open.');
-  assert.equal(fs.existsSync(path.join(dir, 'points.json')), false);
 });
 
 test('findings round: a missing or invalid report is one blocking finding', () => {
@@ -707,8 +703,6 @@ test('findings round: a missing or invalid report is one blocking finding', () =
     const got = round(dir, suite, [name]);
     assert.equal(got.status, 1, point);
     assert.equal(got.lines[0], `Blocking finding of code-reviewer: ${point}`);
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'points.json'), 'utf8')),
-      [{ text: point, action: 'run_again' }]);
     // qory's schema refuses each such report of the reviewer; a point of hidden characters
     // only, which qory refuses in its code, passes the schema.
     if (report !== undefined && typeof report === 'object' && report.reviewer === name &&
@@ -759,16 +753,16 @@ test('findings round: with no rule of the suite in the registry, the suite has n
     'result for the reviewed change.');
 });
 
-test('findings round: more than 20 blocking findings write 19 points and one that counts', () => {
+test('findings round: more than 20 blocking findings print 20 and count the rest', () => {
   const many = Array.from({ length: 25 },
     (_, at) => ({ ...REVIEWED, point: `Row ${at} is lost.` }));
   const { dir, suite } = sessionFolder({
     'code-reviewer': { reviewer: 'code-reviewer', findings: many } });
-  assert.equal(round(dir, suite, ['code-reviewer']).status, 1);
-  const points = JSON.parse(fs.readFileSync(path.join(dir, 'points.json'), 'utf8'));
-  assert.equal(points.length, 20);
-  assert.deepEqual(points.at(-1), { text: 'The review has 6 more blocking findings than these ' +
-    'points list.', action: 'run_again' });
+  const got = round(dir, suite, ['code-reviewer']);
+  assert.equal(got.status, 1);
+  assert.equal(got.lines.at(-1), 'Checked 1 report and the suite result: 25 blocking and 0 ' +
+    'non-blocking findings.');
+  assert.deepEqual(fs.readdirSync(dir), ['code-reviewer.json']);
 });
 
 test('findings round: wrong arguments exit 2, and a file as the report folder exits 3', () => {

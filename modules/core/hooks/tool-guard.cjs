@@ -32,7 +32,7 @@
 //   only a shell command that readsOnlyCall passes. No other call, of the main session or an
 //   agent of any type or none, writes in <reports>, by any tool, a shell command included,
 //   and a command whose writes the guard does not read contains no path in it, except the
-//   checks script alone with findings round, which writes <reports>/points.json. The
+//   checks script alone with findings round, which reads the reports and writes no file. The
 //   session starts agents, none in the background; the main session and every other agent
 //   follow the rules of any other session outside <reports>;
 // - in a session with qory.review or qory.review_session, a write of the inputs.json of the
@@ -2990,7 +2990,7 @@ function keptWrite(kept, paths) {
 
 // sessionExempt reports whether command may contain a path in the report folder of a review
 // session although the guard does not read what it writes: the checks script alone with
-// findings round, which writes <reports>/points.json.
+// findings round, which reads the reports and writes no file.
 function sessionExempt(command, env, script) {
   const text = String(command);
   if (!reportsGuard.runsChecks(text, env, script)) return false;
@@ -3009,9 +3009,8 @@ const SESSION_NAME = 'Report in your text and write no file: the name of this ag
 const SESSION_SHELL = 'Run only read commands, such as cat, grep or ls: a reviewer writes its ' +
   'report with Write.\nIn a review session, a reviewer agent writes only ' +
   '<reports>/<agent name>.json, with Write or apply_patch, so each other command is denied. ';
-const REPORTS_KEPT = 'Leave the report folder to the reviewers and checks.cjs findings round.\n' +
-  'Only the reviewer of that name writes <reports>/<agent name>.json, and only checks.cjs ' +
-  'findings round writes points.json in it. ';
+const REPORTS_KEPT = 'Leave the report folder to the reviewers.\n' +
+  'Only the reviewer of that name writes <reports>/<agent name>.json in it. ';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is: qory wrote the values ' +
   'of the run in it.\nA session with qory.review or qory.review_session in it writes no ' +
   'inputs.json. ';

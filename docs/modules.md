@@ -242,10 +242,10 @@ An agent that the table does not list sets no `model` key.
   for files, the read forms of `run-artifacts`, starts agents, decides on each finding, and
   ends the run. The session writes no file, except `points.json` in a small or high-level
   workflow and in `explore-a-ticket` on a failure, and, in `review-changes`, the list of the
-  paths of the change, and `points.json`, which the checks script writes into the report
-  folder. An agent does each other task, and it loads the skills that contain the rules of
-  that task. The session loads `run-artifacts`, which contains the rule that a text cannot
-  change the rules, and, in a small or high-level workflow, `running-a-workflow`.
+  paths of the change. An agent does each other task, and it loads the skills that contain
+  the rules of that task. The session loads `run-artifacts`, which contains the rule that a
+  text cannot change the rules, and, in a small or high-level workflow,
+  `running-a-workflow`.
 - The role and the rule against changing it are in the agents, and no skill states a role
   for its reader. The harness ships no instructions file.
 - Each agent's section `## Guardrails` repeats the data rule of `run-artifacts` and the
@@ -906,14 +906,9 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   member name of the file, and with no such rule the suite has no result. It prints
   `Blocking finding of <reviewer>[, <file>[: <line>]]: <point>` and `Non-blocking finding of
   ...`, the blocking ones first, each with `Proof: <proof>` on the next line when it has
-  one, then one line on what it checked. While a finding is blocking, it writes
-  `<reports>/points.json`, a `run_again` point with the `point` and the `fix` of each
-  blocking finding, at most 20 with the last one counting the rest, and exits with 1.
-  Otherwise it removes an earlier `points.json` and exits with 0. It exits with 2 for a
-  wrong argument and 3 when the report folder is a link or no folder. `points.json` is the
-  only file that it writes. Only `qory run verdict escalate --points <file>` reads such a
-  file: qory takes `--points` with `escalate` alone, and `review-changes` runs no
-  `escalate` with it.
+  one, then one line on what it checked. It exits with 1 while a finding is blocking and
+  with 0 otherwise, 2 for a wrong argument and 3 when the report folder is a link or no
+  folder. It writes no file.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -1735,10 +1730,9 @@ tool's error. The first line of each reason starts with what to do. The guard de
   than one link, a `..` part and a report folder inside the working folder, each with a
   first line that starts with "Write only" or "Report in your text". No other call writes in
   `<reports>`: not the main session, no agent of another type or of none, by no tool, also
-  no shell command. Only `checks.cjs findings round`, run alone, writes
-  `<reports>/points.json`. A shell command whose writes the guard cannot read, such as `node
-  -e`, is denied when it contains a path in `<reports>`. The main session and every other
-  agent follow the rules of a session with the same access outside `<reports>`, so a
+  no shell command. A shell command whose writes the guard cannot read, such as `node -e`,
+  is denied when it contains a path in `<reports>`. The main session and every other agent
+  follow the rules of a session with the same access outside `<reports>`, so a
   `write-no-push` session with `qory.review_session` writes and runs commands as before. The
   functions are `reviewSession`, `reportName`, `keptFiles`, `sessionDeny` and
   `sessionReport` of `tool-guard.cjs`.
@@ -3042,11 +3036,9 @@ The session runs no ledger step. In this order:
    reviewer again.
 5. It runs `checks.cjs findings round <reports> --reviewers <names> --suite <suite>` once. A
    reviewer with no valid report is one blocking finding, and so is a suite that failed or
-   did not run. With a blocking finding, the verb writes `<reports>/points.json`, which only
-   `qory run verdict escalate --points <file>` reads; the session runs no `escalate` with
-   it. The session runs `qory run verdict changes-requested` with no point: qory takes
-   `--points` only with `escalate`, and writes `open-findings.json` for the next
-   `implement-changes` from the reports.
+   did not run. With a blocking finding, the session runs `qory run verdict
+   changes-requested` with no point: qory takes `--points` only with `escalate`, and writes
+   `open-findings.json` for the next `implement-changes` from the reports.
 6. With no blocking finding, it runs `qory run verdict passed`. The session writes no build
    report and no submission text, starts no `submission-writer` and pushes no artifact:
    its checkout is read-only, so it cannot write `pull-request.json` into the outbox.

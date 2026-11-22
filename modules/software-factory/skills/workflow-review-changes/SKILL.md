@@ -32,9 +32,6 @@ is the folder in `qory.start_artifacts` of the input file. `<reports>` is the re
 Write nothing in the checkout: the review changes no file of the change. The files are:
 
 - `<reports>/<agent>.json`, the report of each reviewer, which only that reviewer writes;
-- `<reports>/points.json`, which `findings round` writes while a finding is blocking. Only
-  `<qory> run verdict escalate --points <file>` reads such a file, and this session runs no
-  `escalate` with it;
 - `<folder>/.notes/changed-files.txt`, the paths of the change, which you write;
 - the files under `<folder>/.reports/` that the checks script writes.
 
@@ -166,11 +163,11 @@ next line.
 
 ## Changes requested
 
-Write no `points.json` in `<folder>`, because qory sends `escalate` or `answer` from that
-file after the session ends. Run `<qory> run verdict changes-requested` with no point, and
-end with the line that the case lists. The next session of `implement-changes` then builds
-what is missing. When the command fails, end with the same line, and the run ends with no
-verdict.
+Write no `points.json` in `<folder>`: `changes-requested` takes no point, and a
+`points.json` is only for an end through "Points". Run `<qory> run verdict
+changes-requested` with no point, and end with the line that the case lists. The next
+session of `implement-changes` then builds what is missing. When the command fails, end with
+the same line, and the run ends with no verdict.
 
 ## The end
 

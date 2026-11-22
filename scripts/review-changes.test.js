@@ -414,10 +414,10 @@ test('a planted defect gives changes-requested with the finding and its proof', 
   assert.deepEqual(round.lines.slice(0, 2), [
     `Blocking finding of code-reviewer, src/jobs/export.cjs:2: ${DEFECT_FINDING.point}`,
     `  Proof: ${DEFECT_FINDING.proof}`]);
-  const points = path.join(w.reports, 'points.json');
-  assert.deepEqual(JSON.parse(read(points)), [{ text: DEFECT_FINDING.point, action: 'run_again',
-    fix: DEFECT_FINDING.fix }]);
-  // qory refuses --points with changes-requested, and writes the findings from the reports.
+  // findings round writes no file; qory refuses --points with changes-requested, and writes
+  // the findings from the reports.
+  assert.deepEqual(written(w, names), { checkout: '', reports: [] });
+  const points = path.join(fresh('points'), 'points.json');
   assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested', '--points', points).status,
     2);
   assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested').status, 0);
@@ -490,9 +490,8 @@ test('a reviewer that writes no report gives one blocking finding', () => {
   assert.equal(round.status, 1, round.out);
   assert.deepEqual(round.lines, ['Blocking finding of test-reviewer: Reviewer test-reviewer ' +
     'wrote no report.', `Checked ${names.length} reports and the suite result: 1 blocking and ` +
-    `0 non-blocking findings; wrote "${path.join(w.reports, 'points.json')}".`]);
-  assert.deepEqual(JSON.parse(read(w.reports, 'points.json')), [
-    { text: 'Reviewer test-reviewer wrote no report.', action: 'run_again' }]);
+    '0 non-blocking findings.']);
+  assert.deepEqual(written(w, names), { checkout: '', reports: [] });
 });
 
 test('a suite that failed is one blocking finding of full-suite', () => {

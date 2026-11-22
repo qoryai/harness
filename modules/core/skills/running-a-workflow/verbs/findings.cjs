@@ -10,17 +10,15 @@
 // of another reviewer is one blocking finding of that reviewer, such as "Reviewer <name> wrote
 // no report." A suite result that failed or did not run, by the rule that a skill adds to the
 // registry, or one that cannot be read, is one blocking finding of full-suite. It prints a line
-// per finding, blocking ones first, with its proof on the next line. While a finding is
-// blocking, it writes <reports>/points.json, the run_again points of the blocking findings, at
-// most 20, and exits 1; otherwise it removes an earlier points.json and exits 0. points.json is
-// the only file it writes.
+// per finding, blocking ones first, with its proof on the next line, and exits 1 while a
+// finding is blocking, else 0. It writes no file.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
 const {
-  MAX_BYTES, MAX_FINDING_LINES, Missing, NAME, cut, fullQuote, isObject, parseJson, plain,
+  MAX_BYTES, MAX_FINDING_LINES, Missing, NAME, fullQuote, isObject, parseJson, plain,
   plainLine, plural, short,
 } = require('../lib/base.cjs');
 const { readOpen, reportProblem } = require('../lib/findings.cjs');
@@ -116,10 +114,6 @@ const REPORT_BYTES = 1024 * 1024;
 // The most bytes of a suite result, whose output qory keeps with no limit on a line.
 // shortcut: a larger file is a suite with no result; raise it when qory caps a line.
 const SUITE_BYTES = 4 * 1024 * 1024;
-// The most points of a verdict, and the most characters of a point's text and fix.
-const MAX_POINTS = 20;
-const POINT_CHARS = 500;
-const POINTS = 'points.json';
 
 // roundArgs returns { reports, names, suite } of the arguments of findings round, or the fix
 // of a wrong argument as text.
@@ -225,11 +219,8 @@ function suiteFindings(file, state) {
   return finding('The full suite has no result for the reviewed change.');
 }
 
-// writePoints writes the run_again points of blocking to points.json in dir, through a new
-// temporary file that it renames into place, or removes an earlier points.json when blocking
-// is empty. It throws Missing when the folder is a link or no folder, or the write fails.
-function writePoints(dir, blocking) {
-  const file = path.join(dir, POINTS);
+// reportFolder throws Missing when dir, the report folder, is a link or no folder.
+function reportFolder(dir) {
   let stat;
   try {
     stat = fs.lstatSync(dir);
@@ -240,46 +231,16 @@ function writePoints(dir, blocking) {
     throw new Missing('Give findings round the report folder of the session.\n' +
       `${short(plain(dir), 80)} is a link or no folder.`);
   }
-  let old = null;
-  try {
-    old = fs.lstatSync(file);
-  } catch {
-    old = null;
-  }
-  if (old && !old.isFile()) {
-    throw new Missing(`Remove ${POINTS} from the report folder.\nIt is no regular file.`);
-  }
-  if (!blocking.length) {
-    if (old) fs.rmSync(file, { force: true });
-    return null;
-  }
-  const shown = blocking.length > MAX_POINTS ? blocking.slice(0, MAX_POINTS - 1) : blocking;
-  const points = shown.map((one) => ({ text: cut(one.point, POINT_CHARS), action: 'run_again',
-    ...(one.fix ? { fix: cut(one.fix, POINT_CHARS) } : {}) }));
-  if (shown.length < blocking.length) {
-    points.push({ text: `The review has ${blocking.length - shown.length} more blocking ` +
-      'findings than these points list.', action: 'run_again' });
-  }
-  const temporary = path.join(dir, `.${POINTS}.${process.pid}.tmp`);
-  try {
-    fs.writeFileSync(temporary, `${JSON.stringify(points, null, 2)}\n`, { flag: 'wx' });
-    fs.renameSync(temporary, file);
-  } catch {
-    fs.rmSync(temporary, { force: true });
-    throw new Missing(`Make the report folder writable.\n${short(plain(file), 80)} cannot be ` +
-      'written.');
-  }
-  return file;
 }
 
-// round prints the findings of the round and writes points.json, and returns its exit.
+// round prints the findings of the round and returns its exit.
 function round(io, { reports, names, suite }) {
   const dir = path.resolve(io.cwd, reports);
+  reportFolder(dir);
   const found = [...suiteFindings(path.resolve(io.cwd, suite), io.registry().suite),
     ...names.flatMap((name) => reviewerFindings(dir, name))];
   const blocking = found.filter((one) => one.severity === 'blocking');
   const ranked = [...blocking, ...found.filter((one) => one.severity !== 'blocking')];
-  const written = writePoints(dir, blocking);
   const lines = ranked.slice(0, MAX_FINDING_LINES / 2).flatMap((one) => {
     const where = one.file ? `, ${one.file}${one.line ? `:${one.line}` : ''}` : '';
     const head = `${one.severity === 'blocking' ? 'Blocking' : 'Non-blocking'} finding of ` +
@@ -291,11 +252,8 @@ function round(io, { reports, names, suite }) {
   }
   const counts = `${blocking.length} blocking and ${found.length - blocking.length} ` +
     'non-blocking findings';
-  const last = written
-    ? `Checked ${plural(names.length, 'report')} and the suite result: ${counts}; wrote ` +
-      `${fullQuote(written)}.`
-    : `Checked ${plural(names.length, 'report')} and the suite result: ${counts}; no ` +
-      'blocking finding is open.';
+  const last = `Checked ${plural(names.length, 'report')} and the suite result: ${counts}` +
+    `${blocking.length ? '.' : '; no blocking finding is open.'}`;
   io.out.write([...lines, last].join('\n') + '\n');
   return blocking.length ? 1 : 0;
 }

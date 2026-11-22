@@ -4439,7 +4439,7 @@ const SESSION_ONLY = 'Write only <report folder>/<agent name>.json, with Write o
 const SESSION_NAME = 'Report in your text and write no file: the name of this agent is no';
 const SESSION_NONE = 'Report in your text and write no file: qory.review_session.reports';
 const SESSION_SHELL = 'Run only read commands, such as cat, grep or ls: a reviewer writes its';
-const REPORTS_KEPT = 'Leave the report folder to the reviewers and checks.cjs findings round.';
+const REPORTS_KEPT = 'Leave the report folder to the reviewers.';
 const INPUTS_KEPT = 'Leave inputs.json of the harness home as it is';
 const HOME_KEPT = 'Leave the harness home as it is: a review runs with the guards and agents';
 // The reviewer agent on Claude Code, an agent of the harness's plugin.
@@ -4502,9 +4502,9 @@ test('a reviewer agent of a review session writes no file but its report', () =>
   const elsewhere = next('session-elsewhere');
   fs.mkdirSync(elsewhere);
   const file = path.join(reports, 'code-reviewer.json');
-  // The report of another reviewer, points.json, a file below the report folder, the folder,
+  // The report of another reviewer, another file, a file below the report folder, the folder,
   // a file outside it, a file of the artifact folder and a file of the working folder.
-  for (const other of [path.join(reports, 'spec-reviewer.json'), path.join(reports, 'points.json'),
+  for (const other of [path.join(reports, 'spec-reviewer.json'), path.join(reports, 'notes.json'),
     path.join(reports, 'code-reviewer.json.bak'), path.join(reports, 'sub', 'code-reviewer.json'),
     reports, path.join(elsewhere, 'code-reviewer.json'),
     path.join(runFolder, 'code-reviewer.json'), path.join(WORK, 'src', 'reply.ts')]) {
@@ -4657,7 +4657,7 @@ test('no call but the report of its reviewer writes in the report folder', () =>
     ['MultiEdit', { file_path: target, edits: [] }], ['NotebookEdit', { notebook_path: target }]];
   // The main session, an agent of each type and an agent with no type, by each write tool.
   const noType = (input) => ({ ...input, agent_id: 'a-1' });
-  for (const target of [file, path.join(reports, 'points.json'), path.join(reports, 'x', 'y')]) {
+  for (const target of [file, path.join(reports, 'notes.json'), path.join(reports, 'x', 'y')]) {
     for (const [tool, args] of tools(target)) {
       firstLine(call(claude(tool, args)), REPORTS_KEPT);
       firstLine(call(noType(claude(tool, args))), REPORTS_KEPT);
@@ -4670,7 +4670,7 @@ test('no call but the report of its reviewer writes in the report folder', () =>
   }
   // A shell command that writes there, as its text shows, of the main session and an agent.
   for (const command of [`echo '{}' > ${file}`, `touch ${reports}/spec-reviewer.json`,
-    `rm -rf ${reports}`, `printf x | tee ${reports}/points.json`, `sed -i s/a/b/ ${file}`,
+    `rm -rf ${reports}`, `printf x | tee ${reports}/notes.json`, `sed -i s/a/b/ ${file}`,
     `cd ${reports} && echo x > code-reviewer.json`]) {
     firstLine(call(bashAs(command)), REPORTS_KEPT);
     firstLine(call(bashAs(command, 'worker')), REPORTS_KEPT);
@@ -4678,18 +4678,18 @@ test('no call but the report of its reviewer writes in the report folder', () =>
   // A command whose writes the guard does not read and that contains a path in the folder.
   for (const command of [`node -e "require('fs').writeFileSync(process.argv[1], '{}')" ${file}`,
     `python3 -c 'open("${file}", "w")'`, `node ${SESSION_CHECKS} diff --out ${reports}`,
-    `/qory/qory run verdict passed --points ${reports}/points.json; rm x`]) {
+    `/qory/qory run verdict passed --points ${reports}/notes.json; rm x`]) {
     firstLine(call(bashAs(command)), REPORTS_KEPT);
   }
-  // The checks script alone with findings round runs. qory run verdict with a path in the
-  // folder is denied: the session passes qory no file of the report folder.
+  // The checks script alone with findings round, which reads the reports, runs. qory run
+  // verdict with a path in the folder is denied: the session passes qory no file of it.
   for (const command of [
     `node ${SESSION_CHECKS} findings round ${reports} --reviewers a,b --suite s.json`,
     `${SESSION_CHECKS} findings round ${reports} --reviewers a --suite s.json 2>&1`]) {
     assert.equal(call(bashAs(command)), null, command);
   }
   for (const command of [`/qory/qory run verdict changes-requested --points ${reports}/p.json`,
-    `qory run verdict escalate --points ${reports}/points.json`]) {
+    `qory run verdict escalate --points ${reports}/notes.json`]) {
     firstLine(call(bashAs(command)), REPORTS_KEPT);
   }
   // A path that a shell variable makes is not read: the limit of the header of tool-guard.cjs.
@@ -4710,7 +4710,7 @@ test('a link, a .. path, mv, cp or ln into the report folder is denied', () => {
   fs.writeFileSync(source, '{}');
   // A link to the folder and a .. path, by Write and by a shell command.
   for (const target of [path.join(linkDir, 'code-reviewer.json'),
-    `${reports}/../${base}/code-reviewer.json`, `${linkDir}/../${base}/points.json`]) {
+    `${reports}/../${base}/code-reviewer.json`, `${linkDir}/../${base}/notes.json`]) {
     for (const type of [undefined, 'worker']) {
       firstLine(call(writeAs(target, type)), REPORTS_KEPT);
       firstLine(call(bashAs(`echo x > ${target}`, type)), REPORTS_KEPT);
@@ -4720,7 +4720,7 @@ test('a link, a .. path, mv, cp or ln into the report folder is denied', () => {
   for (const command of [`mv ${source} ${reports}/code-reviewer.json`, `mv ${source} ${reports}`,
     `cp ${source} ${reports}/code-reviewer.json`, `cp ${source} ${reports}/`,
     `cp -r ${path.dirname(source)} ${linkDir}/x`, `ln ${source} ${reports}/code-reviewer.json`,
-    `ln -s ${source} ${reports}/code-reviewer.json`, `ln -sf /etc/hosts ${linkDir}/points.json`,
+    `ln -s ${source} ${reports}/code-reviewer.json`, `ln -sf /etc/hosts ${linkDir}/notes.json`,
     `cd ${path.dirname(reports)} && mv ${source} ${base}/spec-reviewer.json`]) {
     for (const type of [undefined, 'worker']) {
       firstLine(call(bashAs(command, type)), REPORTS_KEPT);

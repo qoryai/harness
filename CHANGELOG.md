@@ -19,24 +19,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   check that fails. The new verb `checks.cjs findings round <reports> --reviewers <names>
   --suite <file>` reads each report and the suite result once; a reviewer with no valid
   report and a suite with a failed test, with every test skipped or with no result are one
-  blocking finding each. While a finding is blocking, it writes the `run_again` points to
-  `<reports>/points.json` and exits 1, and the session records `changes-requested` with no
-  point, so qory writes the findings from the reports; otherwise it records `passed`. The
-  session writes no build report and no submission text. Build is a loop of at most 3 rounds
-  of `implement-changes` and `review-changes`, which Apiary runs. Rule 13 of
-  `scripts/check.sh` fails when such a workflow starts a `-reviewer` agent that is no member
-  of its `review_group`, or when a member of a group is no agent that a module defines.
+  blocking finding each. While a finding is blocking, it exits 1, and the session records
+  `changes-requested` with no point, so qory writes the findings from the reports; otherwise
+  it records `passed`. The session writes no build report and no submission text. Build is a
+  loop of at most 3 rounds of `implement-changes` and `review-changes`, which Apiary runs.
+  Rule 13 of `scripts/check.sh` fails when such a workflow starts a `-reviewer` agent that
+  is no member of its `review_group`, or when a member of a group is no agent that a module
+  defines.
 - The tool guard knows a review session: a session whose `inputs.json` has
   `qory.review_session` as an object. There it allows agent starts, and an agent whose type
   ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case
   letters, digits and hyphens that is not `full-suite`, and no link or `..` on the way. Its
   type is `harness:<name>` on Claude Code and a role of the composed home on Codex, and it
-  runs only read commands. No other call writes in `<reports>`, except `checks.cjs findings
-  round`, which writes `points.json`. A session with `qory.review` or `qory.review_session`
-  writes no `inputs.json` of the harness home, and nothing below a home that lies outside
-  the working folder. A path that a shell variable makes still passes. Every other rule
-  follows the access of the session, as before. In every other session the guard denies the
-  write tools to a `-reviewer` agent, as before.
+  runs only read commands. No other call writes in `<reports>`. A session with `qory.review`
+  or `qory.review_session` writes no `inputs.json` of the harness home, and nothing below a
+  home that lies outside the working folder. A path that a shell variable makes still
+  passes. Every other rule follows the access of the session, as before. In every other
+  session the guard denies the write tools to a `-reviewer` agent, as before.
 
 - A tier for each workflow of the `software` stack, and a plan for each write workflow. Each
   entry of `workflows` in `stacks/software/qory-stack.yaml` sets `tier`, the tier whose
