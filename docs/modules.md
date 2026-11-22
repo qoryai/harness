@@ -1258,7 +1258,7 @@ the checkout's folder. Claude Code sets `CLAUDE_PROJECT_DIR` to the project fold
 Gemini CLI sets it to the session's working folder.
 In the session of a hook's agent, when the `inputs.json` of `$QORY_HARNESS_HOME` has the
 member `qory.hook_session` with any value, `end-gate.cjs` runs no check and every adapter
-lets the session end with no output: qory checks the report of the hook after its agent
+lets the session end: qory checks the report of the hook after its agent
 exits. `HOOK_SESSION` of `end-gate.cjs` is the name of the member, and the tool guard reads
 it from there.
 `end-gate.cjs` loads `checks.cjs` and runs its `end` in a separate node process. When
@@ -1893,7 +1893,9 @@ tool's error. The first line of each reason starts with what to do. The guard de
   that is no object, or whose `report` is missing or no report path, leaves the session no
   path: each write is denied with a first line that starts with "Report in your text and
   write no file: qory.hook_session.report cannot be used." A session without the member
-  keeps its rules.
+  keeps its rules. The limits of the guard in the bullet on a reviewer session apply here
+  too: the guard runs only on Claude Code and Codex, only when `QORY_RUN_ID` is set, and
+  only when it can read `inputs.json`.
 - In a session with `qory.review`, `qory.review_session` or `qory.hook_session`, the guard
   denies a write of `inputs.json` of the harness home, wherever the home lies, with a first
   line that starts with "Leave inputs.json". When the home lies outside the working folder,

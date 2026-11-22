@@ -2742,19 +2742,25 @@ printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n' \
 expect_passes "rule 13 passes when each reviewer is a defined member" rule_review_groups "$R13"
 rule_agent_reach "$ROOT" || fail "rule 14: no agent reaches a workflow skill"
 pass "rule 14: no agent reaches a workflow skill"
-# Rule 14 on a tree whose agent a reaches workflow-flow through the skill s1, and then on the
-# same tree with s1 referring to the skill s2 in its place.
+# Rule 14 on a tree whose agent a reaches workflow-flow through the skill s1, and whose agent b
+# refers to running-a-flow itself; then on the same tree with no b and s1 referring to the
+# skill s2 in place of workflow-flow.
 R14=$TMP/rule14
 rm -rf "$R14"
 mkdir -p "$R14/modules/m/agents" "$R14/modules/m/skills/s1/references" "$R14/modules/m/skills/s2" \
-	"$R14/modules/n/skills/group/workflow-flow" || exit 1
+	"$R14/modules/n/skills/group/workflow-flow" "$R14/modules/n/skills/running-a-flow" || exit 1
 printf 'Load ${qory:skills/s1}.\n' >"$R14/modules/m/agents/a.md"
 printf 'Read references/more.md.\n' >"$R14/modules/m/skills/s1/SKILL.md"
 printf 'Load ${qory:skills/workflow-flow}.\n' >"$R14/modules/m/skills/s1/references/more.md"
 printf 'Load ${qory:skills/s1}.\n' >"$R14/modules/m/skills/s2/SKILL.md"
 printf 'Start ${qory:agents/a}.\n' >"$R14/modules/n/skills/group/workflow-flow/SKILL.md"
+printf 'Run the flow.\n' >"$R14/modules/n/skills/running-a-flow/SKILL.md"
+printf 'Load ${qory:skills/running-a-flow}.\n' >"$R14/modules/m/agents/b.md"
 expect_broken "rule 14 fails on an agent that reaches a workflow skill through a skill" \
 	'agent a reaches it through a > s1 > workflow-flow' rule_agent_reach "$R14"
+expect_broken "rule 14 fails on an agent that refers to a running-a-* skill itself" \
+	'agent b reaches it through b > running-a-flow' rule_agent_reach "$R14"
+rm "$R14/modules/m/agents/b.md" || exit 1
 printf 'Load ${qory:skills/s2}.\n' >"$R14/modules/m/skills/s1/references/more.md"
 expect_passes "rule 14 passes when the skills of the agent reach no workflow skill" \
 	rule_agent_reach "$R14"

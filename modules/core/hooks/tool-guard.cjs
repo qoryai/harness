@@ -27,8 +27,8 @@
 //   rules of a reviewer session, with qory.hook_session.report as the one path that the main
 //   session writes. These rules apply in place of those of qory.review and
 //   qory.review_session. A value that is no object, or a report that is no normalised
-//   absolute path, leaves the session no path to write. So the shell of reviewShell runs no
-//   qory command and no checks script;
+//   absolute path, leaves the session no path to write. The shell runs only the commands of
+//   reviewShell, so no qory command and no checks script;
 // - in a review session, when inputs.json has the member qory.review_session as an object and
 //   no qory.review object, as reviewSession reads it: each write of an agent whose type ends
 //   in -reviewer but one, a Write or an apply_patch of reportPatch's form that writes
