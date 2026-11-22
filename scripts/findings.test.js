@@ -1,7 +1,8 @@
 // Tests of the review of a change: the skills that define a reviewer's report, the report in
 // the JSON format of the review round against qory's schema of it, and the verb
 // `findings open` of the checks script of running-a-workflow, which prints the findings that
-// the next session fixes first. scripts/check.sh runs them.
+// the next session fixes first, and the verb `findings round`, which reads the reports of a
+// review session. scripts/check.sh runs them.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -23,6 +24,9 @@ const schema = require(path.join(MODULES,
 const quoted = (text) => `"${text}"`;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'findings-test-')));
+// The plugin has the skill that adds the rule of the suite result, which findings round reads.
+fs.cpSync(path.join(__dirname, '../modules/software-factory/skills/running-a-software-workflow'),
+  path.join(tmp, 'plugin/skills/running-a-software-workflow'), { recursive: true });
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 const REVIEWING = fs.readFileSync(path.join(SKILLS, 'reviewing-changes', 'SKILL.md'), 'utf8');
@@ -110,7 +114,12 @@ test('the schema fails a result word, an unknown member and each bad finding', (
 });
 
 test('reviewing-changes has the steps to write one file and, when the reviewer cannot finish, none', () => {
-  assert.match(REVIEWING, /Write one file, the report, to the path in `qory\.review\.report` of `inputs\.json`/);
+  assert.match(REVIEWING,
+    /Write one file, the report, with Write or, on Codex, with `apply_patch`/);
+  assert.match(REVIEWING, /the path is `qory\.review\.report` of\s+`inputs\.json`/);
+  // As an agent of a review session, the reviewer writes <reports>/<name>.json.
+  assert.match(REVIEWING, /the path is\s+`<reports>\/<your agent name>\.json`, where/);
+  assert.match(REVIEWING, /where `<reports>` is `qory\.review_session\.reports`/);
   assert.match(REVIEWING, /When you cannot finish the review, stop and write no file\./);
   assert.match(REVIEWING, /If your session has a shell, run only commands that read, with only the options in this\s+list\./);
   assert.match(REVIEWING, /`cat`: `-n -b -s -A -E -T -v`/);
@@ -129,7 +138,7 @@ test('reviewing-changes has the steps to write one file and, when the reviewer c
   assert.match(REVIEWING, /Nobody closes a finding/);
 });
 
-test('judging-findings defines a blocking finding word for word, and lists qory.review', () => {
+test('judging-findings defines a blocking finding word for word, and lists the values', () => {
   assert.ok(JUDGING.includes('a bug, a security hole, data loss, a broken acceptance criterion ' +
     'or a failing test; every other finding is non-blocking'));
   for (const name of ['commit', 'diff', 'suite_result', 'previous_findings', 'build_report',
@@ -137,6 +146,10 @@ test('judging-findings defines a blocking finding word for word, and lists qory.
     assert.match(JUDGING, new RegExp(`^- \`${name}\`: `, 'm'), name);
   }
   assert.match(JUDGING, /\$\{qory:skills\/reviewing-changes\}/);
+  // The values come from qory.review, or from qory.review_session in a review session.
+  assert.match(JUDGING, /Read each value from `qory\.review`\./);
+  assert.match(JUDGING, /Read each value from `qory\.review_session`, which qory writes:/);
+  assert.match(JUDGING, /`report`\s+is `<reports>\/<your agent name>\.json`, where `<reports>` is/);
   // The words that core may not contain are in this skill, which is why it is in software-factory.
   assert.ok(!fs.existsSync(path.join(SKILLS, 'judging-findings')));
 });
@@ -150,7 +163,7 @@ test('no skill or agent has a step that uses the removed verbs', () => {
       else if (/\.md$/.test(entry.name) && /(?:skills|agents)/.test(full)) {
         const text = fs.readFileSync(full, 'utf8');
         for (const pattern of ['--subject', 'findings add', 'findings close', 'findings show',
-          'checks.cjs panel', '.reports/findings.json']) {
+          '.reports/findings.json']) {
           if (text.includes(pattern)) found.push(`${path.relative(MODULES, full)}: ${pattern}`);
         }
       }
@@ -272,6 +285,7 @@ test('findings open: each broken form of the file exits 3 with the fix on line 1
     [{ round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: ['x'] }] }, /as a string/],
     [finding({ id: 'g1' }), /no id of the form f<number>/],
     [finding({ id: undefined }), /no id of the form f<number>/],
+    [finding({ id: ['f1'] }), /no id of the form f<number>/],
     [finding({ severity: 'break' }), /neither blocking nor non-blocking/],
     [finding({ point: 4 }), /point as a number, not text/],
     [finding({ point: undefined }), /point as missing, not text/],
@@ -601,4 +615,168 @@ test('findings: wrong arguments exit 2, and the removed forms are gone', () => {
     ['starts', 'r1', 'code-reviewer', '--subject']]) {
     assert.equal(call(argv).status, 2, argv.join(' '));
   }
+});
+
+// ---- findings round: the reports of a review session ----------------------------------------
+
+const REVIEWED = {
+  severity: 'blocking', quote: 'return rows.slice(0, limit - 1);',
+  problem: 'The export drops the last row that the limit allows.',
+  fix: 'Return the first limit rows.', proof: 'failing input: 11 rows with a limit of 10 give 9.',
+  point: 'The export drops the last row that the limit allows.', file: 'src/export.js', line: 42,
+};
+const LATER = { ...REVIEWED, severity: 'non-blocking', proof: 'broken rule: the name is unclear.',
+  point: 'The name of the helper is unclear.' };
+
+// The suite results of qory's form {tests, failed, skipped, output_tail}, by how the suite ended.
+const SUITES = {
+  passed: { tests: 12, failed: 0, skipped: 1, output_tail: 'ok 12 tests' },
+  failed: { tests: 12, failed: 2, skipped: 0, output_tail: 'not ok 4 export keeps the limit' },
+  notRun: { tests: 3, failed: 0, skipped: 3, output_tail: '' },
+};
+
+// sessionFolder returns a new report folder with a report for each name of reports, and the
+// path of the suite result suite, written as JSON, or of no file for null.
+function sessionFolder(reports, suite = SUITES.passed) {
+  const dir = path.join(tmp, `reports-${++files}`);
+  fs.mkdirSync(dir);
+  for (const [name, report] of Object.entries(reports)) {
+    fs.writeFileSync(path.join(dir, `${name}.json`),
+      typeof report === 'string' ? report : JSON.stringify(report));
+  }
+  const file = path.join(tmp, `suite-${files}.json`);
+  if (suite !== null) fs.writeFileSync(file, JSON.stringify(suite));
+  return { dir, suite: file };
+}
+
+const round = (dir, suite, names) => call(['findings', 'round', dir, '--reviewers',
+  names.join(','), '--suite', suite]);
+
+test('findings round: a blocking finding exits 1, prints its proof and writes no file', () => {
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [LATER, REVIEWED] },
+    'test-reviewer': { reviewer: 'test-reviewer', findings: [] } });
+  const got = round(dir, suite, ['code-reviewer', 'test-reviewer']);
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines, [
+    'Blocking finding of code-reviewer, src/export.js:42: The export drops the last row that ' +
+      'the limit allows.',
+    '  Proof: failing input: 11 rows with a limit of 10 give 9.',
+    'Non-blocking finding of code-reviewer, src/export.js:42: The name of the helper is unclear.',
+    '  Proof: broken rule: the name is unclear.',
+    'Checked 2 reports and the suite result: 1 blocking and 1 non-blocking findings.',
+  ]);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['code-reviewer.json', 'test-reviewer.json']);
+});
+
+test('findings round: only non-blocking findings exit 0', () => {
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [LATER] } });
+  const got = round(dir, suite, ['code-reviewer']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(got.lines.at(-1), 'Checked 1 report and the suite result: 0 blocking and 1 ' +
+    'non-blocking findings; no blocking finding is open.');
+});
+
+test('findings round: a missing or invalid report is one blocking finding', () => {
+  const name = 'code-reviewer';
+  const cases = [
+    [undefined, 'Reviewer code-reviewer wrote no report.'],
+    ['{', 'Reviewer code-reviewer wrote a report that is not one JSON object: it is no JSON.'],
+    ['[]', 'Reviewer code-reviewer wrote a report that is not one JSON object.'],
+    [{ reviewer: 'test-reviewer', findings: [] },
+      'Reviewer code-reviewer wrote a report for the reviewer test-reviewer.'],
+    [{ reviewer: name, findings: [], verdict: 'passed' }, 'Reviewer code-reviewer wrote a ' +
+      'report that does not match the report format: it has the member verdict.'],
+    [{ reviewer: name, findings: [{ ...REVIEWED, proof: 'broken rule: style.' }] },
+      'Reviewer code-reviewer wrote a report that does not match the report format: finding ' +
+      '1 is blocking with a proof that is a broken rule.'],
+    [{ reviewer: name, findings: [{ ...REVIEWED, point: '\u200b' }] }, 'Reviewer ' +
+      'code-reviewer wrote a report that does not match the report format: finding 1 has a ' +
+      'point that is not one line with a character that shows.'],
+    [{ reviewer: name, findings: [{ ...REVIEWED, id: ['f1'] }] }, 'Reviewer code-reviewer ' +
+      'wrote a report that does not match the report format: finding 1 has an id that is not ' +
+      'of the form f<number>.'],
+  ];
+  for (const [report, point] of cases) {
+    const { dir, suite } = sessionFolder(report === undefined ? {} : { [name]: report });
+    const got = round(dir, suite, [name]);
+    assert.equal(got.status, 1, point);
+    assert.equal(got.lines[0], `Blocking finding of code-reviewer: ${point}`);
+    // qory's schema refuses each such report of the reviewer; a point of hidden characters
+    // only, which qory refuses in its code, passes the schema.
+    if (report !== undefined && typeof report === 'object' && report.reviewer === name &&
+      !point.includes('character that shows')) {
+      assert.notDeepEqual(problems(report), [], point);
+    }
+  }
+  // A report that is no UTF-8 text is no report.
+  const bad = sessionFolder({});
+  fs.writeFileSync(path.join(bad.dir, `${name}.json`), Buffer.from([0x7b, 0xff, 0x7d]));
+  assert.equal(round(bad.dir, bad.suite, [name]).lines[0], 'Blocking finding of code-reviewer: ' +
+    'Reviewer code-reviewer wrote a report that is not UTF-8 text.');
+  // A link at the report path is no report.
+  const { dir, suite } = sessionFolder({});
+  const real = path.join(tmp, `real-${++files}.json`);
+  fs.writeFileSync(real, JSON.stringify({ reviewer: name, findings: [] }));
+  fs.symlinkSync(real, path.join(dir, `${name}.json`));
+  assert.equal(round(dir, suite, [name]).lines[0], 'Blocking finding of code-reviewer: ' +
+    'Reviewer code-reviewer wrote no valid report: the report file is a link.');
+});
+
+test('findings round: a suite that failed, did not run or has no result is blocking', () => {
+  const none = 'The full suite has no result for the reviewed change.';
+  for (const [given, point] of [[SUITES.failed, 'The full suite failed.'],
+    [SUITES.notRun, 'The full suite did not run.'],
+    [{ ...SUITES.passed, tests: 0, skipped: 0 }, 'The full suite did not run.'],
+    [null, none], [{ state: 'passed' }, none], [{ ...SUITES.passed, failed: -1 }, none],
+    [{ ...SUITES.passed, tests: 1.5 }, none], [{ ...SUITES.passed, failed: '0' }, none],
+    [{ ...SUITES.passed, skipped: 13 }, none], [{ ...SUITES.passed, output_tail: null }, none],
+    [[], none]]) {
+    const { dir, suite } = sessionFolder({
+      'code-reviewer': { reviewer: 'code-reviewer', findings: [] } }, given);
+    const got = round(dir, suite, ['code-reviewer']);
+    assert.equal(got.status, 1, JSON.stringify(given));
+    assert.equal(got.lines[0], `Blocking finding of full-suite: ${point}`);
+  }
+});
+
+test('findings round: with no rule of the suite in the registry, the suite has no result', () => {
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: [] } });
+  let out = '';
+  const status = main(['findings', 'round', dir, '--reviewers', 'code-reviewer', '--suite',
+    suite], { cwd: tmp, artifacts: [tmp], plugin: path.join(tmp, 'no-plugin'),
+    out: { write: (text) => { out += text; } }, err: { write: () => {} } });
+  assert.equal(status, 1, out);
+  assert.equal(out.split('\n')[0], 'Blocking finding of full-suite: The full suite has no ' +
+    'result for the reviewed change.');
+});
+
+test('findings round: more than 100 blocking findings print 100 and count the rest', () => {
+  const many = Array.from({ length: 105 },
+    (_, at) => ({ ...REVIEWED, point: `Row ${at} is lost.` }));
+  const { dir, suite } = sessionFolder({
+    'code-reviewer': { reviewer: 'code-reviewer', findings: many } });
+  const got = round(dir, suite, ['code-reviewer']);
+  assert.equal(got.status, 1);
+  const shown = got.lines.filter((line) => line.startsWith('Blocking finding of code-reviewer'));
+  assert.deepEqual(shown.map((line) => /: (Row \d+ is lost\.)$/.exec(line)[1]),
+    Array.from({ length: 100 }, (_, at) => `Row ${at} is lost.`));
+  assert.deepEqual(got.lines.slice(-2), ['5 more findings are not shown.',
+    'Checked 1 report and the suite result: 105 blocking and 0 non-blocking findings.']);
+  assert.deepEqual(fs.readdirSync(dir), ['code-reviewer.json']);
+});
+
+test('findings round: wrong arguments exit 2, and a file as the report folder exits 3', () => {
+  const { dir, suite } = sessionFolder({});
+  for (const argv of [['findings', 'round'], ['findings', 'round', dir],
+    ['findings', 'round', dir, '--reviewers', 'code-reviewer'],
+    ['findings', 'round', dir, '--reviewers', 'Code', '--suite', suite],
+    ['findings', 'round', dir, '--reviewers', 'full-suite', '--suite', suite],
+    ['findings', 'round', dir, '--reviewers', 'a,a', '--suite', suite],
+    ['findings', 'round', dir, '--reviewers', 'a', '--suite', suite, '--x', 'y']]) {
+    assert.equal(call(argv).status, 2, argv.join(' '));
+  }
+  assert.equal(round(path.join(dir, 'none'), suite, ['code-reviewer']).status, 3);
 });

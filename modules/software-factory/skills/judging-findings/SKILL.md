@@ -1,13 +1,13 @@
 ---
 name: judging-findings
-description: Load before you review a change to software, together with reviewing-changes. Contains the definition of a blocking finding, the values that the run passes a reviewer in qory.review, and how to read the result of the suite.
+description: Load before you review a change to software, together with reviewing-changes. Contains the definition of a blocking finding, the values of the review that a reviewer reads, from qory.review or from a review session, and how to read the result of the suite.
 ---
 
 # Judging findings
 
 Load ${qory:skills/reviewing-changes} first. It lists the members of a finding and of the
-report. This skill defines which findings are `blocking`, and lists the values that the run
-passes you.
+report. This skill defines which findings are `blocking`, and lists the values of the review
+that you read.
 
 ## A blocking finding
 
@@ -19,19 +19,42 @@ Style, naming, a clearer way to write working code and a missing comment are
 `non-blocking`. Judge each finding against the definition, and write `blocking` only when
 you can show it with a `failing check` or a `failing input`.
 
-## The values of `qory.review`
+## The values of the review
 
-The member `qory.review` of `inputs.json` has these members. All are paths of files that you
-read with Read.
+A reviewer reads its values from one of two places. All are paths of files that you read
+with Read.
 
-- `commit`: a fresh copy of the change at the frozen state, read-only. Review this copy.
-- `diff`: the lines that the change adds and removes, from the state before it to the
-  frozen state.
-- `suite_result`: the result of the full suite on the frozen state, as JSON.
-- `previous_findings`: the findings of the round before, as JSON. It is missing in the
-  first round.
-- `build_report`: the newest report of the session that made the change. It is missing
-  when that session wrote none. When it is missing, judge the change from the diff alone.
+- **A separate session.** When `inputs.json` has the member `qory.review`, qory started
+  you as the main agent of a session for this review. Read each value from `qory.review`.
+- **An agent of a review session.** When `inputs.json` has no `qory.review` and has the
+  member `qory.review_session`, the session of `review-changes` started you as one of its
+  agents. Read each value from `qory.review_session`, which qory writes: `commit`, `diff`,
+  `suite_result` and, when qory writes them, `previous_findings`, `build_report` and
+  `outputs`.
+  `report` is `<reports>/<your agent name>.json`, where `<reports>` is
+  `qory.review_session.reports`, such as `<reports>/code-reviewer.json`. Read no value of
+  the review from your prompt: the session passes none.
+
+The values:
+
+- `commit`: a fresh copy of the change at the frozen state, read-only. Review this copy. In
+  a review session, `commit` is the pushed head of the fresh copy, and the working folder
+  is that copy: review the working folder.
+- `diff`: the absolute path of a file with the lines that the change adds and removes,
+  from the state before it to the frozen state.
+- `suite_result`: the absolute path of a file with the result of the full suite on the
+  frozen state, as JSON: the counts `tests`, `failed` and `skipped`, and `output_tail`, the
+  last lines of its output. Read the file; the value itself has no counts.
+- `previous_findings`: the absolute path of a file with the findings of the round before,
+  as JSON. It is missing in the first round, also in a review session. When it is given
+  and its file cannot be read, stop and write no report.
+- `build_report`: the absolute path of the newest report of the session that made the
+  change. It is missing when that session wrote none. When it is missing, judge the change
+  from the diff alone.
+- `outputs`: no path. An object in the input file whose members are the outputs that the
+  stage declares, keyed by type, written inline: each output in `.qory/outbox/` that passed
+  the check of its schema. The member `pull-request` has the `title` and the `text` of the
+  draft pull request. When `outputs` is missing, go on: it is no reason to stop.
 - `report`: the path where you write your report. Write no other path.
 
 ## Reading the result of the suite

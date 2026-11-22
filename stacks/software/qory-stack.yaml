@@ -4,6 +4,7 @@ description: The software factory harness, for a checkout to extend
 modules:
   - name: core
   - name: software-factory
+  - name: browser-screens
 workflows:
   explore-a-ticket: {tier: thinking, access: read}
   write-specs: {tier: thinking, access: read}
@@ -14,7 +15,7 @@ workflows:
   plan-the-build: {tier: thinking, access: write, plan: build-plan}
   write-acceptance-checks: {tier: balanced, access: write, plan: build-plan}
   implement-changes: {tier: balanced, access: write, plan: build-plan, judges: false}
-  review-changes: {tier: thinking, access: write, plan: build-plan}
+  review-changes: {tier: thinking, access: read, review_group: reviewers}
 extending:
   kinds: [skills, agents, commands, output-styles]
   instructions: true

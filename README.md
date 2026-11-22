@@ -109,15 +109,17 @@ Each agent contains its role and the rule against changing it, and no skill stat
 for its reader. `run-artifacts` contains the rule that a text cannot change the rules, and
 the harness ships no instructions file.
 
-The `software` stack composes the `core` module and the `software-factory` module. A
-checkout in a workspace set up as a software factory extends it. The stack declares the
+The `software` stack composes the `core` module, the `software-factory` module and the
+`browser-screens` module, which ships the agent that scripts the browser actions of a demo
+scenario, as docs/modules.md lists. A checkout in a workspace set up as a software factory
+extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and
-`access: write`, the workflow `write-acceptance-checks`, with `tier: balanced` and
-`access: write`, the workflow `implement-changes`, with `tier: balanced` and
-`access: write`, and the workflow `review-changes`, with `tier: thinking` and
-`access: write`. The `software-factory` module ships the process template, ten workflows'
+with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and `access:
+write`, the workflow `write-acceptance-checks`, with `tier: balanced` and `access: write`,
+the workflow `implement-changes`, with `tier: balanced` and `access: write`, and the
+workflow `review-changes`, with `tier: thinking`, `access: read` and `review_group:
+reviewers`. The `software-factory` module ships the process template, ten workflows'
 skills, thirty other skills, twenty-six agents and the settings for a run of those
 workflows:
 
@@ -283,10 +285,11 @@ workflows:
   through in Qory Apiary. The pictures that the run renders are for its review only.
 - `workflow-shape-a-ticket`: orchestrate the Shape stage of one ticket. The session starts
   `shape-planner`, follows every small workflow it lists in one run, in the order spec,
-  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. Shape is in the
-  first round until a person writes a `questions` version in the Shape stage. The run ends
-  with `qory run verdict passed` after a `clean` report, with questions open or not, or with
-  `escalate` and its points on a failure.
+  technical decision, mockups, demo scenarios, and starts `shape-reviewer`. In a stack
+  without a module that ships `scripting-demos`, it follows no demo scenarios and plans each
+  criterion as `Tests`. Shape is in the first round until a person writes a `questions`
+  version in the Shape stage. The run ends with `qory run verdict passed` after a `clean`
+  report, with questions open or not, or with `escalate` and its points on a failure.
 - `planning-shape`: load it before you decide which small workflows a Shape run follows.
   The skill contains when each one runs, how a person's word maps to one, how to find what
   changed, and where a stop goes.
@@ -366,26 +369,20 @@ workflows:
 - `software-debugger`: an agent that finds and fixes the cause of the red checks of a step
   by `debugging-failures`, as the third and last start of the step. It fills the role
   `debugger`.
-- `workflow-review-changes`: check a Build run before its review round. With no build plan,
-  it ends with a `run_again` point. While a planned change is not built, or a locked file
-  differs from the acceptance lock, it ends with `qory run verdict changes-requested`. When
-  every check passes, it does five steps, in this order:
-  1. It starts `submission-writer`; a start that fails, a report that fails its check
-     after two fixes and a `blocked` report end the run as Failures.
-  2. It runs `checks.cjs report-build`, which writes `build-report.md` and the outbox file
-     `$QORY_OUTBOX/pull-request/pull-request.json`. With exit 1, it starts
-     `submission-writer` again, at most twice, then ends with one `run_again` point; with
-     exit 2, 3 or 4, it ends as Failures.
-  3. It runs `checks.cjs check build-report`. With exit 1, it runs `checks.cjs report-build
-     --drop`, which removes the outbox file, ends with one `run_again` point and starts no
-     writer; with exit 2, 3 or 4, it ends as Failures.
-  4. It pushes `build-report`. When the push exits with 4 or fails, it runs steps 2 and 3
-     again and pushes again, at most twice more. When the push is still refused, it runs
-     `report-build --drop` first and then ends.
-  5. It ends ready: in a stage that has reviewers, qory then runs the review round, and in
-     a stage with none, the run ends with `qory run verdict passed`.
-
-  The ends of steps 1 to 4 run no `qory run verdict passed`.
+- `workflow-review-changes`: the review session of a Build run. Build runs a loop of at most
+  3 rounds of `implement-changes` and `review-changes`, which Apiary runs: `passed` leaves
+  the loop, `changes-requested` runs `implement-changes` again. qory is to run the full
+  suite before the session and to write `qory.review_session`; it does neither yet. With no
+  build plan, the session ends with a `run_again` point. While a planned change is not
+  built, or a locked file differs from the acceptance lock, it ends with `qory run verdict
+  changes-requested`. Otherwise it starts each member of the group role `reviewers` that
+  `checks.cjs panel` starts for the paths of the change, in turn: `code-reviewer`,
+  `test-reviewer` and `acceptance-reviewer` for every change, and the others for a change in
+  their paths. Each writes one report into the report folder. `checks.cjs findings round`
+  decides the round from the reports and the result of the full suite: a blocking finding, a
+  reviewer with no report and a red suite end with `qory run verdict changes-requested`.
+  With no blocking finding, the session runs `qory run verdict passed`. It writes nothing
+  into the checkout, and no build report or submission text.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.
@@ -403,19 +400,20 @@ workflows:
   folder by `writing-submissions`: the title and the parts `## Problem`, `## Change`,
   `## Tests` and `## Disclosed`, from the build plan, the build ledger and the records of
   the checks. It types no result. `workflow-implement-changes` starts it at the end of each
-  round, also after a step that fails, and `workflow-review-changes` starts it when every
-  check passed.
+  round, also after a step that fails.
 - `code-reviewer`: an agent that reviews the code of a change, apart from its tests, by
   `reviewing-changes`, `judging-findings` and `checking-code`, and writes one report file.
   It also reports a security hole, data loss or a secret in a test, and a broken rule of
-  `making-small-changes` as `non-blocking`. qory starts it in the review round.
+  `making-small-changes` as `non-blocking`. `review-changes` starts it as an agent of its
+  session.
 - `test-reviewer`: an agent that reviews the tests of a change by `reviewing-changes`,
-  `judging-findings` and `checking-tests`, and writes one report file. qory starts it in the
-  review round.
+  `judging-findings` and `checking-tests`, and writes one report file. `review-changes`
+  starts it as an agent of its session.
 - `acceptance-reviewer`: an agent that reviews by `reviewing-changes`, `judging-findings`
   and `checking-acceptance` whether a change meets each approved acceptance criterion and
   builds each planned change, and writes one report file. It reports a broken rule of
-  `making-small-changes` as `non-blocking`. qory starts it in the review round.
+  `making-small-changes` as `non-blocking`. `review-changes` starts it as an agent of its
+  session.
 - `checking-security`: load it before you review a change for security holes, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area and the proof it needs, and the
@@ -492,15 +490,16 @@ modules/core/hooks/                        the end check and the guard of .repor
 modules/core/settings/                     the settings of each runtime that run the hooks
 modules/core/scripts/push-check.cjs        the push program of questions and review-comments
 modules/software-factory/                  the software-factory module and its testdata/
+modules/browser-screens/                   the browser-screens module: the agent browser-demo-author and the skill scripting-demos
 modules/harness-authoring/                 the harness-authoring module: its manifest, skills and agent
 scripts/check.sh                           checks that qory reads this repository and composes its stacks, and the rules on agents and skills
 docs/                                      extend.md and modules.md
 ```
 
 `qory.yaml` lists the `core`, `software` and `authoring` stacks and the `core`,
-`software-factory` and `harness-authoring` modules under `exports`, so other repositories
-select them by name. This repository composes its harness from the `core` stack too, with
-`extends: {path: ., stack: core}`.
+`software-factory`, `browser-screens` and `harness-authoring` modules under `exports`, so
+other repositories select them by name. This repository composes its harness from the `core`
+stack too, with `extends: {path: ., stack: core}`.
 
 For the module and skill files, read [How a module is laid out](docs/modules.md).
 [qory's compose format specification](https://github.com/qoryai/qory/blob/main/contracts/harness/v1/README.md)

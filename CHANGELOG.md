@@ -8,6 +8,68 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The review session of Build. `workflow-review-changes` reviews the change inside its
+  session: it starts each member of the group role `reviewers` that `checks.cjs panel`
+  starts for the paths of the change, in turn, as agents of the session. `code-reviewer`,
+  `test-reviewer` and `acceptance-reviewer` are members with no `paths`, so they start for
+  every change. Each writes one report, `<reports>/<agent>.json`, where `<reports>` is
+  `qory.review_session.reports` of `inputs.json`, which qory does not write yet. qory is to
+  run the full suite before the session and pass in `qory.review_session.suite_result` the
+  absolute path of a file with its result, `{tests, failed, skipped, output_tail}`; qory
+  writes the finding of a locked check that fails. The new verb `checks.cjs findings round
+  <reports> --reviewers <names> --suite <file>` reads each report and the suite result once;
+  a reviewer with no valid report and a suite with a failed test, with every test skipped or
+  with no result are one blocking finding each. While a finding is blocking, it exits 1, and
+  the session records `changes-requested` with no point, so qory writes the findings from
+  the reports; otherwise it records `passed`. The session writes no build report and no
+  submission text. Build is a loop of at most 3 rounds of `implement-changes` and
+  `review-changes`, which Apiary runs. Rule 13 of `scripts/check.sh` fails when such a
+  workflow starts a `-reviewer` agent that is no member of its `review_group`, or when a
+  member of a group is no agent that a module defines.
+- The kind `locked` of a row of `## Commands` in a build plan. Every plan has the row, as it
+  has `targeted`, `lint`, `types`, `build` and `full`, because every Build runs
+  `write-acceptance-checks`: a plan with no `locked` row is refused with "Add the kind
+  locked to ## Commands of build-plan.md." With no such command, the row has `none` and the
+  reason in Source. The row has a Source in one of its three forms. qory is to run its
+  command after the session as it runs `full`; qory `64e700db` reads only the `full` row.
+- The tool guard knows a review session: a session whose `inputs.json` has
+  `qory.review_session` as an object. There it allows agent starts, and an agent whose type
+  ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case
+  letters, digits and hyphens that is not `full-suite`, and no link or `..` on the way. Its
+  type is `harness:<name>` on Claude Code and a role of the composed home on Codex, and it
+  runs only read commands. No other call writes in `<reports>`. A session with `qory.review`
+  or `qory.review_session` writes no `inputs.json` of the harness home, and nothing below a
+  home that lies outside the working folder. A path that a shell variable makes, a script
+  that a later call runs, and a path that code joins from parts still pass; the read-only
+  mount of the home in a walled run is the main control. Every other rule follows the
+  access of the session, as before. In every other session the guard denies the write tools
+  to a `-reviewer` agent, as before.
+- The module `browser-screens`, which the `software` stack lists after `software-factory`.
+  It ships the agent `browser-demo-author`, on the tier `balanced`, which fills the role
+  `demo-author`, and the skill `scripting-demos`. `workflow-implement-changes` loads that
+  skill by name after its last deliverable and before its first finding fix. For each
+  approved demo scenario with no demo script, the skill starts the agent, which writes only
+  the browser actions of the scenario (open, click, type, press and wait), and then builds
+  the script and pushes it. The title, the expected result of each step, the evidence and
+  the version of the demo scenarios come from the approved scenario, so no agent types them.
+  No entry of `software-factory` references the role `demo-author`, so a stack without the
+  module composes, `implement-changes` included. A compose of a stack whose workflow starts
+  that role with no module to fill it fails with qory's fix "Add a module that fills
+  agents/demo-author, or drop capture-demos from the workflows and process."
+- `checks.cjs demo surface`, a verb of `running-a-software-workflow` that prints whether the
+  composed harness has the skill `scripting-demos`, in the plugin folder or, when that
+  folder is a module of the harness home, in a module beside it. `workflow-shape-a-ticket`,
+  `workflow-write-specs` and `workflow-write-demo-scenarios` run it at step 1. In a stack
+  without that skill, Shape writes no demo scenarios: the planner lists
+  `write-demo-scenarios` under "Not run", `write-specs` plans each criterion as `Tests`, and
+  the Build round passes `demo check` with no demo script to write.
+- `checks.cjs demo check` and `checks.cjs demo write <scenario>`, verbs of
+  `running-a-software-workflow`. `demo check` exits 1 with the fix "Add the module
+  browser-screens to the stack, then run another round." when the approved demo scenarios
+  have a scenario and the composed harness has no skill `scripting-demos`, and otherwise
+  lists the scenarios that have no demo script. `demo write` builds `.demo/<scenario>.json`
+  from the approved scenario and the actions in `.demo/<scenario>.actions.json`, and checks
+  it against `demo-script.schema.json`.
 - The parts of Verify that exist. The agents `tamper-reviewer` and `verification-reviewer`,
   which the `verify-a-ticket` session starts, and which read `commit`, `diff`, `reports`
   and, from the second round, `previous_findings` from `qory.review_session` in
@@ -184,14 +246,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exists: the title and the description of the draft pull request, as qory stores them. A
   claim in them that the diff or the records of the run do not show is a finding.
 - The agent `submission-writer` and the skill `writing-submissions` in `software-factory`.
-  When every check of the `review-changes` workflow passed, the session starts the agent,
-  which writes the title and the four-part description (`## Problem`, `## Change`,
+  The agent writes the title and the four-part description (`## Problem`, `## Change`,
   `## Tests`, `## Disclosed`) of the draft pull request to `.reports/submission.md`, then
-  runs `checks.cjs report-build`. A runtime with no agent tool, a start that fails and a
-  `blocked` report end the run as "Failures" of `running-a-workflow` lists. An exit 1 of
-  `report-build` starts the agent again, at most twice, and ends the run not ready with
-  one `run_again` point when it stays; so does an exit 1 of `check build-report`, with no
-  restart. Exits 2, 3 and 4 end as "Failures" lists.
+  runs `checks.cjs report-build`. No workflow of this module starts the agent.
 - The verb `checks.cjs report-build [--inputs <path>]` in `software-factory`. It writes
   `build-report.md` in the artifact folder, with the tables of the standard track rendered
   from the build ledger and the records of the checks. Only when `QORY_SUBMISSION_HANDOFF`
@@ -213,7 +270,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     later run.
   - When the hand-off file would have more than 262144 bytes, it leaves out the oldest
     commits of `steps` until the file fits; qory shows them as unreviewed.
-  - `report-build --drop` removes the hand-off file and writes nothing else. The session
+  - `report-build --drop` removes the hand-off file and writes nothing else. A session
     runs it when `check build-report` exits with 1 and when the push of `build-report`
     fails, so that qory's submit step reads no text of a change that is not ready. It, and
     the removal on each non-zero exit, remove the file only when the real path of its
@@ -223,8 +280,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     text of each section with the file byte for byte. With `--inputs`, it also compares
     Summary, Review rounds and Counts, which need the rounds that sit beside
     `inputs.json`; without it, the check prints that it did not compare them.
-  - The session `review-changes` runs both at the end, then pushes `build-report` before
-    the verdict.
 - `process.yaml` of `software-factory` has `submit: {type: submission, send:
   end_of_run}`.
 - The type `build-report` names its two forms by track: the standard track and the fast
@@ -1063,6 +1118,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
+  `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
+  verdict against, and no `plan`, which qory refuses on a workflow that cannot write. The
+  session starts no `submission-writer`, writes no outbox file and no file into the
+  checkout, and reads the build plan only from `qory.start_artifacts`. The stack test also
+  fails a `plan` on a workflow whose access is not `write`.
+- The reviewer agents, `judging-findings`, `reviewing-changes` and the six checking skills
+  read the values of the review from `qory.review`, in a separate session of a reviewer,
+  or from `qory.review_session`, as an agent of a review session.
+- `running-a-workflow` lists both ways of a round of review. The text of the `reviewers`
+  key of Build, which was never built, is gone from the docs; the group role `reviewers`
+  stays, for `checks.cjs panel`.
 - `checks.cjs step end` takes `--attempt <agent>,<role>,<tier>` and adds the model of each
   agent start to the build ledger: the `model:` of the agent file in the plugin folder, else
   the `model` of the `settings.json` in the plugin folder or beside it, else `unknown`, when

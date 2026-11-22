@@ -123,13 +123,13 @@ module.exports = (lib) => {
         run.find(`Cut the text of ${id} in ${FILE} to 25 words.\nIt has ${size} words.`);
       }
     }
-    // writing-specs (SKILL.md:60-63: "kept in every later version"): each id
+    // writing-specs (SKILL.md:61-64: "kept in every later version"): each id
     // once, kept in every later version, and a removed criterion stays removed.
     const previous = run.context.history('acceptance-criteria', FILE);
     const before = previous ? criteria(previous.text) : [];
     idHistory(run, FILE, 'criterion', all,
       previous && { number: previous.number, items: before });
-    // writing-specs (SKILL.md:60-63: "kept in every later version"): a criterion that the newest
+    // writing-specs (SKILL.md:61-64: "kept in every later version"): a criterion that the newest
     // version has as removed keeps its text and its check.
     for (const old of before.filter((criterion) => criterion.removed && criterion.id)) {
       const kept = all.find((criterion) => criterion.id === old.id && criterion.removed);
@@ -143,7 +143,7 @@ module.exports = (lib) => {
       }
     }
     plainTexts(run, data, all);
-    // writing-specs (SKILL.md:64-67: "**At most 7 criteria** that are not removed"): more than 7
+    // writing-specs (SKILL.md:65-68: "**At most 7 criteria** that are not removed"): more than 7
     // criteria needs a question that the reviewer judges, so the count goes on the last line and is
     // no finding.
     const kept = all.filter((criterion) => !criterion.removed).length;

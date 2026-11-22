@@ -100,10 +100,11 @@ test('the stack declares plan-the-build with the tier thinking, the access write
 const TIERS = ['light', 'balanced', 'thinking'];
 
 // workflowProblems returns a line for each workflow of the stack text whose tier is not one of
-// TIERS, for each workflow with access write and no `plan: build-plan`, and for each workflow
-// whose judges is neither true nor false. Each entry of the workflows key is one line with a
-// flow mapping: an entry in another form is a line too, on its first line. A blank line
-// inside the key ends no entry. tier, access, plan and judges count only
+// TIERS, for each workflow with access write and no `plan: build-plan`, for each other
+// workflow with a plan, which qory refuses, and for each workflow whose judges is neither
+// true nor false. Each entry of the workflows key is one line with a flow mapping: an entry
+// in another form is a line too, on its first line. A blank line inside the key ends no
+// entry. tier, access, plan and judges count only
 // at the top of the entry's mapping, not inside a nested value such as hook_points.
 function workflowProblems(text) {
   const block = /\nworkflows:\n((?:(?: {2}.*)?\n)+)/.exec(text);
@@ -128,6 +129,8 @@ function workflowProblems(text) {
     }
     if (member('access') === 'write' && member('plan') !== 'build-plan') {
       problems.push(`Add plan: build-plan to ${entry[1]}: its access is write.`);
+    } else if (member('access') !== 'write' && member('plan') !== undefined) {
+      problems.push(`Remove plan from ${entry[1]}: its access is ${member('access') || 'read'}.`);
     }
     const judges = member('judges');
     if (judges !== undefined && judges !== 'true' && judges !== 'false') {
@@ -137,7 +140,7 @@ function workflowProblems(text) {
   return problems;
 }
 
-test('each workflow of the stack has a tier, and each write workflow the plan build-plan', () => {
+test('each stack workflow has a tier, and only a write workflow has the plan build-plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
   assert.deepEqual(workflowProblems(stack), []);
   for (const [name, tier] of [['explore-a-ticket', 'thinking'], ['shape-a-ticket', 'thinking'],
@@ -145,6 +148,8 @@ test('each workflow of the stack has a tier, and each write workflow the plan bu
     ['make-mockups', 'balanced'], ['write-demo-scenarios', 'balanced']]) {
     assert.match(stack, new RegExp(`\\n {2}${name}: \\{tier: ${tier}, access: read\\}\\n`), name);
   }
+  // review-changes also names its review group, as scripts/review-changes.test.js checks.
+  assert.match(stack, /\n {2}review-changes: \{tier: thinking, access: read, /);
   // workflowProblems returns the line of the fault in a changed stack.
   const changed = (from, to) => {
     const text = stack.replace(from, to);
@@ -155,9 +160,16 @@ test('each workflow of the stack has a tier, and each write workflow the plan bu
     ['Set the tier of make-mockups to light, balanced or thinking: it is fast.']);
   assert.deepEqual(changed('write-specs: {tier: thinking, ', 'write-specs: {'),
     ['Set the tier of write-specs to light, balanced or thinking: it is missing.']);
-  assert.deepEqual(changed('review-changes: {tier: thinking, access: write, plan: build-plan}',
-    'review-changes: {tier: thinking, access: write}'),
-  ['Add plan: build-plan to review-changes: its access is write.']);
+  assert.deepEqual(changed('write-acceptance-checks: {tier: balanced, access: write, plan: ' +
+    'build-plan}', 'write-acceptance-checks: {tier: balanced, access: write}'),
+  ['Add plan: build-plan to write-acceptance-checks: its access is write.']);
+  // The review session is read only, and qory refuses a plan on a read workflow.
+  assert.deepEqual(changed('review-changes: {tier: thinking, access: read, ',
+    'review-changes: {tier: thinking, access: read, plan: build-plan, '),
+  ['Remove plan from review-changes: its access is read.']);
+  assert.deepEqual(changed('review-changes: {tier: thinking, access: read, ',
+    'review-changes: {tier: thinking, plan: build-plan, '),
+  ['Remove plan from review-changes: its access is read.']);
   assert.deepEqual(changed('shape-a-ticket: {tier: thinking, access: read}',
     'shape-a-ticket:\n    tier: thinking'),
   ['Write shape-a-ticket on one line, as <name>: {<key>: <value>, ...}.']);
@@ -263,6 +275,7 @@ const COMMANDS = `## Commands
 | types | none | none | The repository has no type check. |
 | build | none | none | \`package.json\` has no build script. |
 | full | \`npm test\` | \`reports/junit.xml\` | found: \`package.json:7\` |
+| locked | \`npm test -- tests/acceptance\` | \`reports/junit.xml\` | repository: \`package.json\` |
 `;
 
 // planOf returns a build plan of count deliverables, each with its test file in its Files. A

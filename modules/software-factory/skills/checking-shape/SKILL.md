@@ -37,7 +37,10 @@ as the steps below ask for it.
    `Shows:` line, such as a missing scenario, or a scenario that is not removed and is extra
    or lists other ids, is a finding for `write-demo-scenarios`. A check "Tests" for a
    criterion that a person can see in the UI, or "Demo" for one that no one can see, is a
-   finding for `write-specs`. Each screen that a step cites is in `screens.json`.
+   finding for `write-specs`. When the surface line, which you get with the input file, says
+   the stack has no surface module, a check "Demo" is a finding for `write-specs`, a check
+   "Tests" is right for each criterion, and no scenario is missing. Each screen that a step
+   cites is in `screens.json`.
 5. Criterion against page. Compare the `ac-N` ids that each screen lists with what its
    page shows. Where they differ, the criterion applies, and the mockup states that in
    the visible line that `designing-mockups` lists. A difference with no such line is a

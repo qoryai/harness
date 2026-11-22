@@ -223,7 +223,7 @@ function part(file) {
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
     types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
-    ledger: null,
+    ledger: null, suite: null,
   };
   const seen = new Set();
   const files = [];
@@ -257,6 +257,11 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
         'to the registry.');
     }
     if (added.ledger) registry.ledger = added.ledger;
+    if (added.suite && (registry.suite || typeof added.suite !== 'function')) {
+      throw new base.Missing('Give the registry one rule of the suite result, as a function: ' +
+        'a skill adds a second rule or no function.');
+    }
+    if (added.suite) registry.suite = added.suite;
   }
   registry.types.push(...CORE_TYPES);
   const types = new Set();

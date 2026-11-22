@@ -47,10 +47,10 @@ Load each skill when its step comes, and no other:
   commands that read files.
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,
-the planner's list "Not run", and the checks the run passes you, as `reviewing-drafts`
-lists. Give each finding from a line of "Checks:" the workflow of the output that the line
-names. You read no file of the target, fetch no web page, and never read through a link.
-Do not retry a refused tool call.
+the surface line, the planner's list "Not run", and the checks the run passes you, as
+`reviewing-drafts` lists. Give each finding from a line of "Checks:" the workflow of the
+output that the line names. You read no file of the target, fetch no web page, and never
+read through a link. Do not retry a refused tool call.
 
 ## Stop conditions
 
