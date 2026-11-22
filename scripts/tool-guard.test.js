@@ -4791,8 +4791,8 @@ test('in a review session only checks.cjs matrix writes verification.json and it
   const draft = path.join(runFolder, 'verification.json');
   const record = path.join(runFolder, '.reports', 'matrix-record.json');
   const plain = sessionSetup(() => ({ run: { id: 'r-1' } }));
-  // The record also lies under .reports/, where an older rule denies a json file to each call;
-  // the new rule gives the same files one reason, and the draft has no other rule.
+  // The record also lies under .reports/, where an older rule denies each json write; only
+  // the draft, which no older rule covers, shows the reason of the new rule.
   for (const file of [draft, record]) {
     const kept = (reason) => (file === draft ? firstLine(reason, MATRIX_KEPT) : assert.ok(reason));
     for (const type of [undefined, 'worker', REVIEWER]) {
