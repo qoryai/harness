@@ -8,6 +8,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
+  by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
+  to compose the session of a hook's agent with that agent and its skills only, so a
+  workflow skill there would let the agent run a workflow or record a verdict.
 - The review session of Build. `workflow-review-changes` reviews the change inside its
   session: it starts each member of the group role `reviewers` that `checks.cjs panel`
   starts for the paths of the change, in turn, as agents of the session. `code-reviewer`,

@@ -4665,8 +4665,16 @@ the rule passes on that file.
     member that no module defines. `scripts/review-groups.cjs` prints a finding that starts
     with its fix, such as "Add b-reviewer to the group grp, or start no b-reviewer in
     workflow-flow".
+14. No agent reaches a skill `running-a-*` or `workflow-*`: not by a reference
+    `${qory:skills/<name>}` in its file, and not through the references of a skill that it
+    reaches, in any Markdown file of that skill's folder. qory is to compose the session of
+    a hook's agent with that agent and the skills it reaches, and with no workflow skill.
+    `scripts/agent-reach.cjs` prints a finding that starts with its fix and shows the way
+    from the agent to the skill, such as "Remove ${qory:skills/workflow-flow} from
+    modules/m/skills/s1/references/more.md: agent a reaches it through a > s1 >
+    workflow-flow".
 
-Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
+Rules 4, 6, 7, 8 and 14 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
 there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
 read the same file without it.

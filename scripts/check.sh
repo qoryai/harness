@@ -1157,6 +1157,15 @@ rule_review_groups() {
 	return 1
 }
 
+# rule_agent_reach DIR: rule 14, no agent of DIR/modules reaches a skill running-a-* or
+# workflow-* by its references ${qory:skills/<name>} or those of a skill it reaches: qory
+# composes the session of a hook's agent with that agent and its skills, and no workflow skill.
+rule_agent_reach() {
+	OUT=$(node "$ROOT/scripts/agent-reach.cjs" "$1" 2>&1) || return 1
+	[ -z "$OUT" ] && return 0
+	return 1
+}
+
 # rule_cjs DIR: rule 12, no file under DIR/modules ends in .js. Node loads a .js file as an
 # ES module when the nearest package.json above it sets "type": "module", as a target
 # repository may, and there require is not defined. Node loads a .cjs file as CommonJS under
@@ -2731,6 +2740,24 @@ expect_broken "rule 13 fails on a group member that no module defines" \
 printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n' \
 	>"$R13/modules/m/qory-module.yaml"
 expect_passes "rule 13 passes when each reviewer is a defined member" rule_review_groups "$R13"
+rule_agent_reach "$ROOT" || fail "rule 14: no agent reaches a workflow skill"
+pass "rule 14: no agent reaches a workflow skill"
+# Rule 14 on a tree whose agent a reaches workflow-flow through the skill s1, and then on the
+# same tree with s1 referring to the skill s2 in its place.
+R14=$TMP/rule14
+rm -rf "$R14"
+mkdir -p "$R14/modules/m/agents" "$R14/modules/m/skills/s1/references" "$R14/modules/m/skills/s2" \
+	"$R14/modules/n/skills/group/workflow-flow" || exit 1
+printf 'Load ${qory:skills/s1}.\n' >"$R14/modules/m/agents/a.md"
+printf 'Read references/more.md.\n' >"$R14/modules/m/skills/s1/SKILL.md"
+printf 'Load ${qory:skills/workflow-flow}.\n' >"$R14/modules/m/skills/s1/references/more.md"
+printf 'Load ${qory:skills/s1}.\n' >"$R14/modules/m/skills/s2/SKILL.md"
+printf 'Start ${qory:agents/a}.\n' >"$R14/modules/n/skills/group/workflow-flow/SKILL.md"
+expect_broken "rule 14 fails on an agent that reaches a workflow skill through a skill" \
+	'agent a reaches it through a > s1 > workflow-flow' rule_agent_reach "$R14"
+printf 'Load ${qory:skills/s2}.\n' >"$R14/modules/m/skills/s1/references/more.md"
+expect_passes "rule 14 passes when the skills of the agent reach no workflow skill" \
+	rule_agent_reach "$R14"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
