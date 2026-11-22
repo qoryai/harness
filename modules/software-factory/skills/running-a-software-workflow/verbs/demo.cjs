@@ -202,6 +202,9 @@ module.exports = (lib) => {
   // freeze must record, has another sha256 than the newest done row of the ledger: a session
   // that pushed a script and skipped `step end`. It returns null with no draft, no row or no
   // pushed version that can be read: with no draft, the script read is the pushed one.
+  // Apiary rewrites pushed bytes only for `questions` and `review-comments`
+  // (`@member_types` in artifacts.ex), so the sha256 comparison holds for a demo script. Review
+  // the comparison when that list changes.
   function unrecorded(root, io, got, id, rows, done) {
     if (!got.drafted || !rows.length || !done.has(id)) return null;
     const shown = pushedFile(root, io, id);
