@@ -911,7 +911,9 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   blocking finding, at most 20 with the last one counting the rest, and exits with 1.
   Otherwise it removes an earlier `points.json` and exits with 0. It exits with 2 for a
   wrong argument and 3 when the report folder is a link or no folder. `points.json` is the
-  only file that it writes.
+  only file that it writes. Only `qory run verdict escalate --points <file>` reads such a
+  file: qory takes `--points` with `escalate` alone, and `review-changes` runs no
+  `escalate` with it.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
@@ -3030,12 +3032,13 @@ The session runs no ledger step. In this order:
    role `reviewers` that `checks.cjs panel` starts for those paths, in turn. Each
    reviewer writes `<reports>/<agent>.json`. The session reads no report and starts no
    reviewer again.
-5. It runs `checks.cjs findings round <reports> --reviewers <names> --suite <suite>` once.
-   A reviewer with no valid report is one blocking finding, and so is a suite that failed or
-   did not run. With a blocking finding, the verb writes `<reports>/points.json`, and the
-   session runs `qory run verdict changes-requested` with no point: qory takes `--points`
-   only with `escalate`, and writes `open-findings.json` for the next `implement-changes`
-   from the reports.
+5. It runs `checks.cjs findings round <reports> --reviewers <names> --suite <suite>` once. A
+   reviewer with no valid report is one blocking finding, and so is a suite that failed or
+   did not run. With a blocking finding, the verb writes `<reports>/points.json`, which only
+   `qory run verdict escalate --points <file>` reads; the session runs no `escalate` with
+   it. The session runs `qory run verdict changes-requested` with no point: qory takes
+   `--points` only with `escalate`, and writes `open-findings.json` for the next
+   `implement-changes` from the reports.
 6. With no blocking finding, it runs `qory run verdict passed`. The session writes no build
    report and no submission text, starts no `submission-writer` and pushes no artifact:
    its checkout is read-only, so it cannot write `pull-request.json` into the outbox.
@@ -4189,12 +4192,13 @@ the rule passes on that file.
 12. No file under `modules/` ends in `.js`. The finding of each file starts with its fix,
     "Rename <path> to .cjs.", and the reason follows: a module's scripts must load as
     CommonJS in a repository whose `package.json` sets `"type": "module"`.
-13. For each workflow of a stack with a `review_group`, each `-reviewer` agent that its skill
-    `workflow-<name>` starts as `${qory:agents/<agent>}` is a member of that group, and each
-    member of a group under `provides.agents` of a module is an agent file of a module.
-    qory expects a report from each member and only from a member, also from a member that
-    no module defines. `scripts/review-groups.cjs` prints a finding that starts with its fix,
-    such as "Add b-reviewer to the group grp, or start no b-reviewer in workflow-flow".
+13. For each workflow of a stack with a `review_group`, each `-reviewer` agent that its
+    skill `workflow-<name>` starts as `${qory:agents/<agent>}` is a member of that group,
+    and each member of a group under `provides.agents` of a module is an agent file of a
+    module. qory expects a report from each member and only from a member, also from a
+    member that no module defines. `scripts/review-groups.cjs` prints a finding that starts
+    with its fix, such as "Add b-reviewer to the group grp, or start no b-reviewer in
+    workflow-flow".
 
 Rules 4, 6, 7 and 8 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
