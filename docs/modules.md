@@ -1963,9 +1963,9 @@ tool's error. The first line of each reason starts with what to do. The guard de
 - In that session, a shell command that is no read denies each call that names the artifact
   folder or `.reports`, as an argument or after an option as in `-C<folder>`, or a folder
   above them as the target of `cd`, `pushd`, `-C`, `-d`, `-o` or `--directory`, or as the
-  last word of `ditto` or of `python3 -m zipfile -e`, and each call that runs in the
-  artifact folder, with a first line that starts "Leave the artifact folder". A call that
-  has a folder above them as another argument, such as `cp a.ts /tmp/`, runs. The guard
+  last word of `ditto` or of `python3 -m zipfile -e` or `--extract`, and each call that runs
+  in the artifact folder, with a first line that starts "Leave the artifact folder". A call
+  that has a folder above them as another argument, such as `cp a.ts /tmp/`, runs. The guard
   lists no tool: `tar`, `bsdtar`, `ditto`, `7z`, `pax`, `cpio` and `jar` fall under this
   rule alike. Two kinds of call may name the folder: the checks script alone with `resume`,
   `lock --verify`, `run locked`, `matrix`, `check`, `notes`, `starts`, `panel` or `findings

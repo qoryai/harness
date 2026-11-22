@@ -4903,6 +4903,7 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     assert.equal(call(bashAs(command, 'worker')), null, command);
   }
   for (const command of [`ditto -x -k a.zip ${above}`, `python3 -m zipfile -e a.zip ${above}`,
+    `python3 -m zipfile --extract a.zip ${above}`,
     `cd ${above} && tar -xf a.tar`, `tar -xf a.tar -C ${above}`,
     `tar -xf a.tar -C${above}`, `unzip a.zip -d ${above}`, `7z x a.7z -o${above}`,
     `tar -xf a.tar --directory=${above}`, `pushd ${above} && touch x`]) {
@@ -4931,7 +4932,7 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     }
     // A file in a version folder is the store, whatever the type and the name.
     for (const file of ['questions/main/v2/questions.json', 'demo-evidence/scenario-1/v3/x.json',
-      'verification/main/v1/a/b.json']) {
+      'verification/main/v1/a/b.json', '-x/main/v1/verification.json', 'a-b/main/v1/x']) {
       firstLine(call(writeAs(path.join(runFolder, file), type)),
         'Leave the version store of the artifact folder');
     }

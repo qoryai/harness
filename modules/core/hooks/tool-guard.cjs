@@ -3174,7 +3174,7 @@ function artifactNamed(segs, artifacts, nocase) {
       const last = index === words.length - 1;
       // ditto and python3 -m zipfile -e take the folder to write to as the last word.
       const unpacks = path.basename(words[0]) === 'ditto' ||
-        (words.includes('zipfile') && words.includes('-e'));
+        (words.includes('zipfile') && (words.includes('-e') || words.includes('--extract')));
       const target = attached || (last && unpacks) ||
         /^(?:cd|pushd|-C|-d|-o|--directory)$/.test(words[index - 1] || '');
       // A path that follows an option, as in -C<folder>, -o<folder> or --directory=<folder>.
@@ -3192,9 +3192,9 @@ function artifactNamed(segs, artifacts, nocase) {
 }
 
 // VERSION_FILE matches a path below the artifact folder that lies in a stored version, as
-// versions.cjs reads it: <type>/<name>/v<N>/<file>, or deeper. .notes/ and .reports/ start
-// with a dot and are no type.
-const VERSION_FILE = /^[a-z][a-z-]*[/\\][^/\\]+[/\\]v[0-9]+[/\\][^/\\]/;
+// versions.cjs reads it: <type>/<name>/v<N>/<file>, or deeper, with a type of [a-z-]+ as its
+// TYPE. .notes/ and .reports/ start with a dot and are no type.
+const VERSION_FILE = /^[a-z-]+[/\\][^/\\]+[/\\]v[0-9]+[/\\][^/\\]/;
 
 // keptWrite returns { inputs, reason } for the first of paths, real paths that a call writes,
 // that is an entry of kept or lies in a kept folder, or null.
