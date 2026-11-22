@@ -2727,7 +2727,15 @@ expect_broken "rule 13 fails on a reviewer that the workflow starts outside its 
 	'Add b-reviewer to the group grp' rule_review_groups "$R13"
 expect_broken "rule 13 fails on a group member that no module defines" \
 	'Add the agent ghost-reviewer' rule_review_groups "$R13"
-: >"$R13/modules/m/agents/b-reviewer.md"
+printf -- '---\nname: a-reviewer\ndescription: Reviews as an agent of the flow session.\n---\n' \
+	>"$R13/modules/m/agents/a-reviewer.md"
+printf -- '---\nname: b-reviewer\ndescription: Reviews as an agent of the flow session.\n---\n' \
+	>"$R13/modules/m/agents/b-reviewer.md"
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer]\n' >"$R13/modules/m/qory-module.yaml"
+printf 'Start ${qory:agents/a-reviewer}.\n' >"$R13/modules/m/skills/workflow-flow/SKILL.md"
+expect_broken "rule 13 fails on a group that differs from the agents of its session" \
+	'Make the group grp the agents of the flow session: a-reviewer, b-reviewer' \
+	rule_review_groups "$R13"
 printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n' \
 	>"$R13/modules/m/qory-module.yaml"
 expect_passes "rule 13 passes when each reviewer is a defined member" rule_review_groups "$R13"
@@ -2911,46 +2919,43 @@ const good = names === "code-reviewer test-reviewer acceptance-reviewer security
   (always.includes(row.agent) ? !("paths" in row) :
     Array.isArray(row.paths) && row.paths.length > 0));
 if (!good) { console.error("members: " + JSON.stringify(members)); process.exit(1); }'
-# The group role that review_group names in the stack entry of verify-a-ticket has the two
-# reviewers of Verify, with no paths, and roles.json still has the group role reviewers.
+# The group role that review_group of the stack entry of verify-a-ticket is set to has the
+# two reviewers of Verify, with no paths, and roles.json still has the group role reviewers.
+# review-groups.cjs is the one parser of review_group.
 expect "roles.json has tamper-reviewer and verification-reviewer in the group of verify-a-ticket" \
 	0 "$TMP/software" node -e '
 const fs = require("fs");
-const stack = fs.readFileSync(process.argv[1], "utf8");
-const entry = /^ {2}verify-a-ticket: \{([^}]*)\}/m.exec(stack);
-const group = entry && /(?:^|,)\s*review_group: ([a-z0-9-]+)/.exec(entry[1]);
+const { groupOf, entriesOf } = require(process.argv[1]);
+const entry = entriesOf(fs.readFileSync(process.argv[2], "utf8"))
+  .find(([name]) => name === "verify-a-ticket");
+const group = entry && groupOf(entry[1]);
 const roles = JSON.parse(fs.readFileSync(".qory/harness/roles.json", "utf8")).roles;
 const rows = (role) => roles.filter((row) => row.role === role && row.group === true);
 const names = (role) => rows(role).map((row) => row.agent).join(" ");
-const role = "agents/" + (group ? group[1] : "none");
+const role = "agents/" + group;
 const good = Boolean(group) && names(role) === "tamper-reviewer verification-reviewer" &&
   rows(role).every((row) => !("paths" in row)) &&
   names("agents/reviewers") === "code-reviewer test-reviewer acceptance-reviewer " +
     "security-reviewer data-reviewer failure-reviewer";
 if (!good) { console.error("roles: " + JSON.stringify(roles)); process.exit(1); }' \
-	"$ROOT/stacks/software/qory-stack.yaml"
-# The agents of software-factory whose description is about the verify-a-ticket session
-# are the members of the group that review_group names in its stack entry, in qory-module.yaml.
-expect "each agent of the verify-a-ticket session is in its review group in qory-module.yaml" \
+	"$ROOT/scripts/review-groups.cjs" "$ROOT/stacks/software/qory-stack.yaml"
+# The agents whose description has "as an agent of the verify-a-ticket session" are the
+# members of the group that review_group of its stack entry is set to. Rule 13 compares them
+# for each workflow with a group; this check also needs the session to have agents.
+expect "the verify-a-ticket session has the agents of its review group in qory-module.yaml" \
 	0 "$ROOT" node -e '
 const fs = require("fs");
-const dir = "modules/software-factory/";
-const yaml = fs.readFileSync(dir + "qory-module.yaml", "utf8");
-const stack = fs.readFileSync("stacks/software/qory-stack.yaml", "utf8");
-const entry = /^ {2}verify-a-ticket: \{([^}]*)\}/m.exec(stack);
-const group = entry && /(?:^|,)\s*review_group: ([a-z0-9-]+)/.exec(entry[1]);
-const line = group &&
-  new RegExp("^\\s{4}" + group[1] + ": \\[([^\\]]*)\\]", "m").exec(yaml);
-const members = line ? line[1].split(",").map((name) => name.trim()) : [];
-const agents = fs.readdirSync(dir + "agents").filter((file) => file.endsWith(".md"))
-  .filter((file) => /as an agent of the verify-a-ticket session/.test(
-    fs.readFileSync(dir + "agents/" + file, "utf8").split("\n---")[0]))
-  .map((file) => file.slice(0, -3)).sort();
-const good = agents.length > 0 && agents.join(" ") === [...members].sort().join(" ");
-if (!good) {
+const { groupOf, entriesOf, groupsOf, sessionAgents } = require(process.argv[1]);
+const entry = entriesOf(fs.readFileSync("stacks/software/qory-stack.yaml", "utf8"))
+  .find(([name]) => name === "verify-a-ticket");
+const group = entry && groupOf(entry[1]);
+const found = group && groupsOf(".").get(group);
+const agents = sessionAgents(".", "verify-a-ticket");
+const members = found ? [...found.members].sort() : [];
+if (!agents.length || agents.join(" ") !== members.join(" ")) {
   console.error("agents: " + agents.join(" ") + "; members: " + members.join(" "));
   process.exit(1);
-}'
+}' "$ROOT/scripts/review-groups.cjs"
 find -L "$TMP/software/.qory/harness" -path '*/running-a-workflow/checks.cjs' 2>/dev/null |
 	sort >"$TMP/checks-scripts"
 [ "$(wc -l <"$TMP/checks-scripts")" -ge 8 ] ||

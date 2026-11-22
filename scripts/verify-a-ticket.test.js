@@ -490,7 +490,7 @@ test('matrix: two families, and unknown for no model', () => {
   const none = work({ records: [{ checks: [check('ac-4', 'green')] }] });
   assert.equal(matrix(none).status, 0);
   assert.deepEqual(verification(none).model_families, ['unknown']);
-  // A ledger model that is unknown, and a ledger with no attempt, give unknown once.
+  // A ledger model that is unknown, and a ledger with no attempt, add the family unknown once.
   const unknown = work({ ledger: { steps: [{ id: 'x', attempts: [{ agent: 'a', role: 'r',
     tier: 'light', model: 'unknown' }] }] } });
   assert.equal(matrix(unknown).status, 0);
@@ -638,8 +638,8 @@ test('the skill has its name, a description, its sections and short lines', () =
     assert.ok([...line].length <= 92, `a line of ${[...line].length} characters:\n${line}`);
   }
   assert.doesNotMatch(WORKFLOW, /\bown\b/);
-  // Rule 8 of scripts/check.sh: a workflow skill names only run-artifacts, running-a-* and
-  // workflow-* skills, and the agents that it starts.
+  // Rule 8 of scripts/check.sh: a workflow skill refers only to run-artifacts, running-a-* and
+  // workflow-* skills, and to the agents that it starts.
   const refs = [...WORKFLOW.matchAll(/\$\{qory:skills\/([a-z0-9-]+)\}/g)].map((one) => one[1]);
   assert.deepEqual(refs, ['run-artifacts', 'running-a-workflow', 'running-a-software-workflow']);
 });
@@ -675,7 +675,7 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
     'With 3 and the first line "Ask a member to approve acceptance-lock version <M>."']) {
     assert.ok(flat.includes(text), text);
   }
-  // The demo evidence version has its own letter, and the lock version keeps N.
+  // The version of a demo evidence is D, and N stays the version of the lock.
   assert.ok(flat.includes('demo-evidence/<name>/v<D>/<name>.json'));
   assert.ok(!flat.includes('v<N>/<name>.json'));
   // The matrix is pushed for each verdict, except the end of step 4 with exit 1.
@@ -820,11 +820,11 @@ test('a session: a failed check is not met, and the question for it passes its c
     options: [
       { title: 'Make it met another way', recommended: true,
         explanation: 'The work item returns to Build, which fixes the code under test.' },
-      { title: 'Change AC-4, "Each customer who got the reply..."',
+      { title: `Change ${quoted}`,
         explanation: 'The criterion states what the check can show.',
         proposal: 'Each customer who got the reply with the old hours receives a corrected ' +
           'reply within one day.' },
-      { title: 'Withdraw AC-4, "Each customer who got the reply..."',
+      { title: `Withdraw ${quoted}`,
         explanation: 'The criterion leaves the acceptance criteria.' }],
     state: 'open', asked: { run: 1, at: '2026-11-22T10:00:00Z' } };
   const file = path.join(wk.store, 'questions.json');
