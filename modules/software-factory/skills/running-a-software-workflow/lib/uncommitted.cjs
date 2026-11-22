@@ -22,6 +22,9 @@ const MAX_PATHS = 20;
 // folder .reports of the artifact folder, where no agent writes a .json file.
 const COUNT = path.join('.reports', 'uncommitted.json');
 
+// The copy of the build ledger, which step and resume write.
+const LEDGER = path.join('.reports', 'build-ledger.json');
+
 module.exports = (lib) => {
   const { CONTROL_ALL, LINE, Missing, cut, isObject, plural } = lib;
 
@@ -31,6 +34,21 @@ module.exports = (lib) => {
 
   const FIX = 'Commit these changes, then end the session: the suite and the review read only ' +
     'committed work.';
+
+  // The fix after a failed step, whose files no commit may contain, within 100 characters.
+  const STASH = "Stash the failed step's files with git stash push --include-untracked -- ':/' " +
+    "':!/.qory', then end.";
+
+  // failedLast reports whether the last row of the ledger in .reports of root, which no agent
+  // writes, is a failed step.
+  function failedLast(root) {
+    try {
+      const { steps } = JSON.parse(fs.readFileSync(path.join(root, LEDGER), 'utf8'));
+      return Array.isArray(steps) && isObject(steps.at(-1)) && steps.at(-1).state === 'failed';
+    } catch {
+      return false;
+    }
+  }
 
   // writes reports whether the session makes commits: its qory has pull-request in outputs,
   // and none of READERS.
@@ -115,7 +133,8 @@ module.exports = (lib) => {
     save(io.root, count);
     // shortcut: with two checkouts, the check reports two findings with the same fix, and no
     // line shows the checkout of a path; add its folder when a session writes two checkouts.
-    return found.map((files) => ({ line: `${FIX}\n${listed(files, io.env)}`,
+    const fix = found.length && failedLast(io.root) ? STASH : FIX;
+    return found.map((files) => ({ line: `${fix}\n${listed(files, io.env)}`,
       point: UNCOMMITTED, item: count }));
   }
 

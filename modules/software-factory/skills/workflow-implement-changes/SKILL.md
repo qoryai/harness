@@ -199,6 +199,11 @@ Run `step end <id> failed --report <file>`, with the newest report of the debugg
 three `--attempt` lines. The row of the step stays `failed`, so its deliverable or finding
 stays open in the build ledger and in the build report.
 
+Then run `git stash push --include-untracked -- ':/' ':!/.qory'` in the checkout. The files
+of the failed step go to a stash, so that no commit contains a change whose checks fail.
+While they stay in the checkout, the end check stops the end with `Stash the failed step's
+files with git stash push --include-untracked -- ':/' ':!/.qory', then end.`
+
 When this session ran no `step end <id> done`, the run has no commit: skip "The
 submission", do no later step, and end as "Points" of `running-a-workflow` lists, with one
 `run_again` point whose text is the line after "End with" in this section.
@@ -323,7 +328,8 @@ suite and the review read only committed work. A change is a tracked, staged or 
 file that git does not ignore, or a submodule whose commit or files changed, outside
 `.qory/`. The
 check prints `Commit these changes, then end the session: the suite and the review read only
-committed work.`, then `Not committed:` with at most 20 of the paths and their count. At its
+committed work.`, then `Not committed:` with at most 20 of the paths and their count; after
+a failed step, as "A step that fails" lists, it prints the line to stash them. At its
 third failed check, the run ends with the point "The Build session ended <n> times with
 changes it did not commit, so the suite and the review could not check them."
 

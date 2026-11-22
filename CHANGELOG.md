@@ -20,6 +20,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   review could not check them.", where `<n>` counts the checks that found a change. The
   check is the new registry member `end(io)`, which `running-a-software-workflow` adds;
   other stacks are unchanged.
+- After a step that fails, the Build session stashes the step's files with `git stash push
+  --include-untracked -- ':/' ':!/.qory'`, so that no commit contains a change whose checks
+  fail. While the last row of the build ledger is `failed` and files are left, the end check
+  prints `Stash the failed step's files with git stash push --include-untracked -- ':/'
+  ':!/.qory', then end.` in place of the line to commit them.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
@@ -1155,6 +1160,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `step begin` on a change outside a step prints `Stash the files with git stash push
+  --include-untracked -- ':/' ':!/.qory', then end the session.` in place of `End the
+  session, and keep the checkout as it is.`, because the end check of a Build session stops
+  while the checkout has a change that no commit contains.
 - `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
   `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
   verdict against, and no `plan`, which qory refuses on a workflow that cannot write. The

@@ -135,7 +135,8 @@ module.exports = (lib) => {
       members: {} };
     }
     if (files.length) {
-      return { findings: ['End the session, and keep the checkout as it is.\n' +
+      return { findings: ["Stash the files with git stash push --include-untracked -- ':/' " +
+        "':!/.qory', then end the session.\n" +
         `${count(files.length)} changed outside a step, such as ${quote(files[0])}.`],
       members: {} };
     }

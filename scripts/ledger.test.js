@@ -569,6 +569,10 @@ test('ledger: an edit outside a step fails step begin or step end', () => {
   assert.equal(stored(w).ledger.steps[2].base, c1);
 });
 
+// The fix of step begin on a change outside a step.
+const STASH_FILES = "Stash the files with git stash push --include-untracked -- ':/' ':!/.qory', " +
+  'then end the session.';
+
 test('ledger: a change made before step begin and outside a step is refused', () => {
   const w = work();
   const call = resumed(w);
@@ -576,7 +580,7 @@ test('ledger: a change made before step begin and outside a step is refused', ()
   fs.writeFileSync(path.join(w.repo, 'README.md'), 'An edit before the first step.\n');
   const refused = begin(call, w, 'deliverable:d-1');
   assert.equal(refused.status, 1, refused.out);
-  assert.deepEqual(refused.lines, ['End the session, and keep the checkout as it is.',
+  assert.deepEqual(refused.lines, [STASH_FILES,
     '  1 file changed outside a step, such as "README.md".',
     'Started no row of deliverable:d-1: the ledger is unchanged.']);
   assert.equal(pushes(w), 0, 'step begin pushes nothing');
@@ -589,7 +593,7 @@ test('ledger: a change made before step begin and outside a step is refused', ()
   fs.writeFileSync(path.join(w.repo, 'other.txt'), 'A second one.\n');
   const between = begin(call, w, 'deliverable:d-2');
   assert.equal(between.status, 1, between.out);
-  assert.deepEqual(between.lines.slice(0, 2), ['End the session, and keep the checkout as it is.',
+  assert.deepEqual(between.lines.slice(0, 2), [STASH_FILES,
     '  2 files changed outside a step, such as "new.txt".']);
 });
 
@@ -664,8 +668,8 @@ test('ledger: after a crash, the next session stashes the crashed step\'s change
   assert.equal(begin(crashed, v, 'plan').status, 0);
   fs.writeFileSync(path.join(v.repo, 'README.md'), 'A change of the crashed step.\n');
   const other = resumed(v);
-  assert.deepEqual(begin(other, v, 'plan').lines.slice(0, 2), ['End the session, and keep the ' +
-    'checkout as it is.', '  1 file changed outside a step, such as "README.md".']);
+  assert.deepEqual(begin(other, v, 'plan').lines.slice(0, 2), [STASH_FILES,
+    '  1 file changed outside a step, such as "README.md".']);
 });
 
 test('ledger: after a crash with a commit, the next session returns to the crashed base', () => {
@@ -1775,7 +1779,7 @@ test('ledger: each finding line has at most 196 characters with ids of 44 charac
   assert.equal(call('step', 'end', other, 'done').status, 0);
   fs.writeFileSync(path.join(w.repo, `${'d'.repeat(150)}.txt`), 'An edit outside a step.\n');
   const outside = begin(call, w, `fix:${'d'.repeat(40)}`).lines;
-  assert.equal(outside[0], 'End the session, and keep the checkout as it is.');
+  assert.equal(outside[0], STASH_FILES);
   assert.match(outside[1], /^ {2}1 file changed /);
   lines.push(...outside);
   for (const line of lines) assert.ok([...line].length <= 196, `${[...line].length}: ${line}`);

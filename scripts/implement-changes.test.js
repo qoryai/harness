@@ -957,14 +957,32 @@ test('after one step done and one step failed, the session does "The submission"
   const text = fs.readFileSync(built, 'utf8');
   assert.match(text, /\| deliverable:d-1 \| 1 \| deliverable \| done \|/);
   assert.match(text, /\| deliverable:d-2 \| 1 \| deliverable \| failed \|/);
-  // The session writes no point and runs no verdict command, and the end check passes on the
-  // pull-request.json of report-build, once the files of the failed step are in a stash.
+  // The session writes no point and runs no verdict command. While the files of the failed
+  // step are in the checkout, the end check stops the end with the line to stash them.
   assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
-  git(w.repo, w.env, 'stash', 'push', '-q', '--include-untracked', '--', ':/', ':!/.qory');
-  const ended = call('end', w.artifacts, '--inputs', withOutput(w));
+  const inputs = withOutput(w);
+  const stopped = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(stopped.status, 1, stopped.out + stopped.err);
+  assert.deepEqual(stopped.out.split('\n').filter(Boolean), [STASH_FIX,
+    '  Not committed: tests/header.test.cjs (1 in all)']);
+  // The command of that line leaves the checkout at the commit of d-1, and the end passes on
+  // the pull-request.json of report-build.
+  const command = /with (git stash push .+), then end\.$/.exec(STASH_FIX)[1];
+  childProcess.execSync(command, { cwd: w.repo, env: w.env, stdio: 'ignore' });
+  assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--untracked-files=all',
+    '--', ':!.qory'), '');
+  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD'), commit);
+  const ended = call('end', w.artifacts, '--inputs', inputs);
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
+  // The skill lists the same command and line in "A step that fails".
+  contains(section(WORKFLOW, 'A step that fails'), `Then run \`${command}\` in the checkout.`);
+  contains(section(WORKFLOW, 'A step that fails'), STASH_FIX);
 });
+
+// The first line of the end check after a failed step that left files in the checkout.
+const STASH_FIX = "Stash the failed step's files with git stash push --include-untracked -- " +
+  "':/' ':!/.qory', then end.";
 
 test('a later run whose first new step fails ends with a point, though an earlier run built ' +
   'a step', () => {

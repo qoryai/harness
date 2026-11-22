@@ -2790,9 +2790,9 @@ a checkout with no change, so each change after a failed step is that step's. Wh
 newest row of the session is `failed`, the line is "Run git stash push --include-untracked
 -- ':/' ':!/.qory', then step begin again.", with the line "The failed step <id> left <n>
 files changed." after it, and the session runs that command: the stash keeps the files, and
-`.qory/` stays as it is. Else the line is "End the session, and keep the checkout as it
-is.", with the line "<n> files changed outside a step, such as <file>." after it, and no
-command runs.
+`.qory/` stays as it is. Else the line is "Stash the files with git stash push
+--include-untracked -- ':/' ':!/.qory', then end the session.", with the line "<n> files
+changed outside a step, such as <file>." after it.
 
 A crashed step is a row that a session of the same run started and left `running`, which
 `resume` marks `failed`. When that row is the newest row before the session's rows, and the
@@ -3404,7 +3404,13 @@ highest id of the review, so that `scope` and `freeze` take its id.
   the stop on the build plan ends the run as "Failures" of `running-a-workflow` lists.
 - **A step that fails.** After a third red attempt, the session runs `step end failed` with
   the 3 attempts, so the deliverable or the finding stays open in the build ledger and in
-  the build report. When the session ran no `step end done`, the run has no commit: the
+  the build report. It then runs `git stash push --include-untracked -- ':/' ':!/.qory'`, so
+  that no commit contains the files of the failed step. While the last row of
+  `.reports/build-ledger.json` is `failed` and a change is left in the checkout, the end
+  check prints "Stash the failed step's files with git stash push --include-untracked --
+  ':/' ':!/.qory', then end." in place of the line to commit the changes, with the same
+  `Not committed:` line and point. When the session ran no `step end done`, the run has no
+  commit: the
   session skips "The submission", writes `points.json` with one `run_again` point whose text
   is the line "The run stopped, because the checks still fail after 3 changes to <the
   step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it does
