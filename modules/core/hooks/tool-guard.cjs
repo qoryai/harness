@@ -21,8 +21,14 @@
 //   are all it allows, and it starts no agent. The guard denies the write tools (Write, Edit,
 //   MultiEdit, NotebookEdit and apply_patch) to each agent of that session, whatever its type,
 //   and to each agent whose type ends in -reviewer in any session but a review session, the
-//   report path included. Outside a reviewer session it does not run reviewShell for such an
-//   agent; the other rules of the guard limit its shell;
+//   report path included, but for the one report file that the next entry allows. Outside a
+//   reviewer session it does not run reviewShell for such an agent; the other rules of the
+//   guard limit its shell;
+// - a write by an agent of STEP_REVIEWERS, which reviews the file of a step inside a session,
+//   but one: a Write or an apply_patch of reportPatch's form to
+//   <artifacts>/.reports/<name>/<sha256>.json, with the agent's name as reportName reads it,
+//   as stepReport reads the call. No other agent and no main session writes that file. The
+//   sessions of qory.review, qory.review_session and qory.hook_session allow no such write;
 // - in the session of a hook's agent, when inputs.json has the member qory.hook_session, the
 //   rules of a reviewer session, with qory.hook_session.report as the one path that the main
 //   session writes. These rules apply in place of those of qory.review and
@@ -2019,7 +2025,10 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   // A shell command of read-only commands only reads .reports/, as a reader of a locked file.
   const reads = call.kind === 'shell' && readsOnlyCall(call.command,
     typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
-  const reports = (reads ? null : reportsGuard.decide({ kind: call.kind, env, script,
+  // The one .json file below .reports/ that a reviewer of a step writes passes that guard.
+  const step = !session && !reviewing &&
+    stepReport({ call, input, env, runtime, start, runFolder });
+  const reports = (reads || step ? null : reportsGuard.decide({ kind: call.kind, env, script,
     cwd: input.cwd, args, globs: false })) || (call.kind === 'shell' && call.paths.length
     ? reportsGuard.decide({ kind: 'write', env, script, cwd: input.cwd,
       args: { paths: call.paths } }) : null);
@@ -2119,6 +2128,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
     // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
     // writes. The first kind has no reviewShell here, only the other rules for a shell.
+    if (step) return null;
+    if (!session && !reviewing &&
+      STEP_REVIEWERS.has(reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME))) {
+      return `${STEP_ONLY}The call writes ${paths.join(', ')}.`;
+    }
     return /-reviewer$/.test(String(input.agent_type)) || reviewing ? reviewDeny({
       call, input, paths, env, root, nocase, agent: true }) : null;
   }
@@ -3333,6 +3347,44 @@ function sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, 
   return `${SESSION_ONLY}The report of this agent is ${report}. ${writes}`;
 }
 
+// reportPath returns the path that call writes, in the two forms that write a report: a Write
+// with one path, or an apply_patch of the form of reportPatch. It returns null for any other
+// call and for a path with a .. part.
+function reportPath(call, input, cwd) {
+  let given = null;
+  if (call.kind === 'write' && input.tool_name === 'Write' && call.paths.length === 1) {
+    given = joined(cwd, call.paths[0]);
+  } else if (call.kind === 'write' && input.tool_name === 'apply_patch') {
+    given = reportPatch((input.tool_input || {}).command);
+  }
+  return given === null || given.split(path.sep).includes('..') ? null : given;
+}
+
+// The agents that review the file of a step inside a session, and the name of their report:
+// the SHA-256 of the file they reviewed.
+const STEP_REVIEWERS = new Set(['check-reviewer', 'plan-reviewer']);
+const STEP_REPORT = /^[0-9a-f]{64}\.json$/;
+const STEP_ONLY = 'Write only .reports/<agent name>/<sha256>.json in the artifact folder, with ' +
+  'Write.\nThis reviewer writes one file, its report, with Write or with an apply_patch that ' +
+  'adds it; <sha256> is the SHA-256 of the reviewed file. ';
+
+// stepReport reports whether call is the write of a report by an agent of STEP_REVIEWERS: to
+// <artifacts>/.reports/<name>/<sha256>.json, through no link, where the file, when it exists,
+// is a regular file with one link.
+function stepReport({ call, input, env, runtime, start, runFolder }) {
+  if (typeof input.agent_id !== 'string' || input.agent_id === '') return false;
+  const name = reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME);
+  if (!STEP_REVIEWERS.has(name) || typeof start !== 'string' || start === '') return false;
+  const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
+  const given = reportPath(call, input, cwd);
+  const artifacts = artifactFolder(real(start), env, runFolder);
+  if (given === null || !artifacts || !STEP_REPORT.test(path.basename(given))) return false;
+  const above = walkPath(path.dirname(given));
+  if (above.unsure || above.real !== path.join(artifacts, '.reports', name)) return false;
+  const stat = disk.lstat(path.join(above.real, path.basename(given)));
+  return !stat || (stat.isFile() && stat.nlink === 1);
+}
+
 // sessionReport reports whether call writes exactly <reports>/<name>.json: a Write with one
 // path, or an apply_patch of the form of reportPatch. The path in the call has no ..
 // part; the folders above its last part are read through their links, as walkPath reads
@@ -3340,13 +3392,8 @@ function sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, 
 // exists, a folder outside root, the working folder, and the file, when it exists, is a regular
 // file with one link. On a disk that ignores case, the compare ignores it too, as in reviewDeny.
 function sessionReport({ call, input, cwd, reports, name, root, nocase }) {
-  let given = null;
-  if (call.kind === 'write' && input.tool_name === 'Write' && call.paths.length === 1) {
-    given = joined(cwd, call.paths[0]);
-  } else if (call.kind === 'write' && input.tool_name === 'apply_patch') {
-    given = reportPatch((input.tool_input || {}).command);
-  }
-  if (given === null || given.split(path.sep).includes('..')) return false;
+  const given = reportPath(call, input, cwd);
+  if (given === null) return false;
   const top = disk.lstat(reports);
   if (top && !top.isDirectory()) return false;
   const base = walkPath(reports);
@@ -3486,7 +3533,7 @@ function run({ runtime, before } = {}) {
 // The fixed texts that start a deny, for the check of their first lines.
 const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
   OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
-  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT };
+  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT, STEP_ONLY };
 
 module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
   REASONS };

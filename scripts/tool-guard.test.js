@@ -5272,6 +5272,69 @@ test('qory.hook_session takes the place of qory.review and qory.review_session',
     null);
 });
 
+test('a reviewer of a step writes only its report, named by a SHA-256', () => {
+  const only = 'Write only .reports/<agent name>/<sha256>.json in the artifact folder';
+  const below = 'Write no file under .reports/';
+  const sha = 'a'.repeat(64);
+  const none = sessionSetup(() => ({}));
+  for (const name of ['plan-reviewer', 'check-reviewer']) {
+    fs.writeFileSync(path.join(none.home, 'codex', 'agents', `${name}.toml`), `name = "${name}"\n`);
+    const { runFolder, call } = none;
+    const type = `harness:${name}`;
+    const dir = path.join(runFolder, '.reports', name);
+    const file = path.join(dir, `${sha}.json`);
+    const both = (target) => [writeAs(target, type), codex('apply_patch',
+      { command: add(target) }, name)];
+    for (const input of both(file)) assert.equal(call(input), null);
+    // A report that exists is written again, also by a relative path.
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, '{}');
+    for (const input of both(file)) assert.equal(call(input), null);
+    assert.equal(call({ ...writeAs(`${name}/${sha}.json`, type),
+      cwd: path.join(runFolder, '.reports') }), null);
+    // Another file below .reports, the report of another reviewer included.
+    for (const other of [path.join(dir, 'report.json'), path.join(dir, `${sha}0.json`),
+      path.join(dir, `${sha.toUpperCase()}.json`), path.join(dir, 'sub', `${sha}.json`),
+      path.join(runFolder, '.reports', `${sha}.json`),
+      path.join(runFolder, '.reports', 'spec-reviewer', `${sha}.json`),
+      path.join(runFolder, '.reports', name === 'plan-reviewer' ? 'check-reviewer'
+        : 'plan-reviewer', `${sha}.json`), path.join(WORK, '.reports', name, `${sha}.json`),
+      `${dir}/../${name}/${sha}.json`]) {
+      for (const input of both(other)) firstLine(call(input), below);
+    }
+    // A draft, a file of the checkout, and another write tool on the report.
+    for (const other of [path.join(runFolder, 'build-plan.md'), path.join(WORK, 'src/reply.ts'),
+      path.join(runFolder, '.reports', `${name}-1.md`)]) {
+      for (const input of both(other)) firstLine(call(input), only);
+    }
+    firstLine(call(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' }, type)),
+      below);
+    firstLine(call(bashAs(`echo '{}' > ${file}`, type)), 'Write to .reports/ only through');
+    // The main session, another agent and an agent of the working folder write no such file.
+    for (const other of [undefined, 'harness:spec-reviewer', 'implementer', name]) {
+      firstLine(call(writeAs(file, other)), below);
+    }
+    // Nor does the reviewer in a review session, or in the session of a reviewer.
+    for (const qory of [(reports) => ({ review_session: { reports } }),
+      (reports) => ({ review: { report: path.join(reports, 'x.json') } })]) {
+      const other = sessionSetup(qory);
+      firstLine(other.call(writeAs(path.join(other.runFolder, '.reports', name, `${sha}.json`),
+        type)), below);
+    }
+    // A report with a second link, and a folder that is a link.
+    const linked = path.join(dir, `${'b'.repeat(64)}.json`);
+    fs.linkSync(file, linked);
+    for (const input of both(linked)) firstLine(call(input), below);
+    fs.rmSync(dir, { recursive: true });
+    const away = next('step-away');
+    fs.mkdirSync(away);
+    fs.symlinkSync(away, dir);
+    for (const input of both(file)) {
+      assert.equal(typeof call(input), 'string', 'the write through a link is denied');
+    }
+  }
+});
+
 test('a review session keeps the lock, .qory/build/ and the guard of .reports/', () => {
   const { reports, call } = sessionSetup();
   firstLine(call(writeAs(LOCKED, REVIEWER)), 'Leave the locked file as it is');
