@@ -317,7 +317,7 @@ agents and the settings for a run of those workflows:
 - `build-planner`: an agent that drafts `build-plan.md` by `planning-builds` and reports
   the deliverables over the limit of 7, unless a member allowed more.
 - `plan-reviewer`: an agent that reviews a build plan by `reviewing-drafts` against
-  `checking-build-plans`, read-only, and reports findings as text.
+  `checking-build-plans`, and reports findings as text and in one report file.
 - `workflow-write-acceptance-checks`: orchestrate the acceptance checks of one ticket. When
   the acceptance criteria have a live criterion with `check` set to `Tests` and the build
   plan has a check path for it, the session starts `acceptance-check-writer` and
@@ -334,8 +334,8 @@ agents and the settings for a run of those workflows:
 - `acceptance-check-writer`: an agent that writes the checks by `writing-acceptance-checks`,
   runs each with `checks.cjs run targeted`, and drafts `acceptance-lock.json`.
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
-  `reviewing-drafts` against `checking-acceptance-checks`, read-only, and reports findings
-  as text. The session passes it the changed paths of the working folder.
+  `reviewing-drafts` against `checking-acceptance-checks`, and reports findings as text and
+  in one report file. The session passes it the changed paths of the working folder.
 - `workflow-implement-changes`: orchestrate the code change of one ticket in a Build run.
   The session builds each planned change that is not built, in the order of the build plan,
   then fixes each open finding of the review and each finding of Verify after a return: each

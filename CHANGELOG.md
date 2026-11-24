@@ -8,6 +8,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The review of a step's file, which `step end <id> done` needs for the plan, the checks and
+  a correction of a demo script. `plan-reviewer` and `check-reviewer` write
+  `.reports/<agent>/<sha256>.json`, named by the SHA-256 of the file they reviewed, in the
+  review report format, besides their text. With no such report for the file as it is, an
+  invalid one or one with a blocking finding, `step end done` exits 1 with the reviewer to
+  start, and the ledger is unchanged. The new verb `checks.cjs step review <id>` prints the
+  path of that report and copies the draft of the checks, which `freeze` and `lock` change
+  later. The tool guard lets each of the two agents write only its report. Any edit after
+  the review needs a new review, so `workflow-plan-the-build` fixes no sentence after the
+  last one. The first script of a scenario and every other kind of step end as before.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a
