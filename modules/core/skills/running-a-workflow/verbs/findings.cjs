@@ -142,10 +142,9 @@ function roundArgs(rest) {
   return { reports, names, suite: got['--suite'] ?? null };
 }
 
-// reviewerFindings returns the findings of the report of name in the folder dir: those of
-// the report, or one blocking finding when the report is missing or invalid.
-function reviewerFindings(dir, name) {
-  const file = path.join(dir, `${name}.json`);
+// reviewerFindings returns the findings of the report of the reviewer name at file: those of
+// the report, or one blocking finding with no proof when the report is missing or invalid.
+function reviewerFindings(file, name) {
   const missing = (point) => [{ reviewer: name, severity: 'blocking', point, proof: null }];
   let stat;
   try {
@@ -239,7 +238,7 @@ function round(io, { reports, names, suite }) {
   reportFolder(dir);
   const found = [...(suite === null ? []
     : suiteFindings(path.resolve(io.cwd, suite), io.registry().suite)),
-    ...names.flatMap((name) => reviewerFindings(dir, name))];
+    ...names.flatMap((name) => reviewerFindings(path.join(dir, `${name}.json`), name))];
   const blocking = found.filter((one) => one.severity === 'blocking');
   const ranked = [...blocking, ...found.filter((one) => one.severity !== 'blocking')];
   const lines = ranked.slice(0, MAX_FINDING_LINES / 2).flatMap((one) => {
@@ -261,6 +260,7 @@ function round(io, { reports, names, suite }) {
 }
 
 module.exports = {
+  reviewerFindings, reportProblem,
   verbs: {
     findings: {
       usage: ['findings open <file>',
