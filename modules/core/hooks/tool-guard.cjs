@@ -26,9 +26,13 @@
 //   guard limit its shell;
 // - a write by an agent of STEP_REVIEWERS, which reviews the file of a step inside a session,
 //   but one: a Write or an apply_patch of reportPatch's form to
-//   <artifacts>/.reports/<name>/<sha256>.json, with the agent's name as reportName reads it,
-//   as stepReport reads the call. No other agent and no main session writes that file. The
-//   sessions of qory.review, qory.review_session and qory.hook_session allow no such write;
+//   <artifacts>/.step-reports/<name>/<sha256>.json, with the agent's name as reportName reads
+//   it, as stepReport reads the call. The sessions of qory.review, qory.review_session and
+//   qory.hook_session allow no such write;
+// - any other write whose path, after links and .. parts, has a folder .step-reports, matched
+//   as a disk that ignores case does, and a shell command, other than one of read-only commands
+//   and checks.cjs alone, whose text or a word of it has that folder, that writes in the folder
+//   of the artifact folder, or that can write there with a word that reaches it;
 // - in the session of a hook's agent, when inputs.json has the member qory.hook_session, the
 //   rules of a reviewer session, with qory.hook_session.report as the one path that the main
 //   session writes. These rules apply in place of those of qory.review and
@@ -2025,10 +2029,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   // A shell command of read-only commands only reads .reports/, as a reader of a locked file.
   const reads = call.kind === 'shell' && readsOnlyCall(call.command,
     typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
-  // The one .json file below .reports/ that a reviewer of a step writes passes that guard.
-  const step = !session && !reviewing &&
-    stepReport({ call, input, env, runtime, start, runFolder });
-  const reports = (reads || step ? null : reportsGuard.decide({ kind: call.kind, env, script,
+  const reports = (reads ? null : reportsGuard.decide({ kind: call.kind, env, script,
     cwd: input.cwd, args, globs: false })) || (call.kind === 'shell' && call.paths.length
     ? reportsGuard.decide({ kind: 'write', env, script, cwd: input.cwd,
       args: { paths: call.paths } }) : null);
@@ -2063,10 +2064,15 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const artifacts = artifactFolder(root, env, runFolder);
   const kept = keptFiles(env, session, nocase, root, artifacts);
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
-    const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
-      .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
-    const reason = reportsGlob(call.command, cwd, [...new Set(dirs)], fold);
+    const dirs = (name) => [...new Set([artifactFolder(root, env, runFolder),
+      path.join(root, '.qory', 'artifacts')].filter(Boolean)
+      .map((dir) => fold(path.join(dir, name))))];
+    const reason = reportsGlob(call.command, cwd, dirs('.reports'), fold);
     if (reason) return reason;
+    if (STEP_FOLDER.test(args.command)) return `${STEP_KEPT}The command has .step-reports.`;
+    const hidden = reportsGlob(call.command, cwd, dirs(STEP_REPORTS), fold, STEP_KEPT,
+      STEP_FOLDER);
+    if (hidden) return hidden;
   }
   // A reviewer agent of a review session writes its report with Write or apply_patch only.
   if (call.kind === 'shell' && session && reviewer && !reads) {
@@ -2090,6 +2096,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
       exempt: sessionExempt(call.command, env, script),
+      alone: reportsGuard.runsChecks(call.command, env, script),
       checks: reviewChecks(call.command, env, script),
       checked: (checksVerb(call.command, env, script) || [])[0] === 'check' ||
         comparesVersions(call.command, env, script) });
@@ -2120,6 +2127,13 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     return shielded && shielded.inputs ? shielded.reason
       : sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, env });
   }
+  if (agent && !session && !reviewing &&
+    steps.STEP_REVIEWERS.has(reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME))) {
+    return stepReport({ call, input, env, runtime, start, runFolder }) ? null
+      : `${STEP_ONLY}The call writes ${paths.join(', ')}.`;
+  }
+  const stepped = paths.find((full) => STEP_FOLDER.test(full));
+  if (stepped) return `${STEP_KEPT}The call writes ${stepped}.`;
   // shortcut: in a review session the main session and agents other than reviewers keep
   // the rules of the run, as at access write-no-push: the guard does not tell access read
   // from write-no-push. qory's read-only mount of the checkout enforces read; keep it so.
@@ -2128,11 +2142,6 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     // The write tools are denied to an agent whose type ends in -reviewer, such as a reviewer
     // of a draft, and to each agent of a reviewer session, whatever its type. Any other agent
     // writes. The first kind has no reviewShell here, only the other rules for a shell.
-    if (step) return null;
-    if (!session && !reviewing &&
-      STEP_REVIEWERS.has(reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME))) {
-      return `${STEP_ONLY}The call writes ${paths.join(', ')}.`;
-    }
     return /-reviewer$/.test(String(input.agent_type)) || reviewing ? reviewDeny({
       call, input, paths, env, root, nocase, agent: true }) : null;
   }
@@ -2331,7 +2340,7 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }, skip 
 // opaque command of it reaches one of them. lockOf returns the files of the lock; with
 // nocase, a name matches in any case. It spends a unit of spend for each comparison.
 function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [], exempt,
-  checks, checked }) {
+  alone, checks, checked }) {
   spend(command.length >> 10);
   const all = segments(command, cwd);
   const parts = all.filter(segmentWrites);
@@ -2388,8 +2397,9 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   }
   // A command whose writes the guard does not read, other than one of sessionExempt, writes
   // no word that reaches the report folder of a review session.
+  // Nor does it, other than the checks script alone, reach .step-reports of the artifact folder.
   for (const one of dark ? kept.filter((each) => (each.folder && !each.home && !each.deep &&
-    !exempt) ||
+    !(each.step ? alone : exempt)) ||
     (each.matrix && !checked)) : []) {
     const found = reaches(all, [], one.full, root, how);
     if (found) {
@@ -2606,14 +2616,16 @@ function placeOf(input, root, env) {
 // after brace expansion, as segments reads the words, or that has a wildcard and can match a
 // folder of dirs, the .reports folders of the artifact folders, or a path below it, from a
 // folder of its command, or null. reports-guard.cjs finds
-// such a word with fs.globSync, which has no limit on its work; globReach has one.
-function reportsGlob(command, cwd, dirs, fold) {
+// such a word with fs.globSync, which has no limit on its work; globReach has one. head and
+// named are the deny and the pattern of another folder in place of .reports.
+function reportsGlob(command, cwd, dirs, fold, head = reportsGuard.HIDDEN_REASON,
+  named = reportsGuard.REPORTS) {
   for (const one of segments(command, cwd)) {
     for (const raw of one.words) {
       for (const each of braces(raw)) {
         const plain = unquote(each);
-        if (reportsGuard.REPORTS.test(plain)) {
-          return `${reportsGuard.HIDDEN_REASON}The shell turns the word ${raw} into ${plain}.`;
+        if (named.test(plain)) {
+          return `${head}The shell turns the word ${raw} into ${plain}.`;
         }
         if (!wild(each) || vague(each)) continue;
         for (const from of one.cwds) {
@@ -2621,7 +2633,7 @@ function reportsGlob(command, cwd, dirs, fold) {
             charge();
             const how = globReach(path.resolve(from, patternOf(each)), dir, fold, one.dots);
             if (how === 'equal' || how === 'below') {
-              return `${reportsGuard.HIDDEN_REASON}The glob ${raw} matches ${dir}.`;
+              return `${head}The glob ${raw} matches ${dir}.`;
             }
           }
         }
@@ -3064,7 +3076,8 @@ function reportName(agentType, runtime, home) {
 // with qory.review or qory.review_session, the file inputs.json of the harness home, wherever
 // the home lies, and the home itself when it lies outside root, the working folder; in a
 // review session, the report folder, read through its links, and verification.json and
-// .reports/matrix-record.json of the artifact folder, which only checks.cjs matrix writes.
+// .reports/matrix-record.json of the artifact folder, which only checks.cjs matrix writes; and
+// in every session, .step-reports of the artifact folder.
 // Each entry is { full, folder, inputs, nocase, head, except }, with head the first two lines
 // of its deny; matrix is true for the two files of the artifact folder; inputs is true
 // for an entry of the home, whose deny comes before the rule of a reviewer's report. except
@@ -3093,6 +3106,13 @@ function keptFiles(env, session, nocase, root, artifacts) {
     const full = real(session.reports);
     out.push({ full, folder: true, inputs: false, head: REPORTS_KEPT,
       nocase: nocase || caseless(full) || caseless(path.dirname(full)) });
+  }
+  // The reports of STEP_REVIEWERS: a shell command that writes there, by a link, a .. part, or a
+  // move or a removal of a folder above, as readShell reads it.
+  if (artifacts) {
+    const full = path.join(artifacts, STEP_REPORTS);
+    out.push({ full, folder: true, inputs: false, step: true, head: STEP_KEPT,
+      nocase: nocase || caseless(artifacts) || caseless(path.dirname(artifacts)) });
   }
   // shortcut: the guard reads the text of a call, so the checks script run by another script,
   // or a path that code joins from parts, passes; a verification.json that the main session
@@ -3360,27 +3380,31 @@ function reportPath(call, input, cwd) {
   return given === null || given.split(path.sep).includes('..') ? null : given;
 }
 
-// The agents that review the file of a step inside a session, and the name of their report:
-// the SHA-256 of the file they reviewed.
-const STEP_REVIEWERS = new Set(['check-reviewer', 'plan-reviewer']);
+// The folder of the reports of STEP_REVIEWERS in the artifact folder, and that folder in a path
+// or a command, with the u flag for U+017F (long s), as in reports-guard.cjs. The name of a
+// report is the SHA-256 of what the agent reviewed.
+const STEP_REPORTS = '.step-reports';
+const STEP_FOLDER = /(?<![\w.-])\.step-reports(?![\w.-])/iu;
 const STEP_REPORT = /^[0-9a-f]{64}\.json$/;
-const STEP_ONLY = 'Write only .reports/<agent name>/<sha256>.json in the artifact folder, with ' +
-  'Write.\nThis reviewer writes one file, its report, with Write or with an apply_patch that ' +
-  'adds it; <sha256> is the SHA-256 of the reviewed file. ';
+const STEP_KEPT = 'Leave .step-reports/ to check-reviewer and plan-reviewer.\nEach of them ' +
+  'writes only its report there, with Write or with an apply_patch that adds it. ';
+const STEP_ONLY = 'Write only .step-reports/<agent name>/<sha256>.json in the artifact folder, ' +
+  'with Write.\nThis reviewer writes one file, its report, with Write or with an apply_patch ' +
+  'that adds it; <sha256> is the SHA-256 of the reviewed file. ';
 
 // stepReport reports whether call is the write of a report by an agent of STEP_REVIEWERS: to
-// <artifacts>/.reports/<name>/<sha256>.json, through no link, where the file, when it exists,
+// <artifacts>/.step-reports/<name>/<sha256>.json, through no link, where the file, when it exists,
 // is a regular file with one link.
 function stepReport({ call, input, env, runtime, start, runFolder }) {
   if (typeof input.agent_id !== 'string' || input.agent_id === '') return false;
   const name = reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME);
-  if (!STEP_REVIEWERS.has(name) || typeof start !== 'string' || start === '') return false;
+  if (!steps.STEP_REVIEWERS.has(name) || typeof start !== 'string' || start === '') return false;
   const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
   const given = reportPath(call, input, cwd);
   const artifacts = artifactFolder(real(start), env, runFolder);
   if (given === null || !artifacts || !STEP_REPORT.test(path.basename(given))) return false;
   const above = walkPath(path.dirname(given));
-  if (above.unsure || above.real !== path.join(artifacts, '.reports', name)) return false;
+  if (above.unsure || above.real !== path.join(artifacts, STEP_REPORTS, name)) return false;
   const stat = disk.lstat(path.join(above.real, path.basename(given)));
   return !stat || (stat.isFile() && stat.nlink === 1);
 }
@@ -3533,7 +3557,7 @@ function run({ runtime, before } = {}) {
 // The fixed texts that start a deny, for the check of their first lines.
 const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
   OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
-  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT, STEP_ONLY };
+  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT, STEP_KEPT, STEP_ONLY };
 
 module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
   REASONS };
