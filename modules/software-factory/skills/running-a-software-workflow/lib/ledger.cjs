@@ -18,12 +18,11 @@
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { isDeepStrictEqual } = require('node:util');
 
 const { SCHEMAS } = require('./template.cjs');
 
 module.exports = (lib) => {
-  const { Missing, quote, reviewerFindings, schema, sha256 } = lib;
+  const { Missing, isObject, quote, reviewerFindings, schema, sha256 } = lib;
 
   const TYPE = 'build-ledger';
   const LOADED = schema.load(SCHEMAS, TYPE);
@@ -47,10 +46,8 @@ module.exports = (lib) => {
   // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.cjs.
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg)(?![\w-])/;
 
-  // The draft of the checks as check-reviewer reviews it: the copy that step review makes of
-  // LOCK, the file at the top of the artifact folder that freeze and lock then change.
   const LOCK = 'acceptance-lock.json';
-  const CHECKS = `.checks/${LOCK}`;
+  const NO_SCRIPT = 'Give --script-sha256 to end a script step as done.';
 
   const brief = (commit) => commit.slice(0, 12);
   const starts = require('./start.cjs')(lib);
@@ -165,12 +162,11 @@ module.exports = (lib) => {
   }
 
   // reviewed returns { reviewer, file } of the step id, whose file a reviewer reviews, with the
-  // path of the file from the artifact folder, or null for any other step.
+  // path of the file from the artifact folder, or null for any other step. Of the steps of a
+  // demo script, only a correction has a reviewer.
   function reviewed(id) {
     if (id === 'plan') return { reviewer: 'plan-reviewer', file: 'build-plan.md' };
-    if (id === 'checks') return { reviewer: 'check-reviewer', file: CHECKS };
-    // shortcut: the first script of a scenario has no reviewer, so it ends with no report;
-    // replace when check-reviewer reviews a first script.
+    if (id === 'checks') return { reviewer: 'check-reviewer', file: LOCK };
     const script = /^script:(scenario-\d+)#/.exec(id);
     return script ? { reviewer: 'check-reviewer', file: `.demo/${script[1]}.json` } : null;
   }
@@ -184,77 +180,58 @@ module.exports = (lib) => {
     }
   }
 
-  // reportOf returns the path, from the artifact folder, of the report of reviewer on bytes.
-  const reportOf = (reviewer, bytes) => `.reports/${reviewer}/${sha256(bytes)}.json`;
-
-  // review is step review: the line with the report file of the reviewer for the file of the
-  // step id. For checks, it first copies the draft, LOCK, to the file that the reviewer reviews.
-  function review(io, { id, root }) {
-    const { reviewer, file } = reviewed(id);
-    const source = id === 'checks' ? LOCK : file;
-    const bytes = bytesOf(path.join(root, source));
-    if (bytes === null) {
-      return { findings: [`Write ${source}, then run step review ${id} again.\n${source} of ` +
-        'the artifact folder is missing or no regular file.'], last: 'Started no review.' };
-    }
-    if (file !== source) {
-      const copy = path.join(root, file);
-      // A link at the folder of the copy is removed with it, so no write follows it.
-      fs.rmSync(path.dirname(copy), { recursive: true, force: true });
-      fs.mkdirSync(path.dirname(copy));
-      fs.writeFileSync(copy, bytes, { flag: 'wx' });
-    }
-    return { findings: [], last: `Give ${reviewer} the report file ${reportOf(reviewer, bytes)} ` +
-      'of the artifact folder.' };
+  // sorted returns value, a value of JSON, with the members of each object in the order of
+  // their names.
+  function sorted(value) {
+    if (Array.isArray(value)) return value.map(sorted);
+    if (!isObject(value)) return value;
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted(value[key])]));
   }
 
-  // draftOf returns the draft of the checks in the text of a lock, with no commit and no
-  // sha256, the members that freeze and lock write, or null when text is no JSON.
-  function draftOf(text) {
-    try {
-      return JSON.parse(text, (key, value) => (key === 'commit' || key === 'sha256' ? undefined
-        : value));
-    } catch {
-      return null;
-    }
+  // lockSha returns { sha, problems } of the lock of text: the SHA-256 of its content with no
+  // commit and with the sha256 of each listed file from the working folder, so that it is the
+  // same before and after freeze and lock, and the findings of the files with no hash.
+  function lockSha(io, text) {
+    const { lockType, fill } = lib.lockReader;
+    const data = lib.parseJson(text, LOCK);
+    const { problems } = fill(io, lockType(io), data, 'step end', 'end the step again');
+    if (isObject(data)) delete data.commit;
+    return { sha: sha256(JSON.stringify(sorted(data))), problems };
   }
 
-  // unpassed returns the finding of the file of row with no report of its reviewer for the SHA-256
-  // of the file, an invalid report or a blocking finding, or null. root is the artifact folder.
-  // shortcut: the main session can write the report with a script, and an edit of a check file
-  // after the review passes; replace when qory runs these reviewers as review sessions.
-  function unpassed(row, root) {
+  // unpassed returns the findings of the file of row with no report of its reviewer for the
+  // SHA-256 of the file, or of lockSha for the checks, an invalid report or a blocking finding.
+  // root is the artifact folder.
+  // shortcut: the main session can write the report with a script, and any agent can write it on
+  // Gemini CLI, Cursor and Copilot CLI; replace when qory runs these reviewers as sessions.
+  function unpassed(io, row, root) {
     const found = reviewed(row.id);
-    if (!found) return null;
+    if (!found) return [];
     const { reviewer, file } = found;
     const start = `Start ${reviewer} on ${file}, then run step end ${row.id} done again.`;
     const bytes = bytesOf(path.join(root, file));
     if (bytes === null) {
-      return `${start}\n${file} of the artifact folder is missing or no regular file.`;
+      return [`${start}\n${file} of the artifact folder is missing or no regular file.`];
     }
-    const report = reportOf(reviewer, bytes);
+    const { sha, problems } = row.kind === 'checks' ? lockSha(io, bytes.toString('utf8'))
+      : { sha: sha256(bytes), problems: [] };
+    if (problems.length) return problems.map((one) => [].concat(one).join('\n'));
+    const report = `.step-reports/${reviewer}/${sha}.json`;
     const blocking = reviewerFindings(path.join(root, report), reviewer)
       .filter((one) => one.severity === 'blocking');
     // A finding with no proof is the reader's: the report is missing or invalid.
     if (blocking.length && blocking[0].proof === null) {
-      return `${start}\n${blocking[0].point}\nThe report of this file is ${report}.`;
+      return [`${start}\n${blocking[0].point}\nThe report of this file is ${report}.`];
     }
-    if (blocking.length) {
-      return `Fix the blocking findings on ${file}, then start ${reviewer} again.\n` +
-        `${lib.plural(blocking.length, 'blocking finding')} in ${report}, such as: ` +
-        blocking[0].point;
-    }
-    if (row.kind !== 'checks') return null;
-    const lock = draftOf(bytesOf(path.join(root, LOCK)));
-    if (lock !== null && isDeepStrictEqual(lock, draftOf(bytes))) return null;
-    return `Start ${reviewer} on ${LOCK} again, then lock it again.\n${LOCK} differs from ` +
-      `${CHECKS}, the draft that ${reviewer} reviewed, in more than commit and sha256.`;
+    return blocking.length ? [`Fix the blocking findings on ${file}, then start ${reviewer} ` +
+      `again.\n${lib.plural(blocking.length, 'blocking finding')} in ${report}, such as: ` +
+      blocking[0].point] : [];
   }
 
   // finish returns the commit of a done row, or the findings of edits made outside the step, of
   // a list `Left out:` in the report that leftOut cannot read, and of a file that its reviewer
   // did not pass. A failed row gets no commit and no finding.
-  function finish(io, { ledger, place, state, report, root }) {
+  function finish(io, { ledger, place, state, report, root, values }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
     const top = head(io);
@@ -274,8 +251,8 @@ module.exports = (lib) => {
         `\n${row.id} started on ${brief(row.base)}, and the head ${brief(top)} does not follow ` +
         'it.');
     }
-    const stopped = unpassed(row, root);
-    if (stopped) findings.push(stopped);
+    if (row.kind === 'script' && values.script_sha256 === undefined) findings.push(NO_SCRIPT);
+    findings.push(...unpassed(io, row, root));
     return { findings, members: findings.length ? {} : { commit: top } };
   }
 
@@ -410,16 +387,14 @@ module.exports = (lib) => {
         wrong: 'Give --script-sha256 64 lower-case hex digits',
       },
     },
+    // The call for the report file of a correction has no SHA-256 yet: finish stops it.
     needs: (id, state, values) => (id.startsWith('script:') && state === 'done' &&
-      values.script_sha256 === undefined ? 'Give --script-sha256 to end a script step as done.'
-      : null),
+      values.script_sha256 === undefined && !reviewed(id) ? NO_SCRIPT : null),
     origin,
     start,
     replay: (io, row) => follows(io, row.commit, head(io)),
     // The model of an agent start, as lib/models.cjs reads it from the plugin folder.
     model: (io, agent) => lib.agentModel(io.plugin, agent, io.env),
-    reviewed: (id) => reviewed(id) !== null,
-    review,
     finish,
     point,
     // The build plan of the point: from the folder of --artifacts, or of qory.start_artifacts

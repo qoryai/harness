@@ -194,7 +194,7 @@ Put any other line, such as a list of sources, before the last line.
 ## The report file
 
 Only an agent whose file refers to this section writes a report file, besides its text
-report. The run gives you its path, which ends in the SHA-256 of the file that you review.
+report. The run gives you its path, which ends in a SHA-256 of what you review.
 Write it as your last step before the text report, also when you have no finding. With the
 last word `blocked`, write no report file.
 

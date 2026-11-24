@@ -348,9 +348,9 @@ module.exports = (lib) => {
   // files have no `repository`. It returns null when data has no such lists, so that lock
   // reports the finding of the schema.
   //
-  // Only lock and lock --verify call it. The push check of the type (checks.cjs push) does not
-  // test `repository`: qory runs it outside the session, with no QORY_RUN_REPOSITORIES, and
-  // its inputs.json has no list of the run's repositories. Verify's `lock --verify --version
+  // Only lock, lock --verify and step end call it. The push check of the type (checks.cjs
+  // push) does not test `repository`: qory runs it outside the session, with no
+  // QORY_RUN_REPOSITORIES, and its inputs.json has no list of the run's repositories. Verify's `lock --verify --version
   // <N>` is the test that binds. So in a run, when QORY_RUN_ID is set, a list that is not set,
   // is empty or has an empty first entry exits 3, and only outside a run is the test left
   // out. Only qory sets the list, so the line sends the session to a member. verb is `lock`

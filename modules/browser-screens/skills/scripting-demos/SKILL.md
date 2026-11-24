@@ -98,17 +98,18 @@ version; do this only for a script that this session wrote and still has as a fi
      of the app.
    - With 0 and a line that starts with "Start check-reviewer", the draft changes a script
      that passed, whether the author wrote it or it is a copy of the pushed file. Run
-     `<skill folder>/checks.cjs step review <step>`, as "The build ledger" of
-     `running-a-software-workflow` lists. Then start ${qory:agents/check-reviewer} in the
-     foreground, as "Starting agents" of `running-a-workflow` lists, with the input file's
-     path, `<folder>`, the run's number, the notes, the path of `<scenarios>`, the path of
-     the script that passed, the path `<folder>/.demo/<id>.json` of the new script, the path
-     of the report file, and the line "Review the change to a demo script". Write its report
-     to `<folder>/.reports/check-reviewer-<n>.md`, and check it, as "Check each report"
-     lists. With `changes-needed`, do "Start the author again", with each finding quoted.
-     With `blocked`, run `step end <step> failed`, and end as "Failures" lists. Step 10
-     needs the review of the script as it is, so review a script that changes after its
-     review again.
+     `<skill folder>/checks.cjs step end <step> done` for the path of the report file, as
+     "The build ledger" of `running-a-software-workflow` lists. Then start
+     ${qory:agents/check-reviewer} in the foreground, as "Starting agents" of
+     `running-a-workflow` lists, with the input file's path, `<folder>`, the run's number,
+     the notes, the path of `<scenarios>`, the path of the script that passed, the path
+     `<folder>/.demo/<id>.json` of the new script, the path of the report file, and the
+     line "Review the change to a demo script". Write its report to
+     `<folder>/.reports/check-reviewer-<n>.md`, and check it, as "Check each report" lists.
+     With `changes-needed`, do "Start the author again", with each finding quoted. With
+     `blocked`, run `step end <step> failed`, and end as "Failures" lists. Step 10 needs
+     the review of the script as it is, so review a script that changes after its review
+     again.
 6. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
    <inputs>`, as "Check before each push" of `running-a-workflow` lists. With 1, the script
    breaks a rule that `demo write` and `demo check` do not check: run `step end <step>

@@ -961,7 +961,7 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     'Open only pages under <App address> in the sign-in steps of <script>.',
     'With 0 and a line that starts with "Start check-reviewer", the draft changes a script ' +
       'that passed, whether the author wrote it or it is a copy of the pushed file',
-    '`<skill folder>/checks.cjs step review <step>`', 'the path of the report file',
+    '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
     'Review the change to a demo script', 'With `changes-needed`, do "Start the author again"',
     'review a script that changes after its review again');
   // The limit of the sign-in check with no build plan is stated.

@@ -254,6 +254,22 @@ function pull(io, type, number, verb = 'verify') {
   return dir;
 }
 
+// fill sets entry.sha256 of each listed file of data, a version of def, from the working folder
+// of io, and returns { files, problems }: files as filesOf returns them, and problems as hashes
+// does. verb is the command that a line shows, and again the step of a line that runs it again.
+function fill(io, def, data, verb, again) {
+  const files = filesOf(io, def, data, verb);
+  if (!files) return { files, problems: [] };
+  const { found, problems } = hashes(workingFolder(io, def, verb), files, {
+    missing: (file) => `Write ${briefPath(file)} before you lock it.\nThe working folder has ` +
+      `no file ${shownPath(file)}.`,
+    unreadable: (file) => `Make ${briefPath(file)} readable, then ${again}.\n` +
+      `${shownPath(file)} cannot be read.`,
+  });
+  for (const [file, hash] of found) file.entry.sha256 = hash;
+  return { files, problems };
+}
+
 // lockFile fills the SHA-256 of each listed file of draft, a draft of def, checks it and
 // pushes it.
 function lockFile(io, def, draft) {
@@ -262,7 +278,7 @@ function lockFile(io, def, draft) {
     throw new Missing(`Name the file itself, not a link to it.\n${draft} is a link.`);
   }
   const data = parseJson(readFile(draft, def.main), def.main);
-  const files = filesOf(io, def, data, 'lock');
+  const { files, problems } = fill(io, def, data, 'lock', 'lock again');
   if (!files) {
     // The check of the type has the finding on the form of the list.
     const checked = checkFiles('check', root, def, [draft], io.home, io.plugin);
@@ -271,18 +287,11 @@ function lockFile(io, def, draft) {
     io.print(findings, `Locked nothing: ${def.main} has no list of locked files.`);
     return 1;
   }
-  const { found, problems } = hashes(workingFolder(io, def, 'lock'), files, {
-    missing: (file) => `Write ${briefPath(file)} before you lock it.\nThe working folder has ` +
-      `no file ${shownPath(file)}.`,
-    unreadable: (file) => `Make ${briefPath(file)} readable, then lock again.\n` +
-      `${shownPath(file)} cannot be read.`,
-  });
   if (problems.length) {
     printFindings(io, problems, 'lock again',
       `Locked nothing: ${plural(problems.length, 'finding')} on the listed files.`);
     return 1;
   }
-  for (const [file, hash] of found) file.entry.sha256 = hash;
   writeJson(draft, data);
   const checked = checkFiles('check', root, def, [draft], io.home, io.plugin);
   if (checked.findings.length) {
@@ -500,5 +509,5 @@ module.exports = {
   },
   workingFolder,
   // The reader of the lock that another module uses, such as for its locked checks.
-  lockReader: { lockType, readLock, changedFiles, printFindings, pull },
+  lockReader: { lockType, readLock, changedFiles, printFindings, pull, fill },
 };

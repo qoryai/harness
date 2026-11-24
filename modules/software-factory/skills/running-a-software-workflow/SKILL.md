@@ -86,12 +86,15 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
      a change or a commit: run that command, then the same `step begin` again. Both
      commands keep the step's files: in a stash, and in the reflog of git.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
-3. Before each start of the reviewer of `plan`, of `checks` or of a correction of a demo
-   script, such as `script:scenario-1#2`, run `checks.cjs step review <id>`. It prints the
-   report file for the step's file as it is, and the reviewer gets `<folder>/` and that path
-   as the report file. Any later edit of the file needs a new review: `step end <id> done`
-   exits with 1 without a valid report for the SHA-256 of the file and while the report has
-   a blocking finding. When `step review` exits with 1, end as "Failures" lists.
+3. The steps `plan`, `checks` and a correction of a demo script, such as
+   `script:scenario-1#2`, end `done` only with a valid report of their reviewer for the
+   file as it is, with no blocking finding. Before a start of that reviewer, when the file
+   changed since its last review or had none, run `checks.cjs step end <id> done` with no
+   flag. It exits with 1, and a line "The report of this file is <path>." has the path:
+   give the reviewer `<folder>/<path>` as the report file. Do nothing on the other lines of
+   that call. When the file did not change, give the path of its last review, and run no
+   `step end`. With no such line, end as "Failures" lists, unless the skill of your
+   workflow lists the line it printed.
 4. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
    Add `--report <file>` with the agent's last report under `.reports`, one
    `--attempt <agent>,<role>,<tier>` per agent start, one
@@ -103,7 +106,7 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    step's file has no passing review, or the report has a list `Left out:` that
    `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
    with the writer of the report, then run `step end done` again once. If it exits 1 on
-   the list again, run `step end <id> failed --report <file>` with the cause. With a first
+   the list again, run `step end <id> failed --report <file>` with the cause. With a
    line that starts with "Start check-reviewer", "Start plan-reviewer" or "Fix the blocking
    findings", do the steps of your workflow from the start of that reviewer again, or from
    the start of the writer for a blocking finding, then run `step end done` again once. If

@@ -153,7 +153,8 @@ function commit(w, file, text) {
 let runs = 0;
 function session(w, { cwd = w.repo, plugin = path.join(MODULES, 'core'),
   artifacts = fresh('artifacts'), run = `run-${++runs}`, number, lockWait } = {}) {
-  const env = { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: run };
+  const env = { ...w.env, ARTIFACTS: artifacts, QORY_RUN_ID: run,
+    QORY_RUN_REPOSITORIES: 'example-org/shop' };
   delete env.QORY_SESSION;
   if (number !== undefined) env.QORY_SESSION = number;
   const call = (...argv) => {
@@ -184,16 +185,17 @@ function resumed(w, options) {
 }
 
 // reviewedFile writes text as the file of the step id that its reviewer reads, and the report
-// of the reviewer with findings for its SHA-256. It returns the paths of both.
+// of the reviewer with findings for its SHA-256, of `{}` for the checks, a lock that lists no
+// file. It returns the paths of both.
 function reviewedFile(call, id, { text = '{}\n', findings = [] } = {}) {
   const [reviewer, name] = id === 'plan' ? ['plan-reviewer', 'build-plan.md']
-    : ['check-reviewer', id === 'checks' ? '.checks/acceptance-lock.json'
+    : ['check-reviewer', id === 'checks' ? 'acceptance-lock.json'
       : `.demo/${id.slice('script:'.length).replace(/#.*/, '')}.json`];
   const file = path.join(call.artifacts, name);
-  const reported = path.join(call.artifacts, '.reports', reviewer, `${sha(text)}.json`);
+  const reported = path.join(call.artifacts, '.step-reports', reviewer,
+    `${sha(id === 'checks' ? '{}' : text)}.json`);
   for (const one of [file, reported]) fs.mkdirSync(path.dirname(one), { recursive: true });
   fs.writeFileSync(file, text);
-  if (id === 'checks') fs.writeFileSync(path.join(call.artifacts, 'acceptance-lock.json'), text);
   fs.writeFileSync(reported, JSON.stringify({ reviewer, findings }));
   return { file, reported, reviewer };
 }
@@ -936,7 +938,7 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
 
 // The steps whose file a reviewer reviews, with the arguments of a done step.
 const REVIEWED = [['plan', 'plan-reviewer', 'build-plan.md', []],
-  ['checks', 'check-reviewer', '.checks/acceptance-lock.json', []],
+  ['checks', 'check-reviewer', 'acceptance-lock.json', []],
   ['script:scenario-1#2', 'check-reviewer', '.demo/scenario-1.json', ['--script-sha256', H]]];
 const finding = (severity, proof) => ({ severity, quote: 'The plan.', problem: 'It breaks a rule.',
   fix: 'It keeps the rule.', proof, point: 'The plan leaves out the export.' });
@@ -958,7 +960,7 @@ test('ledger: step end done needs a passing report of the reviewer for the file'
     const gone = [start, `  ${name} of the artifact folder is missing or no regular file.`];
     stopped(...gone);
     const { file, reported } = reviewedFile(call, id);
-    const at = `.reports/${reviewer}/${path.basename(reported)}`;
+    const at = `.step-reports/${reviewer}/${path.basename(reported)}`;
     const missing = [start, `  Reviewer ${reviewer} wrote no report.`,
       `  The report of this file is ${at}.`];
     // A link at the file, as a draft that an agent replaced.
@@ -968,16 +970,16 @@ test('ledger: step end done needs a passing report of the reviewer for the file'
     stopped(...gone);
     fs.rmSync(file);
     // An edit after the review, such as one sentence of a plan: the report is of another SHA-256.
-    fs.writeFileSync(file, `${text} `);
+    fs.writeFileSync(file, '{"a":1}');
     stopped(start, `  Reviewer ${reviewer} wrote no report.`,
-      `  The report of this file is .reports/${reviewer}/${sha(`${text} `)}.json.`);
+      `  The report of this file is .step-reports/${reviewer}/${sha('{"a":1}')}.json.`);
     fs.writeFileSync(file, text);
     // No report, the report of another reviewer, and a report in another format.
     const clean = fs.readFileSync(reported);
     fs.rmSync(reported);
     stopped(...missing);
-    fs.mkdirSync(path.join(call.artifacts, '.reports', 'spec-reviewer'));
-    fs.writeFileSync(path.join(call.artifacts, '.reports', 'spec-reviewer',
+    fs.mkdirSync(path.join(call.artifacts, '.step-reports', 'spec-reviewer'));
+    fs.writeFileSync(path.join(call.artifacts, '.step-reports', 'spec-reviewer',
       path.basename(reported)), clean);
     stopped(...missing);
     for (const [broken, problem] of [['clean', 'is not one JSON object: it is no JSON'],
@@ -1004,66 +1006,107 @@ test('ledger: step end done needs a passing report of the reviewer for the file'
   }
 });
 
-test('ledger: step review prints the report file of the reviewer, and copies the checks', () => {
+test('ledger: the report of the checks is named by the lock and its files, not by commit', () => {
   const w = work();
   const call = resumed(w);
-  const pushed = pushes(w);
-  for (const [id, reviewer, name] of REVIEWED) {
-    const source = id === 'checks' ? 'acceptance-lock.json' : name;
-    const none = call('step', 'review', id);
-    assert.equal(none.status, 1, none.out);
-    assert.deepEqual(none.lines, [`Write ${source}, then run step review ${id} again.`,
-      `  ${source} of the artifact folder is missing or no regular file.`, 'Started no review.']);
-    const text = `{"id": "${id}"}\n`;
-    const file = path.join(call.artifacts, source);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, text);
-    // A second call is the same, also after a link took the place of the folder of the copy.
-    for (const at of [1, 2]) {
-      const named = call('step', 'review', id);
-      assert.equal(named.status, 0, named.out);
-      assert.deepEqual(named.lines, [`Give ${reviewer} the report file .reports/${reviewer}/` +
-        `${sha(text)}.json of the artifact folder.`]);
-      assert.equal(fs.readFileSync(path.join(call.artifacts, name), 'utf8'), text);
-      if (id === 'checks' && at === 1) {
-        const away = fresh('away');
-        fs.writeFileSync(path.join(away, 'acceptance-lock.json'), 'kept');
-        fs.rmSync(path.join(call.artifacts, '.checks'), { recursive: true });
-        fs.symlinkSync(away, path.join(call.artifacts, '.checks'));
-      } else if (id === 'checks') {
-        assert.ok(!fs.lstatSync(path.join(call.artifacts, '.checks')).isSymbolicLink());
-      }
-    }
+  assert.equal(call('step', 'begin', 'checks', 'implement-changes', ...w.inputs).status, 0);
+  // The check and its support file, committed, as freeze does before the last step end.
+  const check = path.join(w.repo, 'tests', 'orders.check.cjs');
+  const support = path.join(w.repo, 'tests', 'orders.cjs');
+  fs.mkdirSync(path.dirname(check), { recursive: true });
+  const write = (name, text) => {
+    fs.writeFileSync(name, text);
+    git(w, 'add', '-A');
+    git(w, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Change the checks');
+  };
+  fs.writeFileSync(support, 'support\n');
+  write(check, 'check\n');
+  const lock = path.join(call.artifacts, 'acceptance-lock.json');
+  const draft = { criteria: { version: 1 }, commit: 'a'.repeat(40),
+    checks: [{ criterion: 'ac-1', path: 'tests/orders.check.cjs', command: 'npm test',
+      failed_with: 1 }], support: [{ path: 'tests/orders.cjs' }] };
+  const put = (data) => fs.writeFileSync(lock, typeof data === 'string' ? data
+    : JSON.stringify(data));
+  const end = () => call('step', 'end', 'checks', 'done');
+  // reportOf returns the report file that step end prints, with no report of the draft.
+  const reportOf = () => {
+    const result = end();
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0],
+      'Start check-reviewer on acceptance-lock.json, then run step end checks done again.');
+    return /^ {2}The report of this file is (\S+)\.$/.exec(result.lines[2])[1];
+  };
+  put(draft);
+  const first = reportOf();
+  assert.match(first, /^\.step-reports\/check-reviewer\/[0-9a-f]{64}\.json$/);
+  // What freeze and lock write, other white space and another order of members change nothing.
+  const locked = { support: [{ sha256: sha('support\n'), path: 'tests/orders.cjs' }],
+    commit: 'b'.repeat(40), criteria: draft.criteria,
+    checks: draft.checks.map((one) => ({ ...one, sha256: sha('check\n') })) };
+  put(JSON.stringify(locked, null, 2));
+  assert.equal(reportOf(), first);
+  const report = path.join(call.artifacts, first);
+  fs.mkdirSync(path.dirname(report), { recursive: true });
+  fs.writeFileSync(report, JSON.stringify({ reviewer: 'check-reviewer', findings: [] }));
+  // An edit of the draft or of a listed file after the review is another file to review.
+  for (const edit of [{ ...locked, checks: [{ ...locked.checks[0], command: 'true' }] },
+    { ...locked, support: undefined }, { ...locked, criteria: { version: 2 } }, []]) {
+    put(edit);
+    assert.notEqual(reportOf(), first);
   }
-  assert.equal(pushes(w), pushed);
+  put(locked);
+  for (const [name, text] of [[check, 'check\n'], [support, 'support\n']]) {
+    write(name, 'edited\n');
+    assert.notEqual(reportOf(), first);
+    write(name, text);
+  }
+  // A listed file that is missing, a link or a folder, and a path outside, have no hash.
+  const stopped = (...lines) => {
+    const result = end();
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(-1 - lines.length), [...lines,
+      'Checked the step checks: the ledger is unchanged.']);
+  };
+  fs.rmSync(support);
+  stopped('Write "tests/orders.cjs" before you lock it.',
+    '  The working folder has no file "tests/orders.cjs".');
+  fs.symlinkSync(check, support);
+  stopped('Replace the link in "tests/orders.cjs" with the file it points to.',
+    '  A locked path may contain no link, and "tests/orders.cjs" has one.');
+  fs.rmSync(support);
+  fs.writeFileSync(support, 'support\n');
+  put({ ...locked, support: [{ path: '../away.cjs' }] });
+  stopped('Give "../away.cjs" a path inside the working folder.',
+    '  The path "../away.cjs" ends outside that folder.');
+  // A draft that is no JSON exits 3.
+  put('{');
+  assert.equal(end().status, 3);
+  put(locked);
+  const ended = end();
+  assert.equal(ended.status, 0, ended.out);
 });
 
-test('ledger: the gate of checks reads the reviewed draft, not what freeze and lock write', () => {
+test('ledger: step end of a correction prints its report file before the script has a SHA-256', () => {
   const w = work();
   const call = resumed(w);
-  assert.equal(begin(call, w, 'checks').status, 0);
-  const draft = { criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'a'.repeat(40),
-    checks: [{ criterion: 'ac-1', path: 'tests/a.test.ts', command: 'npm test', failed_with: 1 }],
-    support: [{ path: 'tests/orders.ts' }] };
-  reviewedFile(call, 'checks', { text: JSON.stringify(draft) });
-  const lock = path.join(call.artifacts, 'acceptance-lock.json');
-  const locked = { ...draft, commit: 'b'.repeat(40),
-    checks: draft.checks.map((one) => ({ ...one, sha256: H })),
-    support: draft.support.map((one) => ({ ...one, sha256: H })) };
-  // An edit of the lock file after the review, beyond what freeze and lock write, stops the step.
-  for (const edit of [{ ...locked, checks: [{ ...locked.checks[0], command: 'true' }] },
-    { ...locked, support: undefined }, { ...locked, criteria: { version: 2 } }, null]) {
-    fs.writeFileSync(lock, JSON.stringify(edit));
-    const result = call('step', 'end', 'checks', 'done');
-    assert.equal(result.status, 1, result.out);
-    assert.deepEqual(result.lines.slice(0, 2), ['Start check-reviewer on acceptance-lock.json ' +
-      'again, then lock it again.', '  acceptance-lock.json differs from ' +
-      '.checks/acceptance-lock.json, the draft that check-reviewer reviewed, in more than ' +
-      'commit and sha256.']);
-  }
-  fs.writeFileSync(lock, JSON.stringify(locked, null, 2));
-  const ended = call('step', 'end', 'checks', 'done');
-  assert.equal(ended.status, 0, ended.out);
+  const id = 'script:scenario-1#2';
+  assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
+  const { file, reported } = reviewedFile(call, id);
+  const clean = fs.readFileSync(reported);
+  fs.rmSync(reported);
+  const result = call('step', 'end', id, 'done');
+  assert.equal(result.status, 1, result.out);
+  assert.deepEqual(result.lines, ['Give --script-sha256 to end a script step as done.',
+    `Start check-reviewer on .demo/scenario-1.json, then run step end ${id} done again.`,
+    '  Reviewer check-reviewer wrote no report.', '  The report of this file is ' +
+      `.step-reports/check-reviewer/${sha(fs.readFileSync(file))}.json.`,
+    `Checked the step ${id}: the ledger is unchanged.`]);
+  // With the report, the step still needs the SHA-256 of the script.
+  fs.writeFileSync(reported, clean);
+  const none = call('step', 'end', id, 'done');
+  assert.equal(none.status, 1, none.out);
+  assert.equal(none.lines[0], 'Give --script-sha256 to end a script step as done.');
+  assert.equal(call('step', 'end', id, 'done', '--script-sha256', H).status, 0);
 });
 
 test('ledger: a failed step and a step of another kind end with no review', () => {
@@ -1079,8 +1122,7 @@ test('ledger: a failed step and a step of another kind end with no review', () =
     const ended = call('step', 'end', id, 'done', ...flags);
     assert.equal(ended.status, 0, ended.out);
   }
-  assert.deepEqual(fs.readdirSync(path.join(call.artifacts, '.reports'))
-    .filter((name) => name.endsWith('-reviewer')), []);
+  assert.ok(!fs.existsSync(path.join(call.artifacts, '.step-reports')));
 });
 
 // An unreadable list `Left out:` in the report fails step end done, with the cause of each
@@ -1309,13 +1351,7 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
   const attempt = ['--attempt', 'a,b,balanced'];
   const pushed = ['--pushed', 'spec/main/1'];
   const cases = [
-    [['step'], /^Give step begin, step review or step end\.\n  nothing is none of them\./],
-    [['step', 'review'], /^Give the id of a step, such as plan,/],
-    [['step', 'review', 'plan', 'x'], /^Give step review the id of the step alone\./],
-    [['step', 'review', 'deliverable:d-1'],
-      /^Give step review the id of a step with a reviewer\.\n  "deliverable:d-1" has none\./],
-    [['step', 'review', 'script:scenario-1'],
-      /^Give step review the id of a step with a reviewer\./],
+    [['step'], /^Give step begin or step end\.\n  nothing is neither\./],
     [['step', 'begin'], /^Give the id of a step, such as plan, checks, deliverable:d-1 or fix:f1\.\n  nothing is none\./],
     [['step', 'begin', 'deliverable:d-0', 'implement-changes', 'x'], /^Give the id of a step.*\.\n  "deliverable:d-0" is none\./],
     [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case\.\n  nothing is none\./],

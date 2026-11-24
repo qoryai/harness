@@ -93,18 +93,19 @@ run no other command in the same call.
    --porcelain --untracked-files=all`, and `git diff --name-only --no-renames <start
    commit>`. `<start commit>` is the `commit` of the entry of `qory.start_commits` in the
    input file whose `path` is the working folder. Run them again before each later review.
-   The reviewer reads files only, so it judges the changes by these lists. The first command
-   lists each new file, not only its folder. Then run `<skill folder>/checks.cjs step review
-   checks`, as "The build ledger" lists, before each review: it copies the draft as it is to
-   `<folder>/.checks/acceptance-lock.json`, and step 9 compares the lock with that copy, but
-   for `commit` and each `sha256`. Start ${qory:agents/check-reviewer} with the input file's
-   path, the artifact folder, the run's number, the notes, the path of the report file, the
-   writer's newest report, unchanged, and the two outputs under "Changed paths:", unchanged.
-   Give it no "Checks:": the draft has no `sha256` until `lock` fills it, so you run no
-   `check` on it.
-   Decide on each report as "Findings" lists. After a start of the writer for a finding, do
-   step 5 again before the next review. A finding left that fails a push ends the run with
-   no lock, as "Findings" lists.
+   The reviewer reads files only, so it judges the changes by these lists. The first
+   command lists each new file, not only its folder. Then run `<skill folder>/checks.cjs
+   step end checks done` for the path of the report file, as "The build ledger" lists. The
+   path covers the draft, but for `commit` and each `sha256`, and the files that it lists,
+   so any other edit of them needs a new review. When it prints a line on a listed file,
+   such as "Write tests/orders.check.cjs before you lock it.", do with it as step 8 lists
+   for a line of `lock`. Start ${qory:agents/check-reviewer} with the input file's path,
+   the artifact folder, the run's number, the notes, the path of the report file, the
+   writer's newest report, unchanged, and the two outputs under "Changed paths:",
+   unchanged. Give it no "Checks:": the draft has no `sha256` until `lock` fills it, so you
+   run no `check` on it. Decide on each report as "Findings" lists. After a start of the
+   writer for a finding, do step 5 again before the next review. A finding left that fails
+   a push ends the run with no lock, as "Findings" lists.
 7. Run `<skill folder>/checks.cjs freeze checks --inputs <inputs>`. It commits the checks
    and prints a line that starts with "Froze checks as commit <commit>:". Set `commit` in
    `<folder>/acceptance-lock.json` to that `<commit>`, and change nothing else in the file:

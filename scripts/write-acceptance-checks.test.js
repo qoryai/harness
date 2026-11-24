@@ -528,9 +528,10 @@ test('a session on a test work item stores the checks and acceptance-lock and en
     'then run targeted again."')), items.join('\n'));
   assert.equal(call('report', 'check-reviewer',
     report(w, 'check-reviewer-1', 'What you read:\n- acceptance-lock.json\n\nclean\n')).status, 0);
-  const named = call('step', 'review', 'checks');
-  const reviewed = path.join(w.artifacts, /the report file (\S+) of/.exec(named.lines[0])[1]);
-  fs.mkdirSync(path.dirname(reviewed));
+  const named = call('step', 'end', 'checks', 'done');
+  assert.equal(named.status, 1, named.out);
+  const reviewed = path.join(w.artifacts, /The report of this file is (\S+)\./.exec(named.out)[1]);
+  fs.mkdirSync(path.dirname(reviewed), { recursive: true });
   fs.writeFileSync(reviewed, JSON.stringify({ reviewer: 'check-reviewer', findings: [] }));
   const { commit, locked } = lockChecks(w, call);
   assert.equal(locked.status, 0, locked.out);
@@ -1021,9 +1022,9 @@ test('check-reviewer gets the changed paths, writes one file and marks each miss
   says(reviewer, 'You run neither command');
   says(reviewer, 'You write one file: the report file, at the path that the run gives you');
   says(reviewer, 'Write it as the section "The report file" of `reviewing-drafts` lists');
-  // The reviewer reviews the copy of the draft, which the lock is compared with.
-  says(order, '`<skill folder>/checks.cjs step review checks`');
-  says(order, 'step 9 compares the lock with that copy, but for `commit` and each `sha256`.');
+  says(order, '`<skill folder>/checks.cjs step end checks done` for the path of the report file');
+  says(order, 'The path covers the draft, but for `commit` and each `sha256`, and the files ' +
+    'that it lists, so any other edit of them needs a new review.');
   says(order, 'With no start of the reviewer left, start no writer');
   const checking = oneLine(skill('checking-acceptance-checks'));
   says(checking, 'So is each path of "Changed paths:" that the writer\'s "Files:" does not ' +

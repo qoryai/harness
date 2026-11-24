@@ -86,7 +86,8 @@ test('each new agent has its guardrails, stop conditions and expected output, an
 test('each change of the plan is reviewed again, also after the last review', () => {
   const order = section(skill('workflow-plan-the-build'), 'The order of the run')
     .replace(/\s+/g, ' ');
-  assert.ok(order.includes('6. Run `<skill folder>/checks.cjs step review plan`'));
+  assert.ok(order.includes('6. Run `<skill folder>/checks.cjs step end plan done` for the path ' +
+    'of the report file'));
   assert.ok(order.includes('After each start of the planner, whatever its reason, do steps 5 ' +
     'and 6 again'));
   assert.ok(order.includes('After the last review, start the planner no more, not for a ' +
@@ -525,9 +526,10 @@ test('a session on a test work item stores build-plan and ends passed', () => {
   assert.match(checked.err, /; 7 deliverables; 0 findings\.\n$/);
   assert.equal(call('report', 'plan-reviewer',
     report(w, 'plan-reviewer-1', 'What you read:\n- build-plan.md\n\nclean\n')).status, 0);
-  const named = call('step', 'review', 'plan');
-  const reviewed = path.join(w.artifacts, /the report file (\S+) of/.exec(named.lines[0])[1]);
-  fs.mkdirSync(path.dirname(reviewed));
+  const named = call('step', 'end', 'plan', 'done');
+  assert.equal(named.status, 1, named.out);
+  const reviewed = path.join(w.artifacts, /The report of this file is (\S+)\./.exec(named.out)[1]);
+  fs.mkdirSync(path.dirname(reviewed), { recursive: true });
   fs.writeFileSync(reviewed, JSON.stringify({ reviewer: 'plan-reviewer', findings: [] }));
   const pushed = qory(w, call, 'artifact', 'push', 'build-plan', file);
   assert.equal(pushed.status, 0, pushed.err);
