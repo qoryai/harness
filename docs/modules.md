@@ -2792,9 +2792,9 @@ a checkout with no change, so each change after a failed step is that step's. Wh
 newest row of the session is `failed`, the line is "Run git stash push --include-untracked
 -- ':/' ':!/.qory', then step begin again.", with the line "The failed step <id> left <n>
 files changed." after it, and the session runs that command: the stash keeps the files, and
-`.qory/` stays as it is. Else the line is "Stash the files with git stash push
---include-untracked -- ':/' ':!/.qory', then end the session.", with the line "<n> files
-changed outside a step, such as <file>." after it.
+`.qory/` stays as it is. Else the line is "End the session, and keep the checkout as it
+is.", with the line "<n> files changed outside a step, such as <file>." after it, and no
+command runs.
 
 A crashed step is a row that a session of the same run started and left `running`, which
 `resume` marks `failed`. When that row is the newest row before the session's rows, and the

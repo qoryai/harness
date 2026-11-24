@@ -1160,10 +1160,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `step begin` on a change outside a step prints `Stash the files with git stash push
-  --include-untracked -- ':/' ':!/.qory', then end the session.` in place of `End the
-  session, and keep the checkout as it is.`, because the end check of a Build session stops
-  while the checkout has a change that no commit contains.
 - `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
   `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
   verdict against, and no `plan`, which qory refuses on a workflow that cannot write. The
