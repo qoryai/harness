@@ -12,6 +12,22 @@ const ACTION_MS = 5000;
 // The time after the last action of a sign-in for the fields of the variables to go.
 const SIGNED_IN_MS = 10000;
 
+// within returns true when url, opened from address, the App address, is a page under it: of
+// the same origin, with no user name or password, and with a path that is the path of address
+// or below it at a segment boundary. A backslash is refused: a browser reads it as a slash.
+function within(url, address) {
+  if (url.includes('\\')) return false;
+  try {
+    const page = new URL(url, address);
+    const base = new URL(address);
+    const prefix = base.pathname.replace(/\/+$/, '');
+    return page.origin === base.origin && !page.username && !page.password &&
+      (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`));
+  } catch {
+    return false;
+  }
+}
+
 // describe returns the words of an action for a reason, with no value that the action types:
 // "action 3 (type into #password)".
 function describe(action, place) {
@@ -33,9 +49,13 @@ function describe(action, place) {
 // { done, failure }: done counts the actions that passed, and failure is null, or
 // { place, action, why, words, outside } for the first action that failed, where outside is
 // the other origin, or null. A why contains no typed value.
-async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, origin } = {}) {
+async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, origin, until } =
+{}) {
   if (origin && page.guard) await page.guard(origin);
   for (const [place, action] of actions.entries()) {
+    // With until, a time in ms of Date.now, each action waits at most what is left of it.
+    const remaining = until === undefined ? Infinity : until - Date.now();
+    const limit = (ms) => Math.max(Math.min(ms, remaining), 1);
     const fail = (why, outside = null) => ({ done: place, failure: { place, action, why,
       words: `${describe(action, place)} failed: ${why}`, outside } });
     // A new window gets the origin of its first request once it closes, so left waits for
@@ -45,6 +65,9 @@ async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, ori
       return fail(`the page opened ${page.outside}, outside the app`, page.outside);
     };
     if (origin && page.outside) return left();
+    if (remaining <= 0) {
+      return fail('the time for the start of the app, the browser and the sign-in ran out');
+    }
     try {
       if (action.do === 'open') {
         const url = new URL(action.url, base);
@@ -52,19 +75,22 @@ async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, ori
           return fail(`the address is outside the app, whose origin is ${origin}`,
             originOf(url.href));
         }
+        if (origin && !within(action.url, base)) {
+          return fail(`the address is outside the App address ${base}`);
+        }
         await page.goto(url.href);
       } else if (action.do === 'click') {
-        await page.click(action.target, actionMs);
+        await page.click(action.target, limit(actionMs));
       } else if (action.do === 'type') {
         const value = action.variable === undefined ? action.text : env[action.variable];
         if (typeof value !== 'string' || (action.variable !== undefined && !value)) {
           return fail(`the variable ${action.variable} has no value`);
         }
-        await page.type(action.target, value, actionMs);
+        await page.type(action.target, value, limit(actionMs));
       } else if (action.do === 'press') {
         await page.press(action.key);
       } else if (action.do === 'wait') {
-        await page.waitText(action.text, action.timeout_ms || actionMs);
+        await page.waitText(action.text, limit(action.timeout_ms || actionMs));
       } else {
         return fail('the action is none of open, click, type, press and wait');
       }
@@ -91,9 +117,9 @@ function variablesOf(actions) {
 // already shows the page after the sign-in, each field that a variable was typed into is
 // gone from the page within signedInMs: a sign-in that fails shows its form again.
 async function signIn(page, actions, { base, env, actionMs = ACTION_MS,
-  signedInMs = SIGNED_IN_MS } = {}) {
+  signedInMs = SIGNED_IN_MS, until } = {}) {
   const origin = new URL(base).origin;
-  const done = await replay(page, actions, { base, env, actionMs, origin });
+  const done = await replay(page, actions, { base, env, actionMs, origin, until });
   if (done.failure) return { ok: false, why: done.failure.words, outside: done.failure.outside };
   const last = actions[actions.length - 1];
   const gone = !last || last.do === 'wait' || await page.poll(async () => {
@@ -102,7 +128,7 @@ async function signIn(page, actions, { base, env, actionMs = ACTION_MS,
       if (await page.visible(target)) return null;
     }
     return true;
-  }, signedInMs);
+  }, until === undefined ? signedInMs : Math.max(Math.min(signedInMs, until - Date.now()), 1));
   if (page.settled) await page.settled();
   if (page.outside) {
     return { ok: false, why: `the page opened ${page.outside}, outside the app, after the ` +
@@ -128,4 +154,4 @@ function signInSetups(scripts) {
   return [...setups.values()];
 }
 
-module.exports = { ACTION_MS, SIGNED_IN_MS, replay, signIn, signInSetups, variablesOf };
+module.exports = { ACTION_MS, SIGNED_IN_MS, replay, signIn, signInSetups, variablesOf, within };

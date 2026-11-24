@@ -36,7 +36,8 @@ Each action is one of these five, with the keys that its form lists and no other
   item uses for the same value. A password, key or token never goes into `text`.
 - `{"do": "press", "key": "<key>"}`, such as `Enter` or `Control+a`.
 - `{"do": "wait", "text": "<the words that show on the screen>"}`, with `"timeout_ms"` of
-  at most 60000 when the page needs longer than 5 seconds.
+  at most 60000 when the page needs longer than 5 seconds. All waits of a script add up
+  to at most 415 seconds, and a wait with no `"timeout_ms"` counts 5 seconds.
 
 A target is a CSS selector, or `text=<the visible words>` for the innermost element that
 shows those words. Take each target from the code of the finished screens that you read: an

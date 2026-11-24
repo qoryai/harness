@@ -270,9 +270,10 @@ class Browser {
   }
 
   // page returns a new Page in a new browser context, which shares no cookie or storage with
-  // another page. With origin, the page loads no document of another origin in any of its
-  // frames, as Page states. An origin other than that of the Browser throws.
-  async page({ origin } = {}) {
+  // another page, whose window is 1280 px wide and height px high. With origin, the page
+  // loads no document of another origin in any of its frames, as Page states. An origin other
+  // than that of the Browser throws.
+  async page({ origin, height = HEIGHT } = {}) {
     if (origin && this.origin !== origin) {
       throw new Error(`the browser blocks no request outside ${origin}: start it with ` +
         'new Browser(bin, { origin })');
@@ -281,14 +282,12 @@ class Browser {
     const { targetId } = await this.send('Target.createTarget',
       { url: 'about:blank', browserContextId });
     const { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
-    const page = new Page(this, { browserContextId, targetId, sessionId });
+    const page = new Page(this, { browserContextId, targetId, sessionId, height });
     this.pages.set(browserContextId, page);
     if (origin) await page.guard(origin);
     await page.send('Page.enable');
     await page.send('Runtime.enable');
-    await page.send('Emulation.setDeviceMetricsOverride', {
-      width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false,
-    });
+    await page.resize(WIDTH);
     return page;
   }
 
@@ -437,8 +436,9 @@ const FOCUSED = `(() => {
 // outside is then the origin of that request, or NEW_WINDOW for one to origin or for none
 // within POPUP_MS. Only a Page of a Browser with an origin gets its new windows.
 class Page {
-  constructor(browser, { browserContextId, targetId, sessionId }) {
+  constructor(browser, { browserContextId, targetId, sessionId, height }) {
     this.browser = browser;
+    this.height = height;
     this.browserContextId = browserContextId;
     this.targetId = targetId;
     this.sessionId = sessionId;
@@ -634,6 +634,38 @@ class Page {
     if (!found) throw new Error(`the page showed no such text within ${ms / 1000} s`);
   }
 
+  // resize sets the width of the window of the page, in px, with the height of the page.
+  resize(width) {
+    return this.send('Emulation.setDeviceMetricsOverride',
+      { width, height: this.height, deviceScaleFactor: 1, mobile: false });
+  }
+
+  // screenshot returns the PNG, or with format jpeg the JPEG, of the window of the page, as a
+  // Buffer.
+  async screenshot(format = 'png') {
+    const { data } = await this.send('Page.captureScreenshot', { format, quality: 80 });
+    return Buffer.from(data, 'base64');
+  }
+
+  // screencast calls onFrame with the JPEG, a Buffer, of each frame that the page paints, until
+  // the function that it resolves to is called. It acknowledges each frame, because the
+  // browser sends the next only then. A page that paints nothing sends no frame.
+  async screencast(onFrame) {
+    const handler = (message) => {
+      if (message.sessionId !== this.sessionId || message.method !== 'Page.screencastFrame') return;
+      this.send('Page.screencastFrameAck', { sessionId: message.params.sessionId })
+        .catch(() => {});
+      onFrame(Buffer.from(message.params.data, 'base64'));
+    };
+    this.browser.handlers.add(handler);
+    await this.send('Page.startScreencast', { format: 'jpeg', quality: 80, maxWidth: WIDTH,
+      maxHeight: this.height, everyNthFrame: 1 });
+    return async () => {
+      this.browser.handlers.delete(handler);
+      await this.send('Page.stopScreencast').catch(() => {});
+    };
+  }
+
   async close() {
     this.browser.handlers.delete(this.handler);
     this.browser.pages.delete(this.browserContextId);
@@ -642,5 +674,5 @@ class Page {
   }
 }
 
-module.exports = { BROWSERS, Browser, FLAGS, NEW_WINDOW, Page, findBrowser, keyOf, limited,
-  originOf };
+module.exports = { BROWSERS, BROWSER_START_MS: START_MS, Browser, FLAGS, NEW_WINDOW, Page,
+  findBrowser, keyOf, limited, originOf };

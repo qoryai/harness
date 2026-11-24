@@ -206,6 +206,19 @@ that starts with `Cause:` contains the cause, in the words of the line that ends
 - "the browser check did not finish: <reason>": the check of the app failed or ran past
   its limit. End the run with the line.
 
+## Film
+
+`<skill folder>/checks.cjs film <id> --inputs <inputs>` stores the evidence of one scenario in
+`<folder>/.film/<id>/`. With the evidence film, it stores `<id>.mp4` and `<id>.vtt`; with
+the evidence pictures, it stores `<id>-step-<N>.png`, one for each step. Push the files of
+the scenario once, with the type that its evidence names:
+
+```
+<qory> artifact push demo-video --name <id> \
+  <folder>/.film/<id>/<id>.mp4 <folder>/.film/<id>/<id>.vtt
+<qory> artifact push screenshot --name <id> <folder>/.film/<id>/<id>-step-*.png
+```
+
 ## Red and green
 
 A check is green only when its result shows it. These are red:
@@ -275,20 +288,22 @@ runs past what the first run left of the limit, the probe proves nothing and exi
 Probe a test file that runs faster, or, for a limit under 60, raise
 `command_limits_minutes.targeted_checks`.
 
-### The Bash timeout on Claude Code
+### Tool timeouts
 
-On Claude Code, a Bash call stops at its timeout, and the settings of `software-factory`
-set its most to 60 minutes (`BASH_MAX_TIMEOUT_MS` 3600000). Give each Bash call of `run`,
-`probe` and `preflight` the timeout 3600000 ms. The Bash tool of Claude Code stops a command
-at 600 seconds, whatever its timeout, so `preflight` stops its sign-ins after at most 570
-seconds and ends within 585 seconds. In `run` and `probe`, the script stops every command
-of a call 60 seconds before those 60 minutes, counted from the start of the script, so the
-call still writes its record and its red line. The commands of one call share that time:
-the reruns of `run targeted`, the two runs of `probe` and the checks of `run locked`. A
-locked check that the call has no time left for does not run, and is red: run fewer checks
-per call. Run the verb as the only command of the Bash call: the script counts the 60
-minutes from the start of the script, so a command before it in the same call, such as
+Run each call of `run` and `probe` with a tool timeout of at least 3600 s. The script stops
+every command of a call 60 seconds before those 60 minutes, counted from the start of the
+script, so the call still writes its record and its red line. The commands of one call share
+that time: the reruns of `run targeted`, the two runs of `probe` and the checks of
+`run locked`. A locked check that the call has no time left for does not run, and is red:
+run fewer checks per call. Run the verb as the only command of the call: the script counts
+the 60 minutes from the start of the script, so a command before it in the same call, such as
 `npm ci`, uses up the reserve.
+
+Run each call of `preflight` and `demo run` with a tool timeout of at least 600 s. The runner
+stops after at most 570 s, and the call ends within 585 s. Run each call of `film` with a tool
+timeout of at least 600 s. The runner stops after at most 535 s, the stop of the runner takes
+at most 15 s, the encode of the film at most 35 s after a runner that used all its time
+(ffmpeg gets up to 90 s after a quick run), and the call ends within 585 s.
 
 ## Scope
 

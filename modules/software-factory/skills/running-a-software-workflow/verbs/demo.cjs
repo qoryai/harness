@@ -54,7 +54,7 @@ const MOST_ROWS = 3;
 module.exports = (lib) => {
   const { Context, DEMO_FOLDER: FOLDER, MAX_BYTES, Missing, approved, artifactFolder,
     boundedText, cut, draftScript, evidenceOf, isObject, plural, pluginFolders, readLedger, schema,
-    scenarios, scriptFindings, sha256, short, stepRows, writeJson } = lib;
+    scenarios, scriptFindings, sha256, short, stepRows, within, writeJson } = lib;
   const checks = require('../lib/preflight.cjs')(lib);
 
   // readScenarios returns { root, number, live } of the approved demo scenarios in the
@@ -177,34 +177,22 @@ module.exports = (lib) => {
     return { shown, text: got.text, data, drafted };
   }
 
-  // within returns true when url, opened from address, the App address, is a page under it: of
-  // the same origin, with no user name or password, and with a path that is the path of address
-  // or below it at a segment boundary. A backslash is refused: a browser reads it as a slash.
-  function within(url, address) {
-    if (url.includes('\\')) return false;
-    try {
-      const page = new URL(url, address);
-      const base = new URL(address);
-      const prefix = base.pathname.replace(/\/+$/, '');
-      return page.origin === base.origin && !page.username && !page.password &&
-        (page.pathname === prefix || page.pathname.startsWith(`${prefix}/`));
-    } catch {
-      return false;
-    }
-  }
-
-  // outsideOpens returns a finding for each open of the setup of data, the demo script, whose
-  // page is not under address, the App address of the build plan. The setup is the sign-in: a
-  // script may leave the app only after it, and the run refuses that too.
+  // outsideOpens returns a finding for each open of the setup and the steps of data, the demo
+  // script, whose page is not under address, the App address of the build plan. The run
+  // refuses the same opens: it replays the setup and each step with that address.
   function outsideOpens(data, address) {
-    const tail = ` in the sign-in steps of ${data.scenario}.json.`;
-    // The first line keeps the fix within 100 characters, so a long address is cut there and
-    // shown whole on the line after the step.
-    const room = 100 - 'Open only pages under '.length - tail.length;
-    return data.setup.filter((action) => action.do === 'open' && !within(action.url, address))
-      .map((action) => `Open only pages under ${cut(address, room)}${tail}\n` +
-        `The step opens ${cut(action.url, 80)}.` +
-        (address.length > room ? `\nThe App address is ${address}.` : ''));
+    const parts = [[' in the sign-in steps of', data.setup],
+      ...data.steps.map((step, at) => [` in step ${at + 1} of`, step.actions])];
+    return parts.flatMap(([where, actions]) => {
+      const tail = `${where} ${data.scenario}.json.`;
+      // The first line keeps the fix within 100 characters, so a long address is cut there and
+      // shown whole on the line after the step.
+      const room = 100 - 'Open only pages under '.length - tail.length;
+      return actions.filter((action) => action.do === 'open' && !within(action.url, address))
+        .map((action) => `Open only pages under ${cut(address, room)}${tail}\n` +
+          `The step opens ${cut(action.url, 80)}.` +
+          (address.length > room ? `\nThe App address is ${address}.` : ''));
+    });
   }
 
   // shortcut: the push check of demo-script does not read the ledger, so a changed frozen script

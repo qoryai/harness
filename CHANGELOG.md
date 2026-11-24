@@ -8,6 +8,32 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
+  a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
+  the `App address:` of the build plan, signs in with the replay of `preflight`, and runs
+  the steps in a page of 1280 x 720 px. A `film` scenario gets `<scenario>.mp4`, which
+  ffmpeg makes from the frames of the page from the start of step 1 at real speed, and
+  `<scenario>.vtt` with one cue per step. A `pictures` scenario runs with video off and
+  gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
+  pictures of pages at 360, 768 and 1280 px, for the screen reviewers. A call ends within
+  585 s, so run the film call with a tool timeout of at least 600 s: 15 s to stop the runner,
+  35 s for the encode (measured: 35 s for about 28,000 frames) and 535 s for the runner. The
+  runner's 535 s are 120 s for the start of the app, the browser and the sign-in, which share
+  one deadline, and 415 s for the waits of the setup and the steps. A run past its limit exits
+  3 with "Shorten the waits or the steps of <scenario>.json, then film it again." and "The film
+  ran past its limit of <n> s." A step `open` outside the App address fails. The waits of a
+  setup count against the 415 s and also against the 120 s deadline, and `demo check` refuses
+  a setup whose waits add up to more than 120 s. `demo check` refuses a step `open` outside
+  the App address, as the run does. When the 120 s run out before the browser starts or
+  during the sign-in, `film` exits 3 with "Shorten the sign-in steps of <scenario>.json, or make
+  the app start faster, then film it again." and "The 120 s for the app start, the sign-in and
+  the browser ran out before the browser started." ffmpeg gets what is left of the 585 s, at
+  most 90 s and at least 5 s. A film keeps each frame that the page paints, so every cue of
+  `<scenario>.vtt` lies within the film, and the runner returns its frames in a file, so the
+  number of frames is no limit. The first frame is at 0 s, and the cue of a step is its title.
+  A title with `-->` is refused before the film: "Change the Action of step <N> in the demo
+  scenario so it has no "-->", then film it again." A call that fails after it
+  made the folder `.film/<scenario>` removes it, and a missing browser keeps the folder.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a
@@ -16,7 +42,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   sha256. `scripting-demos` freezes a script at its first pass in the build ledger, starts
   `check-reviewer` on each change to a frozen script, and `demo check` refuses a third
   correction. The call of `preflight` moved from the run of the locked checks to before the
-  first run of a script, and it reads the drafts in `.demo/`.
+  first run of a script, and it reads the drafts in `.demo/`. `demo check` and the push
+  check of `demo-script` also refuse a script whose waits add up to more than 415 s: "Shorten
+  the waits in <script> to at most 415 s in total.", with the line "They add up to <m> s (a
+  wait with no timeout_ms counts 5 s), and a demo run has room for 415 s of waits." The
+  waits of the setup count too.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
@@ -1117,8 +1147,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with the mark of `run`; a process that leaves the groups and removes the mark keeps
   running. After a SIGKILL of the runner of the check, the process groups of the command
   and of the browser stop, and every process that left them keeps running. `preflight`
-  ends within 585 seconds, below the 600 seconds after which the Bash tool of Claude Code
-  stops a command. Each browser call has a time limit, and the browser dismisses dialogs.
+  ends within 585 seconds. Each browser call has a time limit, and the browser dismisses dialogs.
   An exit 3 for a missing build plan, a bad App address host, a missing address, a demo
   script that is missing, cannot be read, breaks its format rules or types such a key, or
   a check that did not finish prints a line `Cause:` for the line that ends the run. The
