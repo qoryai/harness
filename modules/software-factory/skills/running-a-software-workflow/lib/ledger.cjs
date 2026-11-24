@@ -41,7 +41,7 @@ module.exports = (lib) => {
     'planned changes that are not built.';
   const FIX_ALL = 'Pick Accept as it is, or close this work item.';
   // The longest text of a point, as
-  // running-a-workflow (SKILL.md:229-240: "one line of 1 to 500 characters") lists.
+  // running-a-workflow (SKILL.md:231-242: "one line of 1 to 500 characters") lists.
   const POINT_TEXT = 500;
   const MORE = (m) => `and ${m} more, listed in the acceptance criteria of this work item.`;
   // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.cjs.

@@ -102,7 +102,7 @@ function pointText(run, text, { subject, file, where, linked, step = false }, ag
   if (QUESTION_REF.test(text)) {
     run.find(`Remove the question id from ${subject}.\n${linked}`);
   }
-  // running-a-workflow (SKILL.md:232-238: "write the item's words in quotes"): no name of a
+  // running-a-workflow (SKILL.md:234-240: "write the item's words in quotes"): no name of a
   // file of the run, and words in quotes beside the id of an item.
   const name = [...text.matchAll(FILE_NAME)]
     .find((match) => rules.isRunFile(match[2], match[1]));
@@ -137,7 +137,7 @@ function pointCheck(run, point, place, open, agents, rules = pointRules()) {
       run.find(`Remove ${key} from ${which}: a point has only text, action, question and fix.`);
     }
   }
-  // running-a-workflow (SKILL.md:229-240: "one line of 1 to 500 characters"): the text is
+  // running-a-workflow (SKILL.md:231-242: "one line of 1 to 500 characters"): the text is
   // one sentence of plain text on one line, on what is wrong or missing: Qory Apiary shows the
   // step for the action.
   run.did('texts');
@@ -145,7 +145,7 @@ function pointCheck(run, point, place, open, agents, rules = pointRules()) {
   pointText(run, text, { subject: `the text of ${which}`, file: 'points.json',
     where: `text of ${which}`, linked: 'The member question links the point to its question.' },
   agents, rules);
-  // running-a-workflow (SKILL.md:241-246: "the id of an open question"): an answer point
+  // running-a-workflow (SKILL.md:243-248: "the id of an open question"): an answer point
   // has the id of an open question of the draft questions.json, and a run_again point none.
   run.did('actions');
   if (!ACTIONS.includes(action)) {
