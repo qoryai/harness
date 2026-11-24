@@ -1,7 +1,6 @@
-// The end check of a Build write session, the registry member end: the session cannot end
-// while a checkout of qory.start_commits that it can write has a change that no commit
-// contains, because the full suite and the review read only committed work. docs/modules.md
-// lists which sessions it checks and what counts as a change.
+// The registry member end: a Build write session cannot end while a checkout that it can write
+// has a change that no commit contains. docs/modules.md lists the sessions and the changes
+// that count.
 'use strict';
 
 const fs = require('node:fs');
@@ -18,8 +17,8 @@ const READERS = ['review', 'review_session', 'hook_session'];
 // The most paths that a finding lists.
 const MAX_PATHS = 20;
 
-// The count of the end checks in a row that found changes, which the point reads, in the
-// folder .reports of the artifact folder, where no agent writes a .json file.
+// The count of the end checks that found changes since a check passed, for the point. No agent
+// writes a .json file in .reports of the artifact folder.
 const COUNT = path.join('.reports', 'uncommitted.json');
 
 // The copy of the build ledger, which step and resume write.
@@ -115,7 +114,8 @@ module.exports = (lib) => {
   }
 
   // end returns the results of the check, as `checks.cjs end` lists them: { line, point,
-  // item } for each checkout with changes. io is the io of end, with root, the artifact folder.
+  // item } for each checkout with changes. io is the io of end, with root, the artifact folder,
+  // and failed, the count of the failed checks before this one.
   function end(io) {
     if (!io.inputs) return [];
     const got = readQory(io.cwd, io.inputs, io.env);
@@ -129,7 +129,9 @@ module.exports = (lib) => {
       const files = left(one.path, io.env);
       if (files.length) found.push(files);
     }
-    const count = found.length ? tries(io.root) + 1 : 0;
+    if (!found.length && io.failed) return [];
+    // The first check after one that passed starts the count again.
+    const count = (io.failed ? tries(io.root) : 0) + (found.length ? 1 : 0);
     save(io.root, count);
     // shortcut: with two checkouts, the check reports two findings with the same fix, and no
     // line shows the checkout of a path; add its folder when a session writes two checkouts.

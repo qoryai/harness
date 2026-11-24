@@ -1365,6 +1365,52 @@ test('at the third end check, the point counts the checks that found changes', (
   assert.equal(checked.status, 0, checked.out + checked.err);
 });
 
+test('the point counts each check with changes since a check passed, also after one with none',
+  () => {
+    const w = work();
+    const call = session(w);
+    const inputs = buildInputs(w);
+    const end = () => call('end', w.artifacts, '--inputs', inputs).status;
+    const change = () => writeFile(w, 'notes/new.txt', 'new\n');
+    const undo = () => fs.rmSync(path.join(w.repo, 'notes/new.txt'));
+    // A check with changes before the check that passes does not count.
+    change();
+    assert.equal(end(), 1);
+    undo();
+    assert.equal(end(), 0);
+    // Changes at the first and the third check, and a report alone at the second.
+    report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+    change();
+    assert.equal(end(), 1);
+    undo();
+    assert.equal(end(), 1);
+    change();
+    assert.equal(end(), 0);
+    const texts = JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text);
+    assert.ok(texts.some((text) => text.startsWith('The Build session ended 2 times with ')),
+      texts.join('\n'));
+  });
+
+test('the end check reads each checkout, hides a key in a path, and skips a folder that git ' +
+  'cannot read', () => {
+  const w = work();
+  const other = work();
+  const call = session(w);
+  const starts = [w.repo, other.repo, fresh('no-checkout')].map((one) => ({ path: one,
+    commit: w.start }));
+  const inputs = buildInputs(w, { start_commits: starts });
+  assert.equal(call('end', w.artifacts, '--inputs', inputs).status, 0);
+  writeFile(other, 'notes/new.txt', 'new\n');
+  assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)),
+    '  Not committed: notes/new.txt (1 in all)');
+  call.env.SHOP_TOKEN = 'example-value-1234';
+  fs.rmSync(path.join(other.repo, 'notes/new.txt'));
+  writeFile(w, 'notes/example-value-1234.txt', 'new\n');
+  const ended = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(notCommitted(ended), '  Not committed: a path with a key in its name (1 in all)');
+  assert.ok(!(ended.out + ended.err).includes('example-value-1234'));
+});
+
 test('a single end check with changes escalates with a point of 1 time', () => {
   const w = work();
   const call = session(w);

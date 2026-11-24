@@ -6188,6 +6188,40 @@ test('registry: a list of rules of questions is loaded, and none gives an empty 
   assert.deepEqual(other.questionRules.map((rule) => rule.type), ['mockup']);
 });
 
+test('registry: one skill adds a check at the end, whose results end prints', () => {
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.cjs'));
+  const plugin = corePlugin();
+  assert.equal(loadRegistry(plugin).end, null);
+  const write = (skill, text) => {
+    const folder = path.join(plugin, 'skills', skill);
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, 'workflow-checks.cjs'), text);
+    return folder;
+  };
+  const one = write('one', "module.exports = () => ({ end: (io) => [{ line: 'Check the note.\\n' " +
+    '+ `${io.failed} failed in ${io.root}`, point: "The note is open." }] });\n');
+  const trusted = trusting(one);
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(tmp, 'end-')));
+  const ended = () => call({ cwd: tmp, plugin, trusted, env: RUN_ENV }, ['end', root]);
+  for (const failed of [0, 1]) {
+    const result = ended();
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, 2),
+      ['Check the note.', `  ${failed} failed in ${root}`]);
+  }
+  assert.equal(ended().status, 0);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'points.json'), 'utf8')),
+    [{ text: 'The note is open.', action: 'run_again' }]);
+  // A second check, and one that is no function, stop the load.
+  const wrong = /^Give the registry one check at the end, as a function: /;
+  const two = write('two', 'module.exports = () => ({ end: () => [] });\n');
+  assert.throws(() => loadRegistry(plugin, trusting(one, two)), { message: wrong });
+  fs.rmSync(two, { recursive: true });
+  const bad = write('three', 'module.exports = () => ({ end: [] });\n');
+  fs.rmSync(one, { recursive: true });
+  assert.throws(() => loadRegistry(plugin, trusting(bad)), { message: wrong });
+});
+
 test('registry: a skill adds a type and a verb', () => {
   const plugin = corePlugin();
   fs.mkdirSync(path.join(plugin, 'skills', 'notes'));

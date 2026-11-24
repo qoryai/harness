@@ -44,7 +44,8 @@ const reviewComments = require('../types/review-comments.cjs');
 // - suite: the state of the result of the full suite, which findings round reads. One skill at
 //   most adds it;
 // - end(io): more results of the end check, each { line, point, item } as lib/end.cjs lists
-//   them, where io is the io of end with root, the artifact folder. One skill at most adds it.
+//   them, where io is the io of end with root, the artifact folder, and failed, the count of
+//   the failed checks before this one. One skill at most adds it.
 const FILE = 'workflow-checks.cjs';
 
 // What a workflow-checks.cjs gets: the exports of base, context, markdown and plugin, and the

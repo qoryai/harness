@@ -286,6 +286,7 @@ function end(io, folder) {
   }
   const { types, end: moduleEnd } = io.registry();
   const points = path.join(root, 'points.json');
+  const counter = path.join(root, '.reports', 'end.json');
   // An end through points.json records escalate, also for a workflow whose stack entry sets
   // judges: false, which records no other verdict.
   const sent = () => verdict(io, points);
@@ -332,10 +333,10 @@ function end(io, folder) {
     // moduleEnd is the check at the end that a module of the stack adds, if any.
     found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin,
       place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs }, verdict: body }),
-    ...reportResults, ...outboxDrafts(io), ...(moduleEnd ? moduleEnd({ ...io, root }) : [])];
+    ...reportResults, ...outboxDrafts(io),
+    ...(moduleEnd ? moduleEnd({ ...io, root, failed: failures(counter) }) : [])];
   }
   const findings = found.map((one) => one.line);
-  const counter = path.join(root, '.reports', 'end.json');
   const failed = findings.length ? failures(counter) + 1 : 0;
   writeJson(counter, { failures: failed });
   const what = `Checked the drafts and reports at the end: ${plural(findings.length, 'finding')}`;
