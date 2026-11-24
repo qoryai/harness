@@ -146,7 +146,7 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
     }
     assert.match(text, /\nmodel: \$\{qory:thinking\}\n/, name);
   }
-  assert.match(agent('check-reviewer'), /\ntools: Read, Grep, Glob, Skill\n/);
+  assert.match(agent('check-reviewer'), /\ntools: Read, Grep, Glob, Skill, Write\n/);
   const writer = agent('acceptance-check-writer');
   assert.match(writer, /\ntools: Read, Skill, Write, Edit, Bash\n/);
   for (const tool of ['Bash', 'Write', 'Edit']) {
@@ -528,6 +528,10 @@ test('a session on a test work item stores the checks and acceptance-lock and en
     'then run targeted again."')), items.join('\n'));
   assert.equal(call('report', 'check-reviewer',
     report(w, 'check-reviewer-1', 'What you read:\n- acceptance-lock.json\n\nclean\n')).status, 0);
+  const named = call('step', 'review', 'checks');
+  const reviewed = path.join(w.artifacts, /the report file (\S+) of/.exec(named.lines[0])[1]);
+  fs.mkdirSync(path.dirname(reviewed));
+  fs.writeFileSync(reviewed, JSON.stringify({ reviewer: 'check-reviewer', findings: [] }));
   const { commit, locked } = lockChecks(w, call);
   assert.equal(locked.status, 0, locked.out);
   assert.equal(locked.lines.at(-1), 'Locked 3 files in acceptance-lock: Pushed acceptance-lock ' +
@@ -1011,7 +1015,7 @@ test('check-reviewer gets the changed paths, stays read-only and marks each miss
   says(order, 'the writer\'s newest report, unchanged, and the two outputs under "Changed ' +
     'paths:", unchanged');
   const reviewer = agent('check-reviewer');
-  assert.match(reviewer, /\ntools: Read, Grep, Glob, Skill\n/);
+  assert.match(reviewer, /\ntools: Read, Grep, Glob, Skill, Write\n/);
   says(reviewer, '"Changed paths:", the output of `git status --porcelain ' +
     '--untracked-files=all` and of `git diff --name-only --no-renames <start commit>`');
   says(reviewer, 'You run neither command');

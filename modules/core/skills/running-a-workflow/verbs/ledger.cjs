@@ -19,8 +19,12 @@
 // - replay(io, row): whether a done row with the same inputs replays;
 // - model(io, agent): the model of a start of agent, which step end adds to each --attempt,
 //   or unknown;
-// - finish(io, { ledger, place, state, report }): at step end, { findings, members }, where
-//   report is the text of --report, or null when the call has none or it is too long;
+// - finish(io, { ledger, place, state, report, root }): at step end, { findings, members }, where
+//   report is the text of --report, or null when the call has none or it is too long, and root
+//   is the artifact folder;
+// - reviewed(id): whether a reviewer reviews a file of the step id; review(io, { id, root }):
+//   at step review of such a step, { findings, last }, where last is the line with the report
+//   file that the reviewer writes for that file as it is;
 // - point(io, { ledger, root }): the point { text, action, fix } that step begin writes at
 //   the 101st row;
 // - pin(io, { inputs, artifacts }): at step begin, before any change, the io that point reads
@@ -546,7 +550,7 @@ function endLocked(io, root, ledger, { id, state, options }) {
     text = report.finding ? null : report.text;
     if (report.finding) notes.push(report.finding);
   }
-  const finish = ledger.finish(io, { ledger: rows, place, state, report: text });
+  const finish = ledger.finish(io, { ledger: rows, place, state, report: text, root });
   const findings = [...finish.findings, ...(state === 'failed' ? [] : notes)];
   if (findings.length) {
     return { status: 1, findings, last: `Checked the step ${id}: the ledger is unchanged.` };
@@ -559,6 +563,13 @@ function endLocked(io, root, ledger, { id, state, options }) {
   push(io, root, ledger, rows, 'step end');
   return { status: 0, findings: notes, last: `Recorded ${id}, pass ${row.pass}, as ${state}, ` +
     `${notes.length ? 'with no report, ' : ''}and pushed the ledger.` };
+}
+
+// review returns { status, findings, last } of step review for the step id: the report file
+// that its reviewer writes for the file of the step as it is. It changes no row.
+function review(io, id) {
+  const { findings, last } = hook(io).review(io, { id, root: artifactFolder(io) });
+  return { status: findings.length ? 1 : 0, findings, last };
 }
 
 // endOptions returns { options } from the flags of step end, or { wrong } with the fix.
@@ -697,13 +708,14 @@ module.exports = {
     step: {
       usage: [
         'step begin <id> <workflow> [--inputs <path>] [--artifacts <folder>] <file>...',
+        'step review <id>',
         'step end <id> done|failed [--report <file>] [--attempt <agent>,<role>,<tier>]...' +
           '\n       [--pushed <type>/<name>/<version>]... and the flags of the skill',
       ],
       crash: crash('step'),
       args(io, what, rest) {
-        if (what !== 'begin' && what !== 'end') {
-          return `Give step begin or step end.\n${shown(what)} is neither.`;
+        if (what !== 'begin' && what !== 'review' && what !== 'end') {
+          return `Give step begin, step review or step end.\n${shown(what)} is none of them.`;
         }
         const ledger = hook(io);
         const [id, second, ...more] = rest;
@@ -722,6 +734,11 @@ module.exports = {
           }
           return options.files.length ? null : 'Give step begin the files of the step\'s inputs.';
         }
+        if (what === 'review') {
+          if (second !== undefined) return 'Give step review the id of the step alone.';
+          return ledger.reviewed && ledger.reviewed(id) ? null
+            : `Give step review the id of a step with a reviewer.\n${shown(id)} has none.`;
+        }
         if (second !== 'done' && second !== 'failed') {
           return `Give step end the state done or failed.\n${shown(second)} is neither.`;
         }
@@ -736,7 +753,8 @@ module.exports = {
           io.print(result.findings, result.last);
           return result.status;
         }
-        const result = end(io, id, second, endOptions(hook(io), id, second, more).options);
+        const result = what === 'review' ? review(io, id)
+          : end(io, id, second, endOptions(hook(io), id, second, more).options);
         io.print(result.findings, result.last);
         return result.status;
       },

@@ -183,8 +183,27 @@ function resumed(w, options) {
   return call;
 }
 
-const begin = (call, w, id, inputs = w.inputs) =>
-  call('step', 'begin', id, 'implement-changes', ...inputs);
+// reviewedFile writes text as the file of the step id that its reviewer reads, and the report
+// of the reviewer with findings for its SHA-256. It returns the paths of both.
+function reviewedFile(call, id, { text = '{}\n', findings = [] } = {}) {
+  const [reviewer, name] = id === 'plan' ? ['plan-reviewer', 'build-plan.md']
+    : ['check-reviewer', id === 'checks' ? '.checks/acceptance-lock.json'
+      : `.demo/${id.slice('script:'.length).replace(/#.*/, '')}.json`];
+  const file = path.join(call.artifacts, name);
+  const reported = path.join(call.artifacts, '.reports', reviewer, `${sha(text)}.json`);
+  for (const one of [file, reported]) fs.mkdirSync(path.dirname(one), { recursive: true });
+  fs.writeFileSync(file, text);
+  if (id === 'checks') fs.writeFileSync(path.join(call.artifacts, 'acceptance-lock.json'), text);
+  fs.writeFileSync(reported, JSON.stringify({ reviewer, findings }));
+  return { file, reported, reviewer };
+}
+
+// begin starts the step id, and writes the passing review of a plan or of checks.
+function begin(call, w, id, inputs = w.inputs) {
+  const result = call('step', 'begin', id, 'implement-changes', ...inputs);
+  if (id === 'plan' || id === 'checks') reviewedFile(call, id);
+  return result;
+}
 
 // report writes a report of an agent to .reports of the session.
 function report(call, name, text) {
@@ -915,6 +934,155 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
     'head [0-9a-f]{12} does not follow it\\.$'));
 });
 
+// The steps whose file a reviewer reviews, with the arguments of a done step.
+const REVIEWED = [['plan', 'plan-reviewer', 'build-plan.md', []],
+  ['checks', 'check-reviewer', '.checks/acceptance-lock.json', []],
+  ['script:scenario-1#2', 'check-reviewer', '.demo/scenario-1.json', ['--script-sha256', H]]];
+const finding = (severity, proof) => ({ severity, quote: 'The plan.', problem: 'It breaks a rule.',
+  fix: 'It keeps the rule.', proof, point: 'The plan leaves out the export.' });
+
+test('ledger: step end done needs a passing report of the reviewer for the file', () => {
+  for (const [id, reviewer, name, flags] of REVIEWED) {
+    const w = work();
+    const call = resumed(w);
+    assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
+    const before = JSON.stringify(stored(w).ledger);
+    const start = `Start ${reviewer} on ${name}, then run step end ${id} done again.`;
+    const stopped = (...lines) => {
+      const result = call('step', 'end', id, 'done', ...flags);
+      assert.equal(result.status, 1, result.out);
+      assert.deepEqual(result.lines,
+        [...lines, `Checked the step ${id}: the ledger is unchanged.`]);
+      assert.equal(JSON.stringify(stored(w).ledger), before, id);
+    };
+    const gone = [start, `  ${name} of the artifact folder is missing or no regular file.`];
+    stopped(...gone);
+    const { file, reported } = reviewedFile(call, id);
+    const at = `.reports/${reviewer}/${path.basename(reported)}`;
+    const missing = [start, `  Reviewer ${reviewer} wrote no report.`,
+      `  The report of this file is ${at}.`];
+    // A link at the file, as a draft that an agent replaced.
+    const text = fs.readFileSync(file, 'utf8');
+    fs.renameSync(file, `${file}.real`);
+    fs.symlinkSync(`${file}.real`, file);
+    stopped(...gone);
+    fs.rmSync(file);
+    // An edit after the review, such as one sentence of a plan: the report is of another SHA-256.
+    fs.writeFileSync(file, `${text} `);
+    stopped(start, `  Reviewer ${reviewer} wrote no report.`,
+      `  The report of this file is .reports/${reviewer}/${sha(`${text} `)}.json.`);
+    fs.writeFileSync(file, text);
+    // No report, the report of another reviewer, and a report in another format.
+    const clean = fs.readFileSync(reported);
+    fs.rmSync(reported);
+    stopped(...missing);
+    fs.mkdirSync(path.join(call.artifacts, '.reports', 'spec-reviewer'));
+    fs.writeFileSync(path.join(call.artifacts, '.reports', 'spec-reviewer',
+      path.basename(reported)), clean);
+    stopped(...missing);
+    for (const [broken, problem] of [['clean', 'is not one JSON object: it is no JSON'],
+      [JSON.stringify({ reviewer: 'spec-reviewer', findings: [] }), null],
+      [JSON.stringify({ reviewer, findings: [], result: 'clean' }),
+        'does not match the report format: it has the member result'],
+      [JSON.stringify({ reviewer, findings: [finding('blocking', 'broken rule: rule 7.')] }),
+        'does not match the report format: finding 1 is blocking with a proof that is a ' +
+        'broken rule']]) {
+      fs.writeFileSync(reported, broken);
+      stopped(start, problem ? `  Reviewer ${reviewer} wrote a report that ${problem}.`
+        : `  Reviewer ${reviewer} wrote a report for the reviewer spec-reviewer.`, missing[2]);
+    }
+    // A blocking finding stops the step, and a report with other findings alone passes.
+    const low = finding('non-blocking', 'broken rule: rule 7.');
+    fs.writeFileSync(reported, JSON.stringify({ reviewer, findings: [low,
+      finding('blocking', 'failing input: "Export each order."')] }));
+    stopped(`Fix the blocking findings on ${name}, then start ${reviewer} again.`,
+      `  1 blocking finding in ${at}, such as: The plan leaves out the export.`);
+    fs.writeFileSync(reported, JSON.stringify({ reviewer, findings: [low] }));
+    const ended = call('step', 'end', id, 'done', ...flags);
+    assert.equal(ended.status, 0, ended.out);
+    assert.equal(stored(w).ledger.steps.at(-1).state, 'done');
+  }
+});
+
+test('ledger: step review prints the report file of the reviewer, and copies the checks', () => {
+  const w = work();
+  const call = resumed(w);
+  const pushed = pushes(w);
+  for (const [id, reviewer, name] of REVIEWED) {
+    const source = id === 'checks' ? 'acceptance-lock.json' : name;
+    const none = call('step', 'review', id);
+    assert.equal(none.status, 1, none.out);
+    assert.deepEqual(none.lines, [`Write ${source}, then run step review ${id} again.`,
+      `  ${source} of the artifact folder is missing or no regular file.`, 'Started no review.']);
+    const text = `{"id": "${id}"}\n`;
+    const file = path.join(call.artifacts, source);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    // A second call is the same, also after a link took the place of the folder of the copy.
+    for (const at of [1, 2]) {
+      const named = call('step', 'review', id);
+      assert.equal(named.status, 0, named.out);
+      assert.deepEqual(named.lines, [`Give ${reviewer} the report file .reports/${reviewer}/` +
+        `${sha(text)}.json of the artifact folder.`]);
+      assert.equal(fs.readFileSync(path.join(call.artifacts, name), 'utf8'), text);
+      if (id === 'checks' && at === 1) {
+        const away = fresh('away');
+        fs.writeFileSync(path.join(away, 'acceptance-lock.json'), 'kept');
+        fs.rmSync(path.join(call.artifacts, '.checks'), { recursive: true });
+        fs.symlinkSync(away, path.join(call.artifacts, '.checks'));
+      } else if (id === 'checks') {
+        assert.ok(!fs.lstatSync(path.join(call.artifacts, '.checks')).isSymbolicLink());
+      }
+    }
+  }
+  assert.equal(pushes(w), pushed);
+});
+
+test('ledger: the gate of checks reads the reviewed draft, not what freeze and lock write', () => {
+  const w = work();
+  const call = resumed(w);
+  assert.equal(begin(call, w, 'checks').status, 0);
+  const draft = { criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'a'.repeat(40),
+    checks: [{ criterion: 'ac-1', path: 'tests/a.test.ts', command: 'npm test', failed_with: 1 }],
+    support: [{ path: 'tests/orders.ts' }] };
+  reviewedFile(call, 'checks', { text: JSON.stringify(draft) });
+  const lock = path.join(call.artifacts, 'acceptance-lock.json');
+  const locked = { ...draft, commit: 'b'.repeat(40),
+    checks: draft.checks.map((one) => ({ ...one, sha256: H })),
+    support: draft.support.map((one) => ({ ...one, sha256: H })) };
+  // An edit of the lock file after the review, beyond what freeze and lock write, stops the step.
+  for (const edit of [{ ...locked, checks: [{ ...locked.checks[0], command: 'true' }] },
+    { ...locked, support: undefined }, { ...locked, criteria: { version: 2 } }, null]) {
+    fs.writeFileSync(lock, JSON.stringify(edit));
+    const result = call('step', 'end', 'checks', 'done');
+    assert.equal(result.status, 1, result.out);
+    assert.deepEqual(result.lines.slice(0, 2), ['Start check-reviewer on acceptance-lock.json ' +
+      'again, then lock it again.', '  acceptance-lock.json differs from ' +
+      '.checks/acceptance-lock.json, the draft that check-reviewer reviewed, in more than ' +
+      'commit and sha256.']);
+  }
+  fs.writeFileSync(lock, JSON.stringify(locked, null, 2));
+  const ended = call('step', 'end', 'checks', 'done');
+  assert.equal(ended.status, 0, ended.out);
+});
+
+test('ledger: a failed step and a step of another kind end with no review', () => {
+  const w = work();
+  const call = resumed(w);
+  for (const id of ['plan', 'checks', 'script:scenario-1#2']) {
+    assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
+    assert.equal(call('step', 'end', id, 'failed').status, 0, id);
+  }
+  for (const [id, ...flags] of [['deliverable:d-1'], ['fix:f1'], ['small-change'],
+    ['script:scenario-1', '--script-sha256', H]]) {
+    assert.equal(begin(call, w, id).status, 0, id);
+    const ended = call('step', 'end', id, 'done', ...flags);
+    assert.equal(ended.status, 0, ended.out);
+  }
+  assert.deepEqual(fs.readdirSync(path.join(call.artifacts, '.reports'))
+    .filter((name) => name.endsWith('-reviewer')), []);
+});
+
 // An unreadable list `Left out:` in the report fails step end done, with the cause of each
 // list on its own line; a list that leftOut reads, and a report with no such line, pass.
 const LINE = 'a line that is not an item in the list `Left out:`';
@@ -1141,7 +1309,12 @@ test('ledger: wrong arguments exit 2 with the usage, and show no undefined', () 
   const attempt = ['--attempt', 'a,b,balanced'];
   const pushed = ['--pushed', 'spec/main/1'];
   const cases = [
-    [['step'], /^Give step begin or step end\.\n  nothing is neither\./],
+    [['step'], /^Give step begin, step review or step end\.\n  nothing is none of them\./],
+    [['step', 'review'], /^Give the id of a step, such as plan,/],
+    [['step', 'review', 'plan', 'x'], /^Give step review the id of the step alone\./],
+    [['step', 'review', 'deliverable:d-1'],
+      /^Give step review the id of a step with a reviewer\.\n  "deliverable:d-1" has none\./],
+    [['step', 'review', 'script:scenario-1'], /^Give step review the id of a step with a reviewer\./],
     [['step', 'begin'], /^Give the id of a step, such as plan, checks, deliverable:d-1 or fix:f1\.\n  nothing is none\./],
     [['step', 'begin', 'deliverable:d-0', 'implement-changes', 'x'], /^Give the id of a step.*\.\n  "deliverable:d-0" is none\./],
     [['step', 'begin', 'plan'], /^Give the workflow of the session in lower case\.\n  nothing is none\./],

@@ -76,7 +76,7 @@ test('each new agent has its guardrails, stop conditions and expected output, an
   }
   // A reviewer reads only; the planner writes only the draft, with the exception lines that
   // rule 2 of scripts/check.sh asks for.
-  assert.match(agent('plan-reviewer'), /\ntools: Read, Grep, Glob, Skill\n/);
+  assert.match(agent('plan-reviewer'), /\ntools: Read, Grep, Glob, Skill, Write\n/);
   const planner = agent('build-planner');
   assert.match(planner, /\ntools: Read, Grep, Glob, Skill, Write, Edit\n/);
   assert.match(planner, /\nTool exception: Write, because /);
@@ -498,6 +498,10 @@ test('a session on a test work item stores build-plan and ends passed', () => {
   assert.match(checked.err, /; 7 deliverables; 0 findings\.\n$/);
   assert.equal(call('report', 'plan-reviewer',
     report(w, 'plan-reviewer-1', 'What you read:\n- build-plan.md\n\nclean\n')).status, 0);
+  const named = call('step', 'review', 'plan');
+  const reviewed = path.join(w.artifacts, /the report file (\S+) of/.exec(named.lines[0])[1]);
+  fs.mkdirSync(path.dirname(reviewed));
+  fs.writeFileSync(reviewed, JSON.stringify({ reviewer: 'plan-reviewer', findings: [] }));
   const pushed = qory(w, call, 'artifact', 'push', 'build-plan', file);
   assert.equal(pushed.status, 0, pushed.err);
   assert.equal(pushed.out, 'Pushed build-plan version 1.\n');

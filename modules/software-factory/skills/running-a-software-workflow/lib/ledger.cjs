@@ -1,7 +1,8 @@
 // The rules of the build ledger, which workflow-checks.cjs adds to the registry as ledger: the
 // frame of the verbs step and resume is in verbs/ledger.cjs of running-a-workflow, and this file
 // adds the type build-ledger, its ids, the members base, commit and script_sha256, the checks
-// of edits made outside a step, and the point of the full ledger.
+// of edits made outside a step, the check that a step's reviewer passed its file, and the point
+// of the full ledger.
 //
 // base, the commit a step started on, holds within one session only, because commits outside
 // a step happen between sessions, and a cancelled run can leave its commits on no branch. A
@@ -17,11 +18,12 @@
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { isDeepStrictEqual } = require('node:util');
 
 const { SCHEMAS } = require('./template.cjs');
 
 module.exports = (lib) => {
-  const { Missing, quote, schema } = lib;
+  const { Missing, quote, reviewerFindings, schema, sha256 } = lib;
 
   const TYPE = 'build-ledger';
   const LOADED = schema.load(SCHEMAS, TYPE);
@@ -44,6 +46,11 @@ module.exports = (lib) => {
   const MORE = (m) => `and ${m} more, listed in the acceptance criteria of this work item.`;
   // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.cjs.
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg)(?![\w-])/;
+
+  // The draft of the checks as check-reviewer reviews it: the copy that step review makes of
+  // LOCK, the file at the top of the artifact folder that freeze and lock then change.
+  const LOCK = 'acceptance-lock.json';
+  const CHECKS = `.checks/${LOCK}`;
 
   const brief = (commit) => commit.slice(0, 12);
   const starts = require('./start.cjs')(lib);
@@ -157,10 +164,97 @@ module.exports = (lib) => {
       `${brief(top)} has a change that no step of this session made.`], members: {} };
   }
 
-  // finish returns the commit of a done row, or the findings of edits made outside the step and
-  // of a list `Left out:` in the report that leftOut cannot read. A failed row gets no commit
-  // and no finding.
-  function finish(io, { ledger, place, state, report }) {
+  // reviewed returns { reviewer, file } of the step id, whose file a reviewer reviews, with the
+  // path of the file from the artifact folder, or null for any other step.
+  function reviewed(id) {
+    if (id === 'plan') return { reviewer: 'plan-reviewer', file: 'build-plan.md' };
+    if (id === 'checks') return { reviewer: 'check-reviewer', file: CHECKS };
+    // shortcut: the first script of a scenario has no reviewer, so it ends with no report;
+    // replace when check-reviewer reviews a first script.
+    const script = /^script:(scenario-\d+)#/.exec(id);
+    return script ? { reviewer: 'check-reviewer', file: `.demo/${script[1]}.json` } : null;
+  }
+
+  // bytesOf returns the bytes of file, or null when it is no regular file that can be read.
+  function bytesOf(file) {
+    try {
+      return fs.lstatSync(file).isFile() ? fs.readFileSync(file) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // reportOf returns the path, from the artifact folder, of the report of reviewer on bytes.
+  const reportOf = (reviewer, bytes) => `.reports/${reviewer}/${sha256(bytes)}.json`;
+
+  // review is step review: the line with the report file of the reviewer for the file of the
+  // step id. For checks, it first copies the draft, LOCK, to the file that the reviewer reviews.
+  function review(io, { id, root }) {
+    const { reviewer, file } = reviewed(id);
+    const source = id === 'checks' ? LOCK : file;
+    const bytes = bytesOf(path.join(root, source));
+    if (bytes === null) {
+      return { findings: [`Write ${source}, then run step review ${id} again.\n${source} of ` +
+        'the artifact folder is missing or no regular file.'], last: 'Started no review.' };
+    }
+    if (file !== source) {
+      const copy = path.join(root, file);
+      // A link at the folder of the copy is removed with it, so no write follows it.
+      fs.rmSync(path.dirname(copy), { recursive: true, force: true });
+      fs.mkdirSync(path.dirname(copy));
+      fs.writeFileSync(copy, bytes, { flag: 'wx' });
+    }
+    return { findings: [], last: `Give ${reviewer} the report file ${reportOf(reviewer, bytes)} ` +
+      'of the artifact folder.' };
+  }
+
+  // draftOf returns the draft of the checks in the text of a lock, with no commit and no
+  // sha256, the members that freeze and lock write, or null when text is no JSON.
+  function draftOf(text) {
+    try {
+      return JSON.parse(text, (key, value) => (key === 'commit' || key === 'sha256' ? undefined
+        : value));
+    } catch {
+      return null;
+    }
+  }
+
+  // unpassed returns the finding of the file of row with no report of its reviewer for the SHA-256
+  // of the file, an invalid report or a blocking finding, or null. root is the artifact folder.
+  // shortcut: the main session can write the report with a script, and an edit of a check file
+  // after the review passes; replace when qory runs these reviewers as review sessions.
+  function unpassed(row, root) {
+    const found = reviewed(row.id);
+    if (!found) return null;
+    const { reviewer, file } = found;
+    const start = `Start ${reviewer} on ${file}, then run step end ${row.id} done again.`;
+    const bytes = bytesOf(path.join(root, file));
+    if (bytes === null) {
+      return `${start}\n${file} of the artifact folder is missing or no regular file.`;
+    }
+    const report = reportOf(reviewer, bytes);
+    const blocking = reviewerFindings(path.join(root, report), reviewer)
+      .filter((one) => one.severity === 'blocking');
+    // A finding with no proof is the reader's: the report is missing or invalid.
+    if (blocking.length && blocking[0].proof === null) {
+      return `${start}\n${blocking[0].point}\nThe report of this file is ${report}.`;
+    }
+    if (blocking.length) {
+      return `Fix the blocking findings on ${file}, then start ${reviewer} again.\n` +
+        `${lib.plural(blocking.length, 'blocking finding')} in ${report}, such as: ` +
+        blocking[0].point;
+    }
+    if (row.kind !== 'checks') return null;
+    const lock = draftOf(bytesOf(path.join(root, LOCK)));
+    if (lock !== null && isDeepStrictEqual(lock, draftOf(bytes))) return null;
+    return `Start ${reviewer} on ${LOCK} again, then lock it again.\n${LOCK} differs from ` +
+      `${CHECKS}, the draft that ${reviewer} reviewed, in more than commit and sha256.`;
+  }
+
+  // finish returns the commit of a done row, or the findings of edits made outside the step, of
+  // a list `Left out:` in the report that leftOut cannot read, and of a file that its reviewer
+  // did not pass. A failed row gets no commit and no finding.
+  function finish(io, { ledger, place, state, report, root }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
     const top = head(io);
@@ -180,6 +274,8 @@ module.exports = (lib) => {
         `\n${row.id} started on ${brief(row.base)}, and the head ${brief(top)} does not follow ` +
         'it.');
     }
+    const stopped = unpassed(row, root);
+    if (stopped) findings.push(stopped);
     return { findings, members: findings.length ? {} : { commit: top } };
   }
 
@@ -322,6 +418,8 @@ module.exports = (lib) => {
     replay: (io, row) => follows(io, row.commit, head(io)),
     // The model of an agent start, as lib/models.cjs reads it from the plugin folder.
     model: (io, agent) => lib.agentModel(io.plugin, agent, io.env),
+    reviewed: (id) => reviewed(id) !== null,
+    review,
     finish,
     point,
     // The build plan of the point: from the folder of --artifacts, or of qory.start_artifacts
