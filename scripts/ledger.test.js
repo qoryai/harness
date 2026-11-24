@@ -1086,7 +1086,7 @@ test('ledger: the report of the checks is named by the lock and its files, not b
   assert.equal(ended.status, 0, ended.out);
 });
 
-test('ledger: step end of a correction prints its report file before the script has a SHA-256', () => {
+test('ledger: step end of a correction prints its report file with no --script-sha256', () => {
   const w = work();
   const call = resumed(w);
   const id = 'script:scenario-1#2';
