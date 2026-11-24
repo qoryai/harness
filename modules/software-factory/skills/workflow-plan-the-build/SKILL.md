@@ -46,10 +46,14 @@ not load the rules it needs, so it pushed no build plan."
    line starts with "Plan at most", the plan has more deliverables than the check allows,
    which is 7 unless a member's answer allows more: do "More than 7 deliverables", and go
    no further in this list.
-6. Start ${qory:agents/plan-reviewer} with the input file's path, the artifact folder, the
-   run's number, the notes, the code explorer's report, unchanged, and the lines under
-   "Checks:" that "Check before each review" lists. Decide on each report as "Findings"
-   lists. After a start of the planner for a finding, run `check` again, as step 5 lists.
+6. Run `<skill folder>/checks.cjs step review plan`, as "The build ledger" lists, when the
+   draft is final for this review. Start ${qory:agents/plan-reviewer} with the input file's
+   path, the artifact folder, the run's number, the notes, the code explorer's report,
+   unchanged, the path of the report file, and the lines under "Checks:" that "Check before
+   each review" lists. Decide on each report as "Findings" lists. After each start of the
+   planner, whatever its reason, do steps 5 and 6 again: step 8 needs the review of the plan
+   as you push it. After the last review, start the planner no more, not for a sentence
+   either.
 7. Push the build plan only when it changed, as "Push only what changed" lists:
 
    ```

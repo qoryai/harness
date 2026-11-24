@@ -86,19 +86,29 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
      a change or a commit: run that command, then the same `step begin` again. Both
      commands keep the step's files: in a stash, and in the reflog of git.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
-3. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
+3. Before each start of the reviewer of `plan`, of `checks` or of a correction of a demo
+   script, such as `script:scenario-1#2`, run `checks.cjs step review <id>`. It prints the
+   report file for the step's file as it is, and the reviewer gets `<folder>/` and that path
+   as the report file. Any later edit of the file needs a new review: `step end <id> done`
+   exits with 1 without a valid report for the SHA-256 of the file and while the report has
+   a blocking finding. When `step review` exits with 1, end as "Failures" lists.
+4. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
    Add `--report <file>` with the agent's last report under `.reports`, one
    `--attempt <agent>,<role>,<tier>` per agent start, one
    `--pushed <type>/<name>/<version>` per version the step stored, and, for a step
    `script:`, `--script-sha256 <sha256>`. `step end` adds the model of each start: the
    `model:` of the agent file, else the `model` of the session's `settings.json`; on Codex,
    the `model` of `agents/<agent>.toml`, else of `config.toml`; else `unknown`. When
-   `step end done` exits with 1, the step made an edit that no commit of the step has, or
-   the report has a list `Left out:` that
+   `step end done` exits with 1, the step made an edit that no commit of the step has, the
+   step's file has no passing review, or the report has a list `Left out:` that
    `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
    with the writer of the report, then run `step end done` again once. If it exits 1 on
-   the list again, run `step end <id> failed --report <file>` with the cause. Else end as
-   "Failures" lists. `step end failed`
+   the list again, run `step end <id> failed --report <file>` with the cause. With a first
+   line that starts with "Start check-reviewer", "Start plan-reviewer" or "Fix the blocking
+   findings", do the steps of your workflow from the start of that reviewer again, or from
+   the start of the writer for a blocking finding, then run `step end done` again once. If
+   no start of that reviewer is left, or it exits 1 on the review again, run `step end <id>
+   failed`, and end as "Failures" lists. Else end as "Failures" lists. `step end failed`
    records the row and exits 0, also when it prints a line that it left the report out:
    go on to the next step.
 

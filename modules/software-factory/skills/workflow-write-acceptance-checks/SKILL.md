@@ -94,10 +94,14 @@ run no other command in the same call.
    commit>`. `<start commit>` is the `commit` of the entry of `qory.start_commits` in the
    input file whose `path` is the working folder. Run them again before each later review.
    The reviewer reads files only, so it judges the changes by these lists. The first command
-   lists each new file, not only its folder. Start ${qory:agents/check-reviewer} with the
-   input file's path, the artifact folder, the run's number, the notes, the writer's newest
-   report, unchanged, and the two outputs under "Changed paths:", unchanged. Give it no
-   "Checks:": the draft has no `sha256` until `lock` fills it, so you run no `check` on it.
+   lists each new file, not only its folder. Then run `<skill folder>/checks.cjs step review
+   checks`, as "The build ledger" lists, before each review: it copies the draft as it is to
+   `<folder>/.checks/acceptance-lock.json`, and step 9 compares the lock with that copy, but
+   for `commit` and each `sha256`. Start ${qory:agents/check-reviewer} with the input file's
+   path, the artifact folder, the run's number, the notes, the path of the report file, the
+   writer's newest report, unchanged, and the two outputs under "Changed paths:", unchanged.
+   Give it no "Checks:": the draft has no `sha256` until `lock` fills it, so you run no
+   `check` on it.
    Decide on each report as "Findings" lists. After a start of the writer for a finding, do
    step 5 again before the next review. A finding left that fails a push ends the run with
    no lock, as "Findings" lists.
@@ -111,7 +115,8 @@ run no other command in the same call.
    folder, as "Locked files" of `running-a-workflow` lists. Its last line has the number of
    the version that the push stored. When it exits with 1, do as "Locked files" lists: give
    the writer every line that does not start with "Ask a member", at most twice, then do
-   steps 5 to 8 again. A line such as "Add a check of ac-3 to acceptance-lock.json, then
+   steps 5 to 8 again. With no start of the reviewer left, start no writer, and end as
+   "Failures" lists. A line such as "Add a check of ac-3 to acceptance-lock.json, then
    lock again." is about a criterion planned as `Tests` with no check in the draft.
 9. Run `step end checks done`, as "The build ledger" lists, with the writer's last report,
    one `--attempt` per agent start, and `--pushed acceptance-lock/main/<N>`, with the

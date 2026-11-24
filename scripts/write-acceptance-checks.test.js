@@ -1006,7 +1006,7 @@ test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay o
     skill('checking-acceptance-checks'), read(ROOT, 'docs/modules.md')]) says(text, phrase);
 });
 
-test('check-reviewer gets the changed paths, stays read-only and marks each missing path', () => {
+test('check-reviewer gets the changed paths, writes one file and marks each missing path', () => {
   const order = oneLine(section(WORKFLOW, 'The order of the run'));
   says(order, 'Run these two commands in the working folder, each in a separate Bash call: ' +
     '`git status --porcelain --untracked-files=all`, and `git diff --name-only --no-renames ' +
@@ -1019,6 +1019,12 @@ test('check-reviewer gets the changed paths, stays read-only and marks each miss
   says(reviewer, '"Changed paths:", the output of `git status --porcelain ' +
     '--untracked-files=all` and of `git diff --name-only --no-renames <start commit>`');
   says(reviewer, 'You run neither command');
+  says(reviewer, 'You write one file: the report file, at the path that the run gives you');
+  says(reviewer, 'Write it as the section "The report file" of `reviewing-drafts` lists');
+  // The reviewer reviews the copy of the draft, which the lock is compared with.
+  says(order, '`<skill folder>/checks.cjs step review checks`');
+  says(order, 'step 9 compares the lock with that copy, but for `commit` and each `sha256`.');
+  says(order, 'With no start of the reviewer left, start no writer');
   const checking = oneLine(skill('checking-acceptance-checks'));
   says(checking, 'So is each path of "Changed paths:" that the writer\'s "Files:" does not ' +
     'list');

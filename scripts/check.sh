@@ -244,8 +244,8 @@ rule_sections() {
 	[ -z "$OUT" ]
 }
 
-# The line that lets a reviewer list Write: qory starts a reviewer of a change as the main agent
-# of its session, with no shell, and the reviewer writes its one report file.
+# The line that lets a reviewer list Write, for its one report file: a reviewer of a change,
+# which qory starts as the main agent of its session, or check-reviewer or plan-reviewer.
 REVIEWER_EXCEPTION='Tool exception: Write, because it writes the one report file of a review round.'
 
 # rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every
@@ -254,8 +254,8 @@ REVIEWER_EXCEPTION='Tool exception: Write, because it writes the one report file
 # agent lists Agent, NotebookEdit or MultiEdit, with or without such a line. A reviewer or
 # code-explorer or shape-planner lists only Read, Grep, Glob and Skill. A reviewer also lists
 # Write when its body has the line REVIEWER_EXCEPTION, exactly, and no other tool. The tool
-# guard limits that Write to the path of the report, and denies a Write by an agent whose
-# type ends in -reviewer.
+# guard limits that Write to the path of the report, and denies every other Write by an agent
+# whose type ends in -reviewer.
 rule_tools() {
 	OUT=
 	for file in "$1"/modules/*/agents/*.md; do

@@ -74,13 +74,40 @@ test('each new agent has its guardrails, stop conditions and expected output, an
     }
     assert.match(text, new RegExp(`\\nmodel: \\$\\{qory:${tier}\\}\\n`), `${name}: tier ${tier}`);
   }
-  // A reviewer reads only; the planner writes only the draft, with the exception lines that
-  // rule 2 of scripts/check.sh asks for.
+  // The reviewer writes only its report, the planner only the draft, with the exception lines
+  // that rule 2 of scripts/check.sh asks for.
   assert.match(agent('plan-reviewer'), /\ntools: Read, Grep, Glob, Skill, Write\n/);
   const planner = agent('build-planner');
   assert.match(planner, /\ntools: Read, Grep, Glob, Skill, Write, Edit\n/);
   assert.match(planner, /\nTool exception: Write, because /);
   assert.match(planner, /\nTool exception: Edit, because /);
+});
+
+test('each change of the plan is reviewed again, also after the last review', () => {
+  const order = section(skill('workflow-plan-the-build'), 'The order of the run')
+    .replace(/\s+/g, ' ');
+  assert.ok(order.includes('6. Run `<skill folder>/checks.cjs step review plan`'));
+  assert.ok(order.includes('After each start of the planner, whatever its reason, do steps 5 ' +
+    'and 6 again'));
+  assert.ok(order.includes('After the last review, start the planner no more, not for a ' +
+    'sentence either.'));
+  // The rules of every workflow make the same exception for a file that a report is needed for.
+  const core = read(CORE, 'skills/running-a-workflow/SKILL.md').replace(/\s+/g, ' ');
+  assert.ok(core.includes('On a file that needs the report file of its reviewer, as a skill of ' +
+    'your workflow lists, start no such writer either'));
+  assert.ok(core.includes('When a step needs the report file of its reviewer, review the file ' +
+    'again after each such start.'));
+});
+
+test('the example of a report file passes the reader of findings round', () => {
+  const text = read(CORE, 'skills/reviewing-drafts/SKILL.md');
+  const report = JSON.parse(fenced(section(text, 'The report file')));
+  const { reportProblem } = require(
+    path.join(CORE, 'skills/running-a-workflow/verbs/findings.cjs'));
+  assert.equal(reportProblem(report, 'plan-reviewer'), null);
+  for (const proof of ['failing check: ', 'failing input: ', 'broken rule: ']) {
+    assert.ok(text.includes(`\`${proof}\``), proof);
+  }
 });
 
 test('the stack declares plan-the-build with the tier thinking, the access write and its ' +
