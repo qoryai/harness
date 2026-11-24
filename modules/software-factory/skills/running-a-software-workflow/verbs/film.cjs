@@ -232,17 +232,17 @@ module.exports = (lib) => {
       throw new Missing(`Push the demo script of ${id}, then run film ${id} again.\nThe artifact ` +
         `folder has no demo script named ${id} that counts.`);
     }
-    const ffmpeg = script.evidence === 'film'
-      ? findBrowser(io.env, (io.preflight || {}).ffmpegs || FFMPEG) : null;
-    if (script.evidence === 'film' && !ffmpeg) {
-      throw new Missing('Add ffmpeg to the dev container, then run film again.\nNo ffmpeg exists ' +
-        `on this machine, and ${id} has the evidence film.`);
-    }
     const arrow = script.evidence === 'film'
       ? script.steps.findIndex((one) => one.title.includes('-->')) : -1;
     if (arrow >= 0) {
       throw new Missing(`Change the Action of step ${arrow + 1} in the demo scenario so it has ` +
         `no "-->", then film it again.\nA cue of ${id}.vtt cannot hold "-->", which ends the cue in a player.`);
+    }
+    const ffmpeg = script.evidence === 'film'
+      ? findBrowser(io.env, (io.preflight || {}).ffmpegs || FFMPEG) : null;
+    if (script.evidence === 'film' && !ffmpeg) {
+      throw new Missing('Add ffmpeg to the dev container, then run film again.\nNo ffmpeg exists ' +
+        `on this machine, and ${id} has the evidence film.`);
     }
     browserOf(io);
     const dir = freshFolder(root, id);
