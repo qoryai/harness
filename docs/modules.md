@@ -1796,13 +1796,17 @@ tool's error. The first line of each reason starts with what to do. The guard de
   report. The exception is a step's report: outside a session of `qory.review`,
   `qory.review_session` or `qory.hook_session`, the agents `check-reviewer` and
   `plan-reviewer` (`harness:<name>` on Claude Code, a role of the composed home on Codex)
-  write `.reports/<name>/<sha256>.json` of the artifact folder and no other file, with a
-  `Write` or an `apply_patch` that adds it, through no link and no `..`. No other call
-  writes that file. Any other write gets "Write only .reports/<agent name>/<sha256>.json in
-  the artifact folder, with Write." or the deny of `.reports/`. The guards of Gemini CLI,
-  Cursor and Copilot CLI know no agent, so they deny that report too, and a step that needs
-  it does not end `done` there. The same holds on Claude Code while the settings of `core`
-  deny `Edit` of `.reports/**/*.json`, because a deny rule covers every agent.
+  write `.step-reports/<name>/<sha256>.json` of the artifact folder and no other file, with
+  a `Write` or an `apply_patch` that adds it, through no link and no `..`. Any other write
+  of one of them gets "Write only .step-reports/<agent name>/<sha256>.json in the artifact
+  folder, with Write." Every other agent and the main session get "Leave .step-reports/ to
+  check-reviewer and plan-reviewer." for a write whose path, after links and `..`, has a
+  folder `.step-reports` in any letter case. So does a shell command of any agent or of the
+  main session that writes there, or that has that folder in its text or in a word, other
+  than read-only commands and `checks.cjs` alone. The guard reads a shell command as it
+  does for `.reports/`, so a script that a later call runs still reaches the folder. On
+  Gemini CLI, Cursor and Copilot CLI no guard protects `.step-reports`, so any agent can
+  write a report there.
   Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
   the guard. An agent of any other type in a session that is no reviewer's writes as it does
@@ -2153,11 +2157,13 @@ writes sets the count back to 0. The main session, whose input has no `agent_id`
 Claude Code, a read-only agent are exempt: their stop is the time limit and the end check. A
 read-only agent is one whose file `modules/<module>/agents/<name>.md` under
 `$QORY_HARNESS_HOME` has a `tools` key that lists tools, none of them `Write`, `Edit`,
-`MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. The key lists them on its line or as a
-YAML list. `agent_type` must be `harness:<name>`: a bare name can also be an agent of the
-project, so it counts. An agent with no such file, such as a built-in agent or an agent of
-another plugin, counts, and so does an agent with an empty `tools` list. On Codex, every
-agent counts, because every role can run `apply_patch`, whatever its file lists.
+`MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. `check-reviewer` and `plan-reviewer`,
+which write only the report of a step, are read-only agents with `Write` too. The key lists
+them on its line or as a YAML list. `agent_type` must be `harness:<name>`: a bare name can
+also be an agent of the project, so it counts. An agent with no such file, such as a
+built-in agent or an agent of another plugin, counts, and so does an agent with an empty
+`tools` list. On Codex, every agent counts, because every role can run `apply_patch`,
+whatever its file lists.
 
 When `$QORY_HARNESS_HOME` lies below the working folder, as `.qory/harness/` does, the
 guard denies each write below it, with the reason "Leave the composed harness as it is: the
@@ -2798,30 +2804,33 @@ the commits of its checkout may be a person's.
 
 A step whose file a reviewer reviews ends `done` only with a passing report of that
 reviewer. For the plan it is `plan-reviewer` on `build-plan.md`; for `checks` it is
-`check-reviewer` on `.checks/acceptance-lock.json`; and for a correction of a demo script,
+`check-reviewer` on `acceptance-lock.json`; and for a correction of a demo script,
 `script:<scenario>#2` or `#3`, it is `check-reviewer` on `.demo/<scenario>.json`, each in
-the artifact folder. The report is `.reports/<reviewer>/<sha256>.json`, with the SHA-256 of
-that file, in the review report format (`review-report.schema.json` of qory), which
-`step end` reads with the reader of `findings round`. With no such file, with no report or
-an invalid one, the first line is "Start <reviewer> on <file>, then run step end <id> done
-again." With a blocking finding, it is "Fix the blocking findings on <file>, then start
-<reviewer> again." The verb then exits 1 and the ledger is unchanged. So any edit after the
-review needs a new review. The first script of a scenario has no reviewer, and every other
-kind of step ends with no report. For `checks`, `freeze` and `lock` change
-`acceptance-lock.json` after the review, so the gate reads the copy of the draft that
-`step review` made. It also compares the two files without `commit` and each `sha256`; when
-they differ, the first line is "Start check-reviewer on acceptance-lock.json again, then
-lock it again." The limits: the main session can write the report with a script, and an
-edit of a check file itself after the review passes.
+the artifact folder. The report is `.step-reports/<reviewer>/<sha256>.json`, in the review
+report format (`review-report.schema.json` of qory), which `step end` reads with the reader
+of `findings round`. `<sha256>` is the SHA-256 of that file. For `checks` it is the SHA-256
+of the content of the lock with no `commit`, with the `sha256` of each listed file from the
+working folder, and with the members of each object in the order of their names. So it is
+the same before and after `freeze` and `lock`, and an edit of the draft or of a check file
+after the review changes it. A listed file with no hash, such as a missing file or a link,
+is a finding of `step end`; a lock that is no JSON makes it exit 3.
 
-`checks.cjs step review <id>` runs before each start of that reviewer. It prints "Give
-<reviewer> the report file <path> of the artifact folder.", with the path for the file as
-it is, and for `checks` it first copies `acceptance-lock.json` to `.checks/`. With no file,
-it exits 1 with "Write <file>, then run step review <id> again." It exits 2 for a step with
-no reviewer, and changes no ledger. The reviewer maps its findings as "The report file" of
-`reviewing-drafts` lists: a finding marked `break`, or one that quotes a line of "Checks:",
-is `blocking`, and any other is `non-blocking`. It still returns its text report, from whose
-marks the session decides.
+With no such file, with no report or with an invalid one, the first line of the finding is
+"Start <reviewer> on <file>, then run step end <id> done again." With no report or an
+invalid one, its last line is "The report of this file is <path>.", with the path of the
+report from the artifact folder: the session runs `step end <id> done` with no flag before
+a review of a changed file, and gives the reviewer that path. For a correction of a demo
+script with no `--script-sha256`, that call exits 1 with the finding "Give --script-sha256
+to end a script step as done." too. With a blocking finding, the first line is "Fix the
+blocking findings on <file>, then start <reviewer> again." The verb then exits 1 and the
+ledger is unchanged. So any edit after the review needs a new review. Only a correction of
+a demo script has a reviewer, so the first script of a scenario and every other kind of
+step end with no report. The limits: the main session can write the report with a script,
+and on Gemini CLI, Cursor and Copilot CLI any agent can write it.
+
+The reviewer maps its findings as "The report file" of `reviewing-drafts` lists: a finding
+marked `break`, or one that quotes a line of "Checks:", is `blocking`, and any other is
+`non-blocking`. It still returns its text report, from whose marks the session decides.
 
 `step end done` also checks for edits made outside a step. It records nothing, and exits 1,
 when a file of the checkout differs from the head, and when the head does not follow the
