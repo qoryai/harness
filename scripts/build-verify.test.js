@@ -911,11 +911,11 @@ test('pull-request: no secret in the title or the text', () => {
     doc.text = doc.text.replace('## Change\n...', `## Change\n${secret}`);
     for (const run of [push, check]) {
       fails(run(fixture(), 'pull-request', [PR_FILE, doc]),
-        /^Remove the secret from \/text of pull-request.json: it has the form of /);
+        /^Remove the secret from \/text of pull-request\.json(?:: it has the form of |\.$)/);
     }
   }
-  // A token one character shorter than its form is no secret.
-  for (const short of [`github_pat_${'a'.repeat(21)}`, `glpat-${'a'.repeat(19)}`]) {
+  // A token one character shorter than its key shape is no secret.
+  for (const short of [`github_pat_${'a'.repeat(15)}`, `glpat-${'a'.repeat(19)}`]) {
     const doc = clone(PULL_REQUEST);
     doc.text = doc.text.replace('## Change\n...', `## Change\n${short}`);
     passes(push(fixture(), 'pull-request', [PR_FILE, doc]), 'pull-request');

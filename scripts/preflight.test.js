@@ -27,6 +27,7 @@ const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-wor
 const { main } = require(path.join(PLUGIN, 'skills/running-a-workflow/checks.cjs'));
 const { LIBRARY } = require(path.join(PLUGIN, 'skills/running-a-workflow/lib/registry.cjs'));
 const { preflight } = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY);
+const runLists = require(path.join(SKILL, 'lib/run-lists.cjs'));
 const { BROWSER_START_MS, findBrowser, keyOf } = require(path.join(SKILL, 'lib/browser.cjs'));
 const replay = require(path.join(SKILL, 'lib/replay.cjs'));
 
@@ -790,9 +791,14 @@ test('preflight: the serve command gets no key of the run and no typed value in 
     { setups: [{ actions: SIGN_IN, names: ['DEMO_PASSWORD'] }] });
   spec.serve.command = `node -e 'require("fs").writeFileSync(${JSON.stringify(names)}, ` +
     `JSON.stringify(Object.keys(process.env)))'; ${spec.serve.command}`;
+  // The names of a secret, such as those of a cloud vendor, and a name of the credential list
+  // of the run, ACME_*, do not reach the app either.
+  spec.credentials = [...runLists.FLOOR, 'ACME_*'];
   const keys = { GITHUB_TOKEN: 'ghp_fake-value-0001', GH_TOKEN: 'fake-value-0002',
     QORY_RUN_KEY: 'fake-value-0003', ANTHROPIC_API_KEY: 'fake-value-0004',
-    GITLAB_TOKEN: 'fake-value-0005' };
+    GITLAB_TOKEN: 'fake-value-0005', AWS_SECRET_ACCESS_KEY: 'fake-value-0006',
+    AWS_SESSION_TOKEN: 'fake-value-0007', GOOGLE_APPLICATION_CREDENTIALS: '/tmp/fake-0008.json',
+    APP_SECRET: 'fake-value-0009', ACME_HOST: 'fake-value-0010' };
   const ran = await runner(spec, { env: { ...keys, DEMO_PASSWORD: 'parcel-blue-41',
     APP_NOTE: 'plain' } });
   assert.equal(ran.status, 0);
@@ -1269,6 +1275,32 @@ test('preflight: halt stops a child of the browser that keeps stderr open, and t
     const parent = fs.existsSync(browser.pid) ? Number(fs.readFileSync(browser.pid, 'utf8')) : 0;
     if (parent > 1 && alive(parent)) process.kill(parent, 'SIGKILL');
   }
+});
+
+test('preflight: a demo script that types a name of the credential list exits 3, and a bad entry too', () => {
+  const home = (list) => {
+    const dir = fs.mkdtempSync(path.join(tmp, 'home-'));
+    fs.writeFileSync(path.join(dir, 'inputs.json'),
+      JSON.stringify({ qory: { credential_variables: list } }));
+    return dir;
+  };
+  const here = checkout();
+  const setup = [...SIGN_IN.slice(0, 2), { do: 'type', target: '#password', variable: 'ACME_HOST' }];
+  const parts = { serve: { command: 'node app/server.cjs', url: 'http://127.0.0.1:9/',
+    cwd: here.dir }, scripts: [script('scenario-1', setup)] };
+  assert.throws(() => run(here, parts, { browsers: [process.execPath],
+    env: { QORY_HARNESS_HOME: home(['ACME_*']) } }), (error) => {
+    assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
+    assert.match(error.more[0], /^A setup types ACME_HOST, /);
+    return true;
+  });
+  assert.throws(() => run(here, parts, { browsers: [process.execPath],
+    env: { QORY_HARNESS_HOME: home(['ACME_*', '*']) } }), (error) => {
+    assert.equal(error.message, 'Fix qory.credential_variables in inputs.json: "*" is no ' +
+      'variable name or prefix.');
+    return true;
+  });
+  assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
 });
 
 test('preflight: a demo script that types a key of qory, of an agent or of a code forge exits 3 before the app starts', async () => {

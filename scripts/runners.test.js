@@ -1284,6 +1284,264 @@ test('secrets: a value that starts with / is a key unless it is a path, and a ke
   assert.deepEqual(secrets.secretValues({ KEY_FILE: file }), []);
 });
 
+// ---- key shapes and credential names --------------------------------------------------------
+
+const { LIBRARY: CORE } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.cjs'));
+const keyShapes = require(path.join(SKILL, 'lib/key-shapes.cjs'));
+const runLists = require(path.join(SKILL, 'lib/run-lists.cjs'));
+const submission = require(path.join(SKILL, 'lib/submission-text.cjs'))(CORE);
+const workflow = require(path.join(SKILL, 'workflow-checks.cjs'))(CORE);
+const DEFAULT_SHAPES = JSON.parse(fs.readFileSync(keyShapes.DEFAULT_FILE, 'utf8')).shapes;
+
+// harnessHome makes a new harness home with an inputs.json of qory and the JSON files of files,
+// and returns it. Each call makes a new folder, so that no read of an earlier file is reused.
+let homes = 0;
+function harnessHome(qory, files = {}) {
+  const dir = path.join(tmp, `home-${++homes}`);
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, 'inputs.json'), JSON.stringify({ qory }));
+  for (const [name, data] of Object.entries(files)) {
+    fs.writeFileSync(path.join(dir, name), typeof data === 'string' ? data : JSON.stringify(data));
+  }
+  return dir;
+}
+
+// token returns count characters of the bytes of alphabet, in turn.
+const token = (alphabet, count) => {
+  const codes = keyShapes.alphabetOf(alphabet);
+  return Array.from({ length: count }, (_, at) => String.fromCharCode(codes[at % codes.length]))
+    .join('');
+};
+const sample = (shape, count) => `${shape.prefix}${shape.blank ? ' ' : ''}` +
+  `${token(shape.alphabet, count)}`;
+
+// A shape that only the file of the deployment has, and one with the longest name.
+const ACME = { name: 'Acme deploy key', prefix: 'acme_', alphabet: 'a-f0-9', min: 12, max: 64 };
+const LONG = { name: `Long ${'n'.repeat(43)}`, prefix: 'lng_', alphabet: 'a-z', min: 8, max: 64 };
+
+test('credential names: the floor matches a prefix and an exact name, and a list adds to it', () => {
+  // The floor: GEMINI_* is a prefix, GL_TOKEN an exact name.
+  assert.deepEqual(['GEMINI_X', 'GL_TOKEN', 'MY_GL_TOKEN', 'GL_TOKEN_FILE'].map((name) =>
+    secrets.runKey(name)), [true, true, false, false]);
+  // A list of the deployment adds ACME_*, and the floor stays without QORY_* in the list.
+  const env = { QORY_HARNESS_HOME: harnessHome({ credential_variables: ['ACME_*', 'DEPLOY_NAME'] }) };
+  const { names } = runLists.credentialNames(env);
+  assert.deepEqual(['ACME_KEY', 'DEPLOY_NAME', 'QORY_RUN_KEY', 'ACME'].map((name) =>
+    secrets.runKey(name, names)), [true, true, true, false]);
+  assert.equal(secrets.runKey('ACME_KEY'), false);
+  // A module adds its names in credential-variables.json of its folder.
+  const modules = path.join(tmp, `modules-${++homes}`, 'modules');
+  for (const name of ['core', 'vendor']) fs.mkdirSync(path.join(modules, name), { recursive: true });
+  fs.writeFileSync(path.join(modules, 'vendor', 'credential-variables.json'),
+    JSON.stringify({ credential_variables: ['VENDOR_*'] }));
+  const folders = workflow.preflight.moduleFolders({ plugin: path.join(modules, 'core') });
+  assert.deepEqual(folders.map((one) => path.basename(one)), ['core', 'core', 'vendor']);
+  assert.equal(secrets.runKey('VENDOR_SECRET', runLists.credentialNames({}, folders).names), true);
+  fs.writeFileSync(path.join(modules, 'vendor', 'credential-variables.json'),
+    JSON.stringify({ credential_variables: ['*'] }));
+  assert.deepEqual(runLists.credentialNames({}, folders),
+    { problem: 'Fix vendor/credential-variables.json: "*" is no variable name or prefix.' });
+});
+
+test('credential names: an entry that is no name or prefix, such as *, is a problem', () => {
+  for (const [entry, shown] of [['*', '"*"'], ['ACME-*', '"ACME-*"'], ['1_KEY', '"1_KEY"'],
+    ['A*B', '"A*B"'], [42, '42']]) {
+    const env = { QORY_HARNESS_HOME: harnessHome({ credential_variables: ['ACME_*', entry] }) };
+    assert.deepEqual(runLists.credentialNames(env), { problem: 'Fix qory.credential_variables in ' +
+      `inputs.json: ${shown} is no variable name or prefix.` });
+  }
+});
+
+test('key shapes: each default shape finds a token of min characters and none of min - 1', () => {
+  assert.equal(keyShapes.DEFAULT.length, DEFAULT_SHAPES.length);
+  DEFAULT_SHAPES.forEach((shape, at) => {
+    const { pattern, kind } = keyShapes.DEFAULT[at];
+    assert.equal(kind, `the ${shape.name}`);
+    assert.ok(pattern.test(sample(shape, shape.min)), shape.name);
+    assert.ok(!pattern.test(sample(shape, shape.min - 1)), shape.name);
+  });
+  // The default list and the schema pass the checks of a file of the deployment.
+  assert.equal(keyShapes.faultOf({ shapes: DEFAULT_SHAPES }), null);
+});
+
+test('key shapes: any_case folds the prefix only, and the alphabet is literal bytes', () => {
+  assert.equal(secrets.scanLine(`Authorization: bEaReR ${'a'.repeat(16)}`, []),
+    'the HTTP bearer token');
+  const caps = keyShapes.compile({ name: 'Caps', prefix: 'cap_', any_case: true, alphabet: 'A-Z',
+    min: 4, max: 8 }).pattern;
+  assert.deepEqual(['CAP_ABCD', 'cAp_ABCD', 'cap_abcd'].map((line) => caps.test(line)),
+    [true, true, false]);
+  // ] and \ are characters of the alphabet, and . of the prefix is a dot.
+  const odd = keyShapes.compile({ name: 'Odd', prefix: 'a.b', alphabet: ']\\', min: 3, max: 8 });
+  assert.deepEqual(['a.b]\\]', 'a.b\\\\\\', 'axb]]]', 'a.b]a]', 'a.b-]\\'].map((line) =>
+    odd.pattern.test(line)), [true, true, false, false, false]);
+  assert.deepEqual(keyShapes.alphabetOf('a-c_-'), [45, 95, 97, 98, 99]);
+  assert.equal(keyShapes.alphabetOf('z-a'), null);
+});
+
+test('key shapes: the scan finds a shape of the file and every default shape', () => {
+  const home = harnessHome({ key_shapes: 'key-shapes.json' },
+    { 'key-shapes.json': { shapes: [ACME, DEFAULT_SHAPES[0]] } });
+  const values = secrets.secretValues({ QORY_HARNESS_HOME: home });
+  // The copy of a default shape counts once.
+  assert.equal(values.shapes.length, keyShapes.DEFAULT.length + 1);
+  assert.equal(secrets.scanLine(`id acme_${'0a'.repeat(6)}`, values), 'the Acme deploy key');
+  assert.equal(secrets.scanLine(`id ${TOKEN}`, values), 'the GitHub personal access token');
+  assert.equal(secrets.scanLine(`id acme_${'0a'.repeat(6)}`, []), null);
+});
+
+test('key shapes: today\'s shapes of the scan and of the pull request text are all found', () => {
+  const kinds = [
+    // lib/secrets.cjs before the key shapes became data.
+    `sk-ant-${token('A-Za-z0-9_-', 16)}`, ...['p', 'o', 'u', 's', 'r'].map((one) =>
+      `gh${one}_${token('A-Za-z0-9', 36)}`), `github_pat_${token('A-Za-z0-9_-', 16)}`,
+    `AKIA${token('A-Z0-9', 16)}`, `ASIA${token('A-Z0-9', 16)}`,
+    `bearer\t${token('A-Za-z0-9._~+/=-', 16)}`, `BEARER  ${token('A-Za-z0-9._~+/=-', 16)}`,
+    '-----BEGIN RSA PRIVATE KEY-----', '-----BEGIN OPENSSH PRIVATE KEY-----',
+    // lib/submission-text.cjs before it read the key shapes.
+    '-----BEGIN PRIVATE KEY-----', `github_pat_${token('A-Za-z0-9_', 22)}`,
+    `glpat-${token('A-Za-z0-9_-', 20)}`, ...['a', 'b', 'p', 'r', 's'].map((one) =>
+      `xox${one}-${token('A-Za-z0-9-', 10)}`), `sk-${token('A-Za-z0-9_-', 20)}`,
+  ];
+  for (const line of kinds) {
+    assert.ok(secrets.scanLine(line, []), line);
+    assert.ok(secrets.keyKind(line, {}), line);
+  }
+});
+
+test('key shapes: word_start finds the generic sk- key only where a word starts', () => {
+  assert.equal(secrets.scanLine('const step = "task-runner-configuration";', []), null);
+  assert.equal(secrets.scanLine('step task-runner-configuration-for-the-build', []), null);
+  assert.equal(secrets.scanLine(`x sk-${'a'.repeat(20)}`, []), 'the generic sk- key');
+  assert.equal(secrets.scanLine(`sk-${'a'.repeat(20)}`, []), 'the generic sk- key');
+  assert.equal(secrets.scanLine(`_sk-${'a'.repeat(20)}`, []), null);
+  assert.deepEqual(DEFAULT_SHAPES.filter((shape) => shape.word_start).map((shape) => shape.prefix),
+    ['sk-']);
+});
+
+test('repository settings: a schema loads with $id as text, and not with $id of another form', () => {
+  const file = path.join(tmp, `schema-${++homes}.json`);
+  fs.writeFileSync(file, JSON.stringify({ $id: 'https://example.com/a.schema.json', type: 'object' }));
+  assert.equal(extensions.loadSchema(file).schema.$id, 'https://example.com/a.schema.json');
+  fs.writeFileSync(file, JSON.stringify({ $id: 1, type: 'object' }));
+  assert.throws(() => extensions.loadSchema(file), /write \$id at # as text/);
+});
+
+test('key shapes: a qory.key_shapes whose file cannot be used is one end finding', () => {
+  const end = (home, extra = {}) => workflow.end({ cwd: tmp, root: harnessHome({}), failed: 0,
+    env: { QORY_HARNESS_HOME: home, ...extra } });
+  const fix = 'Start the run again with qory, which writes key-shapes.json: the scan for keys ' +
+    'cannot run.';
+  const cases = [
+    [harnessHome({ key_shapes: 'missing.json' }), '"missing.json", which is missing'],
+    [harnessHome({ key_shapes: 'k.json' }, { 'k.json': '{' }), '"k.json", which cannot be read'],
+    [harnessHome({ key_shapes: '../k.json' }), '"../k.json", which cannot be read'],
+    [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [{ name: 'X' }] } }),
+      '"k.json", which fails key-shapes.schema.json at #/shapes/0/prefix'],
+    [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [ACME, ACME] } }),
+      '"k.json", which fails key-shapes.schema.json at #/shapes/1/name'],
+    [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [{ ...ACME, alphabet: 'f-a' }] } }),
+      '"k.json", which fails key-shapes.schema.json at #/shapes/0/alphabet'],
+    [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [{ ...ACME, min: 70 }] } }),
+      '"k.json", which fails key-shapes.schema.json at #/shapes/0/max'],
+    [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [{ ...ACME, more: 1 }] } }),
+      '"k.json", which fails key-shapes.schema.json at #/shapes/0'],
+  ];
+  for (const [home, why] of cases) {
+    const found = end(home);
+    assert.equal(found.length, 1, why);
+    assert.equal(found[0].line, `${fix}\nqory.key_shapes in inputs.json is set to ${why}.`);
+    assert.equal(typeof found[0].point, 'string');
+  }
+  // A file that passes, and no field, are no finding, also in a run.
+  assert.deepEqual(end(harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [ACME] } })), []);
+  assert.deepEqual(end(harnessHome({}), { QORY_RUN_ID: 'run-1' }), []);
+  // A line that only shows a path uses the default shapes, and throws for no file.
+  assert.equal(secrets.shown(TOKEN, secrets.secretValues({ QORY_HARNESS_HOME: cases[0][0] })),
+    'a path with a key in its name');
+});
+
+test('key shapes: scope and freeze stop on a qory.key_shapes whose file cannot be used', () => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  const env = { QORY_HARNESS_HOME: harnessHome({ key_shapes: 'missing.json' }) };
+  const lines = ['Start the run again with qory, which writes key-shapes.json: the scan for keys ' +
+    'cannot run.', '  qory.key_shapes in inputs.json is set to "missing.json", which is missing.'];
+  const frozen = call(dir, ['freeze', 'deliverable:d-1', '--base', head], { env });
+  assert.equal(frozen.status, 3, frozen.out);
+  assert.deepEqual(frozen.lines.slice(0, 2), lines);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  const scoped = call(dir, ['scope', 'deliverable:d-1', '--base', head], { env });
+  assert.equal(scoped.status, 3, scoped.out);
+  assert.deepEqual(scoped.lines.slice(0, 2), lines);
+  // With the file, freeze commits.
+  const good = { QORY_HARNESS_HOME: harnessHome({ key_shapes: 'k.json' },
+    { 'k.json': { shapes: [ACME] } }) };
+  assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--base', head], { env: good }).status, 0);
+});
+
+test('key shapes: freeze finds a shape of the file, and a long name goes on its own line', () => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', `exports.add = (a, b) => a + b;\nexports.k = 'acme_${'0a'.repeat(6)}';\n`);
+  write(dir, 'lib/k.js', `exports.k = 'lng_${'q'.repeat(8)}';\n`);
+  sh(dir, 'add', 'lib/k.js');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m',
+    `agent lng_${'q'.repeat(8)}`);
+  const env = { QORY_HARNESS_HOME: harnessHome({ key_shapes: 'k.json' },
+    { 'k.json': { shapes: [ACME, LONG] } }) };
+  const got = call(dir, ['freeze', 'deliverable:d-1', '--base', head], { env });
+  assert.equal(got.status, 1, got.out);
+  const short = sh(dir, 'rev-parse', 'HEAD').slice(0, 12);
+  assert.deepEqual(got.lines, [
+    `Rewrite the message and headers of commit ${short} without a key.`,
+    `  The key has the form of the ${LONG.name}.`,
+    `Rewrite commit ${short} without a key in "lib/k.js", line 1.`,
+    `  The key has the form of the ${LONG.name}.`,
+    'Remove the Acme deploy key from "src/a.js", line 2, then freeze again.',
+    'Froze nothing: the scan for keys has 3 findings.',
+  ]);
+});
+
+test('key shapes: a run without qory.key_shapes prints the warning once and scans', () => {
+  const dir = checkout();
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  for (const name of ['b', 'c']) {
+    write(dir, `lib/${name}.js`, `exports.${name} = 1;\n`);
+    sh(dir, 'add', `lib/${name}.js`);
+    sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', name);
+  }
+  write(dir, 'src/a.js', `exports.add = (a, b) => a + b;\nexports.k = '${TOKEN}';\n`);
+  const warning = 'Warning: the scan uses only the default key shapes. inputs.json has no ' +
+    'qory.key_shapes, so shapes the deployment adds are not checked.';
+  const env = { QORY_HARNESS_HOME: harnessHome({}), QORY_RUN_ID: 'run-1' };
+  const got = call(dir, ['freeze', 'deliverable:d-1', '--base', head], { env });
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.err.split('\n').filter((line) => line === warning), [warning], got.err);
+  assert.equal(got.lines.at(-1), 'Froze nothing: the scan for keys has 1 finding.');
+  // Outside a run, no warning.
+  const quiet = call(dir, ['freeze', 'deliverable:d-1', '--base', head],
+    { env: { QORY_HARNESS_HOME: harnessHome({}) } });
+  assert.equal(quiet.err.includes('Warning:'), false, quiet.err);
+});
+
+test('submission text: one finding per member, with the key shapes of the deployment', () => {
+  const place = (member) => `the ${member} of submission.md`;
+  assert.deepEqual(submission.secretFindings({ title: 'Add the sum',
+    text: `Key sk-ant-${'a'.repeat(30)}.` }, place, {}),
+  ['Remove the secret from the text of submission.md: it has the form of the Anthropic key.']);
+  const text = `Key acme_${'0a'.repeat(6)}.`;
+  assert.deepEqual(submission.secretFindings({ title: 'Add the sum', text }, place, {}), []);
+  const env = { QORY_HARNESS_HOME: harnessHome({ key_shapes: 'k.json' },
+    { 'k.json': { shapes: [ACME] } }) };
+  assert.deepEqual(submission.secretFindings({ title: `Add ${TOKEN}`, text }, place, env), [
+    'Remove the secret from the title of submission.md.\nIt has the form of the GitHub personal ' +
+    'access token.',
+    'Remove the secret from the text of submission.md: it has the form of the Acme deploy key.',
+  ]);
+});
+
 test('freeze: the value of a secret variable that starts with / and a line of a key file stop it', () => {
   const dir = checkout();
   const file = path.join(tmp, `key-${count}.json`);
