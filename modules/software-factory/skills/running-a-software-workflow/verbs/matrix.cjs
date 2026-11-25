@@ -177,6 +177,9 @@ module.exports = (lib) => {
         return null;
       }
     };
+    // The target of the criteria reads the newest lock beside the criteria, so the lock is
+    // pulled too; a pull that fails exits 3.
+    pull(io, 'acceptance-lock', null, 'matrix');
     const context = pulled('acceptance-criteria', true);
     const finds = [];
     const probe = { context, did() {}, find: (line) => finds.push(line) };

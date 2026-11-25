@@ -11,9 +11,9 @@ const { isDeepStrictEqual } = require('node:util');
 module.exports = (lib) => {
   const {
     Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, criterionHash,
-    criterionHashes, CRITERIA_HASHES, isObject, jsonFile, liveIn, linked, linkProblem, countedOf,
-    newestCriteria, noCriteria, num, parseJson, plural, pullCriteria, readFile, short, timeOf,
-    versionsOf,
+    criterionHashes, CRITERIA_HASHES, hashOf, isObject, jsonFile, liveIn, linked, linkProblem,
+    countedOf, newestCriteria, noCriteria, num, parseJson, plural, pullCriteria, readFile, short,
+    timeOf, versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -357,14 +357,13 @@ module.exports = (lib) => {
       run.find(`Lock the draft with checks.cjs lock: /criteria/${CRITERIA_HASHES} of ${FILE} is ` +
         `missing.\nIt must have the hash of each criterion of criteria version ${num(version)}.`);
     } else {
-      const own = (hashes, id) => (Object.hasOwn(hashes, id) ? hashes[id] : undefined);
       const wrong = [...new Set([...Object.keys(wanted), ...Object.keys(recorded)])]
-        .find((id) => own(recorded, id) !== own(wanted, id));
+        .find((id) => hashOf(recorded, id) !== hashOf(wanted, id));
       if (wrong !== undefined) {
         run.find(`Lock the draft again with checks.cjs lock: /criteria/${CRITERIA_HASHES} of ` +
           `${FILE} is wrong.\nThe hash of ${short(wrong, 40)} in criteria version ` +
-          `${num(version)} is ${own(wanted, wrong) === undefined
-            ? 'none, as it is not live' : own(wanted, wrong)}.`);
+          `${num(version)} is ${hashOf(wanted, wrong) === undefined
+            ? 'none, as it is not live' : hashOf(wanted, wrong)}.`);
       }
     }
     keptFiles(run, data, state);

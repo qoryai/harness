@@ -70,8 +70,9 @@ module.exports = (lib) => {
     }
     // shortcut: in a run, criteriaTarget reads index.json, the lock documents and the criteria
     // versions of the artifact folder as they are, not pulled copies, so a file that an agent
-    // wrote there can move the target; check build-plan refuses a record whose lock or target
-    // differs from what the push store gives. Replace it when criteriaTarget reads a pulled store.
+    // wrote there can move the target. changedRows of build-plan runs only in a session check,
+    // where it compares the lock and target of the record with those that the check reads; a
+    // push has no record. Replace it when criteriaTarget reads a pulled store.
     const target = criteriaTarget(context, 'the changes');
     if (target === null) return full('no version of the acceptance criteria is approved');
     const was = lock.data.criteria.version;

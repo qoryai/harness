@@ -321,6 +321,13 @@ module.exports = (lib) => {
   const pullAgain = (words) => new Missing(`Run \`qory artifact pull\`, then check ${words} ` +
     'again.');
 
+  // liveLocks returns the locks of index.json that the target reads, as the history of the lock
+  // check reads them: those that no cancelled run wrote and that are no withdrawal, also while
+  // acceptance-lock is withdrawn, because a lock protects checks that a person approved, and
+  // a withdrawal never takes it back. countedOf returns none for a withdrawn main.
+  const liveLocks = (context) => versionsOf(context.index, 'acceptance-lock')
+    .filter((one) => one.cancelled !== true && one.withdrawn !== true);
+
   // LockMissing is the error of criteriaTarget when the store lacks the newest lock, which it
   // must read to count a version that is linked to an answer. A type turns it into a finding.
   class LockMissing extends Missing {
@@ -466,7 +473,7 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const locks = countedOf(context, 'acceptance-lock');
+    const locks = liveLocks(context);
     // lockedByNewest returns the criteria version that the newest lock locks, or null.
     const lockedByNewest = () => {
       if (!locks.length) return null;
@@ -532,7 +539,7 @@ module.exports = (lib) => {
     let because = detail;
     if (!because && entry && !byPerson(entry) && linked(entry)) {
       // A linked version that no lock opens for gets the reason of linkProblem.
-      const locks = countedOf(context, 'acceptance-lock');
+      const locks = liveLocks(context);
       const top = locks.length ? locks.reduce((a, b) => (b.number > a.number ? b : a)) : null;
       const last = top === null ? null : { number: top.number, at: top.at, time: timeOf(top.at),
         criteria: NaN, doc: lockDoc(context, top.number) };
@@ -762,7 +769,7 @@ module.exports = (lib) => {
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, timeOf, linked, criterionHash, criterionHashes, CRITERIA_HASHES,
-    pullAgain, LockMissing, criteriaTarget, criteriaFile,
+    hashOf, pullAgain, LockMissing, criteriaTarget, criteriaFile,
     newestCriteria, askAbove, noCriteria, linkProblem, lockDoc,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,

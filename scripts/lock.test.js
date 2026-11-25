@@ -2055,6 +2055,26 @@ test('an answer binds against the lock that counts, not the first lock', () => {
   answerPasses(make(answered('ac-4', AT3)), doc);
 });
 
+test('a withdrawal of the lock leaves the lock that counts as it was for the target', () => {
+  const target = (root, withQuestions = false) =>
+    LIB.criteriaTarget(contextOf(root), 'the build plan', withQuestions);
+  // Lock 2 locks version 2, which a member's answer links; then the lock is withdrawn.
+  const answer = () => {
+    const root = linkedRoot({ decision: 'an_1', edit: REWORDED });
+    questionsVersion(root, 1, [answered('ac-4', LATER)]);
+    return stored(root, 2, docFor(2, REWORDED), { at: AFTER_ALL });
+  };
+  assert.equal(target(answer()), 2);
+  assert.equal(target(withdrawn(answer(), 3)), 2);
+  assert.equal(target(withdrawn(answer(), 3), true), 2);
+  // A free-text note from before lock 1 never opens a version, also while the lock is
+  // withdrawn: lock 1 still counts.
+  const stale = () => linkedRoot({ decision: 'gd_1', decisionAt: BEFORE_ALL });
+  assert.equal(target(stale()), 1);
+  assert.equal(target(withdrawn(stale(), 2)), 1);
+  assert.equal(target(withdrawn(stale(), 2), true), 1);
+});
+
 test('a /criteria/sha256 that is empty or has a value that is no hash counts as no member', () => {
   const make = (member, ...questions) => () => {
     const old = clone(LOCK);
@@ -2081,7 +2101,7 @@ test('a /criteria/sha256 that is empty or has a value that is no hash counts as 
 test('a hash record with a key that is a name of Object or has a line break is shown quoted', () => {
   for (const key of ['__proto__', 'constructor', 'ac-9\nInjected line.']) {
     const bad = docFor(2, REWORDED);
-    // JSON.parse makes `__proto__` an own key, as the file of the lock has it.
+    // JSON.parse makes `__proto__` a key of the object itself, as the file of the lock has it.
     bad.criteria.sha256 = JSON.parse(JSON.stringify(bad.criteria.sha256).replace(/^\{/,
       `{${JSON.stringify(key)}:"${'f'.repeat(64)}",`));
     for (const result of both(() => linkedRoot({ decision: 'gd_1', edit: REWORDED }), bad)) {
