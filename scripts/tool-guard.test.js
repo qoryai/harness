@@ -5435,6 +5435,77 @@ test('no other call writes in .step-reports of the artifact folder', () => {
   assert.equal(call(writeAs(file), {}), null);
 });
 
+test('a write in .step-reports outside the artifact folder of the run is denied too', () => {
+  const { runFolder, call } = stepSetup();
+  const local = path.join(WORK, '.qory', 'artifacts');
+  for (const type of [undefined, 'implementer', 'harness:spec-reviewer']) {
+    for (const folder of [WORK, local, runFolder]) {
+      const reason = call(writeAs(path.join(folder, STEP_DIR, STEP_FILE), type));
+      assert.ok(firstLine(reason, STEP_KEPT).endsWith(`The call writes ${path.join(folder,
+        STEP_DIR, STEP_FILE)}.`), reason);
+    }
+  }
+  for (const type of [undefined, 'implementer']) {
+    // The name as written, with quotes in it, and with a glob of the folder of either.
+    for (const command of ['touch .step-reports/x', 'cp /tmp/x .qory/artifacts/.step-reports/',
+      'echo "put it in .step-reports" > note.txt']) {
+      const reason = firstLine(call(bashAs(command, type)), STEP_KEPT);
+      assert.ok(reason.endsWith('The command has .step-reports.'), reason);
+    }
+    for (const command of ['touch .qory/artifacts/.step-rep*/x',
+      "touch .qory/artifacts/.ste''p-reports/x", `touch ${runFolder}/.step-rep*/x`]) {
+      firstLine(call(bashAs(command, type)), STEP_KEPT);
+    }
+  }
+  for (const command of ['touch .qory/artifacts/x', 'touch .qory/artifacts/.notes/*',
+    'touch src/x']) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+});
+
+test('the checks script alone runs with a path of the artifact folder, and no other call', () => {
+  const { runFolder, call } = stepSetup();
+  const step = `node ${SESSION_CHECKS} step end plan done`;
+  for (const dir of [runFolder, path.join(runFolder, '.reports')]) {
+    assert.equal(call(bashAs(`${step} --report ${path.join(dir, 'x.md')}`)), null);
+  }
+  fs.mkdirSync(path.join(runFolder, STEP_DIR));
+  fs.symlinkSync(path.join(runFolder, STEP_DIR), path.join(runFolder, 'link'));
+  assert.equal(call(bashAs(`${step} --report ${runFolder}/link/x.md`)), null);
+  for (const command of [`node /tmp/x.cjs --report ${runFolder}/link/x.md`,
+    `${step} --report ${runFolder}/link/x.md; node /tmp/x.cjs ${runFolder}/link/x.md`]) {
+    firstLine(call(bashAs(command)), STEP_KEPT);
+  }
+});
+
+test('an extraction into the artifact folder is denied for .step-reports', () => {
+  const { env, runFolder, call } = stepSetup();
+  for (const command of [`tar -xf a.tar -C ${runFolder}`, `tar -xf a.tar -C${runFolder}`,
+    `tar xzf a.tgz --directory=${runFolder}`, `cd ${runFolder} && tar -xf a.tar`,
+    `unzip -o a.zip -d ${runFolder}`, `cd ${runFolder} && unzip -o a.zip`,
+    `ditto -x -k a.zip ${runFolder}`, `ditto /tmp/out ${runFolder}`]) {
+    for (const type of [undefined, 'implementer', 'harness:spec-reviewer']) {
+      const reason = firstLine(call(bashAs(command, type)), STEP_KEPT);
+      assert.ok(reason.endsWith('The command extracts into a folder above it.'), command);
+    }
+  }
+  // An extraction beside the folder, into the working folder, a list and a new archive pass.
+  const other = next('step-other');
+  for (const command of [`tar -xf a.tar -C ${other}`, `unzip -o a.zip -d ${other}`,
+    `ditto -x -k a.zip ${other}`, 'tar -xf a.tar', 'unzip a.zip', 'ditto -x -k a.zip .',
+    `tar -tf ${runFolder}/a.tar`, `tar -cf ${other}/a.tar ${runFolder}`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  // So is one into a folder above the artifact folder, but for the working folder and those above.
+  const above = next('step-above');
+  fs.mkdirSync(path.join(above, 'artifacts'), { recursive: true });
+  const nested = (command) => decide({ input: bashAs(command), env, locked, root: WORK,
+    runFolder: path.join(above, 'artifacts'), script: SESSION_SCRIPT, runtime: 'claude' });
+  firstLine(nested(`tar -xf a.tar -C ${above}`), STEP_KEPT);
+  firstLine(nested(`ditto -x -k a.zip ${above}`), STEP_KEPT);
+  assert.equal(nested(`tar -xf a.tar -C ${path.dirname(WORK)}`), null);
+});
+
 test('a review session keeps the lock, .qory/build/ and the guard of .reports/', () => {
   const { reports, call } = sessionSetup();
   firstLine(call(writeAs(LOCKED, REVIEWER)), 'Leave the locked file as it is');

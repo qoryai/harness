@@ -1665,8 +1665,8 @@ function shown(full, folder, listed) {
 // entries, each as written, or null when the guard cannot tell them:
 // - cp that cpKeepsLinks finds, mv, rsync, ln, link and install: the folder of -t, else the
 //   last path; for ln or link with one path, the name of that path; another cp makes none;
-// - tar that extracts: the folder of -C or --directory, else .; a tar that creates makes
-//   only its archive, a file that is no link;
+// - tar that extracts: the folder of -C, also as -C<folder>, or --directory, else .; a tar that
+//   creates makes only its archive, a file that is no link;
 // - unzip: the folder of -d, else .;
 // - an opaque command: each word of its text after the first, as reaches reads the text.
 // mklink, a lost folder, and a vague destination or one with a wildcard are unknown.
@@ -1685,8 +1685,8 @@ function madeAt(segment) {
     if (!extracts && vague(segment.words[1] || '')) return null;
     if (!extracts) return [];
     const at = words.findIndex((word) => word === '-C' || word === '--directory');
-    const dir = words.find((word) => word.startsWith('--directory='));
-    made = [at > 0 ? segment.words[at + 1] : dir ? dir.slice(12) : '.'];
+    const dir = words.find((word) => /^(?:-C|--directory=)./.test(word));
+    made = [at > 0 ? segment.words[at + 1] : dir ? dir.replace(/^(?:-C|--directory=)/, '') : '.'];
   } else if (tool === 'unzip') {
     const at = words.indexOf('-d');
     const dir = words.find((word) => /^-d./.test(word));
@@ -2450,17 +2450,24 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
       }));
     if (word !== undefined) return `${UNSURE}The command writes ${word}.`;
   }
-  // tar or unzip that extracts into a folder above full writes the files of its archive there.
-  const unpacked = (full) => all.some((one) => {
-    if (!/^(?:tar|unzip)$/.test(path.basename(plainWords(one.words)[0] || ''))) return false;
-    const into = madeAt(one);
+  // tar, unzip or ditto, whose last word is its folder, that extracts into a folder above full
+  // writes the files of its archive there. A folder that is skip or above it counts for nothing.
+  const unpacked = (full, skip) => all.some((one) => {
+    const tool = path.basename(plainWords(one.words)[0] || '');
+    if (!/^(?:tar|unzip|ditto)$/.test(tool)) return false;
+    const last = one.words.at(-1);
+    const into = tool !== 'ditto' ? madeAt(one)
+      : vague(last) || wild(last) ? null : [literal(patternOf(last))];
     return Array.isArray(into) && into.some((dir) => one.cwds.some((from) => {
       spend();
-      return under(fold(full), fold(realOf(joined(from, dir))));
+      const at = fold(realOf(joined(from, dir)));
+      return under(fold(full), at) && !(skip && under(fold(skip), at));
     }));
   });
-  const matrixFile = kept.find((one) => one.matrix && unpacked(one.full));
-  if (matrixFile) return `${matrixFile.head}The command extracts into a folder above it.`;
+  // For .step-reports, the working folder and the folders above it pass, as for an opaque command.
+  const above = kept.find((one) => one.matrix && unpacked(one.full)) ||
+    kept.find((one) => one.step && unpacked(one.full, root));
+  if (above) return `${above.head}The command extracts into a folder above it.`;
   return null;
 }
 
