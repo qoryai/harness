@@ -678,7 +678,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
   const reads = {
     'pull-request': null, 'build-plan': 'acceptance-criteria', 'build-report': null,
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
-    'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
+    'demo-script': 'demo-scenarios, build-ledger', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
     walkthrough: 'verification, acceptance-criteria',
     feedback: 'acceptance-criteria, questions',

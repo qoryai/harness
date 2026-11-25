@@ -54,15 +54,21 @@ module.exports = (lib) => {
 
   // newestNamed returns the number and the text of file in the newest version of the name of
   // type, from <type>/<name>/v<N>/, or null when that name has no version or is withdrawn. It
-  // reads the same folders as Context.newest, for a type that has several names and no main,
-  // and skips a version that a cancelled run wrote, and exits 3 on a store that lacks the
-  // newest version that counts, as Context.newest does.
+  // reads the version as Context.newest does: when index.json lists the name, the newest
+  // version that counts, whatever higher folder an earlier pull left; with no entry of that
+  // name, the highest folder that no cancelled run wrote; in end --offline, the base. It
+  // exits 3 with the pull line on a store that lacks the folder of the version that counts.
   function newestNamed(context, type, name, file) {
     if (context.withdrawn(type, name)) return null;
     const dir = path.join(context.store, type, name);
     let number = -1;
     if (context.offline) {
       number = context.base ? context.base.get(`${type}/${name}`) ?? -1 : -1;
+    } else if (context.index && context.index.artifacts.some((one) => one.type === type &&
+      (one.name || 'main') === name)) {
+      const top = context.counted(type, name);
+      if (top !== null && !fs.existsSync(path.join(dir, `v${top}`))) throw lacks(type, top);
+      number = top ?? -1;
     } else {
       let entries;
       try {
@@ -75,8 +81,6 @@ module.exports = (lib) => {
         const match = entry.isDirectory() && /^v([0-9]{1,9})$/.exec(entry.name);
         if (match && !skipped.has(Number(match[1]))) number = Math.max(number, Number(match[1]));
       }
-      const top = context.counted(type, name);
-      if (top !== null && top > number) throw lacks(type, top);
     }
     if (number < 0) return null;
     const found = path.join(dir, `v${number}`, file);

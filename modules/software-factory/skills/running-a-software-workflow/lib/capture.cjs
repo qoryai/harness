@@ -9,8 +9,8 @@
 // - pictures: the PNG <name>-step-<N>.png of the page after each step.
 // - pages: with widths, the PNG pages-<N>-<width>.png of the page after each step, at each
 //   width, then at the width of the window again.
-// A capture throws for a file that cannot be written: the runner reports it as a failure of
-// the browser.
+// A capture throws for a file that cannot be written, or for a page that cannot take a picture.
+// Use diskFault to tell the first from the second.
 'use strict';
 
 const fs = require('node:fs');
@@ -92,4 +92,16 @@ function capture(page, spec) {
   return spec.kind === 'film' ? startFilm(page, spec.dir) : startPictures(page, spec.dir, spec);
 }
 
-module.exports = { FILM_HEIGHT, HOLD_MS, capture };
+// The codes of a write that failed for the disk of the machine, not for the page or the script.
+const DISK_CODES = ['ENOSPC', 'EIO', 'EDQUOT', 'EROFS', 'EFBIG'];
+
+// diskFault returns the first line of the message of error when a file could not be written
+// because of the disk, such as one that is full, and null for any other error, such as a page
+// that is closed. A message that does not start with the code gets the code in front.
+function diskFault(error) {
+  if (!error || !DISK_CODES.includes(error.code)) return null;
+  const line = String(error.message || error).split('\n')[0];
+  return line.startsWith(error.code) ? line : `${error.code}: ${line}`;
+}
+
+module.exports = { FILM_HEIGHT, HOLD_MS, capture, diskFault };

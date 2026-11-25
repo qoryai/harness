@@ -15,7 +15,9 @@
 //                         It exits 1 with the fix first for each fault. A script that differs
 //                         from the one that its newest done script step of the build ledger
 //                         froze is a correction: the third one exits 1, and the first and the
-//                         second print the line "Start check-reviewer". A pushed script that
+//                         second print the line "Start check-reviewer". A frozen script that
+//                         the newest demo evidence faults as failed with the class script is a
+//                         fault too, and the fix is a correction. A pushed script that
 //                         differs from that script and has no draft is a fault: it exits 1.
 //                         Its last line lists the scenarios that have no demo script yet. With
 //                         a scenario, it checks that scenario's script alone.
@@ -48,13 +50,12 @@ const { INPUTS_USAGE } = require('./run.cjs');
 // The skill that the module browser-screens ships, which starts the demo author.
 const SKILL = 'scripting-demos';
 const USAGE = 'Give demo surface, demo check, or demo write or demo run with a scenario id.';
-// The most done script steps of a scenario in the build ledger: the first pass and 2 corrections.
-const MOST_ROWS = 3;
 
 module.exports = (lib) => {
-  const { Context, DEMO_FOLDER: FOLDER, MAX_BYTES, Missing, approved, artifactFolder,
-    boundedText, cut, draftScript, evidenceOf, isObject, plural, pluginFolders, readLedger, schema,
-    scenarios, scriptFindings, sha256, short, stepRows, within, writeJson } = lib;
+  const { Context, DEMO_FOLDER: FOLDER, MAX_BYTES, MOST_ROWS, Missing, approved, artifactFolder,
+    boundedText, cut, doneRows, draftScript, evidenceOf, isObject, newestNamed, plural,
+    pluginFolders, readLedger, schema, scenarios, scriptFindings, sha256, short, stepRows, within,
+    writeJson } = lib;
   const checks = require('../lib/preflight.cjs')(lib);
 
   // readScenarios returns { root, number, live } of the approved demo scenarios in the
@@ -122,19 +123,6 @@ module.exports = (lib) => {
     }
   }
 
-  // doneRows returns one done row for each step id of the script steps of scenario id in ledger,
-  // which may be null: script:<id>, script:<id>#2 and script:<id>#3, the newest pass of an id
-  // when it has more, in the order of the ids.
-  function doneRows(ledger, id) {
-    const rows = new Map();
-    for (const row of ledger ? ledger.steps : []) {
-      const mine = row.kind === 'script' && row.id.split('#')[0] === `script:${id}`;
-      if (row.state === 'done' && mine) rows.set(row.id, row);
-    }
-    return [...rows.values()].sort((a, b) => Number(a.id.split('#')[1] || 1) -
-      Number(b.id.split('#')[1] || 1));
-  }
-
   // pushedFile returns the path in the artifact folder of the newest version of the demo script
   // of id that counts.
   const pushedFile = (root, io, id) => path.join('demo-script', id, `v${new Context(root,
@@ -195,9 +183,6 @@ module.exports = (lib) => {
     });
   }
 
-  // shortcut: the push check of demo-script does not read the ledger, so a changed frozen script
-  // is found by the next demo check, and an unchanged script that Verify faults starts no
-  // correction; replace both with a check of the ledger at the push, with the Verify work.
   // unrecorded returns a finding when the pushed script of id, the newest version that counts,
   // has another sha256 than the newest done row of the ledger, whatever the draft is: a session
   // that pushed a script and skipped `step end`, or that pushed a change to a frozen script.
@@ -215,6 +200,28 @@ module.exports = (lib) => {
       `done step ${last.id}.`;
   }
 
+  // faulted returns the finding for a script that Verify found at fault: the newest demo
+  // evidence of id is failed with the class script, for the version of the script that counts.
+  // It returns null for no such evidence.
+  function faulted(root, io, id) {
+    const context = new Context(root, 'check', io.home);
+    const newest = newestNamed(context, 'demo-evidence', id, `${id}.json`);
+    let data = null;
+    try {
+      data = newest ? JSON.parse(newest.text) : null;
+    } catch {
+      return null;
+    }
+    if (!isObject(data) || data.verdict !== 'failed' || data.class !== 'script' ||
+      !isObject(data.script) || data.script.version !== context.counted('demo-script', id)) {
+      return null;
+    }
+    const step = (Array.isArray(data.steps) ? data.steps : [])
+      .find((one) => isObject(one) && one.verdict === 'failed');
+    return `Fix the actions of ${id}: Verify found the script at fault` +
+      `${step ? ` in step ${step.step}` : ''}.\n${short(String(step ? step.finding : ''), 200)}`;
+  }
+
   // inspect returns { findings, notes } of the script of scenario: its faults, with the fix
   // first, then the line for check-reviewer when a draft changes a script that a pass froze,
   // whether the author wrote it or it is a copy of the pushed file. A change to a script that
@@ -227,6 +234,9 @@ module.exports = (lib) => {
     const findings = [...scriptFindings(scenario, got.data, `${id}.json`),
       ...(address ? outsideOpens(got.data, address) : [])];
     const changed = rows.length > 0 && sha256(got.text) !== rows[rows.length - 1].script_sha256;
+    // A script that Build did not change since Verify faulted it is a correction too.
+    const fault = rows.length > 0 && !changed ? faulted(root, io, id) : null;
+    if (fault) findings.push(fault);
     const skipped = unrecorded(root, io, got, id, rows, done);
     if ((findings.length || changed || skipped) && rows.length >= MOST_ROWS) {
       return { findings: [`Keep the script of ${id} as it is: it has had 2 corrections, and a ` +
