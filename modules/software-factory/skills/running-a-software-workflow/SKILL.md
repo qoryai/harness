@@ -1,6 +1,6 @@
 ---
 name: running-a-software-workflow
-description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, the files that each check takes, the plain words of each type, and the steps of the build ledger.
+description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, a criterion that Build cannot meet, the files that each check takes, the plain words of each type, and the steps of the build ledger.
 ---
 
 # Running a software workflow
@@ -29,7 +29,8 @@ start.
 This line adds to the lines of "Failures" for a "Blocked:" line before the first push:
 
 - One that starts with `needs a change to criterion`, `needs a new criterion` or
-  `needs a change to the spec`, with an `answer` point:
+  `needs a change to the spec`, with an `answer` point, except a line on a criterion that
+  "A blocked criterion" lists:
   - criterion: "<ID>, "<criterion text>", needs a change before the run can write the
     <output>: <the change>." Example: "AC-3, "A member exports up to 50,000 rows to CSV",
     needs a change before the run can write the demo scenarios: the feedback asks for an
@@ -137,3 +138,39 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    last, or follow it with a heading. Any other line in it, and any other spelling of
    the header, such as `## Left out` or `left out:`, makes the list unreadable.
    `Left out: none` is the empty list.
+
+## A blocked criterion
+
+In a Build workflow, a "Blocked:" line of `build-planner` or `acceptance-check-writer` that
+starts with `needs a change to criterion <ac-N>` ends the run as this section lists, in
+place of "Stops on the spec": the agent cannot meet that criterion as a member approved it.
+
+1. Run `step end <id> failed` for the step that ran the agent, as your workflow lists.
+2. Start ${qory:agents/questions-writer} as "Points" of `running-a-workflow` lists, with one
+   "Add:" item for each such criterion that has no open question in the newest `questions`
+   with `about.item` set to its id. The item quotes the "Blocked:" line and what the agent
+   checked: the files, the command and its result. The question of each item has these
+   members:
+   - `question`: "What do you want to do with AC-3, "<first sentence>"?"
+   - `context`: a paragraph that starts with `**Why:**`, the cause, and a paragraph that
+     starts with `**Checked:**`, the proof: the files, the command and its result. At most
+     120 words, and each criterion quoted as in the question.
+   - `about`: `{"type": "acceptance-criteria", "name": "main", "item": "ac-3"}`.
+   - `options`, exactly three, each with a `title` and an `explanation`:
+     1. `Change AC-3, "<first sentence>"`, with `proposal`, the wording that the build can
+        meet, and the explanation "The criterion reads as the proposed wording, and Build
+        meets it."
+     2. `Make it met another way`, with the explanation "Write in the note how."
+     3. `Withdraw AC-3, "<first sentence>"`, with the explanation "AC-3, "<first
+        sentence>", stays in the criteria, marked withdrawn by you."
+
+   Qory Apiary adds a fourth answer that the person writes, so the question has no option
+   for it. `<first sentence>` is the first sentence of the criterion in the newest
+   acceptance criteria, without its full stop, as "Stops on the spec" reads it.
+3. Write one `answer` point for each criterion, on its question: "AC-3, "<first
+   sentence>", cannot be met as approved: <the cause>." Then end as "Points" lists, with
+   `escalate`.
+
+`check points` refuses a blocked criterion with no `answer` point on such a question, and
+the end check stops a session that ends with such a line and no `points.json`. Only the
+newest report of each agent counts: a later start that meets the criterion ends the line.

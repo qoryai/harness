@@ -30,6 +30,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the newest version already meets under "Already so:". Where the spec and a newer criterion
   differ, the build planner, the plan reviewer, the check writer and the code reviewer apply
   the criterion.
+- A criterion that the build planner or the check writer cannot meet as approved ends the
+  run with one question about it: "What do you want to do with AC-3, "…"?", with the proof
+  in its `context` and the answers `Change AC-3, "…"`, `Make it met another way` and
+  `Withdraw AC-3, "…"`, and one `answer` point on it. `check points` refuses `points.json`
+  with no such point, and the check at the end stops a session that ends with such a
+  `Blocked:` line and no `points.json`. Core's registry has the member `points`, the rules of
+  `points.json`.
 - The review of a step's file, which `step end <id> done` needs for the plan, the checks and
   each demo script, the first script of a scenario included. `plan-reviewer` and
   `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the

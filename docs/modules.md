@@ -879,8 +879,9 @@ lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`,
 the readers of the ids of a type that the questions check reads for the `item` of an
 `about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
 each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
-as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, and `end`, the
-check at the end of a session. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
+as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `points`, the rules
+of `points.json`, each `(run, list, context)`, which the check of points runs after the
+check of each point, and `end`, the check at the end of a session. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
 verb of the registry and the usage read the registry; `starts`, `begin` and `fixes` never
 load it. A type that two skills add stops each verb that reads the registry with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
@@ -1299,8 +1300,9 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   beside the checks of drafts, reports and outputs. An early return of `end`, such as the
   end through a `points.json` that passes, and `end --offline` skip it. Each result is
   `{line, point, item}`, as the other checks of `end` return them.
-  `running-a-software-workflow` adds `lib/uncommitted.cjs`, which checks a Build write
-  session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has no `review`,
+  `running-a-software-workflow` adds `lib/uncommitted.cjs`, and the end of
+  `lib/blocked-criterion.cjs` that "A blocked criterion" lists. `lib/uncommitted.cjs` checks
+  a Build write session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has no `review`,
   `review_session` or `hook_session`. For each checkout of `qory.start_commits` that the
   session can write, a change is a path that `git status` lists: a tracked, staged or
   untracked file that git does not ignore, or a submodule whose commit or files changed,
@@ -2513,7 +2515,9 @@ The checks:
   question in two cases: it has an option titled `Change AC-N`, `Make it met another way`
   or `Withdraw AC-N`, the three answers that Verify writes for a criterion that cannot be
   met; or, in a check, the question is new and the artifact folder has
-  `.reports/matrix-record.json`, which only Verify writes. It refuses a question with other
+  `.reports/matrix-record.json`, which only Verify writes, or the newest report of
+  `build-planner`, `acceptance-check-writer`, `software-developer` or `software-debugger`
+  has the line `Blocked: needs a change to criterion <about.item>`. It refuses a question with other
   than 3 options, with other than one option of each of the three titles, with the number
   of `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on
   the change option, with a `context` that has no paragraph starting `**Why:**` or none
@@ -3505,8 +3509,19 @@ the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
   although the second option says so, and the planner of the next round does not read it.
   The ledger step is `failed`, with no escalation reason.
 - **Blocks.** A criterion that cannot be built as written ends the planner's report with
-  `Blocked: needs a change to criterion <ac-N>: <the change>`, as in the other small
-  workflows.
+  `Blocked: needs a change to criterion <ac-N>: <the change>`. The session ends as "A
+  blocked criterion" of `running-a-software-workflow` lists: `step end plan failed`, one
+  question per criterion with no open question on it, and one `answer` point on it, then
+  `escalate`. The question is "What do you want to do with AC-3, "<first sentence>"?", its
+  `context` has a `**Why:**` paragraph, the cause, and a `**Checked:**` paragraph, the
+  proof, its `about.item` is the criterion, and its options are `Change AC-3, "…"` with the
+  proposed wording in `proposal`, `Make it met another way` and `Withdraw AC-3, "…"`. The
+  point is "AC-3, "<first sentence>", cannot be met as approved: <the cause>." `check
+  points` refuses `points.json` with no `answer` point on such a question for each criterion
+  of such a line in the newest report of `build-planner`, `acceptance-check-writer`,
+  `software-developer` or `software-debugger`, and the check at the end stops a session
+  that ends with such a line and no `points.json`. `write-acceptance-checks` ends the same
+  way for a line of `acceptance-check-writer`.
 
 `workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
 locks the acceptance checks of one ticket, after its build plan and before any step changes

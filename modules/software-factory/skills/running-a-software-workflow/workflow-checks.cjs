@@ -5,8 +5,9 @@
 // the types of Build and Verify, which BUILD_AND_VERIFY lists, with the JSON Schemas of
 // schemas/, which process.yaml also contains for Qory Apiary, but for the standard types
 // acceptance-criteria and verification, which it lists by name alone; the Blocked: lines on the
-// spec and its criteria; and the rules of the build ledger, in lib/ledger.cjs, which the verbs
-// step and resume of the checks script apply.
+// spec and its criteria; the rules of the build ledger, in lib/ledger.cjs, which the verbs
+// step and resume of the checks script apply; and the answer point and the check at the end for
+// a criterion that an agent of Build cannot meet, in lib/blocked-criterion.cjs.
 //
 //   workflow-checks.cjs push <type> [--inputs <file>] <file>...   the form that `qory
 //                                                                 artifact push` runs
@@ -86,6 +87,10 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/demo-script.cjs')(lib));
   Object.assign(lib, require('./lib/feedback.cjs')(lib));
   Object.assign(lib, require('./lib/amended.cjs')(lib));
+  const blocked = require('./lib/blocked-criterion.cjs')(lib);
+  Object.assign(lib, { blockedCriteria: blocked.blocked });
+  const acQuestion = require('./lib/ac-question.cjs')(lib);
+  const uncommitted = require('./lib/uncommitted.cjs')(lib).end;
   const feedback = require('./types/feedback.cjs')(lib);
   const preflight = require('./lib/preflight.cjs')(lib);
   return {
@@ -110,8 +115,11 @@ function workflowChecks(core) {
     ledger: require('./lib/ledger.cjs')(lib),
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),
-    // The check at the end of a Build write session: no change outside a commit.
-    end: require('./lib/uncommitted.cjs')(lib).end,
+    // The checks at the end of a Build session: no change outside a commit, and no Blocked:
+    // line on a criterion without points.json.
+    end: (io) => [...uncommitted(io), ...blocked.end(io)],
+    // The rule of points.json: an answer point for each criterion with a Blocked: line.
+    points: [(run, list, context) => blocked.points(run, list, context, acQuestion)],
     // The record of the track at the end of a report of proposal-reviewer, which the report
     // check reads for an agent whose Expected output has the line "Track read:".
     records: [{
@@ -124,9 +132,9 @@ function workflowChecks(core) {
     // The readers of the items of a type, which the check of an about of a question reads:
     // the criterion ids of the acceptance criteria, and the point ids of the feedback.
     items: [spec.items, feedback.items],
-    // The rule for the question that Verify asks about a criterion that cannot be met, and
-    // the rule for the question of a point of feedback.
-    questionRules: [require('./lib/ac-question.cjs')(lib),
+    // The rule for the question about a criterion that cannot be met, and the rule for the
+    // question of a point of feedback.
+    questionRules: [acQuestion,
       ...require('./lib/feedback-question.cjs')(lib)],
     // The proof of the fast track, for a test that gives it the folder of the parsers.
     proof: { prove: lib.prove, trackLists: lib.trackLists },

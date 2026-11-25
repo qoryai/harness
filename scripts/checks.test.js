@@ -5861,14 +5861,18 @@ test('questions: a question about a criterion with the answers of Verify has the
   }));
 });
 
-test('questions: in a check with the record of matrix, a new question about a criterion is read', () => {
-  const ask = ({ record = true, stored = false, question = acQuestion({
-    options: [{ title: 'The reply', explanation: 'Only the reply.' },
+// BLOCKED is the line of a report of a Build agent that cannot meet ac-3 as approved.
+const BLOCKED = 'What you read:\n- a\n\nBlocked: needs a change to criterion ac-3: Support is ' +
+  'open on 25 December.\n\nblocked\n';
+
+test('questions: in a check with a Blocked: line on the criterion, a new question about it is read', () => {
+  const ask = ({ report = 'build-planner-1.md', text = BLOCKED, stored = false,
+    question = acQuestion({ options: [{ title: 'The reply', explanation: 'Only the reply.' },
       { title: 'The page', explanation: 'The page too.' }] }) } = {}) => {
     const root = fixture();
-    if (record) {
+    if (report) {
       fs.mkdirSync(path.join(root, '.reports'));
-      write(root, '.reports/matrix-record.json', { commit: 'c', matrix: [] });
+      write(root, `.reports/${report}`, text);
     }
     const file = path.join(root, 'questions.json');
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -5877,15 +5881,110 @@ test('questions: in a check with the record of matrix, a new question about a cr
     write(root, 'questions.json', data);
     return check(root, 'questions', file);
   };
-  // New, with the record: refused though no title is an answer.
+  // New, with the line of a Build agent: refused though no title is an answer.
   fails(ask(), /^Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N\. q7 has 2\.$/);
-  fails(ask(), /^Give q7 1 option with the title "Change AC-N"\. q7 has 0\.$/);
-  // With no record, that is a push or a check of another workflow, and a kept question is
-  // not read again.
-  passes(ask({ record: false }));
+  fails(ask({ report: 'acceptance-check-writer-2.md' }),
+    /^Give q7 1 option with the title "Change AC-N"\. q7 has 0\.$/);
+  // No line, the line of another agent, a line on another criterion, and a kept question are
+  // not read.
+  passes(ask({ report: null }));
+  passes(ask({ report: 'decision-writer-1.md' }));
+  passes(ask({ text: BLOCKED.replace('ac-3', 'ac-2') }));
   passes(ask({ stored: true }));
-  // A full question passes with the record.
+  // A full question passes with the line.
   passes(ask({ question: acQuestion() }));
+});
+
+// The texts of "A blocked criterion" of running-a-software-workflow, as a question and its
+// answer point fill them for ac-3.
+const BLOCKED_SKILL = fs.readFileSync(path.join(MODULES,
+  'software-factory/skills/running-a-software-workflow/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+const blockedQuestion = (changes = {}) => acQuestion({
+  question: `What do you want to do with AC-3, "${AC3}"?`,
+  context: '**Why:** Support is open on 25 December, so the reply cannot state that it is ' +
+    `closed.\n\n**Checked:** The hours in config/hours.yaml, and AC-3, "${AC3}", in the reply.`,
+  options: [
+    { title: `Change AC-3, "${AC3}"`, proposal: 'The reply states the hours of 25 December.',
+      explanation: 'The criterion reads as the proposed wording, and Build meets it.' },
+    { title: 'Make it met another way', explanation: 'Write in the note how.' },
+    { title: `Withdraw AC-3, "${AC3}"`,
+      explanation: `AC-3, "${AC3}", stays in the criteria, marked withdrawn by you.` },
+  ],
+  ...changes,
+});
+const BLOCKED_POINT = { text: `AC-3, "${AC3}", cannot be met as approved: support is open on ` +
+  '25 December.', action: 'answer', question: 'q7' };
+
+// blockedRun returns an artifact folder with the report name that has BLOCKED, the questions
+// with question, and points.json with points, or none.
+function blockedRun({ report = 'build-planner-1.md', question = blockedQuestion(),
+  points = [BLOCKED_POINT] } = {}) {
+  const root = fixture();
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  if (report) write(root, `.reports/${report}`, BLOCKED);
+  const data = JSON.parse(fs.readFileSync(path.join(root, 'questions.json'), 'utf8'));
+  if (question) data.questions.push(question);
+  write(root, 'questions.json', data);
+  if (points) write(root, 'points.json', points);
+  return root;
+}
+
+test('blocked-criterion: the question quotes the criterion, has the proof and the three answers', () => {
+  for (const text of ['"What do you want to do with AC-3, "<first sentence>"?"',
+    '"Write in the note how."', '"AC-3, "<first sentence>", stays in the criteria, marked ' +
+      'withdrawn by you."', '"AC-3, "<first sentence>", cannot be met as approved: <the cause>."',
+    '"The criterion reads as the proposed wording, and Build meets it."']) {
+    assert.ok(BLOCKED_SKILL.includes(text), text);
+  }
+  assert.ok(!BLOCKED_SKILL.includes('leaves the acceptance criteria'));
+  const points = (root) => check(root, 'points', path.join(root, 'points.json'));
+  const questions = (root) => check(root, 'questions', path.join(root, 'questions.json'));
+  const root = blockedRun();
+  passes(questions(root));
+  passes(points(root));
+  passes(points(blockedRun({ report: 'acceptance-check-writer-1.md' })));
+  const missing = 'Add an answer point for ac-3.\n  build-planner-1.md has a Blocked: line for it.';
+  // No point on the question, a question with no options, a question on another criterion,
+  // and no question at all fail.
+  exactly(points(blockedRun({ points: [{ text: 'The run could not plan the build.',
+    action: 'run_again' }] })), missing);
+  const twoOptions = blockedRun({ question: blockedQuestion({ options: q7().options }) });
+  fails(questions(twoOptions), /^Give q7 3 options: /);
+  exactly(points(twoOptions), missing);
+  exactly(points(blockedRun({ question: blockedQuestion({ about: { type: 'acceptance-criteria',
+    name: 'main', item: 'ac-2' } }) })), missing);
+  // With no question, core also refuses the point on q7.
+  const none = points(blockedRun({ question: null }));
+  fails(none, /^Set the question of point 1 to the id of an open question/);
+  assert.ok(none.lines.join('\n').includes(missing), none.out);
+  // A later report of the same agent with no such line ends the line of the earlier one.
+  const later = blockedRun({ points: [{ text: 'The run could not plan the build.',
+    action: 'run_again' }] });
+  write(later, '.reports/build-planner-2.md', 'What you read:\n- a\n\ndone\n');
+  passes(points(later));
+  // The line of an agent of another workflow needs no such point.
+  passes(points(blockedRun({ report: 'decision-writer-1.md', points: [{ text: 'The run could ' +
+    'not write the decision record.', action: 'run_again' }] })));
+});
+
+// A plan-the-build or write-acceptance-checks session has no step that a later review finds
+// unbuilt, so the end check stops a session that ends after such a line with no points.json.
+test('blocked-criterion: the end check stops a session with the line and no points.json', () => {
+  for (const agent of ['build-planner', 'acceptance-check-writer']) {
+    const root = blockedRun({ report: null, points: null });
+    started(root, {});
+    passes(reportIn(root, agent, `${agent}-1.md`, BLOCKED));
+    const result = end(root, stub().env);
+    assert.equal(result.status, 1, result.out);
+    assert.ok(result.lines.includes('Add an answer point for ac-3.'), result.out);
+    assert.ok(result.lines.includes(`  ${agent}-1.md has a Blocked: line for it, and the ` +
+      'session has no points.json.'), result.out);
+  }
+  const other = blockedRun({ report: null, points: null });
+  started(other, {});
+  passes(reportIn(other, 'decision-writer', 'decision-writer-1.md', 'Blocked: needs a change ' +
+    'to criterion ac-3\nblocked\n'));
+  passes(end(other, stub().env));
 });
 
 test('questions: an about names an output that the run can read, and a criterion it has', () => {
