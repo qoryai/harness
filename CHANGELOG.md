@@ -27,14 +27,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   identity is set, with no hook and no signature, and with no path under `.qory`. Before
   that commit, the session takes out of the checkout what makes `scope --plan` exit 1: a
   file with a key, a path outside the plan, a new repository folder, a changed submodule and
-  a file that `freeze` cannot scan. It sets such a file back to the base of the step, or
-  removes it when the base does not have it, because the scan finds a private key by its
-  `BEGIN` line only. A new repository folder inside the Files loses only its `.git`, and so
-  does each repository folder inside it. After it, the session runs `scope --plan`, and
-  repeats both at most twice. While `scope --plan` prints no finding, qory pushes the
-  commits of the done steps. When a finding stays, the scope check of qory's push stops the
-  push, qory pushes no commit, and the run ends `push_scope_refused`. `git reset -q` ends a
-  merge or a cherry-pick in progress, and the session sets a changed submodule back.
+  a file that `freeze` cannot scan. It sets a file with a key, a path outside the plan and a
+  file that `freeze` cannot scan back to the base of the step, or removes it when the base
+  does not have it, because the scan finds a private key by its `BEGIN` line only. A new
+  repository folder inside the Files loses only its `.git`, and so does each repository
+  folder inside it; one with files both inside and outside the Files also loses the files
+  outside. After that commit, the session runs `scope --plan`, and repeats both at most
+  twice. While `scope --plan` prints no finding, qory pushes the commits of the done steps.
+  When a finding stays, the scope check of qory's push stops the push, qory pushes no
+  commit, and the run ends `push_scope_refused`. `git reset -q` ends a merge or a
+  cherry-pick in progress, and the session sets a changed submodule back.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.

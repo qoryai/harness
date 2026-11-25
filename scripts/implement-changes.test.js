@@ -153,7 +153,7 @@ test('the session starts the developer twice and the debugger once per step, the
     'lists for it. - A file with a key, a path outside the Files of every deliverable, or a ' +
     'file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path ' +
     'when `<base>` does not have it.', 'When a line has no full path,',
-    'For a key in a line that starts with `Rewrite commit <c>`, run',
+    'For a key in a line that starts with `Rewrite commit <c>`, run these two commands.',
     '3. When the checkout has a change, commit it with the two commands of "The end".',
     '4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4 ' +
     'again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures" ' +
@@ -1114,6 +1114,31 @@ test('after one step done and one step failed, the session does "The submission"
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
 });
 
+// The two commands of "A step that fails" that check whether the file of a key in a commit
+// changed after that commit.
+const SAME = section(WORKFLOW, 'A step that fails').split('\n   ```\n')
+  .find((one) => one.trimStart().startsWith('git add -- ')).split('\n')
+  .map((one) => one.replace(/^ {3}/, ''));
+
+// changed runs the two commands for file and commit in w, and returns the exit of the second,
+// or 1 when git add exits with 128 for a path that does not exist.
+function changed(w, commit, file) {
+  const [add, compare] = SAME.map((one) => one.replaceAll('<c>', commit)
+    .replaceAll('<path>', file));
+  const added = shell(w, add);
+  if (added.status === 128 && !fs.existsSync(path.join(w.repo, file))) return 1;
+  assert.equal(added.status, 0, added.stderr);
+  return shell(w, compare).status;
+}
+
+// statusPath returns the path of the checkout of w whose name contains part, from the output
+// of command, the git status of "A step that fails".
+function statusPath(w, command, part) {
+  const listed = shell(w, command);
+  assert.equal(listed.status, 0, listed.stderr);
+  return listed.stdout.split('\0').find((one) => one.includes(part)).slice(3);
+}
+
 test('after a step that fails, the session takes out what the check of the push finds', () => {
   const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
   const fails = section(WORKFLOW, 'A step that fails');
@@ -1121,13 +1146,23 @@ test('after a step that fails, the session takes out what the check of the push 
     'file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path ' +
     'when `<base>` does not have it. Both lose the other changes of the step to that file.');
   contains(fails, 'When a line has no full path, such as for a key in the name of a file, a ' +
-    'long name or a name that is not UTF-8, take the path from');
-  contains(fails, 'When it exits with a status other than 0, the file changed after that ' +
-    'commit: leave it. When the file still has the key, step 4 prints a line for the key in ' +
-    'the commit of step 3.');
+    'cut name or a name that is not UTF-8, take the path from `git status --porcelain -z ' +
+    '--untracked-files=all`. A printed path has no spaces at its start or end and no control ' +
+    'or hidden characters, with no `...` in their place, so take a printed path that no file ' +
+    'has from that command too.');
+  contains(fails, 'When `git add` exits with 128 for a path that does not exist, or `test` ' +
+    'exits with a status other than 0, the file changed after that commit: leave it. When the ' +
+    'file still has the key, step 4 prints a line for the key in the commit of step 3.');
+  // The docs and the CHANGELOG state the same rules.
+  contains(read(ROOT, 'docs/modules.md'), 'The session leaves a file as it is when a line names ' +
+    'a commit of the failed step and the file changed after that commit; when the file still ' +
+    'has the key, the next `scope --plan` finds it in the commit of step 3.');
+  contains(read(ROOT, 'CHANGELOG.md'), 'It sets a file with a key, a path outside the plan and ' +
+    'a file that `freeze` cannot scan back to the base of the step');
+  contains(read(ROOT, 'CHANGELOG.md'), 'one with files both inside and outside the Files also ' +
+    'loses the files outside. After that commit, the session runs `scope --plan`');
   const restore = commandOf('A step that fails', /run\s+`(git checkout [^`]+)`/);
   const status = commandOf('A step that fails', /from\s+`(git status [^`]+)`/);
-  const same = commandOf('A step that fails', /run\s+`(test "\$\(git hash-object [^`]+)`/);
   const scope = commandOf('A step that fails', /checks\.cjs (scope --plan[^`]+)`/).split(' ');
   const passes = (w, command) => {
     const ran = shell(w, command);
@@ -1141,9 +1176,6 @@ test('after a step that fails, the session takes out what the check of the push 
     if (had) passes(w, restore.replace('<base>', base).replace('<path>', file));
     else fs.rmSync(path.join(w.repo, file));
   };
-  // changed runs the check of "A step that fails" for a key in commit and returns its status.
-  const changed = (w, commit, file) => shell(w, same.replaceAll('<c>', commit)
-    .replaceAll('<path>', file)).status;
   // committed returns the commit of the line of red for line at of tests/key.txt.
   const committed = (red, at) => new RegExp('Rewrite commit ([0-9a-f]{12}) without a [^\\n]+ ' +
     `in "tests/key\\.txt", line ${at}\\.`).exec(red.out)[1];
@@ -1206,9 +1238,7 @@ test('after a step that fails, the session takes out what the check of the push 
     ['a key in the name of a new file', (w) => writeFile(w, `tests/new/${key}.txt`, 'one\n'),
       /Rewrite commit [0-9a-f]{12} without a GitHub token in the name of a file\./, 0,
       (w, base) => {
-        const listed = shell(w, status);
-        assert.equal(listed.status, 0, listed.stderr);
-        const file = listed.stdout.split('\n').find((one) => one.includes(key)).slice(3);
+        const file = statusPath(w, status, key);
         assert.equal(file, `tests/new/${key}.txt`);
         takeKey(w, base, file);
       }, (w, what) => assert.equal(tracked(w).some((one) => one.includes(key)), false, what)],
@@ -1237,10 +1267,7 @@ test('after a step that fails, the session takes out what the check of the push 
       writeFile(w, 'tests/other.txt', 'other\n');
     }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1,
     (w, base, red) => {
-      const commit = committed(red, 2);
-      assert.equal(shell(w, `git show ${commit}:tests/key.txt | cmp -s - tests/key.txt`).status,
-        1);
-      assert.equal(changed(w, commit, 'tests/key.txt'), 0);
+      assert.equal(changed(w, committed(red, 2), 'tests/key.txt'), 0);
       takeKey(w, base, 'tests/key.txt');
     }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt'), false, what)],
     // The file changed after the commit and still has the key: the commit of step 3 has it,
@@ -1259,6 +1286,16 @@ test('after a step that fails, the session takes out what the check of the push 
       assert.equal(changed(w, committed(again, 3), 'tests/key.txt'), 0);
       takeKey(w, base, 'tests/key.txt');
     }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt'), false, what)],
+    // scope prints the name without its last space, and git status without -z quotes it.
+    ['a key in a file whose name ends with a space', (w) => writeFile(w, 'tests/key.txt ',
+      `one\n${key}\n`),
+    /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 0,
+    (w, base) => {
+      assert.equal(fs.existsSync(path.join(w.repo, 'tests/key.txt')), false);
+      const file = statusPath(w, status, 'key.txt');
+      assert.equal(file, 'tests/key.txt ');
+      takeKey(w, base, file);
+    }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt '), false, what)],
   ];
   for (const [what, leave, line, before, takeOut, then = () => {}] of cases) {
     const w = work();
@@ -1299,6 +1336,102 @@ test('after a step that fails, the session takes out what the check of the push 
     assert.equal(call('end', w.artifacts, '--inputs', buildInputs(w)).status, 0, what);
     then(w, what);
   }
+});
+
+test('the check of a key in a commit compares the file as git add stages it', () => {
+  const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  const file = 'tests/key.txt';
+  const commit = (w, message) => git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
+    '-m', message);
+  const all = (w) => git(w.repo, w.env, 'add', '-A');
+  // Each case makes the base and the commit with the key, and leaves the checkout as the
+  // failed step left it, with whether the file is the one of that commit.
+  const cases = [
+    // The base has the file as CRLF under text=auto, so git add keeps CRLF, and a hash of
+    // the file with its attributes has LF.
+    ['a CRLF file of the base under text=auto', (w) => {
+      writeFile(w, file, 'one\r\n');
+      all(w);
+      commit(w, 'One');
+      writeFile(w, '.gitattributes', '*.txt text=auto\n');
+      all(w);
+      commit(w, 'Base');
+      const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+      writeFile(w, file, `one\r\n${key}\r\n`);
+      all(w);
+      commit(w, 'Key');
+      return base;
+    }, 0, 1],
+    // git hash-object reads the file that the link points to.
+    ['a link', (w) => {
+      const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+      writeFile(w, 'target.txt', `${key}\n`);
+      fs.mkdirSync(path.join(w.repo, 'tests'), { recursive: true });
+      fs.symlinkSync('../target.txt', path.join(w.repo, file));
+      all(w);
+      commit(w, 'Key');
+      fs.appendFileSync(path.join(w.repo, 'target.txt'), 'other\n');
+      return base;
+    }, 0, 1],
+    ['a file that the step deleted', (w) => {
+      const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+      writeFile(w, file, `one\n${key}\n`);
+      all(w);
+      commit(w, 'Key');
+      fs.rmSync(path.join(w.repo, file));
+      return base;
+    }, 1, 1],
+    ['a new CRLF file under text=auto of the step', (w) => {
+      const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+      writeFile(w, 'tests/.gitattributes', '*.txt text=auto\n');
+      writeFile(w, file, `one\r\n${key}\r\n`);
+      all(w);
+      commit(w, 'Key');
+      return base;
+    }, 0, 0],
+    ['a file that changed after the commit', (w) => {
+      const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+      writeFile(w, file, `one\n${key}\n`);
+      all(w);
+      commit(w, 'Key');
+      writeFile(w, file, 'one\ntwo\n');
+      return base;
+    }, 1, 1],
+  ];
+  for (const [what, make, same, hashed] of cases) {
+    const w = work();
+    const base = make(w);
+    const keyed = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    assert.equal(shell(w, RESET.replace('<base>', base)).status, 0, what);
+    const hash = shell(w, `test "$(git hash-object -- ${file})" = "$(git rev-parse ` +
+      `${keyed}:${file})"`).status;
+    assert.deepEqual([changed(w, keyed, file), hash], [same, hashed], what);
+  }
+  contains(section(WORKFLOW, 'A step that fails'), 'A key in a commit from before `<base>` ' +
+    'stays after step 2, and the run ends `push_scope_refused`.');
+});
+
+// A commit before the base of the failed step, such as one that an earlier session made, is no
+// commit of that step: step 2 sets the file back to the base, which has the key.
+test('a key in a commit from before the base of the failed step stays after step 2', () => {
+  const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  const w = work();
+  writeFile(w, 'tests/key.txt', `one\n${key}\n`);
+  assert.equal(commitChanges(w, 'Write the key').status, 0);
+  const keyed = git(w.repo, w.env, 'rev-parse', 'HEAD');
+  writeFile(w, 'src/orders.cjs', LINES);
+  assert.equal(commitChanges(w, 'Write one line per order').status, 0);
+  const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+  writeFile(w, 'tests/header.test.cjs', HEADER_TEST);
+  assert.equal(shell(w, RESET.replace('<base>', base)).status, 0);
+  assert.equal(changed(w, keyed, 'tests/key.txt'), 0);
+  const restore = commandOf('A step that fails', /run\s+`(git checkout [^`]+)`/);
+  assert.equal(shell(w, restore.replace('<base>', base).replace('<path>', 'tests/key.txt'))
+    .status, 0);
+  assert.equal(commitChanges(w, 'Keep the files of the failed step').status, 0);
+  const plan = session(w)('scope', '--plan', '--inputs', w.inputs);
+  assert.equal(plan.status, 1);
+  assert.match(plan.out, new RegExp(`Rewrite commit ${keyed.slice(0, 12)} without a `));
 });
 
 test('the reset after a step that fails uses the last row, not an older one of the step', () => {
