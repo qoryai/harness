@@ -1153,12 +1153,14 @@ function changed(w, commit, word) {
 
 // statusPath returns the path of the checkout of w whose name contains part, as a shell word,
 // from the output of command, the git status of "A step that fails": a name in double quotes
-// is a C string, which bash reads in $'...', with each ' written as \'.
+// is a C string, which bash reads in $'...', with each ' written as \'. Another name goes in
+// single quotes, with each ' written as '\''.
 function statusPath(w, command, part) {
   const listed = shell(w, command);
   assert.equal(listed.status, 0, listed.stderr);
   const name = listed.stdout.split('\n').find((one) => one.includes(part)).slice(3);
-  return /^".*"$/.test(name) ? `$'${name.slice(1, -1).replaceAll("'", "\\'")}'` : name;
+  return /^".*"$/.test(name) ? `$'${name.slice(1, -1).replaceAll("'", "\\'")}'`
+    : `'${name.replaceAll("'", "'\\''")}'`;
 }
 
 // takeWord takes the path word out as "A step that fails" lists it, with bash.
@@ -1179,9 +1181,10 @@ test('after a step that fails, the session takes out what the check of the push 
     '--untracked-files=all`. A path in double quotes is a C string: give it to the shell as ' +
     "`$'<the text between the quotes>'`, with each `'` written as `\\'`. Bash and zsh read " +
     'this form, and dash does not: Codex runs a command in `/bin/sh` when the login shell is ' +
-    '`sh`, and on Debian and Ubuntu `/bin/sh` is dash. A printed path has no spaces at its ' +
-    'start or end and no control or hidden characters, with no `...` in their place, so take ' +
-    'a printed path that no file has from that command too.');
+    '`sh`, and on Debian and Ubuntu `/bin/sh` is dash. Put a path that git prints without ' +
+    "quotes in single quotes, with each `'` written as `'\\''`. A printed path has no spaces " +
+    'at its start or end and no control or hidden characters, with no `...` in their place, so ' +
+    'take a printed path that no file has from that command too.');
   contains(fails, 'run this command, and read the line `same: <number>` that it prints. With ' +
     '`same: 0`, take the file out; otherwise leave it. Another number means that the file ' +
     'changed after that commit, or that git cannot stage it, such as an ignored path or a ' +
@@ -1275,9 +1278,9 @@ test('after a step that fails, the session takes out what the check of the push 
     ['a key in the name of a new file', (w) => writeFile(w, `tests/new/${key}.txt`, 'one\n'),
       /Rewrite commit [0-9a-f]{12} without a GitHub token in the name of a file\./, 0,
       (w, base) => {
-        const file = statusPath(w, status, key);
-        assert.equal(file, `tests/new/${key}.txt`);
-        takeKey(w, base, file);
+        const word = statusPath(w, status, key);
+        assert.equal(word, `'tests/new/${key}.txt'`);
+        takeWord(w, base, word);
       }, (w, what) => assert.equal(tracked(w).some((one) => one.includes(key)), false, what)],
     // Only the commit of the failed step has the key, so the other lines of the file stay.
     ['a commit of the failed step with a key', (w) => {
@@ -1359,6 +1362,32 @@ test('after a step that fails, the session takes out what the check of the push 
       assert.equal(changed(w, commit, word), 0);
       takeWord(w, base, word);
     }, (w, what) => assert.equal(tracked(w).includes("tests/it's key.txt "), false, what)],
+    // git status prints the name without quotes; a bare ' in the word makes bash exit 2.
+    ["a key in a file whose name has a ' and no space", (w) => writeFile(w, "tests/it'sk.txt",
+      `one\n${key}\n`),
+    /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/it'sk\.txt", line 2/, 0,
+    (w, base, red) => {
+      const word = statusPath(w, status, 'sk.txt');
+      assert.equal(word, "'tests/it'\\''sk.txt'");
+      assert.equal(bash(w, "git ls-files -o -- tests/it'sk.txt").status, 2);
+      const commit = /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/it'sk/
+        .exec(red.out)[1];
+      assert.equal(changed(w, commit, word), 0);
+      takeWord(w, base, word);
+    }, (w, what) => assert.equal(tracked(w).includes("tests/it'sk.txt"), false, what)],
+    // A bare $1 in the word expands to nothing, so git reads another path.
+    ['a key in a file whose name has a $', (w) => writeFile(w, 'tests/k$1.txt', `one\n${key}\n`),
+    /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/k\$1\.txt", line 2/, 0,
+    (w, base, red) => {
+      const word = statusPath(w, status, 'k$1');
+      assert.equal(word, "'tests/k$1.txt'");
+      assert.equal(bash(w, 'git ls-files -o -- tests/k$1.txt').stdout, '');
+      assert.equal(bash(w, `git ls-files -o -- ${word}`).stdout, 'tests/k$1.txt\n');
+      const commit = /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/k\$1/
+        .exec(red.out)[1];
+      assert.equal(changed(w, commit, word), 0);
+      takeWord(w, base, word);
+    }, (w, what) => assert.equal(tracked(w).includes('tests/k$1.txt'), false, what)],
   ];
   for (const [what, leave, line, before, takeOut, then = () => {}] of cases) {
     const w = work();
