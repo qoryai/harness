@@ -1296,9 +1296,12 @@ test('ledger: a failed step and a step of another kind end with no review', () =
     assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
     assert.equal(call('step', 'end', id, 'failed').status, 0, id);
   }
+  // A fix of a finding ends done only with its reply.
+  const replied = ['--report', report(call, 'software-developer-fix-f1',
+    'Reply: fixed: The export returns the first limit rows.\n')];
   for (const id of ['deliverable:d-1', 'fix:f1', 'small-change']) {
     assert.equal(begin(call, w, id).status, 0, id);
-    const ended = call('step', 'end', id, 'done');
+    const ended = call('step', 'end', id, 'done', ...(id === 'fix:f1' ? replied : []));
     assert.equal(ended.status, 0, ended.out);
   }
   assert.ok(!fs.existsSync(path.join(call.artifacts, '.step-reports')));
