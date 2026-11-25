@@ -24,7 +24,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that the failed step left, before it writes the text of the change. The skill
   `workflow-implement-changes` lists the two commands for a commit: with the identity `qory`
   and `qory@localhost`, as `freeze` sets it, because `git commit` exits with 128 where no
-  identity is set, and with no path under `.qory`.
+  identity is set, with no hook and no signature, and with no path under `.qory`. Around
+  that commit, the session takes out of the checkout what makes `scope --plan` exit 1, so
+  that qory pushes the commits of the done steps. `git reset -q` ends a merge or a
+  cherry-pick in progress, and the session sets a changed submodule back.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
@@ -1162,7 +1165,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `scope`, `freeze`, `run`, `probe` and `diff` of `running-a-software-workflow` count a
   changed submodule whatever its `ignore` setting in `.gitmodules` and `.git/config`: their
-  `git status` runs with `--ignore-submodules=none`.
+  `git status` runs with `--ignore-submodules=none`. So do `step begin` and `step end done`,
+  which need a checkout with no change.
 - `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
   `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
   verdict against, and no `plan`, which qory refuses on a workflow that cannot write. The
