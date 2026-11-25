@@ -191,6 +191,19 @@ test('film: a film that fits after pass 1 keeps no frame and needs no recode', (
   assert.equal(ffmpeg.calls().length, 1);
 });
 
+test('film --film: a scenario with the evidence pictures is filmed, and the flag is for one scenario only', () => {
+  const ffmpeg = sized(100);
+  const here = checkout([script('scenario-1', 'pictures')]);
+  here.deps.preflight = { ...here.deps.preflight, runner: FAKE_RUNNER, ffmpegs: [ffmpeg.file],
+    filmLimit: MIB };
+  const done = call(['film', 'scenario-1', '--film', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.deepEqual(fs.readdirSync(path.join(here.root, '.film', 'scenario-1')).sort(),
+    ['scenario-1.mp4', 'scenario-1.vtt']);
+  assert.equal(call(['film', 'pages', '/a', '--film'], here.deps).status, 2);
+  assert.equal(call(['film', 'todo', '--film'], here.deps).status, 2);
+});
+
 test('film: a film that is over the limit after both passes exits 1, with the size and the limit, and removes the folder', () => {
   const ffmpeg = sized(2 * MIB, 2 * MIB);
   const here = filming(ffmpeg, MIB);

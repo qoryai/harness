@@ -1,7 +1,7 @@
 // film: the evidence of a demo scenario, one film or one set of pictures, from the pushed
 // demo script of the scenario.
 //
-//   film <scenario> [--inputs <path>] [--artifacts <folder>]
+//   film <scenario> [--film] [--inputs <path>] [--artifacts <folder>]
 //                         runs the newest demo script of the scenario that counts, in
 //                         <folder>/.film/<scenario>/. The runner of preflight starts the app of
 //                         the build plan at its App address, in a new window of 1280 x 720 px,
@@ -11,7 +11,9 @@
 //                         step starts at the start of that step. With the evidence pictures,
 //                         it runs with video off and writes <scenario>-step-<N>.png, the page
 //                         after step N. It exits 0, and prints a line that names the files. A
-//                         failed step stores nothing, and exits 1 with the fix first. The
+//                         failed step stores nothing, and exits 1 with the fix first. With
+//                         --film, a scenario whose script has the evidence pictures is filmed
+//                         too, for a step that a picture cannot show. The
 //                         first encode (pass 1) caps the bitrate so that the film fits one
 //                         version of qory. When the film is still over the limit, the call
 //                         keeps .film/<scenario>/ with the frames and exits 4 with the line
@@ -187,9 +189,10 @@ module.exports = (lib) => {
   function options(args) {
     const { inputs, rest: other } = takeInputs(args);
     if (inputs === null) return { problem: INPUTS_USAGE };
-    const { value: artifacts, rest } = takeValue(other, '--artifacts');
+    const { value: artifacts, rest: left } = takeValue(other, '--artifacts');
     if (artifacts === null) return { problem: ARTIFACTS_USAGE };
-    return { inputs, artifacts, rest };
+    const film = left.includes('--film');
+    return { inputs, artifacts, film, rest: left.filter((one) => one !== '--film') };
   }
 
   // freshFolder returns the new folder .film/<name> of root. A link in place of .film is
@@ -418,34 +421,35 @@ module.exports = (lib) => {
       throw new Missing(`Push the demo script of ${id}, then run film ${id} again.\nThe artifact ` +
         `folder has no demo script named ${id} that counts.`);
     }
-    const arrow = script.evidence === 'film'
+    const kind = given.film ? 'film' : script.evidence;
+    const arrow = kind === 'film'
       ? script.steps.findIndex((one) => one.title.includes('-->')) : -1;
     if (arrow >= 0) {
       throw new Missing(`Change the Action of step ${arrow + 1} in the demo scenario so it has ` +
         `no "-->", then film it again.\nA cue of ${id}.vtt cannot hold "-->", which ends the cue in a player.`);
     }
-    const ffmpeg = script.evidence === 'film'
+    const ffmpeg = kind === 'film'
       ? findBrowser(io.env, (io.preflight || {}).ffmpegs || FFMPEG) : null;
-    if (script.evidence === 'film' && !ffmpeg) {
+    if (kind === 'film' && !ffmpeg) {
       throw new Missing('Add ffmpeg to the dev container, then run film again.\nNo ffmpeg exists ' +
         `on this machine, and ${id} has the evidence film.`);
     }
     browserOf(io);
     const dir = freshFolder(root, id);
     return cleaned(dir, () => {
-      const capture = { kind: script.evidence, dir, name: id };
+      const capture = { kind, dir, name: id };
       const shorter = { ...io, preflight: { ...io.preflight,
         maxMs: Math.min((io.preflight || {}).maxMs || RUN_BUDGET_MS, RUN_BUDGET_MS) } };
-      const again = script.evidence === 'film' ? 'film it' : 'run it';
+      const again = kind === 'film' ? 'film it' : 'run it';
       const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
         `film ${id}`, () => new Missing(`Shorten the sign-in steps of ${id}.json, or make the ` +
           `app start faster, then ${again} again.\nThe ${START_MS / 1000} s for the app ` +
           'start, the sign-in and the browser ran out before the browser started.'));
       if (!run.ok) {
         fs.rmSync(dir, { recursive: true, force: true });
-        return failure(io, run, script.evidence === 'film' ? 'film' : 'pictures', `film ${id}`);
+        return failure(io, run, kind === 'film' ? 'film' : 'pictures', `film ${id}`);
       }
-      if (script.evidence === 'film') {
+      if (kind === 'film') {
         const size = encode(io, dir, script, run.capture, ffmpeg,
           ffmpegLimitMs(Date.now() - began));
         if (size > limitOf(io)) return over(io, dir, run.capture, id, size);
@@ -708,7 +712,7 @@ module.exports = (lib) => {
 
   return {
     film: {
-      usage: ['film <scenario> [--inputs <path>] [--artifacts <folder>]',
+      usage: ['film <scenario> [--film] [--inputs <path>] [--artifacts <folder>]',
         'film recode <scenario>', 'film frames <scenario>', 'film todo',
         'film record <scenario> --review <file> --media <N>',
         'film record <scenario> --class <class> --cause <text> [--step <N>]',
@@ -717,6 +721,7 @@ module.exports = (lib) => {
         const given = options([what, ...rest].filter((one) => one !== undefined));
         if (given.problem) return given.problem;
         const [first, ...paths] = given.rest;
+        if (given.film && !(given.rest.length === 1 && ID.test(first))) return USAGE;
         if (first === 'pages' ? paths.length > 0 : given.rest.length === 1 && ID.test(first)) {
           return null;
         }

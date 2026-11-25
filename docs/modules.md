@@ -3856,7 +3856,7 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     typed value. It exits 3 for a missing draft, a plan with no `serve` row, no browser, an
     app that does not start or a browser that fails. It records no ledger row and pushes
     nothing.
-- `film <scenario> [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
+- `film <scenario> [--film] [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
   [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
   `verbs/film.cjs`. One call takes one scenario and ends within 585 seconds (`CALL_MS` of
   `lib/budget.cjs`): the 600 seconds of a tool call, less 15 seconds of margin, which also
