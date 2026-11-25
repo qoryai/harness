@@ -170,6 +170,9 @@ test('reviewing-changes repeats and closes earlier findings by id, and caps a re
   // Each reviewer of a change caps its report as the format does.
   const cap = 'Report at most 100 findings, the blocking ones first.';
   assert.ok(REVIEWING.includes(cap));
+  // So do plan-reviewer and check-reviewer, whose step reports reviewing-drafts lists.
+  const drafts = fs.readFileSync(path.join(SKILLS, 'reviewing-drafts', 'SKILL.md'), 'utf8');
+  assert.ok(drafts.split('\n## The report file\n')[1].replace(/\s+/g, ' ').includes(cap));
   for (const agent of ['code', 'test', 'acceptance', 'security', 'data', 'failure', 'tamper',
     'verification']) {
     const text = fs.readFileSync(path.join(MODULES, 'software-factory', 'agents',
