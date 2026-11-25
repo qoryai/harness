@@ -750,7 +750,7 @@ test('findings round: a missing or invalid report is one blocking finding', () =
     [{ reviewer: name, findings: [{ ...REVIEWED, proof: 'broken rule: style.' }] },
       'Reviewer code-reviewer wrote a report that does not match the report format: finding ' +
       '1 is blocking with a proof that is a broken rule.'],
-    [{ reviewer: name, findings: [{ ...REVIEWED, point: '\u200b' }] }, 'Reviewer ' +
+    [{ reviewer: name, findings: [{ ...REVIEWED, point: '\ufffc' }] }, 'Reviewer ' +
       'code-reviewer wrote a report that does not match the report format: finding 1 has a ' +
       'point that is not one line with a character that shows.'],
     [{ reviewer: name, findings: [{ ...REVIEWED, id: ['f1'] }] }, 'Reviewer code-reviewer ' +
@@ -995,6 +995,54 @@ test('findings round --previous: a repeat keeps the stored severity, and a close
     closes: [{ id: 'f7', state: 'fixed', reason: 'Fixed.' }] } });
   assert.match(withPrevious(closing.dir, closing.suite, ['code-reviewer'], open).lines.at(-1),
     /: 0 blocking, 0 non-blocking open findings; 1 closed\.$/);
+});
+
+test('findings round: a point or a file off one line, or a file over 300, is invalid', () => {
+  const name = 'code-reviewer';
+  const format = 'Reviewer code-reviewer wrote a report that does not match the report format: ';
+  const off = (key) => `finding 1 has a ${key} with a tab, a line break or another control or ` +
+    'format character.';
+  const cases = [
+    [{ file: 'a'.repeat(301) }, 'finding 1 has a file of 301 characters, not 1 to 300.'],
+    [{ point: 'The export\tdrops a row.' }, off('point')],
+    [{ point: 'The export\u2028drops a row.' }, off('point')],
+    [{ point: 'The export\u200Bdrops a row.' }, off('point')],
+    [{ file: 'src/export\n.js' }, off('file')],
+    [{ file: 'src/export\t.js' }, off('file')],
+  ];
+  for (const [change, clause] of cases) {
+    const data = { reviewer: name, findings: [{ ...REVIEWED, ...change }] };
+    assert.notDeepEqual(problems(data), [], clause);
+    const { dir, suite } = sessionFolder({ [name]: data });
+    assert.equal(round(dir, suite, [name]).lines[0], `Blocking finding of code-reviewer: ` +
+      `${format}${clause}`);
+  }
+  // A file of 300 characters, and the joiners of emoji in a point, pass.
+  const fine = { reviewer: name, findings: [{ ...REVIEWED, file: 'a'.repeat(300),
+    point: 'The flag \u{1F3F3}\u200D\u{1F308} shows.' }] };
+  assert.deepEqual(problems(fine), []);
+  const { dir, suite } = sessionFolder({ [name]: fine });
+  assert.equal(round(dir, suite, [name]).status, 1);
+  assert.doesNotMatch(round(dir, suite, [name]).out, /does not match/);
+});
+
+test('findings round: the line rule of a point and a file is the $defs line of the contract, ' +
+  'for each code point', () => {
+  // The pattern is read from qory's contract at QORY_SOURCE, not from a copy.
+  const line = new RegExp(loaded.schema.$defs.line.pattern, 'u');
+  const { reportProblem } = require(path.join(SKILLS, 'running-a-workflow/lib/findings.cjs'));
+  const data = { reviewer: 'code-reviewer', findings: [{ ...REVIEWED }] };
+  const wrong = [];
+  for (let cp = 0; cp <= 0x10ffff && wrong.length < 5; cp += 1) {
+    if (cp >= 0xd800 && cp <= 0xdfff) continue;
+    const char = String.fromCodePoint(cp);
+    data.findings[0].file = `a${char}b`;
+    if (line.test(`a${char}b`) !== (reportProblem(data, 'code-reviewer') === null)) {
+      wrong.push(`U+${cp.toString(16).toUpperCase().padStart(4, '0')}`);
+    }
+  }
+  assert.deepEqual(wrong, [], `the rule differs from the contract at these code points, with ` +
+    `Node's Unicode ${process.versions.unicode}`);
 });
 
 test('findings round: more than 100 findings or closes, and a bad close, are invalid', () => {

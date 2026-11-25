@@ -16,8 +16,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     `qory.review_session.previous_findings`. Its report repeats each earlier finding of its
     role that still holds, by its `id`, closes each one that no longer holds in `closes`,
     as `fixed` or `dismissed` with a reason, and lists at most 100 findings and 100 closes.
-    A report that repeats or closes a finding of another role, or one id twice, counts as no
-    report. An earlier finding that a report leaves out stays open.
+    A repeat keeps the severity that Qory Apiary stored. The `point` and the `file` of a
+    finding are on one line with no tab or other control or format character, and `file`
+    has at most 300 characters. A report that repeats or closes a finding of another role,
+    or one id twice, counts as no report. An earlier finding that a report leaves out stays
+    open.
   - `checks.cjs panel --previous <file>` starts each reviewer with an open finding, also
     when no path of the change matches its paths. `checks.cjs findings round --previous
     <file>` prints the open findings after the round, and its last line is `Checked <n>

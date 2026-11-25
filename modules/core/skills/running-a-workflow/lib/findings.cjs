@@ -35,10 +35,14 @@ const PROOF = /^(failing check|failing input|broken rule): \S/u;
 const BLOCKING_PROOF = /^(failing check|failing input): /u;
 // The members of a finding that are text, with their least and most characters.
 const TEXTS = { quote: [1, 2000], problem: [1, 2000], fix: [1, 2000], proof: [0, 1000],
-  point: [1, 500], file: [1, 500] };
+  point: [1, 500], file: [1, 300] };
 const REQUIRED_TEXT = ['quote', 'problem', 'fix', 'proof', 'point'];
 // A character that shows: no white space, control, refused or hidden character.
 const SHOWS = /[^\s\u0000-\u001F\u007F-\u009F\p{Default_Ignorable_Code_Point}\p{Cf}\uFFFC]/u;
+// A character that the line rule of the review report format ($defs line) does not allow in a
+// point or a file: a control character, U+2028, U+2029, or a format character (Cf) other
+// than the joiners U+200C and U+200D. scripts/findings.test.js compares it with the contract.
+const OFF_LINE = /[\p{Cc}\u2028\u2029]|(?![\u200C\u200D])\p{Cf}/u;
 
 // closeProblem returns what breaks the review report format in the close at place, or null.
 function closeProblem(close, place) {
@@ -123,7 +127,13 @@ function reportProblem(data, name, known = new Set()) {
     if (finding.severity === 'blocking' && !BLOCKING_PROOF.test(finding.proof)) {
       return `${which} is blocking with a proof that is a broken rule`;
     }
-    if (/[\n\r]/u.test(finding.point) || !SHOWS.test(finding.point)) {
+    for (const key of ['point', 'file']) {
+      if (finding[key] !== undefined && OFF_LINE.test(finding[key])) {
+        return `${which} has a ${key} with a tab, a line break or another control or format ` +
+          'character';
+      }
+    }
+    if (!SHOWS.test(finding.point)) {
       return `${which} has a point that is not one line with a character that shows`;
     }
     if (finding.id !== undefined &&

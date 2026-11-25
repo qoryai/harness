@@ -111,9 +111,10 @@ apply. Each finding has these members, and no "Marks:" line:
 - `fix`: what must be true.
 - `proof`: the form of the proof, a colon, a space, and the steps that repeat the problem,
   at most 1,000 characters. "The proof" lists the forms.
-- `point`: one sentence that a member reads when the finding is left, on one line, at most
-  500 characters.
-- `file` and `line`: where the problem is, when one place shows it.
+- `point`: one sentence that a member reads when the finding is left, on one line with no
+  tab, at most 500 characters.
+- `file` and `line`: where the problem is, when one place shows it. `file` is a path on one
+  line with no tab, at most 300 characters.
 - `id`: only to repeat an earlier finding of your role, such as `f4`, as "Earlier findings"
   lists. Write no id on a new finding: the run numbers it.
 

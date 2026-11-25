@@ -2157,7 +2157,7 @@ tool's error. The first line of each reason starts with what to do. The guard de
   which compares files as `diff` does when a path is outside the work tree, and a recursive
   search of BSD `grep -r` or `-R`); and `sort` may write temporary files under the system
   temporary folder for large input, which the guard allows. (6) The report schema limits
-  `file` of a finding to 500 characters, and `findings open` prints the `file` of a finding
+  `file` of a finding to 300 characters, and `findings open` prints the `file` of a finding
   whole, without a cut. The glob rule covers a word that the shell expands, not a pattern
   that a command expands itself: `grep -e` and `find -name` take a pattern, so a quoted `*`
   stays a pattern. `diff -l` starts `pr` and `--help` starts `man`, so the guard denies
