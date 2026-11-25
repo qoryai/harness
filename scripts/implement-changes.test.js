@@ -1201,14 +1201,15 @@ test('after a step that fails, the session takes out what the check of the push 
     /Rewrite commit [0-9a-f]{12} without a GitHub token in "tests\/blob\.bin", line 2\./, 0,
     (w, base) => takeKey(w, base, 'tests/blob.bin'),
     (w, what) => assert.equal(tracked(w).includes('tests/blob.bin'), false, what)],
-    // The line has no path, so the session takes it from git status.
-    ['a key in the name of a new file', (w) => writeFile(w, `tests/${key}.txt`, 'one\n'),
+    // The line has no path, so the session takes it from git status, which lists the files of
+    // a new folder only with --untracked-files=all.
+    ['a key in the name of a new file', (w) => writeFile(w, `tests/new/${key}.txt`, 'one\n'),
       /Rewrite commit [0-9a-f]{12} without a GitHub token in the name of a file\./, 0,
       (w, base) => {
         const listed = shell(w, status);
         assert.equal(listed.status, 0, listed.stderr);
         const file = listed.stdout.split('\n').find((one) => one.includes(key)).slice(3);
-        assert.equal(file, `tests/${key}.txt`);
+        assert.equal(file, `tests/new/${key}.txt`);
         takeKey(w, base, file);
       }, (w, what) => assert.equal(tracked(w).some((one) => one.includes(key)), false, what)],
     // Only the commit of the failed step has the key, so the other lines of the file stay.
