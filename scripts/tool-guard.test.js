@@ -345,9 +345,10 @@ const AC4_NEW = crit('ac-4', 'A customer gets a corrected reply with the new hou
 // ac-1 at OTHER_PATH. `approved` is the criteria version that a member approved. v2 is the
 // text of version 2, or null for a store with no file of it; v2By is the kind of its writer,
 // `person` or `run`;
-// unhashed lists the ids of checks that have no criterion_sha256.
+// unhashed lists the ids of checks that have no criterion_sha256; hashFrom is the list of
+// criteria whose hashes the lock records, when they are not those of version `locked`.
 function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', approved = 1,
-  locked = 1, unhashed = [], support = [],
+  locked = 1, unhashed = [], support = [], hashFrom = null,
   checks = [['ac-4', CHECK_PATH], ['ac-1', OTHER_PATH]] } = {}) {
   const root = next('server');
   fs.cpSync(TESTDATA, root, { recursive: true });
@@ -370,7 +371,7 @@ function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', appr
   Object.assign(index.artifacts.find((one) => one.type === 'acceptance-criteria'),
     { versions: [version(1, 'run', v1), version(2, v2By, v2)], newest_version: 2,
       approved_version: `av_ac${approved}` });
-  const of = locked === 1 ? v1 : v2;
+  const of = hashFrom || (locked === 1 ? v1 : v2);
   const entry = ([id, file]) => ({ criterion: id, path: file, command: `npm test -- ${file}`,
     failed_with: 1, sha256: sha(CHECK_TEXT),
     ...(unhashed.includes(id) ? {} : { criterion_sha256: chash(of.find((one) => one.id === id)) }) });
@@ -392,16 +393,16 @@ function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', appr
 // checks and the store of liftStore, which qory pulls and which .qory/artifacts has too.
 // call(input, runtime, env) runs the guard with the lock read from that store, as in a run, and
 // no file of change mode exists.
-function liftCase(options = {}) {
+function liftCase(options = {}, pulls = {}) {
   const dir = working();
   for (const file of [OTHER_PATH, HELPER_PATH]) {
     fs.writeFileSync(path.join(dir, file), CHECK_TEXT);
   }
   const from = liftStore(options);
   fs.cpSync(from, path.join(dir, '.qory', 'artifacts'), { recursive: true });
-  const env = { ...RUN, ...fakeQory(from) };
-  const call = (input, runtime = 'claude', extra = {}) => decide({ input: { ...input, cwd: dir },
-    env: { ...env, ...extra }, runtime, root: dir });
+  const env = { ...RUN, ...fakeQory(from, 0, pulls) };
+  const call = (input, runtime = 'claude', extra = {}, more = {}) => decide({
+    input: { ...input, cwd: dir }, env: { ...env, ...extra }, runtime, root: dir, ...more });
   return { dir, a: path.join(dir, CHECK_PATH), b: path.join(dir, OTHER_PATH),
     helper: path.join(dir, HELPER_PATH), call };
 }
@@ -466,10 +467,45 @@ test('the guard lifts nothing when the criteria cannot be read, or are not newer
   // The lock locks version 2 and the target is version 1: the hashes differ, and nothing lifts.
   const above = liftCase({ v2By: 'run', locked: 2 });
   firstLine(above.call(writeOf(above.a)), LOCKED_START);
-  // The pulled folder of the run is gone: the target cannot be read.
-  const none = liftCase({ v2By: 'run' });
-  fs.rmSync(path.join(none.dir, '.qory', 'artifacts'), { recursive: true });
+  // The pull of the criteria fails: the target cannot be read.
+  const none = liftCase({}, { failing: ['acceptance-criteria'] });
   firstLine(none.call(writeOf(none.a)), LOCKED_START);
+});
+
+test('the guard reads the criteria that a run pulls, not the artifact folder that an agent can write', () => {
+  const edit = (dir, change) => {
+    const file = path.join(dir, '.qory', 'artifacts', 'index.json');
+    const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+    change(index.artifacts.find((one) => one.type === 'acceptance-criteria'));
+    fs.writeFileSync(file, JSON.stringify(index, null, 2));
+  };
+  // The store has version 2 from a run, which counts for nothing. A forged index.json in the
+  // artifact folder makes a person its writer, and the check of ac-4 stays locked.
+  const forged = liftCase({ v2By: 'run' });
+  edit(forged.dir, (one) => { one.versions[1].writer = { kind: 'person', user_id: 'u_1' }; });
+  firstLine(forged.call(writeOf(forged.a)), LOCKED_START);
+  firstLine(forged.call(writeOf(forged.b)), LOCKED_START);
+  // A person wrote version 2 in the store. The artifact folder has another text of version 2,
+  // in which ac-1 changed and ac-4 did not: the pulled text counts, so ac-4 lifts, ac-1 not.
+  const text = liftCase();
+  fs.writeFileSync(path.join(text.dir, '.qory', 'artifacts', 'acceptance-criteria', 'main', 'v2',
+    'acceptance-criteria.json'), JSON.stringify({ summary: 'Criteria.',
+    criteria: [crit('ac-1', 'The reply lists no hours.'), AC4] }));
+  assert.equal(text.call(writeOf(text.a)), null);
+  firstLine(text.call(writeOf(text.b)), LOCKED_START);
+  // A forged index.json that hides version 2 lifts nothing less: the pulled index counts.
+  const hidden = liftCase();
+  edit(hidden.dir, (one) => { one.versions[1].writer = { kind: 'run', run_id: 'run_7kq2m' }; });
+  assert.equal(hidden.call(writeOf(hidden.a)), null);
+});
+
+test('the guard keeps a check locked when the lock locks the target version', () => {
+  // The lock locks version 2 and records the old hash of ac-4: the target is not newer.
+  const same = liftCase({ locked: 2, hashFrom: [AC1, AC4] });
+  firstLine(same.call(writeOf(same.a)), LOCKED_START);
+  // The same hashes with the lock of version 1 lift the check, so the denial above is the rule.
+  const older = liftCase({ hashFrom: [AC1, AC4] });
+  assert.equal(older.call(writeOf(older.a)), null);
 });
 
 test('a record of changes that an agent plants lifts nothing', () => {
@@ -1079,15 +1115,16 @@ function server({ support } = {}) {
   return root;
 }
 
-// fakeQory returns an environment of a run whose qory pulls from into a new store.
-function fakeQory(from, status = 0) {
+// fakeQory returns an environment of a run whose qory pulls from into a new store. A pull of
+// a type in failing exits with status, and each pull waits for pause seconds first.
+function fakeQory(from, status = 0, { failing = [], pause = 0 } = {}) {
   const bin = next('bin');
   const store = next('store');
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 [ "$1 $2" = 'artifact pull' ] || exit 9
 [ ${status} -eq 0 ] || exit ${status}
-mkdir -p '${store}'
+${pause ? `sleep ${pause}\n` : ''}${failing.map((type) => `[ "$3" != '${type}' ] || exit 3\n`).join('')}mkdir -p '${store}'
 cp -R '${from}/.' '${store}/'
 echo '${store}'
 `, { mode: 0o755 });

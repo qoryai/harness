@@ -609,17 +609,18 @@ module.exports = (lib) => {
   const WRITER = 'acceptance-check-writer';
 
   // targetOf returns { number, live } of the criteria version that criteriaTarget returns for
-  // the artifact folder of io, as the verb changes reads it, with live the map of each live
-  // criterion by id to { hash, tests }, or null when no version is approved, the version has no
-  // file, or no criterion. In a run it pulls the version first, so a file that an agent wrote
-  // in its place counts for nothing. A fault throws.
+  // the index.json of the criteria, with live the map of each live criterion by id to
+  // { hash, tests }, or null when no version is approved, the version has no file, or no
+  // criterion. In a run, index.json and the version are pulled, as readLock pulls the lock, so
+  // a file that an agent wrote in the artifact folder counts for nothing; outside a run, the
+  // artifact folder is the store. A fault throws.
   function targetOf(io) {
-    const context = new Context(artifactFolder(io), 'check', io.home);
-    const number = criteriaTarget(context, 'the lock');
-    if (number === null) return null;
     const inRun = Boolean(io.env && io.env.QORY_RUN_ID);
-    const store = inRun ? lockReader.pull(io, 'acceptance-criteria', number, 'write')
+    const first = inRun ? lockReader.pull(io, 'acceptance-criteria', null, 'write')
       : artifactFolder(io);
+    const number = criteriaTarget(new Context(first, 'check', io.home), 'the lock');
+    if (number === null) return null;
+    const store = inRun ? lockReader.pull(io, 'acceptance-criteria', number, 'write') : first;
     const file = criteriaFile({ store }, number);
     if (file === null) return null;
     const text = readFile(file, `acceptance-criteria version ${number}`).replace(/\r\n?/g, '\n');
@@ -643,10 +644,14 @@ module.exports = (lib) => {
   // shortcut: the guard has no source for the name of the workflow, so this keys on the agent:
   // the writer of the checks starts only in write-acceptance-checks; replace it when the input
   // of a call has the workflow.
-  // shortcut: the lift trusts the pulled store as the lock read does, and the pulled folder
-  // (index.json, criteria versions, lock documents) is agent-writable through a shell
-  // expansion; keptFiles and lock --verify are the boundary, replace it when the guard reads a
-  // store that no agent call can write.
+  // shortcut: outside a run, the lift reads the artifact folder, which an agent can write; in a
+  // run it reads pulled copies only, so replace it when a store outside a run is no source.
+  // shortcut: a version that is linked to a decision counts only when the criteria pull has the
+  // lock documents that criteriaTarget compares it with; replace it when a pull is known to
+  // have them.
+  // shortcut: a forged .qory/build/changes.json can steer what plan-the-build plans, and the
+  // guard no longer reads it; keptFiles and lock --verify refuse a wrong result, replace it
+  // when the record is written where no agent call can write.
   function writable({ io, agent, checks, fold }) {
     if (agent !== WRITER || !Array.isArray(checks) || !checks.length) return [];
     const target = targetOf(io);

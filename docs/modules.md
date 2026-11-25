@@ -2275,8 +2275,9 @@ folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
 `rm -rf .qory`, as a write of that file. A path that is a hard link of a locked file is that
 file: the guard compares the device and the inode of a written path with each locked file that
 has more than one link, so `ln checks/a.ts notes.txt` and a later write to `notes.txt` is a
-write of `checks/a.ts`. A path that does not exist yet is no locked file, and a failed read of
-either path denies the call. It reads a `restore` of a folder above a locked
+write of `checks/a.ts`. A path that does not exist yet, or whose parent is a file, is no locked
+file, and a locked file that is gone is no link; any other failed read of either path denies
+the call. It reads a `restore` of a folder above a locked
 file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
 `git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. An
 agent's redirect to a brace list of more than one word, such as
@@ -5182,10 +5183,19 @@ A support file, a file with an entry of an unchanged criterion, a criterion that
 every other agent and the main session stay denied, and so does every file when the target
 cannot be read. The guard has no source for the name of the workflow, so it keys on the agent.
 `changes.json` is written by the verb `changes`, printed by the workflows and read by the check
-of a build plan in a session, which finds no record with more than one link. The lift trusts
-the pulled folder (`index.json`, criteria versions and lock documents) as the lock read does,
-and a shell expansion can write that folder; `keptFiles` and `lock --verify` are the boundary,
-and the limit ends when the guard reads a store that no agent call can write.
+of a build plan in a session, which finds no record that is a link or has more than one link.
+In a run, the lift pulls `index.json` and the target version of the criteria with
+`qory artifact pull acceptance-criteria`, and then with `--version <N>`, as the lock read pulls
+the lock, so a file that an agent writes in `.qory/artifacts` changes nothing. Outside a run it
+reads the artifact folder. These limits stay:
+
+- Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
+  store that no agent call can write.
+- A criteria version that a note links counts only when the criteria pull has the lock
+  documents that `criteriaTarget` compares it with.
+- A forged `.qory/build/changes.json` can steer what `plan-the-build` plans, and the guard no
+  longer reads it. `keptFiles` and `lock --verify` refuse a wrong result. The limit ends when
+  the record is written where no agent call can write.
 
 The guard does not know these rules: the type `acceptance-lock` of `running-a-software-workflow`
 has them in `lock.writable` and `lock.refused`, next to `lock.files` and `lock.fill`. The

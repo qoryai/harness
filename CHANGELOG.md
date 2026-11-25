@@ -13,8 +13,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   brace and a command with no brace pass.
 - The tool guard compares the device and the inode of a written path with each locked file
   that has more than one link, so a hard link to a locked file is denied as that file, also
-  when a lift of the check ended. A path that does not exist yet is allowed, and a failed read
-  of either path denies the call.
+  when a lift of the check ended. A path that does not exist yet, or whose parent is a file, is
+  allowed, a locked file that is gone is no link, and any other failed read of either path
+  denies the call.
 - `checks.cjs changes` lists the acceptance criteria that changed since the newest
   acceptance lock and writes `.qory/build/changes.json`. The workflows `plan-the-build` and
   `write-acceptance-checks` run it after `resume`. With no changed criterion they start no
@@ -31,10 +32,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   unchanged criterion, every other agent and the main session stay denied, and so does every
   file when the target cannot be read. `lock.writable` of the type `acceptance-lock` decides
   this from the lock and the criteria, and the guard reads no `changes.json`; it keeps every
-  file locked when the type has no `lock.writable` or the function throws. The lift trusts the
-  pulled folder as the lock read does, and a shell expansion can write that folder; `lock
-  --verify` is the boundary. The check of a build plan reads no `changes.json` with more than
-  one link.
+  file locked when the type has no `lock.writable` or the function throws. In a run, the lift
+  pulls the criteria and reads `index.json` and the target version from the pull, as the lock
+  read does, so a file in `.qory/artifacts` changes nothing; outside a run it reads the artifact
+  folder, which an agent can write. A check of a criterion that left Tests stays locked. A
+  forged `.qory/build/changes.json` can steer what `plan-the-build` plans: `keptFiles` and
+  `lock --verify` refuse a wrong result. The check of a build plan reads no `changes.json`
+  that is a link or has more than one link.
 - Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
   check of its criterion in the criteria version that the lock locks. `lock` fills it, and
   the push check recomputes it. A new lock keeps `sha256`, `path`, `command` and
