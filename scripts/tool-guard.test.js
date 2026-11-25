@@ -835,6 +835,19 @@ test('a pull gets the time up to the shared deadline, at most 100 s, and none af
   const zero = run({}, (now) => ({ deadline: now + 200, wait: 300 }), 250);
   assert.deepEqual(zero.pulls.map((one) => one.timeout), [500, 250]);
   assert.match(zero.reason, /had no time left/);
+  // With no deadline in the call, the deadline is 20 s after the clock that the call got, and the
+  // pulls may take 60 s more: the first pull gets 80 s. A real clock 100 years before the fake
+  // one would give a deadline that is already past.
+  const derived = (() => {
+    const one = liftCase();
+    const timed = fakeTime(one);
+    timed.clock.at = 4e12;
+    const reason = one.call(writeOf(one.a), 'claude', {}, { now: timed.clock.now,
+      spawn: timed.spawn });
+    return { reason, pulls: timed.pulls };
+  })();
+  assert.equal(derived.reason, null);
+  assert.equal(derived.pulls[0].timeout, 80000);
   // With the budget spent before the first pull, no pull starts.
   const none = run({}, (now) => ({ deadline: now + 1000, wait: -3000 }));
   assert.deepEqual(none.pulls, []);
@@ -895,6 +908,12 @@ test('a budget moves its deadline by the time of a wait, up to its cap, and read
   const plain = budget(start + 300, 1000, clock.now);
   clock.at += 400;
   assert.throws(() => plain(1, true));
+  // A clock exactly on the deadline is not past it (the code throws at now > deadline + moved):
+  // 300 ms passes, and 301 ms throws.
+  clock.at = start + 300;
+  budget(start + 300, 0, clock.now)(1, true);
+  clock.at = start + 301;
+  assert.throws(() => budget(start + 300, 0, clock.now)(1, true));
   // Two waits move it by their sum, up to the cap.
   clock.at = start;
   const twice = budget(start + 100, 500, clock.now);

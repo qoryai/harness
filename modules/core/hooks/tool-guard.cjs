@@ -2280,8 +2280,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
       // the guard.
       const read = () => {
         lock = (locked || ((args) => lockedFiles(args)))({ root, env, script, until, now, spawn });
-        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script, until, now, spawn }).io, fold,
-          type: agent ? typeOf() : null,
+        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script, until, now, spawn }).io,
+          fold, type: agent ? typeOf() : null,
           name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
       };
       if (spend && spend.waiting) spend.waiting(read);

@@ -530,8 +530,9 @@ module.exports = (lib) => {
   // lockedByNewest reads, criteria lists the version, whose file the question rule reads, and
   // questions is the number of the newest version of the questions that counts in index.json,
   // as newest reads it, or null.
-  // shortcut: questions is listed also when a free-text note makes bound return before it reads
-  // them, so one pull is needless; replace it when criteriaReads repeats that test of bound.
+  // shortcut: the questions, and the criteria version unless it is the target, are listed also
+  // when a free-text note makes bound return before it reads them, so those pulls are needless;
+  // replace it when criteriaReads repeats that test of bound.
   // A run pulls each of them, by number, before it calls criteriaTarget.
   function criteriaReads(context) {
     const found = { questions: null, locks: new Set(), criteria: new Set() };
