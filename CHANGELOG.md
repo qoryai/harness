@@ -21,6 +21,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     has at most 300 characters. A report that repeats or closes a finding of another role,
     or one id twice, counts as no report. An earlier finding that a report leaves out stays
     open. The verbs read qory's findings files up to 64 MiB, and a larger file exits 3.
+  - A module adds the kinds of the source of a finding that it reads, with their labels, as
+    `finding_kinds` of the registry. `core` reads `reviewer`, `check` and `hook`, and
+    `software-factory` adds `criterion` and `scenario`. A findings file with a kind that no
+    module adds exits 3.
   - `checks.cjs panel --previous <file>` starts each reviewer with an open finding, also
     when no path of the change matches its paths. `checks.cjs findings round --previous
     <file>` prints the open findings after the round, and its last line is `Checked <n>

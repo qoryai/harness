@@ -25,7 +25,7 @@ const {
   plainLine, plural, short,
 } = require('../lib/base.cjs');
 const {
-  FINDINGS_BYTES, FINDINGS_FIX, readOpen, reportProblem, sourceText,
+  FINDINGS_BYTES, FINDINGS_FIX, readOpen, reportProblem,
 } = require('../lib/findings.cjs');
 
 // Each line that open prints for a finding starts with this.
@@ -83,14 +83,14 @@ function open(io, file) {
     throw new Printed([FINDINGS_FIX, `${fullQuote(full)} has ${stat.size} bytes.`]);
   }
   const data = parseJson(readLimited(full, name, stat.size, FINDINGS_BYTES), name);
-  const read = readOpen(data, name);
+  const read = readOpen(data, name, io.registry().finding_kinds);
   const { round } = read;
   const findings = read.findings.filter((one) => one.state === 'open');
   const ranked = [...findings.filter((one) => one.severity === 'blocking'),
     ...findings.filter((one) => one.severity !== 'blocking')];
   const lines = ranked.slice(0, MAX_FINDING_LINES).map((one) => {
     const where = one.file ? `, ${one.file}${one.line ? `:${one.line}` : ''}` : '';
-    return `${FIX_FIRST}${one.id} (${one.severity}, from ${sourceText(one.source)}` +
+    return `${FIX_FIRST}${one.id} (${one.severity}, from ${one.from}` +
       `${one.disputed ? ', disputed' : ''}${where}): ${one.point}`;
   });
   if (ranked.length > lines.length) {
@@ -169,7 +169,7 @@ function previousFindings(io, file) {
     if (error instanceof Missing) throw error;
     throw new Missing(`${PREVIOUS_FIX}\n${name} is not JSON.`);
   }
-  const { findings } = readOpen(data, name, PREVIOUS_FIX);
+  const { findings } = readOpen(data, name, io.registry().finding_kinds, PREVIOUS_FIX);
   const stages = new Set(findings.map((one) => one.stage));
   if (stages.size > 1) {
     throw new Missing(`${PREVIOUS_FIX}\n${name} has findings of ${stages.size} stages.`);

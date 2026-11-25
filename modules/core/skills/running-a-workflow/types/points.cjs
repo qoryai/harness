@@ -57,10 +57,11 @@ function runFiles(types = []) {
     types.some((def) => (def.allowed ? def.allowed(name) : name === def.main)));
 }
 
-// registryOf returns the registry of plugin, or one with no types and no ids when it cannot
-// load.
+// registryOf returns the registry of plugin, or one with no types and no ids, and only the
+// finding kinds of core, when it cannot load.
 function registryOf(plugin) {
-  const none = { types: [], ids: [], items: [], questionRules: [] };
+  const none = { types: [], ids: [], items: [], questionRules: [],
+    finding_kinds: require('../lib/findings.cjs').findingKinds() };
   if (!plugin) return none;
   try {
     return require('../lib/registry.cjs').loadRegistry(plugin);

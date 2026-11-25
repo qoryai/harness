@@ -13,6 +13,7 @@ const plugin = require('./plugin.cjs');
 const { REPORT_FILE } = require('./end.cjs');
 const { results } = require('./reports.cjs');
 const points = require('../types/points.cjs');
+const { findingKinds } = require('./findings.cjs');
 const questions = require('../types/questions.cjs');
 const reviewComments = require('../types/review-comments.cjs');
 
@@ -43,6 +44,9 @@ const reviewComments = require('../types/review-comments.cjs');
 //   adds them;
 // - suite: the state of the result of the full suite, which findings round reads. One skill at
 //   most adds it;
+// - finding_kinds: the kinds of the source of a finding that the skill reads besides those of
+//   core, reviewer, check and hook, as an object from each kind to its label, the word that a
+//   line shows before the name of the source. Each kind is added once, by one skill;
 // - end(io): more results of the end check, each { line, point, item } as lib/end.cjs lists
 //   them, where io is the io of end with root, the artifact folder, and failed, the count of
 //   the failed checks before this one. One skill at most adds it.
@@ -57,7 +61,6 @@ const LIBRARY = Object.freeze({
   draftFile: require('./drafts.cjs').draftFile,
   lockReader: require('../verbs/lock.cjs').lockReader,
   readOpen: require('./findings.cjs').readOpen,
-  sourceText: require('./findings.cjs').sourceText,
   reviewerFindings: require('../verbs/findings.cjs').reviewerFindings,
   readLimited: require('../verbs/findings.cjs').readLimited,
   outboxFolder: require('./outbox.cjs').outboxFolder,
@@ -68,6 +71,7 @@ const LIBRARY = Object.freeze({
   FINDINGS_BYTES: require('./findings.cjs').FINDINGS_BYTES,
   FINDINGS_FIX: require('./findings.cjs').FINDINGS_FIX,
   pointCheck: points.pointCheck, pointRules: points.pointRules, MAX_POINTS: points.MAX_POINTS,
+  registryOf: points.registryOf,
 });
 
 // The types that this skill checks: they need the words of no kind of work.
@@ -230,12 +234,14 @@ function part(file) {
 // its folder for trusted, by default the list of TRUSTED, and throws the refusal of the
 // first folder that trustedFile refuses before any file loads. A skill name that two
 // folders have counts once, from the first. A type that two files add, or that this skill
-// checks, stops the check: it is Missing.
+// checks, stops the check: it is Missing. finding_kinds is the map that findingKinds of
+// lib/findings.cjs returns for the finding_kinds of the files.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
     types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
-    ledger: null, suite: null, end: null,
+    ledger: null, suite: null, end: null, finding_kinds: null,
   };
+  const kinds = [];
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -262,6 +268,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     if (Array.isArray(added.items)) registry.items.push(...added.items);
     if (Array.isArray(added.questionRules)) registry.questionRules.push(...added.questionRules);
+    if (added.finding_kinds !== undefined) kinds.push(added.finding_kinds);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {
       throw new base.Missing('Remove one of the two rules of the ledger: two skills add them ' +
@@ -279,6 +286,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     }
     if (added.end) registry.end = added.end;
   }
+  registry.finding_kinds = findingKinds(kinds);
   registry.types.push(...CORE_TYPES);
   const types = new Set();
   for (const { type } of registry.types) {

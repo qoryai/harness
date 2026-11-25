@@ -233,14 +233,16 @@ test('no skill or agent has a step that uses the removed verbs', () => {
 
 // ---- findings open ------------------------------------------------------------------------
 
-function call(argv) {
+// call runs checks.cjs with argv and the plugin folder plugin, by default the one with the
+// skill of software-factory.
+function call(argv, plugin = path.join(tmp, 'plugin')) {
   let out = '';
   let err = '';
   const first = watch();
   const status = main(argv, {
     cwd: tmp,
     artifacts: [tmp],
-    plugin: path.join(tmp, 'plugin'),
+    plugin,
     out: { write: (text) => { out += text; } },
     err: { write: (text) => { err += text; } },
     firstLine: first.firstLine,
@@ -333,8 +335,10 @@ test('findings open: the point loses control characters and stops at 500 charact
 });
 
 test('findings open: each broken form of the file exits 3 with the fix on line 1', () => {
-  const SOURCE = new RegExp('a source whose kind is not reviewer, check, criterion, scenario ' +
-    'or hook, or that has no name');
+  const SOURCE = new RegExp('a source whose kind is not reviewer, check, hook, criterion or ' +
+    'scenario, or that has no name');
+  const PERSON = new RegExp('open-\\d+\\.json: finding 1 has source kind person, which no ' +
+    'module of this harness adds\\.');
   const REPLIES = /replies that are not a list of a kind, a reason and a round/;
   const finding = (change) => ledger(1, [{ reviewer: 'code-reviewer',
     findings: [{ ...FINDING, ...change }] }]);
@@ -348,7 +352,9 @@ test('findings open: each broken form of the file exits 3 with the fix on line 1
     [{ round: 1, reviewers: [] }, /no list findings/],
     [{ round: 1, findings: ['x'] }, /finding 1 as a string/],
     [finding({ source: undefined }), SOURCE],
-    [finding({ source: { kind: 'person', name: 'a' } }), SOURCE],
+    [finding({ source: { kind: 'person', name: 'a' } }), PERSON],
+    [finding({ source: { kind: '', name: 'a' } }), SOURCE],
+    [finding({ source: { kind: 7, name: 'a' } }), SOURCE],
     [finding({ source: { kind: 'reviewer', name: ' ' } }), SOURCE],
     [finding({ state: 'closed' }), /a state that is none of open, fixed, dismissed, accepted/],
     [finding({ stage: undefined }), /stage as missing, not text/],
@@ -1223,12 +1229,68 @@ test('findings open: only open findings print, with their source and a dispute',
   assert.match(result.lines[2], /round 3 has 2 open findings, 1 blocking and 1 non-blocking\./);
 });
 
-test('readOpen: an id has at most 9 digits, as Qory Apiary gives it', () => {
-  const { readOpen, FINDING_ID } = require(path.join(SKILLS, 'running-a-workflow', 'lib',
+test('findings open: the five kinds of a source print with the labels of software-factory', () => {
+  const kinds = [['reviewer', 'code-reviewer', 'code-reviewer'], ['check', 'suite', 'suite'],
+    ['hook', 'end-gate', 'end-gate'], ['criterion', 'ac-3', 'criterion ac-3'],
+    ['scenario', 'scenario-2', 'scenario scenario-2']];
+  const file = put({ round: 1, findings: kinds.map(([kind, name], at) => ({ ...OTHER,
+    id: `f${at + 1}`, stage: 'build', source: { kind, name }, state: 'open', disputed: false,
+    replies: [] })) });
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 1, result.out + result.err);
+  assert.deepEqual(result.lines.slice(0, 5), kinds.map(([, , shown], at) =>
+    `Fix first: f${at + 1} (non-blocking, from ${shown}): <what is wrong in the second finding>`));
+});
+
+test('findings open: with core alone, a finding of the kind criterion exits 3', () => {
+  const plugin = path.join(tmp, 'core-plugin');
+  fs.mkdirSync(path.join(plugin, 'skills'), { recursive: true });
+  const file = put({ round: 1, findings: [{ ...OTHER, stage: 'verify',
+    source: { kind: 'criterion', name: 'ac-3' }, state: 'open', disputed: false, replies: [] }] });
+  const result = call(['findings', 'open', file], plugin);
+  assert.equal(result.status, 3, result.out + result.err);
+  assert.deepEqual((result.out + result.err).split('\n').slice(0, 2), [
+    'Give findings open the open-findings.json that qory wrote.',
+    `  ${path.basename(file)}: finding 1 has source kind criterion, which no module of this ` +
+      'harness adds.']);
+  assert.equal(call(['findings', 'open', put(ROUND)], plugin).status, 1);
+});
+
+test('findingKinds: the kinds of core, then those that skills add, each once', () => {
+  const { findingKinds } = require(path.join(SKILLS, 'running-a-workflow', 'lib',
     'findings.cjs'));
+  assert.deepEqual([...findingKinds()], [['reviewer', ''], ['check', ''], ['hook', '']]);
+  assert.deepEqual([...findingKinds([{ criterion: 'criterion' }, { step: 'stage' }])].slice(3),
+    [['criterion', 'criterion'], ['step', 'stage']]);
+  const broken = [
+    [[{ step: 'a' }, { step: 'b' }], /^Remove one of the two finding kinds step: two skills/],
+    [[{ hook: 'hook' }], /^Remove one of the two finding kinds hook:/],
+    [[['step']], /^Give finding_kinds as an object of kinds and their labels: a skill adds a/],
+    [[{ Step: 'step' }], /^Give each finding kind and its label as a word of lower-case letters/],
+    [[{ step: 'a b' }], /^Give each finding kind and its label as a word of lower-case letters/],
+    [[{ step: 3 }], /^Give each finding kind and its label as a word of lower-case letters/],
+  ];
+  for (const [added, why] of broken) {
+    assert.throws(() => findingKinds(added), (error) => why.test(error.message));
+  }
+});
+
+test('loadRegistry: the finding kinds of software-factory join those of core', () => {
+  const { loadRegistry } = require(path.join(SKILLS, 'running-a-workflow', 'lib',
+    'registry.cjs'));
+  fs.mkdirSync(path.join(tmp, 'core-plugin', 'skills'), { recursive: true });
+  assert.deepEqual([...loadRegistry(path.join(tmp, 'plugin')).finding_kinds], [
+    ['reviewer', ''], ['check', ''], ['hook', ''], ['criterion', 'criterion'],
+    ['scenario', 'scenario']]);
+  assert.deepEqual([...loadRegistry(path.join(tmp, 'core-plugin')).finding_kinds].length, 3);
+});
+
+test('readOpen: an id has at most 9 digits, as Qory Apiary gives it', () => {
+  const { findingKinds, readOpen, FINDING_ID } = require(path.join(SKILLS,
+    'running-a-workflow', 'lib', 'findings.cjs'));
   assert.ok(FINDING_ID.test('f999999999'));
   assert.ok(!FINDING_ID.test('f1000000000'));
   const data = ledger(1, [{ reviewer: 'code-reviewer', findings: [{ ...FINDING,
     id: 'f999999999' }] }]);
-  assert.equal(readOpen(data, 'open.json').findings[0].id, 'f999999999');
+  assert.equal(readOpen(data, 'open.json', findingKinds()).findings[0].id, 'f999999999');
 });

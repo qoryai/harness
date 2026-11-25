@@ -65,6 +65,11 @@ const BUILD_AND_VERIFY = [
 // checks of a point and a question read.
 const IDS = ['ac', 'd', 'step', 'scenario', 'decision'];
 
+// The kinds of the source of a finding of a software factory that Qory Apiary keeps besides
+// those of core, each with its label, the word that a line shows before the name of the
+// source, such as criterion ac-3.
+const FINDING_KINDS = { criterion: 'criterion', scenario: 'scenario' };
+
 // workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
 // library of the checks script that loads this file.
 function workflowChecks(core) {
@@ -108,6 +113,7 @@ function workflowChecks(core) {
       feedback.type,
     ],
     stops: STOPS,
+    finding_kinds: FINDING_KINDS,
     ledger: require('./lib/ledger.cjs')(lib),
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),

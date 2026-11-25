@@ -165,24 +165,51 @@ function reportProblem(data, name, known) {
   return idProblem(data, name, known);
 }
 
-// The kinds of the source of a finding, its states and the kinds of a reply, as Qory Apiary
+// The kinds of the source of a finding that core reads, each shown by its name alone, such as
+// code-reviewer or suite, the states of a finding and the kinds of a reply, as Qory Apiary
 // keeps them. A finding of a check, such as the full suite, may have an empty quote or proof.
-const KINDS = ['reviewer', 'check', 'criterion', 'scenario', 'hook'];
+const KINDS = ['reviewer', 'check', 'hook'];
 const STATES = ['open', 'fixed', 'dismissed', 'accepted'];
 const REPLIES = ['fixed', 'disputed'];
 const FILE_TEXT = ['stage', 'point', 'quote', 'problem', 'fix', 'proof'];
 
-// sourceText returns the source of a finding as a line shows it, such as code-reviewer, suite
-// or criterion ac-3.
-const sourceText = (source) => (['criterion', 'scenario'].includes(source.kind)
-  ? `${source.kind} ${source.name}` : source.name);
+// A kind or a label that a skill adds: a word of lower-case letters.
+const KIND_WORD = /^[a-z]+$/;
+
+// findingKinds returns the map from each kind of KINDS to '' and from each kind of the objects
+// of added, the finding_kinds that the skills add to the registry, to its label, the word that
+// a line shows before the name. A kind that two give, or another form, is Missing.
+function findingKinds(added = []) {
+  const kinds = new Map(KINDS.map((kind) => [kind, '']));
+  for (const one of added) {
+    if (!isObject(one)) {
+      throw new Missing('Give finding_kinds as an object of kinds and their labels: a skill ' +
+        `adds ${jsonKind(one)}.`);
+    }
+    for (const [kind, label] of Object.entries(one)) {
+      if (!KIND_WORD.test(kind) || typeof label !== 'string' || !KIND_WORD.test(label)) {
+        throw new Missing('Give each finding kind and its label as a word of lower-case ' +
+          `letters: a skill adds ${short(plain(kind), 40)}.`);
+      }
+      if (kinds.has(kind)) {
+        throw new Missing(`Remove one of the two finding kinds ${kind}: two skills add it, or ` +
+          'a skill adds a kind of core.');
+      }
+      kinds.set(kind, label);
+    }
+  }
+  return kinds;
+}
 
 // readOpen reads the parsed findings file called name, which qory wrote, and returns its round
-// and each finding, { id, stage, source, severity, state, point, proof, file, line, disputed,
-// replies }, or throws Missing with the fix when the file is in another form. Texts are plain,
-// the point cut to POINT_TEXT, and proof is null when it is empty. fix is the first line of
-// the fault.
-function readOpen(data, name, fix = 'Give findings open the open-findings.json that qory wrote.') {
+// and each finding, { id, stage, source, from, severity, state, point, proof, file, line,
+// disputed, replies }, or throws Missing with the fix when the file is in another form. kinds
+// is the map of findingKinds: a source of another kind is a fault. from is the source as a
+// line shows it: the label of its kind and its name, or the name alone, such as suite. Texts
+// are plain, the point cut to POINT_TEXT, and proof is null when it is empty. fix is the first
+// line of the fault.
+function readOpen(data, name, kinds,
+  fix = 'Give findings open the open-findings.json that qory wrote.') {
   const broken = (detail) => new Missing(`${fix}\n${short(plain(name), 60)} ${detail}.`);
   if (!isObject(data)) throw broken(`is ${jsonKind(data)}, not an object`);
   if (!Number.isInteger(data.round) || data.round < 1) {
@@ -196,11 +223,17 @@ function readOpen(data, name, fix = 'Give findings open the open-findings.json t
       throw broken(`has ${which} with no id of the form f<number>`);
     }
     const source = finding.source;
-    if (!isObject(source) || !KINDS.includes(source.kind) || typeof source.name !== 'string' ||
-      !plain(source.name)) {
-      const kinds = `${KINDS.slice(0, -1).join(', ')} or ${KINDS.at(-1)}`;
-      throw broken(`has ${which} with a source whose kind is not ${kinds}, or that has no name`);
+    if (!isObject(source) || typeof source.kind !== 'string' || !plain(source.kind) ||
+      typeof source.name !== 'string' || !plain(source.name)) {
+      const known = [...kinds.keys()];
+      throw broken(`has ${which} with a source whose kind is not ` +
+        `${known.slice(0, -1).join(', ')} or ${known.at(-1)}, or that has no name`);
     }
+    if (!kinds.has(source.kind)) {
+      throw new Missing(`${fix}\n${short(plain(name), 60)}: ${which} has source kind ` +
+        `${short(plain(source.kind), 40)}, which no module of this harness adds.`);
+    }
+    const label = kinds.get(source.kind);
     if (!SEVERITIES.includes(finding.severity)) {
       throw broken(`has ${which} with a severity that is neither blocking nor non-blocking`);
     }
@@ -227,6 +260,7 @@ function readOpen(data, name, fix = 'Give findings open the open-findings.json t
     }
     return { id: finding.id, stage: plain(finding.stage),
       source: { kind: source.kind, name: plain(source.name) },
+      from: label ? `${label} ${plain(source.name)}` : plain(source.name),
       severity: finding.severity, state: finding.state,
       point: cut(plain(finding.point), POINT_TEXT), proof: plain(finding.proof) || null,
       file: finding.file === undefined ? null : plain(finding.file),
@@ -238,6 +272,6 @@ function readOpen(data, name, fix = 'Give findings open the open-findings.json t
 }
 
 module.exports = {
-  SEVERITIES, FINDING_ID, FINDINGS_BYTES, FINDINGS_FIX, MAX_ITEMS, POINT_TEXT, plain, readOpen,
-  reportProblem, sourceText,
+  SEVERITIES, FINDING_ID, FINDINGS_BYTES, FINDINGS_FIX, MAX_ITEMS, POINT_TEXT, findingKinds,
+  plain, readOpen, reportProblem,
 };

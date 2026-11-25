@@ -927,28 +927,31 @@ skill is in a module of the harness home, from the skills of each module beside 
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
 name, it loads the first. The file exports a function that takes the library of
 `checks.cjs`, the exports of its `lib/` files, `lockReader`, the reader of the lock of
-`verbs/lock.cjs`, and `pointCheck`, `pointRules` and `MAX_POINTS` of `types/points.cjs`,
-the check of a point of `points.json`, and returns `types`, the patterns of "Blocked:"
-lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`,
-the readers of the ids of a type that the questions check reads for the `item` of an
-`about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
-each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
-as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, and `end`, the
-check at the end of a session. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
+`verbs/lock.cjs`, and `pointCheck`, `pointRules` and `MAX_POINTS` of `types/points.cjs`, the
+check of a point of `points.json`, and returns `types`, the patterns of "Blocked:" lines as
+`stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`, the readers
+of the ids of a type that the questions check reads for the `item` of an `about`,
+`questionRules`, the rules for the questions whose `about` is an output of a type, each
+`{type, check(question, who, {context, earlier})}` with `check` returning the findings as
+lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `end`, the check at
+the end of a session, and `finding_kinds`, the kinds of the source of a finding besides
+`reviewer`, `check` and `hook` of `core`, each with its label, the word that a line shows
+before the name of the source. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
 verb of the registry and the usage read the registry; `starts`, `begin` and `fixes` never
-load it. A type that two skills add stops each verb that reads the registry with exit 3. A
-`workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
-the harness: the verb stops with an error that names the file and exit 3, and `end
---offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
-`checks.cjs` stops the same way when the registry fails, and prints no usage. In
-`software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
+load it. A type or a finding kind that two skills add stops each verb that reads the
+registry with exit 3. A `workflow-checks.cjs` that throws, exports no function or returns no
+object is a fault of the harness: the verb stops with an error that names the file and exit
+3, and `end --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside
+the verbs of `checks.cjs` stops the same way when the registry fails, and prints no usage.
+In `software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
 `proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
 types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
 new criterion` or `needs a change to the spec`, the line `needs a change to the build plan:
 <the change>` of the writers of `implement-changes`, the rules of the build ledger that the
-verbs `step` and `resume` apply, and the check at the end of a Build write session. A stack
-without that module, such as `core`, checks `questions` and `review-comments`, and `report`
-accepts only `needs <type>`.
+verbs `step` and `resume` apply, the check at the end of a Build write session, and the
+finding kinds `criterion` and `scenario`, each with its name as its label. A stack without
+that module, such as `core`, checks `questions` and `review-comments`, and `report` accepts
+only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -1182,11 +1185,11 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   or `accepted`), `quote`, `point`, `problem`, `fix` and `proof`, `file` and `line` when
   they apply, `disputed` (`true` or `false`) and `replies`, each `{kind, reason, round}`
   with the kind `fixed` or `disputed`. An id is `f` and a number from 1 of at most 9 digits,
-  which Qory Apiary gives per work item. The verb prints
-  `Fix first: <id> (<severity>, from <source>[, disputed][, <file>[:<line>]]): <point>` for
-  each finding with the state `open`, the `blocking` ones first and then in the order of the
-  file. The source is the name, such as `code-reviewer`, or `criterion <name>` and
-  `scenario <name>` for those two kinds. The point is cut at 500 characters and printed
+  which Qory Apiary gives per work item. The verb prints `Fix first: <id> (<severity>, from
+  <source>[, disputed][, <file>[:<line>]]): <point>` for each finding with the state `open`,
+  the `blocking` ones first and then in the order of the file. The source is the name, such
+  as `code-reviewer`, or, for a kind that a skill adds, its label and the name, such as
+  `criterion <name>` and `scenario <name>`. The point is cut at 500 characters and printed
   without control, refused or hidden characters (the Unicode classes
   Default_Ignorable_Code_Point and Cf, which include the tag characters, the joiners, the
   variation selectors, the Hangul fillers, the soft hyphen and the format characters of
@@ -1196,16 +1199,17 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   with 0 when the file has no open finding, and when the file does not exist, with the line
   `no open findings file at <path>` on stderr, so that a mistyped path shows. It exits with
   3 when the file is a link or a folder, or has another form: a missing or non-integer
-  `round`, a missing `findings` list, an `id` that is not `f<number>`, a `source` with
-  another kind or no name, another severity or state, a text member that is not text, an
-  empty point, a `line` below 1, a `disputed` that is neither `true` nor `false`, or
-  `replies` that is not a list of a kind, a reason and a `round` of 1 or more. A file over
-  64 MiB exits 3 with "Shorten the findings file to at most 64 MiB: a larger file is not
-  read." 500 findings at full field length with no replies come to about 44 MB. It reads the
-  file and writes nothing. It prints each path whole, without the 80-character cut of other
-  messages, and the first line of a fault is plain text. A report that a reviewer writes is
-  a JSON file that qory's report schema checks; only `findings round` reads it, and
-  `report`, `starts` and `end` have no check for the reviewers of a change.
+  `round`, a missing `findings` list, an `id` that is not `f<number>`, a `source` with no
+  kind or no name, or with a kind that no module of the harness adds, another severity or
+  state, a text member that is not text, an empty point, a `line` below 1, a `disputed` that
+  is neither `true` nor `false`, or `replies` that is not a list of a kind, a reason and a
+  `round` of 1 or more. A file over 64 MiB exits 3 with "Shorten the findings file to at
+  most 64 MiB: a larger file is not read." 500 findings at full field length with no replies
+  come to about 44 MB. It reads the file and writes nothing. It prints each path whole,
+  without the 80-character cut of other messages, and the first line of a fault is plain
+  text. A report that a reviewer writes is a JSON file that qory's report schema checks;
+  only `findings round` reads it, and `report`, `starts` and `end` have no check for the
+  reviewers of a change.
 - `checks.cjs findings round <reports> --reviewers <names> [--suite <file>] [--previous
   <file>]`: a review session runs it once, after its reviewers returned. It reads
   `<reports>/<name>.json` of each name of `--reviewers`, agent names joined by commas, each

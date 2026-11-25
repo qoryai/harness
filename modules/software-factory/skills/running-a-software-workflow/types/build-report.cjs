@@ -8,7 +8,8 @@
 
 module.exports = (lib) => {
   const {
-    cut, gatherReport, headings, markdownText, renderReport, same, sectionTitles, splitReport,
+    cut, gatherReport, headings, markdownText, registryOf, renderReport, same, sectionTitles,
+    splitReport,
   } = lib;
 
   const FILE = 'build-report.md';
@@ -26,7 +27,7 @@ module.exports = (lib) => {
     const { context } = run;
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;
     const data = gatherReport({ context, cwd: context.workingFolder, env: process.env,
-      inputs: context.inputs });
+      inputs: context.inputs, kinds: registryOf(context.plugin).finding_kinds });
     if (!data) {
       run.tell('The tables of the report were not checked: the artifact folder has no ' +
         'build-ledger.json.');

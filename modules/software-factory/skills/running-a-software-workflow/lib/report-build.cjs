@@ -33,7 +33,7 @@ const REPLY_TEXT = 500;
 module.exports = (lib) => {
   const {
     FINDINGS_BYTES, FINDINGS_FIX, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson,
-    plainText, readFile, readLimited, readOpen, schema, sections, sourceText,
+    plainText, readFile, readLimited, readOpen, schema, sections,
   } = lib;
   const LEDGER = schema.load(SCHEMAS, 'build-ledger');
 
@@ -82,7 +82,8 @@ module.exports = (lib) => {
   // readRound returns the open findings of every stage that the session started with, from
   // the open-findings.json beside the inputs.json inputs, { round, reviewers, findings }, or
   // null when inputs or the file is missing. reviewers are the reviewers of those findings.
-  function readRound(inputs) {
+  // kinds is the map of the finding kinds of the registry.
+  function readRound(inputs, kinds) {
     if (!inputs) return null;
     const file = path.join(path.dirname(inputs), 'open-findings.json');
     let stat;
@@ -100,7 +101,7 @@ module.exports = (lib) => {
     }
     const data = parseJson(readLimited(file, 'open-findings.json', stat.size, FINDINGS_BYTES),
       'open-findings.json');
-    const { round, findings } = readOpen(data, 'open-findings.json');
+    const { round, findings } = readOpen(data, 'open-findings.json', kinds);
     const open = findings.filter((one) => one.state === 'open');
     return {
       round, findings: open,
@@ -117,7 +118,7 @@ module.exports = (lib) => {
       out.push('None.');
     } else {
       out.push(...table(['Finding', 'Source', 'Blocking', 'Proof'], round.findings.map((one) =>
-        [`${one.id}: ${one.point}`, sourceText(one.source),
+        [`${one.id}: ${one.point}`, one.from,
           one.severity === 'blocking' ? 'yes' : 'no',
           one.proof === null || one.proof === '' ? 'none' : cut(one.proof, POINT_TEXT)])));
     }
@@ -216,8 +217,9 @@ module.exports = (lib) => {
 
   // gather returns what render needs, or null when the artifact folder has no build
   // ledger. context is the Context of the artifact folder, cwd the working folder, env the
-  // environment for git, and inputs the path of the inputs.json of the session, or null.
-  function gather({ context, cwd, env, inputs }) {
+  // environment for git, inputs the path of the inputs.json of the session, or null, and kinds
+  // the map of the finding kinds of the registry.
+  function gather({ context, cwd, env, inputs, kinds }) {
     const ledger = readLedger(context.root);
     if (!ledger) return null;
     const head = git.head(cwd, env);
@@ -230,7 +232,7 @@ module.exports = (lib) => {
     return {
       ledger, head, records: readRecords(context.root),
       checks: locked && Array.isArray(locked.checks) ? locked.checks.filter(isObject) : [],
-      round: readRound(inputs), previous: previous ? previous.text : null,
+      round: readRound(inputs, kinds), previous: previous ? previous.text : null,
       machine: context.machine,
     };
   }
