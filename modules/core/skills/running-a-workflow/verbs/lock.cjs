@@ -242,12 +242,14 @@ function hashes(root, files, lines) {
 // qory runs `<qory> <args>` with the environment of io and returns what spawnSync returns. It
 // runs the call for at most QORY_TIME ms, and when io.until, a time in ms, is set, only for the
 // time up to it, as the tool guard sets it so that all calls of one hook share one budget. With no
-// time left it starts nothing and returns { late: true }.
+// time left it starts nothing and returns { late: true }. io.now and io.spawn replace Date.now
+// and spawnSync, for a caller that sets the clock and the process starter.
 function qory(io, args) {
-  const left = typeof io.until === 'number' ? Math.min(QORY_TIME, io.until - Date.now())
+  const now = io.now || Date.now;
+  const left = typeof io.until === 'number' ? Math.min(QORY_TIME, io.until - now())
     : QORY_TIME;
   if (left <= 0) return { late: true, status: null, stdout: '', stderr: '' };
-  return childProcess.spawnSync(qoryPath(), args,
+  return (io.spawn || childProcess.spawnSync)(qoryPath(), args,
     { env: io.env, encoding: 'utf8', timeout: left });
 }
 

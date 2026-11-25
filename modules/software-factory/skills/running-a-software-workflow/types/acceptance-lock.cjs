@@ -649,7 +649,10 @@ module.exports = (lib) => {
       const missing = (type, list) => list.some((one) => !pulled.has(`${type}/main/${one}`));
       if ((again.questions !== null && missing('questions', [again.questions])) ||
         missing('acceptance-lock', again.locks) || missing('acceptance-criteria', again.criteria) ||
-        criteriaTarget(context, 'the lock') !== number) return null;
+        criteriaTarget(context, 'the lock') !== number) {
+        throw new Missing('Run `qory artifact pull acceptance-criteria`, then write again.\n' +
+          'index.json changed during the pulls.');
+      }
     }
     const file = criteriaFile(context, number);
     if (file === null) return null;

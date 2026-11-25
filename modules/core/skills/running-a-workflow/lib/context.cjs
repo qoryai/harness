@@ -40,8 +40,8 @@ class Context {
     this.inputs = null;
     this.extensionsRead = null;
     this.destinationsRead = undefined;
-    // With a set of "<type>/<name>/<number>", the versions that the pulls of one call returned,
-    // newest and has read those versions only, and no folder on disk.
+    // A set of "<type>/<name>/<number>", the versions that the pulls of one call returned, or
+    // null. With a set, newest and has use those versions only, and list no folder on disk.
     this.pulled = null;
     this.index = null;
     const file = path.join(store, 'index.json');

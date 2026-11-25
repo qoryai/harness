@@ -457,8 +457,9 @@ const WAIT_LIMIT = 60000;
 // past WORK_LIMIT units or past deadline, a time in ms. It reads the clock when clock is true,
 // as before each read of the disk, and after each 64 units. spend.waiting(fn) returns fn(),
 // which waits on a program that the guard starts: the clock is not read while fn runs, and the
-// time of fn moves deadline later, up to wait in all.
-function budget(deadline = Date.now() + TIME_LIMIT, wait = WAIT_LIMIT) {
+// time of fn moves deadline later, up to wait in all. now returns the time in ms, as Date.now
+// does; a caller may set another clock.
+function budget(deadline = Date.now() + TIME_LIMIT, wait = WAIT_LIMIT, now = Date.now) {
   let left = WORK_LIMIT;
   let since = 0;
   let moved = 0;
@@ -469,17 +470,17 @@ function budget(deadline = Date.now() + TIME_LIMIT, wait = WAIT_LIMIT) {
     if (left < 0) throw new Spent();
     if (clock || since >= 64) {
       since = 0;
-      if (!inside && Date.now() > deadline + moved) throw new Spent();
+      if (!inside && now() > deadline + moved) throw new Spent();
     }
   };
   spend.waiting = (fn) => {
-    const began = Date.now();
+    const began = now();
     inside += 1;
     try {
       return fn();
     } finally {
       inside -= 1;
-      moved = Math.min(wait, moved + Date.now() - began);
+      moved = Math.min(wait, moved + now() - began);
     }
   };
   return spend;
@@ -635,8 +636,11 @@ function caseless(dir) {
 
 // lockSetup returns { base, io, lockType, readLock }: the reader of the lock of checks.cjs, and
 // the io that it takes, for root, the working folder. until is the time in ms after which no
-// pull starts, and by which each pull ends; with none, a pull takes at most 100 s.
-function lockSetup({ root, env, script = process.argv[1], plugin, artifacts, until }) {
+// pull starts, and by which each pull ends; with none, a pull takes at most 100 s. now and spawn
+// are the clock and the process starter of the pulls, which the lock reader takes as io.now and
+// io.spawn; with none it uses Date.now and spawnSync.
+function lockSetup({ root, env, script = process.argv[1], plugin, artifacts, until, now,
+  spawn }) {
   const home = path.resolve(path.dirname(script), '..');
   const dir = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow');
   const base = require(path.join(dir, 'lib', 'base.cjs'));
@@ -644,7 +648,7 @@ function lockSetup({ root, env, script = process.argv[1], plugin, artifacts, unt
   const { pluginFolder } = require(path.join(dir, 'lib', 'plugin.cjs'));
   const { lockType, readLock } = require(path.join(dir, 'verbs', 'lock.cjs')).lockReader;
   const io = { artifacts: artifacts || base.ARTIFACTS, cwd: root, home: env.HOME, env,
-    plugin: plugin || pluginFolder(path.join(dir, 'checks.cjs')), until };
+    plugin: plugin || pluginFolder(path.join(dir, 'checks.cjs')), until, now, spawn };
   let registry = null;
   io.registry = () => {
     if (!registry) registry = loadRegistry(io.plugin);
@@ -707,7 +711,8 @@ function lockTypeOf(args) {
 // `lock.writable`, when it throws, or when it returns no list; an entry of the list that is no
 // text lifts nothing. name is the name of the agent of the call, or null for the main session.
 // When `lock.writable` throws the line of a failed pull, `qory artifact pull` and what to run,
-// the lock that it returns has `retry`, that text, which the deny shows.
+// the lock that it returns has `retry`: the cause lines, then the command and "then write
+// again", which the deny shows.
 function liftedLock(lock, { io, name, fold, type }) {
   if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
     name === null || !type) return lock;
@@ -718,8 +723,9 @@ function liftedLock(lock, { io, name, fold, type }) {
     free = writable({ io: io(), agent: name, checks: lock.checks, fold });
   } catch (error) {
     const lines = String((error && error.message) || '').split('\n');
-    return /^Run `qory artifact pull/.test(lines[0]) ? { ...lock, retry: lines.slice(1)
-      .concat(lines[0]).join(' ') } : lock;
+    const command = /^Run (`qory artifact pull[^`]*`)/.exec(lines[0]);
+    return command ? { ...lock, retry: [...lines.slice(1), `Run ${command[1]}, then write again.`]
+      .join(' ') } : lock;
   }
   if (!Array.isArray(free)) return lock;
   const lifted = new Set(free.filter((one) => typeof one === 'string').map(fold));
@@ -2193,15 +2199,17 @@ function names(full, cwds, root) {
 // the lock, as lockTypeOf does. runFolder is the artifact
 // folder of a run, as end-gate.cjs has it, unless the caller sets another. A call that needs more
 // work than a budget allows, to deadline, a time in ms, is denied. wait is the most time in ms
-// that the pulls of the call take beyond deadline; WAIT_LIMIT with none.
+// that the pulls of the call take beyond deadline; WAIT_LIMIT with none. now and spawn are the
+// clock and the process starter of the pulls, with Date.now and spawnSync when unset.
 function decide(args) {
-  const deadline = args.deadline === undefined ? Date.now() + TIME_LIMIT : args.deadline;
+  const now = args.now || Date.now;
+  const deadline = args.deadline === undefined ? now() + TIME_LIMIT : args.deadline;
   const wait = args.wait === undefined ? WAIT_LIMIT : args.wait;
-  const spend = budget(deadline, wait);
+  const spend = budget(deadline, wait, now);
   lockedStats = new Map();
   setHome((args.env || process.env).HOME);
   try {
-    return metered(spend, () => decideCall({ ...args, spend, until: deadline + wait }));
+    return metered(spend, () => decideCall({ ...args, spend, until: deadline + wait, now }));
   } catch (error) {
     if (error instanceof Spent) return TOO_MUCH;
     throw error;
@@ -2210,7 +2218,7 @@ function decide(args) {
 
 // decideCall returns the answer of decide, and spends from spend.
 function decideCall({ input, env = process.env, script = process.argv[1], locked, lockKind,
-  root: start, spend, until, runFolder, runtime }) {
+  root: start, spend, until, now, spawn, runFolder, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   const session = reviewSession(env);
@@ -2271,8 +2279,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
       // The reads of the lock and of the lift run `qory artifact pull`, whose time is no work of
       // the guard.
       const read = () => {
-        lock = (locked || ((args) => lockedFiles(args)))({ root, env, script, until });
-        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script, until }).io, fold,
+        lock = (locked || ((args) => lockedFiles(args)))({ root, env, script, until, now, spawn });
+        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script, until, now, spawn }).io, fold,
           type: agent ? typeOf() : null,
           name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
       };

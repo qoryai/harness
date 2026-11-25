@@ -352,7 +352,8 @@ const AC4_NEW = crit('ac-4', 'A customer gets a corrected reply with the new hou
 // member answered a question about, after the lock. `recorded` puts the hash of each criterion
 // of the locked version in the lock, as `criteria.sha256`, which the question rule compares.
 // v3Linked false leaves version 3 with no link; lock2 adds a newer lock that locks version 2.
-// v3By is the kind of the writer of version 3, `run` or `person`. unlisted is a list of types, or
+// linkAt is the time of version 2 when link is set; v3By is the kind of the writer of version 3,
+// `run` or `person`. unlisted is a list of types, or
 // of type/number, whose entries in index.json list the file notes.json only: the file of the type stays in its
 // folder, as a file that an agent wrote there.
 // answers2 adds a version 2 of the questions that a cancelled run wrote, with those answers;
@@ -360,7 +361,7 @@ const AC4_NEW = crit('ac-4', 'A customer gets a corrected reply with the new hou
 function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', approved = 1,
   locked = 1, unhashed = [], support = [], hashFrom = null, v3 = null, answers = null,
   link = null, recorded = false, v3Linked = true, lock2 = false, answers2 = null,
-  questionsWithdrawn = false, v3By = 'run', unlisted = [],
+  questionsWithdrawn = false, v3By = 'run', unlisted = [], linkAt = '2026-11-16T09:00:00Z',
   checks = [['ac-4', CHECK_PATH], ['ac-1', OTHER_PATH]] } = {}) {
   const root = next('server');
   fs.cpSync(TESTDATA, root, { recursive: true });
@@ -382,7 +383,7 @@ function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', appr
       : put('acceptance-criteria', number, 'acceptance-criteria.json', doc(list))] });
   Object.assign(index.artifacts.find((one) => one.type === 'acceptance-criteria'),
     { versions: [version(1, 'run', v1), version(2, v2By, v2, link === null ? {}
-      : { at: '2026-11-16T09:00:00Z', decision: link, decision_at: '2026-11-16T10:00:00Z' }),
+      : { at: linkAt, decision: link, decision_at: '2026-11-16T10:00:00Z' }),
     ...(v3 === null ? [] : [version(3, v3By, v3, { at: '2026-11-16T11:00:00Z',
       ...(v3Linked ? { decision: link, decision_at: '2026-11-16T12:00:00Z' } : {}) })])],
     newest_version: v3 === null ? 2 : 3,
@@ -460,7 +461,38 @@ function liftCase(options = {}, pulls = {}) {
   const call = (input, runtime = 'claude', extra = {}, more = {}) => decide({
     input: { ...input, cwd: dir }, env: { ...env, ...extra }, runtime, root: dir, ...more });
   return { dir, a: path.join(dir, CHECK_PATH), b: path.join(dir, OTHER_PATH),
-    helper: path.join(dir, HELPER_PATH), call };
+    helper: path.join(dir, HELPER_PATH), call, from, store: path.join(dir, '.qory', 'artifacts') };
+}
+
+// fakeTime returns { clock, spawn, pulls } for the options `now` and `spawn` of a call of the
+// guard, so that a test of the time limits never waits and starts no process. clock.now() is a
+// clock that only the pulls move. The pull of a type in hang returns what spawnSync returns when
+// the timeout that it got ends the call (error.code ETIMEDOUT) at once, and moves the clock by
+// that timeout. Any other pull moves the clock by take ms and writes what the fake qory of
+// liftCase one writes: index.json, and the folder of the pulled version in one.store. pulls
+// lists the type and the timeout of each pull that started.
+function fakeTime(one, { take = 0, hang = [] } = {}) {
+  const clock = { at: 1e12, now: () => clock.at };
+  const pulls = [];
+  const spawn = (file, args, options) => {
+    const type = args[2];
+    pulls.push({ type, timeout: options.timeout });
+    if (hang.includes(type)) {
+      clock.at += options.timeout;
+      return { status: null, stdout: '', stderr: '',
+        error: Object.assign(new Error('spawnSync qory ETIMEDOUT'), { code: 'ETIMEDOUT' }) };
+    }
+    clock.at += take;
+    fs.mkdirSync(one.store, { recursive: true });
+    fs.copyFileSync(path.join(one.from, 'index.json'), path.join(one.store, 'index.json'));
+    const number = args[3] === '--version' ? args[4] : chosenVersions(one.from)[type];
+    if (number !== undefined && fs.existsSync(path.join(one.from, type, 'main'))) {
+      fs.cpSync(path.join(one.from, type, 'main', `v${number}`),
+        path.join(one.store, type, 'main', `v${number}`), { recursive: true });
+    }
+    return { status: 0, stdout: `${one.store}\n`, stderr: '' };
+  };
+  return { clock, spawn, pulls };
 }
 
 const LOCKED_START = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
@@ -573,15 +605,21 @@ test('the guard reads each locked file once, so many locked files and many words
 });
 
 test('the guard does not count the time of a pull against its time limit', () => {
-  // Each of the four pulls of a write by the writer takes 0.2 s: 0.8 s in all, past a deadline
-  // of 0.4 s after the start of the call. The time of the pulls moves the deadline.
-  const slow = liftCase({}, { pause: 0.2 });
-  assert.equal(slow.call(writeOf(slow.a), 'claude', {}, { deadline: Date.now() + 400 }), null);
-  firstLine(slow.call(writeOf(slow.b), 'claude', {}, { deadline: Date.now() + 400 }),
-    LOCKED_START);
-  // A deadline that was over 3 s before the call still denies it.
-  firstLine(slow.call(writeOf(slow.a), 'claude', {}, { deadline: Date.now() - 3000 }),
+  // Each of the four pulls of a write by the writer takes 200 ms of the fake clock: 800 ms in
+  // all, past a deadline of 400 ms after the start of the call. The time of the pulls moves
+  // the deadline.
+  const slow = liftCase();
+  const timed = fakeTime(slow, { take: 200 });
+  const at = (ms) => ({ deadline: timed.clock.now() + ms, now: timed.clock.now,
+    spawn: timed.spawn });
+  assert.equal(slow.call(writeOf(slow.a), 'claude', {}, at(400)), null);
+  assert.equal(timed.pulls.length, 4);
+  firstLine(slow.call(writeOf(slow.b), 'claude', {}, at(400)), LOCKED_START);
+  // A deadline that was over 3 s before the call still denies it, with no pull.
+  const before = timed.pulls.length;
+  firstLine(slow.call(writeOf(slow.a), 'claude', {}, at(-3000)),
     'Split this command into smaller calls');
+  assert.equal(timed.pulls.length, before);
 });
 
 // A version 3 of the criteria that changes ac-1 and ac-4 again, linked to an answer.
@@ -656,7 +694,10 @@ test('the guard reads no answers that index.json does not list, in a folder that
   // and ac-4. Version 2 has no answer, so it does not count, and nothing lifts.
   const absent = liftCase(LINKED_BOTH);
   plant(absent, 'questions/main/v1/questions.json', BOTH_ANSWERED);
-  firstLine(absent.call(writeOf(absent.a)), LOCKED_START);
+  const denied = absent.call(writeOf(absent.a));
+  firstLine(denied, LOCKED_START);
+  // No pull failed: the lift pulled no questions, and the deny has no line of a failed pull.
+  assert.doesNotMatch(denied, /The lift of a changed check failed/);
   firstLine(absent.call(writeOf(absent.b)), LOCKED_START);
   // The questions are withdrawn: a folder under another name, which index.json does not list,
   // counts for nothing either.
@@ -718,6 +759,10 @@ test('the guard reads no file that a pull did not return, beside the files that 
   }
 });
 
+// CHANGED is the third line of the deny of a lift that found a new index.json after its pulls.
+const CHANGED = new RegExp('\\nThe lift of a changed check failed: index\\.json changed during ' +
+  'the pulls\\. Run `qory artifact pull acceptance-criteria`, then write again\\.');
+
 test('the guard lifts nothing when the index that the last pull wrote needs a version that no pull returned', () => {
   // Version 2 is written by a person, so the first index needs no questions. The last pull
   // writes an index with a version 2 that an answer links: it needs questions, a lock and the
@@ -725,16 +770,18 @@ test('the guard lifts nothing when the index that the last pull wrote needs a ve
   const later = liftStore({ answers: ['ac-4'], v2By: 'run', link: 'an_1', recorded: true });
   const swap = (at) => ({ swap: { at, index: path.join(later, 'index.json') } });
   const late = liftCase({}, swap(4));
-  firstLine(late.call(writeOf(late.a)), LOCKED_START);
+  const reason = late.call(writeOf(late.a));
+  firstLine(reason, LOCKED_START);
+  assert.match(reason, CHANGED);
   // The last pull writes an index with a version 3 by a person: the target is another version.
   const other = liftStore({ v3: THIRD, v3By: 'person', v3Linked: false });
   const moved = liftCase({}, { swap: { at: 4, index: path.join(other, 'index.json') } });
-  firstLine(moved.call(writeOf(moved.a)), LOCKED_START);
+  assert.match(moved.call(writeOf(moved.a)), CHANGED);
   // The last pull writes an index with a newer lock: the guard reads a lock that no pull returned.
   const base = { v3: THIRD, link: 'an_1', recorded: true, answers: ['ac-4', 'ac-1'] };
   const locked2 = liftStore({ ...base, lock2: true });
   const newer = liftCase(base, { swap: { at: 6, index: path.join(locked2, 'index.json') } });
-  firstLine(newer.call(writeOf(newer.a)), LOCKED_START);
+  assert.match(newer.call(writeOf(newer.a)), CHANGED);
   // With the same swap at a pull that comes after no read, the lift is as before.
   const never = liftCase({}, swap(9));
   assert.equal(never.call(writeOf(never.a)), null);
@@ -762,12 +809,100 @@ test('the guard pulls the lock that a linked version is compared with, and the v
   firstLine(older.call(writeOf(older.b)), LOCKED_START);
 });
 
-test('a pull that starts with no time left fails with its reason, and the write is denied', () => {
-  // The budget is spent before the pull: until is 2 s in the past.
-  const spent = liftCase();
-  const reason = spent.call(writeOf(spent.a), 'claude', {}, { deadline: Date.now() + 1000,
-    wait: -3000 });
-  assert.match(reason, /had no time left/);
+test('a pull gets the time up to the shared deadline, at most 100 s, and none after it', () => {
+  const run = (options, call, take = 0) => {
+    const one = liftCase(options);
+    const timed = fakeTime(one, { take });
+    const reason = one.call(writeOf(one.a), 'claude', {}, { now: timed.clock.now,
+      spawn: timed.spawn, ...call(timed.clock.now()) });
+    return { reason, pulls: timed.pulls };
+  };
+  // The deadline is 200 ms away and the wait 300 ms: each pull gets the time up to 500 ms.
+  const near = run({}, (now) => ({ deadline: now + 200, wait: 300 }), 100);
+  assert.equal(near.reason, null);
+  assert.deepEqual(near.pulls.map((one) => one.timeout), [500, 400, 300, 200]);
+  // With a deadline far away, a pull gets 100 s, not more.
+  const far = run({}, (now) => ({ deadline: now + 500000, wait: 0 }));
+  assert.equal(far.reason, null);
+  assert.deepEqual(far.pulls.map((one) => one.timeout), [100000, 100000, 100000, 100000]);
+  // The third pull starts with 100 ms left, and the fourth with none: it starts nothing, and
+  // the write is denied with the cause.
+  const spent = run({}, (now) => ({ deadline: now + 200, wait: 300 }), 200);
+  assert.deepEqual(spent.pulls.map((one) => one.timeout), [500, 300, 100]);
+  assert.match(spent.reason, /had no time left/);
+  assert.match(spent.reason, /Run `qory artifact pull acceptance-criteria --version 2`/);
+  // A pull that starts with exactly 0 ms left starts nothing: a timeout of 0 would not end it.
+  const zero = run({}, (now) => ({ deadline: now + 200, wait: 300 }), 250);
+  assert.deepEqual(zero.pulls.map((one) => one.timeout), [500, 250]);
+  assert.match(zero.reason, /had no time left/);
+  // With the budget spent before the first pull, no pull starts.
+  const none = run({}, (now) => ({ deadline: now + 1000, wait: -3000 }));
+  assert.deepEqual(none.pulls, []);
+  assert.match(none.reason, /had no time left/);
+});
+
+test('a pull that does not return ends in a refusal of the write, never in an allow', () => {
+  // The pulls of one call share one budget: 200 ms of work and 300 ms of waiting. A pull that
+  // does not return is stopped by the timeout that it got, 500 ms, and the clock moves by it.
+  const run = (options, hang) => {
+    const one = liftCase(options);
+    const timed = fakeTime(one, { hang });
+    const now = timed.clock.now();
+    const answer = one.call(writeOf(one.a), 'claude', {}, { deadline: now + 200, wait: 300,
+      now: timed.clock.now, spawn: timed.spawn });
+    return { answer, pulls: timed.pulls, took: timed.clock.now() - now };
+  };
+  // The pull of the lock does not return: the lock cannot be read, and the write is denied.
+  const lockRead = run({}, ['acceptance-lock']);
+  assert.match(lockRead.answer, /did not finish in time/);
+  assert.deepEqual(lockRead.pulls, [{ type: 'acceptance-lock', timeout: 500 }]);
+  assert.equal(lockRead.took, 500);
+  // The pull of the questions does not return: the lock is read and the check stays locked.
+  const asked = run({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'] },
+    ['questions']);
+  firstLine(asked.answer, LOCKED_START);
+  assert.equal(asked.pulls.at(-1).type, 'questions');
+  assert.equal(asked.pulls.at(-1).timeout, 500);
+  assert.equal(asked.took, 500);
+  // A pull that returns in time lets the same call through.
+  const quick = run({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'] }, []);
+  assert.equal(quick.answer, null);
+});
+
+test('a budget moves its deadline by the time of a wait, up to its cap, and reads no clock in it', () => {
+  const clock = { at: 1e12, now: () => clock.at };
+  const start = clock.at;
+  // The deadline moves by the wait, and the clock is not read in it: the deadline is 300 ms
+  // away and the wait 400 ms, so a read in the wait would be past it.
+  const moved = budget(start + 300, 1000, clock.now);
+  moved.waiting(() => {
+    clock.at += 400;
+    moved(1, true);
+  });
+  moved(1, true);
+  // The move stops at the cap: 50 ms of 400 ms leave the deadline at 350 ms, before 400 ms.
+  clock.at = start;
+  const capped = budget(start + 300, 50, clock.now);
+  capped.waiting(() => { clock.at += 400; });
+  assert.throws(() => capped(1, true));
+  // The default cap is far above 400 ms.
+  clock.at = start;
+  const free = budget(start + 300, undefined, clock.now);
+  free.waiting(() => { clock.at += 400; });
+  free(1, true);
+  // Without a wait the deadline stays.
+  clock.at = start;
+  const plain = budget(start + 300, 1000, clock.now);
+  clock.at += 400;
+  assert.throws(() => plain(1, true));
+  // Two waits move it by their sum, up to the cap.
+  clock.at = start;
+  const twice = budget(start + 100, 500, clock.now);
+  twice.waiting(() => { clock.at += 200; });
+  twice.waiting(() => { clock.at += 200; });
+  twice(1, true);
+  twice.waiting(() => { clock.at += 300; });
+  assert.throws(() => twice(1, true));
 });
 
 test('the guard pulls only what the target needs, and gives a writer the command to run again', () => {
@@ -787,6 +922,15 @@ test('the guard pulls only what the target needs, and gives a writer the command
   assert.deepEqual(fs.readFileSync(noted, 'utf8').trim().split('\n'), [
     'artifact pull acceptance-lock', 'artifact pull acceptance-lock --version 1',
     'artifact pull acceptance-criteria', 'artifact pull acceptance-criteria --version 2']);
+  // No lock is older than version 2, which an answer links: it counts with no read of a lock
+  // or of the questions, so none is pulled beyond the two of the lock read.
+  const earlyLog = path.join(working(), 'pulls.log');
+  const early = liftCase({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'],
+    linkAt: '2026-11-14T09:00:00Z' }, { log: earlyLog });
+  assert.equal(early.call(writeOf(early.a)), null);
+  assert.deepEqual(fs.readFileSync(earlyLog, 'utf8').trim().split('\n'), [
+    'artifact pull acceptance-lock', 'artifact pull acceptance-lock --version 1',
+    'artifact pull acceptance-criteria', 'artifact pull acceptance-criteria --version 2']);
   // A version that a member approved and that is linked to an answer cannot change the target.
   const approvedLog = path.join(working(), 'pulls.log');
   const approved = liftCase({ approved: 2, v2By: 'run', link: 'an_1', recorded: true },
@@ -802,60 +946,6 @@ test('the guard pulls only what the target needs, and gives a writer the command
   assert.match(reason, /\nThe lift of a changed check failed: The pull exited with 3\. Run `qory artifact pull acceptance-criteria`, then write again\./);
   // A locked file with no failed pull has no such line.
   assert.doesNotMatch(String(plain.call(writeOf(plain.b))), /The lift of a changed check failed/);
-});
-
-test('a pull that does not return ends in a refusal of the write, never in an allow', () => {
-  // The pulls of one call share one budget: 0.2 s of work and 0.3 s of waiting here. A pull that
-  // sleeps 1.5 s is stopped at 0.5 s.
-  const budgeted = { deadline: () => Date.now() + 200, wait: 300 };
-  const run = (one, file) => {
-    const began = Date.now();
-    const answer = one.call(writeOf(file), 'claude', {}, { deadline: budgeted.deadline(),
-      wait: budgeted.wait });
-    return { answer, took: Date.now() - began };
-  };
-  // The pull of the lock hangs: the lock cannot be read, and the write is denied.
-  const reading = liftCase({}, { hang: { 'acceptance-lock': 1.5 } });
-  const lockRead = run(reading, reading.a);
-  assert.match(lockRead.answer, /did not finish in time/);
-  assert.ok(lockRead.took < 1300, `${lockRead.took} ms`);
-  // The pull of the questions hangs: the lock is read and the check stays locked.
-  const asking = liftCase({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'] },
-    { hang: { questions: 1.5 } });
-  const questions = run(asking, asking.a);
-  firstLine(questions.answer, LOCKED_START);
-  assert.ok(questions.took < 1300, `${questions.took} ms`);
-  // With time enough, the same call is allowed.
-  const quick = liftCase({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'] },
-    { hang: { questions: 0.1 } });
-  assert.equal(quick.call(writeOf(quick.a), 'claude', {}, { deadline: Date.now() + 5000 }), null);
-});
-
-test('a budget moves its deadline by the time of a wait, up to its cap, and reads no clock in it', () => {
-  const busy = (ms) => {
-    const end = Date.now() + ms;
-    while (Date.now() < end);
-  };
-  // The clock is not read in the wait, and the deadline moves by the wait: 400 ms of work and
-  // 300 ms of margin to the moved deadline.
-  const moved = budget(Date.now() + 300, 1000);
-  moved.waiting(() => {
-    busy(400);
-    moved(1, true);
-  });
-  moved(1, true);
-  // The move stops at the cap: 50 ms of 400 ms leave the deadline past.
-  const capped = budget(Date.now() + 300, 50);
-  capped.waiting(() => busy(400));
-  assert.throws(() => capped(1, true));
-  // The default cap is far above 400 ms.
-  const free = budget(Date.now() + 300);
-  free.waiting(() => busy(400));
-  free(1, true);
-  // Without a wait the deadline stays.
-  const plain = budget(Date.now() + 300, 1000);
-  busy(400);
-  assert.throws(() => plain(1, true));
 });
 
 test('the guard keeps a check locked when the lock locks the target version', () => {
@@ -1490,29 +1580,45 @@ function server({ support } = {}) {
   return root;
 }
 
+// chosenVersions returns the number that a pull of each type with no version returns from the
+// store in from: the approved version of main, else the newest.
+function chosenVersions(from) {
+  const chosen = {};
+  for (const one of JSON.parse(fs.readFileSync(path.join(from, 'index.json'), 'utf8')).artifacts) {
+    if ((one.name || 'main') !== 'main') continue;
+    const approved = one.versions.find((each) => each.id === one.approved_version);
+    chosen[one.type] = approved ? approved.number : one.newest_version;
+  }
+  return chosen;
+}
+
 // fakeQory returns an environment of a run whose qory pulls from into a new store. A pull of
-// a type in failing exits with status, each pull waits for pause seconds first, and a pull of
-// a type in hang waits that many seconds for it. With typed, all pulls write into one store,
-// the folder `into` when it is set, as qory does: index.json, and the folder of the pulled
-// version of the type, the newest with none named, and nothing else. With swap, { at, index },
-// the pull number `at` ends with the index.json file `index` in the store. With log, each pull
-// appends its arguments to that file.
-function fakeQory(from, status = 0, { failing = [], pause = 0, hang = {}, typed = false,
+// a type in failing exits with status. With typed, all pulls write into one store, the folder
+// `into` when it is set, as qory does: index.json, and the folder of the pulled version of the
+// type, which is the approved version, then the newest, with none named, and nothing else. A
+// pull of a version that the store lacks exits 1, as qory does. With swap, { at, index }, the
+// pull number `at` ends with the index.json file `index` in the store. With log, each pull
+// appends its arguments to that file. fakeTime sets the clock of a pull and its timeout.
+function fakeQory(from, status = 0, { failing = [], typed = false,
   into = null, swap = null, log = null } = {}) {
   const bin = next('bin');
   const store = into || next('store');
   fs.mkdirSync(bin);
-  // A pull with no version returns the approved version of the type, else the newest, and a
-  // version that the store lacks exits 1.
-  const chosen = `const i = require('${from}/index.json');
-const a = i.artifacts.find((x) => x.type === process.argv[1] && (x.name || 'main') === 'main');
-const v = a && a.versions.find((x) => x.id === a.approved_version);
-console.log(v ? v.number : (a ? a.newest_version : ''));`;
+  // A pull with no version returns the approved version of the type, else the newest.
+  const chosen = typed ? chosenVersions(from) : {};
+  const picks = Object.entries(chosen).map(([type, number]) =>
+    `    '${type}') ver=${number} ;;\n`).join('');
   const copy = typed ? `mkdir -p '${store}'
 cp '${from}/index.json' '${store}/index.json'
-if [ -d '${from}'/"$3"/main ]; then
-  if [ "$4" = '--version' ]; then ver="$5"
-  else ver=$(node -e "${chosen.replace(/"/g, '\\"')}" "$3"); fi
+if [ "$4" = '--version' ]; then
+  ver="$5"
+  [ -d '${from}'/"$3"/main/v"$ver" ] || exit 1
+else
+  ver=''
+  case "$3" in
+${picks}  esac
+fi
+if [ -n "$ver" ]; then
   [ -d '${from}'/"$3"/main/v"$ver" ] || exit 1
   mkdir -p '${store}'/"$3"/main
   cp -R '${from}'/"$3"/main/v"$ver" '${store}'/"$3"/main/
@@ -1520,8 +1626,6 @@ fi
 ` : `mkdir -p '${store}'
 cp -R '${from}/.' '${store}/'
 `;
-  const hung = Object.entries(hang).map(([type, seconds]) =>
-    `[ "$3" != '${type}' ] || sleep ${seconds}\n`).join('');
   const failed = failing.map((type) => `[ "$3" != '${type}' ] || exit 3\n`).join('');
   const count = swap ? `n=$(cat '${bin}/count' 2>/dev/null || echo 0); n=$((n + 1))
 echo $n > '${bin}/count'
@@ -1531,7 +1635,7 @@ echo $n > '${bin}/count'
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 [ "$1 $2" = 'artifact pull' ] || exit 9
 [ ${status} -eq 0 ] || exit ${status}
-${logged}${count}${pause ? `sleep ${pause}\n` : ''}${hung}${failed}${copy}${later}echo '${store}'
+${logged}${count}${failed}${copy}${later}echo '${store}'
 `, { mode: 0o755 });
   return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`,
     QORY_RUN_ID: 'run-1', QORY_RUN_REPOSITORIES: 'example-org/shop' };
