@@ -1285,6 +1285,17 @@ test('loadRegistry: the finding kinds of software-factory join those of core', (
   assert.deepEqual([...loadRegistry(path.join(tmp, 'core-plugin')).finding_kinds].length, 3);
 });
 
+test('loadRegistry: a skill that adds a kind of core stops the registry', () => {
+  const { loadRegistry, treeHash } = require(path.join(SKILLS, 'running-a-workflow', 'lib',
+    'registry.cjs'));
+  const skill = path.join(tmp, 'kind-plugin', 'skills', 'adds-hook');
+  fs.mkdirSync(skill, { recursive: true });
+  fs.writeFileSync(path.join(skill, 'workflow-checks.cjs'),
+    "module.exports = () => ({ finding_kinds: { hook: 'hook' } });\n");
+  assert.throws(() => loadRegistry(path.join(tmp, 'kind-plugin'), [treeHash(skill)]),
+    (error) => /^Remove one of the two finding kinds hook:/.test(error.message));
+});
+
 test('readOpen: an id has at most 9 digits, as Qory Apiary gives it', () => {
   const { findingKinds, readOpen, FINDING_ID } = require(path.join(SKILLS,
     'running-a-workflow', 'lib', 'findings.cjs'));
