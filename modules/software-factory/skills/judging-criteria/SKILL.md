@@ -21,7 +21,9 @@ shows what the state says.
   Read no `verification` from `qory.start_artifacts`: that folder is the pull of the start,
   which has no draft of this session.
 - The newest `acceptance-criteria` and the newest `acceptance-lock`, from `<start>`, the
-  folder in `qory.start_artifacts` of the input file. For each type, read
+  folder in `qory.start_artifacts` of the input file. When `qory.start_artifacts` is `""`,
+  the run pulled no artifacts at the start, and `<start>` is `/tmp/qory-artifacts`, the
+  artifact folder of the run. For each type, read
   `<start>/index.json`, leave out each withdrawn entry (the version with the largest
   `number` in `versions`, of those with no `cancelled` set to `true`, has `withdrawn` set to
   `true`), and take the entry left whose `name` is `main`, missing or empty, else the one

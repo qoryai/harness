@@ -208,17 +208,19 @@ test('the session writes the text of the change after the last step, and not on 
     '<folder>/.reports/submission-writer-1.md',
     'Run `<skill folder>/checks.cjs report-build --inputs <inputs>`',
     '`build-report.md` in `<folder>` and the outbox file ' +
-      '`$QORY_OUTBOX/pull-request/pull-request.json`',
+      '`<outbox>/pull-request/pull-request.json`',
+    '`<outbox>` is the folder in `qory.outbox` of `<inputs>`.',
     'With exit 1, a rule of the text broke.', 'at most twice',
     'With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is ' +
       '"the build report".',
     'Run `<skill folder>/checks.cjs check build-report --inputs <inputs> ' +
       '<folder>/build-report.md`.',
-    'Run `<skill folder>/checks.cjs report-build --drop`',
+    'Run `<skill folder>/checks.cjs report-build --drop --inputs <inputs>`',
     'The change is not ready, because the build report differs from the records of the run.',
     '<qory> artifact push build-report <folder>/build-report.md',
     'When the push exits with 4 or fails, run steps 2 and 3 again, then push again, at most ' +
       'twice more.',
+    '`<skill folder>/checks.cjs report-build --drop --inputs <inputs>`, so that qory\'s push',
     'The run could not push its build report.',
     '5. Go back to "The end" or "A step that fails", whichever started this section.');
   // The skip list, and the two ends that "The submission" writes.
@@ -606,13 +608,16 @@ fs.cpSync(path.join(SOFTWARE, 'skills/running-a-software-workflow'),
   path.join(PLUGIN, 'skills/running-a-software-workflow'), { recursive: true });
 fs.copyFileSync(path.join(SOFTWARE, 'process.yaml'), path.join(PLUGIN, 'process.yaml'));
 
-// session returns a call of the checks script in a run of the stub, from the checkout.
+// session returns a call of the checks script in a run of the stub, from the checkout. As qory
+// does, it sets qory.outbox of the inputs of w to the outbox folder of the run, call.outbox.
 let runs = 0;
 function session(w) {
   const run = `run-${++runs}`;
   const env = { ...w.env, ARTIFACTS: w.artifacts, QORY_RUN_ID: run,
-    PATH: `${w.bin}${path.delimiter}${process.env.PATH}`,
-    QORY_OUTBOX: path.join(w.repo, '.qory/outbox', run) };
+    PATH: `${w.bin}${path.delimiter}${process.env.PATH}` };
+  const outbox = path.join(w.repo, '.qory/outbox', run);
+  const data = JSON.parse(read(w.inputs));
+  fs.writeFileSync(w.inputs, JSON.stringify({ ...data, qory: { ...data.qory, outbox } }));
   const call = (...argv) => {
     let out = '';
     let err = '';
@@ -628,6 +633,7 @@ function session(w) {
   };
   call.run = run;
   call.env = env;
+  call.outbox = outbox;
   return call;
 }
 
@@ -740,7 +746,7 @@ function submit(w, call) {
   const pushed = qory(w, call, 'artifact', 'push', 'build-report', file);
   assert.equal(pushed.status, 0, pushed.out + pushed.err);
   assert.equal(read(w.store, 'build-report/main/v1/build-report.md'), read(file));
-  return { handoff: path.join(call.env.QORY_OUTBOX, 'pull-request', 'pull-request.json'),
+  return { handoff: path.join(call.outbox, 'pull-request', 'pull-request.json'),
     report: file };
 }
 
@@ -840,7 +846,7 @@ test('the session builds two deliverables as two frozen commits with two ledger 
   fs.writeFileSync(handoff, JSON.stringify({ ...sent, title: '' }));
   const broken = call('end', w.artifacts, '--inputs', inputs);
   assert.equal(broken.status, 1);
-  assert.match(broken.out + broken.err, /\$QORY_OUTBOX\/pull-request\/pull-request\.json/);
+  assert.match(broken.out + broken.err, /<outbox>\/pull-request\/pull-request\.json/);
   fs.writeFileSync(handoff, written);
   const ended = call('end', w.artifacts, '--inputs', inputs);
   assert.equal(ended.status, 0, ended.out + ended.err);
@@ -914,7 +920,7 @@ test('the session ends a step failed after its third red attempt, and starts no 
   // The first step of the session failed, so the session ran no step end done, and it skips
   // "The submission": it starts no submission writer and runs no report-build.
   assert.equal(submits(w), false);
-  assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
+  assert.equal(fs.existsSync(path.join(call.outbox, 'pull-request')), false);
   assert.equal(fs.existsSync(path.join(w.artifacts, '.reports', 'submission-writer-1.md')),
     false);
   // The session ends through points.json, with the line after "End with" of "A step that
@@ -944,7 +950,7 @@ function endsWithPoint(w, call, step) {
     [`run verdict escalate --points ${points}`]);
   assert.deepEqual(JSON.parse(read(points)), [{ text: 'The run stopped, because the checks ' +
     `still fail after 3 changes to ${step}.`, action: 'run_again' }]);
-  assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
+  assert.equal(fs.existsSync(path.join(call.outbox, 'pull-request')), false);
 }
 
 test('after one step done and one step failed, the session does "The submission"', () => {
@@ -1135,7 +1141,7 @@ test('the session ends a writer\'s stop on the build plan with one answer point,
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')),
     [`run verdict escalate --points ${points}`]);
-  assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
+  assert.equal(fs.existsSync(path.join(call.outbox, 'pull-request')), false);
 });
 
 test('the session ends on another blocked report as "Failures" lists, with no red attempt', () => {

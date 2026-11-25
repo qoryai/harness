@@ -5,6 +5,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { START_MS, WAITS_MS } = require('./budget.cjs');
+const { ACTION_MS, within } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
 
 // The folder of the artifact folder with the actions of the demo author and the demo script
@@ -62,8 +64,28 @@ module.exports = (lib) => {
           `the viewer sees is ${short(row.sees, 80)}.`);
       }
     });
+    const setupWaits = waitsMs(data.setup);
+    if (setupWaits > START_MS) {
+      found.push(`Shorten the setup waits in ${name} to at most ${START_MS / 1000} s in total.\n` +
+        `They add up to ${Math.ceil(setupWaits / 1000)} s (a wait with no timeout_ms counts ` +
+        `${ACTION_MS / 1000} s), and the app start, the sign-in and the browser share ` +
+        `${START_MS / 1000} s.`);
+    }
+    const waits = waitsMs([...data.setup, ...data.steps.flatMap((step) => step.actions)]);
+    if (waits > WAITS_MS) {
+      found.push(`Shorten the waits in ${name} to at most ${WAITS_MS / 1000} s in total.\n` +
+        `They add up to ${Math.ceil(waits / 1000)} s (a wait with no timeout_ms counts ` +
+        `${ACTION_MS / 1000} s), and a demo run has room for ${WAITS_MS / 1000} s of waits.`);
+    }
     return found;
   }
+
+  // waitsMs returns the time that the wait actions of actions, of a demo script, take at most:
+  // the timeout_ms of each, or ACTION_MS when it sets none.
+  // shortcut: the open, click, type and press actions are not counted, which add time only
+  // when the page is slow; count them when a film of a slow app runs past its limit.
+  const waitsMs = (actions) => actions.filter((action) => action.do === 'wait')
+    .reduce((sum, action) => sum + (action.timeout_ms || ACTION_MS), 0);
 
   // boundedText returns { text } of file, a regular file of at most MAX_BYTES, or { why }, which
   // is unreadable for a file that is missing, no regular file or cannot be read, and long for
@@ -128,5 +150,5 @@ module.exports = (lib) => {
   }
 
   return { DEMO_FOLDER: FOLDER, boundedText, draftScript, draftScripts, evidenceOf,
-    scriptFindings };
+    scriptFindings, within };
 };

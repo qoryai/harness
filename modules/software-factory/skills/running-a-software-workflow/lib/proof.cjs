@@ -444,12 +444,13 @@ module.exports = (lib) => {
     const context = run.context;
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;
     try {
-      // With the inputs of the run, the proposal is the one that qory pulled at the start, as
-      // prove reads it, so that a version written into the artifact folder of the session
-      // counts as none. Without them, it is the newest version of that folder.
+      // shortcut: with an empty start_artifacts, end reads its proposal from the outbox, which
+      // has none, so it runs no fast-track proof, replace when end reads the artifact folder of
+      // the session.
       let source = context;
-      if (context.inputs) {
-        const start = starts.readStart(context.workingFolder, context.inputs, process.env);
+      const start = context.inputs
+        ? starts.readStart(context.workingFolder, context.inputs, process.env) : null;
+      if (start && start.artifacts) {
         source = new Context(start.artifacts, 'check', process.env.HOME, start.artifacts);
         source.inputs = context.inputs;
         source.workingFolder = context.workingFolder;

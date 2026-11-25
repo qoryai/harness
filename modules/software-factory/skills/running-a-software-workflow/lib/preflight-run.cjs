@@ -1,6 +1,6 @@
 // The part of the preflight that waits, which lib/preflight.cjs starts with node and waits for.
 // It reads { serve, browser, setups, runs, typed, startMs, actionMs, signedInMs, limitMs,
-// browserMs, proc } as JSON on stdin:
+// browserMs, proc, resultFile } as JSON on stdin:
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
 //   runs `sh -c '<command>'` in cwd, in a new process group, with the mark of
@@ -16,6 +16,8 @@
 //   with only the variables of names from its environment. With runs, { setup, steps, names }
 //   per script, it replays each setup as a sign-in, then each step, in place of setups.
 //   browserMs, which only a test sets, is the time for the browser to start, 15 s by default.
+//   A run with capture, { kind, dir, name, widths }, stores a film, pictures or page pictures
+//   in dir, as lib/capture.cjs lists, and its result has capture.
 // Then it stops the browser, the process group of the command and each process with its
 // mark: SIGTERM, then SIGKILL 5 seconds later. proc is the folder of the process table, as
 // lib/supervise.cjs reads it; only a test sets it. It stops them also on SIGTERM, SIGINT and
@@ -24,9 +26,11 @@
 // that group when the runner ends, also on SIGKILL; a process that left the groups then keeps
 // running. After limitMs from its start, 570 s without limitMs, it stops the sign-ins and
 // sets unfinished. It prints { app, signIns, runs, unfinished } as JSON on stdout, the one
-// line that it prints: app is { started, ran, why }, signIns has { ok, why, outside, browser }
-// per setup, runs is set instead of signIns when spec.runs is, with { ok, step, why, outside }
-// per script, and unfinished is null or the reason in one clause.
+// line that it prints, or writes it to the new file resultFile when the spec has one, because a
+// film has a frame list that is longer than a pipe buffer: app is { started, ran, why },
+// signIns has { ok, why, outside, browser } per setup, runs is set instead of signIns when
+// spec.runs is, with { ok, step, why, outside } per script, and unfinished is null or the
+// reason in one clause.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -35,7 +39,8 @@ const fs = require('node:fs');
 const http = require('node:http');
 const https = require('node:https');
 
-const { Browser } = require('./browser.cjs');
+const { BROWSER_START_MS, Browser } = require('./browser.cjs');
+const { FILM_HEIGHT, capture } = require('./capture.cjs');
 const { replay, signIn } = require('./replay.cjs');
 const { runKey } = require('./secrets.cjs');
 const { MARK, marker } = require('./supervise.cjs');
@@ -52,6 +57,7 @@ const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 // What runs, which stopNow stops: the process group of the serve command, the processes with
 // its mark, and the browser.
 const running = { child: null, marks: null, browser: null };
+const allowance = { until: Infinity };
 
 // stopNow kills what runs at once, and resolves once the browser has exited or a second has
 // passed, for a process that exits right after.
@@ -160,7 +166,7 @@ function serveEnv(value, typed) {
 
 // start runs the serve command and resolves to { started, ran, why }. typed are the names
 // that the demo scripts type, which serveEnv removes.
-async function start(serve, startMs, proc, typed) {
+async function start(serve, startMs, proc, typed, until) {
   if (await statusOf(serve.url) !== null) {
     return { started: false, ran: false, why: `another process already returns a response at ` +
       `${serve.url}, so the run did not start the serve command` };
@@ -180,7 +186,6 @@ async function start(serve, startMs, proc, typed) {
   } finally {
     fs.closeSync(out);
   }
-  const until = Date.now() + startMs;
   for (;;) {
     const status = await statusOf(serve.url);
     if (status !== null && status < 500) return { started: true, ran: true, why: null };
@@ -233,14 +238,19 @@ async function inBrowser(spec, items, act) {
   try {
     // launch sets the pid of the browser before start resolves, so the watcher has it
     // while the browser starts.
-    const started = browser.start(spec.browserMs);
+    if (allowance.until - Date.now() < 1000) {
+      throw Object.assign(new Error('the time for the start ran out before the browser started'),
+        { late: true });
+    }
+    const started = browser.start(Math.min(spec.browserMs || BROWSER_START_MS,
+      allowance.until - Date.now()));
     watchBrowser(browser.pid);
     await started;
     for (const item of items) {
       const env = Object.fromEntries(item.names
         .filter((name) => process.env[name] !== undefined)
         .map((name) => [name, process.env[name]]));
-      const page = await browser.page({ origin });
+      const page = await browser.page({ origin, height: item.capture ? FILM_HEIGHT : undefined });
       try {
         results.push(await act(page, item, env));
       } finally {
@@ -249,7 +259,8 @@ async function inBrowser(spec, items, act) {
     }
   } catch (error) {
     const why = `the browser failed: ${String((error && error.message) || error).split('\n')[0]}`;
-    while (results.length < items.length) results.push({ ok: false, why, browser: true });
+    const late = Boolean(error && error.late);
+    while (results.length < items.length) results.push({ ok: false, why, browser: true, late });
   } finally {
     await browser.stop();
     watchBrowser(0);
@@ -262,21 +273,36 @@ const signIns = (spec) => inBrowser(spec, spec.setups, (page, setup, env) =>
   signIn(page, setup.actions, { base: spec.serve.url, env, actionMs: spec.actionMs,
     signedInMs: spec.signedInMs }));
 
-// runs replays each script of spec.runs, { setup, steps, names }: its setup as a sign-in, then
-// the actions of each step in order, and resolves to { ok, step, why, outside } for each. step
-// is the number of the step that failed, 0 for the setup, or null.
+// runs replays each script of spec.runs, { setup, steps, names, capture }: its setup as a
+// sign-in, then the actions of each step in order, and resolves to { ok, step, why, outside,
+// capture } for each. step is the number of the step that failed, 0 for the setup, or null.
+// With capture, { kind, dir, name, widths } of lib/capture.cjs, the page has the window of a
+// film, the setup is no part of what is stored, and capture of the result is what finish of
+// lib/capture.cjs returns.
 const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
   const options = { base: spec.serve.url, env, actionMs: spec.actionMs };
-  const first = await signIn(page, one.setup, { ...options, signedInMs: spec.signedInMs });
-  if (!first.ok) return { ...first, step: 0 };
+  const first = await signIn(page, one.setup, { ...options, signedInMs: spec.signedInMs,
+    until: allowance.until === Infinity ? undefined : allowance.until });
+  // A sign-in that fails after the deadline of the start is late: the time ran out.
+  if (!first.ok) return { ...first, step: 0, late: Date.now() >= allowance.until };
   const origin = new URL(spec.serve.url).origin;
-  for (const [place, step] of one.steps.entries()) {
-    const done = await replay(page, step, { ...options, origin });
-    if (done.failure) {
-      return { ok: false, step: place + 1, why: done.failure.words, outside: done.failure.outside };
+  const taken = one.capture ? await capture(page, one.capture) : null;
+  try {
+    for (const [place, step] of one.steps.entries()) {
+      if (taken) await taken.begin(place);
+      const done = await replay(page, step, { ...options, origin });
+      if (done.failure) {
+        return { ok: false, step: place + 1, why: done.failure.words,
+          outside: done.failure.outside };
+      }
+      if (taken) await taken.end(place);
     }
+    const result = { ok: true, step: null, why: null, outside: null };
+    if (taken) result.capture = await taken.finish();
+    return result;
+  } finally {
+    if (taken) await taken.stop();
   }
-  return { ok: true, step: null, why: null, outside: null };
 });
 
 async function main() {
@@ -288,7 +314,11 @@ async function main() {
     const proc = spec.proc === undefined ? (process.platform === 'linux' ? '/proc' : null)
       : spec.proc;
     const typed = [...(spec.typed || []), ...(spec.setups || []).flatMap((setup) => setup.names)];
-    result.app = await start(spec.serve, spec.startMs, proc, typed);
+    // The start of the app, of the browser and the sign-in of a script run share the time
+    // startMs from the start of the runner: allowance.until is the end of it.
+    allowance.until = spec.runs && spec.runs.length ? started + spec.startMs : Infinity;
+    result.app = await start(spec.serve, spec.startMs, proc, typed,
+      Math.min(allowance.until, Date.now() + spec.startMs));
     const [key, work] = (spec.runs || []).length ? ['runs', runs]
       : (spec.setups || []).length ? ['signIns', signIns] : [null, null];
     if (result.app.started && spec.browser && work) {
@@ -310,7 +340,9 @@ async function main() {
     await stop();
   }
   if (aborted) return;
-  fs.writeSync(1, `${JSON.stringify(result)}\n`);
+  const text = `${JSON.stringify(result)}\n`;
+  if (spec.resultFile) fs.writeFileSync(spec.resultFile, text, { flag: 'wx', mode: 0o600 });
+  else fs.writeSync(1, text);
   process.exit(0);
 }
 

@@ -26,6 +26,32 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   after the review needs a new review, so `workflow-plan-the-build` fixes no sentence after
   the last one. Every other kind of step ends as before, and on Claude Code the step limit
   leaves the two agents out, as before.
+- The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
+  a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
+  the `App address:` of the build plan, signs in with the replay of `preflight`, and runs
+  the steps in a page of 1280 x 720 px. A `film` scenario gets `<scenario>.mp4`, which
+  ffmpeg makes from the frames of the page from the start of step 1 at real speed, and
+  `<scenario>.vtt` with one cue per step. A `pictures` scenario runs with video off and
+  gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
+  pictures of pages at 360, 768 and 1280 px, for the screen reviewers. A call ends within
+  585 s, so run the film call with a tool timeout of at least 600 s: 15 s to stop the runner,
+  35 s for the encode (measured: 35 s for about 28,000 frames) and 535 s for the runner. The
+  runner's 535 s are 120 s for the start of the app, the browser and the sign-in, which share
+  one deadline, and 415 s for the waits of the setup and the steps. A run past its limit exits
+  3 with "Shorten the waits or the steps of <scenario>.json, then film it again." and "The film
+  ran past its limit of <n> s." A step `open` outside the App address fails. The waits of a
+  setup count against the 415 s and also against the 120 s deadline, and `demo check` refuses
+  a setup whose waits add up to more than 120 s. `demo check` refuses a step `open` outside
+  the App address, as the run does. When the 120 s run out before the browser starts or
+  during the sign-in, `film` exits 3 with "Shorten the sign-in steps of <scenario>.json, or make
+  the app start faster, then film it again." and "The 120 s for the app start, the sign-in and
+  the browser ran out before the browser started." ffmpeg gets what is left of the 585 s, at
+  most 90 s and at least 5 s. A film keeps each frame that the page paints, so every cue of
+  `<scenario>.vtt` lies within the film, and the runner returns its frames in a file, so the
+  number of frames is no limit. The first frame is at 0 s, and the cue of a step is its title.
+  A title with `-->` is refused before the film: "Change the Action of step <N> in the demo
+  scenario so it has no "-->", then film it again." A call that fails after it
+  made the folder `.film/<scenario>` removes it, and a missing browser keeps the folder.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` exits 1
@@ -35,7 +61,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   starts `check-reviewer` on the first script and on each change to a frozen script, and
   `demo check` exits 1 for a third correction. The call of `preflight` moved from the run of
   the locked checks to before the first run of a script, and it reads the drafts in
-  `.demo/`.
+  `.demo/`. `demo check` and the push check of `demo-script` also refuse a script whose
+  waits add up to more than 415 s: "Shorten the waits in <script> to at most 415 s in
+  total.", with the line "They add up to <m> s (a wait with no timeout_ms counts 5 s), and a
+  demo run has room for 415 s of waits." The waits of the setup count too.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
@@ -1136,8 +1165,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with the mark of `run`; a process that leaves the groups and removes the mark keeps
   running. After a SIGKILL of the runner of the check, the process groups of the command
   and of the browser stop, and every process that left them keeps running. `preflight`
-  ends within 585 seconds, below the 600 seconds after which the Bash tool of Claude Code
-  stops a command. Each browser call has a time limit, and the browser dismisses dialogs.
+  ends within 585 seconds. Each browser call has a time limit, and the browser dismisses dialogs.
   An exit 3 for a missing build plan, a bad App address host, a missing address, a demo
   script that is missing, cannot be read, breaks its format rules or types such a key, or
   a check that did not finish prints a line `Cause:` for the line that ends the run. The
@@ -1170,6 +1198,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the notes cannot be read, a later line says why and the limit stays 7.
 
 ### Changed
+
+- The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,
+  which Forager does not pass to a session. The end check reads it from the file of
+  `--inputs`, and so does `report-build`, which takes `--inputs` in both forms:
+  `report-build --inputs <path>` and `report-build --drop --inputs <path>`. With outputs
+  declared and no usable `qory.outbox`, the end check finds "Set qory.outbox in the inputs
+  file to the absolute path of the outbox folder."; `report-build` exits 3 with that fix,
+  or with "Give --inputs the inputs.json that qory wrote for the run." when it has no
+  `inputs.json`. Findings and skills write the outbox path as `<outbox>`.
 
 - `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
   `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
@@ -1220,17 +1257,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `modules/core/skills/running-a-workflow/lib/schema.cjs`, and `end` checks each output
   that the stage declares. Before, only the software module checked a schema, and `end`
   checked no output.
-  - `end` reads `qory.outputs` from the `inputs.json` of the session: a list with one
-    entry `{type, required, schema}` for each output of the stage. qory sets the
-    environment variable `QORY_OUTBOX` to the absolute path of the outbox folder, and `end`
-    checks the file `$QORY_OUTBOX/<type>/<type>.json` against the schema, for the type of
-    any module. It searches for no `.git` and no `.qory`. With no `qory.outputs`, it finds
-    nothing.
+  - `end` reads `qory.outputs` from the `inputs.json` of the session: a list with one entry
+    `{type, required, schema}` for each output of the stage. `qory.outbox` of the same file
+    is the absolute path of the outbox folder, and `end` checks the file
+    `<outbox>/<type>/<type>.json` against the schema, for the type of any module. It
+    searches for no `.git` and no `.qory`. With no `qory.outputs`, it finds nothing.
   - A `qory.outputs` that is present and malformed is a finding: it is no list, an entry is
     no object, a `type` is no name of lower-case letters, digits and hyphens, a `required`
     is not `true` or `false`, or a `schema` is no object. Only an absent list passes.
-  - When the stage declares an output and `QORY_OUTBOX` is unset or is no absolute path,
-    the finding is "Set QORY_OUTBOX to the absolute path of the outbox folder."
+  - When the stage declares an output and `qory.outbox` is missing or is not an absolute
+    path, the finding is "Set qory.outbox in the inputs file to the absolute path of the
+    outbox folder."
   - A required output with no file is a finding. So is a link in the outbox folder, in the
     folder above it, or in the folder of the type, and a file that is a link, is no regular
     file, or has more than 1 MiB. So is a member that qory sets or fills after the push,
@@ -1251,8 +1288,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - `process.yaml` has no `submit:`. The stage Build lists `pull-request` as a required
     output. The type has `size_limit: 786432`.
   - `report-build` always writes the outbox file
-    `$QORY_OUTBOX/pull-request/pull-request.json`, as `{title, text, steps, draft}`. With
-    `QORY_OUTBOX` unset or relative, it writes no file and exits 3 with a fix line. An
+    `<outbox>/pull-request/pull-request.json`, as `{title, text, steps, draft}`. With no
+    usable `qory.outbox` in the file of `--inputs`, it writes no file and exits 3 with a fix
+    line. An
     output of more than 786432 bytes, the size limit of the type, exits 3 with the fix to
     split the work into fewer commits, and writes no file. A link in the outbox folder, in
     the folder above it, or in the folder of the type exits 3. Before, it wrote the
@@ -2047,6 +2085,24 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   fail. `8c3df7a` is the first qory commit that reads `push_checks`.
 
 ### Fixed
+
+- The line `/.qory` in `.git/info/exclude`, which qory writes there, and a line that starts
+  with `/.qory/` are no finding of `scope`, `freeze`, `run`, `diff` and `probe`. Such a line
+  stopped each of these verbs, although qory leaves `.qory/` out of every commit. Any other
+  pattern is red, such as `.qory`, `!/.qory` or `/.qory` after a space, because no white
+  space is trimmed. Only an empty line or a line of spaces is blank. A line of a tab, a form
+  feed or U+00A0 is a pattern to git, and passed the check before this change. The finding
+  is "Remove this line from .git/info/exclude, then run the verb again.", in place of "Empty
+  .git/info/exclude, then run the verb again: its patterns hide files from git status." The
+  second line of the finding is the first such pattern in quotes, cut to 80 characters, with
+  control and format characters, the characters of the Unicode class
+  Default_Ignorable_Code_Point and U+FFFC escaped, or "a path with a key in its name" when
+  the pattern has a key.
+- A `qory.start_artifacts` of `""`, which qory writes for a run that pulled no build plans
+  at the start, no longer stops `run`, `probe`, `step begin`, `preflight` and `prove` with
+  exit 3. The build plan then comes from the artifact folder of the session, as without
+  `--inputs`. Any other relative path still exits 3. `scope` and `freeze` still exit 3 with
+  `start_commits: []`, which lists no checkout.
 
 - A hook process loads no preload from the environment of its session or from a `.env` file.
   Each of the 13 hook commands in `modules/core/settings/` starts `node` through

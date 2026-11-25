@@ -15,8 +15,9 @@ of the build.
 `workflow-implement-changes` loads this skill when `demo check` lists a scenario with no
 demo script, or prints a fault of a script. Its words `<qory>`, `<folder>`, `<inputs>` and
 `<skill folder>/checks.cjs` mean here what they mean there. `<skill folder>/checks.cjs` is
-the checks script of `running-a-workflow`. Give each Bash call of `preflight` and `demo run`
-the timeout 3600000 ms, and run no other command in the same call.
+the checks script of `running-a-workflow`. Run each call of `preflight` and `demo run` with a
+tool timeout of at least 600 s, as "Tool timeouts" of `running-checks` states, and run no other
+command in the same call.
 
 The last line of `demo check` that starts with "Write the demo script of" lists the
 scenarios with no script, in the order to script them, and shows the version `<S>` of the
@@ -91,8 +92,9 @@ version; do this only for a script that this session wrote and still has as a fi
      `step end <step> failed`, and end as "Failures" lists, with the cause "its script
      needs a third correction, and a script has 2".
    - With another 1, the script breaks a rule, and the first line of each fault is the fix.
-     This includes a sign-in step that opens a page outside the App address, by origin or by
-     path: "Open only pages under <App address> in the sign-in steps of <script>." Do
+     This includes a sign-in step or a step that opens a page outside the App address, by
+     origin or by path: "Open only pages under <App address> in the sign-in steps of <script>."
+     or "Open only pages under <App address> in step <N> of <script>." Do
      "Start the author again", with those lines. `demo check` compares the sign-in with the
      App address only when the build plan is readable and has the line `App address:`. With
      no such plan, it compares nothing, and the run in step 8 loads only pages of the origin

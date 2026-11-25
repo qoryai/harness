@@ -54,6 +54,7 @@ const LIBRARY = Object.freeze({
   readOpen: require('./findings.cjs').readOpen,
   reviewerFindings: require('../verbs/findings.cjs').reviewerFindings,
   outboxFolder: require('./outbox.cjs').outboxFolder,
+  OUTBOX_FIX: require('./outbox.cjs').OUTBOX_FIX,
   outboxLinked: require('./outbox.cjs').linked,
   schema: require('./schema.cjs'),
   POINT_TEXT: require('./findings.cjs').POINT_TEXT,

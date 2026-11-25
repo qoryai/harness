@@ -419,18 +419,18 @@ still ends. A runtime with no such hook ends the session with no check.
 
 The end check also checks each output that the stage declares, for a type of any module.
 qory lists them in `qory.outputs` of the `inputs.json` of the session: one entry
-`{type, required, schema}` for each output. qory sets the environment variable
-`QORY_OUTBOX` to the absolute path of the outbox folder, and the session writes each output
-to `$QORY_OUTBOX/<type>/<type>.json`, such as `$QORY_OUTBOX/reply/reply.json`. The check
-reads those files and finds:
+`{type, required, schema}` for each output. `qory.outbox` of the same file is the
+absolute path of the outbox folder, `<outbox>`. The session creates that folder and writes
+each output to `<outbox>/<type>/<type>.json`, such as `<outbox>/reply/reply.json`. The
+check reads those files and finds:
 
 - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
   `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
   or `false`, or a `schema` is no object. With no `qory.outputs` or no `inputs.json`, the
   check finds nothing;
 - an `inputs.json` that exists and is no JSON object, and a stage that declares an output
-  while `QORY_OUTBOX` is unset or is no absolute path ("Set QORY_OUTBOX in the setup of the
-  run ..."). The setup of the run must fix these; no output file does;
+  while `qory.outbox` is missing or is not an absolute path ("Set qory.outbox in the inputs
+  file ..."). The setup of the run must fix these; no output file does;
 - a required output with no file;
 - a link in the outbox folder, in the folder above it, or in the folder of the type, which
   the fix "Remove the link ..." names, and a file that is a link, is no regular file, or

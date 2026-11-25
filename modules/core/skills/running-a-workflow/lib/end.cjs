@@ -74,9 +74,9 @@ const OUTBOX_NONE = (types) => `The stage needs ${named(types)}, which the run d
   `write, ${AGAIN} writes ${types.length === 1 ? 'it' : 'them'} again.`;
 
 // The point of end when the setup of the run gave the outbox check no usable inputs file or
-// QORY_OUTBOX: the session cannot fix that.
+// qory.outbox in it: the session cannot fix that.
 const OUTBOX_SETUP = 'The setup of the run gave the check of the outputs no usable inputs ' +
-  'file or QORY_OUTBOX, so the run could not check its outputs, the setup of the run must ' +
+  'file or outbox folder, so the run could not check its outputs, the setup of the run must ' +
   'provide them.';
 
 const RECORDS_UNREAD = 'The run could not read the records of its report checks, so no ' +
