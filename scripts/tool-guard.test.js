@@ -150,8 +150,8 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
       `nice -n 5 tee ${file}`, `nice cp a ${file}`, `exec rm ${file}`, `sudo -u root rm ${file}`,
       `FOO=1 env BAR=2 nice rm ${file}`, `( cp a ${file} )`, `{ cp a ${file}; }`,
       `if true; then rm ${file}; fi`, `echo $(rm ${file})`, `echo \`rm ${file}\``,
-      'rm -rf checks', 'mv checks old', 'git rm -r checks', 'git checkout .',
-      'git checkout -- checks', 'git restore checks', 'git restore --source HEAD~1 .',
+      'rm -rf checks', 'mv checks old', 'git rm -r checks',
+      'git checkout -- checks', 'git restore checks',
       'cp a checks//corrected-reply.check.ts',
       'cp a ./checks/../checks/corrected-reply.check.ts',
       'echo x > ./src/../checks/corrected-reply.check.ts', `echo x >| ${file}`,
@@ -167,6 +167,10 @@ test('a write behind a prefix, in a group, of a folder above or by another path 
       `sudoedit ${file}`, `/usr/bin/sudoedit -u root ${file}`]) {
       firstLine(guard(claude('Bash', { command }, 'implementer')), start);
       firstLine(guard(codex('Bash', { command })), start);
+    }
+    // A restore of the working folder writes .qory/build/ too, which the guard reads first.
+    for (const command of ['git checkout .', 'git restore --source HEAD~1 .']) {
+      firstLine(guard(claude('Bash', { command }, 'implementer')), 'Leave .qory/build/ as it is');
     }
     for (const command of ['cp -r checks /tmp/checks-copy', 'rm -rf src', 'mv src/a.ts src/b.ts',
       'git -C . rm src/other.ts', 'rm -rf checks-old', 'env ls checks', 'mkdir -p checks/new',
@@ -647,6 +651,64 @@ test('the guard denies a write when it cannot tell whether the path is a locked 
   } finally {
     fs.chmodSync(sealed, 0o755);
   }
+});
+
+// ---- A restore that writes .qory/build/ ---------------------------------------------------------
+
+// restoreCase returns call(command) for a new working folder in a repository with one commit.
+function restoreCase() {
+  const dir = working();
+  childProcess.execSync('git add -A && git -c user.email=a@b -c user.name=a commit -qm base',
+    { cwd: dir });
+  const call = (input) => decide({ input: { ...input, cwd: dir }, env: RUN, runtime: 'claude',
+    root: dir, locked: () => ({ files: [] }) });
+  return { dir, call, bash: (command) => call(claude('Bash', { command }, 'harness:implementer')) };
+}
+
+test('the guard denies a restore of a folder above .qory/build/, and leaves another folder open', () => {
+  const { bash } = restoreCase();
+  const start = 'Leave .qory/build/ as it is';
+  for (const command of ['git checkout HEAD -- .qory', 'git checkout -- .qory', 'git restore .qory',
+    'git restore --source=HEAD .', 'git checkout HEAD -- .', 'git checkout .',
+    'git stash pop', 'git stash apply', 'git reset --hard', 'git reset --hard HEAD~1',
+    'git read-tree -u HEAD', 'git read-tree HEAD']) {
+    firstLine(bash(command), start);
+  }
+  // A restore of an unrelated folder or file, and commands that restore nothing, pass.
+  for (const command of ['git checkout HEAD -- checks', 'git restore checks/x.ts',
+    'git -C checks reset --hard', 'git reset --soft HEAD~1', 'git stash', 'git stash list',
+    'git checkout main', 'echo git reset --hard']) {
+    assert.equal(bash(command), null, command);
+  }
+});
+
+test('the guard denies a file of the index that no one reads, before a restore can write it', () => {
+  const { dir, bash, call } = restoreCase();
+  const tmp = next('plant');
+  fs.mkdirSync(tmp);
+  const record = path.join(tmp, 'record.json');
+  const info = path.join(tmp, 'info.txt');
+  const start = 'Leave .qory/build/ as it is';
+  // The chain of the attack: a file outside the folder, an object, a list of entries for the
+  // index, then the index, a commit and a restore. The first call that can place the file below
+  // .qory/build/ is the update of the index.
+  assert.equal(call(claude('Write', { file_path: record, content: '{}' }, 'harness:implementer')),
+    null);
+  fs.writeFileSync(record, '{}');
+  assert.equal(bash(`git hash-object -w ${record}`), null);
+  const object = childProcess.execSync(`git hash-object -w ${record}`, { cwd: dir }).toString()
+    .trim();
+  assert.equal(call(claude('Write', { file_path: info, content: 'x' }, 'harness:implementer')),
+    null);
+  fs.writeFileSync(info, `100644 ${object}\t.qory/build/steps.json\n`);
+  firstLine(bash(`git update-index --index-info < ${info}`), start);
+  firstLine(bash('git update-index --stdin'), start);
+  firstLine(bash(`git update-index --add --cacheinfo 100644,${object},.qory/x.json`), start);
+  firstLine(bash(`git hash-object -w --path=.qory/x ${record}`), start);
+  // An update of the index with no entries from input passes.
+  assert.equal(bash('git update-index --refresh'), null);
+  // Nothing was placed.
+  assert.equal(fs.existsSync(path.join(dir, '.qory', 'build', 'steps.json')), false);
 });
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
