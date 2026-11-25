@@ -3492,7 +3492,7 @@ test('cap: a types or build command stops 60 seconds before the cap of the Bash 
   }
 });
 
-// ---- review round 2 of H-48 ------------------------------------------------------------
+// ---- scope and freeze with --inputs ----------------------------------------------------
 
 const IDENT = ['-c', 'user.name=t', '-c', 'user.email=t@example.com'];
 // The lines after the last finding on a committed path outside the scope, as printed.

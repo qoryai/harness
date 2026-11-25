@@ -644,7 +644,8 @@ test('the skill has its name, a description, its sections and short lines', () =
     /^name: workflow-verify-a-ticket\ndescription: Verify the change /);
   let at = -1;
   for (const heading of ['## What the session writes', '## The order of the run',
-    '## The reviewers', '## The round', '## The questions', '## The end', '## Failures']) {
+    '## The reviewers', '## The round', '## The walkthrough', '## The questions', '## The end',
+    '## Failures']) {
     const place = WORKFLOW.indexOf(`\n${heading}\n`);
     assert.ok(place > at, `${heading} is missing or out of order`);
     at = place;
@@ -669,7 +670,8 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
     '7. Read the demo evidence of the run',
     '8. Run `<skill folder>/checks.cjs check verification <folder>/verification.json`',
     '9. Do "The reviewers", then "The round".', '10. Push the draft',
-    '11. Take the time of the version', '12. Do "The questions", then "The end".');
+    '11. Take the time of the version',
+    '12. Do "The walkthrough", then "The questions", then "The end".');
   // The only command that runs lock --verify has --version <N>.
   const runs = oneLine(steps).match(/`<skill folder>\/checks\.cjs lock --verify[^`]*`/g);
   assert.deepEqual(runs, ['`<skill folder>/checks.cjs lock --verify --version <N>`']);
@@ -735,7 +737,10 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.doesNotMatch(WORKFLOW,
     /submission-writer|QORY_SUBMISSION_HANDOFF|report-build|pull-request\.json/);
   assert.doesNotMatch(WORKFLOW, /qory\.outbox|<outbox>/);
-  assert.ok(oneLine(WORKFLOW).includes('Push only `verification` and `questions`.'));
+  assert.ok(oneLine(WORKFLOW).includes('Push only `verification`, `walkthrough` and ' +
+    '`questions`.'));
+  assert.ok(oneLine(WORKFLOW).includes('Start no agent that is not one of the two reviewers or ' +
+    'one of the two walkthrough agents.'));
 });
 
 test('the skill asks one question for each criterion that is not met, with three answers', () => {
@@ -763,6 +768,85 @@ test('the stack lists verify-a-ticket with write-no-push and the group verify-re
   assert.doesNotMatch(stack, /verify-a-ticket:[^\n]*plan:/);
   const manifest = read('qory-module.yaml');
   assert.ok(manifest.includes('verify-reviewers: [tamper-reviewer, verification-reviewer]'));
+  // The walkthrough reviewer has its own group, which no stack entry names as a review_group.
+  assert.ok(manifest.includes('    walkthrough-reviewers: many\n'));
+  assert.ok(manifest.includes('    walkthrough-reviewers: [walkthrough-reviewer]\n'));
+  assert.doesNotMatch(stack, /review_group: walkthrough-reviewers/);
+  assert.ok(!manifest.includes('verify-reviewers: [tamper-reviewer, verification-reviewer, '));
+});
+
+test('the skill makes the walkthrough after the verification and before the verdict', () => {
+  const steps = oneLine(section(WORKFLOW, 'The walkthrough'));
+  // The order of the calls, which the sessions below run with the real scripts.
+  inOrder(steps, '1. Run `<skill folder>/checks.cjs files` once.',
+    '2. Start the writer: round 1 here, and the rounds that 6a and 6c name.',
+    '`<skill folder>/checks.cjs notes walkthrough-writer`',
+    '`verify-a-ticket-1-walkthrough-writer` as `<name>`', '${qory:agents/walkthrough-writer}',
+    '3. Run `<skill folder>/checks.cjs check walkthrough <folder>/walkthrough.md`.',
+    '4. Run `notes walkthrough-reviewer`', '`verify-a-ticket-1-walkthrough-reviewer` as `<name>`',
+    '${qory:agents/walkthrough-reviewer}',
+    '5. When the last line of the report is `clean`, go to 7.',
+    '6. The findings of a round:', '- 6a, after round 1:', '- 6b, after round 2:',
+    '- 6c, the removal:', '7. Push the walkthrough with ' +
+    '`<qory> artifact push walkthrough <folder>/walkthrough.md`.');
+  // Round 1 is the first write, round 2 the write after round 1, and the removal the next one.
+  assert.ok(steps.includes('Round 1 is the first write of `walkthrough.md`, round 2 the write ' +
+    'after the findings of round 1, and the removal is the write after the findings of round 2.'));
+  // The branches: a status of notes or starts, a start that fails, a red check in round 2, and
+  // each result of the reviewer other than clean and changes-needed.
+  assert.ok(steps.includes('When `notes` exits with a status other than 0, or `starts` exits ' +
+    'with a status other than 0, keep the reason "an agent or the check script failed".'));
+  assert.ok(steps.includes('When the start fails, or the file does not exist after it, keep ' +
+    'the same reason.'));
+  assert.ok(steps.includes('When `notes` exits with a status other than 0, or `starts` exits ' +
+    'with a status other than 0, keep the reason "the review of the walkthrough did not ' +
+    'finish".'));
+  assert.ok(steps.includes('For any other result, keep the reason "the review of the ' +
+    'walkthrough did not finish": the last line `blocked`, another last line, no report, an ' +
+    'error, or a start that does not end.'));
+  assert.ok(steps.includes('after round 1 go to 6a, and after round 2 go to 6b, and start no ' +
+    'reviewer.'));
+  assert.ok(steps.includes('A red check in round 2 skips the reviewer, so the findings of 6b ' +
+    'are the lines that the check printed, or the findings of the reviewer.'));
+  assert.ok(steps.includes('With another status, keep the reason "the check still failed ' +
+    'after the removal".'));
+  // The step blocks nothing, runs after the push of the verification (steps 10 and 11), and a
+  // refused push ends nothing.
+  assert.ok(steps.includes('a refused push ends nothing'));
+  assert.ok(steps.includes('It blocks nothing: it changes no verdict, and the verdict stays ' +
+    'the last command of the run.'));
+  for (const reason of ['the list of changed files was not written',
+    'an agent or the check script failed', 'the review of the walkthrough did not finish',
+    'the check still failed after the removal', 'the push was refused 3 times']) {
+    assert.ok(steps.includes(`"${reason}"`), reason);
+  }
+  assert.ok(steps.includes('A step that says "keep the reason" ends this section: go to ' +
+    '"The questions", and push no walkthrough.'));
+  // The end line has one more line for a reason, in "The end", and "The round" has no
+  // walkthrough.
+  assert.ok(oneLine(section(WORKFLOW, 'The end')).includes('End with one line, and a second ' +
+    'line when "The walkthrough" kept a reason: "The walkthrough was not stored: <reason>."'));
+  assert.ok(steps.includes('"The end" adds one line that shows the reason.'));
+  assert.ok(steps.includes('No stage requires it.'));
+  assert.doesNotMatch(steps, /process\.yaml|could not review it|after round 2"/);
+  // The text files that the writer and the reviewer read define the rounds the same way.
+  const flat = (...parts) => oneLine(read(...parts));
+  const rounds = 'Round 1 is your first write';
+  assert.ok(flat('agents', 'walkthrough-writer.md').includes(`${rounds}, round 2 is the write ` +
+    'after the findings of round 1, and the removal is the write after the findings of round 2.'));
+  assert.ok(flat('skills', 'writing-walkthroughs', 'SKILL.md').includes(`${rounds} of the file, ` +
+    'round 2 is the write after the findings of round 1, and the removal is the write after ' +
+    'the findings of round 2.'));
+  assert.ok(flat('skills', 'checking-walkthroughs', 'SKILL.md').includes('The writer fixes ' +
+    'the findings of round 1 in round 2. For a finding of round 2 that is still open, the ' +
+    'removal is the last write:'));
+  assert.ok(flat('agents', 'walkthrough-reviewer.md').includes('After the findings of round 2 ' +
+    'the writer removes'));
+  for (const text of [flat('agents', 'walkthrough-writer.md'),
+    flat('skills', 'writing-walkthroughs', 'SKILL.md')]) {
+    assert.ok(text.includes('still red after the removal'));
+  }
+  assert.doesNotMatch(section(WORKFLOW, 'The round'), /walkthrough/);
 });
 
 // ---- A scripted session of the calls that the skill lists ---------------------------------------
@@ -885,4 +969,186 @@ test('a session: a failed check is not met, and the question for it passes its c
   assert.equal(refused.status, 1, refused.out + refused.err);
   assert.match(refused.out,
     /Give .* 3 options: Change AC-N, Make it met another way and Withdraw AC-N/);
+});
+
+// ---- Scripted sessions of the walkthrough step ----------------------------------------------------
+//
+// Each test runs the calls of the section "The walkthrough" in the order that a text test above
+// pins, with the real checks script (files, check, notes, starts) and a fake qory that logs each
+// push and each verdict. The agents are the test: it writes the file that the writer would.
+
+// The pull request of the session changes a.txt: one added line, so one group.
+const GOOD_WALKTHROUGH = (head) => `# Walkthrough: New hours
+Commit ${head.slice(0, 7)} · 1 files · 1 lines
+
+## What and why
+- Problem: members see the old hours. (matrix row AC-1)
+- Approach: the file has one new line. \`a.txt:2\`
+- Not chosen: none.
+- Shortcoming: the change has one line only. \`a.txt:2\`
+
+## Changes, in call order
+### 1. The file
+- \`a.txt\` (changed): one new line. \`a.txt:2\`
+
+## Criteria
+| Criterion | Changes | Evidence |
+|---|---|---|
+| AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00" | 1 | matrix row AC-1 |
+
+## Risk on merge
+- Undo: revert the merge.
+- Affects: members who read the reply.
+
+## Not checked
+Nothing.
+`;
+
+// The same file with a commit in the header that is no start of the verified commit.
+const RED_WALKTHROUGH = (head) => GOOD_WALKTHROUGH(head).replace(/^Commit [0-9a-f]{7}/m,
+  'Commit abcdef0');
+
+// walking returns a session with a pull request, the draft verification at the head of the pull
+// request, one live criterion, and a fake qory that logs each push and verdict to wk.log. A push of
+// walkthrough fails when pushFails is set.
+function walking({ pushFails = false, pull = true } = {}) {
+  const wk = sessionOf({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
+  const git = (...args) => childProcess.execFileSync('git', ['-C', wk.dir, ...args],
+    { encoding: 'utf8' }).trim();
+  const base = git('rev-parse', 'HEAD');
+  fs.appendFileSync(path.join(wk.dir, 'a.txt'), 'b\n');
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'change');
+  wk.head = git('rev-parse', 'HEAD');
+  for (const root of [wk.store, wk.server]) {
+    for (const file of [path.join(root, 'acceptance-criteria.json'),
+      path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json')]) {
+      const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+      doc.criteria = doc.criteria.slice(0, 1);
+      write(file, doc);
+    }
+  }
+  if (pull) write(path.join(wk.server, 'pull-request', 'main', 'v1', 'pull-request.json'),
+    { base, head: wk.head });
+  write(path.join(wk.store, 'verification.json'), { target_version: wk.head });
+  wk.file = path.join(wk.store, 'walkthrough.md');
+  wk.log = path.join(next('log'), 'qory.log');
+  fs.mkdirSync(path.dirname(wk.log));
+  fs.writeFileSync(path.join(wk.bin, 'qory'), `#!/bin/sh
+case "$1 $2" in
+'artifact pull') echo '${wk.server}'; exit 0;;
+'artifact push') echo "$*" >> '${wk.log}'; ${pushFails ? '[ "$3" = walkthrough ] && exit 1;' : ''} exit 0;;
+'run verdict') echo "$*" >> '${wk.log}'; exit 0;;
+esac
+exit 1
+`, { mode: 0o755 });
+  return wk;
+}
+
+const fake = (wk, ...argv) => childProcess.spawnSync(path.join(wk.bin, 'qory'), argv);
+const logged = (wk) => (fs.existsSync(wk.log)
+  ? fs.readFileSync(wk.log, 'utf8').trim().split('\n') : []);
+const walkCheck = (wk) => call(wk, ['check', 'walkthrough', wk.file]);
+const startOf = (wk, agent) => call(wk, ['starts', 'run_1', `verify-a-ticket-1-${agent}`, '3']);
+
+test('a walkthrough session: a clean walkthrough is pushed before the verdict', () => {
+  const wk = walking();
+  assert.equal(call(wk, ['files']).status, 0);
+  const list = JSON.parse(fs.readFileSync(path.join(wk.store, '.reports/changed-files.json'),
+    'utf8'));
+  assert.equal(list.head, wk.head);
+  assert.deepEqual(list.files.map((one) => one.path), ['a.txt']);
+  assert.equal(call(wk, ['notes', 'walkthrough-writer']).status, 0);
+  assert.equal(startOf(wk, 'walkthrough-writer').status, 0);
+  write(wk.file, GOOD_WALKTHROUGH(wk.head));
+  assert.equal(walkCheck(wk).status, 0);
+  assert.equal(call(wk, ['notes', 'walkthrough-reviewer']).status, 0);
+  assert.equal(startOf(wk, 'walkthrough-reviewer').status, 0);
+  assert.equal(fake(wk, 'artifact', 'push', 'walkthrough', wk.file).status, 0);
+  assert.equal(fake(wk, 'run', 'verdict', 'passed').status, 0);
+  assert.deepEqual(logged(wk), [`artifact push walkthrough ${wk.file}`, 'run verdict passed']);
+});
+
+test('a walkthrough session: a check that stays red through the removal pushes none', () => {
+  const wk = walking();
+  assert.equal(call(wk, ['files']).status, 0);
+  // Round 1, round 2 and the removal: three writer starts, a red check after each, and no
+  // reviewer start, because the check is red in each round.
+  for (let start = 1; start <= 3; start += 1) {
+    assert.equal(startOf(wk, 'walkthrough-writer').status, 0);
+    write(wk.file, RED_WALKTHROUGH(wk.head));
+    const got = walkCheck(wk);
+    assert.equal(got.status, 1);
+    assert.match(got.out, /^Set the commit of the header of walkthrough\.md to /);
+  }
+  assert.equal(fake(wk, 'run', 'verdict', 'passed').status, 0);
+  assert.deepEqual(logged(wk), ['run verdict passed']);
+});
+
+test('a walkthrough session: the removal start can make a red check green, then the push', () => {
+  const wk = walking();
+  assert.equal(call(wk, ['files']).status, 0);
+  for (const draft of [RED_WALKTHROUGH, RED_WALKTHROUGH, GOOD_WALKTHROUGH]) {
+    assert.equal(startOf(wk, 'walkthrough-writer').status, 0);
+    write(wk.file, draft(wk.head));
+    assert.equal(walkCheck(wk).status, draft === GOOD_WALKTHROUGH ? 0 : 1);
+  }
+  assert.equal(fake(wk, 'artifact', 'push', 'walkthrough', wk.file).status, 0);
+  assert.equal(fake(wk, 'run', 'verdict', 'passed').status, 0);
+  assert.deepEqual(logged(wk), [`artifact push walkthrough ${wk.file}`, 'run verdict passed']);
+});
+
+test('a walkthrough session: a refused push of the walkthrough still lets the verdict run', () => {
+  const wk = walking({ pushFails: true });
+  assert.equal(call(wk, ['files']).status, 0);
+  write(wk.file, GOOD_WALKTHROUGH(wk.head));
+  assert.equal(walkCheck(wk).status, 0);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    assert.equal(fake(wk, 'artifact', 'push', 'walkthrough', wk.file).status, 1);
+  }
+  assert.equal(fake(wk, 'run', 'verdict', 'passed').status, 0);
+  const lines = logged(wk);
+  assert.equal(lines.filter((line) => line.startsWith('artifact push walkthrough')).length, 3);
+  assert.equal(lines.at(-1), 'run verdict passed');
+});
+
+test('a walkthrough session: no pull request makes no list, and the verdict is still recorded', () => {
+  const wk = walking({ pull: false });
+  const got = call(wk, ['files']);
+  assert.equal(got.status, 3);
+  assert.match(got.lines[0], /^Run files after Build pushed its pull request\./);
+  assert.ok(!fs.existsSync(path.join(wk.store, '.reports/changed-files.json')));
+  assert.equal(fake(wk, 'run', 'verdict', 'passed').status, 0);
+  assert.deepEqual(logged(wk), ['run verdict passed']);
+});
+
+test('a walkthrough session: starts counts each agent, and refuses the 4th start', () => {
+  const wk = walking();
+  // The writer starts at most 3 times (round 1, round 2, the removal), and the reviewer at most 2.
+  // A refusal of starts is the reason "the review of the walkthrough did not finish" or "an agent or the check
+  // script failed", and the skill starts nothing after it.
+  for (const agent of ['walkthrough-writer', 'walkthrough-reviewer']) {
+    assert.equal(call(wk, ['notes', agent]).status, 0);
+    for (let start = 1; start <= 3; start += 1) {
+      assert.equal(startOf(wk, agent).status, 0, `${agent} start ${start}`);
+    }
+    const refused = startOf(wk, agent);
+    assert.equal(refused.status, 1, refused.out);
+  }
+  // The counts of the two agents are apart, and apart from those of the two reviewers.
+  assert.equal(startOf(wk, 'tamper-reviewer').status, 0);
+});
+
+test('a walkthrough session: a reviewer that is blocked stops the section with no push', () => {
+  const wk = walking();
+  assert.equal(call(wk, ['files']).status, 0);
+  assert.equal(startOf(wk, 'walkthrough-writer').status, 0);
+  write(wk.file, GOOD_WALKTHROUGH(wk.head));
+  assert.equal(walkCheck(wk).status, 0);
+  assert.equal(startOf(wk, 'walkthrough-reviewer').status, 0);
+  // The reviewer reports `blocked`: the skill keeps the reason, so no push comes before the verdict.
+  assert.ok(oneLine(section(WORKFLOW, 'The walkthrough')).includes('For any other result, ' +
+    'keep the reason "the review of the walkthrough did not finish"'));
+  assert.equal(fake(wk, 'run', 'verdict', 'passed').status, 0);
+  assert.deepEqual(logged(wk), ['run verdict passed']);
 });

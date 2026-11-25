@@ -23,11 +23,13 @@ description: >-
   skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer and
   scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's Shape
   stage through those four workflows; the skills planning-shape and checking-shape; the agents
-  shape-planner and shape-reviewer; the workflow-plan-the-build skill, which orchestrates
-  one ticket's build plan; the skills planning-builds and checking-build-plans; the skill
-  judging-findings, which defines a blocking finding of a change; the agents build-planner and
-  plan-reviewer; the workflow-write-acceptance-checks skill, which orchestrates one ticket's
-  acceptance checks and their lock; the skills writing-acceptance-checks and
+  shape-planner and shape-reviewer; the workflow-triage-review skill, which sorts the feedback
+  of a person on one ticket's change; the skill sorting-feedback; the agent feedback-triager;
+  the workflow-plan-the-build skill, which orchestrates one ticket's build plan; the skills
+  planning-builds and checking-build-plans; the skill judging-findings, which defines a
+  blocking finding of a change; the agents build-planner and plan-reviewer; the
+  workflow-write-acceptance-checks skill, which orchestrates one ticket's acceptance checks
+  and their lock; the skills writing-acceptance-checks and
   checking-acceptance-checks; the agents acceptance-check-writer and check-reviewer; the
   workflow-review-changes skill, the review session of one ticket's Build run, which starts
   the reviewers as its agents, decides the round from their reports and the result of the
@@ -47,15 +49,20 @@ description: >-
   debugging-failures and making-small-changes; the agents software-developer and
   software-debugger, which fill the roles developer and debugger; the skills
   checking-tampering and judging-criteria and the agents tamper-reviewer and
-  verification-reviewer, the reviewers of Verify; the verb matrix of the checks script,
-  which writes the draft verification of Verify from the records of the run; the skill
-  workflow-verify-a-ticket, which runs Verify as a review session; and the skill
-  workflow-capture-demos, which films the demo scenarios and stores their demo evidence, with
-  the skill checking-demos and the agent demo-reviewer, which judges the frames.
+  verification-reviewer, the reviewers of Verify; the skills writing-walkthroughs and
+  checking-walkthroughs and the agents walkthrough-writer and walkthrough-reviewer, which
+  write and review the walkthrough of Verify, where the group role walkthrough-reviewers has
+  the reviewer; the verb matrix of the checks script, which writes the draft verification of
+  Verify from the records of the run; the verb files, which writes the list of the changed
+  files of the pull request; the skill workflow-verify-a-ticket, which runs Verify as a
+  review session; and the skill workflow-capture-demos, which films the demo scenarios and
+  stores their demo evidence, with the skill checking-demos and the agent demo-reviewer,
+  which judges the frames.
 roles:
   agents:
     reviewers: many
     verify-reviewers: many
+    walkthrough-reviewers: many
 provides:
   agents:
     explorer: code-explorer
@@ -69,6 +76,7 @@ provides:
     reviewers: [code-reviewer, test-reviewer, acceptance-reviewer, security-reviewer,
       data-reviewer, failure-reviewer]
     verify-reviewers: [tamper-reviewer, verification-reviewer]
+    walkthrough-reviewers: [walkthrough-reviewer]
 push_checks:
   - type: proposal
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, proposal]
@@ -112,6 +120,9 @@ push_checks:
   - type: walkthrough
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, walkthrough]
     reads: [verification, acceptance-criteria]
+  - type: feedback
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, feedback]
+    reads: [acceptance-criteria, questions]
 # The check of what a write workflow's session may push, for `plan: build-plan`. The command
 # takes --base <start commit> --artifacts <folder> last. It checks each path of the commits since
 # the base against the Files of the build plan, and scans the commits for keys and repositories.

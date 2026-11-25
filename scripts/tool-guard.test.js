@@ -4993,7 +4993,7 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     }
     // Each write that a skill or an agent prescribes in the artifact folder is open to a
     // write tool: the drafts, the points and the lists of files in .notes/.
-    for (const file of ['questions.json', 'points.json', 'review-comments.json',
+    for (const file of ['questions.json', 'points.json', 'review-comments.json', 'feedback.json',
       '.notes/changed-files.txt', '.notes/code-reviewer-files.txt',
       '.notes/acceptance-check-writer-files.txt']) {
       assert.equal(call(writeAs(path.join(runFolder, file), type)), null, file);
@@ -5034,6 +5034,8 @@ test('the checks script runs each verb of Verify in a review session', () => {
   const verbs = ['resume', 'lock --verify --version 1', `run locked --inputs ${outside}`,
     `run locked --inputs ${inHome}`, 'matrix --version 1',
     `check verification ${folder}/verification.json`, `check questions ${folder}/questions.json`,
+    'files', `check walkthrough ${folder}/walkthrough.md`, 'notes walkthrough-writer',
+    'starts run-1 verify-a-ticket-1-walkthrough-reviewer 3',
     `findings round ${review.reports} --reviewers tamper-reviewer,verification-reviewer`,
     'notes tamper-reviewer', 'starts run-1 verify-a-ticket-1-tamper-reviewer 3',
     `notes code-reviewer --files ${folder}/.notes/changed-files.txt`,
@@ -5042,6 +5044,15 @@ test('the checks script runs each verb of Verify in a review session', () => {
   for (const verb of verbs) {
     assert.equal(review.call(bashAs(`node ${SESSION_CHECKS} ${verb}`)), null, verb);
   }
+  // The writer of the walkthrough, an agent that is no reviewer, writes walkthrough.md in the
+  // artifact folder; an agent whose type ends in -reviewer writes no such file.
+  const walkthrough = path.join(folder, 'walkthrough.md');
+  assert.equal(review.call(writeAs(walkthrough, 'walkthrough-writer')), null);
+  assert.ok(review.call(writeAs(walkthrough, REVIEWER)));
+  // files runs from the artifact folder, as matrix does: the checks script alone, with a verb of
+  // ARTIFACT_VERBS. A shell command that runs there and is no checks verb is denied.
+  assert.equal(review.call(bashAs(`node ${SESSION_CHECKS} files`, undefined, folder)), null);
+  assert.ok(review.call(bashAs('node writer.js', undefined, folder)));
   // run locked with a path of the home writes nothing there by a redirect or a chained command.
   const run = `node ${SESSION_CHECKS} run locked --inputs ${inHome}`;
   const guard = path.join(review.home, 'hooks', 'tool-guard.cjs');

@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket skills/checking-demos agents/demo-reviewer skills/workflow-capture-demos"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-triage-review skills/sorting-feedback agents/feedback-triager skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket skills/checking-demos agents/demo-reviewer skills/workflow-capture-demos skills/writing-walkthroughs skills/checking-walkthroughs agents/walkthrough-writer agents/walkthrough-reviewer"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -1443,9 +1443,9 @@ for NAME in primitives verification acceptance-criteria; do
 	pass "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
 done
 
-# process.yaml sets withdrawable: false for acceptance-lock and build-ledger. Outside a run,
-# qory reads that flag from the exported modules and exits 4 before it writes a file.
-for type in acceptance-lock build-ledger; do
+# process.yaml sets withdrawable: false for acceptance-lock, build-ledger and feedback. Outside
+# a run, qory reads that flag from the exported modules and exits 4 before it writes a file.
+for type in acceptance-lock build-ledger feedback; do
 	LOCKED="qory artifact push $type --withdraw exits 4: process.yaml sets withdrawable: false"
 	run "$ROOT" "$QORY" artifact push "$type" --name main --withdraw
 	if [ "$RC" -ne 4 ] || ! printf '%s\n' "$OUT" |
@@ -2750,6 +2750,40 @@ expect_broken "rule 13 fails on a group that differs from the agents of its sess
 printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n' \
 	>"$R13/modules/m/qory-module.yaml"
 expect_passes "rule 13 passes when each reviewer is a defined member" rule_review_groups "$R13"
+# Rule 13 on a reviewer in a group that no stack entry names (it passes), then in a group that
+# another workflow names as its review_group, and then in no group (each fails).
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n    free: [c-reviewer]\n' \
+	>"$R13/modules/m/qory-module.yaml"
+printf -- '---\nname: c-reviewer\ndescription: Reviews a document.\n---\n' \
+	>"$R13/modules/m/agents/c-reviewer.md"
+printf 'Start ${qory:agents/a-reviewer}, ${qory:agents/b-reviewer} and ${qory:agents/c-reviewer}.\n' \
+	>"$R13/modules/m/skills/workflow-flow/SKILL.md"
+expect_passes "rule 13 passes a reviewer in a group that no stack entry names" \
+	rule_review_groups "$R13"
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n    other: [c-reviewer]\n' \
+	>"$R13/modules/m/qory-module.yaml"
+printf 'workflows:\n  flow: {tier: thinking, access: read, review_group: grp}\n  second: {tier: thinking, access: read, review_group: other}\n' \
+	>"$R13/stacks/s/qory-stack.yaml"
+expect_broken "rule 13 fails on a reviewer in the group of another workflow" \
+	'Add c-reviewer to the group grp' rule_review_groups "$R13"
+# A reviewer in two groups, one that another workflow names and one that no entry names, fails.
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n    other: [c-reviewer]\n    free: [c-reviewer]\n' \
+	>"$R13/modules/m/qory-module.yaml"
+expect_broken "rule 13 fails on a reviewer in a group that another workflow names and in a free one" \
+	'Add c-reviewer to the group grp' rule_review_groups "$R13"
+# A stack entry of many lines names its group too.
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n    other: [c-reviewer]\n' \
+	>"$R13/modules/m/qory-module.yaml"
+printf 'workflows:\n  flow: {tier: thinking, access: read, review_group: grp}\n  second:\n    tier: thinking\n    access: read\n    review_group: other\n' \
+	>"$R13/stacks/s/qory-stack.yaml"
+expect_broken "rule 13 fails on a reviewer in the group of an entry of many lines" \
+	'Add c-reviewer to the group grp' rule_review_groups "$R13"
+printf 'name: m\nprovides:\n  agents:\n    grp: [a-reviewer, b-reviewer]\n' \
+	>"$R13/modules/m/qory-module.yaml"
+printf 'workflows:\n  flow: {tier: thinking, access: read, review_group: grp}\n' \
+	>"$R13/stacks/s/qory-stack.yaml"
+expect_broken "rule 13 fails on a reviewer that is in no group" \
+	'Add c-reviewer to the group grp' rule_review_groups "$R13"
 rule_agent_reach "$ROOT" || fail "rule 14: no agent reaches a workflow skill"
 pass "rule 14: no agent reaches a workflow skill"
 # Rule 14 on a tree whose agent a reaches workflow-flow through the skill s1, and whose agent b
@@ -2841,6 +2875,11 @@ expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
 # The tests of Verify: the skills and agents of its reviewers, and the verb matrix on the
 # records of run locked, the demo evidence and Build's ledger.
 expect "the verify-a-ticket tests pass" 0 "$ROOT" node --test scripts/verify-a-ticket.test.js
+# The tests of the verb files and of the agents and skills of the walkthrough.
+expect "the walkthrough tests pass" 0 "$ROOT" node --test scripts/walkthrough.test.js
+# The tests of triage-review: the type feedback, the question of a point, the words of a
+# person, and the verb feedback on the notes of a qory stub.
+expect "the triage-review tests pass" 0 "$ROOT" node --test scripts/triage-review.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # The tests of the preflight: the browser, the app of the serve command and the sign-in of
@@ -2912,6 +2951,7 @@ demo-evidence:software-factory:demo-script
 demo-scenarios:software-factory:acceptance-criteria
 demo-script:software-factory:demo-scenarios,build-ledger
 demo-video:software-factory:demo-script
+feedback:software-factory:acceptance-criteria,questions
 proposal:software-factory:
 pull-request:software-factory:
 questions:core:
@@ -2925,8 +2965,8 @@ walkthrough:software-factory:verification,acceptance-criteria'
 	fail "the core stack's push-checks.json has the checks of questions and review-comments"
 pass "the core stack's push-checks.json has the checks of questions and review-comments"
 [ "$(push_types "$TMP/software/.qory/harness/push-checks.json")" = "$SOFTWARE_CHECKS" ] ||
-	fail "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
-pass "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
+	fail "the software stack's push-checks.json has the checks of core and the 17 of software-factory"
+pass "the software stack's push-checks.json has the checks of core and the 17 of software-factory"
 # The authoring stack composes only simple-communication of core, and still gets the push
 # program of core, which lies outside every entry.
 expect "checkout extending authoring by path: harness compose --no-links --runtime claude exits 0" \

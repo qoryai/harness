@@ -34,8 +34,11 @@
 // which writes build-report.md and the outbox file of the pull request, the verb matrix,
 // which writes the draft verification.json of Verify from records, and the verb demo, which
 // checks that the harness has the skill scripting-demos and builds a demo script from the
-// actions of the demo author, and the verb film, which stores the film or the pictures of a
-// demo script and the pictures of pages.
+// actions of the demo author, the verb film, which stores the film or the pictures of a
+// demo script and the pictures of pages, the verb files, which writes
+// .reports/changed-files.json, the list of the changed files of the pull request that the
+// check of the walkthrough reads, and the verb feedback, which prints the notes that no run
+// sorted and the points that have not ended.
 'use strict';
 
 const fs = require('node:fs');
@@ -58,6 +61,10 @@ const BUILD_AND_VERIFY = [
   'demo-evidence', 'demo-video', 'screenshot', 'verification', 'walkthrough',
 ];
 
+// The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
+// checks of a point and a question read.
+const IDS = ['ac', 'd', 'step', 'scenario', 'decision'];
+
 // workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
 // library of the checks script that loads this file.
 function workflowChecks(core) {
@@ -71,12 +78,15 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/member-allowance.cjs')(lib));
   Object.assign(lib, require('./lib/models.cjs')(lib));
   const spec = require('./types/spec.cjs')(lib);
-  Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap });
+  Object.assign(lib, { criteria: spec.criteria, criterionMap: spec.criterionMap,
+    criterionItems: spec.items, itemIds: IDS });
   const scenarios = require('./types/demo-scenarios.cjs')(lib);
   Object.assign(lib, { scenarios: scenarios.scenarios, stepRows: scenarios.stepRows });
   Object.assign(lib, require('./lib/build.cjs')(lib));
   Object.assign(lib, require('./lib/plan.cjs')(lib));
   Object.assign(lib, require('./lib/demo-script.cjs')(lib));
+  Object.assign(lib, require('./lib/feedback.cjs')(lib));
+  const feedback = require('./types/feedback.cjs')(lib);
   const preflight = require('./lib/preflight.cjs')(lib);
   return {
     verbs: {
@@ -85,6 +95,8 @@ function workflowChecks(core) {
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
       ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
       ...require('./verbs/demo.cjs')(lib), ...require('./verbs/film.cjs')(lib),
+      ...require('./verbs/files.cjs')(lib),
+      ...require('./verbs/feedback.cjs')(lib),
       ...require('./verbs/revert-attempt.cjs')(lib),
     },
     types: [
@@ -93,6 +105,7 @@ function workflowChecks(core) {
       require('./types/decision-record.cjs')(lib),
       scenarios.type,
       ...BUILD_AND_VERIFY.map((type) => require(`./types/${type}.cjs`)(lib)),
+      feedback.type,
     ],
     stops: STOPS,
     ledger: require('./lib/ledger.cjs')(lib),
@@ -108,14 +121,14 @@ function workflowChecks(core) {
       what: 'the record of the track',
       check: (text) => lib.trackRecordOf(text).error || null,
     }],
-    // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
-    // checks of a point and a question read.
-    ids: ['ac', 'd', 'step', 'scenario', 'decision'],
+    ids: IDS,
     // The readers of the items of a type, which the check of an about of a question reads:
-    // the criterion ids of the acceptance criteria.
-    items: [spec.items],
-    // The rule for the question that Verify asks about a criterion that cannot be met.
-    questionRules: [require('./lib/ac-question.cjs')(lib)],
+    // the criterion ids of the acceptance criteria, and the point ids of the feedback.
+    items: [spec.items, feedback.items],
+    // The rule for the question that Verify asks about a criterion that cannot be met, and
+    // the rule for the question of a point of feedback.
+    questionRules: [require('./lib/ac-question.cjs')(lib),
+      ...require('./lib/feedback-question.cjs')(lib)],
     // The proof of the fast track, for a test that gives it the folder of the parsers.
     proof: { prove: lib.prove, trackLists: lib.trackLists },
     // The checks of the preflight, for a test that gives it the parts to check.

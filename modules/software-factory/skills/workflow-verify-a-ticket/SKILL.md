@@ -1,6 +1,6 @@
 ---
 name: workflow-verify-a-ticket
-description: Verify the change of a Build run as a review session: verify the acceptance lock, run the locked checks, write the verification matrix from their records with the matrix verb, start tamper-reviewer and verification-reviewer, each of which writes one report into the report folder, decide the round from the reports, push the verification, ask one question for each criterion that is not met, and record passed or changes-requested. Use in a headless run of the workflow verify-a-ticket.
+description: Verify the change of a Build run as a review session: verify the acceptance lock, run the locked checks, write the verification matrix from their records with the matrix verb, start tamper-reviewer and verification-reviewer, each of which writes one report into the report folder, decide the round from the reports, push the verification, write, check, review and push the walkthrough, ask one question for each criterion that is not met, and record passed or changes-requested. Use in a headless run of the workflow verify-a-ticket.
 ---
 
 # Verify a ticket
@@ -36,12 +36,14 @@ Write nothing in the checkout: Verify changes no file of the change. The files a
 - `<reports>/<agent>.json`, the report of each reviewer, which only that reviewer writes;
 - `<folder>/verification.json` and `<folder>/.reports/matrix-record.json`, which `matrix`
   writes, so that no agent types a state;
+- `<folder>/walkthrough.md`, which only walkthrough-writer writes, in step 12;
 - `<folder>/questions.json`, which you write in step 12;
 - the other files under `<folder>/.reports/` that the checks script writes.
 
-Push only `verification` and `questions`. Write `points.json` in `<folder>` only for an end
-through "Points" of `running-a-workflow`, and write no outbox file, no build report and no
-submission text. Start no agent that is not one of the two reviewers.
+Push only `verification`, `walkthrough` and `questions`. Write `points.json` in `<folder>`
+only for an end through "Points" of `running-a-workflow`, and write no outbox file, no build
+report and no submission text. Start no agent that is not one of the two reviewers or one of
+the two walkthrough agents.
 
 ## The order of the run
 
@@ -113,7 +115,7 @@ submission text. Start no agent that is not one of the two reviewers.
     still refused after the third attempt, end with "The run could not push its
     verification." and record no verdict.
 11. Take the time of the version, as "The time of a version" of `run-artifacts` lists.
-12. Do "The questions", then "The end".
+12. Do "The walkthrough", then "The questions", then "The end".
 
 ## The reviewers
 
@@ -147,6 +149,62 @@ one blocking finding. It prints a line per finding, with its proof on the next l
 - With 1, a finding is blocking. Go on to step 10; the verdict is `changes-requested`.
 - With 0, no finding is blocking. Go on to step 10.
 - With 2 or 3, end as "Failures" lists for the checks script.
+
+## The walkthrough
+
+The walkthrough guides a member through the change before the member approves it. It
+blocks nothing: it changes no verdict, and the verdict stays the last command of the run.
+Its two agents load the skills for its layout. No stage requires it.
+
+A step that says "keep the reason" ends this section: go to "The questions", and push no
+walkthrough. "The end" adds one line that shows the reason. Round 1 is the first
+write of `walkthrough.md`, round 2 the write after the findings of round 1, and the removal
+is the write after the findings of round 2.
+
+1. Run `<skill folder>/checks.cjs files` once. It writes
+   `<folder>/.reports/changed-files.json` from the pull request of Build. With a status
+   other than 0, keep the reason "the list of changed files was not written".
+2. Start the writer: round 1 here, and the rounds that 6a and 6c name. Run
+   `<skill folder>/checks.cjs notes walkthrough-writer` with no `--files`, and count the
+   start with `starts`, as "The reviewers" lists, with
+   `verify-a-ticket-1-walkthrough-writer` as `<name>`. When `notes` exits with a status
+   other than 0, or `starts` exits with a status other than 0, keep the reason "an agent or
+   the check script failed". Otherwise start ${qory:agents/walkthrough-writer} in the
+   foreground. Pass it `<inputs>` and `<folder>`, and nothing else. It writes
+   `<folder>/walkthrough.md`. When the start fails, or the file does not exist after it,
+   keep the same reason.
+3. Run `<skill folder>/checks.cjs check walkthrough <folder>/walkthrough.md`. With 0, go
+   on to 4. With 1, the lines that it printed are the findings of the round: after round 1
+   go to 6a, and after round 2 go to 6b, and start no reviewer. With 2, 3 or 4, keep the
+   reason "an agent or the check script failed".
+4. Run `notes walkthrough-reviewer` with no `--files`, and count the start, as "The
+   reviewers" lists, with `verify-a-ticket-1-walkthrough-reviewer` as `<name>`. When
+   `notes` exits with a status other than 0, or `starts` exits with a status other than 0,
+   keep the reason "the review of the walkthrough did not finish". Otherwise start
+   ${qory:agents/walkthrough-reviewer} in the foreground, with `<inputs>` and `<folder>`
+   and nothing else. It reports as text.
+5. When the last line of the report is `clean`, go to 7. When it is `changes-needed`, its
+   findings are the findings of the round: after round 1 go to 6a, and after round 2 go to
+   6b. For any other result, keep the reason "the review of the walkthrough did not
+   finish": the last line `blocked`, another last line, no report, an error, or a start
+   that does not end.
+6. The findings of a round:
+   - 6a, after round 1: start the writer again as in step 2, with the findings quoted
+     unchanged. This is round 2. Do steps 3, 4 and 5 again.
+   - 6b, after round 2: go to 6c. A red check in round 2 skips the reviewer, so the findings
+     of 6b are the lines that the check printed, or the findings of the reviewer.
+   - 6c, the removal: start the writer as in step 2, with the findings quoted and these
+     words: "Remove the false words of each claim that the reviewer disproved, and keep the
+     line and the group of each changed file. List under ## Not checked what you could not
+     check. Write no note under a false claim." Then run step 3 once, on the file that is
+     stored. With 0, go to 7. With another status, keep the reason "the check still failed
+     after the removal".
+7. Push the walkthrough with `<qory> artifact push walkthrough <folder>/walkthrough.md`.
+   When the push is still refused after the third attempt, keep the reason "the push was
+   refused 3 times". Go on to "The questions" in either case: a refused push ends nothing.
+
+A reviewer finding never enters "The round", the verdict or the findings ledger. Start no
+agent of this section after "The questions" begins.
 
 ## The questions
 
@@ -215,13 +273,14 @@ qory posts the reports to the findings of the work item before it records the ve
 the next session of `implement-changes` gets each open finding. When the command fails, the
 run ends with no verdict.
 
-End with one line. After `passed`: "The change passed Verify: <m> criteria are met and no
-finding is blocking.", or, with one criterion, "The change passed Verify: 1 criterion is met
-and no finding is blocking." After `changes-requested`, the line of `matrix` and the last
-line of `findings round`, and, when step 7 kept names, "Failed scenarios: <names>." with the
-names joined by ", ". Such a line reads "Wrote verification.json for 4e1c9b0a21ff: 3 met, 1
-not met, 0 not verified. Checked 2 reports: 1 blocking, 0 non-blocking open findings; 0
-closed. Failed scenarios: scenario-2."
+End with one line, and a second line when "The walkthrough" kept a reason: "The walkthrough
+was not stored: <reason>." The first line, after `passed`: "The change passed Verify: <m>
+criteria are met and no finding is blocking.", or, with one criterion, "The change passed
+Verify: 1 criterion is met and no finding is blocking." After `changes-requested`, the line
+of `matrix` and the last line of `findings round`, and, when step 7 kept names, "Failed
+scenarios: <names>." with the names joined by ", ". Such a line reads "Wrote
+verification.json for 4e1c9b0a21ff: 3 met, 1 not met, 0 not verified. Checked 2 reports: 1
+blocking, 0 non-blocking open findings; 0 closed. Failed scenarios: scenario-2."
 
 ## Failures
 
