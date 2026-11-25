@@ -5191,18 +5191,23 @@ every other agent and the main session stay denied, and so does every file when 
 cannot be read. The guard has no source for the name of the workflow, so it keys on the agent.
 `changes.json` is written by the verb `changes`, printed by the workflows and read by the check
 of a build plan in a session, which finds no record that is a link or has more than one link.
-In a run, a pull writes `index.json` and the folder of its type only, so the lift pulls what
-`criteriaTarget` reads before it computes the target: the criteria, the questions, each lock
-that it compares a linked version with, each criteria version that an answer links, and the
-target version. A pull that fails, or has no time left, lifts nothing. A file that an agent
-writes in `.qory/artifacts` before the call changes nothing. Outside a run the lift reads the
-artifact folder. These limits stay:
+In a run, `qory artifact pull <type>` writes `index.json` and a version folder of that type
+into `.qory/artifacts`, and the folders that earlier pulls or an agent left there stay. The lift
+pulls, each by version number, what `criteriaTarget` reads: the version of the questions that
+`index.json` counts, each lock that it compares a linked version with, each criteria version
+that an answer links, and the target version; the first pull of the criteria has no number, and
+the lift reads `index.json` from it only. The lift reads only the versions that these pulls
+returned: a folder, a name or a version that no pull of the call returned does not exist for
+it, so planted questions, a planted name, a withdrawn name, and the newest version of a
+cancelled run count for nothing. After the last pull it reads `index.json` again, and lifts nothing when that file
+needs a version that no pull returned, or has another target. A pull that fails, or has no
+time left, lifts nothing. Outside a run the lift reads the artifact folder. These limits stay:
 
 - Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
   store that no agent call can write.
-- A pull refreshes the files of its type, so an agent call that writes the file of another type
-  between two pulls of one hook is not stopped. The limit ends when the pulls make one folder
-  that no agent call can write.
+- An agent call that rewrites a pulled file after its pull and before the read is not stopped.
+  The limit ends when the read checks each file against the SHA-256 of `index.json`, or the
+  pulls make a folder that no agent call can write.
 - A forged `.qory/build/changes.json` can steer what `plan-the-build` plans, and the guard no
   longer reads it. `keptFiles` and `lock --verify` reject a wrong result. The limit ends when
   the record is written where no agent call can write.
