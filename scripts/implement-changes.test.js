@@ -1193,13 +1193,15 @@ test('the session sets a submodule back, the ones in it and one whose folder is 
     'the folder.', '- A submodule outside the Files whose folder is missing: run ' +
     '`git checkout HEAD -- <path>`.', '- Another changed submodule: set it back');
   const restore = commandOf('The end', /run `(git checkout HEAD [^`]+)`/);
-  // added adds a submodule with a submodule deep to w at folder, and returns the calls of the
-  // end check and of scope --plan for a run that starts there.
+  // added adds a submodule with a submodule deep, which has a submodule low, to w at folder,
+  // and returns the calls of the end check and of scope --plan for a run that starts there.
   const added = (w, folder) => {
-    const inner = fresh('inner');
+    const low = fresh('low');
+    const deep = fresh('deep');
     const sub = fresh('sub');
     const local = ['-c', 'protocol.file.allow=always', '-c', 'commit.gpgsign=false'];
-    for (const [top, from, name] of [[inner], [sub, inner, 'deep'], [w.repo, sub, folder]]) {
+    for (const [top, from, name] of [[low], [deep, low, 'low'], [sub, deep, 'deep'],
+      [w.repo, sub, folder]]) {
       if (top !== w.repo) git(top, w.env, 'init', '-q');
       fs.writeFileSync(path.join(top, 'f.txt'), 'f\n');
       if (from) git(top, w.env, ...local, 'submodule', 'add', '-q', from, name);
@@ -1222,11 +1224,16 @@ test('the session sets a submodule back, the ones in it and one whose folder is 
     writeFile(w, 'lib/sub/deep/f.txt', 'g\n');
     writeFile(w, 'lib/sub/deep/new.txt', 'new\n');
   };
+  const lower = (w) => {
+    writeFile(w, 'lib/sub/deep/low/f.txt', 'g\n');
+    writeFile(w, 'lib/sub/deep/low/new.txt', 'new\n');
+  };
   const back = (w) => setBack(w, 'lib/sub');
   const missing = (w) => fs.rmSync(path.join(w.repo, 'lib/sub'), { recursive: true });
   const fetch = (w) => assert.equal(shell(w, restore.replace('<path>', 'lib/sub')).status, 0);
   const cases = [
     ['changed files in deep', dirty, back],
+    ['changed files in low', lower, back],
     ['a new commit in deep', (w) => { dirty(w); commit(w, 'lib/sub/deep'); }, back],
     ['a new commit in both, with changed files', (w) => {
       dirty(w);
