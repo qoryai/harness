@@ -5007,6 +5007,49 @@ test('panel: a change with no file starts no member and reads no disk', () => {
   ]);
 });
 
+// previousOf writes the file of qory.review_session.previous_findings in work with a finding
+// of each row, [id, reviewer, state], and returns its path.
+function previousOf(work, rows) {
+  const file = path.join(work, 'previous.json');
+  fs.writeFileSync(file, JSON.stringify({ round: 2, findings: rows.map(([id, name, state]) => ({
+    id, stage: 'review', source: { kind: 'reviewer', name }, severity: 'blocking', state,
+    quote: 'q', problem: 'p', fix: 'f', proof: 'failing input: x.', point: `Point ${id}.`,
+    disputed: false, replies: [] })) }));
+  return file;
+}
+
+test('panel --previous: a member with an open finding starts whatever its paths', () => {
+  const { deps, work } = panelSetup({
+    members: [['code-reviewer'], ['security-reviewer', ['**/*.rs']],
+      ['data-reviewer', ['**/*.sql']], ['rust-reviewer', ['**/*.go']]],
+    files: ['src/app.py'],
+  });
+  // data-reviewer's finding was closed by a run, and test-reviewer is no member of the group.
+  const previous = previousOf(work, [['f1', 'security-reviewer', 'open'],
+    ['f2', 'data-reviewer', 'fixed'], ['f3', 'test-reviewer', 'open'],
+    ['f4', 'code-reviewer', 'open'], ['f5', 'code-reviewer', 'open']]);
+  const result = panelCall(deps, ['code-reviewer', 'security-reviewer', 'data-reviewer',
+    'rust-reviewer'], '--previous', previous);
+  assert.equal(result.status, 0, result.out);
+  assert.deepEqual(result.lines.slice(0, 4), [
+    'Skip: data-reviewer: no file of the change matches its paths.',
+    'Skip: rust-reviewer: no file of the change matches its paths.',
+    'Start: code-reviewer, 1 file of the change, 2 open findings.',
+    'Start: security-reviewer, 0 files of the change, 1 open finding.',
+  ]);
+  assert.match(result.lines.at(-1), new RegExp('^Checked the group reviewers: 4 members, 2 with ' +
+    'a file of the change or an open finding, 2 places;'));
+  // Without --previous, security-reviewer is skipped.
+  const plain = panelCall(deps, ['code-reviewer', 'security-reviewer', 'data-reviewer',
+    'rust-reviewer']);
+  assert.match(plain.out, /Skip: security-reviewer: no file of the change matches its paths\./);
+  // A --previous file that cannot be read stops the panel.
+  const missing = panelCall(deps, ['code-reviewer', 'security-reviewer', 'data-reviewer',
+    'rust-reviewer'], '--previous', path.join(work, 'absent.json'));
+  assert.equal(missing.status, 3, missing.out);
+  assert.match(missing.out + missing.err, /Give --previous the file of qory\.review_session/);
+});
+
 test('panel: a file of the change separated by NUL, with ./ and twice, counts once', () => {
   const { deps, work } = panelSetup({ members: [['a-reviewer']] });
   fs.writeFileSync(path.join(work, 'files.txt'), 'src/a b.py\0./src/a b.py\0lib/c.py\0');
@@ -5048,13 +5091,14 @@ test('panel: --group picks another group role', () => {
 
 test('panel: wrong arguments exit 2', () => {
   const { deps } = panelSetup({ members: [['a-reviewer']] });
-  const usage = /^Give panel --names <names> and --files <file> once each, and --group and --after at most once\.\n/;
+  const usage = /^Give panel --names and --files once each, and --group, --after and --previous at most once\.\n/;
   for (const [argv, why] of [
     [['panel'], usage],
     [['panel', '--files', 'files.txt'], usage],
     [['panel', '--names', 'a', '--names', 'a', '--files', 'files.txt'], usage],
     [['panel', '--names', 'a', '--files', 'files.txt', '--other', 'x'], usage],
     [['panel', '--names', 'a', '--files'], usage],
+    [['panel', '--names', 'a', '--files', 'files.txt', '--previous'], usage],
     [['panel', '--names', 'a,,b', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n  "" is neither\.\n/],
     [['panel', '--names', 'Bad Name', '--files', 'files.txt'], /^Give each name of --names as <agent> or <prefix>:<agent>\.\n  "Bad Name" is neither\.\n/],
     [['panel', '--names', 'a', '--files', 'files.txt', '--group', 'X'], /^Give --group a name of lower-case letters, digits and hyphens\.\n  The argument is X\.\n/],
