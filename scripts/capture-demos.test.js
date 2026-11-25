@@ -509,9 +509,12 @@ test('film: a capture that the runner could not write is a cause outside, with n
 
 test('capture: a write that failed for the disk is a cause outside, any other error is not', () => {
   const { diskFault } = require(path.join(SKILL, 'lib/capture.cjs'));
-  for (const code of ['ENOSPC', 'EIO', 'EDQUOT', 'EROFS']) {
-    assert.match(diskFault(Object.assign(new Error('write failed'), { code })),
-      new RegExp(`^${code}: write failed$`));
+  for (const code of ['ENOSPC', 'EIO', 'EDQUOT', 'EROFS', 'EFBIG']) {
+    // A message of Node starts with its code, which the text keeps once.
+    assert.equal(diskFault(Object.assign(new Error(`${code}: no space left on device, write`),
+      { code })), `${code}: no space left on device, write`);
+    assert.equal(diskFault(Object.assign(new Error('write failed'), { code })),
+      `${code}: write failed`);
   }
   assert.equal(diskFault(Object.assign(new Error('x'), { code: 'EEXIST' })), null);
   assert.equal(diskFault(new Error('Target closed')), null);
@@ -572,8 +575,8 @@ test('preflight: a sign-in that fails with every variable set is setup, and one 
     'then run another round.']);
   assert.deepEqual(kinds([lacking, lacking]), ['Kind: outside']);
   assert.match(pointFixes[0], /^Ask an owner or admin .* correct the app's sign-in variables/);
-  // Both kinds in one call give one finding and one point of each, and the session keeps the
-  // outside one.
+  // One call with both kinds has one finding and one point for each kind, and the session
+  // keeps the outside one.
   assert.deepEqual(kinds([lacking, wrong]).sort(), ['Kind: outside', 'Kind: setup']);
   assert.equal(new Set(pointFixes).size, 2);
 });

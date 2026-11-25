@@ -390,8 +390,9 @@ never the role `demo-author`, and loads no `scripting-demos`, so a stack without
    and a new run films the scenarios of the class `setup` again. A cause that no change to
    the repository repairs ends with `run verdict escalate` and one `run_again` point whose
    `fix` is the person's action: no browser or no ffmpeg in the dev container, ffmpeg that
-   runs out of time in `film recode`, and a variable that the workspace lacks, which the
-   script finds when a `type` action has a `variable` with no value. A `preflight` that
+   runs out of time, a full disk, and a variable that the workspace lacks, which the
+   script finds when a `type` action has a `variable` with no value. A full disk or an ffmpeg
+   timeout gets one retry first, then the session escalates. A `preflight` that
    exits 1 has written its points to `points.json`, and the session uses them.
 6. Otherwise it records `passed`, also when a scenario failed with the class `product` or
    `script`: that failure is a fact of the `demo-evidence` that Verify reads.
@@ -4009,19 +4010,19 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     line "Stored no film: it failed in step <k>." ("Stored no pictures" for the evidence
     `pictures`). A sign-in that fails with every variable set adds the line "Kind: setup",
     and a `type` action whose variable has no value adds "Kind: outside" and the fix "Add
-    <name> in Workspace settings > Secrets and variables." Its second line is "Then run film
+    "<name>" in Workspace settings > Secrets and variables." Its second line is "Then run film
     <id> again." Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because
     the build plan would come from the artifact folder of the session. A run that fails in a
     step, when the runner cannot write the capture because the disk is full or fails (`ENOSPC`,
     `EIO`, `EDQUOT`, `EROFS`, `EFBIG`), exits 3 with "Kind: outside" and the fix "Give the
     dev container more disk space, then run film <id> again." Any other error of the capture,
-    such as a page that is closed, leaves the failure as it is. When ffmpeg
-    runs out of time on the film up to the failed step, `film` exits 3 with "Kind: outside",
+    such as a page that is closed, leaves the failure as it is. When ffmpeg runs out of time
+    on the film up to the failed step, `film` exits 3 with "Kind: outside",
     the fix "Give the dev container more CPU, then run film <id> again." and keeps the frames
-    and `failed.json`. A film scenario with no ffmpeg, a scenario with no pushed script that
-    counts, a plan with no
-    `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
-    run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
+    and `failed.json`. A full disk or an ffmpeg timeout gets one retry in the session, then
+    the session escalates. A film scenario with no ffmpeg, a scenario with no pushed script
+    that counts, a plan with no `serve` row, no browser, a `.film` that is a link, an app or
+    a browser that does not run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
     `.film/<scenario>/` removes that folder, and a call with no browser exits before it
     makes the folder, so the film of an earlier call stays. The text of a cue in the
     captions is the title of its step, and a title with `-->` exits 3 before the film, with

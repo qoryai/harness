@@ -10,7 +10,7 @@
 // - pages: with widths, the PNG pages-<N>-<width>.png of the page after each step, at each
 //   width, then at the width of the window again.
 // A capture throws for a file that cannot be written, or for a page that cannot take a picture.
-// diskFault tells the first from the second.
+// Use diskFault to tell the first from the second.
 'use strict';
 
 const fs = require('node:fs');
@@ -97,10 +97,11 @@ const DISK_CODES = ['ENOSPC', 'EIO', 'EDQUOT', 'EROFS', 'EFBIG'];
 
 // diskFault returns the first line of the message of error when a file could not be written
 // because of the disk, such as one that is full, and null for any other error, such as a page
-// that is closed.
+// that is closed. A message that does not start with the code gets the code in front.
 function diskFault(error) {
   if (!error || !DISK_CODES.includes(error.code)) return null;
-  return `${error.code}: ${String(error.message || error).split('\n')[0]}`;
+  const line = String(error.message || error).split('\n')[0];
+  return line.startsWith(error.code) ? line : `${error.code}: ${line}`;
 }
 
 module.exports = { FILM_HEIGHT, HOLD_MS, capture, diskFault };

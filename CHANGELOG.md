@@ -110,7 +110,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   repository ends with `escalate`, and the script marks each cause with a last line "Kind:
   outside" or "Kind: setup": a variable that the workspace lacks, a missing browser or ffmpeg,
   an ffmpeg that does not finish and a full disk are outside, and a sign-in that fails with
-  every variable set is setup. A timeout of ffmpeg gets one retry before the session escalates.
+  every variable set is setup. A full disk or an ffmpeg timeout gets one retry, then the
+  session escalates.
   A run that fails in a step keeps its film up to that step, or its pictures, for
   `demo-reviewer`, and `film` exits 5. A rerun films only the scenarios with no `demo-evidence`
   for the commit and the script version, or with evidence of the class `setup`, and `film todo`

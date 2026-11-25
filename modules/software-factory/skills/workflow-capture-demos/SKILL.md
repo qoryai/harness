@@ -198,9 +198,9 @@ has no browser or no ffmpeg, ffmpeg runs out of time, the disk is full,
 or the workspace lacks a secret or variable that a demo script types. The script marks it
 with the line "Kind: outside".
 
-A first line that starts with "Give the dev container more" is a timeout or a capture that
-did not finish. The first one of the run gets one retry: run the same call again, once. When
-it passes, go on. When it fails again, do the steps below.
+A first line that starts with "Give the dev container more" is an ffmpeg timeout or a full
+disk. The first one of the run gets one retry: run the same call again, once. When it passes,
+go on. When it fails again, do the steps below.
 
 1. For a failed `preflight`, `<folder>/points.json` has its points already: go to step 2.
    For `film`, write `<folder>/points.json` as "Points" of `running-a-workflow` lists, with
