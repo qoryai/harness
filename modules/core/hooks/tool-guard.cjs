@@ -1823,8 +1823,8 @@ function movesInto(text, words, dest, sources) {
   const first = words.findIndex((word, at) => at > 0 &&
     !/^(?:-[^-tTS]+|--(?!su|t|no-t)[a-z-]+)$/.test(word));
   const given = /^(?:-t|--target-directory(?:=.*)?)$/s.test(words[first] || '');
-  return given || (sources.length > 0 && !FED.test(text) &&
-    !words.some((word) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word)));
+  return !words.some((word, at) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word) &&
+    !(given && at === first)) && (given || (sources.length > 0 && !FED.test(text)));
 }
 
 // unredirected returns words, as written, with no redirect and no file of one, as in 2>x or > x.
