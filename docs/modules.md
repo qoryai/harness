@@ -1873,9 +1873,8 @@ folders, such as `/opt/homebrew/bin/bash`.
 On a Linux host where `node` needs `LD_LIBRARY_PATH` to start, the hooks stop, and on Claude
 Code and Codex every tool call in a run is then blocked.
 
-A shell and the loader read some variables before the shell runs the first word of its
-command, and glibc reads `GCONV_PATH` later, at the first `iconv_open`, so `/usr/bin/env -u`
-cannot clear them:
+A shell and the loader read some variables in the shell's process, before or while it runs
+its command, so `/usr/bin/env -u` clears them only for `node`, not for the shell:
 
 - bash runs the file in `BASH_ENV`, and sh can run the file in `ENV`.
 - `SHELLOPTS` and `BASHOPTS` turn on shell options at the start. With `SHELLOPTS=xtrace`,
