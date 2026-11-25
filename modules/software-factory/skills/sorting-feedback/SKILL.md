@@ -118,7 +118,7 @@ Quote a criterion by its first sentence in double quotes, with no id.
 
 - Question: Do you want to change the approved criteria for "<words>"?
 - Context: "<words>" changes the criterion "<criterion text>". The comment has no id that a
-  new version can link to, so your answer is the approval of the change. Nothing more is
+  new version can link to, so your answer approves the change. Nothing more is
   built until you pick. For a new criterion, the first sentence is: "<words>" adds the
   criterion "<criterion text>".
 - Options: "<What changes>.", such as "Raise the row limit to 100.", with the explanation
@@ -132,7 +132,7 @@ Quote a criterion by its first sentence in double quotes, with no id.
   part, in one clause>. The feedback does not mention the built part. Nothing more is built
   until you pick.
 - Options: "Remove the built part from the change." with the explanation "The change then
-  contains only parts that a criterion asks for." Then "Keep the built part, with no
+  contains only parts that a criterion covers." Then "Keep the built part, with no
   criterion and no test." with the explanation "Users get <the built part>, and no criterion
   or test covers it."
 

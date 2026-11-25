@@ -607,3 +607,7 @@ test('each context form of sorting-feedback passes the rule of the question of a
   }
   assert.ok(flat(SORTING).includes(`the words are "${wordsOf(P2.quote)}"`));
 });
+
+test('the option that removes a built part keeps only parts that a criterion covers', () => {
+  assert.ok(flat(SORTING).includes('The change then contains only parts that a criterion covers.'));
+});
