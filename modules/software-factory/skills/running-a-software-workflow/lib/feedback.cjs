@@ -10,10 +10,10 @@ module.exports = (lib) => {
   const FILE = 'feedback.json';
 
   // The ids of Qory Apiary that a note can have, and the kind of the source of each: a note of
-  // a gate (gd_) or of an escalation (es_), the text of Run another round (rc_), which is a
-  // comment, and an answer (an_).
-  const NOTE_ID = /^(gd|es|rc|an)_[0-9a-z]{1,32}$/;
-  const KINDS = { gd: 'note', es: 'note', rc: 'comment', an: 'answer', cm: 'comment' };
+  // a gate (gd_) or of an escalation (es_), and an answer (an_). A note with no id, or with an
+  // id of another form, is a comment (cm_).
+  const NOTE_ID = /^(gd|es|an)_[0-9a-z]{1,32}$/;
+  const KINDS = { gd: 'note', es: 'note', an: 'answer', cm: 'comment' };
   // The kinds of a note of `work-item show` that a person wrote.
   const WRITTEN = ['request_changes', 'move', 'escalation', 'answer'];
 
@@ -64,10 +64,8 @@ module.exports = (lib) => {
     return [...out.values()];
   }
 
-  // lists reports whether data, a feedback, lists source by its id, or, for a source whose id
-  // Qory Apiary set after the comment was sorted, by its time and text.
-  const lists = (data, source) => data.sources.some((one) => one.id === source.id ||
-    one.id === commentKey(source.at, source.text));
+  // lists reports whether data, a feedback, has a source with the id of source.
+  const lists = (data, source) => data.sources.some((one) => one.id === source.id);
 
   // feedbackOf returns the JSON value of text when it has the two lists of a feedback, or null.
   function feedbackOf(text) {

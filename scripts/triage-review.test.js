@@ -342,7 +342,7 @@ test('feedback open prints each note that no version of feedback lists, once', (
 
 test('feedback open takes each kind of note that a person wrote, with its text', () => {
   const notes = [GD1, note('gd_2', 'move', 'Moved\r\nback.\u0007'),
-    note('es_3', 'escalation', 'Try again.'), note('rc_4', 'answer', 'Run another round.'),
+    note('es_3', 'escalation', 'Try again.'), note(null, 'answer', 'Run another round.'),
     note(null, 'answer', 'Show the total.'), note(null, 'check', 'A gap.'),
     note('gd_5', 'request_changes', '  '), note('gd_6', 'move', null),
     note('an_7', 'answer', 'Keep 50.')];
@@ -350,14 +350,15 @@ test('feedback open takes each kind of note that a person wrote, with its text',
   assert.match(key, /^cm_[0-9a-f]{16}$/);
   const found = sourcesIn(open(store(), notes));
   assert.deepEqual(found, [S1, sourceOf('gd_2', 'note', 'Moved\nback.'),
-    sourceOf('es_3', 'note', 'Try again.'), sourceOf('rc_4', 'comment', 'Run another round.'),
+    sourceOf('es_3', 'note', 'Try again.'),
+    sourceOf(commentKey(AT, 'Run another round.'), 'comment', 'Run another round.'),
     sourceOf(key, 'comment', 'Show the total.')]);
   // Each one passes as a source, and is open no more once sorted.
   const data = { sources: found, points: [] };
   passes(check(data, { notes }));
   passes(push(data, { notes }));
   assert.equal(open(store({ feedback: [{ data }] }), notes).status, 0);
-  // A comment that gets an id later is the same source.
+  // A comment with an id of another form keeps the key of its time and text.
   const later = notes.map((one) => (one.note === 'Show the total.' ? { ...one, id: 'rc_8' } : one));
   assert.equal(open(store({ feedback: [{ data }] }), later).status, 0);
   // The key has to be the one of the time and text.
@@ -366,13 +367,14 @@ test('feedback open takes each kind of note that a person wrote, with its text',
   fails(push(other, { notes: null }), 'Write source cm_0000000000000000 as `feedback open` prints it.');
 });
 
-test('a criterion change in a comment with no id is a question, and in one with an id a change', () => {
+test('a criterion change in a comment is a question, also in a comment with an id', () => {
   const key = commentKey(AT, 'Raise the limit to 100.');
-  const data = (id) => ({ sources: [sourceOf(id, 'comment', 'Raise the limit to 100.')],
-    points: [{ ...P2, id: 'p1', source: id, quote: 'Raise the limit to 100.' }] });
+  const data = { sources: [sourceOf(key, 'comment', 'Raise the limit to 100.')],
+    points: [{ ...P2, id: 'p1', source: key, quote: 'Raise the limit to 100.' }] };
   const comment = (id) => note(id, 'answer', 'Raise the limit to 100.');
-  fails(check(data(key), { notes: [comment(null)] }), 'Set the sort of point p1 to question.');
-  passes(check(data('rc_4'), { notes: [comment('rc_4')] }));
+  for (const id of [null, 'rc_4']) {
+    fails(check(data, { notes: [comment(id)] }), 'Set the sort of point p1 to question.');
+  }
 });
 
 test('feedback open leaves out an answer to a question, and lists a question with no answer', () => {

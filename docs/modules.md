@@ -2604,8 +2604,8 @@ find:
   `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
   typed by hand fails. A push reads no record;
 - `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_` and `es_`,
-  `comment` for `rc_` and `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the
-  source's time and text; a new source that differs from its note, or that has none; in a
+  `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the source's
+  time and text; a new source that differs from its note, or that has none; in a
   check, an open note that is no source; a changed or missing source or point of the newest
   version; a point id out of order; a `quote` that is no part of the source's text; a member
   that the sort does not have, or lacks; an `item` that is no id of the `output`, or a
