@@ -346,14 +346,15 @@ agents and the settings for a run of those workflows:
   as text. The session passes it the changed paths of the working folder.
 - `workflow-implement-changes`: orchestrate the code change of one ticket in a Build run.
   The session builds each planned change that is not built, in the order of the build plan,
-  then fixes each open finding of the review and each finding of Verify after a return: each
-  `not_met` row of the verification and each point of the verdict. Each is one step of the
-  build ledger. A step starts `software-developer` twice and `software-debugger` once at
-  most, and after each start runs `scope`, `run lint`, `run types`, `run build` and the
-  targeted checks. When every check is green, `freeze` commits the step and `step end done`
-  records it, with the role, tier and model of each agent start, the model from the agent
-  file or the session's `settings.json`, on Codex from the agent's `.toml` or `config.toml`,
-  else `unknown`; after a third red attempt,
+  then fixes each open finding of the work item, of every stage, and each finding of Verify
+  after a return: each `not_met` row of the verification and each point of the verdict. Each
+  is one step of the build ledger, and the report of the fix of an open finding replies to
+  it with `Reply: fixed:` or `Reply: disputed:`. A step starts `software-developer` twice
+  and `software-debugger` once at most, and after each start runs `scope`, `run lint`,
+  `run types`, `run build` and the targeted checks. When every check is green, `freeze`
+  commits the step and `step end done` records it, with the role, tier and model of each
+  agent start, the model from the agent file or the session's `settings.json`, on Codex
+  from the agent's `.toml` or `config.toml`, else `unknown`; after a third red attempt,
   `step end failed` records it and the session ends with no point, or, when it ran no
   `step end done`, with one `run_again` point and `escalate`. A writer's line
   `Blocked: needs a change to the build plan: <the change>` ends the session with one
@@ -388,11 +389,14 @@ agents and the settings for a run of those workflows:
   changes-requested`. Otherwise it starts each member of the group role `reviewers` that
   `checks.cjs panel` starts for the paths of the change, in turn: `code-reviewer`,
   `test-reviewer` and `acceptance-reviewer` for every change, and the others for a change in
-  their paths. Each writes one report into the report folder. `checks.cjs findings round`
-  decides the round from the reports and the result of the full suite: a blocking finding, a
-  reviewer with no report and a red suite end with `qory run verdict changes-requested`.
-  With no blocking finding, the session runs `qory run verdict passed`. It writes nothing
-  into the checkout, and no build report or submission text.
+  their paths, or that have an open finding of the stage. Each writes one report into the
+  report folder, with new findings, and each earlier finding of its role repeated or closed
+  by its id. `checks.cjs findings round --previous` prints the open findings of the round
+  from the reports, the earlier findings and the result of the full suite: a blocking
+  finding, a reviewer with no valid report and a red suite. The session records no verdict
+  after the round: qory posts the reports to the findings of the work item and sends
+  `changes-requested` while a blocking finding of the stage is open, else `passed`. It
+  writes nothing into the checkout, and no build report or submission text.
 - `workflow-verify-a-ticket`: the review session of Verify. It verifies the acceptance lock
   at the version that a member approved, runs `run locked` and `matrix --version <N>`,
   starts `tamper-reviewer` and `verification-reviewer` in turn, and decides the round with

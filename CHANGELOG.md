@@ -8,6 +8,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Reviewers, the builder and Verify work on one list of findings of the work item, which
+  Qory Apiary keeps. Each finding has an id `f<n>`. Run **Update from harness** in each
+  workspace: Qory Apiary checks a pushed build ledger against the schema that it stored, and
+  a ledger with a reply fails the old schema.
+  - A reviewer gets the earlier findings of the stage in
+    `qory.review_session.previous_findings`. Its report repeats each earlier finding of its
+    role that still holds, by its `id`, closes each one that no longer holds in `closes`,
+    as `fixed` or `dismissed` with a reason, and lists at most 100 findings and 100 closes.
+    A report that repeats or closes a finding of another role, or one id twice, counts as no
+    report. An earlier finding that a report leaves out stays open.
+  - `checks.cjs panel --previous <file>` starts each reviewer with an open finding, also
+    when no path of the change matches its paths. `checks.cjs findings round --previous
+    <file>` prints the open findings after the round, and its last line is `Checked <n>
+    reports and the suite result: <b> blocking, <k> non-blocking open findings; <c>
+    closed.`
+  - `review-changes` records no verdict after the round: qory posts the reports and sends
+    the verdict. Verify still records its verdict, after qory posts its reports.
+  - The builder fixes each open finding of every stage. The report of a step `fix:f<n>`
+    has one line `Reply: fixed: <what changed>` or `Reply: disputed: <why>`; `step end
+    done` exits with 1 without it, and the build-ledger row gets `reply`, which qory posts.
+    `findings open` prints the source and the dispute of each open finding. The build
+    report has the section `## Replies`, and `## Review rounds` has the column Source and
+    no line "Frozen commit". `implement-changes` ends with "The change is ready for
+    review: <k> planned changes built, <m> findings fixed, <d> disputed."
 - The end check of a Build write session that ends without `points.json` stops the end while
   a checkout of `qory.start_commits` has a change that no commit contains, so that the full
   suite and the review run on committed work. A session counts when `qory.outputs` has
