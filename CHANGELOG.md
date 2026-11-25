@@ -20,12 +20,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   so the session runs it before each start of the reviewer and after each review. `step end`
   of a demo script compares `--script-sha256` with the reviewed file. `check-reviewer`
   starts at most 3 times for each demo script and each correction. The tool guard lets each
-  of the two agents write only its report, and denies `.step-reports` to every other call.
-  The limits: any agent with a shell can write the report with a script or an archive, as
-  for `.reports`, and on Gemini CLI, Cursor and Copilot CLI any agent can write it. Any edit
-  after the review needs a new review, so `workflow-plan-the-build` fixes no sentence after
-  the last one. Every other kind of step ends as before, and on Claude Code the step limit
-  leaves the two agents out, as before.
+  of the two agents write only its report, and denies `.step-reports` to every other call,
+  also a copy or a move into a folder above the artifact folder of a source that can have
+  the name of the folder below, as for `.reports`. The limits, as for `.reports`: an agent
+  with a shell can write the report with a path that a variable, `$( )`, a backquote or
+  `eval` makes, with a script that a later call runs, with a path that code joins from
+  parts, or with an archive that `tar`, `unzip` or `ditto` extracts; and on Gemini CLI,
+  Cursor and Copilot CLI any agent can write it. Any edit after the review needs a new
+  review, so `workflow-plan-the-build` fixes no sentence after the last one. Every other
+  kind of step ends as before, and on Claude Code the step limit leaves the two agents out,
+  as before.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.

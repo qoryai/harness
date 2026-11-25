@@ -1842,8 +1842,8 @@ function unredirected(words) {
 // file, a restore or a checkout of a path. A checkout with no `--` reads a word as a path only
 // when it exists, so `checkout .` is one and `checkout <name>` of a name that is no path is
 // not. fold and realOf compare and resolve paths. With step, full is the folder of the step
-// reports: the destination of a copy or a move counts only when it is full, in it or the folder
-// that has it, not a folder above that one.
+// reports: a copy and a move read their words with no redirect, and a move that movesInto finds
+// counts as a copy of its sources.
 function pathHits(segment, full, folder, how, step = false) {
   const { fold, realOf, spend } = how;
   const words = plainWords(segment.words);
@@ -1874,7 +1874,7 @@ function pathHits(segment, full, folder, how, step = false) {
   const tool = path.basename(words[0]);
   const copies = LAST_WRITTEN.has(tool);
   const moving = step && tool === 'mv';
-  const args = moving ? unredirected(segment.words) : segment.words;
+  const args = step && (copies || moving) ? unredirected(segment.words) : segment.words;
   const { dest, sources } = copies || moving ? copyParts(args) : {};
   const moves = moving && !segment.cut && movesInto(segment.text, plainWords(args), dest, sources);
   if (copies || moves) {
@@ -1885,10 +1885,9 @@ function pathHits(segment, full, folder, how, step = false) {
     if (dest && !vague(dest) && wild(dest) && segment.cwds.some((cwd) => {
       spend();
       const pattern = path.resolve(cwd, dest);
-      const parts = target.split(path.sep).filter(Boolean)
-        .slice(pattern.split(path.sep).filter(Boolean).length);
       return globReach(pattern, target, fold, segment.dots) === 'above' &&
-        !(step && parts.length > 1) && named(parts[0]);
+        named(target.split(path.sep).filter(Boolean)[pattern.split(path.sep).filter(Boolean)
+          .length]);
     })) return true;
     if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
       spend();
@@ -1897,8 +1896,7 @@ function pathHits(segment, full, folder, how, step = false) {
       if (at === target || !under(target, at)) return false;
       const stat = disk.stat(resolved);
       if (!dest.endsWith('/') && !(stat && stat.isDirectory())) return false;
-      const parts = path.relative(at, target).split(path.sep);
-      return !(step && parts.length > 1) && named(parts[0]);
+      return named(path.relative(at, target).split(path.sep)[0]);
     })) return true;
   }
   return pathWords(segment).some((shown) => segment.cwds.some((cwd) => {

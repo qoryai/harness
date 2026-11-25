@@ -5491,18 +5491,18 @@ function aboveSetup() {
   return { above, artifacts, call };
 }
 
-test('a copy or a move into a folder above the artifact folder passes', () => {
+test('a copy or a move of a named file into a folder above the artifact folder passes', () => {
   const { above, artifacts, call } = aboveSetup();
-  for (const command of [`mv a ${above}`, `mv a b ${above}/`, `mv -f -- "$f" ${above}`,
+  for (const command of [`mv a ${above}`, `mv a b ${above}/`, `mv -f -- a ${above}`,
     `mv -t ${above} a`, `mv --target-directory=${above} a`, `ls | xargs mv -t ${above}`,
-    `sudo mv *.ts ${above}`, `cp -R src/. ${above}`, `cp -a src/ ${above}/`,
-    `cp -rT src ${above}`, `cp "$f" ${above}`, `cp -R src/. ${above}/../step-abov*`,
-    `install -m 644 "$f" ${above}`, `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`,
-    `rsync -a "$f" ${above}`, `find src -exec cp -R {} ${above} \\;`,
-    `find src -exec mv -t ${above} {} +`, `mv -f -t ${above} a`, `mv -S .b a ${above}`,
-    `mv a ${above}/../step-abov*`, `mv --verbose --target-directory=${above} a`,
-    `mv --no-clobber -t ${above} a`, `mv --strip-trailing-slashes -t ${above} a`,
-    // A redirect is no word of the move.
+    `sudo mv *.ts ${above}`, `cp a ${above}`, `cp -R src ${above}/`, `cp a ${above}/../step-abov*`,
+    `install -m 644 a ${above}`, `ln -s a ${above}/`, `rsync -a src ${above}/`,
+    `find src -exec cp -R {} ${above} \\;`, `find src -exec mv -t ${above} {} +`,
+    `mv -f -t ${above} a`, `mv -S .b a ${above}`, `mv a ${above}/../step-abov*`,
+    `mv --verbose --target-directory=${above} a`, `mv --no-clobber -t ${above} a`,
+    `mv --strip-trailing-slashes -t ${above} a`,
+    // A redirect is no word of the copy or the move.
+    `cp a ${above} 2>/dev/null`, `cp a ${above} > log.txt`,
     `mv a ${above} 2>/dev/null`, `mv a ${above} 2> /dev/null || true`,
     `mv a ${above} > /dev/null 2>&1`, `mv a ${above} &>/dev/null`, `mv a ${above} </dev/null`,
     `mv a ${above} 2>&1 | tail -3`, `mv a ${above} > log.txt`, `mv 2>/dev/null a ${above}`,
@@ -5528,6 +5528,18 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `mv a ${above} > ${artifacts}`, `mv a ${artifacts} '>' /x`, `mv ${artifacts} > /x`,
     // The guard splits these commands, so the words after the split are not in the move.
     `mv a ${artifacts} 2>&1 /x`, `mv a ${artifacts} <&3 /x`, `mv ${artifacts} 2>&1 /x`,
+    // A copy into a folder above it of a source that can have the folder's name, as at
+    // .reports: a source that is vague, ends with / or /., or a copy of a folder's contents.
+    `cp -R src/. ${above}`, `cp -R stage/. ${above}`, `cp -a src/ ${above}/`, `cp -rT src ${above}`,
+    `cp "$f" ${above}`, `cp -R src/. ${above}/../step-abov*`, `install -m 644 "$f" ${above}`,
+    `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`, `rsync -a "$f" ${above}`,
+    `mv -f -- "$f" ${above}`, `mv src/. ${above}`, `cp -R qory-artifacts ${above}`,
+    `cp -R src/. ${above} 2>/dev/null`, `rsync -a src/ ${above}/ > log.txt`,
+    // The forms that the docs list as denied, with .step-reports or a link to it as the source.
+    ...[`${artifacts}/.step-reports`, `${artifacts}/link`].flatMap((source) => [
+      `sh -c 'mv ${source} /x'`, `find ${source}/ -exec mv {} /x \\;`,
+      `echo ${source} | xargs -I{} mv {} /x`, `mv ${source} /x 2>&1 > "a.log"`,
+      `mv ${source}/x /x 2>&1 >"$log"`]),
     `mv a ${artifacts} > "a;b" /x`, `mv a ${artifacts} <(echo) /x`, `mv a ${artifacts} \`ls\``,
     `mv a ${artifacts} >\\; /x`,
     `mv -T a ${artifacts}`, `mv a ${artifacts} -S .b`, `sh -c 'mv ${artifacts} /x'`,
