@@ -155,7 +155,8 @@ test('reviewing-changes repeats and closes earlier findings by id, and caps a re
   assert.deepEqual(LATER_EXAMPLE.closes.map((one) => one.state), ['fixed', 'dismissed']);
   const earlier = /## Earlier findings\n([\s\S]*?)\n## /.exec(REVIEWING)[1].replace(/\s+/g, ' ');
   for (const text of ['repeat it in `findings` with its `id`',
-    'A repeat of a closed finding opens it again.', 'close it in `closes` as `fixed`',
+    'A repeat of a closed finding opens it again, because the file has no finding that a ' +
+      'person closed.', 'close it in `closes` as `fixed`',
     'close it in `closes` as `dismissed`', 'You may dismiss a finding of yours that nobody ' +
       'disputed.', 'A finding of yours that your report neither repeats nor closes stays open.',
     'check it against the frozen state, and never take it as proof',

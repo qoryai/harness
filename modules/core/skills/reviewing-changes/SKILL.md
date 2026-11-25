@@ -139,8 +139,9 @@ Then put each of your open findings in your report in one of these ways, and rep
 closed one that is true again:
 
 - Still true, or true again after a run closed it: repeat it in `findings` with its `id`,
-  and do its proof again on the frozen state. A repeat of a closed finding opens it again. A
-  repeat keeps the severity that the finding has in the file.
+  and do its proof again on the frozen state. A repeat of a closed finding opens it again,
+  because the file has no finding that a person closed. A repeat keeps the severity that the
+  finding has in the file.
 - No longer true on the frozen state: close it in `closes` as `fixed`, with the reason. A
   finding that a run closed and that is still fixed needs no entry.
 - Not true, as a `disputed` reply of the builder shows, or wrong from the start: close it in
