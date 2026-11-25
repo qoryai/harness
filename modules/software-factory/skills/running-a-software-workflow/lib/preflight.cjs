@@ -22,6 +22,7 @@ const { CALL_MS, RUN_BUDGET_MS, START_MS, STOP_MS } = require('./budget.cjs');
 const git = require('./git.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
+const { credentialNames } = require('./run-lists.cjs');
 const { runKey } = require('./secrets.cjs');
 const startOf = require('./start.cjs');
 
@@ -308,12 +309,14 @@ module.exports = (lib) => {
     const limitMs = spec.limitMs + STOP_MS;
     const file = path.join(path.dirname(spec.serve.log), `result-${process.pid}.json`);
     fs.rmSync(file, { force: true });
+    const names = credentials(io);
     let ran;
     let result;
     try {
       ran = childProcess.spawnSync(process.execPath,
         [(io.preflight || {}).runner || RUNNER], {
-          input: JSON.stringify({ ...spec, resultFile: file }), env: io.env, encoding: 'utf8',
+          input: JSON.stringify({ ...spec, credentials: names, resultFile: file }),
+          env: io.env, encoding: 'utf8',
           timeout: limitMs, killSignal: 'SIGTERM', maxBuffer: 1024 * 1024,
         });
       result = resultOf(file);
@@ -391,11 +394,26 @@ module.exports = (lib) => {
     fs.rmSync(writtenFile(root), { force: true });
   }
 
-  // keyOfQory throws the Missing of a setup of setups that types a variable of qory, of an
-  // agent or of a code forge, as runKey of lib/secrets.cjs finds it: the runner passes it no
-  // such variable.
-  function keyOfQory(setups) {
-    const name = setups.flatMap((setup) => setup.names).find(runKey);
+  // moduleFolders returns the folders of the modules beside the plugin folder of io, as the
+  // registry reads them, when the plugin folder is a module of the harness home, else the
+  // plugin folder alone.
+  const moduleFolders = (io) => (path.basename(path.dirname(io.plugin)) === 'modules'
+    ? lib.pluginFolders(io.plugin) : [io.plugin]);
+
+  // credentials returns the names of the variables of the run's credentials, as
+  // credentialNames of lib/run-lists.cjs returns them for io, or throws the Missing of a list
+  // that is no list of names and prefixes.
+  function credentials(io) {
+    const got = credentialNames(io.env, io.plugin ? moduleFolders(io) : []);
+    if (got.problem) throw new Missing(got.problem);
+    return got.names;
+  }
+
+  // keyOfQory throws the Missing of a setup of setups that types a variable of the run's
+  // credentials, names, such as one of qory, of an agent or of a code forge, as runKey of
+  // lib/secrets.cjs finds it: the runner passes it no such variable.
+  function keyOfQory(setups, names) {
+    const name = setups.flatMap((setup) => setup.names).find((one) => runKey(one, names));
     if (!name) return;
     throw new Missing('Remove the key from the demo scripts, then run preflight again.',
       [`A setup types ${name}, a variable of qory, of an agent or of a code forge.`,
@@ -442,7 +460,7 @@ module.exports = (lib) => {
     const checks = rulesOf(io);
     const browser = findBrowser(io.env, options.browsers);
     const setups = serve ? signInSetups(scripts) : [];
-    keyOfQory(setups);
+    keyOfQory(setups, credentials(io));
     const found = [];
     const did = ['the browser'];
     if (!browser) found.push({ kind: 'browser', part: 'the browser', why: 'No browser such as ' +
@@ -531,5 +549,5 @@ module.exports = (lib) => {
   }
 
   return { preflight, runScript, scriptLimitMs, serveOf, demoScripts, pointOf, joined, signInMs,
-    withCause, MAX_MS, RUN_BUDGET_MS, STOP_MS };
+    withCause, moduleFolders, MAX_MS, RUN_BUDGET_MS, STOP_MS };
 };

@@ -1,6 +1,6 @@
 // The part of the preflight that waits, which lib/preflight.cjs starts with node and waits for.
-// It reads { serve, browser, setups, runs, typed, startMs, actionMs, signedInMs, limitMs,
-// browserMs, proc, resultFile } as JSON on stdin:
+// It reads { serve, browser, setups, runs, typed, credentials, startMs, actionMs, signedInMs,
+// limitMs, browserMs, proc, resultFile } as JSON on stdin:
 // - serve is { command, url, cwd, log }. First it sends a GET to url: when a response comes,
 //   another process already serves that address, and the app counts as not started. Else it
 //   runs `sh -c '<command>'` in cwd, in a new process group, with the mark of
@@ -10,7 +10,9 @@
 //   other than 0, or startMs passes. A command that starts the app in the background and
 //   exits 0 still counts once the address returns a response.
 // - typed are the names of the variables that the demo scripts type, in a setup or a step,
-//   which the serve command does not get.
+//   which the serve command does not get. credentials are the names of the variables of the
+//   run's credentials, as credentialNames of lib/run-lists.cjs returns them, which the serve
+//   command does not get either.
 // - browser is null, or the path of the browser. When the app started, it replays each setup
 //   of setups, { actions, names }, with signIn of lib/replay.cjs, in a new browser context,
 //   with only the variables of names from its environment. With runs, { setup, steps, names }
@@ -42,7 +44,7 @@ const https = require('node:https');
 const { BROWSER_START_MS, Browser } = require('./browser.cjs');
 const { FILM_HEIGHT, capture, diskFault } = require('./capture.cjs');
 const { replay, signIn } = require('./replay.cjs');
-const { runKey } = require('./secrets.cjs');
+const { SECRET_NAME, runKey } = require('./secrets.cjs');
 const { MARK, marker } = require('./supervise.cjs');
 
 const POLL_MS = 250;
@@ -153,20 +155,23 @@ function openLog(file) {
 }
 
 // serveEnv returns the environment of the runner without each variable whose name runKey of
-// lib/secrets.cjs matches, such as GITHUB_TOKEN or QORY_RUN_KEY, and without each variable of
-// typed, the names that a type action of a demo script types, and with MARK set to value. In
-// a walled run, a secret of the run reaches the runner only as a placeholder of the gateway,
-// so a variable that passes is a variable of the workspace or a placeholder, not a key.
-function serveEnv(value, typed) {
+// lib/secrets.cjs matches in credentials, such as GITHUB_TOKEN or QORY_RUN_KEY, without each
+// variable whose name SECRET_NAME matches, such as AWS_SECRET_ACCESS_KEY, and without each
+// variable of typed, the names that a type action of a demo script types, and with MARK set
+// to value. In a walled run, a secret of the run reaches the runner only as a placeholder of
+// the gateway, so a variable that passes is a variable of the workspace or a placeholder.
+function serveEnv(value, typed, credentials) {
   const skip = new Set(typed);
   const env = Object.fromEntries(Object.entries(process.env)
-    .filter(([name]) => !runKey(name) && !skip.has(name)));
+    .filter(([name]) => !runKey(name, credentials) && !SECRET_NAME.test(name) &&
+      !skip.has(name)));
   return { ...env, [MARK]: value };
 }
 
 // start runs the serve command and resolves to { started, ran, why }. typed are the names
-// that the demo scripts type, which serveEnv removes.
-async function start(serve, startMs, proc, typed, until) {
+// that the demo scripts type, and credentials the names of the run's credentials, which
+// serveEnv removes.
+async function start(serve, startMs, proc, typed, credentials, until) {
   if (await statusOf(serve.url) !== null) {
     return { started: false, ran: false, why: `another process already returns a response at ` +
       `${serve.url}, so the run did not start the serve command` };
@@ -178,7 +183,7 @@ async function start(serve, startMs, proc, typed, until) {
   try {
     running.child = childProcess.spawn('/bin/sh', ['-c', `${WATCHER}\n${serve.command}`], {
       cwd: serve.cwd, detached: true, stdio: ['ignore', out, out, 'pipe'],
-      env: serveEnv(value, typed),
+      env: serveEnv(value, typed, credentials),
     });
     running.child.stdio[3].on('error', () => {});
     running.child.on('exit', (code, signal) => { exit = { code, signal }; });
@@ -335,7 +340,7 @@ async function main() {
     // The start of the app, of the browser and the sign-in of a script run share the time
     // startMs from the start of the runner: allowance.until is the end of it.
     allowance.until = spec.runs && spec.runs.length ? started + spec.startMs : Infinity;
-    result.app = await start(spec.serve, spec.startMs, proc, typed,
+    result.app = await start(spec.serve, spec.startMs, proc, typed, spec.credentials,
       Math.min(allowance.until, Date.now() + spec.startMs));
     const [key, work] = (spec.runs || []).length ? ['runs', runs]
       : (spec.setups || []).length ? ['signIns', signIns] : [null, null];

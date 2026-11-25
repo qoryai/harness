@@ -66,12 +66,13 @@ const p03Text = (names) => `The run could not sign in to the app with the values
   'in the workspace\'s variables.';
 
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
-// when the password is APP_SECRET, and shows the form again when it is not. /away redirects
-// to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
-// a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done", /popup posts the
-// form to it in a new window, /popup-same opens /orders in a new window at the submit, /leak
-// sends the password as a host name of that port at the submit, and /alert shows the form with
-// an alert at its load and at each key. The other origin adds a line to the file OTHER_LOG for each request.
+// when the password is APP_PHRASE, and shows the form again when it is not. The name has no
+// word of a secret's name, such as SECRET: the serve command gets no such variable. /away
+// redirects to the form of another origin, the port OTHER_PORT, /link and /framed show a
+// link to it and a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done",
+// /popup posts the form to it in a new window, /popup-same opens /orders in a new window at
+// the submit, /leak sends the password as a host name of that port at the submit, and /alert
+// shows the form with an alert at its load and at each key. The other origin adds a line to the file OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
 const http = require('http');
@@ -86,7 +87,7 @@ http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
-      if (new URLSearchParams(body).get('password') === process.env.APP_SECRET) {
+      if (new URLSearchParams(body).get('password') === process.env.APP_PHRASE) {
         res.writeHead(303, { Location: '/orders' });
         res.end();
       } else {
@@ -473,7 +474,7 @@ async function signIn(setup, value, more = {}) {
   const other = await freePort();
   const otherLog = path.join(here.dir, 'other.log');
   fs.writeFileSync(otherLog, '');
-  const env = { APP_PORT: String(port), APP_SECRET: 'parcel-blue-41', OTHER_PORT: String(other),
+  const env = { APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41', OTHER_PORT: String(other),
     OTHER_LOG: otherLog, ...more };
   if (value !== undefined) env.DEMO_PASSWORD = value;
   else env.DEMO_PASSWORD = '';
@@ -568,7 +569,7 @@ const outsidePoint = (address, origin) => ({
 async function runSteps(actions, value) {
   const here = checkout();
   const port = await freePort();
-  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+  const env = { ...process.env, APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41',
     DEMO_PASSWORD: value };
   const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env,
     preflight: { browsers: [BROWSER], startMs: 10000, actionMs: 3000, signedInMs: 3000,
@@ -1361,7 +1362,7 @@ test('demo run: a script that passes prints its sha256, and a step that fails ge
   assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
   const port = await freePort();
   const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
-  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+  const env = { ...process.env, APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41',
     DEMO_PASSWORD: 'parcel-blue-41' };
   const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
     startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
@@ -1866,7 +1867,7 @@ async function filming(scripts) {
   pushed(here.root, scripts);
   const port = await freePort();
   const plan = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
-  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+  const env = { ...process.env, APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41',
     DEMO_PASSWORD: 'parcel-blue-41' };
   const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
     startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
