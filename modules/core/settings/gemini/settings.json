@@ -33,7 +33,7 @@
           {
             "name": "reports-guard",
             "type": "command",
-            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.cjs\"",
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH -u NODE_COMPILE_CACHE node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.cjs\"",
             "env": {
               "BASH_ENV": "",
               "ENV": "",
@@ -42,7 +42,13 @@
               "PS4": "",
               "LD_PRELOAD": "",
               "LD_AUDIT": "",
-              "LD_LIBRARY_PATH": ""
+              "LD_LIBRARY_PATH": "",
+              "DYLD_INSERT_LIBRARIES": "",
+              "DYLD_LIBRARY_PATH": "",
+              "DYLD_FRAMEWORK_PATH": "",
+              "DYLD_FALLBACK_LIBRARY_PATH": "",
+              "DYLD_FALLBACK_FRAMEWORK_PATH": "",
+              "DYLD_IMAGE_SUFFIX": ""
             },
             "timeout": 10000
           }
@@ -55,7 +61,7 @@
           {
             "name": "end-gate",
             "type": "command",
-            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.cjs\"",
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH -u NODE_COMPILE_CACHE node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.cjs\"",
             "env": {
               "BASH_ENV": "",
               "ENV": "",
@@ -64,7 +70,13 @@
               "PS4": "",
               "LD_PRELOAD": "",
               "LD_AUDIT": "",
-              "LD_LIBRARY_PATH": ""
+              "LD_LIBRARY_PATH": "",
+              "DYLD_INSERT_LIBRARIES": "",
+              "DYLD_LIBRARY_PATH": "",
+              "DYLD_FRAMEWORK_PATH": "",
+              "DYLD_FALLBACK_LIBRARY_PATH": "",
+              "DYLD_FALLBACK_FRAMEWORK_PATH": "",
+              "DYLD_IMAGE_SUFFIX": ""
             },
             "timeout": 180000
           }

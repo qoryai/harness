@@ -13,7 +13,7 @@
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"
-command = "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/end-gate-codex.cjs\""
+command = "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH -u NODE_COMPILE_CACHE node \"$QORY_HARNESS_HOME/hooks/end-gate-codex.cjs\""
 timeout = 180
 
 # The guard of tool calls: Codex runs this hook before every tool call, and denies the call
@@ -28,7 +28,7 @@ timeout = 180
 matcher = "*"
 [[hooks.PreToolUse.hooks]]
 type = "command"
-command = "[ -z \"$QORY_RUN_ID\" ] || /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/tool-guard-codex.cjs\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }"
+command = "[ -z \"$QORY_RUN_ID\" ] || /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH -u NODE_COMPILE_CACHE node \"$QORY_HARNESS_HOME/hooks/tool-guard-codex.cjs\" || { echo 'Report this error in your output: the tool guard did not run.' >&2; exit 2; }"
 timeout = 120
 
 # The start of a step of the step limit: Codex runs this hook before each model request.
@@ -37,5 +37,5 @@ timeout = 120
 [[hooks.PreModelRequest]]
 [[hooks.PreModelRequest.hooks]]
 type = "command"
-command = "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/tool-guard-codex.cjs\""
+command = "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH -u NODE_COMPILE_CACHE node \"$QORY_HARNESS_HOME/hooks/tool-guard-codex.cjs\""
 timeout = 30

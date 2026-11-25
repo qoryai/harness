@@ -6380,11 +6380,11 @@ const hookCommands = () => require('./hook-commands.js').hookCommands(
   path.join(MODULES, 'core', 'settings'));
 
 // UNSET is the list of excludedEnvVars of Gemini CLI without BASH_ENV and ENV. The prefix of
-// each hook command also unsets LD_LIBRARY_PATH.
+// each hook command also unsets LD_LIBRARY_PATH and NODE_COMPILE_CACHE.
 const UNSET = ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_AUDIT'];
-const PREFIX = [...UNSET, 'LD_LIBRARY_PATH'];
+const PREFIX = [...UNSET, 'LD_LIBRARY_PATH', 'NODE_COMPILE_CACHE'];
 
-test('each hook command of the five runtimes starts node through env -u of the five names', () => {
+test('each hook command of the five runtimes starts node through env -u of the six names', () => {
   const commands = hookCommands();
   assert.equal(commands.length, 13, JSON.stringify(commands.map((one) => one.file)));
   for (const { file, command } of commands) {
@@ -6397,7 +6397,7 @@ test('each hook command of the five runtimes starts node through env -u of the f
   }
 });
 
-test('Gemini CLI settings list excludedEnvVars and clear the eight names in each hook', () => {
+test('Gemini CLI settings list excludedEnvVars and clear the 14 names in each hook', () => {
   const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
     'core/settings/gemini/settings.json'), 'utf8'));
   assert.deepEqual(settings.advanced.excludedEnvVars,
@@ -6407,7 +6407,9 @@ test('Gemini CLI settings list excludedEnvVars and clear the eight names in each
   assert.equal(hooks.length, 2);
   for (const hook of hooks) {
     assert.deepEqual(hook.env, { BASH_ENV: '', ENV: '', SHELLOPTS: '', BASHOPTS: '', PS4: '',
-      LD_PRELOAD: '', LD_AUDIT: '', LD_LIBRARY_PATH: '' }, hook.name);
+      LD_PRELOAD: '', LD_AUDIT: '', LD_LIBRARY_PATH: '', DYLD_INSERT_LIBRARIES: '',
+      DYLD_LIBRARY_PATH: '', DYLD_FRAMEWORK_PATH: '', DYLD_FALLBACK_LIBRARY_PATH: '',
+      DYLD_FALLBACK_FRAMEWORK_PATH: '', DYLD_IMAGE_SUFFIX: '' }, hook.name);
   }
 });
 
