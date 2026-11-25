@@ -117,11 +117,10 @@ function git(cwd, args, {
 const OWNER = ['Run the check as the user that owns the checkout.', 'git exits with "dubious ' +
   'ownership" in a checkout of another user, and the check reads no safe.directory setting.'];
 
-// ok runs git and returns its stdout, or throws Missing with fix when it fails. The line
-// has the first line of git's error output that is no hint, unless that line has a key or a secret
-// value
-// of the environment: the error lines of git contain file names. A checkout of another
-// user gets OWNER.
+// ok runs git and returns its stdout, or throws Missing with fix when it fails. The line has the
+// first line of git's error output that is no hint, unless that line has a key or a secret value
+// of the environment: the error lines of git contain file names. A checkout of another user gets
+// OWNER.
 function ok(Missing, cwd, args, fix, options = {}) {
   const ran = git(cwd, args, options);
   if (ran.error || ran.status !== 0) {
@@ -368,8 +367,8 @@ const isQory = (file) => file === '.qory' || file.startsWith('.qory/');
 
 // checkout returns { top, commit, changed, qory, untracked, ignores, excluded } of the checkout of
 // io: changed lists each changed path that is not under .qory, qory each tracked path under .qory
-// that has a change, ignores is the set of the
-// untracked .gitignore files that git ignores, and excluded is what excluded returns.
+// that has a change, ignores is the set of the untracked .gitignore files that git ignores, and
+// excluded is what excluded returns.
 function checkout(Missing, io) {
   const dir = top(Missing, io.cwd, io.env);
   const found = changes(Missing, dir, io.env);

@@ -82,6 +82,8 @@ module.exports = (lib) => {
       .map((one) => look(one.parts)).filter(Boolean).map(id));
     const holds = (parts) => fs.readdirSync(abs(parts), { encoding: 'buffer' }).some((name) => {
       const stat = look([...parts, name]);
+      // No stat: the name is too long to look up, so the revert cannot judge what is there.
+      if (!stat) return true;
       return stat.isDirectory() ? holds([...parts, name]) : !tracked.has(id(stat));
     });
     const taken = (parts) => {
@@ -171,8 +173,10 @@ module.exports = (lib) => {
     const made = git.ok(Missing, work.top, ['commit-tree', tree, '-p', work.commit, '-F', '-'],
       fix, { env: io.env, input: message, set: who }).trim();
     // reset --hard moves HEAD, the index and the files together, and removes each tracked file
-    // that the tree lacks. HEAD stays where it was when it fails.
-    git.ok(Missing, work.top, ['reset', '-q', '--hard', made], fix, { env: io.env, set: who });
+    // that the tree lacks. When it fails, HEAD stays and some files may already differ from it.
+    git.ok(Missing, work.top, ['reset', '-q', '--hard', made],
+      'Run git status, then git reset --hard HEAD if the changes are only the revert\'s',
+      { env: io.env, set: who });
     io.print([], `Reverted to the tree of ${commit.slice(0, 12)} in commit ${made}.`);
     return 0;
   }

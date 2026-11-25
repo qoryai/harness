@@ -1578,6 +1578,8 @@ test('revert-attempt: a nested repository at a parent of an added path stops it,
 
 const TAKE = 'Take each untracked or ignored file that the base has out of the checkout, then run again.';
 const BAD_NAME = Buffer.from([0x62, 0xff, 0x63]);
+// The first line when reset fails after it wrote some files.
+const RESET_FAILED = "Run git status, then git reset --hard HEAD if the changes are only the revert's.";
 
 // withBadName returns a checkout that HEAD has, and a commit on it that adds the file with the
 // name, BAD_NAME by default, built with git plumbing: that name is no UTF-8, and a file system may
@@ -1642,9 +1644,43 @@ test('revert-attempt: a name over the limit of the file system exits 3 with git\
   const head = sh(dir, 'rev-parse', 'HEAD');
   const got = call(dir, ['revert-attempt', '--base', base]);
   assert.equal(got.status, 3, got.out + got.err);
-  assert.equal(got.lines[0], 'Run revert-attempt again.');
+  assert.equal(got.lines[0], RESET_FAILED);
   assert.match(got.lines[1], /^ {2}git reset failed: /);
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('revert-attempt: a folder nested deeper than a path may be stops it, with no stack trace', () => {
+  // Under src/b, which the base adds as a file, the checkout has 25 folders of 200 characters
+  // each, more than any path may hold, so the lookup of the deepest one fails on its name.
+  const name = 'n'.repeat(200);
+  const levels = 25;
+  const home = process.cwd();
+  const { dir } = stopped('src/b', 'src/b', 'src/b/deep', (made) => {
+    try {
+      process.chdir(path.join(made, 'src'));
+      fs.mkdirSync('b');
+      process.chdir('b');
+      for (let at = 0; at < levels; at += 1) {
+        fs.mkdirSync(name);
+        process.chdir(name);
+      }
+      fs.writeFileSync('keep', 'mine\n');
+    } finally {
+      process.chdir(home);
+    }
+  });
+  // The tree is removed one level at a time, as no call takes its whole path.
+  try {
+    process.chdir(path.join(dir, 'src/b'));
+    for (let at = 0; at < levels; at += 1) process.chdir(name);
+    fs.unlinkSync('keep');
+    for (let at = 0; at < levels; at += 1) {
+      process.chdir('..');
+      fs.rmdirSync(name);
+    }
+  } finally {
+    process.chdir(home);
+  }
 });
 
 test('revert-attempt: a rebase in progress stops it, and HEAD stays', () => {
@@ -1681,7 +1717,7 @@ exec ${real} "$@"
   fs.chmodSync(path.join(bin, 'git'), 0o755);
   const got = call(dir, ['revert-attempt', '--base', start], { env: { PATH: `${bin}:${process.env.PATH}` } });
   assert.equal(got.status, 3, got.out + got.err);
-  assert.equal(got.lines[0], 'Run revert-attempt again.');
+  assert.equal(got.lines[0], RESET_FAILED);
   assert.equal(got.lines[1], "  git reset failed: error: Entry 'src/a.js' not uptodate. Cannot merge.");
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
 });
