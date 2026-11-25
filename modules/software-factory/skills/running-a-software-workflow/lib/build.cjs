@@ -149,6 +149,71 @@ module.exports = (lib) => {
     return wanted[0];
   }
 
+  // shown returns a value of a cell in quotes for the first line of a finding, with its start
+  // and its end when it has more than size characters; full returns a later line with the
+  // value when shown shortens it, else nothing.
+  const shown = (value, size) => quote(brief(value, size));
+  const full = (value, size) => (brief(value, size) === value ? ''
+    : `\nThe whole value is ${short(value, 80)}.`);
+
+  // commandsTable checks the table of ## Commands in part, a section of file, whose columns
+  // are Kind, Command, Result file and Source. Each row has a kind of kinds once, and a
+  // Command that is none with the reason in Source, or a Source of one of the forms: three
+  // in a proposal and, with steps, four in a build plan. The kind full has a command, as qory
+  // starts the suite from it: a Command of none or an empty Command gets the finding noSuite,
+  // the text that the caller gives. Each kind of required has a row. With steps, a Set of the
+  // ids of the steps of the plan, a Source of the form "plan: d-<N>" is valid when steps has
+  // d-<N>; without steps that form is no form. It returns { given, seen }: the kinds whose
+  // Command is not none, and the kinds with a row, or null after the finding of a missing
+  // table.
+  function commandsTable(run, part, { file, kinds, required, noSuite, steps }) {
+    const found = sectionTable(run, file, part, ['Kind', 'Command', 'Result file', 'Source']);
+    if (!found) return null;
+    run.did('commands');
+    const plain = (cell) => cell.replace(/`/g, '').trim();
+    const seen = new Set();
+    const given = new Set();
+    for (const [kind = '', command = '', , source = ''] of found.rows) {
+      const name = plain(kind);
+      if (!kinds.includes(name)) {
+        run.find(`Set the kind ${shown(name, 24)} in ## Commands of ${file} to one of the ` +
+          `${kinds.length} kinds.\nThe kinds are ${kinds.join(', ')}.${full(name, 24)}`);
+        continue;
+      }
+      if (seen.has(name)) run.find(`Give the kind ${name} one row in ## Commands of ${file}.`);
+      seen.add(name);
+      if (name === 'full' && ['none', ''].includes(plain(command))) {
+        run.find(noSuite);
+        continue;
+      }
+      if (plain(command) === 'none') {
+        if (!source.trim()) run.find(`Write in Source why ${name} has no command in ${file}.`);
+        continue;
+      }
+      given.add(name);
+      const step = steps && /^plan: `?(d-[1-9][0-9]*)`?$/.exec(source);
+      if (step) {
+        if (!steps.has(step[1])) {
+          run.find(`Write a step ${step[1]} in the plan, or cite another source for ${name}.`);
+        }
+      } else if (!/^(?:repository|module): \S/.test(source) &&
+        !/^found: `?[^\s`]+:[1-9][0-9]*`?$/.test(source)) {
+        const forms = steps
+          ? 'four forms.\nThe forms are "repository: <file>", "module: <name>", ' +
+            '"found: <file>:<line>" and "plan: d-<N>"'
+          : 'three forms.\nThe forms are "repository: <file>", "module: <name>" and ' +
+            '"found: <file>:<line>"';
+        run.find(`Write the Source of ${name} in ${file} in one of its ${forms}. The Source ` +
+          `is ${short(source, 80)}.`);
+      }
+    }
+    for (const kind of required.filter((one) => !seen.has(one))) {
+      run.find(`Add the kind ${kind} to ## Commands of ${file}.` + (kind === 'full' ? '' :
+        '\nWith no command, write none in Command and the reason in Source.'));
+    }
+    return { given, seen };
+  }
+
   // commitLine returns the commit of the line "Commit: <id>" in a section, or null.
   function commitLine(part) {
     for (const line of part.lines) {
@@ -434,6 +499,34 @@ module.exports = (lib) => {
       .filter((criterion) => !criterion.removed);
   }
 
+  // criteriaDiff compares two acceptance-criteria.json texts, before and after, by the live
+  // criteria that liveIn returns, and returns the ids as lists: `removed` follows the order of
+  // before, the other three follow the order of after.
+  //   added: live in after, not live in before;
+  //   changed: live in both, with another `text` or `check`;
+  //   removed: live in before, removed in after or gone from it;
+  //   unchanged: live in both, with the same `text` and `check`.
+  // An id that is removed in both texts is in no list, and an entry with no id is in none.
+  // A text that is no valid criteria file gives no error and no criteria: an invalid before
+  // makes every id of after added, so a caller checks both texts first or fails closed.
+  function criteriaDiff(before, after) {
+    const idsOnly = (text) => liveIn(text).filter((criterion) => criterion.id !== '');
+    const old = new Map(idsOnly(before).map((criterion) => [criterion.id, criterion]));
+    const live = idsOnly(after);
+    const kept = new Set(live.map((criterion) => criterion.id));
+    const changed = (criterion) => {
+      const was = old.get(criterion.id);
+      return was.text !== criterion.text || was.check !== criterion.check;
+    };
+    const both = live.filter((criterion) => old.has(criterion.id));
+    return {
+      added: live.filter((criterion) => !old.has(criterion.id)).map((criterion) => criterion.id),
+      changed: both.filter(changed).map((criterion) => criterion.id),
+      removed: [...old.keys()].filter((id) => !kept.has(id)),
+      unchanged: both.filter((criterion) => !changed(criterion)).map((criterion) => criterion.id),
+    };
+  }
+
   // liveCriteria returns the live criteria of the version that criteriaText reads, or null
   // after its finding.
   function liveCriteria(run, what) {
@@ -442,11 +535,12 @@ module.exports = (lib) => {
   }
 
   return {
-    COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, jsonFile, newestNamed, scenarioFile,
-    sectionTitles,
+    COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, shown, full, commandsTable, jsonFile,
+    newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
     noCriteria,
-    pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
+    pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
+    liveCriteria,
   };
 };

@@ -89,17 +89,27 @@ runs `write-acceptance-checks`, so every Build has locked checks.
 - **targeted:** the command that runs the test files of one deliverable. Write it so that
   the paths of the test files come last, with no `#`, `;` or `&&`: the run adds the paths
   at its end. Its Result file is the JUnit XML file that it writes.
-- **full:** the command that runs every test, with the same Result file.
+- **full:** the command that runs every test, with the same Result file. Never write `none`
+  in it: see "No full test suite".
 - **locked:** the command that runs the locked acceptance checks; its cells follow the
-  rules of `full`. qory is to run it after the session, as it runs `full`. With no such
-  command, write `none`, as for the other kinds.
+  rules of `full`. qory is to run it after the session, as it runs `full`. When the
+  repository has no full test suite, follow "No full test suite". With no such command in
+  another case, write `none`, as for the other kinds.
 - **lint, types, build, serve:** the Result file is `none`.
-- **Command:** a command that the explorer's report or a file shows. With no such command,
-  write `none` in Command, and in Source the reason, such as "The repository has no
-  linter."
-- **Source:** where the command comes from, in one of three forms: `repository: <file>`,
+- **Command:** a command that the explorer's report or a file shows. For a kind other than
+  `full` with no such command, write `none` in Command, and in Source the reason, such as
+  "The repository has no linter."
+- **Source:** where the command comes from, in one of four forms: `repository: <file>`,
   when a file of the repository declares it; `module: <name>`, when a technology module
-  provides it; or `found: <file>:<line>`, the file and line that state it.
+  provides it; `found: <file>:<line>`, the file and line that state it; or `plan: d-<N>`,
+  when deliverable `d-<N>` of this plan creates the command.
+
+## No full test suite
+
+When the repository has no full test suite, make the first deliverable, `d-1`, create it. It
+counts in the 7 deliverables. Write the `full`, `targeted` and `locked` rows with the
+commands that `d-1` creates, and `plan: d-1` as their Source. Never write `none` in `full`,
+and never ask a person for the command.
 
 ## The app address
 

@@ -150,8 +150,9 @@ agents and the settings for a run of those workflows:
   newest `proposal`, `questions` and `review-comments`,
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
-  - `proposal`: Markdown for a person who reads no code, in five sections, of at most 450
-    words. `## Summary` states the outcome in 1 or 2 sentences of at most 40 words.
+  - `proposal`: Markdown for a person who reads no code, in five sections (six on the fast
+    track), of at most 450 words. `## Summary` states the outcome in 1 or 2 sentences of at
+    most 40 words.
     `## Background` opens with one paragraph of at most 40 words on why the work exists,
     and Qory Apiary folds the rest behind "Read more": today's facts, in at most 100
     words, in plain sentences with no file name or code. `## Proposed solution` opens
@@ -172,7 +173,13 @@ agents and the settings for a run of those workflows:
     kind of five (a document, a text that the product shows, a comment, a text value in a
     code file, a look-only change), then "Reason: " and why the change keeps what the
     product does. A change in one of eight sensitive areas, such as
-    billing or secrets, never takes the fast track. `## Sources`, last, lists
+    billing or secrets, never takes the fast track. On the fast track, `## Commands` follows
+    `## Track`: a table with the columns Kind, Command, Result file and Source, with a row
+    for each of `lint`, `build` and `full`, and a Source of the form `repository: <file>`,
+    `module: <name>` or `found: <file>:<line>`, or the reason for a command of `none`. The
+    fast track has no build plan, so `run lint` and `run build` of `checks.cjs` read their
+    commands from that table in the approved proposal, and its words count toward no limit.
+    `## Sources`, last, lists
     every public page and every file of the target that the run used: a page as a link, and
     a file with no link, as its path. A file
     of a further repository (a folder under `.qory/repositories`) is the folder's name, a

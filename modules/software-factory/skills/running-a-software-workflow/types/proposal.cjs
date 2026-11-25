@@ -7,7 +7,8 @@ const path = require('node:path');
 
 module.exports = (lib) => {
   const {
-    address, areaOf, BadQuestions, blank, brief, characters, codeSpans, DESTINATION_ID,
+    address, areaOf, BadQuestions, blank, brief, characters, codeSpans, commandsTable,
+    DESTINATION_ID,
     factoryExtensions,
     firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind,
     lines, markdownText, Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
@@ -28,6 +29,14 @@ module.exports = (lib) => {
 
   const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Track', 'Sources'];
 
+  // The sections of a proposal on the fast track: the table of the commands that the run
+  // reads from the approved proposal (lib/plan.cjs) comes after ## Track.
+  const FAST_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Track', 'Commands',
+    'Sources'];
+
+  // The kinds of ## Commands, which each have a row.
+  const COMMAND_KINDS = ['lint', 'build', 'full'];
+
   const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 
   // The most targets of targets.json, and the most characters of the why of one target.
@@ -44,7 +53,7 @@ module.exports = (lib) => {
   // section or a form it refuses. lists is what trackLists returns for the check: the track
   // id, the kinds of the fast track and the sensitive areas of short-path.json in this
   // skill's folder, as
-  // writing-proposals (SKILL.md:250: "whole change is of one of the kinds")
+  // writing-proposals (SKILL.md:253: "whole change is of one of the kinds")
   // and checking-proposals list them, each area with the patterns of its files, as the
   // repository changes them. The form: the line "<Name> track." alone for a track that takes
   // no kind, or, for the track of short-path.json, the line "<Name> track: <kind>. <exact
@@ -58,8 +67,9 @@ module.exports = (lib) => {
     run.did('## Track');
     const part = sections(list, 2).slice(1).find((one) => one.title === 'Track');
     if (!part) return null;
-    const body = part.lines.filter((line) => !blank(line));
-    const first = body.length && !body[0].fenced ? body[0].text.trim() : '';
+    // The lines of a code block are no line of ## Track, as trackLine reads them.
+    const body = part.lines.filter((line) => !blank(line) && !line.fenced);
+    const first = body.length ? body[0].text.trim() : '';
     const named = /^([A-Za-z][A-Za-z0-9-]*) track(?=[.:])/.exec(first);
     if (!named) {
       run.find('Start ## Track of proposal.md with "Standard track." or "Fast track: <kind>. ' +
@@ -120,7 +130,7 @@ module.exports = (lib) => {
   }
 
   // changedFiles returns the text of each code span of the exact change of the fast track,
-  // where writing-proposals (SKILL.md:307-308: "Write each changed file in a code span")
+  // where writing-proposals (SKILL.md:310-311: "Write each changed file in a code span")
   // puts each changed file.
   function changedFiles(change) {
     return codeSpans(change)
@@ -255,7 +265,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:346-349: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:383-386: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -267,7 +277,7 @@ module.exports = (lib) => {
   }
 
   // The phrases that
-  // writing-proposals (SKILL.md:167-191: "The check fails on these phrases anywhere") lists.
+  // writing-proposals (SKILL.md:170-194: "The check fails on these phrases anywhere") lists.
   const REFUSED_PHRASES = [
     'that is correct',
     "that's correct",
@@ -320,7 +330,7 @@ module.exports = (lib) => {
   }
 
   // proposalWords counts the words of the lines of lines(), as
-  // writing-proposals (SKILL.md:143-146: "Count every word except those of Mermaid blocks") counts
+  // writing-proposals (SKILL.md:145-149: "Count every word except those of Mermaid blocks") counts
   // them: tables, code blocks and headings count. words() drops each image, so the link of a
   // wireframe counts no word.
   const proposalWords = (list) => words(proposalText(list));
@@ -383,7 +393,7 @@ module.exports = (lib) => {
   }
 
   // proposalLimits checks the counts and tables of the limits that
-  // writing-proposals (SKILL.md:15-18, 114-153: "checks script checks the counts and tables")
+  // writing-proposals (SKILL.md:15-18, 116-156: "checks script checks the counts and tables")
   // lists, and the refused phrases. source is the lines of lines().
   function proposalLimits(run, source) {
     run.did('limits');
@@ -391,16 +401,20 @@ module.exports = (lib) => {
     const parts = sections(list, 2).slice(1);
     const part = (title) => parts.find((one) => one.title === title);
     // ## Sources counts toward no limit: its heading and its lines, as sourceLines reads them.
+    // ## Commands counts toward none either: its heading and each line under it.
     const skipped = new Set(sourceLines(list).flat().map((line) => line.number));
+    const commandLines = part('Commands');
+    for (const line of commandLines ? commandLines.lines : []) skipped.add(line.number);
     for (const line of list) {
       if (!line.fenced && headingLevel(line.text) === 2 &&
-        line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase() === 'sources') {
+        ['sources', 'commands'].includes(
+          line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase())) {
         skipped.add(line.number);
       }
     }
     const kept = list.filter((line) => !skipped.has(line.number));
 
-    // writing-proposals (SKILL.md:121: "in 1 or 2 sentences of at most 40 words"): the summary,
+    // writing-proposals (SKILL.md:123: "in 1 or 2 sentences of at most 40 words"): the summary,
     // up to the next heading of any level.
     const summaryPart = part('Summary');
     let text = '';
@@ -417,7 +431,7 @@ module.exports = (lib) => {
       run.find(`Cut ## Summary of proposal.md to 40 words: it has ${words(text)}.`);
     }
 
-    // writing-proposals (SKILL.md:124-125: "one paragraph of at most 40 words"): the first
+    // writing-proposals (SKILL.md:126-127: "one paragraph of at most 40 words"): the first
     // paragraph of the background, then at most 100 words up to the next ## heading.
     const background = part('Background');
     if (background) {
@@ -438,7 +452,7 @@ module.exports = (lib) => {
 
     const solution = part('Proposed solution');
     if (solution) {
-      // writing-proposals (SKILL.md:126-129: "with the recommendation in 1 sentence"): before the
+      // writing-proposals (SKILL.md:128-131: "with the recommendation in 1 sentence"): before the
       // first part, 1 sentence of at most 30 words, then only a table of alternatives.
       const units = sections(solution.lines, 3);
       const intro = units[0].lines;
@@ -472,7 +486,7 @@ module.exports = (lib) => {
             'The table has no row. With no alternative weighed, write no table.');
         }
       }
-      // writing-proposals (SKILL.md:130-132: "Each part has at most 120 words"): a part from its
+      // writing-proposals (SKILL.md:132-134: "Each part has at most 120 words"): a part from its
       // ### heading to the next ### or ## heading.
       for (const unit of units.slice(1)) {
         const size = words(unit.title) + proposalWords(unit.lines);
@@ -483,7 +497,7 @@ module.exports = (lib) => {
       }
     }
 
-    // writing-proposals (SKILL.md:143-147: "The whole proposal has at most 450 words"): every
+    // writing-proposals (SKILL.md:145-150: "The whole proposal has at most 450 words"): every
     // word but ## Sources, plus the reason of each decided question. Only the reason of a
     // question that this run decided can change: keptQuestion keeps each stored decision.
     const own = proposalWords(kept);
@@ -501,7 +515,7 @@ module.exports = (lib) => {
       run.find(`Cut proposal.md to 450 words: it has ${own}.`);
     }
 
-    // writing-proposals (SKILL.md:134-142: "A Today/After table has 2 to 6 rows"): the rows of
+    // writing-proposals (SKILL.md:136-144: "A Today/After table has 2 to 6 rows"): the rows of
     // a Today/After table and the words of each cell, outside ## Sources.
     for (const found of tablesOf(kept)) {
       const at = `line ${found.number} of proposal.md`;
@@ -540,7 +554,7 @@ module.exports = (lib) => {
       });
     }
 
-    // writing-proposals (SKILL.md:171-173: "It matches each phrase as whole words"): no line of
+    // writing-proposals (SKILL.md:174-176: "It matches each phrase as whole words"): no line of
     // a code block, code span or text in double quotes on one line is checked.
     run.did('phrases');
     let joined = '';
@@ -590,17 +604,26 @@ module.exports = (lib) => {
     }
     const list = lines(md);
     // writing-proposals (SKILL.md:49-50: "Markdown with five sections, in this order"): these
-    // five sections, in order, and no other.
+    // five sections, in order, and no other; on the fast track six, with ## Commands.
     run.did('sections');
-    const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
-    if (!same(titles, PROPOSAL_SECTIONS)) {
-      run.find(`Give proposal.md the ${PROPOSAL_SECTIONS.length} sections of its type, in their ` +
-        `order.\nThey are ${headings(PROPOSAL_SECTIONS)}.\nproposal.md has ${headings(titles)}.`);
+    const parts = topSections(run, 'proposal.md', list);
+    const titles = parts.map((part) => part.title);
+    const track = trackLine(md);
+    const wanted = track && track.id === TRACK_LISTS.track ? FAST_SECTIONS : PROPOSAL_SECTIONS;
+    if (!same(titles, wanted)) {
+      run.find(`Give proposal.md the ${wanted.length} sections of its type, in their ` +
+        `order.\nThey are ${headings(wanted)}.\nproposal.md has ${headings(titles)}.`);
+    }
+    const commands = wanted === FAST_SECTIONS && parts.find((part) => part.title === 'Commands');
+    if (commands) {
+      commandsTable(run, commands, { file: 'proposal.md', kinds: COMMAND_KINDS,
+        required: COMMAND_KINDS, noSuite: 'Choose the Standard track: the repository has no ' +
+          'full test suite, and its build plan adds one.' });
     }
     const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:431-433: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:468-470: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -609,7 +632,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:329-337, 362: "List every public page and every file"):
+    // writing-proposals (SKILL.md:369-374: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.
@@ -767,7 +790,7 @@ module.exports = (lib) => {
   // file has a character of a glob, that no changed file is or may be a folder, as folderRef
   // reads its ref, that no changed file matches a pattern of a sensitive area, and that the
   // newest review read exactly this ## Track and found nothing wrong with it, as
-  // checking-proposals (SKILL.md:206: "refuses the fast track unless") lists. fileEntries
+  // checking-proposals (SKILL.md:211: "refuses the fast track unless") lists. fileEntries
   // maps each file of sources.json, as ## Sources lists it, to its ref, the path from the root
   // of its repository, which the patterns match.
   function fastTrack(run, fast, fileEntries) {

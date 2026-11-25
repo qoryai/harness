@@ -82,8 +82,10 @@ report, changed for this start.
   that does not exist, report `Blocked: needs a new criterion: <the change>`. If it needs a
   change to the spec, report `Blocked: needs a change to the spec: <the change>`. Write no
   file.
-- If the code explorer's report shows no command for a kind, write `none` in its Command and
-  the reason in Source. Never write a command that no report and no file shows.
+- If the code explorer's report shows no command for a kind other than `full`, write `none` in its
+  Command and the reason in Source. Never write a command that no report and no file shows.
+- If the repository has no full test suite, make `d-1` create it, as the section "No full
+  test suite" of `planning-builds` lists. Never write `none` in `full`.
 - If writing the draft fails, report `blocked` with the file and the state of the artifact
   folder.
 
