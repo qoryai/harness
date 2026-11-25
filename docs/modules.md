@@ -3425,8 +3425,8 @@ highest id of the review, so that `scope` and `freeze` take its id.
   the push, qory pushes no commit, and the run ends `push_scope_refused`. The session then
   does "The submission", writes no `points.json`, runs no verdict command, starts no later
   step, and ends with that line. `review-changes` runs next and reports the open step as
-  `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. `step end` takes at most 3 `--attempt`, so
-  a step has no fourth attempt.
+  `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. `step end`
+  takes at most 3 `--attempt`, so a step has no fourth attempt.
 - **The writers.** `software-developer` and `software-debugger` change only the paths that
   the build plan lists for the deliverable, run only `checks.cjs run` and the read forms of
   `run-artifacts`, and commit nothing. Both load `making-small-changes` before they change

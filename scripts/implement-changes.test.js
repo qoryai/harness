@@ -1203,8 +1203,9 @@ test('the session sets a submodule back, the ones in it and one whose folder is 
       plan: () => call('scope', '--plan', '--inputs', inputs).status };
   };
   const commit = (w, folder) => {
-    git(path.join(w.repo, folder), w.env, 'add', '-A');
-    git(path.join(w.repo, folder), w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Two');
+    const top = path.join(w.repo, folder);
+    git(top, w.env, 'add', '-A');
+    git(top, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Two');
   };
   const dirty = (w) => {
     writeFile(w, 'lib/sub/deep/f.txt', 'g\n');
