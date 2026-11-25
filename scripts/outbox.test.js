@@ -122,8 +122,11 @@ test('outbox: Explore, with a required proposal, schema null and no outbox, pass
 });
 
 test('outbox: Shape, with two required outputs and no outbox, passes', () => {
-  passes({ outputs: [entry('spec', true), entry('acceptance-criteria', true, REPLY),
-    entry('decision-record', false), entry('mockup', false), entry('demo-scenarios', false)] });
+  // qory writes null for acceptance-criteria, which process.yaml lists with no json_schema.
+  for (const schema of [null, REPLY]) {
+    passes({ outputs: [entry('spec', true), entry('acceptance-criteria', true, schema),
+      entry('decision-record', false), entry('mockup', false), entry('demo-scenarios', false)] });
+  }
 });
 
 test('outbox: a run with no outbox reads no output, also with a file in .qory/outbox', () => {
