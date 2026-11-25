@@ -116,7 +116,7 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
 Right after `checks.cjs resume`, run `checks.cjs changes` once. It pulls the criteria version
 that the newest acceptance lock locks, compares it with the criteria version that the run
 reads, prints the ids, and writes `.qory/build/changes.json` in the working folder. No agent
-writes that file: the tool guard denies each write below `.qory/build/`. The last line of its
+writes that file: the tool guard denies the writes below `.qory/build/` that it reads. The last line of its
 output is one of these three, and it reads nothing of the build plan except that a version
 exists:
 

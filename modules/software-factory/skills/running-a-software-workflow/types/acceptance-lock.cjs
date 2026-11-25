@@ -11,8 +11,8 @@ const { isDeepStrictEqual } = require('node:util');
 module.exports = (lib) => {
   const {
     Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, criterionHash,
-    isObject, jsonFile, liveIn, linked, countedOf, newestCriteria, noCriteria, num, parseJson,
-    pullCriteria, readFile, short, timeOf, versionsOf,
+    isObject, jsonFile, liveIn, linked, linkProblem, countedOf, newestCriteria, noCriteria, num,
+    parseJson, plural, pullCriteria, readFile, short, timeOf, versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -28,10 +28,9 @@ module.exports = (lib) => {
     'version is approved.';
 
   // The line for every lock while the acceptance criteria are withdrawn: a stage input takes
-  // nothing of a withdrawn name, so no approval counts until a member uploads them again.
-  // That upload is enough: criteriaTarget then takes the larger of the approval and the upload.
-  const WITHDRAWN = 'Ask a member to upload the acceptance criteria again, then lock the ' +
-    'checks: they are withdrawn.';
+  // nothing of a withdrawn name, so no approval counts until a member approves them again.
+  const WITHDRAWN = 'Ask a member to approve the acceptance criteria again, then lock: the ' +
+    'approval is withdrawn.';
 
   // The action when no lock that a run can write passes: only a person's decision opens a new
   // lock, such as a change that a member writes in a request for changes. The line after it
@@ -54,10 +53,6 @@ module.exports = (lib) => {
 
   // time returns the milliseconds of an `at` of index.json, or NaN for none.
   const time = timeOf;
-
-  // The ids of a `decision` that are free text, and the id of an answer to a question.
-  const FREE = /^(?:gd|es|rc)_/;
-  const ANSWER = /^an_/;
 
   // newestOf returns the lock of the highest number in locks, or null for none.
   const newestOf = (locks) => (locks.length
@@ -154,39 +149,6 @@ module.exports = (lib) => {
     return { all, same, locks: all.filter((one) => !(same && one.number === newest)) };
   }
 
-  // answered returns the ids of the criteria with an answered question in the newest version
-  // of the questions, whose answer is later than time, a time in milliseconds. A question
-  // counts when its `about.item` is the id, its `state` is answered and its `answer.at`
-  // parses as a time later than that time. It reads the stored version, never a draft at the
-  // top of the artifact folder, which an agent can write.
-  function answered(context, since) {
-    const found = context.newest('questions', 'questions.json');
-    let list = [];
-    try {
-      const data = JSON.parse(found ? found.text : '{}');
-      list = Array.isArray(data.questions) ? data.questions.filter(isObject) : [];
-    } catch {
-      list = [];
-    }
-    return new Set(list.filter((one) => one.state === 'answered' && isObject(one.answer) &&
-      isObject(one.about) && time(one.answer.at) > since).map((one) => one.about.item));
-  }
-
-  // changedIds returns the ids of the criteria that the checks of lock cover and that the
-  // live criteria of text, a criteria version, changed or removed: a check whose
-  // `criterion_sha256` is not the hash of its criterion now, or whose criterion is no longer
-  // live. A push has no older criteria version, so it reads the hashes that the lock lists; a
-  // lock with no hash counts every check as changed. A criterion that the version adds has no
-  // check in the lock, so it binds nothing.
-  function changedIds(lock, text) {
-    const live = new Map(liveIn(text).map((criterion) => [criterion.id, criterion]));
-    const checks = Array.isArray(lock.checks) ? lock.checks.filter(isObject) : [];
-    const kept = new Set(checks.filter((check) => live.has(check.criterion) &&
-      check.criterion_sha256 === criterionHash(live.get(check.criterion)))
-      .map((check) => check.criterion));
-    return [...new Set(checks.map((check) => check.criterion))].filter((id) => !kept.has(id));
-  }
-
   // facts returns what every finding of the lock uses, for an approved criteria version.
   // `target` is the criteria version of criteriaTarget, the one that counts: the approved
   // version, or the newest version that a person stored after it, or that a decision links
@@ -205,51 +167,10 @@ module.exports = (lib) => {
       return times.some(Number.isNaN) ? Infinity : Math.max(...times);
     };
 
-    // bound returns the reason that the question rule does not pass the answer that links version,
-    // or null when the rule passes. Each criterion that the version changes or removes since
-    // the newest lock of list needs an answered question about it, with an answer later than
-    // that lock. The rule does not apply when a counted version above the locked one is
-    // linked to a free-text note that is newer than the lock: such a note can carry any change.
-    // shortcut: a free-text note binds to no criterion, so one such note frees the rule for
-    // every later answer; replace it when Qory Apiary lists the criteria that a note changes.
-    // With no lock there is nothing to change, and the rule has nothing to bind.
-    function bound(version, list) {
-      const last = newestOf(list);
-      if (last === null) return null;
-      const free = criteria.some((one) => one.number > last.criteria && linked(one) &&
-        FREE.test(one.decision) && time(one.decision_at) > last.time);
-      if (free) return null;
-      const lockWords = `acceptance-lock version ${num(last.number)}`;
-      if (last.doc === null) {
-        return `Version ${num(version.number)} is linked to an answer, and ${lockWords} is not ` +
-          'in the store, so the check cannot bind it to a criterion.';
-      }
-      const file = criteriaFile(context, version.number);
-      if (file === null) return null;
-      const ids = changedIds(last.doc, readFile(file, `acceptance-criteria version ${
-        version.number}`).replace(/\r\n?/g, '\n'));
-      const answers = answered(context, last.time);
-      const open = ids.filter((id) => !answers.has(id));
-      if (!open.length) return null;
-      return `Version ${num(version.number)} changes ${open.slice(0, 3).join(', ')}` +
-        `${open.length > 3 ? ' and more' : ''}, and no question about ${open[0]} has an ` +
-        `answer after ${lockWords}.`;
-    }
-
     // linkedWhy returns null when version, linked to a note, opens a lock beside the locks of
     // list, else the reason that it does not.
     function linkedWhy(version, list) {
-      const id = version.decision;
-      if (!FREE.test(id) && !ANSWER.test(id)) {
-        return `Version ${num(version.number)} is linked to ${short(id, 40)}, and no lock ` +
-          'opens for a note of that kind.';
-      }
-      if (list.length && !(time(version.decision_at) > latest(list))) {
-        const last = newestOf(list);
-        return `Version ${num(version.number)} is linked to a note from ${version.decision_at}, ` +
-          `and acceptance-lock version ${num(last.number)} is from ${last.at}.`;
-      }
-      return ANSWER.test(id) ? bound(version, list) : null;
+      return linkProblem(context, version, newestOf(list), latest(list));
     }
 
     // why returns null when a person stored criteria version number after every lock of
@@ -287,7 +208,7 @@ module.exports = (lib) => {
     const top = newestCriteria(context);
 
     return { locks, approved, criteria, target, entry, opens, newest, reachable, top, same,
-      why: () => why(target, all) };
+      why: () => why(target, all), whyOf: (number) => why(number, all) || '' };
   }
 
   // ask returns the line for a lock when no lock of the target passes: a member writes a
@@ -354,7 +275,8 @@ module.exports = (lib) => {
     const listed = Boolean(entry(version));
     const older = listed && highest !== null && version < highest.criteria;
     if (state.top > target) {
-      run.find(askAbove(context, 'lock that version', target, state.top));
+      run.find(askAbove(context, 'lock that version', target, state.top,
+        state.whyOf(state.top)));
     } else if (version === target || !reachable) {
       run.find(ask(state, version));
     } else if (!listed) {
@@ -392,7 +314,8 @@ module.exports = (lib) => {
     const { target, reachable, top } = state;
     if (top !== version) {
       if (top !== target) {
-        run.find(askAbove(context, 'lock that version', target, top));
+        // A linked version that no lock opens for gets its reason, as the note that links it.
+        run.find(askAbove(context, 'lock that version', target, top, state.whyOf(top)));
       } else if (!reachable) {
         run.find(ask(state, null));
       } else {
@@ -439,35 +362,70 @@ module.exports = (lib) => {
     }
   }
 
+  // spelled returns the identity of a listed file: its path with `//` and `.` parts collapsed,
+  // and its repository in lower case, as lockedFiles reads them, so that a respelling of a
+  // path or of a repository is the same file.
+  const spelled = (file) => ({ ...file, path: path.posix.normalize(String(file.path)),
+    repository: typeof file.repository === 'string' ? file.repository.toLowerCase() : undefined });
+
   // keptFiles finds each check of data, a new lock, that does not keep what the newest lock
   // has for the same criterion hash, and each support file that has the path of one of the
-  // newest lock and other bytes: a criterion that did not change keeps its check, and a
-  // locked support file keeps its hash, so a changed support file gets a new path. The lock
-  // pushed again is the newest lock, and a push whose store lacks the newest lock has none to
-  // compare with.
-  // shortcut: with no newest lock in a push store, the check compares nothing; replace it
-  // when qory mounts every lock that counts.
+  // newest lock and other bytes, or that a new lock leaves out: a criterion that did not
+  // change keeps its checks, as a whole list, and a locked support file keeps its hash, so a
+  // changed support file gets a new path. The lock pushed again is the newest lock, and a push
+  // whose store lacks the newest lock gets a finding: the check fails closed.
+  // shortcut: a lock links no support file to a criterion, so every support file of the newest
+  // lock stays listed while the new lock keeps a check of an unchanged criterion; replace it
+  // when a lock links a support file to its criteria.
   function keptFiles(run, data, state) {
-    const last = state.same || !state.newest ? null : state.newest.doc;
-    if (last === null || !isObject(last)) return;
+    if (state.same || !state.newest) return;
+    const number = num(state.newest.number);
+    const last = state.newest.doc;
+    if (!isObject(last)) {
+      run.find(`Report to a member: the store lacks acceptance-lock version ${number}.\n` +
+        'The check cannot compare the checks that did not change, so it refuses the lock.');
+      return;
+    }
     const before = Array.isArray(last.checks) ? last.checks.filter(isObject) : [];
-    const keys = ['sha256', 'path', 'repository', 'command', 'failed_with'];
-    data.checks.forEach((check, place) => {
-      const old = before.find((one) => one.criterion === check.criterion &&
-        one.criterion_sha256 !== undefined && one.criterion_sha256 === check.criterion_sha256);
-      if (old && !keys.every((key) => isDeepStrictEqual(old[key], check[key]))) {
-        run.find(`Restore check ${place + 1} of ${FILE} as acceptance-lock version ` +
-          `${num(state.newest.number)} has it.\n${check.criterion} did not change, so its ` +
-          'check keeps its sha256, path, command and failed_with.');
+    const keys = ['sha256', 'path', 'repository', 'command', 'failed_with', 'criterion_sha256'];
+    const whole = (check) => JSON.stringify(keys.map((key) => spelled(check)[key]));
+    let unchanged = false;
+    for (const criterion of new Set(data.checks.map((check) => check.criterion))) {
+      const now = data.checks.filter((check) => check.criterion === criterion);
+      const old = before.filter((check) => check.criterion === criterion);
+      if (!old.some((check) => check.criterion_sha256 !== undefined &&
+        now.some((one) => one.criterion_sha256 === check.criterion_sha256))) continue;
+      unchanged = true;
+      const left = old.map(whole);
+      now.forEach((check) => {
+        const at = left.indexOf(whole(check));
+        if (at >= 0) {
+          left.splice(at, 1);
+        } else {
+          run.find(`Restore check ${data.checks.indexOf(check) + 1} of ${FILE} as ` +
+            `acceptance-lock version ${number} has it.\n${criterion} did not change, so its ` +
+            'checks keep their sha256, path, command and failed_with.');
+        }
+      });
+      if (now.length < old.length) {
+        run.find(`Add back the check of ${criterion} that ${FILE} leaves out.\n` +
+          `acceptance-lock version ${number} has ${plural(old.length - now.length,
+            'more check')} of ${criterion}, which did not change.`);
       }
-    });
-    const files = Array.isArray(last.support) ? last.support.filter(isObject) : [];
-    for (const file of Array.isArray(data.support) ? data.support : []) {
-      const old = files.find((one) => one.path === file.path && one.repository === file.repository);
-      if (old && old.sha256 !== file.sha256) {
-        run.find(`Give the changed support file ${short(file.path, 40)} a new path in ${FILE}.\n` +
-          `acceptance-lock version ${num(state.newest.number)} locks that path with other ` +
-          'bytes.');
+    }
+    const files = (Array.isArray(last.support) ? last.support : []).filter(isObject);
+    const listed = (Array.isArray(data.support) ? data.support : []).filter(isObject);
+    for (const old of files) {
+      const same = (file) => spelled(file).path === spelled(old).path &&
+        spelled(file).repository === spelled(old).repository;
+      const now = listed.find(same);
+      if (now && now.sha256 !== old.sha256) {
+        run.find(`Give the changed support file a new path in ${FILE}.\n` +
+          `acceptance-lock version ${number} locks ${short(old.path, 60)} with other bytes.`);
+      } else if (!now && unchanged) {
+        run.find(`Keep the support file ${short(old.path, 40)} in ${FILE}.\n` +
+          `acceptance-lock version ${number} locks it, and the lock keeps a check of a ` +
+          'criterion that did not change.');
       }
     }
   }

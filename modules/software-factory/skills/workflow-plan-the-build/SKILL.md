@@ -38,8 +38,8 @@ not load the rules it needs, so it pushed no build plan."
    approved acceptance criteria, the files that its change touches, the tests of that area,
    and the commands that run the tests, the linter, the type check, the build and the app.
    In change mode, give it the lines "Changed:" and "Added:" of `changes`, quoted, and ask
-   for the criteria on them only. A subagent may be unable to start another, so you start this agent first and pass its
-   facts on, unchanged.
+   for the criteria on them only. A subagent may be unable to start another, so you start
+   this agent first and pass its facts on, unchanged.
 4. Start ${qory:agents/build-planner} with the input file's path, the artifact folder, the
    run's number, the notes, the "Further repositories" line, the code explorer's report,
    unchanged, and any finding to fix. In change mode, also give it the lines "Changed:",

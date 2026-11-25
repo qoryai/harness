@@ -1746,6 +1746,26 @@ function refused(make, doc, second) {
   }
 }
 
+// answerRefused asserts that the check of doc refuses with the second line, and that the push
+// refuses because its store has the newest criteria version only, and so lacks the version
+// that the lock locks: an answer is bound in a check, and in a push it fails closed.
+function answerRefused(make, doc, second, lacks = 1) {
+  const [checked, pushed] = both(make, doc);
+  assert.equal(checked.status, 1, checked.out);
+  assert.deepEqual(checked.lines.slice(0, -1), [ASK, `${THEN}: ${second}`]);
+  assert.equal(pushed.status, 1, pushed.out);
+  assert.match(pushed.lines[1], new RegExp(`the store lacks criteria version ${lacks}, so the ` +
+    'check cannot bind it to a criterion\\.$'));
+}
+
+// answerPasses asserts that the check of doc passes, and that the push fails closed.
+function answerPasses(make, doc) {
+  const [checked, pushed] = both(make, doc);
+  assert.equal(checked.status, 0, checked.out);
+  assert.equal(pushed.status, 1, pushed.out);
+  assert.match(pushed.lines[1], /the store lacks criteria version 1, so the check cannot bind/);
+}
+
 test('a version that a note of any free-text kind links opens a lock after the newest lock', () => {
   for (const decision of ['gd_1', 'es_9', 'rc_3']) {
     for (const result of both(() => linkedRoot({ decision }), docFor(2))) {
@@ -1773,12 +1793,20 @@ test('a note that is not later than the newest lock opens no lock, and the line 
   refused(() => linkedRoot({ decisionAt: 'not a time', lockAt: LATEST }), docFor(2),
     'the run stored version 2 after the approved version 1.');
   refused(() => linkedRoot({ lockAt: 'not a time' }), docFor(2),
-    'the run stored version 2 after the approved version 1.');
+    `Version 2 is linked to a note from ${LATEST}, and acceptance-lock version 1 is from ` +
+    'not a time.');
 });
 
 test('a note of another kind opens no lock', () => {
   for (const decision of ['xx_1', 'GD_1', 'ex_1', 'decision']) {
+    // A refused link is no target, so the lock reads the approved version, and the version
+    // above it is a run's version.
+    assert.equal(LIB.criteriaTarget(contextOf(linkedRoot({ decision })), 'the lock'), 1);
     refused(() => linkedRoot({ decision }), docFor(2),
+      `Version 2 is linked to "${decision}", and no lock opens for a note of that kind.`);
+    const context = contextOf(linkedRoot({ decision }));
+    const version = context.counts('acceptance-criteria').find((one) => one.number === 2);
+    assert.equal(LIB.linkProblem(context, version, null, -Infinity),
       `Version 2 is linked to "${decision}", and no lock opens for a note of that kind.`);
   }
 });
@@ -1845,17 +1873,20 @@ test('an answer that changes a criterion needs an answered question about it aft
     'acceptance-lock version 1.';
   // No question, a question about another criterion, one that is not answered, one answered
   // before the lock or at its time: the answer binds nothing.
-  refused(make(), doc, why);
-  refused(make(answered('ac-1', LATER)), doc, why);
-  refused(make(answered('ac-4', LATER, { state: 'open' })), doc, why);
-  refused(make(answered('ac-4', BEFORE_ALL)), doc, why);
-  refused(make(answered('ac-4', LOCKED)), doc, why);
+  answerRefused(make(), doc, why);
+  answerRefused(make(answered('ac-1', LATER)), doc, why);
+  answerRefused(make(answered('ac-4', LATER, { state: 'open' })), doc, why);
+  answerRefused(make(answered('ac-4', BEFORE_ALL)), doc, why);
+  answerRefused(make(answered('ac-4', LOCKED)), doc, why);
+  // A question about another type or another name is no question about the criterion.
+  for (const about of [{ type: 'build-plan', name: 'main', item: 'ac-4' },
+    { type: 'acceptance-criteria', name: 'other', item: 'ac-4' }]) {
+    answerRefused(make({ ...answered('ac-4', LATER), about }), doc, why);
+  }
   // An answer about the changed criterion after the lock passes, also at the time of the note
   // and later than it.
   for (const at of [LATER, LATEST, AFTER_ALL]) {
-    for (const result of both(make(answered('ac-1', BEFORE_ALL), answered('ac-4', at)), doc)) {
-      assert.equal(result.status, 0, `${at}: ${result.out}`);
-    }
+    answerPasses(make(answered('ac-1', BEFORE_ALL), answered('ac-4', at)), doc);
   }
   // The check reads the stored questions, not a draft at the top of the artifact folder.
   const root = make()();
@@ -1869,15 +1900,11 @@ test('an answer that changes a criterion needs an answered question about it aft
 
 test('an answer needs no question for an unchanged or an added criterion, and one for a removed one', () => {
   // The note changes no criterion: the lock keeps its hash, and no question is needed.
-  for (const result of both(() => linkedRoot({ decision: 'an_1' }), docFor(2))) {
-    assert.equal(result.status, 0, result.out);
-  }
+  answerPasses(() => linkedRoot({ decision: 'an_1' }), docFor(2));
   // An added criterion binds nothing.
   const add = (doc) => doc.criteria.push({ id: 'ac-5', text: 'The reply has a footer.',
     check: 'Demo: Read the footer' });
-  for (const result of both(() => linkedRoot({ decision: 'an_1', edit: add }), docFor(2, add))) {
-    assert.equal(result.status, 0, result.out);
-  }
+  answerPasses(() => linkedRoot({ decision: 'an_1', edit: add }), docFor(2, add));
   // A criterion that the version removes needs a question, and the lock then locks the others.
   const swap = (doc) => {
     doc.criteria.find((one) => one.id === 'ac-4').removed = { reason: 'The hours changed.' };
@@ -1891,11 +1918,12 @@ test('an answer needs no question for an unchanged or an added criterion, and on
     const made = linkedRoot({ decision: 'an_1', edit: swap });
     return questions.length ? questionsVersion(made, 1, questions) : made;
   };
-  refused(root(), gone, 'Version 2 changes ac-4, and no question about ac-4 has an answer ' +
-    'after acceptance-lock version 1.');
-  for (const result of both(root(answered('ac-4', LATER)), gone)) {
-    assert.equal(result.status, 0, result.out);
-  }
+  // ac-2 changes from a Demo to Tests, and ac-4 is removed: both are bound.
+  answerRefused(root(), gone, 'Version 2 changes ac-2, ac-4, and no question about ac-2 has ' +
+    'an answer after acceptance-lock version 1.');
+  answerRefused(root(answered('ac-4', LATER)), gone, 'Version 2 changes ac-2, and no ' +
+    'question about ac-2 has an answer after acceptance-lock version 1.');
+  answerPasses(root(answered('ac-2', LATER), answered('ac-4', LATER)), gone);
 });
 
 test('a lock without hashes counts each check as changed, and free text needs no question', () => {
@@ -1904,8 +1932,8 @@ test('a lock without hashes counts each check as changed, and free text needs no
   delete old.checks[0].criterion_sha256;
   const unhashed = () => criteriaVersion(stored(artifacts(), 1, old), 2,
     { at: LATER, decision: 'an_1', decision_at: LATEST });
-  refused(unhashed, docFor(2), 'Version 2 changes ac-4, and no question about ac-4 has an ' +
-    'answer after acceptance-lock version 1.');
+  answerRefused(unhashed, docFor(2), 'Version 2 changes ac-4, and no question about ac-4 has ' +
+    'an answer after acceptance-lock version 1.');
   // A free-text note can contain any change, and binds no criterion.
   for (const result of both(() => linkedRoot({ decision: 'gd_1', edit: REWORDED }),
     docFor(2, REWORDED))) {
@@ -1925,8 +1953,82 @@ test('a free-text note above the lock frees the answer after it from the questio
   // A note that is not newer than the lock frees nothing.
   const stale = () => criteriaVersion(linkedRoot({ edit: REWORDED, decisionAt: LOCKED }), 3,
     { at: AFTER_ALL, decision: 'an_1', decision_at: AFTER_ALL }, (doc) => REWORDED(doc));
-  refused(stale, docFor(3, REWORDED), 'Version 3 changes ac-4, and no question about ac-4 ' +
-    'has an answer after acceptance-lock version 1.');
+  answerRefused(stale, docFor(3, REWORDED), 'Version 3 changes ac-4, and no question about ' +
+    'ac-4 has an answer after acceptance-lock version 1.');
+});
+
+test('an answer binds a Demo criterion that the version rewords, removes or re-checks', () => {
+  const demo = 'ac-2';
+  const edits = {
+    reworded: (doc) => { doc.criteria.find((one) => one.id === demo).text += ' Within a day.'; },
+    removed: (doc) => {
+      doc.criteria.find((one) => one.id === demo).removed = { reason: 'Not needed.' };
+    },
+    rechecked: (doc) => { doc.criteria.find((one) => one.id === demo).check = 'Demo: Another'; },
+  };
+  for (const [name, edit] of Object.entries(edits)) {
+    const make = (...questions) => () => {
+      const root = linkedRoot({ decision: 'an_1', edit });
+      return questions.length ? questionsVersion(root, 1, questions) : root;
+    };
+    const doc = docFor(2, edit);
+    answerRefused(make(), doc, 'Version 2 changes ac-2, and no question about ac-2 has an ' +
+      'answer after acceptance-lock version 1.');
+    answerPasses(make(answered(demo, LATER)), doc);
+    assert.ok(name);
+  }
+});
+
+test('criteriaTarget leaves out a refused link, and takes an answer that its question binds', () => {
+  const target = (root) => LIB.criteriaTarget(contextOf(root), 'the lock');
+  const make = (decision, ...questions) => {
+    const root = linkedRoot({ decision, edit: REWORDED });
+    return questions.length ? questionsVersion(root, 1, questions) : root;
+  };
+  assert.equal(target(make('xx_1')), 1);
+  assert.equal(target(make('an_1')), 1);
+  assert.equal(target(make('an_1', answered('ac-4', LATER, { state: 'open' }))), 1);
+  assert.equal(target(make('an_1', answered('ac-4', LATER))), 2);
+  assert.equal(target(make('gd_1')), 2);
+});
+
+test('an answer is not bound when the lock or a criteria file is not in the store', () => {
+  const context = contextOf(linkedRoot({ decision: 'an_1', edit: REWORDED }));
+  const version = context.counts('acceptance-criteria').find((one) => one.number === 2);
+  const last = { number: 1, at: LOCKED, time: Date.parse(LOCKED), criteria: 1, doc: null };
+  assert.equal(LIB.linkProblem(context, version, last, last.time),
+    'Version 2 is linked to an answer, and acceptance-lock version 1 is not in the store, so ' +
+    'the check cannot bind it to a criterion.');
+  const gone = { ...last, criteria: 7, doc: docFor(1) };
+  assert.equal(LIB.linkProblem(context, version, gone, last.time),
+    'Version 2 is linked to an answer, and the store lacks criteria version 7, so the check ' +
+    'cannot bind it to a criterion.');
+  fs.rmSync(path.join(context.store, 'acceptance-criteria', 'main', 'v2'), { recursive: true });
+  assert.equal(LIB.linkProblem(context, version, { ...last, doc: docFor(1) }, last.time),
+    'Version 2 is linked to an answer, and the store lacks criteria version 2, so the check ' +
+    'cannot bind it to a criterion.');
+});
+
+test('with no lock, a version linked to an answer or a free-text note passes the check and the push', () => {
+  for (const decision of ['gd_1', 'an_1']) {
+    const make = () => criteriaVersion(artifacts(), 2,
+      { at: LATER, decision, decision_at: LATEST });
+    for (const result of both(make, docFor(2))) {
+      assert.equal(result.status, 0, `${decision}: ${result.out}`);
+    }
+  }
+});
+
+test('a lock with no criterion_sha256 keeps no check whole, and needs an answer for each check', () => {
+  const old = clone(LOCK);
+  delete old.checks[0].criterion_sha256;
+  // The new lock changes the path of the check: nothing is compared with a lock that has no hash.
+  const doc = docFor(2, REWORDED);
+  doc.checks[0].path = 'checks/new.check.ts';
+  doc.checks[0].sha256 = sha('new');
+  const make = () => criteriaVersion(stored(artifacts(), 1, old), 2,
+    { at: LATER, decision: 'gd_1', decision_at: LATEST }, REWORDED);
+  for (const result of both(make, doc)) assert.equal(result.status, 0, result.out);
 });
 
 // ---- The hash of the criterion of each check -----------------------------------------------
@@ -1980,7 +2082,7 @@ test('a new lock keeps the check of each criterion that did not change', () => {
       assert.equal(result.status, 1, `${key}: ${result.out}`);
       assert.equal(result.lines[0], 'Restore check 2 of acceptance-lock.json as ' +
         'acceptance-lock version 1 has it.');
-      assert.equal(result.lines[1], '  ac-2 did not change, so its check keeps its sha256, ' +
+      assert.equal(result.lines[1], '  ac-2 did not change, so its checks keep their sha256, ' +
         'path, command and failed_with.');
     }
   }
@@ -2014,15 +2116,118 @@ test('a support file keeps its hash, and a changed one gets a new path', () => {
   same.support[0].sha256 = sha('other bytes');
   for (const result of both(() => twoRoot(REWORDED), same)) {
     assert.equal(result.status, 1, result.out);
-    assert.equal(result.lines[0], 'Give the changed support file "check.config.js" a new path ' +
-      'in acceptance-lock.json.');
+    assert.equal(result.lines[0], 'Give the changed support file a new path in ' +
+      'acceptance-lock.json.');
+    assert.equal(result.lines[1], '  acceptance-lock version 1 locks "check.config.js" with ' +
+      'other bytes.');
   }
+  // A new path next to the locked file passes: the locked file stays listed.
   const moved = twoLock(2, REWORDED);
-  moved.support = [{ path: 'check.config.v2.js', sha256: sha('other bytes') }];
+  moved.support.push({ path: 'check.config.v2.js', sha256: sha('other bytes') });
   for (const result of both(() => twoRoot(REWORDED), moved)) {
     assert.equal(result.status, 0, result.out);
   }
 });
+
+test('a new lock that leaves out a support file of the newest lock is refused', () => {
+  const dropped = twoLock(2, REWORDED);
+  delete dropped.support;
+  for (const result of both(() => twoRoot(REWORDED), dropped)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Keep the support file "check.config.js" in ' +
+      'acceptance-lock.json.');
+  }
+  // A path of 47 characters keeps the first line within 100.
+  const long = `tools/${'x'.repeat(38)}.js`;
+  assert.equal(long.length, 47);
+  const change = (doc) => { doc.support = [{ path: long, sha256: sha('long') }]; return doc; };
+  const bare = twoLock(2, REWORDED);
+  delete bare.support;
+  for (const result of both(() => twoRoot(REWORDED, change), bare)) {
+    assert.equal(result.status, 1, result.out);
+    assert.ok(result.lines[0].length <= 100, result.lines[0]);
+    assert.ok(result.lines[0].startsWith('Keep the support file'), result.lines[0]);
+  }
+  const bytes = twoLock(2, REWORDED);
+  bytes.support = [{ path: long, sha256: sha('other long') }];
+  for (const result of both(() => twoRoot(REWORDED, change), bytes)) {
+    assert.equal(result.status, 1, result.out);
+    assert.ok(result.lines[0].length <= 100, result.lines[0]);
+    assert.equal(result.lines[0], 'Give the changed support file a new path in ' +
+      'acceptance-lock.json.');
+  }
+});
+
+test('a respelled path or repository of a support file is the same file', () => {
+  const folder = (doc) => {
+    doc.support = [{ path: 'tools/helper.js', sha256: sha('helper') },
+      { path: 'tools/other.js', repository: 'example-org/further', sha256: sha('other') }];
+    return doc;
+  };
+  for (const [index, path_, repository] of [[0, 'tools//helper.js', undefined],
+    [0, './tools/helper.js', undefined], [1, 'tools/other.js', 'Example-Org/Further'],
+    [1, 'tools//other.js', 'EXAMPLE-ORG/FURTHER']]) {
+    const doc = twoLock(2, REWORDED);
+    doc.support = folder({}).support.map((one) => ({ ...one }));
+    doc.support[index] = { path: path_, ...(repository ? { repository } : {}),
+      sha256: sha('other bytes') };
+    for (const result of both(() => twoRoot(REWORDED, folder), doc)) {
+      assert.equal(result.status, 1, `${path_} ${repository}: ${result.out}`);
+      // The schema refuses a path with a `.` part before the lock reads it.
+      assert.equal(result.lines[0], path_.startsWith('./')
+        ? 'Write /support/0/path of acceptance-lock.json in another form.'
+        : 'Give the changed support file a new path in acceptance-lock.json.');
+    }
+  }
+});
+
+test('a criterion that did not change keeps all of its checks, as a whole list', () => {
+  const extra = (doc) => {
+    doc.checks.push({ ...doc.checks[1], path: 'checks/hours-2.check.ts',
+      sha256: sha('the third check') });
+    return doc;
+  };
+  // Two checks of one criterion, kept whole, pass.
+  const kept = extra(twoLock(2, REWORDED));
+  for (const result of both(() => twoRoot(REWORDED, extra), kept)) {
+    assert.equal(result.status, 0, result.out);
+  }
+  // The second check dropped: the first of the two still matches, and the list does not.
+  const dropped = twoLock(2, REWORDED);
+  for (const result of both(() => twoRoot(REWORDED, extra), dropped)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Add back the check of ac-2 that acceptance-lock.json ' +
+      'leaves out.');
+    assert.equal(result.lines[1], '  acceptance-lock version 1 has 1 more check of ac-2, ' +
+      'which did not change.');
+  }
+  // A changed second check is refused too, and the first is not named.
+  const changed = extra(twoLock(2, REWORDED));
+  changed.checks[2].command = 'npm test';
+  for (const result of both(() => twoRoot(REWORDED, extra), changed)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Restore check 3 of acceptance-lock.json as ' +
+      'acceptance-lock version 1 has it.');
+  }
+});
+
+test('a newest lock that the push store lacks fails the kept-check rule closed', () => {
+  // The newest lock is version 1; a lock of a cancelled run, version 2, is the one that the
+  // store of an older qory mounts.
+  for (const decision of ['gd_1', 'an_1']) {
+    const make = () => stored(linkedRoot({ decision }), 2, docFor(1),
+      { at: AFTER_ALL, cancelled: true });
+    const pushed = both(make, docFor(2), true)[1];
+    assert.equal(pushed.status, 1, `${decision}: ${pushed.out}`);
+  }
+  const make = () => stored(linkedRoot({ decision: 'gd_1' }), 2, docFor(1),
+    { at: AFTER_ALL, cancelled: true });
+  const pushed = both(make, docFor(2), true)[1];
+  assert.equal(pushed.lines[0], 'Report to a member: the store lacks acceptance-lock version 1.');
+  assert.equal(pushed.lines[1], '  The check cannot compare the checks that did not change, so ' +
+    'it refuses the lock.');
+});
+
 
 test('lock writes criterion_sha256 of each check from the criteria version of the draft', () => {
   const root = artifacts();
@@ -2136,6 +2341,33 @@ test('changes in a run pulls the criteria version of the lock', () => {
   assert.equal(result.record.mode, 'changes');
   assert.ok(result.calls.includes('artifact pull acceptance-criteria --version 1'), result.calls);
   assert.ok(result.calls.includes('artifact pull acceptance-lock'), result.calls);
+});
+
+test('changes in a run reads the target criteria that qory pulls, not a file in the artifact folder', () => {
+  const real = planned(twoRoot(MIXED));
+  const local = planned(twoRoot(MIXED));
+  // A planted version 2 with the text of version 1 shows no change.
+  fs.copyFileSync(path.join(local, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json'),
+    path.join(local, 'acceptance-criteria', 'main', 'v2', 'acceptance-criteria.json'));
+  const store = next('store');
+  const result = changes(local, fakeQory({ run: true, server: real, store }));
+  exitsWith(result, 0);
+  assert.equal(result.record.mode, 'changes');
+  assert.deepEqual(result.record.changed, ['ac-4']);
+  assert.ok(result.calls.includes('artifact pull acceptance-criteria --version 2'),
+    result.calls);
+});
+
+test('changes exits 3 when the acceptance lock is withdrawn', () => {
+  const root = planned(twoRoot(MIXED));
+  indexed(root, (index) => {
+    const lock = index.artifacts.find((one) => one.type === 'acceptance-lock');
+    lock.versions.push({ ...lock.versions.at(-1), id: 'av_lockw', number: 2, withdrawn: true });
+    lock.newest_version = 2;
+  });
+  const result = changes(root);
+  assert.equal(result.status, 3, result.out);
+  assert.match(result.lines[0], /^Report to a member: acceptance-lock was withdrawn/);
 });
 
 test('changes exits 3 for a locked criteria version that the folder lacks, and 2 for an argument', () => {

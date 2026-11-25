@@ -538,11 +538,7 @@ test('with no criterion changed since the lock, a newer build plan starts no age
   // The lock locks criteria version 1, which is the approved version, and a build plan of
   // version 2 is newer than the lock.
   const index = path.join(w.artifacts, 'index.json');
-  const lock = { criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'b'.repeat(40),
-    checks: [{ criterion: 'ac-1', path: 'tests/part-1.test.ts', command: 'npm test',
-      failed_with: 1, sha256: H, criterion_sha256: H }] };
-  version(w.artifacts, 'acceptance-lock', 1, 'acceptance-lock.json', JSON.stringify(lock));
-  listVersion(index, 'acceptance-lock', 1, 'run-0');
+  withLock(w);
   version(w.artifacts, 'build-plan', 2, 'build-plan.md', planOf(4));
   listVersion(index, 'build-plan', 2, 'run-0');
   const env = { ...w.env };
@@ -581,12 +577,23 @@ function withPlan(w) {
   listVersion(path.join(w.artifacts, 'index.json'), 'build-plan', 1, 'run-0');
 }
 
+// withLock stores acceptance-lock version 1, which locks criteria version 1, in the artifact
+// folder of w.
+function withLock(w) {
+  const lock = { criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'b'.repeat(40),
+    checks: [{ criterion: 'ac-1', path: 'tests/part-1.test.ts', command: 'npm test',
+      failed_with: 1, sha256: H, criterion_sha256: H }] };
+  version(w.artifacts, 'acceptance-lock', 1, 'acceptance-lock.json', JSON.stringify(lock));
+  listVersion(path.join(w.artifacts, 'index.json'), 'acceptance-lock', 1, 'run-0');
+}
+
 test('in change mode, the check of a plan finds a changed deliverable that lists no changed criterion', () => {
   const w = work();
   withPlan(w);
+  withLock(w);
   const call = session(w);
   const file = path.join(w.artifacts, 'build-plan.md');
-  const record = { mode: 'changes', lock: 1, criteria: 1, target: 2, changed: ['ac-2'],
+  const record = { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
     added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
     paths: [] };
   changed(w, record);
@@ -600,6 +607,13 @@ test('in change mode, the check of a plan finds a changed deliverable that lists
   // A row that the newest version lacks and that lists no changed criterion is removed.
   fs.writeFileSync(file, planOf(3).replace('| d-3 |', '| d-9 |'));
   assert.match(call('check', 'build-plan', file).out, /Remove d-9 of build-plan.md\./);
+  // A record from another lock or another criteria version is out of date.
+  for (const stale of [{ lock: 2 }, { target: 2 }]) {
+    changed(w, { ...record, ...stale });
+    const old = call('check', 'build-plan', file);
+    assert.equal(old.status, 1, old.out);
+    assert.match(old.out, /^Run checks\.cjs changes again: its record is out of date\.\n/);
+  }
   // With no record of change mode, or the mode full, the check finds nothing of this kind.
   fs.rmSync(path.join(w.repo, '.qory'), { recursive: true });
   fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));

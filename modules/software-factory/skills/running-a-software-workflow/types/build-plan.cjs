@@ -7,9 +7,9 @@ const changeRecord = require('../lib/change-record.cjs');
 
 module.exports = (lib) => {
   const {
-    appAddress, brief, commandsTable, criterionList, filesCell, full, inOrder, isPath,
-    liveCriteria, markdownText, MAX_DELIVERABLES, memberLimit, plural, sectionRows,
-    sectionTable, sectionTitles, short, shown, wrongWords,
+    appAddress, brief, commandsTable, countedOf, criteriaTarget, criterionList, filesCell, full,
+    inOrder, isPath, liveCriteria, markdownText, MAX_DELIVERABLES, memberLimit, plural,
+    sectionRows, sectionTable, sectionTitles, short, shown, wrongWords,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -131,6 +131,18 @@ module.exports = (lib) => {
     const { context } = run;
     const record = context.mode === 'check' && !context.offline && context.workingFolder
       ? changeRecord.read(context.workingFolder) : null;
+    if (record && record.mode === 'changes') {
+      const locks = countedOf(context, 'acceptance-lock').map((one) => one.number);
+      const top = locks.length ? Math.max(...locks) : null;
+      const target = criteriaTarget(context, 'the build plan');
+      if (record.lock !== top || record.target !== target) {
+        run.find('Run checks.cjs changes again: its record is out of date.\n' +
+          `The record is from acceptance-lock version ${short(String(record.lock), 12)} and ` +
+          `criteria version ${short(String(record.target), 12)}, and the check reads ` +
+          `${top} and ${target}.`);
+        return;
+      }
+    }
     const ids = record && record.mode === 'changes'
       ? new Set(['changed', 'added', 'removed'].flatMap((key) => record[key])) : null;
     const newest = ids && context.newest('build-plan', FILE);

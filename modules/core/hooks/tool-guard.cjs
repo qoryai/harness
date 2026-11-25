@@ -612,7 +612,7 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
 const CHANGES = path.join(BUILD, 'changes.json');
 // The word of the verb that writes the record, in a shell command of an agent.
 // shortcut: the guard reads the text of the command, so a command that builds the verb from
-// parts is not found; replace it when the verb refuses a call from an agent.
+// parts is not found; replace it when the verb itself exits 3 for a call from an agent.
 const CHANGES_VERB = /checks\.cjs["']?\s+["']?changes(?![\w-])/;
 const CHANGES_MAIN = 'Run checks.cjs changes in the main session, not in an agent.\n' +
   'The verb writes .qory/build/changes.json, which lifts the lock of a changed check. ';
@@ -640,8 +640,10 @@ function changesOf(root) {
 // changes and was made from the lock that counts, by its number; the file is a path of the
 // record; and each entry of the lock at that file is a check of a criterion that the record
 // lists as changed. A support file and every other check file stay locked.
-// shortcut: the guard has no source for the name of the workflow, so it keys on the agent, and
-// the lock that counts, replace it when the input of a call has the workflow.
+// shortcut: the guard has no source for the name of the workflow, so it keys on the agent: the
+// acceptance-check-writer starts only in write-acceptance-checks, and the lift also needs the
+// file in changes.json and the lock that file was made from; replace it when the input of a
+// call has the workflow.
 function liftedLock(lock, { root, input, env, runtime, fold }) {
   if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
     !Number.isInteger(lock.number)) return lock;

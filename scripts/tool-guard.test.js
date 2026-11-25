@@ -372,7 +372,6 @@ test('the guard keeps a check locked after a new lock, with a mode other than ch
 
 test('the guard keeps a path locked when another check or a support file is there', () => {
   const start = 'Leave the locked file as it is: acceptance-lock version 2 locks it.';
-  const shared = changeCase();
   const denied = (checks) => {
     const one = changeCase();
     const reason = decide({ input: { ...claude('Write', { file_path: one.file, content: 'x' },
@@ -388,7 +387,6 @@ test('the guard keeps a path locked when another check or a support file is ther
     start);
   // A support file has no criterion.
   firstLine(denied((file) => [{ file, criterion: null }]), start);
-  assert.ok(shared.file);
 });
 
 test('on Codex the guard lifts a changed check for the role acceptance-check-writer only', () => {
@@ -420,7 +418,7 @@ test('the guard denies the verb changes to an agent, and lets the main session r
 });
 
 test('the guard denies a write of the record by the writer, and reads no record through a link', () => {
-  const { dir, file, call } = changeCase();
+  const { dir, call } = changeCase();
   const record = path.join(dir, '.qory', 'build', 'changes.json');
   firstLine(call(claude('Write', { file_path: record, content: '{}' }, WRITER)),
     'Leave .qory/build/ as it is');
@@ -433,7 +431,6 @@ test('the guard denies a write of the record by the writer, and reads no record 
   fs.symlinkSync(target, path.join(other.dir, '.qory', 'build', 'changes.json'));
   firstLine(other.call(claude('Write', { file_path: other.file, content: 'x' }, WRITER)),
     'Leave the locked file as it is');
-  assert.ok(file);
 });
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {

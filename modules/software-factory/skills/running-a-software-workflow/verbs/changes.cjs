@@ -71,10 +71,13 @@ module.exports = (lib) => {
     const target = criteriaTarget(context, 'the changes');
     if (target === null) return full('no version of the acceptance criteria is approved');
     const was = lock.data.criteria.version;
-    const after = criteriaText(artifactFolder(io), target);
-    const before = was === target ? after : criteriaText(
-      io.env && io.env.QORY_RUN_ID ? pull(io, 'acceptance-criteria', was, 'run changes')
-        : artifactFolder(io), was);
+    // In a run, both criteria versions are pulled, so that a file in the artifact folder that
+    // an agent wrote cannot change the diff.
+    const inRun = Boolean(io.env && io.env.QORY_RUN_ID);
+    const textOf = (number) => criteriaText(inRun
+      ? pull(io, 'acceptance-criteria', number, 'run changes') : artifactFolder(io), number);
+    const after = textOf(target);
+    const before = was === target ? after : textOf(was);
     const diff = criteriaDiff(before, after);
     const live = liveIn(after);
     const touched = new Set([...diff.changed, ...diff.added]);
@@ -98,7 +101,8 @@ module.exports = (lib) => {
     if (none) return done(record, [], `No criterion changed since ${words}.`);
     const lines = [['Changed', diff.changed], ['Added', diff.added],
       ['Removed', diff.removed], ['Checks to write', tests],
-      ['Checks to drop', leaves]].filter(([, ids]) => ids.length).map(([name, ids]) => `${name}: ${ids.join(', ')}.`);
+      ['Checks to drop', leaves]].filter(([, ids]) => ids.length)
+      .map(([name, ids]) => `${name}: ${ids.join(', ')}.`);
     return done(record, lines, `Changes since ${words}: ${diff.changed.length} changed, ` +
       `${diff.added.length} added, ${diff.removed.length} removed.`);
   }

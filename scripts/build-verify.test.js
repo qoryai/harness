@@ -1750,12 +1750,27 @@ test('withdrawn criteria: the lock and the build plan say they are withdrawn', (
     listed(folder, 'acceptance-criteria', 3, 'av_ac3', { withdrawn: true });
     return folder;
   };
-  both(withdrawn, LOCK_DOC, (result) => exactly(result, 'Ask a member to upload the ' +
-    'acceptance criteria again, then lock the checks: they are withdrawn.'));
+  both(withdrawn, LOCK_DOC, (result) => exactly(result, 'Ask a member to approve the ' +
+    'acceptance criteria again, then lock: the approval is withdrawn.'));
   for (const mode of [push, check]) {
     exactly(mode(withdrawn(), 'build-plan', planFile(PLAN)), 'Write the build plan after a ' +
       'member uploads the acceptance criteria again.\nThey are withdrawn.');
   }
+});
+
+test('build-plan: a refused link leaves the target at the approved version, and a counted link is the target', () => {
+  // The lock is from LOCKED. Version 2 is linked to a note from LATEST, after the lock.
+  const linkedTo = (decision) => criteriaVersion(locked(), 2,
+    { at: LATER, decision, decision_at: LATEST });
+  // A note of another kind is no target: the build plan check reads version 1, and asks a
+  // member for the newer version.
+  const result = check(linkedTo('xx_1'), 'build-plan', planFile(PLAN));
+  assert.equal(result.status, 1, result.out);
+  assert.equal(result.findings[0], 'Ask a member to write the change in a request for ' +
+    'changes. Then push the build plan again: Version 2 is linked to "xx_1", and no lock ' +
+    'opens for a note of that kind.');
+  // A free-text note after the lock is a target: the plan is checked against version 2.
+  passes(check(linkedTo('gd_1'), 'build-plan', planFile(PLAN)), 'build-plan');
 });
 
 test('acceptance-lock: the criteria version is approved, and no newer than the approval', () => {
@@ -1954,7 +1969,7 @@ test("acceptance-lock: a person's upload of the criteria counts when it is newer
   both(relocked, again, (result) => exactly(result, askLocked(2, 2)));
 });
 
-test('acceptance-lock: a decision of the criteria version opens nothing', () => {
+test('acceptance-lock: a decision with no decision_at opens nothing', () => {
   const doc = clone(LOCK_2);
   doc.criteria.decision = 'gd_02';
   // A decision that equals the lock's, newer than the lock or with no lock before.
@@ -2090,7 +2105,7 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
   // The check of ac-4 did not change in version 4, so lock 4 cannot weaken it.
   both(personAfter, lockOf(WEAK, 4), (result) => exactly(result, 'Restore check 1 of ' +
     'acceptance-lock.json as acceptance-lock version 2 has it.\nac-4 did not change, so its ' +
-    'check keeps its sha256, path, command and failed_with.'));
+    'checks keep their sha256, path, command and failed_with.'));
 });
 
 test('acceptance-lock: no probe gets a new lock through', () => {

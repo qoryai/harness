@@ -10059,8 +10059,8 @@ test('withdrawal: each first line for a member is at most 100 characters', () =>
   for (const line of lines) assert.ok(line.length <= 100, `${line.length}: ${line}`);
   assert.equal(lines[0], 'Report to a member: the push store lacks acceptance-criteria version ' +
     '999 from before the withdrawal.');
-  assert.equal(lines[4], 'Ask a member to upload the acceptance criteria again, then lock the ' +
-    'checks: they are withdrawn.');
+  assert.equal(lines[4], 'Ask a member to approve the acceptance criteria again, then lock: ' +
+    'the approval is withdrawn.');
 });
 
 test('end --offline: a run that only withdraws a reviewed type needs no reviewer report', () => {
