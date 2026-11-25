@@ -672,7 +672,7 @@ module.exports = (lib) => {
   function refused({ command }) {
     return CHANGES_VERB.test(String(command))
       ? 'Run checks.cjs changes in the main session, not in an agent.\n' +
-        'The verb writes .qory/build/changes.json, which lifts the lock of a changed check. '
+        'The verb writes .qory/build/changes.json, which the check of a build plan reads. '
       : null;
   }
 
