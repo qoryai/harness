@@ -4212,6 +4212,13 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   fs.rmSync(path.join(path.dirname(none), 'open-findings.json'));
   assert.equal(bcall(dir, ['report-build', '--inputs', none]).status, 0);
   assert.match(reportOf(dir), /### Round 2\n\nOld round 2\./);
+  // An open-findings.json over 256 KB, 40 findings with a problem of 8,000 characters, renders.
+  const large = putRound(LEDGER(2, Array.from({ length: 40 }, (_, at) => ({ id: `f${at + 1}`,
+    severity: 'non-blocking', point: `Point ${at + 1}`, problem: 'x'.repeat(8000) }))));
+  assert.ok(fs.statSync(path.join(path.dirname(large), 'open-findings.json')).size > 256 * 1024);
+  const rendered = bcall(dir, ['report-build', '--inputs', large]);
+  assert.equal(rendered.status, 0, rendered.out + rendered.err);
+  assert.match(reportOf(dir), /\| f40: Point 40 \| code-reviewer \| no \|/);
   // An open-findings.json one byte over 64 MiB, a sparse file, exits 3 with the fix first.
   const big = putRound(ROUND(2));
   fs.truncateSync(path.join(path.dirname(big), 'open-findings.json'), 64 * 1024 * 1024 + 1);
