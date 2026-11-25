@@ -107,8 +107,14 @@ const AC4_HASH = crypto.createHash('sha256').update(JSON.stringify(
   [criterionOf(CRITERIA.criteria, 'ac-4').text, criterionOf(CRITERIA.criteria, 'ac-4').check]))
   .digest('hex');
 
+// hashesOf returns the hash of each live criterion of doc by id, as a lock records it in
+// /criteria/sha256.
+const hashesOf = (doc) => Object.fromEntries(doc.criteria.filter((one) => !one.removed)
+  .map((one) => [one.id, crypto.createHash('sha256')
+    .update(JSON.stringify([one.text, one.check])).digest('hex')]));
+
 const LOCK_DOC = {
-  criteria: { version: 1 },
+  criteria: { version: 1, sha256: hashesOf(CRITERIA) },
   start_commit: C1,
   commit: C2,
   checks: [{ criterion: 'ac-4', path: 'tests/corrected-reply.test.ts', sha256: H,
@@ -2401,6 +2407,7 @@ test('acceptance-lock: the Tests criteria of the criteria version of the lock', 
   doc.checks[0].criterion_sha256 = crypto.createHash('sha256').update(JSON.stringify(
     [criterionOf(criteria.criteria, 'ac-5').text, criterionOf(criteria.criteria, 'ac-5').check]))
     .digest('hex');
+  doc.criteria.sha256 = hashesOf(criteria);
   both(root, doc, (result) => passes(result, 'acceptance-lock'));
   doc.checks[0].criterion = 'ac-4';
   both(root, doc, (result) => fails(result,

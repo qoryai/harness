@@ -364,10 +364,13 @@ module.exports = (lib) => {
   // boundProblem returns the reason that the question rule does not pass the answer that links
   // version, or null when the rule passes. Every live criterion that the version changes or
   // removes since the lock `last`, a Demo criterion too, needs an answered question about it,
-  // with an answer later than that lock. The criteria version that `last` locks is compared
-  // with the version: when the store lacks either text, the rule fails closed, as a push store
-  // has the newest criteria version only. The rule does not apply when a counted version above
-  // the locked one is linked to a free-text note that is newer than the lock: such a note can
+  // with an answer later than that lock. The lock records the hash of each live criterion of
+  // the version that it locks (`criteria.sha256`), so the rule needs no older criteria text,
+  // which a push store lacks: an id whose recorded hash differs from the hash in version, or
+  // that is no longer live, is changed. A criterion that version only adds is not. A lock with
+  // no such record counts every criterion as changed, so a lock made before the record needs
+  // an answer for each criterion. The rule does not apply when a counted version above the
+  // locked one is linked to a free-text note that is newer than the lock: such a note can
   // contain any change. With no lock there is nothing to change, and the rule binds nothing.
   // shortcut: a free-text note binds to no criterion, so one such note frees the rule for
   // every later answer; replace it when Qory Apiary lists the criteria that a note changes.
@@ -382,24 +385,21 @@ module.exports = (lib) => {
       return `Version ${num(version.number)} is linked to an answer, and ${lockWords} is not ` +
         'in the store, so the check cannot bind it to a criterion.';
     }
-    const was = criteriaFile(context, last.criteria);
     const now = criteriaFile(context, version.number);
-    if (was === null || now === null) {
+    if (now === null) {
       return `Version ${num(version.number)} is linked to an answer, and the store lacks ` +
-        `criteria version ${num(was === null ? last.criteria : version.number)}, so the ` +
-        'check cannot bind it to a criterion.';
+        `criteria version ${num(version.number)}, so the check cannot bind it to a criterion.`;
     }
-    const read = (file, number) => readFile(file, `acceptance-criteria version ${number}`)
-      .replace(/\r\n?/g, '\n');
-    const diff = criteriaDiff(read(was, last.criteria), read(now, version.number));
-    // A lock whose check has no `criterion_sha256` counts every check as changed, so a
-    // member's answer is needed for each criterion that the lock has a check of. No migration.
+    const hashes = criterionHashes(readFile(now, `acceptance-criteria version ${version.number}`)
+      .replace(/\r\n?/g, '\n'));
+    const recorded = isObject(last.doc.criteria) && isObject(last.doc.criteria[CRITERIA_HASHES])
+      ? last.doc.criteria[CRITERIA_HASHES] : null;
     const checks = Array.isArray(last.doc.checks) ? last.doc.checks.filter(isObject) : [];
-    const bare = checks.some((check) => check.criterion_sha256 === undefined)
-      ? checks.map((check) => check.criterion) : [];
+    const changed = recorded === null
+      ? [...Object.keys(hashes), ...checks.map((check) => check.criterion)]
+      : Object.keys(recorded).filter((id) => recorded[id] !== hashes[id]);
     const answers = answered(context, last.time);
-    const open = [...new Set([...diff.changed, ...diff.removed, ...bare])]
-      .filter((id) => !answers.has(id));
+    const open = [...new Set(changed)].filter((id) => !answers.has(id));
     if (!open.length) return null;
     return `Version ${num(version.number)} changes ${open.slice(0, 3).join(', ')}` +
       `${open.length > 3 ? ' and more' : ''}, and no question about ${open[0]} has an ` +
@@ -690,6 +690,18 @@ module.exports = (lib) => {
   const criterionHash = (criterion) => crypto.createHash('sha256')
     .update(JSON.stringify([criterion.text, criterion.check])).digest('hex');
 
+  // CRITERIA_HASHES is the member of /criteria in acceptance-lock.json that maps the id of
+  // each live criterion of the locked version to its criterionHash. The schemas, the lock
+  // verb and the question rule use this one name.
+  const CRITERIA_HASHES = 'sha256';
+
+  // criterionHashes returns an object of criterionHash by id for the live criteria with an id
+  // in the acceptance-criteria.json text. The key order is the order of the file.
+  function criterionHashes(text) {
+    return Object.fromEntries(liveIn(text).filter((criterion) => criterion.id !== '')
+      .map((criterion) => [criterion.id, criterionHash(criterion)]));
+  }
+
   // liveCriteria returns the live criteria of the version that criteriaText reads, or null
   // after its finding.
   function liveCriteria(run, what) {
@@ -701,7 +713,8 @@ module.exports = (lib) => {
     COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, shown, full, commandsTable, jsonFile,
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, countedOf, timeOf, linked, criterionHash, pullAgain, criteriaTarget, criteriaFile,
+    versionsOf, countedOf, timeOf, linked, criterionHash, criterionHashes, CRITERIA_HASHES,
+    pullAgain, criteriaTarget, criteriaFile,
     newestCriteria, askAbove, noCriteria, linkProblem, lockDoc,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,

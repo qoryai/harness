@@ -11,7 +11,7 @@ const { isDeepStrictEqual } = require('node:util');
 module.exports = (lib) => {
   const {
     Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, criterionHash,
-    isObject, jsonFile, liveIn, linked, linkProblem, countedOf, newestCriteria, noCriteria, num,
+    criterionHashes, CRITERIA_HASHES, isObject, jsonFile, liveIn, linked, linkProblem, countedOf, newestCriteria, noCriteria, num,
     parseJson, plural, pullCriteria, readFile, short, timeOf, versionsOf,
   } = lib;
 
@@ -349,6 +349,21 @@ module.exports = (lib) => {
           `version ${num(version)} is ${criterionHash(live.get(check.criterion))}.`);
       }
     });
+    // The record of every live criterion that the question rule reads in a later push.
+    const recorded = data.criteria[CRITERIA_HASHES];
+    const wanted = criterionHashes(text);
+    if (!isObject(recorded)) {
+      run.find(`Lock the draft with checks.cjs lock: /criteria/${CRITERIA_HASHES} of ${FILE} is ` +
+        `missing.\nIt must have the hash of each criterion of criteria version ${num(version)}.`);
+    } else {
+      const wrong = [...new Set([...Object.keys(wanted), ...Object.keys(recorded)])]
+        .find((id) => recorded[id] !== wanted[id]);
+      if (wrong !== undefined) {
+        run.find(`Lock the draft again with checks.cjs lock: /criteria/${CRITERIA_HASHES} of ` +
+          `${FILE} is wrong.\nThe hash of ${wrong} in criteria version ${num(version)} is ` +
+          `${wanted[wrong] === undefined ? 'none, as it is not live' : wanted[wrong]}.`);
+      }
+    }
     keptFiles(run, data, state);
     // Each criterion planned as Tests needs a locked check: a lock with none leaves the
     // criterion with no check that binds the build. An id has at most 7 characters, so the
@@ -430,17 +445,18 @@ module.exports = (lib) => {
     }
   }
 
-  // fillCriteria writes criterion_sha256 into each check of data, a draft of the lock, from
-  // the criteria version that data lists, in the artifact folder folder: the hash of the
-  // criterion of the check. It leaves a check of a criterion that the version does not list
-  // with none, and does nothing when the folder has no such version; the check of the draft
-  // reports both.
+  // fillCriteria writes criterion_sha256 into each check of data, a draft of the lock, and the
+  // hash of every live criterion into /criteria/sha256, from the criteria version that data
+  // lists, in the artifact folder folder: the hash of the criterion of the check. It leaves a
+  // check of a criterion that the version does not list with none, and does nothing when the
+  // folder has no such version; the check of the draft reports both.
   function fillCriteria(data, folder) {
     if (!isObject(data) || !isObject(data.criteria) || !Array.isArray(data.checks)) return;
     const file = criteriaFile({ store: folder }, data.criteria.version);
     if (file === null) return;
-    const live = new Map(liveIn(readFile(file, 'acceptance-criteria').replace(/\r\n?/g, '\n'))
-      .map((criterion) => [criterion.id, criterion]));
+    const text = readFile(file, 'acceptance-criteria').replace(/\r\n?/g, '\n');
+    const live = new Map(liveIn(text).map((criterion) => [criterion.id, criterion]));
+    data.criteria[CRITERIA_HASHES] = criterionHashes(text);
     for (const check of data.checks.filter(isObject)) {
       if (live.has(check.criterion)) {
         check.criterion_sha256 = criterionHash(live.get(check.criterion));

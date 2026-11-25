@@ -32,10 +32,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   prefixes `gd_`, `es_` and `rc_` are free text, `an_` is the answer to a question, and any
   other prefix is refused. For an answer, each live criterion that the version changes or
   removes, a Demo criterion included, needs an answered question about it after the lock;
-  a lock whose checks have no `criterion_sha256` counts every check as changed. A free-text
-  note binds to no criterion, a known gap. A push store has the newest criteria version
-  only, so the rule fails closed there with a finding that the store lacks the criteria
-  version. `criteriaTarget` uses the same test, so a refused link is never the target.
+  a lock without `/criteria/sha256` counts every criterion as changed. A free-text note
+  binds to no criterion, a known gap. The check and the push apply the same rule.
+  `criteriaTarget` uses the same test, so a refused link is never the target.
+- An acceptance lock has `/criteria/sha256`, an object of the SHA-256 of the text and the
+  check of each live criterion of the locked version, by criterion id. `lock` fills it, and
+  the check recomputes it. The question rule compares it with the criteria version that is
+  linked to an answer, so a push needs no older criteria text. The contract stays at
+  revision 1, and a lock made before the member counts every criterion as changed.
 - A new acceptance lock keeps the checks of each criterion that did not change, as a whole
   list, and keeps every support file of the newest lock at its path and hash. When the
   push store lacks the newest lock, the check fails closed.

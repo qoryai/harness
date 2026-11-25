@@ -2629,17 +2629,21 @@ find:
   live criterion that the version changes or removes since the criteria version that the
   newest lock locks, a Demo criterion included, needs a question in `questions` whose `about`
   has the type `acceptance-criteria`, the name `main` and that criterion as `item`, and whose
-  `answer.at` is later than the lock. The check compares the two criteria versions with
-  `criteriaDiff`; a criterion that the version only adds needs no question. A lock whose
-  checks have no `criterion_sha256` counts each criterion that it has a check of as
-  changed, with no migration. The time of an answer can be trusted because the questions
+  `answer.at` is later than the lock. The lock has `/criteria/sha256`, an object that maps
+  the id of each live criterion of the version that it locks to the SHA-256 of the
+  criterion's text and check, made as `criterion_sha256` is made. `lock` fills it, and the
+  check recomputes it. The rule compares the recorded hashes with the hashes of the
+  version: an id with another hash, or an id that is no longer live, is changed or removed,
+  and a criterion that the version only adds needs no question. A lock without
+  `/criteria/sha256` counts every criterion as changed, with no migration. The time of an
+  answer can be trusted because the questions
   store of Qory Apiary does not accept a run's write of an `answer`, so only a member's
   answer has one, and the server sets its time. The rule does not apply when a counted version above
   the locked one is linked to a free-text note newer than the lock, a known gap: such a note
   can contain any change, and the check cannot bind it to a criterion. The rule fails
-  closed when the store lacks the newest lock or either criteria version, and a push store
-  has the newest criteria version only, so an answer cannot open a lock in a push: the
-  finding says that the store lacks the criteria version, and a member must act. The rule
+  closed when the store lacks the newest lock or the version. A push store has the newest
+  lock and the newest criteria version only, and the rule needs no older criteria text, so a
+  push binds an answer as a check does. The rule
   reads `questions`, so `acceptance-lock` reads `acceptance-criteria` and `questions`.
   A version's `note` never counts, because the run that stores the version writes the note.
   `criteriaTarget` uses the same test (`linkProblem` of `lib/build.cjs`) beside the newest
