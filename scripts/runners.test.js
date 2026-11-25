@@ -435,7 +435,7 @@ test('the skills of the plans and of the proposal list the rule for a repository
     .replace(/\s+/g, ' ');
   const lists = {
     'skills/planning-builds/SKILL.md': ['make the first deliverable, `d-1`, create it',
-      'in one of four forms', 'For a kind other than `full` with no such command',
+      'in one of four forms', 'follow "No full test suite"', 'For a kind other than `full` with no such command',
       '`plan: d-1` as their Source', 'Never write `none` in `full`'],
     'agents/build-planner.md': ['for a kind other than `full`', 'make `d-1` create it', 'Never write `none` in `full`'],
     'skills/checking-build-plans/SKILL.md': ['A `full` row with `none` or no command is a finding',

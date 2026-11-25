@@ -92,8 +92,9 @@ runs `write-acceptance-checks`, so every Build has locked checks.
 - **full:** the command that runs every test, with the same Result file. Never write `none`
   in it: see "No full test suite".
 - **locked:** the command that runs the locked acceptance checks; its cells follow the
-  rules of `full`. qory is to run it after the session, as it runs `full`. With no such
-  command, write `none`, as for the other kinds.
+  rules of `full`. qory is to run it after the session, as it runs `full`. When the
+  repository has no full test suite, follow "No full test suite". With no such command in
+  another case, write `none`, as for the other kinds.
 - **lint, types, build, serve:** the Result file is `none`.
 - **Command:** a command that the explorer's report or a file shows. For a kind other than
   `full` with no such command, write `none` in Command, and in Source the reason, such as
