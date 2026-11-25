@@ -2314,9 +2314,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH`.
   The path is absolute, so that no `env` earlier in `PATH` replaces it. This holds on Claude
   Code, Codex, Gemini CLI, Cursor and Copilot CLI. bash reads some variables before `env`
-  runs: it runs the file in `BASH_ENV` or `ENV`, `SHELLOPTS=xtrace` runs a `$(...)` in
-  `PS4`, and on Linux `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` load a library into
-  bash and `env`. So the `env` field of each hook of Gemini CLI sets `BASH_ENV`, `ENV`,
+  runs: it runs the file in `BASH_ENV`, and sh can run the file in `ENV`. `SHELLOPTS=xtrace`
+  runs a `$(...)` in `PS4`, and on Linux `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` load
+  a library into bash and `env`. So the `env` field of each hook of Gemini CLI sets `BASH_ENV`, `ENV`,
   `SHELLOPTS`, `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` to `""`.
   The setting `advanced.excludedEnvVars` of Gemini CLI lists `NODE_OPTIONS`, `NODE_PATH`,
   `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV`.
