@@ -182,9 +182,15 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     const text = read('skills', skill, 'SKILL.md');
     assert.ok(!/qory\.review\b(?!_)/.test(text), skill);
     assert.ok(!/your prompt/.test(text), `${skill} reads the prompt`);
-    for (const member of ['diff', 'commit', 'previous_findings']) {
+    // The copy of the change is at commit_folder: the working folder is empty.
+    for (const member of ['diff', 'commit_folder', 'previous_findings']) {
       assert.ok(text.includes(`qory.review_session.${member}\``), `${skill} reads ${member}`);
     }
+    assert.ok(text.includes('The working folder is empty.'), skill);
+    assert.ok(!text.includes('first round'), skill);
+    // The check list repeats or closes each open earlier finding.
+    assert.match(text,
+      /is repeated with its `id` while it\s+is still true, and closed in `closes` otherwise\./);
   }
 });
 

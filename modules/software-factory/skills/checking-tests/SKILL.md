@@ -92,4 +92,5 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 - A failing test that the change skips, deletes or loosens has a finding on that test, and
   none on the bug in the code.
 - No finding is for a red suite or a suite that did not run.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.

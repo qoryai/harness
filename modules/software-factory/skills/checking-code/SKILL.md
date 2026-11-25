@@ -95,4 +95,5 @@ These lists sort the kinds of finding of this area under the definition of `bloc
   code, when the bug is in code of the change.
 - No finding is about code that the change does not touch and does not newly call.
 - No finding is for a red suite.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.

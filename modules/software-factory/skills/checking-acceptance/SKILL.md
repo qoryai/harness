@@ -123,4 +123,5 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 - Each changed path that no Files cell of the build plan lists has a finding.
 - No finding is about the cause of a bug in the code, a test or the test setup.
 - No finding is made up: a change that meets every criterion has an empty `findings` list.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.

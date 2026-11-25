@@ -34,10 +34,12 @@ shows what the state says.
   `demo-evidence` of the scenario that it names, `scenario-N`. Read `<start>/index.json` as
   above, for the entry whose `type` is `demo-evidence` and whose `name` is the scenario, and
   read `<start>/demo-evidence/<name>/v<N>/<name>.json`.
-- The file at `qory.review_session.diff`, and the copy of the change, the working folder at
-  `qory.review_session.commit`: to read a locked check or the code that a criterion names.
+- The file at `qory.review_session.diff`, and the copy of the change, the read-only folder
+  at `qory.review_session.commit_folder`: to read a locked check or the code that a
+  criterion names. The working folder is empty.
 - The file at `qory.review_session.previous_findings`, when the member exists, as "Earlier
-  findings" lists. The member is missing in the first round.
+  findings" of `reviewing-changes` lists. The member is missing when the stage has no
+  finding of a reviewer, open or closed.
 
 The draft cannot be read when `/tmp/qory-artifacts/verification.json` does not exist, is a
 link, or is no JSON. A file of `<start>` cannot be read when `<start>/index.json` or its
@@ -102,4 +104,5 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 - No finding is about the cause of a bug in the code or a test.
 - No finding is made up: a matrix whose evidence shows each state has an empty `findings`
   list.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.

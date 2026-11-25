@@ -19,10 +19,12 @@ This review reads those two gaps in the diff.
 
 - The file at `qory.review_session.diff`: the lines that the change adds and removes. Read
   all of it.
-- The copy of the change: the working folder, at `qory.review_session.commit`. Search it
-  with Grep and Glob to trace what a locked command runs and what a locked file imports.
+- The copy of the change: the read-only folder at `qory.review_session.commit_folder`, the
+  change at `qory.review_session.commit`. The working folder is empty. Search the copy with
+  Grep and Glob to trace what a locked command runs and what a locked file imports.
 - The file at `qory.review_session.previous_findings`, when the member exists, as "Earlier
-  findings" lists. The member is missing in the first round.
+  findings" of `reviewing-changes` lists. The member is missing when the stage has no
+  finding of a reviewer, open or closed.
 
 The review also reads the newest acceptance lock from `<start>`, the folder in
 `qory.start_artifacts` of the input file. When `qory.start_artifacts` is `""`, the run
@@ -95,4 +97,5 @@ the test and its mark.
   has a `blocking` finding.
 - No finding is about a path that the lock lists, about code under test, or about a bug.
 - No finding is made up: a change that tampers with nothing has an empty `findings` list.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.

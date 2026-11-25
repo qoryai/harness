@@ -118,4 +118,5 @@ reads, changes or runs.
 - No finding is for a bug that opens no access, for a failing test, for a criterion, or
   for code that the change does not touch.
 - No finding is for a red suite.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.
