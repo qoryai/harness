@@ -337,8 +337,10 @@ test('findings open: the point loses control characters and stops at 500 charact
 test('findings open: each broken form of the file exits 3 with the fix on line 1', () => {
   const SOURCE = new RegExp('a source whose kind is not reviewer, check, hook, criterion or ' +
     'scenario, or that has no name');
-  const PERSON = new RegExp('Add the module that adds source kind person to the harness: ' +
-    'open-\\d+\\.json has it in finding 1, and no module of this harness adds it\\.');
+  const PERSON = new RegExp('^Add the module that adds source kind person to the harness\\.\\n' +
+    ' *open-\\d+\\.json has it in finding 1, and no module of this harness adds it\\.');
+  const FIRST = new RegExp('^(?:Give findings open the open-findings\\.json that qory wrote\\.|' +
+    'Write open-\\d+\\.json as valid JSON\\.)');
   const REPLIES = /replies that are not a list of a kind, a reason and a round/;
   const finding = (change) => ledger(1, [{ reviewer: 'code-reviewer',
     findings: [{ ...FINDING, ...change }] }]);
@@ -378,7 +380,7 @@ test('findings open: each broken form of the file exits 3 with the fix on line 1
     const result = call(['findings', 'open', put(data)]);
     assert.equal(result.status, 3, `${JSON.stringify(data)}\n${result.out}`);
     const text = result.out + result.err;
-    assert.match(text.split('\n')[0], /^(?:Give findings open the open-findings\.json that qory wrote\.|Write open-\d+\.json as valid JSON\.)/);
+    if (why !== PERSON) assert.match(text.split('\n')[0], FIRST);
     assert.match(text, why);
   }
 });
@@ -1249,10 +1251,10 @@ test('findings open: with core alone, a finding of the kind criterion exits 3', 
     source: { kind: 'criterion', name: 'ac-3' }, state: 'open', disputed: false, replies: [] }] });
   const result = call(['findings', 'open', file], plugin);
   assert.equal(result.status, 3, result.out + result.err);
-  assert.deepEqual((result.out + result.err).split('\n').slice(0, 2), [
-    'Give findings open the open-findings.json that qory wrote.',
-    '  Add the module that adds source kind criterion to the harness: ' +
-      `${path.basename(file)} has it in finding 1, and no module of this harness adds it.`]);
+  assert.deepEqual((result.out + result.err).split('\n').filter(Boolean), [
+    'Add the module that adds source kind criterion to the harness.',
+    `  ${path.basename(file)} has it in finding 1, and no module of this harness adds it.`,
+    'Checked nothing: the findings could not read its input.']);
   assert.equal(call(['findings', 'open', put(ROUND)], plugin).status, 1);
 });
 
