@@ -504,6 +504,28 @@ const disk = {
   readdir: (full) => read(full, () => fs.readdirSync(full, { withFileTypes: true }), []),
 };
 
+// sameFile reports whether target is the file that locked is: they have one device and one
+// inode, so a hard link to a locked file is that file. Only a locked file with more than one
+// link has such a target, and a target that does not exist yet is no locked file. A read of
+// either file that fails for another reason than a missing entry counts as the same file, so
+// that the guard fails closed.
+function sameFile(target, locked) {
+  charge(1 + (target.length >> 6), true);
+  let mine;
+  try {
+    mine = fs.statSync(locked, { throwIfNoEntry: false });
+  } catch {
+    return true;
+  }
+  if (!mine || mine.nlink < 2) return false;
+  try {
+    const theirs = fs.statSync(target, { throwIfNoEntry: false });
+    return Boolean(theirs) && theirs.dev === mine.dev && theirs.ino === mine.ino;
+  } catch (error) {
+    return !(error && error.code === 'ENOTDIR');
+  }
+}
+
 // walkPath reads full, an absolute path that may contain . and .. parts, as the system does,
 // and returns { real, unsure }. It reads the parts from the top once: it reads a link
 // through to its target and applies a .. to the real path of the folder before it, so
@@ -1994,6 +2016,7 @@ function pathHits(segment, full, folder, how, step = false) {
     const resolved = realOf(joined(cwd, word));
     const exact = fold(resolved);
     if (exact === target || (folder && under(exact, target))) return true;
+    if (!folder && sameFile(resolved, full)) return true;
     if (!under(target, exact)) return false;
     // A restore writes only tracked files, and .qory/build/ holds none.
     return removes || (!folder && restorer && (named || disk.exists(resolved)));
@@ -2242,7 +2265,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (paths.some((full) => inside(full, root))) {
     const { files = [], what, problem, type } = lockOf();
     if (problem) return unread({ type, problem });
-    const file = paths.find((full) => files.some((one) => fold(one) === fold(full)));
+    const file = paths.find((full) => files.some((one) => fold(one) === fold(full) ||
+      sameFile(full, one)));
     if (file) return lockedReason(file, root, what);
   }
   const unsure = walked.find((one) => one.unsure);

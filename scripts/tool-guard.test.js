@@ -578,6 +578,77 @@ test('the guard keeps a support file locked, as the lock type lists it with no c
   assert.deepEqual(Object.keys(support), ['file']);
 });
 
+// ---- A hard link to a locked file ---------------------------------------------------------------
+
+test('the guard denies a write to a hard link of a locked file, also after the lift ended', () => {
+  const one = liftCase();
+  const notes = path.join(one.dir, 'notes.txt');
+  // The lift is on for the check of ac-4: the writer links it, and writes it.
+  assert.equal(one.call(writeOf(one.a)), null);
+  childProcess.execFileSync('ln', [one.a, notes]);
+  // Another file with its own links, and a name that does not exist yet, stay open.
+  const pair = path.join(one.dir, 'pair-1.txt');
+  fs.writeFileSync(pair, 'x');
+  fs.linkSync(pair, path.join(one.dir, 'pair-2.txt'));
+  const free = (file) => assert.equal(one.call(writeOf(file, 'harness:implementer')), null, file);
+  free(path.join(one.dir, 'pair-2.txt'));
+  free(path.join(one.dir, 'fresh.txt'));
+  // The main session locked again: the check is locked and the link is the same file.
+  const locked = (file, agent = 'harness:implementer') => firstLine(one.call(writeOf(file, agent)),
+    'Leave the locked file as it is');
+  locked(one.b);
+  fs.linkSync(one.b, path.join(one.dir, 'notes-b.txt'));
+  locked(path.join(one.dir, 'notes-b.txt'));
+  locked(path.join(one.dir, 'notes-b.txt'), 'harness:implementer');
+  firstLine(one.call(claude('Edit', { file_path: path.join(one.dir, 'notes-b.txt') }, WRITER)),
+    'Leave the locked file as it is');
+  // A shell write through the link is a write of the locked file.
+  for (const command of ['echo x > notes-b.txt', 'cp /etc/hosts notes-b.txt',
+    'printf x | tee notes-b.txt', 'sed -i "" s/x/y/ notes-b.txt']) {
+    firstLine(one.call(claude('Bash', { command }, 'harness:implementer')),
+      'Leave the locked file as it is');
+  }
+  // A read through the link stays allowed.
+  assert.equal(one.call(claude('Bash', { command: 'cat notes-b.txt' }, 'harness:implementer')),
+    null);
+});
+
+test('the guard keeps a lifted check locked when a locked support file is the same file', () => {
+  const one = liftCase({ support: [HELPER_PATH] });
+  // The support file is a hard link of the check of the changed criterion.
+  fs.rmSync(one.helper);
+  fs.linkSync(one.a, one.helper);
+  firstLine(one.call(writeOf(one.helper)), 'Leave the locked file as it is');
+  firstLine(one.call(writeOf(one.a)), 'Leave the locked file as it is');
+});
+
+test('the guard denies a write when it cannot tell whether the path is a locked file', () => {
+  if (process.getuid && process.getuid() === 0) return;
+  const one = liftCase();
+  fs.linkSync(one.b, path.join(one.dir, 'notes-b.txt'));
+  const sealed = path.join(one.dir, 'sealed');
+  fs.mkdirSync(sealed);
+  fs.writeFileSync(path.join(sealed, 'x.txt'), 'x');
+  fs.chmodSync(sealed, 0);
+  try {
+    firstLine(one.call(writeOf(path.join(sealed, 'x.txt'), 'harness:implementer')),
+      'Leave the locked file as it is');
+  } finally {
+    fs.chmodSync(sealed, 0o755);
+  }
+  // A locked file that cannot be read denies each write below the working folder.
+  const hidden = path.join(sealed, 'x.txt');
+  fs.chmodSync(sealed, 0);
+  try {
+    firstLine(decide({ input: { ...writeOf(path.join(one.dir, 'fresh.txt'), 'harness:implementer'),
+      cwd: one.dir }, env: RUN, runtime: 'claude', root: one.dir,
+    locked: () => ({ what: 'acceptance-lock version 1', files: [hidden], number: 1 }) }),
+    'Leave the locked file as it is');
+  } finally {
+    fs.chmodSync(sealed, 0o755);
+  }
+});
+
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
   const start = 'Leave .qory/build/ as it is: the step limit keeps the step count of each ' +

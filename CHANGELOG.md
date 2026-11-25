@@ -8,6 +8,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The tool guard compares the device and the inode of a written path with each locked file
+  that has more than one link, so a hard link to a locked file is denied as that file, also
+  when a lift of the check ended. A path that does not exist yet is allowed, and a failed read
+  of either path denies the call.
 - `checks.cjs changes` lists the acceptance criteria that changed since the newest
   acceptance lock and writes `.qory/build/changes.json`. The workflows `plan-the-build` and
   `write-acceptance-checks` run it after `resume`. With no changed criterion they start no

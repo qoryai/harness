@@ -2272,7 +2272,11 @@ current folder, and from each folder that a `cd` or `pushd` in the command chang
 that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
 `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`, `unlink` and `mv` of a
 folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
-`rm -rf .qory`, as a write of that file. It reads a `restore` of a folder above a locked
+`rm -rf .qory`, as a write of that file. A path that is a hard link of a locked file is that
+file: the guard compares the device and the inode of a written path with each locked file that
+has more than one link, so `ln checks/a.ts notes.txt` and a later write to `notes.txt` is a
+write of `checks/a.ts`. A path that does not exist yet is no locked file, and a failed read of
+either path denies the call. It reads a `restore` of a folder above a locked
 file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
 `git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. A
 path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
