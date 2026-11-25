@@ -124,8 +124,9 @@ version; do this only for a script that this session wrote and still has as a fi
      run the same call of `step end` again for the report file, as "The build ledger" lists,
      and do no step 6 to 9 while it prints a line that starts with "Start check-reviewer" or
      "Fix the blocking findings". With `changes-needed`, do "Start the author again", with
-     each finding quoted. Step 10 needs the review of the script as it is, so review a
-     script that changes after its review again.
+     each finding quoted; the review of the fixed script has the 3 starts of the
+     corrections. Step 10 needs the review of the script as it is, so review a script that
+     changes after its review again.
 6. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
    <inputs>`, as "Check before each push" of `running-a-workflow` lists. With 1, the script
    breaks a rule that `demo write` and `demo check` do not check: run `step end <step>

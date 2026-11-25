@@ -29,11 +29,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   shell can write the report with a path that a variable, `$( )`, a backquote or `eval`
   makes, with a script that a later call runs, with a path that code joins from parts, with
   an archive that `tar`, `unzip` or `ditto` extracts, with a copy of the sources that `find
-  -exec` or `xargs` add, or with a copy that the guard splits at a redirect, as in `cp -R
-  src/. /x 2>&1 /tmp`; and on Gemini CLI, Cursor and Copilot CLI any agent can write it. Any
-  edit after the review needs a new review, so `workflow-plan-the-build` fixes no sentence
-  after the last one. Every other kind of step ends as before, and on Claude Code the step
-  limit leaves the two agents out, as before.
+  -exec` or `xargs` add, with a copy that the guard splits at a redirect, as in `cp -R src/.
+  /x 2>&1 /tmp`, with a copy of `.`, as in `cp -R . /tmp`, with a copy with `-t` in a
+  combined option, as in `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, or with a copy by
+  `ditto`, as in `ditto stage /tmp`; and on Gemini CLI, Cursor and Copilot CLI any agent can
+  write it. Any edit after the review needs a new review, so `workflow-plan-the-build` fixes
+  no sentence after the last one. Every other kind of step ends as before, and on Claude
+  Code the step limit leaves the two agents out, as before.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
@@ -2104,6 +2106,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The tool guard denies a copy, a move or a removal into the root folder `/` that reaches a
+  protected folder, such as `cp -R stage/. /` or `rm -rf /`. Each passed, since the guard
+  looked for paths below `//`.
 - The line `/.qory` in `.git/info/exclude`, which qory writes there, and a line that starts
   with `/.qory/` are no finding of `scope`, `freeze`, `run`, `diff` and `probe`. Such a line
   stopped each of these verbs, although qory leaves `.qory/` out of every commit. Any other

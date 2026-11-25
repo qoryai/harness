@@ -5560,6 +5560,17 @@ test('a copy or a move of a named file into a folder above the artifact folder p
   firstLine(call('mv src/a .'), 'Leave .qory/build/ as it is');
 });
 
+test('a copy or a removal into the root folder reaches each protected folder below it', () => {
+  // The root folder / ends with the separator, so a path below it starts with / alone.
+  for (const command of ['cp -R stage/. /', 'rsync -a src/ /', 'rm -rf /']) {
+    firstLine(guard(bashAs(command, 'implementer')), 'Leave .qory/build/ as it is');
+  }
+  // In a run, the deny of .qory/build/ comes before that of .step-reports.
+  const { call } = aboveSetup();
+  firstLine(call('cp -R stage/. /'), 'Leave .qory/build/ as it is');
+  assert.equal(call('cp a /'), null);
+});
+
 test('an extraction into the artifact folder or above it passes', () => {
   const { above, artifacts, call } = aboveSetup();
   for (const command of [`tar -xf a.tar -C ${above}`, `tar -xf a.tar -C${above}`,

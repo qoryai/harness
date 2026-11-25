@@ -1055,7 +1055,8 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
       'corrections',
     'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
-      'script that passed', 'With `changes-needed`, do "Start the author again"',
+      'script that passed', 'With `changes-needed`, do "Start the author again", with each ' +
+      'finding quoted; the review of the fixed script has the 3 starts of the corrections',
     'review a script that changes after its review again');
   // The report file is read after each review, before the run and the push of the script.
   inText(SCRIPTING, 'With `blocked`, run `step end <step> failed`, and end as "Failures" lists. ' +

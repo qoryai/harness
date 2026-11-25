@@ -557,7 +557,9 @@ const real = (full) => walkPath(full).real;
 // for walkPath, which applies them after the links before them.
 const joined = (from, word) => (path.isAbsolute(word) ? word : `${from}${path.sep}${word}`);
 
-const under = (full, dir) => full === dir || full.startsWith(`${dir}${path.sep}`);
+// under reports whether full is dir or a path below it; dir may end with path.sep, as / does.
+const under = (full, dir) => full === dir ||
+  full.startsWith(dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`);
 
 // caseless reports whether the disk of dir, a folder that exists, ignores case: dir with its
 // case swapped reads as the same folder. There, a part of a path that does not exist yet
@@ -1874,7 +1876,7 @@ function pathHits(segment, full, folder, how, step = false) {
   const tool = path.basename(words[0]);
   const copies = LAST_WRITTEN.has(tool);
   const moving = step && tool === 'mv';
-  const args = step && (copies || moving) ? unredirected(segment.words) : segment.words;
+  const args = step ? unredirected(segment.words) : segment.words;
   const { dest, sources } = copies || moving ? copyParts(args) : {};
   const moves = moving && !segment.cut && movesInto(segment.text, plainWords(args), dest, sources);
   if (copies || moves) {
@@ -1885,9 +1887,9 @@ function pathHits(segment, full, folder, how, step = false) {
     if (dest && !vague(dest) && wild(dest) && segment.cwds.some((cwd) => {
       spend();
       const pattern = path.resolve(cwd, dest);
+      const depth = pattern.split(path.sep).filter(Boolean).length;
       return globReach(pattern, target, fold, segment.dots) === 'above' &&
-        named(target.split(path.sep).filter(Boolean)[pattern.split(path.sep).filter(Boolean)
-          .length]);
+        named(target.split(path.sep).filter(Boolean)[depth]);
     })) return true;
     if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
       spend();

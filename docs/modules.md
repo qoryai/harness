@@ -1822,8 +1822,10 @@ tool's error. The first line of each reason starts with what to do. The guard de
   option, as in `mv -vt /tmp a`. The guard reads a shell command as it does for `.reports/`,
   so a script that a later call runs still reaches the folder, and so do an archive that
   `tar`, `unzip` or `ditto` extracts into the artifact folder, a copy of the sources that
-  `find -exec` or `xargs` add, as in `find src -exec cp -R {} /tmp \;`, and a copy that the
-  guard splits at a redirect, as in `cp -R src/. /x 2>&1 /tmp`. On Gemini CLI, Cursor and
+  `find -exec` or `xargs` add, as in `find src -exec cp -R {} /tmp \;`, a copy that the
+  guard splits at a redirect, as in `cp -R src/. /x 2>&1 /tmp`, a copy of `.`, as in `cp -R
+  . /tmp`, a copy with `-t` in a combined option, as in `cp -Rt /tmp stage/.` or `cp -at
+  /tmp stage/.`, and a copy by `ditto`, as in `ditto stage /tmp`. On Gemini CLI, Cursor and
   Copilot CLI no guard protects `.step-reports`, so any agent can write a report there.
   Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
