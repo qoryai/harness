@@ -7,8 +7,8 @@ const changeRecord = require('../lib/change-record.cjs');
 
 module.exports = (lib) => {
   const {
-    appAddress, brief, commandsTable, countedOf, criteriaTarget, criterionList, filesCell, full,
-    inOrder, isPath, liveCriteria, markdownText, MAX_DELIVERABLES, memberLimit, plural,
+    appAddress, brief, commandsTable, criteriaTarget, criterionList, filesCell, full,
+    inOrder, isPath, liveCriteria, liveLocks, markdownText, MAX_DELIVERABLES, memberLimit, plural,
     sectionRows, sectionTable, sectionTitles, short, shown, wrongWords,
   } = lib;
 
@@ -132,7 +132,7 @@ module.exports = (lib) => {
     const record = context.mode === 'check' && !context.offline && context.workingFolder
       ? changeRecord.read(context.workingFolder) : null;
     if (record && record.mode === 'changes') {
-      const locks = countedOf(context, 'acceptance-lock').map((one) => one.number);
+      const locks = liveLocks(context).map((one) => one.number);
       const top = locks.length ? Math.max(...locks) : null;
       const target = criteriaTarget(context, 'the build plan');
       if (record.lock !== top || record.target !== target) {

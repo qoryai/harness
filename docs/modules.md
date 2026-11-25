@@ -2522,14 +2522,20 @@ when it was pushed, and a push store has the newest lock only, not the lock befo
 version that the rule compares. `build-plan`, `verification` and `walkthrough` read
 `acceptance-lock` and `questions` for this, as `acceptance-lock` does, so the four types
 apply one rule, and a check and a push give the same result for the same facts. A version
-that the rule refuses is never the target, and the finding gives the reason: a criterion that
-the version changes with no answered question about it, or a lock that the store lacks (a
-push reports it, a check gets the `qory artifact pull acceptance-lock --version <N>` line).
-The target reads the locks of `index.json` that no cancelled run wrote and that are no
-withdrawal, also while `acceptance-lock` is withdrawn. `matrix` pulls `acceptance-lock` and
-`questions` beside the criteria, for the same target. The plan, the verification and the walkthrough
-may read an older version than the one that Qory Apiary feeds the run; a check that finds a
-newer version stops with a finding for a member.
+that the rule refuses is never the target, and the finding shows the reason: a criterion
+that the version changes with no answered question about it, or a lock or the questions that
+the store lacks. For a store that lacks them, a check has the pull as its first line (`Run
+\`qory artifact pull acceptance-lock --version <N>\`, then check again.`, or `qory artifact
+pull questions`), and a push, which cannot pull, has the usual first line and the reason.
+The newest lock opens the version that it locks only while `acceptance-lock` is not
+withdrawn, and only when the lock is live (no cancelled run wrote it, and it is no
+withdrawal), the store has its document, and it locks that version: a later version that the
+same answer links needs its own answer. The question rule reads the locks of `index.json`
+that no cancelled run wrote and that are no withdrawal, also while `acceptance-lock` is
+withdrawn. `matrix` pulls `acceptance-lock`, each live lock that the store lacks by its
+number (a plain pull fetches one version), and `questions`, for the same target. The plan,
+the verification and the walkthrough may read an older version than the one that Qory
+Apiary feeds the run; a check that finds a newer version stops with a finding for a member.
 One function, `criteriaTarget` of
 `running-a-software-workflow/lib/build.cjs`, computes the target for the four types. A check
 and a push read the versions in `index.json`, not the folders of the store, so that they
@@ -2652,18 +2658,19 @@ find:
   of an `answer`, so only a member's answer has one, and the server sets its time. The
   rule does not apply when a counted version above the locked one is linked to a free-text
   note newer than the lock, a known gap: such a note can contain any change, and the check
-  cannot bind it to a criterion. The rule fails closed when the store lacks the newest
-  lock or the version. A push store has the newest lock and the newest criteria version
-  only, and the rule needs no older criteria text, so a push binds an answer as a check
-  does. The rule reads `questions`, so `acceptance-lock` reads `acceptance-criteria` and
-  `questions`.
+  cannot bind it to a criterion. The rule fails closed when the store lacks the lock before
+  the version, the version, or the questions that index.json lists. A push store has the
+  newest lock and the newest criteria version only, and the rule needs no older criteria
+  text, so a push binds an answer as a check does. The rule reads `questions`, so
+  `acceptance-lock` reads `acceptance-criteria` and `questions`.
   A version's `note` never counts, because the run that stores the version writes the note.
   `criteriaTarget` uses the same test (`linkProblem` of `lib/build.cjs`) beside the newest
-  lock that is older than the version, for all four types. Each check of a lock has a `criterion_sha256`, the
-  SHA-256 of the criterion's text and check in the version that the lock locks, which `lock`
-  fills and the check recomputes. A new lock keeps the checks of each criterion that did not
-  change, as a whole list, because the push store has only the newest lock and the newest
-  criteria version, so "unchanged" is the same `criterion_sha256`: the checks of that
+  lock that is older than the version, for all four types. Each check of a lock has a
+  `criterion_sha256`, the SHA-256 of the criterion's text and check in the version that the
+  lock locks, which `lock` fills and the check recomputes. A new lock keeps the checks of
+  each criterion that did not change, as a whole list, because the push store has only the
+  newest lock and the newest criteria version, so "unchanged" is the same
+  `criterion_sha256`: the checks of that
   criterion in the new lock and in the newest lock must have the same `sha256`, `path`,
   `repository`, `command`, `failed_with` and `criterion_sha256` each, so that a changed
   check is refused, and so is a second check that the new lock drops. A support file of the

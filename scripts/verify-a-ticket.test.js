@@ -297,7 +297,7 @@ const check = (criterion, state, extra = {}) => ({ criterion, path: `tests/${cri
 // folder. forge changes the local store after the copy, as an agent can, and down lists the
 // types that the fake qory cannot pull.
 function work({ records = [], ledger = null, evidence = {}, plugin = layout(), forge = null,
-  down = [], served = null } = {}) {
+  down = [], served = null, lean = false } = {}) {
   const dir = next('work');
   fs.mkdirSync(dir, { recursive: true });
   const git = (...args) => childProcess.execFileSync('git', ['-C', dir, ...args]);
@@ -326,14 +326,23 @@ function work({ records = [], ledger = null, evidence = {}, plugin = layout(), f
   if (served) served(store);
   const server = next('server');
   fs.cpSync(store, server, { recursive: true });
+  // With lean, qory serves one folder, and a pull of acceptance-lock with no --version leaves
+  // out version 1, as the real pull fetches one version; --version <N> adds that version.
+  const lone = `${server}-lean`;
+  if (lean) {
+    fs.cpSync(server, lone, { recursive: true });
+    fs.rmSync(path.join(lone, 'acceptance-lock', 'main', 'v1'), { recursive: true });
+  }
   const bin = next('bin');
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 case "$1 $2" in
 'artifact pull')
-  echo "$3" >> '${bin}.pulls'
+  echo "$3 $4 $5" >> '${bin}.pulls'
   case "$3" in ${down.map((type) => `${type}) exit 1;;`).join(' ')} esac
-  echo '${server}'
+  ${lean ? `[ "$3 $4" = 'acceptance-lock --version' ] && cp -R '${server}/acceptance-lock/main/v'"$5" \
+    '${lone}/acceptance-lock/main/'
+  echo '${lone}'` : `echo '${server}'`}
   exit 0;;
 esac
 exit 1
@@ -635,12 +644,41 @@ test('matrix: it pulls the lock, so a version that lock 2 locks is the criteria 
   // ac-5 is a criterion of version 2 only.
   assert.ok(verification(wk).not_verified.some((one) => one.criterion === 'ac-5'));
   const pulls = fs.readFileSync(`${wk.bin}.pulls`, 'utf8').split('\n').filter(Boolean);
-  assert.ok(pulls.includes('acceptance-lock') && pulls.includes('questions'), pulls.join(','));
+  assert.ok(pulls.some((line) => line.startsWith('acceptance-lock')) &&
+    pulls.some((line) => line.startsWith('questions')), pulls.join(','));
   // A lock that cannot be pulled exits 3, as a criteria pull does.
   const down = work({ served: answerServed, down: ['acceptance-lock'] });
   const failed = call(down, ['matrix', '--version', '2']);
   assert.equal(failed.status, 3, failed.out + failed.err);
   assert.match(failed.lines[0], /^Run `qory artifact pull acceptance-lock`, then matrix again\./);
+});
+
+// laterServed adds to answerServed a criteria version 3, written before lock 2 and linked to the
+// same answer, which adds ac-6. Only lock 1 can bind it to the answer.
+function laterServed(store) {
+  answerServed(store);
+  const dir = (...names) => path.join(store, ...names);
+  const third = JSON.parse(fs.readFileSync(dir('acceptance-criteria', 'main', 'v2',
+    'acceptance-criteria.json'), 'utf8'));
+  third.criteria.push({ id: 'ac-6', text: 'The reply has a header.', check: 'Tests' });
+  write(dir('acceptance-criteria', 'main', 'v3', 'acceptance-criteria.json'), third);
+  const index = JSON.parse(fs.readFileSync(dir('index.json'), 'utf8'));
+  const criteria = index.artifacts.find((one) => one.type === 'acceptance-criteria');
+  criteria.versions.unshift({ ...criteria.versions[0], id: 'av_ac3', number: 3,
+    at: '2026-11-21T11:30:00Z', decision_at: '2026-11-21T11:30:00Z' });
+  criteria.newest_version = 3;
+  write(dir('index.json'), index);
+}
+
+test('matrix: it pulls the lock before a version that an answer links, by its number', () => {
+  const wk = work({ served: laterServed, lean: true,
+    records: [{ lock: 2, checks: [check('ac-4', 'green')] }] });
+  const result = call(wk, ['matrix', '--version', '2']);
+  assert.equal(result.status, 0, result.out + result.err);
+  // Version 3 is the target, because lock 1 binds its answer, so ac-6 is a criterion.
+  assert.ok(verification(wk).not_verified.some((one) => one.criterion === 'ac-6'));
+  const pulls = fs.readFileSync(`${wk.bin}.pulls`, 'utf8').split('\n').filter(Boolean);
+  assert.ok(pulls.some((line) => line.startsWith('acceptance-lock --version 1')), pulls.join(','));
 });
 
 test('matrix: it refuses a lock version that is not the approved one', () => {

@@ -2072,6 +2072,46 @@ test('a withdrawal of the lock leaves the lock that counts as it was for the tar
   assert.equal(target(withdrawn(stale(), 2)), 1);
 });
 
+test('the newest lock that locks the answer opens that version, with three limits', () => {
+  const target = (root) => LIB.criteriaTarget(contextOf(root), 'the build plan');
+  const LOCK2 = { at: AFTER_ALL };
+  const AT3 = '2026-11-15T14:00:00Z';
+  // Version 2, linked to an answer, rewords ac-4. No question has an answer, so the question
+  // rule refuses it, and only lock 2, which locks it, opens it.
+  const base = (fields = LOCK2, ...questions) => {
+    const root = stored(linkedRoot({ decision: 'an_1', edit: REWORDED }), 2,
+      docFor(2, REWORDED), fields);
+    return questions.length ? questionsVersion(root, 1, questions) : root;
+  };
+  assert.equal(target(linkedRoot({ decision: 'an_1', edit: REWORDED })), 1);
+  assert.equal(target(base()), 2);
+  // 1. The lock is live: no cancelled run wrote it, it is no withdrawal, and its type is not
+  // withdrawn. Then the question rule decides alone, with or without an answer.
+  assert.equal(target(base({ ...LOCK2, cancelled: true })), 1);
+  assert.equal(target(withdrawn(base(), 3)), 1);
+  const answer = answered('ac-4', LATER);
+  assert.equal(target(withdrawn(base(LOCK2, answer), 3)), 2);
+  // 2. The lock locks that exact version: a later version that the same answer links does not
+  // count, with no answer after lock 2, and counts with one.
+  const later = (...questions) => {
+    const root = base(LOCK2, ...questions);
+    criteriaVersion(root, 3, { at: AT3, decision: 'an_1', decision_at: AT3 },
+      (doc) => { REWORDED(doc); doc.criteria.find((one) => one.id === 'ac-3').text += ' Daily.'; });
+    return root;
+  };
+  assert.equal(target(later(answered('ac-4', LATER))), 2);
+  assert.equal(target(later(answered('ac-4', LATER), answered('ac-3', AT3))), 3);
+  // 3. When the store lacks the document of the lock, the question rule decides alone and
+  // fails closed.
+  const nodoc = (...questions) => {
+    const root = base(LOCK2, ...questions);
+    fs.rmSync(path.join(root, 'acceptance-lock', 'main', 'v2'), { recursive: true });
+    return root;
+  };
+  assert.equal(target(nodoc()), 1);
+  assert.equal(target(nodoc(answer)), 2);
+});
+
 test('a /criteria/sha256 that is empty or has a value that is no hash counts as no member', () => {
   const make = (member, ...questions) => () => {
     const old = clone(LOCK);
@@ -2128,12 +2168,7 @@ test('an answer is not bound when the lock or a criteria file is not in the stor
   const context = contextOf(linkedRoot({ decision: 'an_1', edit: REWORDED }));
   const version = context.counts('acceptance-criteria').find((one) => one.number === 2);
   const last = { number: 1, at: LOCKED, time: Date.parse(LOCKED), criteria: 1, doc: null };
-  // A check gets the pull of the lock, a push the report.
-  assert.equal(LIB.linkProblem(context, version, last, last.time), 'Run `qory artifact pull ' +
-    'acceptance-lock --version 1`, then check again: version 2 is linked to an answer, and ' +
-    'the store lacks that lock.');
-  const pushing = new LIB.Context(context.store, 'push', '/tmp');
-  assert.equal(LIB.linkProblem(pushing, version, last, last.time),
+  assert.equal(LIB.linkProblem(context, version, last, last.time),
     'Version 2 is linked to an answer, and acceptance-lock version 1 is not in the store, so ' +
     'the check cannot bind it to a criterion.');
   fs.rmSync(path.join(context.store, 'acceptance-criteria', 'main', 'v2'), { recursive: true });

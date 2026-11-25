@@ -368,8 +368,9 @@ module.exports = (lib) => {
       one.about.name === 'main' && timeOf(one.answer.at) > since).map((one) => one.about.item));
   }
 
-  // boundProblem returns the reason that the question rule does not pass the answer that links
-  // version, or null when the rule passes. Every live criterion that the version changes or
+  // bound returns { reason, command } when the question rule does not pass the answer that
+  // links version, or null when the rule passes. command is the pull that fixes a store that
+  // lacks what the rule reads, in a check or end --offline, or null (a push cannot pull). Every live criterion that the version changes or
   // removes since the lock `last`, a Demo criterion too, needs an answered question about it,
   // with an answer later than that lock. The lock records the hash of each live criterion of
   // the version that it locks (`criteria.sha256`), so the rule needs no older criteria text,
@@ -381,28 +382,25 @@ module.exports = (lib) => {
   // contain any change. With no lock there is nothing to change, and the rule binds nothing.
   // shortcut: a free-text note binds to no criterion, so one such note frees the rule for
   // every later answer; replace it when Qory Apiary lists the criteria that a note changes.
-  function boundProblem(context, version, last) {
+  function bound(context, version, last) {
     if (last === null) return null;
+    const pulls = (command) => (context.mode === 'push' ? null : command);
     const free = context.counts('acceptance-criteria').some((one) =>
       one.number > last.criteria && linked(one) && FREE.test(one.decision) &&
       timeOf(one.decision_at) > last.time);
     if (free) return null;
     const lockWords = `acceptance-lock version ${num(last.number)}`;
     if (last.doc === null) {
-      // A push store has the newest lock only, so a push reports it; a check, or an end
-      // --offline, gets the pull of that lock.
-      if (context.mode !== 'push') {
-        return `Run \`qory artifact pull acceptance-lock --version ${last.number}\`, then ` +
-          `${context.offline ? 'end' : 'check'} again: version ${num(version.number)} is linked ` +
-          'to an answer, and the store lacks that lock.';
-      }
-      return `Version ${num(version.number)} is linked to an answer, and ${lockWords} is not ` +
-        'in the store, so the check cannot bind it to a criterion.';
+      // A push store has the newest lock only, so a push has no pull to give.
+      return { reason: `Version ${num(version.number)} is linked to an answer, and ` +
+        `${lockWords} is not in the store, so the check cannot bind it to a criterion.`,
+      command: pulls(`acceptance-lock --version ${last.number}`) };
     }
     const now = criteriaFile(context, version.number);
     if (now === null) {
-      return `Version ${num(version.number)} is linked to an answer, and the store lacks ` +
-        `criteria version ${num(version.number)}, so the check cannot bind it to a criterion.`;
+      return { reason: `Version ${num(version.number)} is linked to an answer, and the store ` +
+        `lacks criteria version ${num(version.number)}, so the check cannot bind it to a ` +
+        'criterion.', command: null };
     }
     const hashes = criterionHashes(readFile(now, `acceptance-criteria version ${version.number}`)
       .replace(/\r\n?/g, '\n'));
@@ -417,12 +415,27 @@ module.exports = (lib) => {
       ? [...Object.keys(hashes), ...checks.map((check) => check.criterion)]
       : [...Object.keys(recorded).filter((id) => recorded[id] !== hashOf(hashes, id)),
         ...checks.map((check) => check.criterion).filter((id) => !Object.hasOwn(recorded, id))];
+    const ids = [...new Set(changed)];
+    const shown = (list) => `${list.slice(0, 3).join(', ')}${list.length > 3 ? ' and more' : ''}`;
+    // index.json lists questions, and the folder is not in the store: a check that read none
+    // would say that no question has an answer, which is not known.
+    if (ids.length && countedOf(context, 'questions').length &&
+      context.newest('questions', 'questions.json') === null) {
+      return { reason: `Version ${num(version.number)} changes ${shown(ids)}, and the store ` +
+        'lacks the questions, so the check cannot tell which have an answer.',
+      command: pulls('questions') };
+    }
     const answers = answered(context, last.time);
-    const open = [...new Set(changed)].filter((id) => !answers.has(id));
+    const open = ids.filter((id) => !answers.has(id));
     if (!open.length) return null;
-    return `Version ${num(version.number)} changes ${open.slice(0, 3).join(', ')}` +
-      `${open.length > 3 ? ' and more' : ''}, and no question about ${open[0]} has an ` +
-      `answer after ${lockWords}.`;
+    return { reason: `Version ${num(version.number)} changes ${shown(open)}, and no question ` +
+      `about ${open[0]} has an answer after ${lockWords}.`, command: null };
+  }
+
+  // boundProblem returns the reason of bound, or null.
+  function boundProblem(context, version, last) {
+    const found = bound(context, version, last);
+    return found === null ? null : found.reason;
   }
 
   // linkProblem returns null when version, linked to a note, may open a lock after `last`, the
@@ -470,9 +483,10 @@ module.exports = (lib) => {
     if (approvedVersion === null) return null;
     const locks = liveLocks(context);
     // lockedByNewest returns the criteria version that the newest lock locks, or null when
-    // there is no lock or the store lacks it.
+    // there is no lock, the store lacks it, or acceptance-lock is withdrawn: a withdrawn lock
+    // type is no lock that locks it, and the question rule decides alone.
     const lockedByNewest = () => {
-      if (!locks.length) return null;
+      if (!locks.length || context.withdrawn('acceptance-lock')) return null;
       const doc = lockDoc(context, locks.reduce((a, b) => (b.number > a.number ? b : a)).number);
       return doc !== null && isObject(doc.criteria) ? doc.criteria.version : null;
     };
@@ -530,7 +544,8 @@ module.exports = (lib) => {
       .find((one) => one.number === newest);
     const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
     let because = detail;
-    if (!because && entry && !byPerson(entry) && linked(entry)) {
+    let pull = null;
+    if (entry && !byPerson(entry) && linked(entry)) {
       // A linked version that no lock opens for gets the reason of linkProblem.
       const locks = liveLocks(context);
       const top = locks.length ? locks.reduce((a, b) => (b.number > a.number ? b : a)) : null;
@@ -540,12 +555,18 @@ module.exports = (lib) => {
         last.criteria = last.doc.criteria.version;
       }
       const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
-      because = linkProblem(context, entry, last, since) || '';
+      because = because || linkProblem(context, entry, last, since) || '';
+      // A store that lacks a lock or the questions gets the pull as its first line.
+      const lacks = ANSWER.test(entry.decision) ? bound(context, entry, last) : null;
+      if (lacks !== null && lacks.command !== null && lacks.reason === because) {
+        pull = `Run \`qory artifact pull ${lacks.command}\`, then ` +
+          `${context.offline ? 'end' : 'check'} again.`;
+      }
     }
     const reason = because.replace(/\.$/, '') || (byRun
       ? `the run stored version ${num(newest)} after ${why}`
       : `no member wrote the newer criteria version ${num(newest)}`);
-    return 'Ask a member to write the change in a request for changes.\n' +
+    return `${pull || 'Ask a member to write the change in a request for changes.'}\n` +
       `Then ${step}: ${reason}.`;
   }
 
@@ -750,7 +771,7 @@ module.exports = (lib) => {
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, timeOf, linked, criterionHash, criterionHashes, CRITERIA_HASHES,
-    hashOf, pullAgain, criteriaTarget, criteriaFile,
+    hashOf, liveLocks, pullAgain, criteriaTarget, criteriaFile,
     newestCriteria, askAbove, noCriteria, linkProblem, lockDoc,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,

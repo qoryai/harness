@@ -98,10 +98,11 @@ module.exports = (lib) => {
   // still count, also while acceptance-lock is withdrawn: a lock protects checks that a person
   // approved, so a withdrawal never opens a second lock of the same approval. A lock with the
   // JSON value of the newest lock that counts is that lock, and replaces only the locks before
-  // it. A check reads every lock that counts, because the pull stores every version. The
-  // store of a push has one lock: the newest lock that counts, when qory's push folder holds
-  // the newest version that no cancelled run wrote, and with an older qory, whose push folder
-  // holds the newest version by number, the newest lock by number, cancelled or not.
+  // it. A check reads the locks that the store has: a plain `qory artifact pull` fetches one
+  // version, so a check that needs another lock pulls it by number. The store of a push has
+  // one lock: the newest lock that counts, when qory's push folder holds the newest version
+  // that no cancelled run wrote, and with an older qory, whose push folder holds the newest
+  // version by number, the newest lock by number, cancelled or not.
   // A push reads the newest lock that counts when its store has it. That lock has the highest
   // criteria version of all locks, because each lock before it passed this check. When a
   // newer lock of a cancelled run is the one in the store, its criteria version is NaN, and

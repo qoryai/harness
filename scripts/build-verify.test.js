@@ -3162,6 +3162,45 @@ test('build-plan, verification, walkthrough: an answer opens the version before 
   }
 });
 
+test('build-plan, verification, walkthrough: the lock that locks the answer opens that version alone', () => {
+  const ASK = 'Ask a member to write the change in a request for changes.';
+  const why = 'Version 2 changes ac-4, and no question about ac-4 has an answer after ' +
+    'acceptance-lock version 1.';
+  // The refused version is older than lock 2, which the question rule then compares.
+  const older = 'Version 2 is linked to a note from 2026-11-15T12:00:00Z, and acceptance-lock ' +
+    'version 2 is from 2026-11-15T13:00:00Z.';
+  const bare = () => answerStore('an_1', { locked2: true, question: false });
+  // Version 3 is linked to the same answer, and no question about ac-3 has an answer after
+  // lock 2 (a push store has lock 2 only).
+  const third = () => {
+    const folder = bare();
+    const text = criteriaDoc((list) => {
+      criterionOf(list, 'ac-4').text += ' Within a day.';
+      criterionOf(list, 'ac-3').text += ' Daily.';
+    });
+    version(folder, 'acceptance-criteria', 'main', 3, 'acceptance-criteria.json', text);
+    listed(folder, 'acceptance-criteria', 3, 'av_ac3',
+      { at: '2026-11-15T14:00:00Z', decision: 'an_1', decision_at: '2026-11-15T14:00:00Z' });
+    return folder;
+  };
+  // A withdrawal of the lock is version 3: lock 2 no longer opens version 2.
+  const withdrawn = () => {
+    const folder = bare();
+    listed(folder, 'acceptance-lock', 3, 'av_lock3',
+      { at: '2026-11-15T14:00:00Z', withdrawn: true });
+    return folder;
+  };
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of READERS) {
+      passes(mode(bare(), type, file), type);
+      exactly(mode(withdrawn(), type, file), `${ASK}\nThen push ${what} again: ${older}`);
+      const found = mode(third(), type, file);
+      assert.equal(found.status, 1, found.out);
+      assert.match(found.out, /Version 3 changes ac-3, and no question about ac-3 has an answer/);
+    }
+  }
+});
+
 test('build-plan, verification, walkthrough: an answer with no question is refused', () => {
   const why = 'Version 2 changes ac-4, and no question about ac-4 has an answer after ' +
     'acceptance-lock version 1.';
@@ -3174,30 +3213,31 @@ test('build-plan, verification, walkthrough: an answer with no question is refus
 });
 
 test('build-plan, verification, walkthrough: a lock or questions missing from the store', () => {
+  const ASK = 'Ask a member to write the change in a request for changes.';
+  const lockWhy = 'Version 2 is linked to an answer, and acceptance-lock version 1 is not in ' +
+    'the store, so the check cannot bind it to a criterion.';
+  const questionsWhy = 'Version 2 changes ac-4, and the store lacks the questions, so the ' +
+    'check cannot tell which have an answer.';
+  const without = (type) => () => {
+    const folder = answerStore('an_1');
+    fs.rmSync(path.join(folder, type), { recursive: true });
+    return folder;
+  };
   for (const [type, file, what] of READERS) {
-    // The newest lock before version 2 is lock 1, which a push store lacks: the push reports
-    // it, and a check gets the pull of that lock.
-    const nolock = () => {
-      const folder = answerStore('an_1');
-      fs.rmSync(path.join(folder, 'acceptance-lock', 'main', 'v1'), { recursive: true });
-      return folder;
-    };
-    const reason = 'Version 2 is linked to an answer, and acceptance-lock version 1 is not in ' +
-      'the store, so the check cannot bind it to a criterion.';
-    exactly(push(nolock(), type, file), `${REQUEST}\nThen push ${what} again: ${reason}`);
-    exactly(check(nolock(), type, file), `${REQUEST}\nThen push ${what} again: Run ` +
-      '`qory artifact pull acceptance-lock --version 1`, then check again: version 2 is linked ' +
-      'to an answer, and the store lacks that lock.');
-    // Questions that index.json lists and the store lacks are no answers.
-    const noquestions = () => {
-      const folder = answerStore('an_1');
-      fs.rmSync(path.join(folder, 'questions'), { recursive: true });
-      return folder;
-    };
-    const why = 'Version 2 changes ac-4, and no question about ac-4 has an answer after ' +
-      'acceptance-lock version 1.';
-    exactly(push(noquestions(), type, file), `${REQUEST}\nThen push ${what} again: ${why}`);
-    exactly(check(noquestions(), type, file), `${REQUEST}\nThen push ${what} again: ${why}`);
+    // The newest lock before version 2 is lock 1, which a push store lacks: a push reports
+    // it, and a check gets the pull as its first line.
+    exactly(push(without('acceptance-lock/main/v1')(), type, file),
+      `${ASK}\nThen push ${what} again: ${lockWhy}`);
+    exactly(check(without('acceptance-lock/main/v1')(), type, file),
+      'Run `qory artifact pull acceptance-lock --version 1`, then check again.\n' +
+      `Then push ${what} again: ${lockWhy}`);
+    // index.json lists questions and the folder is not in the store: no question has an
+    // answer is not known, so the check says what lacks.
+    exactly(push(without('questions')(), type, file),
+      `${ASK}\nThen push ${what} again: ${questionsWhy}`);
+    exactly(check(without('questions')(), type, file),
+      'Run `qory artifact pull questions`, then check again.\n' +
+      `Then push ${what} again: ${questionsWhy}`);
   }
 });
 

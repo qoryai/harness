@@ -622,6 +622,27 @@ test('in change mode, the check of a plan finds a changed deliverable that lists
   assert.equal(call('check', 'build-plan', file).status, 0);
 });
 
+test('in change mode, a withdrawn acceptance-lock leaves the lock of the record in place', () => {
+  const w = work();
+  withPlan(w);
+  withLock(w);
+  // Version 2 of acceptance-lock is a withdrawal: the locks before it still count.
+  const index = path.join(w.artifacts, 'index.json');
+  listVersion(index, 'acceptance-lock', 2, 'run-0');
+  const data = JSON.parse(fs.readFileSync(index, 'utf8'));
+  data.artifacts.find((one) => one.type === 'acceptance-lock').versions
+    .find((one) => one.number === 2).withdrawn = true;
+  fs.writeFileSync(index, JSON.stringify(data));
+  const file = path.join(w.artifacts, 'build-plan.md');
+  changed(w, { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  const result = session(w)('check', 'build-plan', file);
+  assert.doesNotMatch(result.out, /record is out of date/);
+  assert.match(result.out, /Restore d-1 of build-plan.md as the newest version has it\./);
+});
+
 // allFenced returns the text of each code block of text, without the indent of its lines.
 function allFenced(text) {
   return [...text.matchAll(/^( *)```[a-z]*\n([\s\S]*?)\n *```/gm)].map((match) =>
