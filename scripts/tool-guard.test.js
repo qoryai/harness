@@ -5501,7 +5501,7 @@ test('a copy with the source path, or a glob through a link, reaches the step re
   fs.symlinkSync(artifacts, link);
   // The name rule finds no .step-reports in this source, so the copy rules read it.
   const glob = 'qory-artifacts/.step-report?';
-  for (const command of [`rsync -R ${glob} ${above}`, `rsync -aR ${glob}/ ${above}/`,
+  for (const command of [`rsync -R ${glob} ${above}`, `rsync -aR ${glob} ${above}`,
     `rsync --relative -a ${glob} ${above}`, `cp --parents ${glob}/x.json ${above}`,
     `cp -R --parents ${glob} ${above}`, `cp x ${link}/.step-report?/`,
     `cp -R src/. ${link}/.step*`, `mv x ${link}/.step-report?`, `rm -rf ${link}/.step*`,
@@ -5512,9 +5512,11 @@ test('a copy with the source path, or a glob through a link, reaches the step re
   fs.mkdirSync(path.join(artifacts, '.reports'));
   firstLine(call(`rm -rf ${link}/.report?`), 'Leave .reports/ to checks.cjs');
   // The same copies into a folder that is not above the artifact folder pass, as do copies
-  // with no such option and a copy of a named file through the link.
+  // with no such option, a copy of a named file through the link, and a copy that keeps the
+  // path into .qory/, which only the step reports read so.
   for (const command of [`rsync -R ${glob} /x`, `cp --parents ${glob}/x.json /x`,
-    `rsync -a src ${above}`, `cp -R src ${above}/`, `cp x ${link}/a.md`]) {
+    `rsync -a src ${above}`, `cp -R src ${above}/`, `cp x ${link}/a.md`,
+    'rsync -R src/a .qory/']) {
     assert.equal(call(command), null, command);
   }
 });
