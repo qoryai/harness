@@ -202,6 +202,16 @@ test('with no acceptance criteria, as on the fast track, no point is a criterion
   passes(check(changed((d) => { d.points.pop(); }), { types: none }));
 });
 
+test('a draft feedback.json may have up to the size_limit of process.yaml, 1 MiB', () => {
+  const text = JSON.stringify(CASE);
+  const padded = (size) =>
+    `${text.slice(0, -1)}${' '.repeat(size - 1 - Buffer.byteLength(text))}}\n`;
+  const size = /^Cut feedback\.json to at most 1024 KB\./;
+  const result = check(padded(300 * 1024));
+  assert.ok(!result.lines.some((line) => size.test(line)), result.out);
+  fails(check(padded(1024 * 1024 + 1)), size);
+});
+
 // ---- The words of a person -------------------------------------------------------------------
 
 test('the words of a quote pass the check of the text of a point', () => {
@@ -291,6 +301,28 @@ test('a question about one criterion has that criterion as about', () => {
   data.points[2].output = 'demo-scenarios';
   fails(check(data, { notes: [GD1, GD2] }),
     'Give point p3 the output acceptance-criteria and its item, or neither.');
+});
+
+test('two points with one question, or a question with an item and no output, fail', () => {
+  const notes = [GD1, GD2];
+  const twice = clone(ASKED);
+  twice.points.push({ ...ASK, id: 'p4' });
+  fails(check(twice, { notes }), 'Give point p4 a question of no other point.');
+  const bare = clone(ASKED);
+  bare.points[2].item = 'ac-2';
+  fails(check(bare, { notes }),
+    'Give point p3 the output acceptance-criteria and its item, or neither.');
+});
+
+test('the rule leaves out a question that the newest questions have', () => {
+  const old = { ...clone(Q5), context: 'It is not clear.', asked: { run: 1, at: AT } };
+  const root = store({ feedback: [{ data: ASKED }], questions: [{ data: { questions: [old] } }] });
+  const file = path.join(root, 'questions.json');
+  write(file, { questions: [old] });
+  passes(run(root, [], ['check', 'questions', file]));
+  write(file, { questions: [old, { ...old, id: 'q6' }] });
+  fails(run(root, [], ['check', 'questions', file]),
+    'Quote the person\'s words in the context of q6.');
 });
 
 test('a push of questions checks a question about a point with no feedback to read', () => {
@@ -422,8 +454,13 @@ test('feedback open leaves out an answer to a question, and lists a question wit
   assert.deepEqual(waiting.lines, ['Waiting for an answer: p3, q5', 'Open feedback: 0 sources; 0 ' +
     'questions not asked; 1 question with no answer. The next ids are p4 and q6.']);
   const ended = open(store(types(answered, { ...Q5, state: 'answered',
-    answer: { note: 'Both.', by: SAM, at: AT } })), [GD1, GD2]);
+    answer: { note: 'Both.', by: SAM, at: AT } })), [GD1, GD2, note(null, 'answer', 'Both.')]);
   assert.deepEqual([ended.status, ended.lines.length], [0, 1]);
+  // An earlier answer of a question, in its history, is left out too.
+  const again = { ...answered, answer: { option: Q5.options[1].title, by: SAM,
+    at: '2026-11-25T10:00:00Z' }, history: [answered.answer] };
+  const history = open(store(types(again, Q5)), notes);
+  assert.deepEqual(sourcesIn(history), []);
   // The check of feedback leaves out the answer too: it needs no source, and gets none.
   const answer = notes[2];
   const draft = (data) => {
