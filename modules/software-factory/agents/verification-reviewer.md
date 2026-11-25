@@ -67,10 +67,11 @@ the stage, as `judging-findings` lists, `reports` is the report folder, `suite_r
 it exists, is the path of the file with the suite result,
 `{tests, failed, skipped, output_tail}`, and `build_report`, when it exists, is the path of
 the file with the report of the build. `commit_folder` is the path of the read-only copy of
-the change at `commit`: read the change there, because the working folder is empty. The
-report goes to `<reports>/verification-reviewer.json`, not to the path that
-`reviewing-changes` gives. You get no summary from another session. You fetch no web page. A
-refused tool call stays refused. Read through no link.
+the change at `commit`. The working folder is the run's checkout, at the same commit; read
+the change in the read-only folder at `commit_folder`. The report goes to
+`<reports>/verification-reviewer.json`, not to the path that `reviewing-changes` gives. You
+get no summary from another session. You fetch no web page. A refused tool call stays
+refused. Read through no link.
 
 ## Stop conditions
 

@@ -256,21 +256,21 @@ are agents of the `verify-a-ticket` session, which starts them. They are no revi
 sessions that qory starts, and they read no `qory.review`. qory is to write
 `qory.review_session` into the `inputs.json` of the session, with `commit`, the pushed head
 of the change, `commit_folder`, the path of the read-only copy of the files of `commit`,
-where the agents read the change, because the working folder is empty, `diff`, the path of
-the diff, `previous_findings`, the path of the file with the earlier findings of the
-reviewers of the stage, which qory leaves out when the stage has none, `reports`, the report
-folder, `suite_result`, the path of the file with the suite result, which qory leaves out
-when Verify has no suite, and, when there is one, `build_report`, the path of the file with
-the report of the build. The prompt of each agent has only the path of the input file, so
-the prompt has no commit, diff or findings; the path of `inputs.json` itself comes from the
-prompt. Where a skill lists a value of `qory.review`, the agent reads the member of the same
-name in `qory.review_session`. Each agent writes one report to `<reports>/<agent>.json` in
-the review-report format, such as `<reports>/verification-reviewer.json`, and stops with no
-report when `commit`, `diff` or `reports` is missing from `qory.review_session`, or when
-`previous_findings` is set and its file cannot be read. With no `previous_findings`, the
-stage has no earlier finding of a reviewer, and it goes on. Each loads `reviewing-changes`,
-`judging-findings`, the skill of the agent, `reviewing-drafts` and `simple-communication`,
-lists the tools Read, Grep, Glob,
+where the agents read the change, while the working folder is the run's checkout at the
+same commit, `diff`, the path of the diff, `previous_findings`, the path of the file with
+the earlier findings of the reviewers of the stage, which qory leaves out when the stage has
+none, `reports`, the report folder, `suite_result`, the path of the file with the suite
+result, which qory leaves out when Verify has no suite, and, when there is one,
+`build_report`, the path of the file with the report of the build. The prompt of each agent
+has only the path of the input file, so the prompt has no commit, diff or findings; the path
+of `inputs.json` itself comes from the prompt. Where a skill lists a value of `qory.review`,
+the agent reads the member of the same name in `qory.review_session`. Each agent writes one
+report to `<reports>/<agent>.json` in the review-report format, such as
+`<reports>/verification-reviewer.json`, and stops with no report when `commit`, `diff` or
+`reports` is missing from `qory.review_session`, or when `previous_findings` is set and its
+file cannot be read. With no `previous_findings`, the stage has no earlier finding of a
+reviewer, and it goes on. Each loads `reviewing-changes`, `judging-findings`, the skill of
+the agent, `reviewing-drafts` and `simple-communication`, lists the tools Read, Grep, Glob,
 Skill and Write, and runs on the tier `thinking`, which the pattern `*-reviewer` of the tier
 table gives it. Each reads the newest versions of the types that it needs from the folder of
 `qory.start_artifacts`, as `checking-acceptance` does, and stops with no report when one

@@ -36,10 +36,11 @@ shows what the state says.
   read `<start>/demo-evidence/<name>/v<N>/<name>.json`.
 - The file at `qory.review_session.diff`, and the copy of the change, the read-only folder
   at `qory.review_session.commit_folder`: to read a locked check or the code that a
-  criterion names. The working folder is empty.
+  criterion names. The working folder is the run's checkout, at the same commit; read the
+  change in the read-only folder at `qory.review_session.commit_folder`.
 - The file at `qory.review_session.previous_findings`, when the member exists, as "Earlier
   findings" of `reviewing-changes` lists. The member is missing when the stage has no
-  finding of a reviewer, open or closed.
+  finding of a reviewer, open or closed by a run.
 
 The draft cannot be read when `/tmp/qory-artifacts/verification.json` does not exist, is a
 link, or is no JSON. A file of `<start>` cannot be read when `<start>/index.json` or its

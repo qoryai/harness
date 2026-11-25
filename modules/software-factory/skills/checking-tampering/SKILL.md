@@ -20,11 +20,12 @@ This review reads those two gaps in the diff.
 - The file at `qory.review_session.diff`: the lines that the change adds and removes. Read
   all of it.
 - The copy of the change: the read-only folder at `qory.review_session.commit_folder`, the
-  change at `qory.review_session.commit`. The working folder is empty. Search the copy with
-  Grep and Glob to trace what a locked command runs and what a locked file imports.
+  change at `qory.review_session.commit`. The working folder is the run's checkout, at the
+  same commit; read the change in the read-only folder. Search the copy with Grep and Glob
+  to trace what a locked command runs and what a locked file imports.
 - The file at `qory.review_session.previous_findings`, when the member exists, as "Earlier
   findings" of `reviewing-changes` lists. The member is missing when the stage has no
-  finding of a reviewer, open or closed.
+  finding of a reviewer, open or closed by a run.
 
 The review also reads the newest acceptance lock from `<start>`, the folder in
 `qory.start_artifacts` of the input file. When `qory.start_artifacts` is `""`, the run
