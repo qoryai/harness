@@ -10,6 +10,12 @@ stack: software
 process:
   schema: qory.process/v1
   machine: default
+  tracks:
+    - id: standard
+      name: Standard
+      description: >-
+        Shape writes a spec and acceptance criteria. Build then plans, tests and reviews
+        the change in up to 3 rounds.
   stages:
     - id: st_r79kph11eg
       name: Explore
@@ -24,7 +30,7 @@ process:
       outputs:
         - type: proposal
           required: true
-      gate: {kind: person, approvers: members}
+      gate: {kind: person, approvers: members, tracks: [standard]}
     - id: st_p9w5cvh311
       name: Shape
       description: >-

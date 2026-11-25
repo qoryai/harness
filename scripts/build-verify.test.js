@@ -581,6 +581,23 @@ test('process.yaml lists the eight custom types of Build and Verify last, with t
   }
 });
 
+// Qory Apiary offers a track at a gate only when the document declares it, and returns 422
+// for a verdict with another track.
+// shortcut: only `standard` is declared; add the fast track's id with its workflow.
+test('process.yaml declares the track standard, and Explore\'s gate offers it alone', () => {
+  const yaml = fs.readFileSync(PROCESS, 'utf8');
+  const declared = /\n {2}tracks:\n((?: {4}.*\n| {6}.*\n)+) {2}stages:\n/.exec(yaml);
+  assert.ok(declared, 'tracks sits between machine and stages');
+  assert.equal(declared[1].replace(/\s+/g, ' ').trim(),
+    '- id: standard name: Standard description: >- Shape writes a spec and acceptance ' +
+    'criteria. Build then plans, tests and reviews the change in up to 3 rounds.');
+  const gates = yaml.split('\n').filter((line) => /^ {6}gate: /.test(line));
+  assert.deepEqual(gates, [
+    '      gate: {kind: person, approvers: members, tracks: [standard]}',
+    ...Array(4).fill('      gate: {kind: person, approvers: members}'),
+  ]);
+});
+
 // The draft check of build-ledger refuses what the push refuses, by the size_limit that
 // lib/template.cjs reads from process.yaml. verification, a standard type, has the default
 // draft limit, as acceptance-criteria has.
