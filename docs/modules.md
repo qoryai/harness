@@ -336,8 +336,13 @@ records the verdict.
 ### The workflow capture-demos
 
 `workflow-capture-demos` films the demo scripts of the approved demo scenarios on the
-checkout of the work, with the access `write` and the plan `build-plan`: the stack entry is
-`capture-demos: {tier: light, access: write, plan: build-plan}`. It starts only
+checkout of the work, with the access `write-no-push` and no `plan`: the stack entry is
+`capture-demos: {tier: light, access: write-no-push}`. qory refuses a `plan` on an entry
+that is not `write`, so `film` and `preflight` read the build plan from the folder of
+`qory.start_artifacts` of the input file, whose `build-plan` is the approved version; with
+no `build-plan` there, `preflight` exits 3 with the cause "the build plan is missing". The
+session pushes `demo-video`, `screenshot` and `demo-evidence`, and writes no outbox file and
+no commit. It starts only
 `demo-reviewer`, never the role `demo-author`, and loads no `scripting-demos`, so a stack
 without `browser-screens` composes it. Its steps, in order:
 

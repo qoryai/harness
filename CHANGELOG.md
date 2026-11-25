@@ -108,8 +108,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   cause outside the repository ends with `escalate`. A rerun films only the scenarios with
   no `demo-evidence` for the commit and the script version, and `film todo` lists the
   `demo-evidence`, `demo-video` and `screenshot` of removed scenarios, which the session
-  withdraws. The stack entry is `capture-demos: {tier: light, access: write, plan:
-  build-plan}`. The workflow never starts `demo-author`, so a stack without `browser-screens`
+  withdraws. The stack entry is `capture-demos: {tier: light, access: write-no-push}`, with no
+  `plan`: `film` and `preflight` read the approved `build-plan` from `qory.start_artifacts`. The workflow never starts `demo-author`, so a stack without `browser-screens`
   composes it; `scripts/check.sh` uses a test workflow `fixture-demos` for the compose
   failure of a role with no agent.
 - One `demo-video` fits one qory version. `film` encodes with `-crf 28` and a bitrate cap

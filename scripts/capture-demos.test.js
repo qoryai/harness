@@ -729,3 +729,53 @@ test('film record reads the lines that demo-reviewer writes', () => {
   assert.deepEqual([here.written().class, here.written().steps[1].finding],
     ['script', 'The page shows no date.']);
 });
+
+// ---- the build plan of a session with no plan --------------------------------------------------
+
+// A runner for preflight that starts no browser and has no sign-in to replay.
+const PREFLIGHT_RUNNER = path.join(tmp, 'preflight-runner.cjs');
+fs.writeFileSync(PREFLIGHT_RUNNER, `const fs = require('fs');
+const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
+const result = { app: { started: true, ran: true, why: null }, signIns: [], runs: [],
+  unfinished: null };
+fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' });
+`);
+
+// inputsOf writes the inputs.json of a run whose start_artifacts is folder, and returns its path.
+function inputsOf(here, folder) {
+  const file = path.join(here.dir, 'inputs.json');
+  fs.writeFileSync(file, JSON.stringify({ qory: { harness_extensions: {},
+    start_commits: [{ path: here.dir, commit: committed(here.dir) }],
+    start_artifacts: folder } }));
+  return file;
+}
+
+test('preflight and film read the build plan of qory.start_artifacts, with no --artifacts', () => {
+  const ffmpeg = sized(100);
+  const here = checkout([script('scenario-1')]);
+  here.deps.preflight = { ...here.deps.preflight, runner: FAKE_RUNNER, ffmpegs: [ffmpeg.file],
+    filmLimit: MIB };
+  // The snapshot has the approved version of the build plan only.
+  const inputs = inputsOf(here, here.plan);
+  const filmed = call(['film', 'scenario-1', '--inputs', inputs], here.deps);
+  assert.equal(filmed.status, 0, filmed.out + filmed.err);
+  const checked = call(['preflight', '--inputs', inputs], { ...here.deps,
+    preflight: { ...here.deps.preflight, runner: PREFLIGHT_RUNNER } });
+  assert.equal(checked.status, 0, checked.out + checked.err);
+});
+
+test('preflight and film on a snapshot with no build plan exit 3 with the cause that the build plan is missing', () => {
+  const ffmpeg = sized(100);
+  const here = checkout([script('scenario-1')]);
+  here.deps.preflight = { ...here.deps.preflight, runner: FAKE_RUNNER, ffmpegs: [ffmpeg.file] };
+  const empty = next('snapshot');
+  fs.mkdirSync(empty);
+  fs.writeFileSync(path.join(empty, 'index.json'), JSON.stringify({ artifacts: [] }));
+  const inputs = inputsOf(here, empty);
+  const checked = call(['preflight', '--inputs', inputs], here.deps);
+  assert.equal(checked.status, 3, checked.out + checked.err);
+  assert.match(checked.out, /^ {2}Cause: the build plan is missing\.$/m);
+  const filmed = call(['film', 'scenario-1', '--inputs', inputs], here.deps);
+  assert.equal(filmed.status, 3, filmed.out + filmed.err);
+  assert.equal(ffmpeg.calls().length, 0);
+});
