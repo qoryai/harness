@@ -639,6 +639,7 @@ test('feedback amended fails the text outside the criteria: the summary, key ord
 
 test('feedback amended: an item that stays needs --same, and --same keeps every byte', () => {
   fails(onCase(CRITERIA), 'Change ac-2 in acceptance-criteria.json, or add --same p2.');
+  fails(onCase(CRITERIA), '  The draft has ac-2 as version 1 has it, and p2 changes ac-2.');
   // White space alone is no change.
   fails(onCase(edit(CRITERIA, ['{"id": "ac-2", ', '{"id": "ac-2",  '])),
     'Change ac-2 in acceptance-criteria.json, or add --same p2.');
@@ -649,6 +650,25 @@ test('feedback amended: an item that stays needs --same, and --same keeps every 
   const none = run(store({ feedback: [{ data: CASE }] }), [],
     ['feedback', 'amended', 'acceptance-criteria', '--decision', 'gd_9']);
   fails(none, 'Give --decision a source that feedback points prints for acceptance-criteria.');
+});
+
+test('feedback amended: a draft over 256 KB fails with the fix first, and a deep nesting is read', () => {
+  const most = 256 * 1024;
+  const padded = (size) => `${CRITERIA.trimEnd()}${' '.repeat(size - 1 -
+    Buffer.byteLength(CRITERIA.trimEnd()))}\n`;
+  const long = onCase(padded(most + 1));
+  assert.equal(long.status, 1, long.out + long.err);
+  assert.deepEqual(long.lines, ['Cut acceptance-criteria.json to at most 256 KB.',
+    `  acceptance-criteria.json has ${most + 1} bytes.`,
+    'Checked nothing of acceptance-criteria.json.']);
+  // A draft of 256 KB is read: it changes no criterion and the white space after them.
+  assert.deepEqual(findingsOf(onCase(padded(most))),
+    ['Change ac-2 in acceptance-criteria.json, or add --same p2.',
+      'Restore the text outside the criteria in acceptance-criteria.json.']);
+  // A value nested 100,000 deep in the changed criterion is read with no stack overflow.
+  const depth = 100000;
+  passes(onCase(edit(CRITERIA, [AC2, `${AC2_NEW}, "deep": ${'['.repeat(depth)}` +
+    `${']'.repeat(depth)}`])));
 });
 
 test('feedback amended: a removed criterion keeps its id, text and check, and adds removed', () => {

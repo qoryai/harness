@@ -16,8 +16,8 @@ const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
 
 module.exports = (lib) => {
-  const { Missing, criteria, criteriaDiff, isObject, liveIn, parseJson, plural, readFile,
-    storedFeedback } = lib;
+  const { MAX_BYTES, Missing, criteria, criteriaDiff, isObject, liveIn, parseJson, plural,
+    readFile, storedFeedback } = lib;
 
   const FILES = { 'acceptance-criteria': 'acceptance-criteria.json',
     'demo-scenarios': 'demo-scenarios.md' };
@@ -157,7 +157,9 @@ module.exports = (lib) => {
   // ---- The parts of a file: its items, the text between them, and the rest --------------
 
   // A reader of the places of a JSON text that JSON.parse takes: skip returns the place after
-  // the white space at at, and end the place after the value that starts at at.
+  // the white space at at, and end the place after the value that starts at at. end counts
+  // the depth of the brackets in one loop, with no call for a nested value, so that a deep
+  // nesting cannot exceed the call stack.
   const LITERAL = /-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null/y;
   function skip(text, at) {
     let place = at;
@@ -165,25 +167,28 @@ module.exports = (lib) => {
     return place;
   }
   function end(text, at) {
-    const first = text[at];
-    if (first === '"') {
-      let place = at + 1;
-      while (text[place] !== '"') place += text[place] === '\\' ? 2 : 1;
-      return place + 1;
-    }
-    if (first === '{' || first === '[') {
-      const close = first === '{' ? '}' : ']';
-      let place = skip(text, at + 1);
-      if (text[place] === close) return place + 1;
-      for (;;) {
-        if (first === '{') place = skip(text, skip(text, end(text, place)) + 1);
-        place = skip(text, end(text, place));
-        if (text[place] === close) return place + 1;
-        place = skip(text, place + 1);
+    let place = at;
+    let depth = 0;
+    do {
+      const first = text[place];
+      if (first === '"') {
+        place += 1;
+        while (text[place] !== '"') place += text[place] === '\\' ? 2 : 1;
+        place += 1;
+      } else if (first === '{' || first === '[') {
+        depth += 1;
+        place += 1;
+      } else if (first === '}' || first === ']') {
+        depth -= 1;
+        place += 1;
+      } else if (' \t\n\r,:'.includes(first)) {
+        place += 1;
+      } else {
+        LITERAL.lastIndex = place;
+        place += LITERAL.exec(text)[0].length;
       }
-    }
-    LITERAL.lastIndex = at;
-    return at + LITERAL.exec(text)[0].length;
+    } while (depth > 0);
+    return place;
   }
 
   // jsonParts returns the parts of an acceptance-criteria.json text: the entries of its last
@@ -279,8 +284,13 @@ module.exports = (lib) => {
       return { findings: [], last: `Checked nothing of ${file}: ${output} has no version to ` +
         'compare the draft with.' };
     }
-    const top = path.join(context.root, file);
-    const draftText = readFile(lib.draftFile('check', context.root, top), file);
+    const real = lib.draftFile('check', context.root, path.join(context.root, file));
+    const size = fs.statSync(real).size;
+    if (size > MAX_BYTES) {
+      return { findings: [`Cut ${file} to at most ${MAX_BYTES / 1024} KB.\n${file} has ` +
+        `${size} bytes.`], last: `Checked nothing of ${file}.` };
+    }
+    const draftText = readFile(real, file);
     const read = output === 'acceptance-criteria' ? jsonParts : markdownParts;
     const before = read(rawVersion(context, output, number), `${output} version ${number}`);
     const draft = read(draftText, file);
@@ -322,8 +332,8 @@ module.exports = (lib) => {
       }
       if (isDeepStrictEqual(now.value, old.value)) {
         findings.push(`Change ${old.id} in ${file}, or add --same ${open[0].id}.\n` +
-          `${open[0].id} asks for a change to it, and the draft has it as version ${number} ` +
-          'has it.');
+          `The draft has ${old.id} as version ${number} has it, and ${open[0].id} changes ` +
+          `${old.id}.`);
         return;
       }
       if (now.removed && !old.removed) removedKept(findings, old, now, number);

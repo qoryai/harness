@@ -4686,7 +4686,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   a removed scenario keeps its heading. An item that `--same` names keeps every byte. It
   exits with 1 for each finding, as "Restore ac-3 in acceptance-criteria.json." or "Change
   ac-2 in acceptance-criteria.json, or add --same p2.", and with 0 and the line "Checked
-  nothing" when the output has no version.
+  nothing" when the output has no version. For a draft over 256 KB, it exits with 1 and the
+  finding "Cut acceptance-criteria.json to at most 256 KB." before it reads the draft.
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
