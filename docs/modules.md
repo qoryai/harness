@@ -111,7 +111,8 @@ qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
 `explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
 `plan-the-build`, `review-changes` and `verify-a-ticket` run on `thinking`, and
 `make-mockups`, `write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on
-`balanced`.
+`balanced`, and `capture-demos` on `light`: its verbs film, encode and record, and
+`demo-reviewer`, which runs on `balanced`, judges the frames.
 Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
 reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
 a write entry with no `plan: build-plan`.
@@ -331,6 +332,65 @@ rule 13 read `review_group` of the stack entry.
 follows only the text of the skill, and nothing checks the `--reviewers` list against the
 group `verify-reviewers`. The replacement is a verb that runs the round, reads the matrix and
 records the verdict.
+
+### The workflow capture-demos
+
+`workflow-capture-demos` films the demo scripts of the approved demo scenarios on the
+checkout of the work, with the access `write` and the plan `build-plan`: the stack entry is
+`capture-demos: {tier: light, access: write, plan: build-plan}`. It starts only
+`demo-reviewer`, never the role `demo-author`, and loads no `scripting-demos`, so a stack
+without `browser-screens` composes it. Its steps, in order:
+
+1. It pulls, runs `work-item show`, and runs `film todo`, which prints the scenarios to film
+   and the artifacts to withdraw. A scenario is to film when the approved demo scenarios have
+   it, it has a demo script that counts, and it has no `demo-evidence` for the commit of the
+   checkout and that version of the script, so a rerun films only the scenarios that lack a
+   verdict. For each artifact of a removed scenario, it runs `qory artifact push <type>
+   --name <id> --withdraw` for `demo-evidence`, `demo-video` and `screenshot`.
+2. It runs `preflight`, then, for each scenario: `film <id>`, `film recode <id>` when the
+   first call exits 4, `film frames <id>` for a film, and starts `demo-reviewer` on the
+   frames. The report has one line `Step <N>:` for each step and, for a failed step, a
+   class: `product` (the app shows other than the expected result), `script` (an action of
+   the script went wrong) or `setup` (the app was not in the state that the scenario starts
+   from).
+3. When the evidence is `pictures` and the report has the line `Needs film:`, it runs `film
+   <id> --film` and reviews the film. The evidence `demo-evidence` then has `planned:
+   pictures` and `evidence: film`.
+4. It pushes `demo-video` or `screenshot`, takes the version that the push printed, runs
+   `film record <id> --review <report> --media <version>`, checks the file and pushes
+   `demo-evidence`. A scenario that has no film, because the call failed in a step or the
+   film is over the size limit after both encodes, is recorded with `film record <id> --class
+   <class> --cause <text>`: the evidence is `none`, the verdict is `failed`, the class is
+   `script`, and the cause is the `finding` of the failed step.
+5. A setup fault, from `preflight`, a call of `film` or a report with the class `setup`, is
+   retried once in the run. When it fails again, the session records the scenario with the
+   class `setup`, runs `run verdict changes-requested` with no point and ends with a line that
+   lists the scenarios with no film, the failed step and the repair. A cause that no change
+   to the repository repairs, such as a dev container with no browser or no ffmpeg, ends
+   with `run verdict escalate` and one `run_again` point whose `fix` is the person's action.
+6. Otherwise it records `passed`, also when a scenario failed with the class `product` or
+   `script`: that failure is a fact of the `demo-evidence` that Verify reads.
+
+`demo-reviewer` has the tools Read, Grep, Glob and Skill, so it writes nothing: the session
+saves its text as `.reports/demo-reviewer-<n>.md`, and `film record` reads the step lines
+of that file. It runs on the tier `balanced`. The module does not list it under
+`provides.agents`, because compose refuses a role name that an entry of the module has.
+
+The size of a film. qory rejects a version when the files, each as base64, and a 16 KiB
+envelope are over 32 MiB, about 24 MiB of files. The first encode (pass 1) uses
+`-crf 28 -maxrate R -bufsize 2R`, where `R` is `min(1500, floor(0.8 x 25,153,536 x 8 /
+1000 / seconds))` kbit/s of the film: 300 for a film of 535 s, the longest that one call
+records, and 1,500 for a film under about 107 s. With a film that is still over the
+limit, `film` exits 4, keeps the frames and prints "Run film recode <id>."; pass 2 uses
+`-crf 32`, half of `R` and 960 x 540 px. A film that is over the limit after pass 2 exits 1
+and keeps nothing. The measured sizes of the largest scenario a script allows, 8 steps and
+waits that fill the film to 586 s, are at most 25.8 MiB encoded after pass 1 and 13.0 MiB after
+pass 2, of 32 MiB. The cap lowers the quality for a long, busy film: text stays readable in
+a film of a still page, a ticker and a scroll, and can be unreadable in a film in which
+the whole frame changes at every frame, such as random full-frame motion. `shortcut:` the
+first encode runs under a budget of 35 s, measured locally at 6 to 59 s for 28,000 frames,
+and no measurement of the run image exists; replace the budget when the run image measures
+slower.
 
 ## Agents
 
@@ -3915,6 +3975,20 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     rule of `demo check`, fails the step, whatever its origin. The session pushes the files
     of a scenario with `demo-video` (`<id>.mp4` and `<id>.vtt`) or `screenshot`
     (`<id>-step-<N>.png`), as the section "Film" of `running-checks` lists.
+    With `--film`, a scenario whose script has the evidence `pictures` is filmed too. The
+    other forms of `film` take no `--film`.
+  - `film recode <scenario>` runs pass 2 on the frames that `film <scenario>` kept after
+    an exit 4. It exits 3 when no frames are kept, or when under 20 s of the 585 s of the
+    call are left for ffmpeg, and then keeps the frames.
+  - `film frames <scenario>` writes `.film/<scenario>/frames/step-<N>-start.png` and
+    `step-<N>-reached.png` from the film, for `demo-reviewer`.
+  - `film todo` prints "To film: <ids>." and "To withdraw: <type> <id>, ....".
+  - `film record <scenario> --review <file> --media <N>` or `film record <scenario> --class
+    <class> --cause <text> [--step <N>]` writes `<scenario>.json`, the demo evidence, for
+    the commit of the checkout and the newest demo script that counts. The first form reads
+    the lines `Step <N>: passed`, `Step <N>: failed: <finding>` and `Step <N>: not-reached`
+    and the line `Class: <class>` of the report of `demo-reviewer`, and gives each step of a
+    film two frame times, the start of its cue and a frame before its end.
   - `film pages <path>...` takes pictures of the pages that the paths open, for the two
     screen reviewers: `.film/pages/pages-<N>-<width>.png` for the Nth path at 360, 768 and
     1280 px, each taken after the page loads. A path starts with `/` and is a page under the
@@ -4798,10 +4872,12 @@ and `workflow-implement-changes` writes no demo script. When approved demo scena
 scenario anyway, such as from a run in a stack that had the module, `demo check` exits 1
 with the fix "Add the module browser-screens to the stack, then run another round." A
 workflow that starts the role in a stack without the module fails the compose with "Add a
-module that fills agents/demo-author, or drop capture-demos from the workflows and process."
-`scripts/check.sh` composes a copy of this repository for each of these cases: no module and
-no `capture-demos`, no module and a skill that starts the role, and the module with that
-skill.
+module that fills agents/demo-author, or drop <workflow> from the workflows and process."
+The workflow `capture-demos` of `software-factory` starts no `demo-author`, so it composes
+in a stack without the module. `scripts/check.sh` composes a copy of this repository for
+each of these cases, with a test workflow `fixture-demos` whose skill starts the role: no
+module and no `fixture-demos`, no module and `fixture-demos`, and the module with
+`fixture-demos`.
 
 ## The harness-authoring module
 

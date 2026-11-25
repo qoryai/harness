@@ -96,6 +96,37 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   mount of the home in a walled run is the main control. Every other rule follows the
   access of the session, as before. In every other session the guard denies the write tools
   to a `-reviewer` agent, as before.
+- The workflow `capture-demos` of `software-factory`, which films each approved demo
+  scenario that has no `demo-evidence` for the commit of the work. The session runs
+  `preflight`, then `film <scenario>` for each scenario, starts the new agent `demo-reviewer`
+  (tier `balanced`, skill `checking-demos`) on two frames of each step, pushes the
+  `demo-video` or `screenshot`, and writes and pushes the `demo-evidence` with `film record`.
+  The reviewer gives each step `passed`, `failed` or `not-reached`, and sorts a failed step
+  into `product`, `script` or `setup`. A scenario of the evidence `pictures` is filmed with
+  `film <scenario> --film` when a step shows a change over time. A setup fault is retried
+  once, then ends the session with `changes-requested` and the scenarios with no film; a
+  cause outside the repository ends with `escalate`. A rerun films only the scenarios with
+  no `demo-evidence` for the commit and the script version, and `film todo` lists the
+  `demo-evidence`, `demo-video` and `screenshot` of removed scenarios, which the session
+  withdraws. The stack entry is `capture-demos: {tier: light, access: write, plan:
+  build-plan}`. The workflow never starts `demo-author`, so a stack without `browser-screens`
+  composes it; `scripts/check.sh` uses a test workflow `fixture-demos` for the compose
+  failure of a role with no agent.
+- One `demo-video` fits one qory version. `film` encodes with `-crf 28` and a bitrate cap
+  `min(1500, floor(0.8 x 25,153,536 x 8 / 1000 / seconds))` kbit/s, 300 for a film of 535 s.
+  A film that is still over 32 MiB as qory counts it (base64 of the files and 16 KiB) exits 4
+  and keeps its frames, and `film recode <scenario>` encodes them again at `-crf 32`, half the
+  cap and 960 x 540 px. A film that is over the limit after both encodes exits 1 with "Shorten
+  the waits of <scenario> or split it in Shape.", and the session records the scenario as
+  failed with the class `script`. The text of a film of random full-frame motion can be
+  unreadable at the cap. `film frames <scenario>` takes two pictures of each step for the
+  reviewer, `film todo` lists what to film and withdraw, and `film record <scenario>` writes
+  the `demo-evidence` file.
+- The push check of `demo-script` reads the newest `build-ledger`. It refuses a script that
+  differs from the one that the newest done step `script:<id>` froze, unless the ledger has
+  the step of the next correction, and a change after 2 corrections. `demo check` treats a
+  frozen script that the newest `demo-evidence` faults with the class `script` as a fault to
+  correct.
 - The module `browser-screens`, which the `software` stack lists after `software-factory`.
   It ships the agent `browser-demo-author`, on the tier `balanced`, which fills the role
   `demo-author`, and the skill `scripting-demos`. `workflow-implement-changes` loads that
@@ -107,7 +138,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   No entry of `software-factory` references the role `demo-author`, so a stack without the
   module composes, `implement-changes` included. A compose of a stack whose workflow starts
   that role with no module to fill it fails with qory's fix "Add a module that fills
-  agents/demo-author, or drop capture-demos from the workflows and process."
+  agents/demo-author, or drop <workflow> from the workflows and process."
 - `checks.cjs demo surface`, a verb of `running-a-software-workflow` that prints whether the
   composed harness has the skill `scripting-demos`, in the plugin folder or, when that
   folder is a module of the harness home, in a module beside it. `workflow-shape-a-ticket`,
