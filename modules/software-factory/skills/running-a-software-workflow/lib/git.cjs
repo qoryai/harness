@@ -118,7 +118,8 @@ const OWNER = ['Run the check as the user that owns the checkout.', 'git exits w
   'ownership" in a checkout of another user, and the check reads no safe.directory setting.'];
 
 // ok runs git and returns its stdout, or throws Missing with fix when it fails. The line
-// has the first line of git's error output, unless that line has a key or a secret value
+// has the first line of git's error output that is no hint, unless that line has a key or a secret
+// value
 // of the environment: the error lines of git contain file names. A checkout of another
 // user gets OWNER.
 function ok(Missing, cwd, args, fix, options = {}) {
@@ -127,7 +128,9 @@ function ok(Missing, cwd, args, fix, options = {}) {
     if (!ran.error && /detected dubious ownership/.test(String(ran.stderr || ''))) {
       throw new Missing(OWNER[0], [OWNER[1]]);
     }
-    let why = ran.error ? ran.error.message : String(ran.stderr || '').split('\n')[0];
+    const lines = String(ran.stderr || '').split('\n');
+    let why = ran.error ? ran.error.message : lines.find((line) => !line.startsWith('hint:')) ||
+      lines[0];
     if (secrets.scanLine(why, secrets.secretValues(options.env))) {
       why = 'its error line has a key, so the line is left out';
     }
@@ -363,8 +366,9 @@ function emptyBlob(Missing, cwd, env) {
 // docs/run.md, "Changes left by run"), so the runners count no such path.
 const isQory = (file) => file === '.qory' || file.startsWith('.qory/');
 
-// checkout returns { top, commit, changed, untracked, ignores, excluded } of the checkout of
-// io: changed lists each changed path that is not under .qory, ignores is the set of the
+// checkout returns { top, commit, changed, qory, untracked, ignores, excluded } of the checkout of
+// io: changed lists each changed path that is not under .qory, qory each tracked path under .qory
+// that has a change, ignores is the set of the
 // untracked .gitignore files that git ignores, and excluded is what excluded returns.
 function checkout(Missing, io) {
   const dir = top(Missing, io.cwd, io.env);
@@ -373,6 +377,7 @@ function checkout(Missing, io) {
     top: dir,
     commit: head(dir, io.env),
     changed: found.paths.filter((file) => !isQory(file)),
+    qory: found.paths.filter((file) => isQory(file) && !found.untracked.has(file)),
     untracked: found.untracked,
     ignores: found.ignores,
     excluded: excluded(Missing, dir, io.env),

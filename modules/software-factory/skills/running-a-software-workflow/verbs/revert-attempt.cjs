@@ -6,9 +6,10 @@
 // checks no ancestry: a checkout with the base at depth one has no history to check it against.
 // It stops when the checkout already has a path that the base adds, whatever the case or the
 // normalisation rules of the file system, because the reset would overwrite it.
-// It stops at a path that is a submodule in HEAD or in the base, and at a path under .qory that
-// differs between them and has a change in the checkout.
+// It stops at a path that is a submodule in HEAD or in the base, at a tracked path under .qory
+// that has a change in the checkout, and during a rebase.
 // shortcut: a revert across a submodule stops, replace it when a run needs submodules.
+// shortcut: a clean filter can hide a change from status, replace it when a run uses filters.
 'use strict';
 
 const fs = require('node:fs');
@@ -43,7 +44,7 @@ module.exports = (lib) => {
 
   // differing returns each path that HEAD and the commit have different, as { old, now, status,
   // path, parts }: the modes of the two sides, the status letter of git, the path and its parts,
-  // all as bytes, since a name needs not be UTF-8.
+  // all as bytes, since a name need not be UTF-8.
   function differing(io, top, head, commit) {
     const out = cut(git.ok(Missing, top, ['diff-tree', '-r', '--no-renames', '-z', head, commit],
       'Run revert-attempt again', { env: io.env, raw: true }), 0);
@@ -55,25 +56,13 @@ module.exports = (lib) => {
     return found;
   }
 
-  // changedUnderQory returns each path of changes that is under .qory, that HEAD has and that has
-  // a change in the checkout: changed leaves .qory out, and reset would overwrite the change.
-  function changedUnderQory(io, top, changes) {
-    const under = changes.filter((one) => one.old !== '000000' && git.isQory(one.path.toString()));
-    if (!under.length) return [];
-    const listed = git.ok(Missing, top, ['ls-files', '--modified', '-z'],
-      'Run revert-attempt again', { env: io.env, raw: true });
-    const modified = new Set(cut(listed, 0).map((one) => one.toString('latin1')));
-    return under.filter((one) => modified.has(one.path.toString('latin1')))
-      .map((one) => one.path.toString());
-  }
-
   // overwritten returns each path that the commit adds, where the checkout already has a file, a
   // link or a folder with an untracked or ignored entry, under a name that the file system treats
   // as that path, or a parent of it that is no folder or is a nested repository, and a path that
-  // cannot be read. The file system decides what exists, not the spelling of the path: it may fold
-  // case or normalise names. The checkout is clean, so what exists there and that HEAD lacks is
-  // not tracked, unless reset removes it: a tracked file that the commit lacks, found by its device
-  // and inode.
+  // cannot be read. A lookup on the file system finds what exists, not a comparison of spellings:
+  // it may fold case or normalise names. The checkout is clean, so what exists there and that HEAD
+  // lacks is not tracked, unless reset removes it: a tracked file that the commit lacks, found by
+  // its device and inode.
   function overwritten(top, changes) {
     const added = changes.filter((one) => one.status === 'A');
     if (!added.length) return [];
@@ -83,7 +72,8 @@ module.exports = (lib) => {
       try {
         return fs.lstatSync(abs(parts), { bigint: true });
       } catch (error) {
-        if (error.code === 'ENOENT') return null;
+        // A name over the limit of the file system cannot exist there, so nothing is in the way.
+        if (error.code === 'ENOENT' || error.code === 'ENAMETOOLONG') return null;
         throw error;
       }
     };
@@ -109,7 +99,7 @@ module.exports = (lib) => {
       try {
         return taken(one.parts);
       } catch (error) {
-        // A folder that no one may read or search holds what the revert cannot judge.
+        // A folder that no one may read or search cannot be checked, so it counts as taken.
         if (error.code === 'EACCES' || error.code === 'EPERM') return true;
         throw error;
       }
@@ -127,7 +117,16 @@ module.exports = (lib) => {
   function run(io, flag, [base]) {
     const work = git.checkout(Missing, io);
     if (work.excluded) throw new Missing(work.excluded);
-    if (work.changed.length) uncommitted(io, work.changed);
+    // A commit during a rebase would land on the detached HEAD of the rebase.
+    for (const state of ['rebase-merge', 'rebase-apply']) {
+      const folder = git.ok(Missing, work.top, ['rev-parse', '--git-path', state],
+        'Run revert-attempt again', { env: io.env }).trim();
+      if (fs.existsSync(path.resolve(work.top, folder))) {
+        throw new Missing('End the rebase with git rebase --continue or --abort, then run again.',
+          [`The git folder has ${state}, so the rebase is not done.`]);
+      }
+    }
+    if (work.changed.length || work.qory.length) uncommitted(io, [...work.changed, ...work.qory]);
     if (!work.commit) {
       throw new Missing('Commit once on this branch, then run revert-attempt again.',
         ['HEAD has no commit, so there is no history to add the revert to.']);
@@ -154,8 +153,6 @@ module.exports = (lib) => {
         [`${quote(secrets.shown(modules[0].path.toString(), values))} is a submodule in HEAD or ` +
           'in the base.']);
     }
-    const unsaved = changedUnderQory(io, work.top, changes);
-    if (unsaved.length) uncommitted(io, unsaved);
     const lost = overwritten(work.top, changes);
     if (lost.length) {
       const values = secrets.secretValues(io.env);

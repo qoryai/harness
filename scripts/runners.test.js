@@ -1580,8 +1580,9 @@ const TAKE = 'Take each untracked or ignored file that the base has out of the c
 const BAD_NAME = Buffer.from([0x62, 0xff, 0x63]);
 
 // withBadName returns a checkout that HEAD has, and a commit on it that adds the file with the
-// name BAD_NAME, built with git plumbing: that name is no UTF-8, and a file system may refuse it.
-function withBadName() {
+// name, BAD_NAME by default, built with git plumbing: that name is no UTF-8, and a file system may
+// refuse it.
+function withBadName(name = BAD_NAME) {
   const dir = checkout();
   write(dir, '.gitignore', '.qory/\nb*\n');
   sh(dir, 'add', '-A');
@@ -1596,7 +1597,7 @@ function withBadName() {
   };
   plumbing('', 'read-tree', 'HEAD');
   const blob = plumbing('data\n', 'hash-object', '-w', '--stdin');
-  plumbing(Buffer.concat([Buffer.from(`100644 ${blob}\t`), BAD_NAME, Buffer.from('\n')]),
+  plumbing(Buffer.concat([Buffer.from(`100644 ${blob}\t`), name, Buffer.from('\n')]),
     'update-index', '--index-info');
   const tree = plumbing('', 'write-tree');
   return { dir, base: plumbing('', 'commit-tree', tree, '-p', 'HEAD', '-m', 'adds a file') };
@@ -1613,7 +1614,7 @@ function holdsBadName(dir) {
   }
 }
 
-test('revert-attempt: a base that adds a name that is not UTF-8 stops no revert when the checkout lacks it', () => {
+test('revert-attempt: a base that adds a name that is not UTF-8 does not stop the revert when the checkout lacks that name', () => {
   const { dir, base } = withBadName();
   const got = call(dir, ['revert-attempt', '--base', base]);
   assert.notEqual(got.lines[0], TAKE);
@@ -1633,6 +1634,93 @@ test('revert-attempt: a name that is not UTF-8 that the checkout has stops it', 
   const got = call(dir, ['revert-attempt', '--base', base]);
   assert.equal(got.status, 3, got.out + got.err);
   assert.equal(got.lines[0], TAKE);
+});
+
+test('revert-attempt: a name over the limit of the file system exits 3 with git\'s error, and HEAD stays', () => {
+  // No file with such a name can exist, so the guard finds nothing in the way; reset then fails.
+  const { dir, base } = withBadName(Buffer.from('b'.repeat(300)));
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  const got = call(dir, ['revert-attempt', '--base', base]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], 'Run revert-attempt again.');
+  assert.match(got.lines[1], /^ {2}git reset failed: /);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('revert-attempt: a rebase in progress stops it, and HEAD stays', () => {
+  const { dir, start, head } = attempted();
+  for (const state of ['rebase-merge', 'rebase-apply']) {
+    const folder = path.resolve(dir, sh(dir, 'rev-parse', '--git-path', state));
+    fs.mkdirSync(folder);
+    const got = call(dir, ['revert-attempt', '--base', start]);
+    assert.equal(got.status, 3, got.out + got.err);
+    assert.equal(got.lines[0], 'End the rebase with git rebase --continue or --abort, then run again.');
+    assert.equal(got.lines[1], `  The git folder has ${state}, so the rebase is not done.`);
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+    fs.rmdirSync(folder);
+  }
+  assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
+});
+
+test('revert-attempt: the line of a failed reset is the first line of git that is no hint', () => {
+  const { dir, start, head } = attempted();
+  // A git that prints a hint and then the error for reset, and is the real git otherwise.
+  const real = childProcess.spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
+  const bin = path.join(tmp, `shim-${count}`);
+  write(bin, 'git', `#!/bin/sh
+for each in "$@"; do
+  if [ "$each" = reset ]; then
+    echo 'hint: Support for <GIT_DIR>/info/grafts is deprecated' >&2
+    echo "error: Entry 'src/a.js' not uptodate. Cannot merge." >&2
+    echo 'fatal: Could not reset index file to revision.' >&2
+    exit 128
+  fi
+done
+exec ${real} "$@"
+`);
+  fs.chmodSync(path.join(bin, 'git'), 0o755);
+  const got = call(dir, ['revert-attempt', '--base', start], { env: { PATH: `${bin}:${process.env.PATH}` } });
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], 'Run revert-attempt again.');
+  assert.equal(got.lines[1], "  git reset failed: error: Entry 'src/a.js' not uptodate. Cannot merge.");
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('revert-attempt: a tracked file under .qory that HEAD and the base share, with a change, stops it', () => {
+  for (const assumed of [false, true]) {
+    const dir = checkout();
+    const commit = (message) => sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com',
+      'commit', '-q', '-m', message);
+    write(dir, '.qory/x', 'one\n');
+    sh(dir, 'add', '-f', '.qory/x');
+    commit('base');
+    const start = sh(dir, 'rev-parse', 'HEAD');
+    write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+    sh(dir, 'add', '-A');
+    commit('attempt');
+    const head = sh(dir, 'rev-parse', 'HEAD');
+    if (assumed) sh(dir, 'update-index', '--assume-unchanged', '.qory/x');
+    write(dir, '.qory/x', 'mine\n');
+    const got = call(dir, ['revert-attempt', '--base', start]);
+    assert.equal(got.status, 3, `${assumed} ${got.out}${got.err}`);
+    assert.equal(got.lines[0], 'Commit or undo each change, then run revert-attempt again.');
+    assert.equal(got.lines[1], '  The checkout has 1 changed path, such as ".qory/x".');
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+    assert.equal(fs.readFileSync(path.join(dir, '.qory/x'), 'utf8'), 'mine\n');
+  }
+});
+
+test('revert-attempt: an untracked file under .qory is no change', () => {
+  const dir = checkout();
+  write(dir, '.gitignore', 'unrelated\n');
+  sh(dir, 'add', '.gitignore');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'start');
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  sh(dir, 'add', 'src');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
+  assert.match(sh(dir, 'status', '--porcelain'), /\.qory\//);
+  assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
 });
 
 // gitlink commits, on the checkout, the path sm as a submodule entry, as git writes it, with the
@@ -1699,8 +1787,8 @@ test('revert-attempt: a tracked file under .qory with a change in the checkout s
   assert.equal(fs.readFileSync(path.join(dir, '.qory/x'), 'utf8'), '1\n');
 });
 
-// A folder that no one may read or search stops it, as git and the file system can tell nothing
-// of what is in it. root reads any folder.
+// A folder that no one may read or search stops it: nothing can list what is in it. root reads
+// any folder.
 const ROOT = typeof process.getuid === 'function' && process.getuid() === 0;
 for (const [name, is, put] of [['read', 'out', 'out/keep'], ['search', 'd/f', 'd/x']]) {
   test(`revert-attempt: a folder that no one may ${name} stops it`, { skip: ROOT && 'root may read each folder' }, () => {
