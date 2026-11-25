@@ -36,7 +36,8 @@
 // checks that the harness has the skill scripting-demos and builds a demo script from the
 // actions of the demo author, and the verb film, which stores the film or the pictures of a
 // demo script and the pictures of pages, and the verb feedback, which prints the notes that no
-// run sorted and the points that have not ended.
+// run sorted and the points that have not ended, and checks a draft that changes the criteria
+// or the scenarios for the points of one source.
 'use strict';
 
 const fs = require('node:fs');
@@ -84,6 +85,7 @@ function workflowChecks(core) {
   Object.assign(lib, require('./lib/plan.cjs')(lib));
   Object.assign(lib, require('./lib/demo-script.cjs')(lib));
   Object.assign(lib, require('./lib/feedback.cjs')(lib));
+  Object.assign(lib, require('./lib/amended.cjs')(lib));
   const feedback = require('./types/feedback.cjs')(lib);
   const preflight = require('./lib/preflight.cjs')(lib);
   return {

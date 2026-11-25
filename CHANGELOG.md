@@ -16,6 +16,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file whose path it gets from a workflow. No process entry starts the workflow yet. A
   criterion-change point changes no criterion yet, and an answer to a question is no source
   yet.
+- The verb `feedback amended <output> --decision <id> [--same <point>]...`, which checks a
+  draft of the acceptance criteria or the demo scenarios for the points of one source byte for
+  byte against the newest version: it changes only the item of each point, adds one item at
+  the end for a point with no item, and keeps every other byte, the order and the line ends.
+  `feedback points` prints the groups of the criteria before those of the scenarios, the
+  questions of a source that wait for an answer as `waiting`, and a ripple point for each
+  criterion checked by `Demo` that a linked criteria version changed, until a later linked
+  scenario version.
 - The review of a step's file, which `step end <id> done` needs for the plan, the checks and
   each demo script, the first script of a scenario included. `plan-reviewer` and
   `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the

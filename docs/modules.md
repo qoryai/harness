@@ -4568,10 +4568,32 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   be read. A line of a source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
   in the newest `build-ledger`, then one JSON line per source and output with criterion
-  changes that have not ended, oldest source first: `decision`, `at`, `output` and `points`,
-  each with `id`, `quote`, `item` and `change`. A criterion change has ended when a version of
-  its output that counts, from a run, has the id of its source as `decision`. It exits with 1
-  when it prints one. It runs no git command and needs no network.
+  changes that have not ended: the groups of `acceptance-criteria` first, then those of
+  `demo-scenarios`, each oldest source first. A group has `decision`, `at`, `output` and
+  `points`, each with `id`, `quote`, `item` and `change`, and `waiting`, the ids of the
+  questions of the source about the criteria that have no answer. A criterion change has
+  ended when a version of its output that counts, from a run, has the id of its source as
+  `decision`. A criteria version from a run, linked to a source, that adds, changes or
+  removes a criterion checked by `Demo` also adds a ripple point to the group of
+  `demo-scenarios` of that source: `id` is the criterion id, `quote` has its row `before` and
+  `after` (`text` and `check`, or `null`), and `item` is each scenario that shows the
+  criterion or has the title of its new check, or there is no `item` when a new scenario must
+  show it. The ripple ends with a version of `demo-scenarios` linked to that source whose `at`
+  is later than that of the newest such criteria version, so a scenario version that a
+  person's note linked before the criteria changed ends nothing. It exits with 1 when it
+  prints one. It runs no git command and needs no network.
+- `feedback amended <output> --decision <id> [--same <point>]...`: checks the draft of
+  `<output>`, `acceptance-criteria.json` or `demo-scenarios.md` at the top of the artifact
+  folder, against the newest version that counts, as stored with its line ends, for the group
+  of `<id>` that `feedback points` prints. The items are the entries of `criteria` and the
+  `###` sections of the scenarios. The draft changes the item of each point that `--same`
+  does not name, and adds one item at the end for each such point with no item. Every other
+  byte stays: each other item and its place, and the text outside the items, the summary and
+  the key order included. A removed criterion keeps each member and adds only `removed`, and
+  a removed scenario keeps its heading. An item that `--same` names keeps every byte. It
+  exits with 1 for each finding, as "Restore ac-3 in acceptance-criteria.json." or "Change
+  ac-2 in acceptance-criteria.json, or add --same p2.", and with 0 and the line "Checked
+  nothing" when the output has no version.
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
