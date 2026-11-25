@@ -322,14 +322,13 @@ Commit every change before you end. In each checkout with a change, run these tw
 with what changed as the message:
 
 ```
-git add -A -- ':/' ':!/.qory'
+git add -A -- ':/' ':!/[.]qory' ':!/[.]qory/*'
 git -c user.name=qory -c user.email=qory@localhost commit -m "<what changed>" \
-  -- ':/' ':!/.qory'
+  -- ':/' ':!/[.]qory' ':!/[.]qory/*'
 ```
 
 The commit needs the two `-c` options where git has no identity. Both commands leave out
-`.qory`, also when it is a link. When git ignores `.qory`, `git add` exits with 1 and prints
-its path, after it added the other files: go on with the commit.
+`.qory` at the top of the checkout, also when it is a link.
 
 When this session ends without `points.json`, the end check stops the end while a checkout
 of `qory.start_commits` has a change that no commit contains, because the full suite and the

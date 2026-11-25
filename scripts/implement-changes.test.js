@@ -1018,49 +1018,49 @@ test('the session commits its changes with no git identity set, and nothing of .
   const link = (w) => fs.symlinkSync(outside, path.join(w.repo, '.qory'));
   const track = (w, message) => git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
     '-m', message);
-  // Each case sets up .qory of the checkout, with the exit status of git add.
+  // Each case sets up .qory of the checkout.
   const cases = [
-    ['a folder', 0, (w) => writeFile(w, '.qory/x.json', '{}\n')],
-    ['a link', 0, link],
-    ['a link that the index has', 0, (w) => {
+    ['a folder', (w) => writeFile(w, '.qory/x.json', '{}\n')],
+    ['a link', link],
+    ['a link that the index has', (w) => {
       link(w);
       git(w.repo, w.env, 'add', '-f', '.qory');
     }],
-    ['a file that the index has', 0, (w) => {
+    ['a file that the index has', (w) => {
       writeFile(w, '.qory/x.json', '{}\n');
       git(w.repo, w.env, 'add', '-f', '.qory/x.json');
     }],
-    ['a changed file that a commit has', 0, (w) => {
+    ['a changed file that a commit has', (w) => {
       writeFile(w, '.qory/x.json', '{}\n');
       git(w.repo, w.env, 'add', '-f', '.qory/x.json');
       track(w, 'Add .qory');
       writeFile(w, '.qory/x.json', '[]\n');
     }],
-    ['a link in place of a folder that a commit has', 0, (w) => {
+    ['a link in place of a folder that a commit has', (w) => {
       writeFile(w, '.qory/x.json', '{}\n');
       git(w.repo, w.env, 'add', '-f', '.qory/x.json');
       track(w, 'Add .qory');
       fs.rmSync(path.join(w.repo, '.qory'), { recursive: true });
       link(w);
     }],
-    ['an ignored folder', 1, (w) => {
+    ['an ignored folder', (w) => {
       writeFile(w, '.gitignore', 'reports/\n.qory/\n');
       git(w.repo, w.env, 'add', '.gitignore');
       track(w, 'Ignore .qory');
       writeFile(w, '.qory/x.json', '{}\n');
     }],
-    ['a folder that .git/info/exclude lists', 1, (w) => {
+    ['a folder that .git/info/exclude lists', (w) => {
       fs.appendFileSync(path.join(w.repo, '.git/info/exclude'), '/.qory\n');
       writeFile(w, '.qory/x.json', '{}\n');
     }],
-    ['an ignored link', 1, (w) => {
+    ['an ignored link', (w) => {
       writeFile(w, '.gitignore', 'reports/\n.qory\n');
       git(w.repo, w.env, 'add', '.gitignore');
       track(w, 'Ignore .qory');
       link(w);
     }],
   ];
-  for (const [what, added, setUp] of cases) {
+  for (const [what, setUp] of cases) {
     const w = work();
     fs.rmSync(path.join(w.repo, '.qory'), { recursive: true, force: true });
     setUp(w);
@@ -1071,7 +1071,7 @@ test('the session commits its changes with no git identity set, and nothing of .
     fs.rmSync(path.join(w.repo, 'README.md'));
     const done = commitChanges(w, 'Write one line per order');
     assert.equal(done.status, 0, `${what}: ${done.stderr}`);
-    assert.equal(done.added, added, what);
+    assert.equal(done.added, 0, what);
     assert.deepEqual(git(w.repo, w.env, 'show', '--format=', '--name-status', 'HEAD').split('\n'),
       ['D\tREADME.md', 'A\tnotes/new.txt', 'M\tsrc/orders.cjs'], what);
     assert.equal(git(w.repo, w.env, 'log', '-1', '--format=%an %ae %cn %ce %s'),
@@ -1079,6 +1079,16 @@ test('the session commits its changes with no git identity set, and nothing of .
     const inputs = buildInputs(w);
     assert.equal(session(w)('end', w.artifacts, '--inputs', inputs).status, 0, what);
   }
+  // Only .qory at the top is left out: these paths are in the commit.
+  const named = work();
+  fs.appendFileSync(path.join(named.repo, '.git/info/exclude'), '/.qory\n');
+  const names = ['.qory.txt', '.qoryx/a', 'src/.qory/a', 'x.qory'];
+  for (const name of [...names, '.qory/a']) writeFile(named, name, 'x\n');
+  const took = commitChanges(named, 'Add the files');
+  assert.deepEqual([took.added, took.status], [0, 0], took.stderr);
+  assert.deepEqual(git(named.repo, named.env, 'show', '--format=', '--name-only', 'HEAD')
+    .split('\n'), names);
+  assert.equal(git(named.repo, named.env, 'status', '--porcelain', '--untracked-files=all'), '');
   // With no identity in the command, the same commit exits with 128.
   const w = work();
   git(w.repo, w.env, 'config', 'user.useConfigOnly', 'true');
