@@ -1,16 +1,21 @@
 // lock and lock --verify: the lock of listed files. A type of the registry has a lock
-// when it has the member `lock`, { files(data, env, verb), folder(dir, env, verb) }.
+// when it has the member `lock`, { files(data, env, verb), folder(dir, env, verb),
+// fill(data, folder), writable(args), refused(args) }; fill, writable and refused are
+// optional. The tool guard calls writable and refused, which hooks/tool-guard.cjs documents.
 // files returns the files that a version of the type lists, each { folder, path, entry,
-// problem }, or null when the version has no such list. folder is '' or a folder under
+// record, problem }, or null when the version has no such list. folder is '' or a folder under
 // the working folder, path is the file's path below it, entry.sha256 is the file's
 // SHA-256 as 64 lower-case hexadecimal digits, and problem, when set, is the line, or a
-// list of 1 to 5 lines, of a file that the type refuses. folder, which a type may leave
+// list of 1 to 5 lines, of a file that the type refuses. record, when set, is an object that
+// the tool guard passes to writable for the file. folder, which a type may leave
 // out, returns the line, or the lines, that refuse dir as the working folder, or null.
 // env is the environment of the call, and verb is `lock`, `lock --verify` or `step end`, as a
 // line of the type shows it.
 //
-// lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
-// checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
+// lock <file> fills entry.sha256 of each listed file from the working folder, calls fill of the
+// type with the parsed draft and the artifact folder, so that the type fills what it derives
+// from other artifacts, writes <file>, checks it as `check` does, and pushes it with
+// `<qory> artifact push <type> <file>`. In a
 // walled run, qory runs the push check of the type before Qory Apiary stores the lock, and a
 // lock that the check refuses is not stored. lock --verify reads the version that counts,
 // and finds each listed file that differs from its SHA-256.
@@ -234,10 +239,18 @@ function hashes(root, files, lines) {
   return { found, problems };
 }
 
-// qory runs `<qory> <args>` with the environment of io and returns what spawnSync returns.
+// qory runs `<qory> <args>` with the environment of io and returns what spawnSync returns. It
+// runs the call for at most QORY_TIME ms, and when io.until, a time in ms, is set, only for the
+// time up to it, as the tool guard sets it so that all calls of one hook share one budget. With no
+// time left it starts nothing and returns { late: true }. io.now and io.spawn replace Date.now
+// and spawnSync, for a caller that sets the clock and the process starter.
 function qory(io, args) {
-  return childProcess.spawnSync(qoryPath(), args,
-    { env: io.env, encoding: 'utf8', timeout: QORY_TIME });
+  const now = io.now || Date.now;
+  const left = typeof io.until === 'number' ? Math.min(QORY_TIME, io.until - now())
+    : QORY_TIME;
+  if (left <= 0) return { late: true, status: null, stdout: '', stderr: '' };
+  return (io.spawn || childProcess.spawnSync)(qoryPath(), args,
+    { env: io.env, encoding: 'utf8', timeout: left });
 }
 
 // outputLines returns the lines of what a call of qory printed, stdout first.
@@ -267,8 +280,12 @@ function refusalFindings(ran) {
 function pull(io, type, number, verb = 'verify') {
   const args = ['artifact', 'pull', type, ...(number === null ? [] : ['--version', `${number}`])];
   const ran = qory(io, args);
-  const why = ran.error ? 'could not start' : `exited with ${ran.status}`;
-  if (ran.error || ran.status !== 0) {
+  let why = `exited with ${ran.status}`;
+  if (ran.late) why = 'had no time left, because the calls of one hook share a budget';
+  else if (ran.error) {
+    why = ran.error.code === 'ETIMEDOUT' ? 'did not finish in time' : 'could not start';
+  }
+  if (ran.late || ran.error || ran.status !== 0) {
     throw new Missing(`Run \`qory ${args.join(' ')}\`, then ${verb} again.\nThe pull ${why}.`);
   }
   const dir = (ran.stdout || '').trim().split('\n').at(-1).trim();
@@ -318,6 +335,7 @@ function lockFile(io, def, draft) {
       `Locked nothing: ${plural(problems.length, 'finding')} on the listed files.`);
     return 1;
   }
+  if (typeof def.lock.fill === 'function') def.lock.fill(data, root);
   writeJson(draft, data);
   const checked = checkFiles('check', root, def, [draft], io.home, io.plugin);
   if (checked.findings.length) {
@@ -535,6 +553,6 @@ module.exports = {
   },
   workingFolder,
   // The reader of the lock that another module uses, such as for its locked checks.
-  lockReader: { lockType, readLock, changedFiles, printFindings, pull, fill, place,
-    fileBytes },
+  lockReader: { lockType, readLock, changedFiles, printFindings, pull, workingFolder, fill,
+    place, fileBytes },
 };

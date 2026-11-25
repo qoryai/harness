@@ -8,6 +8,89 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The tool guard denies an agent's redirect to a brace list of more than one word, such as
+  `> checks/{a,b}.check`, because zsh writes to each word. A brace list of one word, a quoted
+  brace, a command with no brace and a brace list in the body of a here-document that `cat` or
+  `tee` reads pass, up to the first body line with `$(`, a backtick, a backslash or a final `$`.
+- The tool guard reads each locked file once in a call, so 500 locked files and a command of 300
+  words stay within its limit of work. The pulls of one call share one budget and end 80 s
+  after the call started at the latest, and a pull that has no time left fails, so the write
+  is denied. The time of the pulls moves the guard's time limit of 20 s later, by 60 s at most.
+- The tool guard compares the device and the inode of a written path with each locked file
+  that has more than one link, so a hard link to a locked file is denied as that file, also
+  when a lift of the check ended. A path that does not exist yet, or whose parent is a file, is
+  allowed, a locked file that is gone is no link, and any other failed read of either path
+  denies the call.
+- `checks.cjs changes` lists the acceptance criteria that changed since the newest
+  acceptance lock and writes `.qory/build/changes.json`. The workflows `plan-the-build` and
+  `write-acceptance-checks` run it after `resume`. With no changed criterion they start no
+  agent, push nothing and end `passed`, also when a build plan is newer than the lock. With
+  changes, the build planner changes only the deliverables that list a changed criterion,
+  and `check build-plan` finds any other changed deliverable. The acceptance check writer
+  writes checks for the changed and added Tests criteria only, starts its draft from the
+  newest lock, and keeps each check of an unchanged criterion whole. `run locked
+  <criterion>...` runs only the new checks. With no lock, no build plan or no approved
+  criteria, the run is full, as before.
+- The tool guard lifts a locked check file for the acceptance check writer when the lock that
+  counts lists it, and every check at that file is a check of a criterion that the newer target
+  criteria version changed or no longer has. A support file, a file with a check of an unchanged
+  criterion, every other agent and the main session stay denied, and so does every file when the
+  target cannot be read. `lock.writable` of the type `acceptance-lock` decides this from the
+  lock and the criteria, and the guard reads no `changes.json`; it keeps every file locked when
+  the type has no `lock.writable` or the function throws. In a run, the lift pulls, each by
+  version number, what `criteriaTarget` reads: the version of the questions that `index.json`
+  counts, each lock that it compares a linked version with, each criteria version that an answer
+  links, and the target version. It reads only the versions that these pulls returned, and in
+  them only the files that `index.json` lists for the version, so a file or folder in
+  `.qory/artifacts` that no pull returned or the entry does not list counts for nothing, and it
+  reads `index.json` again after the last pull. A pull that fails or has no time left, or an
+  `index.json` that changed during the pulls, lifts nothing, and the deny of the locked file
+  then has a third line with the cause and the command to run again. A person's version, a
+  version linked to another kind of note, a version that no lock is older than, and the approved
+  version need no pull beyond the target version. Outside a run it reads the artifact folder,
+  which an agent can write. A check of a criterion that left Tests stays locked. A forged
+  `.qory/build/changes.json` can steer what `plan-the-build` plans: `keptFiles` and
+  `lock --verify` reject a wrong result. The check of a build plan reads no `changes.json` that
+  is a link or has more than one link. Two limits stay: a hard link outside the working folder to a
+  locked file passes the file tools, which `keptFiles`, the push check and `lock --verify`
+  catch, and a brace range of one word, such as `{b..b}`, passes the brace rule, which skips the
+  main session.
+- Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
+  check of its criterion in the criteria version that the lock locks. `lock` fills it, and
+  the push check recomputes it. A new lock keeps `sha256`, `path`, `command` and
+  `failed_with` of the check of each criterion with the same `criterion_sha256`, and a
+  support file that changes gets a new path.
+- A criteria version that a person's note links, with a `decision` and a `decision_at`,
+  opens a new acceptance lock when `decision_at` is later than the newest lock. The
+  prefixes `gd_`, `es_` and `rc_` are free text, `an_` is the answer to a question, and any
+  other prefix is refused. For an answer, each live criterion that the version changes or
+  removes, a Demo criterion included, needs an answered question about it after the lock;
+  a lock without `/criteria/sha256` counts every criterion as changed. A free-text note
+  binds to no criterion, a known gap. The check and the push of `acceptance-lock` apply the
+  same rule, and `criteriaTarget` uses the same test, so a refused link is never the target.
+- `build-plan`, `verification` and `walkthrough` read `acceptance-lock` and `questions`, as
+  `acceptance-lock` does, and count a version that is linked to an answer by the same rule:
+  the question rule passes, or the newest acceptance lock locks that version. A plan can
+  then be written for a version that an answer opens before its lock exists, and `changes`
+  lists the criteria that the answer changes. A check and a push give the same result for
+  the same facts, with one exception: a push store has the newest lock only, so a push
+  fails closed whenever the lock before the version is not the newest lock (for example
+  while acceptance-lock is withdrawn), where a check that pulled that lock passes. When the
+  store lacks the lock that the rule compares, or the questions that `index.json` lists, a
+  check has the pull as its first line (`Run \`qory artifact
+  pull acceptance-lock --version <N>\`, then check again.`) and a push reports the reason.
+  The newest lock opens the version that it locks only while acceptance-lock is not
+  withdrawn. The question rule reads the locks that no cancelled run wrote and that are no
+  withdrawal, also while the lock is withdrawn. `matrix` pulls the lock, each live lock
+  that the store lacks by its number, and the questions beside the criteria.
+- An acceptance lock has `/criteria/sha256`, an object of the SHA-256 of the text and the
+  check of each live criterion of the locked version, by criterion id. `lock` fills it, and
+  the check recomputes it. The question rule compares it with the criteria version that is
+  linked to an answer, so a push needs no older criteria text. The schema stays at
+  version 1, and a lock made before the member counts every criterion as changed.
+- A new acceptance lock keeps the checks of each criterion that did not change, as a whole
+  list, and keeps every support file of the newest lock at its path and hash. When the
+  push store lacks the newest lock, the check fails closed.
 - The workflow `triage-review`, which sorts the feedback that a person gave on a change into
   points: a fix, a change of a criterion, or a question. With it come the skills
   `workflow-triage-review` and `sorting-feedback`, the agent `feedback-triager`, the custom type
@@ -47,9 +130,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file they reviewed, in the review report format, besides their text. With no such report
   for the file as it is, an invalid one or one with a blocking finding, `step end done`
   exits 1 with the reviewer to start, the path of its report and the ledger unchanged. The
-  SHA-256 of the checks leaves out `commit` and takes the `sha256` of each listed file from
-  the working folder, so `freeze` and `lock` keep it, and an edit of a check file after the
-  review does not. The call with no flag records nothing and prints the path of the report,
+  SHA-256 of the checks leaves out `commit`, `/criteria/sha256` and each `criterion_sha256`
+  (`lock` fills the last two again, and the lock check and the push check verify them
+  exactly) and takes the `sha256` of each listed file from the working folder, so `freeze`
+  and `lock` keep it, and an edit of a check file after the review does not. The call with
+  no flag records nothing and prints the path of the report,
   so the session runs it before each start of the reviewer and after each review. `step end`
   of a demo script compares `--script-sha256` with the reviewed file. `check-reviewer`
   starts once for the first review of the first script of each demo scenario, and at most 12
@@ -1408,6 +1493,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The first line of a lock finding that no lock of the target can pass is "Ask a member to
+  write the change in a request for changes.", where it was "Ask a member to upload the
+  acceptance criteria they accept as a new version." The question of a locked check that
+  does not fail has the same wording in its first option. The first line for withdrawn
+  acceptance criteria is "Ask a member to approve the criteria again, then lock the checks:
+  the approval is withdrawn.", and the finding of a check of a build plan, verification or
+  walkthrough is "Write <what> after a member approves the acceptance criteria again."
+  `acceptance-lock` reads `questions` besides `acceptance-criteria`.
 - The check of the type `walkthrough` replaces the sections `## Summary` and one
   `## AC-<N>` section per criterion with the layout that the entry "The walkthrough has this
   layout" lists. The walkthrough states no state of a criterion: the Evidence cell links to

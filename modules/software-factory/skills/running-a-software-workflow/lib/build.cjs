@@ -4,6 +4,7 @@
 // file.
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -291,6 +292,17 @@ module.exports = (lib) => {
   // with `at`, the time it was stored, and `writer`, of kind person for a person's upload.
   const byPerson = (version) => isObject(version.writer) && version.writer.kind === 'person';
 
+  // timeOf returns the milliseconds of an `at` or a `decision_at` of index.json, or NaN for a
+  // value that is no string or does not parse as a time.
+  const timeOf = (at) => (typeof at === 'string' ? Date.parse(at) : NaN);
+
+  // linked reports whether a version of index.json is linked to a person's decision: its
+  // `decision`, the id of the note, is a non-empty string, and its `decision_at`, the time of
+  // that note, parses as a time. Qory Apiary writes both with `qory artifact push
+  // --decision` (docs/contract/run-api.md of Qory Apiary, "GET artifacts").
+  const linked = (version) => typeof version.decision === 'string' && version.decision !== '' &&
+    !Number.isNaN(timeOf(version.decision_at));
+
   // versionsOf returns the versions in index of the artifact main of type, or none.
   function versionsOf(index, type) {
     const artifact = index && index.artifacts.find((one) => one.type === type &&
@@ -309,14 +321,180 @@ module.exports = (lib) => {
   const pullAgain = (words) => new Missing(`Run \`qory artifact pull\`, then check ${words} ` +
     'again.');
 
+  // liveLocks returns the locks of index.json that the target reads, as the history of the lock
+  // check reads them: those that no cancelled run wrote and that are no withdrawal, also while
+  // acceptance-lock is withdrawn, because a lock protects checks that a person approved, and
+  // a withdrawal never takes it back. countedOf returns none for a withdrawn main.
+  const liveLocks = (context) => versionsOf(context.index, 'acceptance-lock')
+    .filter((one) => one.cancelled !== true && one.withdrawn !== true);
+
+  // The ids of a `decision` that are free text, and the id of an answer to a question.
+  const FREE = /^(?:gd|es|rc)_/;
+  const ANSWER = /^an_/;
+
+  // lockDoc returns the parsed acceptance-lock.json of lock version number in the store, or
+  // null when the store has no such file, no pull returned it (context.pulled), the entry of
+  // the version in index.json does not list the file, or it is no JSON object.
+  function lockDoc(context, number) {
+    if (context.has && (!context.has('acceptance-lock', 'main', number) ||
+      !context.listed('acceptance-lock', 'main', number, 'acceptance-lock.json'))) return null;
+    const file = path.join(context.store, 'acceptance-lock', 'main', `v${number}`,
+      'acceptance-lock.json');
+    try {
+      const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return isObject(doc) ? doc : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // answered returns the ids of the criteria with an answered question in the newest version
+  // of the questions, whose answer is later than since, a time in milliseconds. A question
+  // counts when its `about` is the item of the type acceptance-criteria and the name main, its
+  // `state` is answered and its `answer.at` parses as a time later than since. It reads the
+  // stored version, never a draft at the top of the artifact folder, which an agent can write.
+  // The time of an answer can be trusted: the questions store of Qory Apiary does not accept
+  // a run's write of an `answer` or its `answer.at` (a new question arrives open or decided,
+  // and an added, changed or removed `answer` of a known question fails with `answer_changed`),
+  // so only a member's answer has one, and the server sets its time.
+  function answered(context, since) {
+    const found = context.newest('questions', 'questions.json');
+    let list = [];
+    try {
+      const data = JSON.parse(found ? found.text : '{}');
+      list = Array.isArray(data.questions) ? data.questions.filter(isObject) : [];
+    } catch {
+      list = [];
+    }
+    return new Set(list.filter((one) => one.state === 'answered' && isObject(one.answer) &&
+      isObject(one.about) && one.about.type === 'acceptance-criteria' &&
+      one.about.name === 'main' && timeOf(one.answer.at) > since).map((one) => one.about.item));
+  }
+
+  // bound returns { reason, command } when the question rule does not pass the answer that
+  // links version, or null when the rule passes. command is the pull that fixes a store that
+  // lacks what the rule reads, in a check or end --offline, or null (a push cannot pull).
+  // Every live criterion that the version changes or removes since the lock `last`, a Demo
+  // criterion too, needs an answered question about it, with an answer later than that lock.
+  // The lock records the hash of each live criterion of the version that it locks
+  // (`criteria.sha256`), so the rule needs no older criteria text, which a push store
+  // lacks: an id whose recorded hash differs from the hash in version, or that is no
+  // longer live, is changed. A criterion that version only adds is not. A lock with
+  // no such record counts every criterion as changed, so a lock made before the record needs
+  // an answer for each criterion. The rule does not apply when a counted version above the
+  // locked one is linked to a free-text note that is newer than the lock: such a note can
+  // contain any change. With no lock there is nothing to change, and the rule binds nothing.
+  // shortcut: a free-text note binds to no criterion, so one such note frees the rule for
+  // every later answer; replace it when Qory Apiary lists the criteria that a note changes.
+  function bound(context, version, last) {
+    if (last === null) return null;
+    const pulls = (command) => (context.mode === 'push' ? null : command);
+    const free = context.counts('acceptance-criteria').some((one) =>
+      one.number > last.criteria && linked(one) && FREE.test(one.decision) &&
+      timeOf(one.decision_at) > last.time);
+    if (free) return null;
+    const lockWords = `acceptance-lock version ${num(last.number)}`;
+    if (last.doc === null) {
+      // A push store has the newest lock only, so a push has no pull to give.
+      return { reason: `Version ${num(version.number)} is linked to an answer, and ` +
+        `${lockWords} is not in the store, so the check cannot bind it to a criterion.`,
+      command: pulls(`acceptance-lock --version ${last.number}`) };
+    }
+    const now = criteriaFile(context, version.number);
+    if (now === null) {
+      return { reason: `Version ${num(version.number)} is linked to an answer, and the store ` +
+        `lacks criteria version ${num(version.number)}, so the check cannot bind it to a ` +
+        'criterion.', command: null };
+    }
+    const hashes = criterionHashes(readFile(now, `acceptance-criteria version ${version.number}`)
+      .replace(/\r\n?/g, '\n'));
+    const member = isObject(last.doc.criteria) ? last.doc.criteria[CRITERIA_HASHES] : null;
+    // A member that is empty or has a value that is no SHA-256 counts as no member.
+    const recorded = isObject(member) && Object.keys(member).length > 0 &&
+      Object.values(member).every((hash) => typeof hash === 'string' && HEX64.test(hash))
+      ? member : null;
+    const checks = Array.isArray(last.doc.checks) ? last.doc.checks.filter(isObject) : [];
+    // A check of a criterion that the member lacks counts as changed, as with no member.
+    const changed = recorded === null
+      ? [...Object.keys(hashes), ...checks.map((check) => check.criterion)]
+      : [...Object.keys(recorded).filter((id) => recorded[id] !== hashOf(hashes, id)),
+        ...checks.map((check) => check.criterion).filter((id) => !Object.hasOwn(recorded, id))];
+    const ids = [...new Set(changed)];
+    const shown = (list) => `${list.slice(0, 3).join(', ')}${list.length > 3 ? ' and more' : ''}`;
+    // index.json lists questions, and the folder is not in the store: reading none would
+    // report that no question has an answer, which is false.
+    if (ids.length && countedOf(context, 'questions').length &&
+      context.newest('questions', 'questions.json') === null) {
+      return { reason: `Version ${num(version.number)} changes ${shown(ids)}, and the store ` +
+        'lacks the questions, so which questions have an answer is unknown.',
+      command: pulls('questions') };
+    }
+    const answers = answered(context, last.time);
+    const open = ids.filter((id) => !answers.has(id));
+    if (!open.length) return null;
+    return { reason: `Version ${num(version.number)} changes ${shown(open)}, and no question ` +
+      `about ${open[0]} has an answer after ${lockWords}.`, command: null };
+  }
+
+  // boundProblem returns the reason of bound, or null.
+  function boundProblem(context, version, last) {
+    const found = bound(context, version, last);
+    return found === null ? null : found.reason;
+  }
+
+  // linkProblem returns null when version, linked to a note, may open a lock after `last`, the
+  // newest lock before it ({ number, at, time, criteria, doc }, or null for none), or the
+  // reason that it does not: the kind of its `decision` (gd_, es_ and rc_ are free text, an_
+  // is an answer, any other kind is refused), its `decision_at` not later than since, the time
+  // in milliseconds of the newest lock, and for an answer the question rule of boundProblem.
+  // The lock check and criteriaTarget both call it, so a refused link is never a target.
+  function linkProblem(context, version, last, since) {
+    const id = version.decision;
+    if (!FREE.test(id) && !ANSWER.test(id)) {
+      return `Version ${num(version.number)} is linked to ${short(id, 40)}, and no lock ` +
+        'opens for a note of that kind.';
+    }
+    if (last !== null && !(timeOf(version.decision_at) > since)) {
+      return `Version ${num(version.number)} is linked to a note from ${version.decision_at}, ` +
+        `and acceptance-lock version ${num(last.number)} is from ${last.at}.`;
+    }
+    return ANSWER.test(id) ? boundProblem(context, version, last) : null;
+  }
+
+  // lockBefore returns { last, since } of version: the newest of locks that is older than the
+  // version ({ number, at, time, criteria, doc }, or null for none) and its time in
+  // milliseconds, as linkProblem takes them. A lock time that does not parse is later than any.
+  function lockBefore(context, locks, version) {
+    const at = timeOf(version.at);
+    const before = locks.filter((one) => !(timeOf(one.at) >= at));
+    let last = null;
+    if (before.length) {
+      const top = before.reduce((a, b) => (b.number > a.number ? b : a));
+      const doc = lockDoc(context, top.number);
+      const criteria = doc && isObject(doc.criteria) ? doc.criteria.version : NaN;
+      last = { number: top.number, at: top.at, time: timeOf(top.at), criteria, doc };
+    }
+    const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
+    return { last, since };
+  }
+
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
   // build-plan, verification and walkthrough read: the approved version, or the newest version
-  // that a person stored after it. It returns null with no index.json or no approved version.
-  // A run's version never counts, nor a version that a cancelled run wrote, as in countedOf.
-  // A `decision` of a version counts neither, because index.json has no time of a decision
-  // to compare with the newest lock. An approval of a version that a cancelled run wrote is
-  // no approval. Two criteria versions of one number in index.json exit 3 with the line of
-  // pullAgain for words, because a number then matches two versions.
+  // that a person stored after it, or the newest version that is linked to a decision that
+  // counts. It returns null with no index.json or no approved version. A run's version never
+  // counts, nor a version that a cancelled run wrote, as in countedOf, nor a lock of a
+  // cancelled run or a withdrawal.
+  // A linked version counts when linkProblem passes it beside the newest lock that is older
+  // than the version, so a lock that a version gets later does not take the version back, and
+  // index.json is the only source of the times. With no lock older than the version, it counts
+  // when its kind is known. A time that does not parse, in the version or the lock, counts for
+  // nothing. A plan or a verification may read an older version than the run was fed, and a
+  // check that asks a member then fails closed. An approval of a version that a cancelled run
+  // wrote is no approval. Two criteria versions of one number in index.json exit 3 with the
+  // line of pullAgain for words, because a number then matches two versions.
+  // A version that is linked to an answer also counts when the newest lock locks it: that
+  // lock passed the question rule when it was pushed, and a push store has the newest lock
+  // only, not the lock before the version that the rule compares.
   function criteriaTarget(context, words) {
     const versions = versionsOf(context.index, 'acceptance-criteria');
     if (new Set(versions.map((one) => one.number)).size !== versions.length) {
@@ -324,14 +502,66 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const persons = countedOf(context, 'acceptance-criteria').filter(byPerson)
-      .map((one) => one.number);
-    return Math.max(approvedVersion, ...persons);
+    const locks = liveLocks(context);
+    // lockedByNewest returns the criteria version that the newest lock locks, or null when
+    // there is no lock, the store lacks it, or acceptance-lock is withdrawn: a withdrawn lock
+    // type is no lock that locks it, and the question rule decides alone.
+    const lockedByNewest = () => {
+      if (!locks.length || context.withdrawn('acceptance-lock')) return null;
+      const doc = lockDoc(context, locks.reduce((a, b) => (b.number > a.number ? b : a)).number);
+      return doc !== null && isObject(doc.criteria) ? doc.criteria.version : null;
+    };
+    const opens = (version) => {
+      if (Number.isNaN(timeOf(version.at))) return false;
+      const { last, since } = lockBefore(context, locks, version);
+      if (ANSWER.test(version.decision) && lockedByNewest() === version.number) return true;
+      return linkProblem(context, version, last, since) === null;
+    };
+    const counted = countedOf(context, 'acceptance-criteria')
+      .filter((one) => byPerson(one) || (linked(one) && opens(one))).map((one) => one.number);
+    return Math.max(approvedVersion, ...counted);
+  }
+
+  // criteriaReads returns { questions, locks, criteria }: what criteriaTarget reads of the store
+  // besides index.json. Only a version above the approved one, which a note links to an answer,
+  // that no person wrote and whose time parses, can change its result by a read: the others
+  // read none. A version that no lock is older than counts with no read (bound returns null).
+  // For any other, locks lists the lock that lockBefore picks and the newest lock, which
+  // lockedByNewest reads, criteria lists the version, whose file the question rule reads, and
+  // questions is the number of the newest version of the questions that counts in index.json,
+  // as newest reads it, or null.
+  // shortcut: the questions, and the criteria version unless it is the target, are listed also
+  // when a free-text note makes bound return before it reads them, so those pulls are needless;
+  // replace it when criteriaReads repeats that test of bound.
+  // A run pulls each of them, by number, before it calls criteriaTarget.
+  function criteriaReads(context) {
+    const found = { questions: null, locks: new Set(), criteria: new Set() };
+    const approvedVersion = approvedNumber(context, 'acceptance-criteria');
+    if (approvedVersion === null) return { questions: null, locks: [], criteria: [] };
+    const locks = liveLocks(context);
+    for (const one of countedOf(context, 'acceptance-criteria')) {
+      if (one.number <= approvedVersion || byPerson(one) || !linked(one) ||
+        !ANSWER.test(one.decision) || Number.isNaN(timeOf(one.at))) continue;
+      const { last } = lockBefore(context, locks, one);
+      if (last === null) continue;
+      if (locks.length && !context.withdrawn('acceptance-lock')) {
+        found.locks.add(locks.reduce((a, b) => (b.number > a.number ? b : a)).number);
+      }
+      found.locks.add(last.number);
+      found.criteria.add(one.number);
+      found.questions = context.counted('questions');
+    }
+    return { questions: found.questions, locks: [...found.locks], criteria: [...found.criteria] };
   }
 
   // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
-  // the store, or null when the store has no such file.
+  // the store, or null when the store has no such file, no pull returned it (context.pulled),
+  // or the entry of the version in index.json does not list the file.
   function criteriaFile(context, number) {
+    if (context.has && (!context.has('acceptance-criteria', 'main', number) ||
+      !context.listed('acceptance-criteria', 'main', number, 'acceptance-criteria.json'))) {
+      return null;
+    }
     const file = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`,
       'acceptance-criteria.json');
     return fs.existsSync(file) ? file : null;
@@ -356,15 +586,36 @@ module.exports = (lib) => {
   // person stored newest, because the target is the newest version that a person stored, or
   // the approved version above it. step is the action after it, such as "lock that version".
   // The first line has the action of the member alone, so that the run can pass it to a member.
-  function askAbove(context, step, target, newest) {
+  function askAbove(context, step, target, newest, detail = '') {
     const why = target === approvedNumber(context, 'acceptance-criteria')
-      ? `the approved version ${num(target)}` : `version ${num(target)}, a member's upload`;
+      ? `the approved version ${num(target)}` : `version ${num(target)}, which a member wrote`;
     const entry = versionsOf(context.index, 'acceptance-criteria')
       .find((one) => one.number === newest);
     const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
-    const reason = byRun ? `the run stored version ${num(newest)} after ${why}`
-      : `no member uploaded the newer criteria version ${num(newest)}`;
-    return 'Ask a member to upload the acceptance criteria they accept as a new version.\n' +
+    let because = detail;
+    let pull = null;
+    if (entry && !byPerson(entry) && linked(entry)) {
+      // A linked version that no lock opens for gets the reason of linkProblem against the
+      // lock before the version, as criteriaTarget compares it, which is not the newest lock
+      // when a later lock exists. A store that lacks a lock or the questions gets the pull of
+      // that lock, or of the questions, as its first line.
+      const locks = liveLocks(context);
+      const before = Number.isNaN(timeOf(entry.at)) ? null : lockBefore(context, locks, entry);
+      const problem = before === null ? null
+        : linkProblem(context, entry, before.last, before.since);
+      because = because || problem || '';
+      const lacks = ANSWER.test(entry.decision) && before !== null
+        ? bound(context, entry, before.last) : null;
+      if (lacks !== null && lacks.command !== null && lacks.reason === problem) {
+        because = lacks.reason;
+        pull = `Run \`qory artifact pull ${lacks.command}\`, then ` +
+          `${context.offline ? 'end' : 'check'} again.`;
+      }
+    }
+    const reason = because.replace(/\.$/, '') || (byRun
+      ? `the run stored version ${num(newest)} after ${why}`
+      : `no member wrote the newer criteria version ${num(newest)}`);
+    return `${pull || 'Ask a member to write the change in a request for changes.'}\n` +
       `Then ${step}: ${reason}.`;
   }
 
@@ -395,7 +646,7 @@ module.exports = (lib) => {
     const target = criteriaTarget(context, what);
     if (target === null) {
       run.find(context.withdrawn('acceptance-criteria')
-        ? `Write ${what} after a member uploads the acceptance criteria again.\nThey are ` +
+        ? `Write ${what} after a member approves the acceptance criteria again.\nThey are ` +
           'withdrawn.'
         : `Write ${what} after a person approves the acceptance criteria.`);
       return null;
@@ -531,6 +782,32 @@ module.exports = (lib) => {
     };
   }
 
+  // criterionHash returns the SHA-256 of a criterion, as 64 lower-case hexadecimal digits: of
+  // the JSON text [<text>, <check>] with the `text` and the `check` of the criterion in
+  // acceptance-criteria.json. The lock lists it as `criterion_sha256` for each check, so a
+  // push, which has no older criteria version, knows which checks a change of the criteria
+  // touches.
+  const criterionHash = (criterion) => crypto.createHash('sha256')
+    .update(JSON.stringify([criterion.text, criterion.check])).digest('hex');
+
+  // CRITERIA_HASHES is the member of /criteria in acceptance-lock.json that maps the id of
+  // each live criterion of the locked version to its criterionHash. The schemas, the lock
+  // verb and the question rule use this one name.
+  const CRITERIA_HASHES = 'sha256';
+
+  const HEX64 = /^[0-9a-f]{64}$/;
+
+  // hashOf returns the hash of id in the object hashes that criterionHashes returns, or
+  // undefined when id is no key of it: an inherited name such as `constructor` has none.
+  const hashOf = (hashes, id) => (Object.hasOwn(hashes, id) ? hashes[id] : undefined);
+
+  // criterionHashes returns an object of criterionHash by id for the live criteria with an id
+  // in the acceptance-criteria.json text. The key order is the order of the file.
+  function criterionHashes(text) {
+    return Object.fromEntries(liveIn(text).filter((criterion) => criterion.id !== '')
+      .map((criterion) => [criterion.id, criterionHash(criterion)]));
+  }
+
   // liveCriteria returns the live criteria of the version that criteriaText reads, or null
   // after its finding.
   function liveCriteria(run, what) {
@@ -542,8 +819,9 @@ module.exports = (lib) => {
     COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, shown, full, commandsTable, jsonFile,
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
-    noCriteria,
+    versionsOf, countedOf, timeOf, linked, criterionHash, criterionHashes, CRITERIA_HASHES,
+    hashOf, liveLocks, pullAgain, criteriaTarget, criteriaReads, criteriaFile,
+    newestCriteria, askAbove, noCriteria, linkProblem, lockDoc,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,
   };

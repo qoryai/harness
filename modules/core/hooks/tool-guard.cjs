@@ -446,21 +446,44 @@ const LINKS = 40;
 // Spent is the error that a budget throws when a call needs more work than the guard does.
 class Spent extends Error {}
 
+// The most time, in ms, that the guard waits on `qory artifact pull` in one call. The pulls of
+// the call share one budget: each gets only the time up to its deadline plus this, as io.until
+// of the lock reader, so all end 80 s after the call started at the latest (TIME_LIMIT of 20 s
+// and this of 60 s), before the runtime ends a hook at 120 s. spend.waiting moves the deadline
+// of the work by the time of the pulls, up to this.
+const WAIT_LIMIT = 60000;
+
 // budget returns spend(units, clock), which counts units of work of one call and throws Spent
 // past WORK_LIMIT units or past deadline, a time in ms. It reads the clock when clock is true,
-// as before each read of the disk, and after each 64 units.
-function budget(deadline = Date.now() + TIME_LIMIT) {
+// as before each read of the disk, and after each 64 units. spend.waiting(fn) returns fn(),
+// which waits on a program that the guard starts: the clock is not read while fn runs, and the
+// time of fn moves deadline later, up to wait in all. now returns the time in ms, as Date.now
+// does; a caller may set another clock.
+function budget(deadline = Date.now() + TIME_LIMIT, wait = WAIT_LIMIT, now = Date.now) {
   let left = WORK_LIMIT;
   let since = 0;
-  return (units = 1, clock = false) => {
+  let moved = 0;
+  let inside = 0;
+  const spend = (units = 1, clock = false) => {
     left -= units;
     since += units;
     if (left < 0) throw new Spent();
     if (clock || since >= 64) {
       since = 0;
-      if (Date.now() > deadline) throw new Spent();
+      if (!inside && now() > deadline + moved) throw new Spent();
     }
   };
+  spend.waiting = (fn) => {
+    const began = now();
+    inside += 1;
+    try {
+      return fn();
+    } finally {
+      inside -= 1;
+      moved = Math.min(wait, moved + now() - began);
+    }
+  };
+  return spend;
 }
 
 // The spend of the budget of the call that the guard reads, or null outside one.
@@ -503,6 +526,43 @@ const disk = {
   exists: (full) => read(full, () => fs.existsSync(full), false),
   readdir: (full) => read(full, () => fs.readdirSync(full, { withFileTypes: true }), []),
 };
+
+// The stat of each locked file that sameFile read in the call that runs: the stat, false for a
+// file that is gone or has one link, or null for a read that failed. decide clears it.
+let lockedStats = new Map();
+
+function lockedStat(locked) {
+  if (!lockedStats.has(locked)) {
+    charge(1 + (locked.length >> 6), true);
+    let found;
+    try {
+      const mine = fs.statSync(locked, { throwIfNoEntry: false });
+      found = mine && mine.nlink >= 2 ? mine : false;
+    } catch {
+      found = null;
+    }
+    lockedStats.set(locked, found);
+  }
+  return lockedStats.get(locked);
+}
+
+// sameFile reports whether target is the file that locked is: they have one device and one
+// inode, so a hard link to a locked file is that file. Only a locked file with more than one
+// link has such a target, and a target that does not exist yet is no locked file. A read of
+// either file that fails for another reason than a missing entry counts as the same file, so
+// that the guard fails closed. It reads each locked file once in a call.
+function sameFile(target, locked) {
+  const mine = lockedStat(locked);
+  if (mine === null) return true;
+  if (mine === false) return false;
+  charge(1 + (target.length >> 6), true);
+  try {
+    const theirs = fs.statSync(target, { throwIfNoEntry: false });
+    return Boolean(theirs) && theirs.dev === mine.dev && theirs.ino === mine.ino;
+  } catch (error) {
+    return !(error && error.code === 'ENOTDIR');
+  }
+}
 
 // walkPath reads full, an absolute path that may contain . and .. parts, as the system does,
 // and returns { real, unsure }. It reads the parts from the top once: it reads a link
@@ -574,12 +634,13 @@ function caseless(dir) {
   return one !== null && one === disk.realpath(dir);
 }
 
-// lockedFiles returns { what, files } of the lock that counts: files are the real paths of
-// the files it lists under root, the working folder. It returns { files: [] } when no type
-// of the registry has a lock, or no version of it counts, and { type, problem } when the
-// lock of type cannot be read. It reads the lock with checks.cjs's reader: in a run, it
-// pulls the lock.
-function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts }) {
+// lockSetup returns { base, io, lockType, readLock }: the reader of the lock of checks.cjs, and
+// the io that it takes, for root, the working folder. until is the time in ms after which no
+// pull starts, and by which each pull ends; with none, a pull takes at most 100 s. now and spawn
+// are the clock and the process starter of the pulls, which the lock reader takes as io.now and
+// io.spawn; with none it uses Date.now and spawnSync.
+function lockSetup({ root, env, script = process.argv[1], plugin, artifacts, until, now,
+  spawn }) {
   const home = path.resolve(path.dirname(script), '..');
   const dir = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow');
   const base = require(path.join(dir, 'lib', 'base.cjs'));
@@ -587,12 +648,25 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
   const { pluginFolder } = require(path.join(dir, 'lib', 'plugin.cjs'));
   const { lockType, readLock } = require(path.join(dir, 'verbs', 'lock.cjs')).lockReader;
   const io = { artifacts: artifacts || base.ARTIFACTS, cwd: root, home: env.HOME, env,
-    plugin: plugin || pluginFolder(path.join(dir, 'checks.cjs')) };
+    plugin: plugin || pluginFolder(path.join(dir, 'checks.cjs')), until, now, spawn };
   let registry = null;
   io.registry = () => {
     if (!registry) registry = loadRegistry(io.plugin);
     return registry;
   };
+  return { base, io, lockType, readLock };
+}
+
+// lockedFiles returns { what, files, number, checks } of the lock that counts: files are the
+// real paths of the files it lists under root, the working folder, number is the version of
+// the lock, and checks lists each file as { ...record, file }, with the record that
+// `lock.files` of the type of the lock lists for the file, or none. It returns { files: [] }
+// when no type of the registry has a lock, or no version of it counts, and { type, problem }
+// when the lock of type cannot be read. It reads the lock with checks.cjs's reader: in a run,
+// it pulls the lock.
+function lockedFiles(args) {
+  const { root } = args;
+  const { base, io, lockType, readLock } = lockSetup(args);
   let def;
   try {
     def = lockType(io);
@@ -607,11 +681,68 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
         problem: `The stored ${lock.what} differs from index.json.` }
         : { files: [] };
     }
-    return { what: lock.what, files: lock.files.filter((one) => !one.problem)
-      .map((one) => real(path.resolve(root, one.folder || '.', one.path))) };
+    const listed = lock.files.filter((one) => !one.problem).map((one) => ({
+      ...(one.record !== null && typeof one.record === 'object' ? one.record : {}),
+      file: real(path.resolve(root, one.folder || '.', one.path)) }));
+    return { what: lock.what, files: listed.map((one) => one.file), number: lock.number,
+      checks: listed };
   } catch (error) {
     if (error instanceof base.Missing) return { type: def.type, problem: error.message };
     throw error;
+  }
+}
+
+// lockTypeOf returns the type of the registry that has the lock, or null when there is none or
+// the registry cannot be read. The type may have `lock.writable` and `lock.refused`, which the
+// guard calls below.
+function lockTypeOf(args) {
+  try {
+    const { io, lockType } = lockSetup(args);
+    return lockType(io);
+  } catch {
+    return null;
+  }
+}
+
+// liftedLock returns lock without the files that `lock.writable` of the type of the lock returns,
+// else lock. `lock.writable` takes the io of the lock reader, the agent's name and the records
+// of the files of the lock, and returns the files of the lock that the agent may write. The
+// guard reads no other record. Every other file stays locked, also when the type has no
+// `lock.writable`, when it throws, or when it returns no list; an entry of the list that is no
+// text lifts nothing. name is the name of the agent of the call, or null for the main session.
+// When `lock.writable` throws the line of a failed pull, `qory artifact pull` and what to run,
+// the lock that it returns has `retry`: the cause lines, then the command and "then write
+// again", which the deny shows.
+function liftedLock(lock, { io, name, fold, type }) {
+  if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
+    name === null || !type) return lock;
+  const writable = type.lock && type.lock.writable;
+  if (typeof writable !== 'function') return lock;
+  let free;
+  try {
+    free = writable({ io: io(), agent: name, checks: lock.checks, fold });
+  } catch (error) {
+    const lines = String((error && error.message) || '').split('\n');
+    const command = /^Run (`qory artifact pull[^`]*`)/.exec(lines[0]);
+    return command ? { ...lock, retry: [...lines.slice(1), `Run ${command[1]}, then write again.`]
+      .join(' ') } : lock;
+  }
+  if (!Array.isArray(free)) return lock;
+  const lifted = new Set(free.filter((one) => typeof one === 'string').map(fold));
+  return { ...lock, files: lock.files.filter((file) => !lifted.has(fold(file))) };
+}
+
+// refusedShell returns the start of the reason that `lock.refused` of the type of the lock
+// returns for a shell command of an agent, else null. It is null when the type has no
+// `lock.refused`, when it throws, or when it returns no text.
+function refusedShell(type, command) {
+  const refused = type && type.lock && type.lock.refused;
+  if (typeof refused !== 'function') return null;
+  try {
+    const start = refused({ command });
+    return typeof start === 'string' && start !== '' ? start : null;
+  } catch {
+    return null;
   }
 }
 
@@ -1228,7 +1359,10 @@ const PLAIN = new Set(['echo', 'ls', 'mkdir', 'true']);
 // null, when another command of the lines outside the bodies is not one of PLAIN or a cat or
 // tee that reads, because it could run a file that cat or tee writes, or when those lines
 // define a function, which can be named cat.
-function dropBodies(command) {
+// With loose true, the body of a here-document whose end word is not quoted is dropped too,
+// up to the first line that could run a command or hide one: a line with $(, a backtick, a
+// backslash, or a $ at its end. That line and each line after it in the body stay.
+function dropBodies(command, loose = false) {
   if (!command.includes('<<')) return command;
   const kept = [];
   // The here-documents whose bodies come next, from pending[head] on.
@@ -1238,9 +1372,11 @@ function dropBodies(command) {
   let dropped = false;
   for (const line of command.split('\n')) {
     if (head < pending.length) {
-      const { end, dash, drop } = pending[head];
+      const one = pending[head];
+      const { end, dash } = one;
       if ((dash ? line.replace(/^\t+/, '') : line) === end) head += 1;
-      if (drop) dropped = true;
+      if (loose && one.loose && !one.runs && /`|\$\(|\\|\$$/.test(line)) one.runs = true;
+      if (one.drop || (loose && one.loose && !one.runs)) dropped = true;
       else kept.push(line);
       continue;
     }
@@ -1299,7 +1435,9 @@ function heredocs() {
   const close = (after) => {
     const reader = !/[|(`]/.test(after) && reads(text);
     if (!reader && !plain(text)) other = true;
-    for (const one of found) out.push({ ...one, drop: one.quoted && reader });
+    for (const one of found) {
+      out.push({ ...one, drop: one.quoted && reader, loose: reader && !one.quoted });
+    }
     text = '';
     found = [];
   };
@@ -1933,10 +2071,29 @@ function pathHits(segment, full, folder, how, step = false) {
     const resolved = realOf(joined(cwd, word));
     const exact = fold(resolved);
     if (exact === target || (folder && under(exact, target))) return true;
+    if (!folder && sameFile(resolved, full)) return true;
     if (!under(target, exact)) return false;
-    // A restore writes only tracked files, and .qory/build/ holds none.
+    // A restore writes only tracked files, and .qory/build/ has none.
     return removes || (!folder && restorer && (named || disk.exists(resolved)));
   }));
+}
+
+// The reason for a redirect to a brace list of more than one word.
+const MULTI = 'Write each file with a separate redirect.\n';
+
+// multiRedirect returns the target of the first redirect of a simple command of command whose
+// word has a brace list of more than one word, as in `> checks/{a,b}.check`, or null. zsh with
+// MULTIOS writes to each word of such a target, and the guard reads the redirect as one path.
+// shortcut: a brace range of one word, such as {b..b}, writes the file it expands to, and the
+// rule skips the main session; the same boundary as the hard link outside the root, replace it
+// when ranges are expanded like lists and the main session is read.
+function multiRedirect(command, cwd) {
+  for (const one of segments(dropBodies(command, true), cwd)) {
+    const found = redirectWords(one.text).find((word) => braceGroups(word)
+      .some((group) => group.parts.length > 1));
+    if (found !== undefined) return found;
+  }
+  return null;
 }
 
 // countsAsWrite reports whether a call writes for the step count: it writes a file in
@@ -2038,14 +2195,21 @@ function names(full, cwds, root) {
 // tool_name, tool_input, cwd and, in an agent's call, agent_id; cwd only resolves the paths
 // of the call. root is the working folder of the run, as rootOf of step-limit.cjs finds it;
 // with no root, decide denies each write and shell command. locked returns the files of the
-// lock, as lockedFiles does; it runs only for a write below root. runFolder is the artifact
+// lock, as lockedFiles does; it runs only for a write below root. lockKind returns the type of
+// the lock, as lockTypeOf does. runFolder is the artifact
 // folder of a run, as end-gate.cjs has it, unless the caller sets another. A call that needs more
-// work than a budget allows, to deadline, a time in ms, is denied.
+// work than a budget allows, to deadline, a time in ms, is denied. wait is the most time in ms
+// that the pulls of the call take beyond deadline; WAIT_LIMIT with none. now and spawn are the
+// clock and the process starter of the pulls, with Date.now and spawnSync when unset.
 function decide(args) {
-  const spend = budget(args.deadline);
+  const now = args.now || Date.now;
+  const deadline = args.deadline === undefined ? now() + TIME_LIMIT : args.deadline;
+  const wait = args.wait === undefined ? WAIT_LIMIT : args.wait;
+  const spend = budget(deadline, wait, now);
+  lockedStats = new Map();
   setHome((args.env || process.env).HOME);
   try {
-    return metered(spend, () => decideCall({ ...args, spend }));
+    return metered(spend, () => decideCall({ ...args, spend, until: deadline + wait, now }));
   } catch (error) {
     if (error instanceof Spent) return TOO_MUCH;
     throw error;
@@ -2053,8 +2217,8 @@ function decide(args) {
 }
 
 // decideCall returns the answer of decide, and spends from spend.
-function decideCall({ input, env = process.env, script = process.argv[1], locked, root: start,
-  spend, runFolder, runtime }) {
+function decideCall({ input, env = process.env, script = process.argv[1], locked, lockKind,
+  root: start, spend, until, now, spawn, runFolder, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   const session = reviewSession(env);
@@ -2103,20 +2267,42 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const nocase = caseless(root);
   const fold = (full) => (nocase ? full.toLowerCase() : full);
   const inside = (full, dir) => under(fold(full), fold(dir));
+  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
+  let typed;
+  const typeOf = () => {
+    if (typed === undefined) typed = (lockKind || lockTypeOf)({ root, env, script });
+    return typed;
+  };
   let lock = null;
   const lockOf = () => {
     if (lock === null) {
-      lock = (locked || ((args) => lockedFiles(args)))({ root, env, script });
+      // The reads of the lock and of the lift run `qory artifact pull`, whose time is no work of
+      // the guard.
+      const read = () => {
+        lock = (locked || ((args) => lockedFiles(args)))({ root, env, script, until, now, spawn });
+        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script, until, now, spawn }).io,
+          fold, type: agent ? typeOf() : null,
+          name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
+      };
+      if (spend && spend.waiting) spend.waiting(read);
+      else read();
     }
     return lock;
   };
   const walked = call.paths.map((one) => walkPath(joined(cwd, one)));
   const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
-  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   const reviewer = agent && /-reviewer$/.test(String(input.agent_type));
   const artifacts = artifactFolder(root, env, runFolder);
   const kept = keptFiles(env, session, nocase, root, artifacts);
+  const refusedStart = call.kind === 'shell' && agent ? refusedShell(typeOf(), call.command)
+    : null;
+  if (refusedStart !== null) return `${refusedStart}The command is ${reviewShown(call.command)}.`;
+  const multi = call.kind === 'shell' && agent ? multiRedirect(call.command, cwd) : null;
+  if (multi !== null) {
+    return `${MULTI}The redirect target ${reviewShown(multi)} has a brace list of more than one ` +
+      'word, and zsh writes to every word of it.';
+  }
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = (name) => [...new Set([artifactFolder(root, env, runFolder),
       path.join(root, '.qory', 'artifacts')].filter(Boolean)
@@ -2166,11 +2352,15 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const built = paths.find((full) => inside(full, build) ||
     fold(full).includes(fold(`${path.sep}${BUILD}${path.sep}`)));
   if (built) return `${BUILT}The call writes ${built}.`;
+  // shortcut: the lock check, sameFile included, applies to paths inside the root only, so a hard
+  // link outside the root to a locked file passes the file tools; keptFiles, the push check and
+  // lock --verify catch it, replace it when every written path is compared by device and inode.
   if (paths.some((full) => inside(full, root))) {
-    const { files = [], what, problem, type } = lockOf();
+    const { files = [], what, problem, type, retry } = lockOf();
     if (problem) return unread({ type, problem });
-    const file = paths.find((full) => files.some((one) => fold(one) === fold(full)));
-    if (file) return lockedReason(file, root, what);
+    const file = paths.find((full) => files.some((one) => fold(one) === fold(full) ||
+      sameFile(full, one)));
+    if (file) return lockedReason(file, root, what, retry);
   }
   const unsure = walked.find((one) => one.unsure);
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
@@ -2436,10 +2626,10 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
     const target = (one.shell || [one.full]).find((full) => hit(full, one.folder, one.step));
     if (target) return `${one.head}The command writes ${one.folder ? 'in ' : ''}${target}.`;
   }
-  const { files = [], what, problem, type } = lockOf();
+  const { files = [], what, problem, type, retry } = lockOf();
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));
-  if (file) return lockedReason(file, root, what);
+  if (file) return lockedReason(file, root, what, retry);
   // A command whose writes the guard does not read: a locked file or .qory/build/ in the text
   // of the call denies it.
   const reached = dark && reaches(all, files, path.join(root, BUILD), root, how);
@@ -2668,11 +2858,13 @@ function linked(pattern) {
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists. The path is on
-// the second line, so that the first line stays within 100 characters.
-function lockedReason(file, root, what) {
+// the second line, so that the first line stays within 100 characters. With retry, the text of
+// a failed pull of the lift, a third line has the cause and the command to run.
+function lockedReason(file, root, what, retry) {
   const shown = under(file, root) ? path.relative(root, file) : file;
   return `Leave the locked file as it is: ${what} locks it.\nThe call writes ${shown}. ` +
-    "A change to a locked file fails Verify's lock --verify --version <N>.";
+    "A change to a locked file fails Verify's lock --verify --version <N>." +
+    (retry ? `\nThe lift of a changed check failed: ${retry}` : '');
 }
 
 // placeOf returns { cwd, root, artifacts } of a call: the folder of the hook's input, root
@@ -3625,9 +3817,9 @@ function run({ runtime, before } = {}) {
 }
 
 // The fixed texts that start a deny, for the check of their first lines.
-const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
-  OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
+const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, MULTI, NO_ROOT,
+  TOO_MUCH, OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
   SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT, STEP_KEPT, STEP_ONLY };
 
-module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
+module.exports = { decide, budget, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
   REASONS };

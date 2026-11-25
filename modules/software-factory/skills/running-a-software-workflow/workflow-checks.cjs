@@ -36,10 +36,11 @@
 // which writes the draft verification.json of Verify from records, and the verb demo, which
 // checks that the harness has the skill scripting-demos and builds a demo script from the
 // actions of the demo author, the verb film, which stores the film or the pictures of a
-// demo script and the pictures of pages, the verb files, which writes
-// .reports/changed-files.json, the list of the changed files of the pull request that the
-// check of the walkthrough reads, and the verb feedback, which prints the notes that no run
-// sorted and the points that have not ended, and checks a draft that changes the criteria or
+// demo script and the pictures of pages, the verb changes, which lists the criteria that
+// changed since the newest acceptance lock and writes .qory/build/changes.json, the verb files,
+// which writes .reports/changed-files.json, the list of the changed files of the pull request
+// that the check of the walkthrough reads, and the verb feedback, which prints the notes that no
+// run sorted and the points that have not ended, and checks a draft that changes the criteria or
 // the scenarios for the points of one source.
 'use strict';
 
@@ -102,7 +103,7 @@ function workflowChecks(core) {
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
       ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
       ...require('./verbs/demo.cjs')(lib), ...require('./verbs/film.cjs')(lib),
-      ...require('./verbs/files.cjs')(lib),
+      ...require('./verbs/changes.cjs')(lib), ...require('./verbs/files.cjs')(lib),
       ...require('./verbs/feedback.cjs')(lib),
       ...require('./verbs/revert-attempt.cjs')(lib),
     },

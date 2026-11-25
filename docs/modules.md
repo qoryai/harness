@@ -2308,10 +2308,25 @@ current folder, and from each folder that a `cd` or `pushd` in the command chang
 that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
 `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`, `unlink` and `mv` of a
 folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
-`rm -rf .qory`, as a write of that file. It reads a `restore` of a folder above a locked
-file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
-`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. A
-path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+`rm -rf .qory`, as a write of that file. A path that is a hard link of a locked file is that
+file: the guard compares the device and the inode of a written path with each locked file that
+has more than one link, so `ln checks/a.check notes.txt` and a later write to `notes.txt` is a
+write of `checks/a.check`. A path that does not exist yet, or whose parent is a file, is no locked
+file, and a locked file that is gone is no link; any other failed read of either path denies
+the call. The guard reads each locked file once in a call. Its reads of the lock and of the
+lift run `qory artifact pull`: the pulls of one call share one budget, and none runs past 80 s
+after the call started (20 s of work and 60 s of waiting), so the hook ends before the runtime
+ends it at 120 s. A pull that has no time left, or does not finish in the time left, fails: the
+lock cannot be read, or nothing lifts, and the write is denied. The time of the pulls moves the
+limit of 20 s of the guard later, by 60 s at most. It reads a `restore` of a folder above a
+locked file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
+`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. An
+agent's redirect to a brace list of more than one word, such as `> checks/{a,b}.check`, is
+denied: zsh with MULTIOS writes to each word, and the guard reads the redirect as one path. A
+brace list of one word, a quoted brace and a command with no brace pass, and so does a brace
+list in the body of a here-document that `cat` or `tee` reads, up to the first line with `$(`,
+a backtick, a backslash or a final `$`. A path with the wildcards `*`, `?` or `[...]` counts
+as each path it can match, so
 `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
 matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
@@ -2660,9 +2675,35 @@ newest version of each type that the check reads.
 
 `build-plan`, `verification`, `walkthrough` and `acceptance-lock` read one criteria version,
 the target: the approved version, or the newest version that a person stored after it (a
-writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
-a version counts neither, because `index.json` has no time of a decision to compare with
-the newest lock. One function, `criteriaTarget` of
+writer of kind `person` in `index.json`), or the newest version that a note links and that
+the check passes. A run's version never counts. A version is linked to a note when its
+`decision` is a non-empty string and its `decision_at` parses as a time; it counts when
+`decision_at` is later than the newest lock that is older than the version, and the kind of
+the `decision` passes. For an answer (`an_`), the question rule also passes (see
+`acceptance-lock` below), or the newest lock locks that version: that lock passed the rule
+when it was pushed, and a push store has the newest lock only, not the lock before the
+version that the rule compares. `build-plan`, `verification` and `walkthrough` read
+`acceptance-lock` and `questions` for this, as `acceptance-lock` does, so the four types
+apply one rule, and a check and a push give the same result for the same facts, with one
+exception: a push store has the newest lock only, so a push fails closed whenever the lock
+before the version is not the newest lock (for example while `acceptance-lock` is withdrawn,
+or when a later lock locks an older version), where a check that pulled that lock passes.
+A version that fails the rule is never the target, and the finding shows the reason: a
+criterion that the version changes with no answered question about it, or a lock or the
+questions that the store lacks. For a store that lacks them, a check has the pull as its
+first line (`Run \`qory artifact pull acceptance-lock --version <N>\`, then check again.`,
+or `qory artifact pull questions`), and a push, which cannot pull, has the usual first line
+and the reason.
+The newest lock opens the version that it locks only while `acceptance-lock` is not
+withdrawn, and only when the lock is live (no cancelled run wrote it, and it is no
+withdrawal), the store has its document, and it locks that version: a later version that the
+same answer links needs an answer about its version. The question rule reads the locks of
+`index.json` that no cancelled run wrote and that are no withdrawal, also while `acceptance-lock` is
+withdrawn. `matrix` pulls `acceptance-lock`, each live lock that the store lacks by its
+number (a plain pull fetches one version), and `questions`, for the same target. The plan,
+the verification and the walkthrough may read an older version than the one that Qory
+Apiary feeds the run; a check that finds a newer version stops with a finding for a member.
+One function, `criteriaTarget` of
 `running-a-software-workflow/lib/build.cjs`, computes the target for the four types. A check
 and a push read the versions in `index.json`, not the folders of the store, so that they
 agree. The build plan, the verification and the walkthrough read the target before any other
@@ -2675,11 +2716,13 @@ three types get "Write the build plan after a person approves the acceptance cri
 with the verification or the walkthrough in place of the build plan, and the lock gets its
 line below. When `index.json` lists a version above the target, the push gets that version
 in place of the target, and a check and a push of each of the four types get one finding,
-such as "Ask a member to upload the acceptance criteria they accept as a new version." with
+such as "Ask a member to write the change in a request for changes." with
 the line "Then push the build plan again: the run stored version 2 after the approved
 version 1." after it, with the verification or the walkthrough in place of the build plan,
 and "Then lock that version" for the lock. When the writer of that version is not of kind
-`run`, the reason is "no member uploaded the newer criteria version 2". Two criteria
+`run`, the reason is "no member wrote the newer criteria version 2". When a note links
+that version and no lock opens for it, the reason is the one that the lock check gives, such
+as "Version 2 is linked to "xx_1", and no lock opens for a note of that kind.". Two criteria
 versions of one number in `index.json` exit 3 with "Run `qory artifact pull`, then check
 the build plan again.", with the verification, the walkthrough or the lock in place of the
 build plan, and so does the check of one of those three types with no `index.json`. A push
@@ -2757,18 +2800,61 @@ find:
   another order of members, is that lock, and passes again. A new lock passes
   only at the target, and only when the target is not older than the criteria version of a
   lock in `index.json`, and either the target is the approved version and no lock locks it,
-  or a person stored the target after the newest lock. With no lock before, any upload of a
-  person counts. An upload with no `at` that parses as a time counts as older than every
-  lock, and a lock with no such `at` as newer than every upload. A `decision` of a criteria
-  version or of the lock opens nothing, because `index.json` has no time of a decision. A
-  version's `note` never counts, because the run that stores the version writes the note. A
-  finding has the fix to set the criteria version only to the target, and only when a lock
-  of the target passes: a new lock, or the newest lock again when it locks the target. Else,
-  with an approved version, the finding opens with its one action, "Ask a member to upload
-  the acceptance criteria they accept as a new version.", and its second line has the next
-  step and the reason after the colon: "Then lock that version: acceptance-lock version 1
-  already locks criteria version 1." or "Then lock that version: no member uploaded
-  criteria after acceptance-lock version 1, the lock that counts."; a run passes the line
+  or a person stored the target after the newest lock, or a note links the target and is
+  newer than the newest lock. With no lock before, any upload of a person counts. An upload
+  with no `at` that parses as a time counts as older than every lock, and a lock with no
+  such `at` as newer than every upload. A criteria version is linked to a note when its
+  `decision` is a non-empty string and its `decision_at` parses as a time. A linked version
+  counts when `decision_at` is later than the `at` of the newest lock; a cancelled version
+  and a withdrawal never count. The kind of the id in `decision` is its prefix: `gd_`, `es_`
+  and `rc_` are free text, which the check cannot bind to a criterion; `an_` is the answer
+  to a question; a lock of a version with any other prefix is refused. For an answer, each
+  live criterion that the version changes or removes since the criteria version that the
+  newest lock locks, a Demo criterion included, needs a question in `questions` whose `about`
+  has the type `acceptance-criteria`, the name `main` and that criterion as `item`, and whose
+  `answer.at` is later than the lock. The lock has `/criteria/sha256`, an object that maps
+  the id of each live criterion of the version that it locks to the SHA-256 of the
+  criterion's text and check, made as `criterion_sha256` is made. `lock` fills it, and the
+  check recomputes it. The rule compares the recorded hashes with the hashes of the
+  version: an id with another hash, or an id that is no longer live, is changed or removed,
+  and a criterion that the version only adds needs no question. A lock counts every
+  criterion as changed, with no migration, when `/criteria/sha256` is missing, is empty or
+  has a value that is not 64 lower-case hexadecimal digits; a check of the lock whose
+  criterion the member lacks counts that criterion as changed too. The time of an answer
+  can be trusted because the questions store of Qory Apiary does not accept a run's write
+  of an `answer`, so only a member's answer has one, and the server sets its time. The
+  rule does not apply when a counted version above the locked one is linked to a free-text
+  note newer than the lock, a known gap: such a note can contain any change, and the check
+  cannot bind it to a criterion. The rule fails closed when the store lacks the lock before
+  the version, the version, or the questions that index.json lists. A push store has the
+  newest lock and the newest criteria version only, and the rule needs no older criteria
+  text, so a push binds an answer as a check does. The rule reads `questions`, so
+  `acceptance-lock` reads `acceptance-criteria` and `questions`.
+  A version's `note` never counts, because the run that stores the version writes the note.
+  `criteriaTarget` uses the same test (`linkProblem` of `lib/build.cjs`) beside the newest
+  lock that is older than the version, for all four types. Each check of a lock has a
+  `criterion_sha256`, the SHA-256 of the criterion's text and check in the version that the
+  lock locks, which `lock` fills and the check recomputes. A new lock keeps the checks of
+  each criterion that did not change, as a whole list, because the push store has only the
+  newest lock and the newest criteria version, so "unchanged" is the same
+  `criterion_sha256`: the checks of that
+  criterion in the new lock and in the newest lock must have the same `sha256`, `path`,
+  `repository`, `command`, `failed_with` and `criterion_sha256` each, so that a changed
+  check is refused, and so is a second check that the new lock drops. A support file of the
+  newest lock keeps its hash: a new lock that lists its path (with `//` collapsed and the
+  repository in lower case) with other bytes is refused, so a helper that changes gets a
+  new path, and a new lock that leaves it out is refused while the lock keeps a check of an
+  unchanged criterion. The lock links a support file to no criterion, so every support file
+  stays listed. When the store lacks the newest lock, the check fails closed with "Report to
+  a member: the store lacks acceptance-lock version <N>.". A finding has the
+  fix to set the criteria version only to the target, and only when a lock of the target
+  passes: a new lock, or the newest lock again when it locks the target. Else, with an
+  approved version, the finding opens with its one action, "Ask a member to write the change
+  in a request for changes.", and its second line has the next step and the reason after
+  the colon: "Then lock that version: acceptance-lock version 1 already locks criteria
+  version 1." or "Then lock that version: no member wrote criteria after acceptance-lock
+  version 1, the lock that counts." or the reason that a linked note opens no lock, such as
+  that it is from before the lock; a run passes the line
   to the member as a point, as `running-a-workflow` lists under "Locked files". A finding
   line shows a version from 1 to 999999 in digits, and any other version,
   outside a folder path, as "over 999999" or "below 1", so that no line is longer than 196
@@ -2803,7 +2889,8 @@ find:
   newest lock that counts gives the push the same result as the check. A push store with
   the newest lock by number, cancelled or not, gives it only when the store also has the
   file of the lock that counts. Else the push cannot read which criteria version the lock
-  that counts locks, so only a person's upload after that lock opens a new lock;
+  that counts locks, so only a person's upload, or a free-text note, after that lock opens
+  a new lock;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
@@ -3072,10 +3159,13 @@ reviewer. For the plan it is `plan-reviewer` on `build-plan.md`; for `checks` it
 in the artifact folder. The report is `.step-reports/<reviewer>/<sha256>.json`, in the
 review report format (`review-report.schema.json` of qory), which `step end` reads as
 `findings round` does. `<sha256>` is the SHA-256 of that file. For `checks` it is the
-SHA-256 of the content of the lock with no `commit`, with the `sha256` of each listed file
-from the working folder, and with the members of each object in the order of their names. So
-it is the same before and after `freeze` and `lock`, and an edit of the draft or of a check
-file after the review changes it. A listed file with no hash, such as a missing file or a
+SHA-256 of the content of the lock with no `commit`, no `/criteria/sha256` and no
+`criterion_sha256` of a check, with the `sha256` of each listed file from the working
+folder, and with the members of each object in the order of their names. `lock` fills the
+two hash members again, and the lock check and the push check verify them exactly, so the
+review leaves them out. So it is the same before and after `freeze` and `lock`, and an edit
+of the draft or of a check file after the review changes it. A listed file with no hash,
+such as a missing file or a
 link, is a finding of `step end`, and so is a lock that is no JSON: "Write
 acceptance-lock.json as valid JSON."
 
@@ -3171,10 +3261,12 @@ push_checks:
 ```
 
 `decision-record` and `feedback` read `[acceptance-criteria, questions]`, `review-comments`
-reads `[questions]`, `build-plan`, `acceptance-lock` and `verification` read
-`[acceptance-criteria]`, `demo-script` reads `[demo-scenarios, build-ledger]`, `demo-evidence`,
-`demo-video` and `screenshot` read `[demo-script]`, `walkthrough` reads
-`[verification, acceptance-criteria]`, and the other types read nothing. A module without
+reads `[questions]`, `acceptance-lock` reads `[acceptance-criteria, questions]`, `build-plan`
+and `verification` read `[acceptance-criteria, acceptance-lock, questions]`, `demo-script`
+reads `[demo-scenarios, build-ledger]`, `demo-evidence`, `demo-video` and `screenshot` read
+`[demo-script]`, `walkthrough` reads
+`[verification, acceptance-criteria, acceptance-lock, questions]`, and the other types read
+nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
 `review-comments`, with the program `scripts/push-check.cjs`. `software-factory` declares
 the entries of its 17 types, with the program `workflow-checks.cjs`. Neither declares one
@@ -3682,7 +3774,7 @@ characters, the quote of the criterion is cut in both to its first 8 words and "
   again, the session pushes one question per such check to a member, with `about` set to
   `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context has the
   path of the check, the criterion as `AC-<N>, "<first sentence>"` and what each run printed
-  for the check. The options are to upload the acceptance criteria as a new version, so that
+  for the check. The options are to write the change in a request for changes, so that
   the next round writes a new check (recommended), or to keep the locked check and let the
   build go on. The run ends with `escalate` and one `answer` point per check. The ledger
   step stays `done`, so a new criteria version starts a new pass of `checks`, and an
@@ -5135,6 +5227,110 @@ Take "src/app.js" out of the commits since the base: it is not a document file.
 
 The values of `kind_data` are in `short-path.json`, beside `kinds`, and no setting of
 `qory.yaml` changes them.
+
+### The verb changes and change mode
+
+`checks.cjs changes` of `running-a-software-workflow` is the first call of the workflows
+`plan-the-build` and `write-acceptance-checks` after `resume`. It reads the newest lock that
+counts, as `lock --verify` does, pulls the criteria version that the lock locks, and
+compares it with the target, the criteria version that `criteriaTarget` returns, by the id,
+the text and the check of each criterion (`criteriaDiff`). It writes
+`.qory/build/changes.json` in the working folder. The tool guard denies a write below
+`.qory/build/` by the tools and the shell forms that it reads, and it denies a call of an
+agent that runs this verb; a script that writes there is not seen. The binding gates are
+the push check of the lock and `lock --verify`, which compare the lock with the criteria.
+
+The file has `mode`, and with the modes `changes` and `none` also `lock`, `criteria`,
+`target`, `changed`, `added`, `removed`, `unchanged`, `tests`, `leaves` and `paths`. The verb
+pulls both criteria versions in a run, so that a file in the artifact folder cannot change
+the diff, and exits 3 with "Report to a member: acceptance-lock was withdrawn..." when the
+acceptance lock is withdrawn. A record whose lock number or target differs from the
+newest lock and the target that `check build-plan` reads is refused.
+
+- `mode` is `full` when no lock counts, the work item has no build plan or no criteria
+  version is approved; the file then has only `reason`, and the last line is "Full run:
+  <reason>.". The workflow runs as before.
+- `mode` is `none` when no criterion changed, and the last line is "No criterion changed
+  since acceptance-lock version <N>.". Both workflows then run no `step begin`, start no
+  agent, push nothing and end `passed`, also when a build plan is newer than the lock. The
+  workflow `write-acceptance-checks` reads no build plan, and does not stop for a missing
+  check path.
+- `mode` is `changes` otherwise. The lines before the last, "Changed:", "Added:",
+  "Removed:", "Checks to write:" and "Checks to drop:", each list ids, and the last line is
+  "Changes since acceptance-lock version <N>: <a> changed, <b> added, <c> removed.".
+  `tests` is "Checks to write": the changed and added criteria planned as Tests; `leaves`
+  is "Checks to drop": the criteria of the lock that the target no longer plans as Tests.
+  `paths` lists the check files of the changed Tests criteria, except a file that a check
+  of another criterion or a support file also has.
+
+In change mode, the build planner gets the ids and changes only the deliverables that list
+them: `check build-plan` finds a deliverable that differs from the newest build plan and
+lists no changed, added or removed criterion. The acceptance check writer gets only the
+criteria of "Checks to write", starts its draft from the newest lock, and keeps each check
+of an unchanged criterion whole; `run locked <criterion>...` runs only the new checks.
+
+The tool guard lifts the locked check files of changed criteria for the writer of the checks,
+and reads no `changes.json` for it. A file is lifted only when all of these hold:
+
+- The agent is the `acceptance-check-writer`.
+- The lock that counts lists the file, and every entry of the lock at that file is a check of
+  a criterion.
+- The criteria version that `criteriaTarget` returns is newer than the one that the lock
+  locks, and the store has its file with at least one criterion.
+- For each entry at the file, the `criterion_sha256` of the entry is a SHA-256, and either the
+  target version has no live criterion with that id, or it has one that it plans as Tests and
+  whose hash differs from `criterion_sha256`.
+
+A support file, a file with an entry of an unchanged criterion, a criterion that left Tests,
+every other agent and the main session stay denied, and so does every file when the target
+cannot be read. The guard has no source for the name of the workflow, so it keys on the agent.
+`changes.json` is written by the verb `changes`, printed by the workflows and read by the check
+of a build plan in a session, which finds no record that is a link or has more than one link.
+In a run, `qory artifact pull <type>` writes `index.json` and a version folder of that type into
+`.qory/artifacts`, and the folders that earlier pulls or an agent left there stay. The lift pulls,
+each by version number, what `criteriaTarget` reads: the target version, and for each version
+above the approved one that a note links to an answer and no person wrote, the newest lock, the
+lock before it, that version, and the version of the questions that `index.json` counts; a
+person's version, a version linked to another kind of note, a version that no lock is older than,
+and the approved version need no other pull. The first pull of the criteria has no number, and the
+lift reads `index.json` from it only. The lift reads only the versions that these pulls returned,
+and in them only the files that the entry of the version in `index.json` lists: a folder, a name,
+a version or a file that no pull of the call returned, or that the entry does not list, does not
+exist for it, so planted questions, a planted name, a planted file, a withdrawn name, and the
+newest version of a cancelled run count for nothing. After the last pull it reads `index.json`
+again. A pull that fails or has no time left, and an `index.json` that needs a version that no
+pull returned or has another target, lift nothing, and the deny of the locked file then has a
+third line with the cause and the command to run again. Outside a run the lift reads the artifact
+folder. These limits stay:
+
+- Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
+  store that no agent call can write.
+- The lift pulls the questions, and the criteria version unless it is the target, also when a
+  free-text note frees the question rule, so those pulls are needless. The limit ends when
+  `criteriaReads` repeats that test of the rule.
+- An agent call that rewrites a pulled file after its pull and before the read is not stopped.
+  The limit ends when the read checks each file against the SHA-256 of `index.json`, or the
+  pulls make a folder that no agent call can write.
+- A forged `.qory/build/changes.json` can steer what `plan-the-build` plans, and the guard no
+  longer reads it. `keptFiles` and `lock --verify` reject a wrong result. The limit ends when
+  the record is written where no agent call can write.
+- The lock check, `sameFile` included, applies to paths inside the working folder only, so a
+  hard link outside it to a locked file passes the file tools; `keptFiles`, the push check and
+  `lock --verify` catch it. The limit ends when every written path is compared by device and
+  inode.
+- A brace range of one word, such as `{b..b}`, writes the file that it expands to, and the brace
+  rule skips the main session. The limit ends when ranges are expanded like lists and the main
+  session is read.
+
+The guard does not know these rules: the type `acceptance-lock` of `running-a-software-workflow`
+has them in `lock.writable` and `lock.refused`, next to `lock.files` and `lock.fill`. The
+guard calls `lock.writable({ io, agent, checks, fold })` for a call of an agent, with the `io`
+of the lock reader and the entries of `lock.files` as `{ file, ...record }`, and lifts the
+files that it returns. `lock.refused({ command })` returns the start of the reason for a shell
+command of an agent that runs `checks.cjs changes`. When the type has no `lock.writable`, when
+it throws, or when it returns no list, the guard lifts nothing, and every locked file stays
+locked. When the type has no `lock.refused`, when it throws, or when it returns no text, the
+guard refuses no command for that reason.
 
 ## The process template, process.yaml
 
