@@ -10,7 +10,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The tool guard denies an agent's redirect to a brace list of more than one word, such as
   `> checks/{a,b}.ts`, because zsh writes to each word. A brace list of one word, a quoted
-  brace and a command with no brace pass.
+  brace, a command with no brace and a brace list in the body of a here-document that `cat` or
+  `tee` reads pass, up to the first body line with `$(`, a backtick, a backslash or a final `$`.
+- The tool guard reads each locked file once in a call, so 500 locked files and a command of 300
+  words stay within its limit of work. The time that its reads of the lock take, which run
+  `qory artifact pull`, moves its time limit of 20 s later, by 60 s at most in all.
 - The tool guard compares the device and the inode of a written path with each locked file
   that has more than one link, so a hard link to a locked file is denied as that file, also
   when a lift of the check ended. A path that does not exist yet, or whose parent is a file, is

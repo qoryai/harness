@@ -2277,13 +2277,15 @@ file: the guard compares the device and the inode of a written path with each lo
 has more than one link, so `ln checks/a.ts notes.txt` and a later write to `notes.txt` is a
 write of `checks/a.ts`. A path that does not exist yet, or whose parent is a file, is no locked
 file, and a locked file that is gone is no link; any other failed read of either path denies
-the call. It reads a `restore` of a folder above a locked
+the call. The guard reads each locked file once in a call, and the time that its reads of the
+lock take, which run `qory artifact pull`, moves its limit of 20 s later, by 60 s at most. It reads a `restore` of a folder above a locked
 file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
 `git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. An
 agent's redirect to a brace list of more than one word, such as
 `> checks/{a,b}.ts`, is denied: zsh with MULTIOS writes to each word, and the guard reads the
 redirect as one path. A brace list of one word, a quoted brace and a command with no brace
-pass. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+pass, and so does a brace list in the body of a here-document that `cat` or `tee` reads, up to
+the first line with `$(`, a backtick, a backslash or a final `$`. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
 `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
 matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
