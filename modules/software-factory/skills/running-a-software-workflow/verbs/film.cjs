@@ -500,9 +500,9 @@ module.exports = (lib) => {
   // limit because the session pushes none, or the pictures of the steps before it, and the
   // file failed.json with the step and the reason. It prints the finding and returns 5. A run
   // with nothing recorded, a sign-in that failed and a variable with no value store nothing:
-  // they print the finding of failure and return 1. A capture that the runner could not finish
-  // and an encode that ran out of time are causes outside the repository: they throw a Missing
-  // with "Kind: outside", and the encode keeps its frames.
+  // they print the finding of failure and return 1. A capture that the runner could not write for
+  // the disk (lost) and an encode that ran out of time are causes outside the repository: they
+  // throw a Missing with "Kind: outside", and the encode keeps its frames.
   // shortcut: a film of a failed run that ffmpeg cannot encode for another reason than time
   // stores nothing, so the session records the step with the class script, with no frame;
   // replace it with the frames themselves when demo-reviewer can read them.
@@ -515,8 +515,8 @@ module.exports = (lib) => {
     };
     if (run.step === 0 || run.variable) return none();
     if (run.lost) {
-      throw caused('outside', 'Give the dev container more CPU or disk space, then run film ' +
-        `${id} again.`, `The runner could not finish the ${what} of ${id} that it took before ` +
+      throw caused('outside', 'Give the dev container more disk space, then run film ' +
+        `${id} again.`, `The runner could not write the ${what} of ${id} that it took before ` +
         `step ${run.step}: ${cut(String(run.lost), 160)}.`);
     }
     if (!Array.isArray(recorded) || !recorded.length) return none();

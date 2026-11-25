@@ -13,6 +13,10 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
+// A run of Build sets QORY_RUN_ID, which changes where the verbs read the build plan from.
+// Only the tests of a run set it.
+delete process.env.QORY_RUN_ID;
+
 const MODULES = path.join(__dirname, '../modules');
 const PLUGIN = path.join(MODULES, 'core');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
@@ -490,16 +494,28 @@ test('film: an ffmpeg that runs out of time on a failed run keeps the frames, an
     ['capture.json', 'f000001.jpg', 'f000002.jpg', 'failed.json', 'scenario-1.vtt']);
 });
 
-test('film: a capture that the runner could not finish is a cause outside, with no frame kept', () => {
-  const here = failing(two('scenario-1'), { ...STEP_FAILED, step: 2, lost: 'no space left' });
+test('film: a capture that the runner could not write is a cause outside, with no frame kept', () => {
+  const here = failing(two('scenario-1'), { ...STEP_FAILED, step: 2,
+    lost: 'ENOSPC: no space left' });
   const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
   assert.equal(done.status, 3, done.out + done.err);
   const lines = done.out.trim().split('\n');
-  assert.equal(lines[0], 'Give the dev container more CPU or disk space, then run film ' +
-    'scenario-1 again.');
-  assert.match(lines[1], /before step 2: no space left\.$/);
+  assert.equal(lines[0], 'Give the dev container more disk space, then run film scenario-1 ' +
+    'again.');
+  assert.match(lines[1], /before step 2: ENOSPC: no space left\.$/);
   assert.equal(lines.at(-2), '  Kind: outside');
   assert.equal(fs.existsSync(here.film), false);
+});
+
+test('capture: a write that failed for the disk is a cause outside, any other error is not', () => {
+  const { diskFault } = require(path.join(SKILL, 'lib/capture.cjs'));
+  for (const code of ['ENOSPC', 'EIO', 'EDQUOT', 'EROFS']) {
+    assert.match(diskFault(Object.assign(new Error('write failed'), { code })),
+      new RegExp(`^${code}: write failed$`));
+  }
+  assert.equal(diskFault(Object.assign(new Error('x'), { code: 'EEXIST' })), null);
+  assert.equal(diskFault(new Error('Target closed')), null);
+  assert.equal(diskFault(null), null);
 });
 
 test('film frames: a film with no ffmpeg on the machine is a cause outside', () => {
@@ -543,13 +559,23 @@ test('preflight: a sign-in that fails with every variable set is setup, and one 
     here.deps.preflight = { ...here.deps.preflight, runner: signInRunner(results) };
     const done = call(['preflight', '--artifacts', here.plan], here.deps);
     assert.equal(done.status, 1, done.out + done.err);
+    pointFixes = JSON.parse(fs.readFileSync(path.join(here.root, 'points.json'), 'utf8'))
+      .map((one) => one.fix);
     return done.out.split('\n').filter((line) => /^ {2}Kind: /.test(line))
       .map((line) => line.trim());
   };
+  let pointFixes = [];
+  // The point of a setup fault asks for a change to the app, and the point of a variable that
+  // the workspace lacks asks for the variable.
   assert.deepEqual(kinds([wrong, wrong]), ['Kind: setup']);
+  assert.deepEqual(pointFixes, ['Make the sign-in of the app work with the variables set, ' +
+    'then run another round.']);
   assert.deepEqual(kinds([lacking, lacking]), ['Kind: outside']);
-  // Both kinds in one call give one finding of each, and the session keeps the outside one.
+  assert.match(pointFixes[0], /^Ask an owner or admin .* correct the app's sign-in variables/);
+  // Both kinds in one call give one finding and one point of each, and the session keeps the
+  // outside one.
   assert.deepEqual(kinds([lacking, wrong]).sort(), ['Kind: outside', 'Kind: setup']);
+  assert.equal(new Set(pointFixes).size, 2);
 });
 
 test('preflight: the points of two failed calls are all removed by a call that passes', () => {

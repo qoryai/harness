@@ -65,6 +65,12 @@ const TEXTS = {
     fix: 'Ask an owner or admin of your organisation to correct the app\'s sign-in variables ' +
       'in Workspace settings > Secrets and variables, then run another round.',
   }),
+  // A sign-in that fails with every variable set: a change to the app or its data repairs it.
+  signInSetup: (names) => ({
+    text: `The sign-in of the app failed with the values of ${names} set in the workspace's ` +
+      'variables.',
+    fix: 'Make the sign-in of the app work with the variables set, then run another round.',
+  }),
   // origin is NEW_WINDOW for a new window that sent no request to another origin.
   outside: ({ address, origin }) => ({
     text: origin === NEW_WINDOW ? `The app at ${address} opens a new window during sign-in, ` +
@@ -82,15 +88,18 @@ const FIRST = {
   broken: 'End the session with points.json: the browser of the dev container failed.',
   app: 'End the session with points.json: the app did not start in the dev container.',
   signIn: 'End the session with points.json: the sign-in to the app failed.',
+  signInSetup: 'End the session with points.json: the sign-in to the app failed.',
   outside: 'End the session with points.json: the sign-in opened a page outside the app.',
 };
 // The line that ends each finding, for the session to sort: a cause that no change to the
 // repository repairs, "Kind: outside", or one that a change repairs, "Kind: setup". A sign-in
 // that fails is a setup fault, except one that types a variable that the workspace lacks.
-const KIND = { browser: 'outside', signIn: 'setup', app: 'setup', outside: 'setup' };
+const KIND = { browser: 'outside', signIn: 'outside', signInSetup: 'setup', app: 'setup',
+  outside: 'setup' };
 const FALLBACK = {
   app: 'the serve command of the build plan',
   signIn: 'the sign-in variables of the demo scripts',
+  signInSetup: 'the sign-in variables of the demo scripts',
 };
 
 // The words that take the place of an origin that contains a typed value, such as
@@ -341,7 +350,9 @@ module.exports = (lib) => {
     } catch {
       // No points.json, or one that cannot be read: the new points take its place.
     }
-    writeJson(file, [...kept, ...points].slice(-MAX_POINTS));
+    const unique = points.filter((one, at) => points.findIndex((other) =>
+      other.text === one.text) === at);
+    writeJson(file, [...kept, ...unique].slice(-MAX_POINTS));
     // The texts of every call that wrote points, so that a later call that passes removes
     // those and no other.
     let before = [];
@@ -352,7 +363,7 @@ module.exports = (lib) => {
     }
     fs.mkdirSync(path.dirname(writtenFile(root)), { recursive: true });
     writeJson(writtenFile(root), [...new Set([...(Array.isArray(before) ? before : []),
-      ...points.map((one) => one.text)])]);
+      ...unique.map((one) => one.text)])]);
   }
 
   // writtenFile returns the path of the file that lists the texts of the points that preflight
@@ -413,7 +424,7 @@ module.exports = (lib) => {
     const wrong = failed.filter((setup) => !lacking.includes(setup));
     for (const [some, lack] of [[lacking, true], [wrong, false]]) {
       if (!some.length) continue;
-      found.push({ kind: 'signIn', part: 'the sign-in', lack,
+      found.push({ kind: lack ? 'signIn' : 'signInSetup', part: 'the sign-in',
         value: joined([...new Set(some.flatMap((setup) => setup.names))]),
         why: whyOf(some) });
     }
@@ -475,7 +486,7 @@ module.exports = (lib) => {
     const points = found.map((one) => pointOf(one.kind, one.value, checks));
     savePoints(root, points);
     const findings = found.map((one, at) => `${one.first || FIRST[one.kind]}\n${one.why}\n` +
-      `The fix of its point: ${points[at].fix}\nKind: ${one.lack ? 'outside' : KIND[one.kind]}`);
+      `The fix of its point: ${points[at].fix}\nKind: ${KIND[one.kind]}`);
     const parts = new Set(found.map((one) => one.part)).size;
     return { status: 1, findings, points, last: `${checked}: ${parts} of ` +
       `${plural(did.length, 'part')} ${parts === 1 ? 'is' : 'are'} missing, and ` +

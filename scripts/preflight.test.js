@@ -54,6 +54,10 @@ const P01 = {
 const P02_TEXT = 'The app did not start in the dev container, so the run could not check the app.';
 const P03_FIX = 'Ask an owner or admin of your organisation to correct the app\'s sign-in ' +
   'variables in Workspace settings > Secrets and variables, then run another round.';
+const P03_SETUP_FIX = 'Make the sign-in of the app work with the variables set, then run ' +
+  'another round.';
+const p03SetupText = (names) => `The sign-in of the app failed with the values of ${names} ` +
+  'set in the workspace\'s variables.';
 const p03Text = (names) => `The run could not sign in to the app with the values of ${names} ` +
   'in the workspace\'s variables.';
 
@@ -335,6 +339,12 @@ test('preflight: a serve command or a variable name that breaks the text of a po
     'sign-in variables of the demo scripts in the workspace\'s variables.');
   assert.equal(names.fix, P03_FIX);
   checks(names);
+  const setup = preflight.pointOf('signInSetup', 'DEMO__PASSWORD', { agents: new Set(),
+    rules: LIBRARY.pointRules() });
+  assert.equal(setup.text, 'The sign-in of the app failed with the values of the sign-in ' +
+    'variables of the demo scripts set in the workspace\'s variables.');
+  assert.equal(setup.fix, P03_SETUP_FIX);
+  checks(setup);
   assert.equal(preflight.joined(['A']), 'A');
   assert.equal(preflight.joined(['A', 'B']), 'A and B');
   assert.equal(preflight.joined(['A', 'B', 'C']), 'A, B and C');
@@ -511,9 +521,10 @@ test('preflight: a sign-in with a wrong value writes the point of the sign-in', 
   assert.equal(first, 'End the session with points.json: the sign-in to the app failed.');
   assert.equal(why, 'The sign-in of scenario-1 and scenario-2 failed: the page still showed a ' +
     'field that a variable was typed into 3 s after the last action.');
-  assert.equal(fix, `The fix of its point: ${P03_FIX}`);
-  assert.deepEqual(points(here.root), [{ text: p03Text('DEMO_PASSWORD'), action: 'run_again',
-    fix: P03_FIX }]);
+  assert.equal(fix, `The fix of its point: ${P03_SETUP_FIX}`);
+  assert.equal(done.findings[0].split('\n').at(-1), 'Kind: setup');
+  assert.deepEqual(points(here.root), [{ text: p03SetupText('DEMO_PASSWORD'),
+    action: 'run_again', fix: P03_SETUP_FIX }]);
   assert.equal(call(['check', 'points', path.join(here.root, 'points.json')],
     { cwd: here.dir }).status, 0);
   // A wait that never shows its text fails too.
@@ -528,12 +539,14 @@ test('preflight: a sign-in with no value, or a target that is not there, fails w
   assert.match(done.findings[0].split('\n')[1],
     /: action 3 \(type into #password\) failed: the variable DEMO_PASSWORD has no value\.$/);
   assert.equal(points(here.root)[0].text, p03Text('DEMO_PASSWORD'));
+  assert.equal(done.findings[0].split('\n').at(-1), 'Kind: outside');
   const setup = [...SIGN_IN.slice(0, 2), { do: 'type', target: '#pin', variable: 'DEMO_PIN' },
     ...SIGN_IN.slice(2)];
   const missing = await signIn(setup, 'parcel-blue-41', { DEMO_PIN: '4410' });
   assert.match(missing.done.findings[0].split('\n')[1],
     /: action 3 \(type into #pin\) failed: no element of the target showed within 3 s\.$/);
-  assert.equal(points(missing.here.root)[0].text, p03Text('DEMO_PIN and DEMO_PASSWORD'));
+  assert.equal(points(missing.here.root)[0].text,
+    p03SetupText('DEMO_PIN and DEMO_PASSWORD'));
 });
 
 // outsidePoint returns the point of a sign-in that loads a page of origin, outside the app at

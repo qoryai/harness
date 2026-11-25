@@ -40,7 +40,7 @@ const http = require('node:http');
 const https = require('node:https');
 
 const { BROWSER_START_MS, Browser } = require('./browser.cjs');
-const { FILM_HEIGHT, capture } = require('./capture.cjs');
+const { FILM_HEIGHT, capture, diskFault } = require('./capture.cjs');
 const { replay, signIn } = require('./replay.cjs');
 const { runKey } = require('./secrets.cjs');
 const { MARK, marker } = require('./supervise.cjs');
@@ -299,14 +299,16 @@ const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
           outside: done.failure.outside,
           ...(done.failure.variable ? { variable: done.failure.variable } : {}) };
         // A film keeps its frames up to the failed step, and pictures the pictures of the steps
-        // before it, for the reviewer. A capture that fails to write them leaves the failure
-        // as it is.
+        // before it, for the reviewer. A capture that cannot finish leaves the failure
+        // as it is, except for a full disk.
         if (taken) {
           try {
             failed.capture = await taken.finish();
           } catch (error) {
-            // film reports it as a cause outside the repository, with the reason in lost.
-            failed.lost = String((error && error.message) || error).split('\n')[0];
+            // A write that failed for the disk is a cause outside the repository, which film
+            // reports from lost. Any other error leaves the failure as it is.
+            const lost = diskFault(error);
+            if (lost) failed.lost = lost;
           }
         }
         return failed;
