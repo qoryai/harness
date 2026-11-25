@@ -47,7 +47,6 @@ module.exports = (lib) => {
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg)(?![\w-])/;
 
   const LOCK = 'acceptance-lock.json';
-  const NO_SCRIPT = 'Give --script-sha256 to end a script step as done.';
 
   const brief = (commit) => commit.slice(0, 12);
   const starts = require('./start.cjs')(lib);
@@ -162,12 +161,11 @@ module.exports = (lib) => {
   }
 
   // reviewed returns { reviewer, file } of the step id, whose file a reviewer reviews, with the
-  // path of the file from the artifact folder, or null for any other step. Of the steps of a
-  // demo script, only a correction has a reviewer.
+  // path of the file from the artifact folder, or null for any other step.
   function reviewed(id) {
     if (id === 'plan') return { reviewer: 'plan-reviewer', file: 'build-plan.md' };
     if (id === 'checks') return { reviewer: 'check-reviewer', file: LOCK };
-    const script = /^script:(scenario-\d+)#/.exec(id);
+    const script = /^script:(scenario-\d+)/.exec(id);
     return script ? { reviewer: 'check-reviewer', file: `.demo/${script[1]}.json` } : null;
   }
 
@@ -251,7 +249,10 @@ module.exports = (lib) => {
         `\n${row.id} started on ${brief(row.base)}, and the head ${brief(top)} does not follow ` +
         'it.');
     }
-    if (row.kind === 'script' && values.script_sha256 === undefined) findings.push(NO_SCRIPT);
+    // The call that prints the path of the report has no SHA-256 yet, so this is a finding.
+    if (row.kind === 'script' && values.script_sha256 === undefined) {
+      findings.push('Give --script-sha256 to end a script step as done.');
+    }
     findings.push(...unpassed(io, row, root));
     return { findings, members: findings.length ? {} : { commit: top } };
   }
@@ -387,9 +388,6 @@ module.exports = (lib) => {
         wrong: 'Give --script-sha256 64 lower-case hex digits',
       },
     },
-    // The call for the report file of a correction has no SHA-256 yet: finish stops it.
-    needs: (id, state, values) => (id.startsWith('script:') && state === 'done' &&
-      values.script_sha256 === undefined && !reviewed(id) ? NO_SCRIPT : null),
     origin,
     start,
     replay: (io, row) => follows(io, row.commit, head(io)),

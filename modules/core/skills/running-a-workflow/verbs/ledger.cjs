@@ -10,7 +10,6 @@
 // - id: the pattern of a step id; ids: examples of ids, for the line of a wrong id;
 // - check(data): the schema findings of a ledger;
 // - flags: more flags of step end, each { member, valid(value), wrong };
-// - needs(id, state, values): the line of a missing flag, or null;
 // - origin(io): at resume, where the session starts, as JSON, which the mark keeps;
 // - start(io, { ledger, mine, origin, crashed }): before a new row, { findings, members },
 //   where mine is the rows that this session started, origin is what origin returned at
@@ -564,7 +563,7 @@ function endLocked(io, root, ledger, { id, state, options }) {
 }
 
 // endOptions returns { options } from the flags of step end, or { wrong } with the fix.
-function endOptions(ledger, id, state, rest) {
+function endOptions(ledger, rest) {
   const options = { attempts: [], pushed: [], values: {} };
   const ok = (name) => NAME.test(name || '') && name.length <= NAME_LENGTH;
   for (let at = 0; at < rest.length; at += 2) {
@@ -618,8 +617,7 @@ function endOptions(ledger, id, state, rest) {
   if (options.pushed.length > MAX_PUSHED) {
     return { wrong: `Give --pushed at most ${MAX_PUSHED} times, once per version.` };
   }
-  const needed = ledger.needs(id, state, options.values);
-  return needed ? { wrong: needed } : { options };
+  return { options };
 }
 
 // ---- resume ---------------------------------------------------------------------------------
@@ -727,7 +725,7 @@ module.exports = {
         if (second !== 'done' && second !== 'failed') {
           return `Give step end the state done or failed.\n${shown(second)} is neither.`;
         }
-        return endOptions(ledger, id, second, more).wrong || null;
+        return endOptions(ledger, more).wrong || null;
       },
       run(io, what, rest) {
         const [id, second, ...more] = rest;
@@ -738,7 +736,7 @@ module.exports = {
           io.print(result.findings, result.last);
           return result.status;
         }
-        const result = end(io, id, second, endOptions(hook(io), id, second, more).options);
+        const result = end(io, id, second, endOptions(hook(io), more).options);
         io.print(result.findings, result.last);
         return result.status;
       },

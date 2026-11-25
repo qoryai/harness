@@ -200,10 +200,10 @@ function reviewedFile(call, id, { text = '{}\n', findings = [] } = {}) {
   return { file, reported, reviewer };
 }
 
-// begin starts the step id, and writes the passing review of a plan or of checks.
+// begin starts the step id, and writes the passing review of a step that has a reviewer.
 function begin(call, w, id, inputs = w.inputs) {
   const result = call('step', 'begin', id, 'implement-changes', ...inputs);
-  if (id === 'plan' || id === 'checks') reviewedFile(call, id);
+  if (/^(?:plan|checks|script:)/.test(id)) reviewedFile(call, id);
   return result;
 }
 
@@ -939,7 +939,8 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
 // The steps whose file a reviewer reviews, with the arguments of a done step.
 const REVIEWED = [['plan', 'plan-reviewer', 'build-plan.md', []],
   ['checks', 'check-reviewer', 'acceptance-lock.json', []],
-  ['script:scenario-1#2', 'check-reviewer', '.demo/scenario-1.json', ['--script-sha256', H]]];
+  ...['script:scenario-1', 'script:scenario-1#2'].map((id) => [id, 'check-reviewer',
+    '.demo/scenario-1.json', ['--script-sha256', H]])];
 const finding = (severity, proof) => ({ severity, quote: 'The plan.', problem: 'It breaks a rule.',
   fix: 'It keeps the rule.', proof, point: 'The plan leaves out the export.' });
 
@@ -1086,10 +1087,10 @@ test('ledger: the report of the checks is named by the lock and its files, not b
   assert.equal(ended.status, 0, ended.out);
 });
 
-test('ledger: step end of a correction prints its report file with no --script-sha256', () => {
+test('ledger: step end of a script prints its report file with no --script-sha256', () => {
   const w = work();
   const call = resumed(w);
-  const id = 'script:scenario-1#2';
+  const id = 'script:scenario-1';
   assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
   const { file, reported } = reviewedFile(call, id);
   const clean = fs.readFileSync(reported);
@@ -1112,14 +1113,13 @@ test('ledger: step end of a correction prints its report file with no --script-s
 test('ledger: a failed step and a step of another kind end with no review', () => {
   const w = work();
   const call = resumed(w);
-  for (const id of ['plan', 'checks', 'script:scenario-1#2']) {
+  for (const [id] of REVIEWED) {
     assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
     assert.equal(call('step', 'end', id, 'failed').status, 0, id);
   }
-  for (const [id, ...flags] of [['deliverable:d-1'], ['fix:f1'], ['small-change'],
-    ['script:scenario-1', '--script-sha256', H]]) {
+  for (const id of ['deliverable:d-1', 'fix:f1', 'small-change']) {
     assert.equal(begin(call, w, id).status, 0, id);
-    const ended = call('step', 'end', id, 'done', ...flags);
+    const ended = call('step', 'end', id, 'done');
     assert.equal(ended.status, 0, ended.out);
   }
   assert.ok(!fs.existsSync(path.join(call.artifacts, '.step-reports')));
@@ -1287,8 +1287,9 @@ test('ledger: a script step ends done only with its hash, and a long report is r
   const call = resumed(w);
   assert.equal(begin(call, w, 'script:scenario-1').status, 0);
   const wrong = call('step', 'end', 'script:scenario-1', 'done');
-  assert.equal(wrong.status, 2);
-  assert.match(wrong.err, /^Give --script-sha256 to end a script step as done\./);
+  assert.equal(wrong.status, 1, wrong.out);
+  assert.deepEqual(wrong.lines, ['Give --script-sha256 to end a script step as done.',
+    'Checked the step script:scenario-1: the ledger is unchanged.']);
   const long = report(call, 'browser-demo-author-1', `${'é'.repeat(4097)}\n`);
   const cut = call('step', 'end', 'script:scenario-1', 'done', '--script-sha256', H, '--report', long);
   assert.equal(cut.status, 1, cut.out);
