@@ -53,8 +53,10 @@ const CR4 = 'AC-4, "Each customer who got the reply with the old hours receives 
   'reply that lists the new hours"';
 
 // planOf returns a build plan with count deliverables, 2 or more: d-1 lists AC-1 to AC-3
-// with the scenario, d-2 lists AC-4 with its test, and each later one lists AC-4 again.
-function planOf(count) {
+// with the scenario, d-2 lists AC-4 with its test, and each later one lists AC-4 again. With
+// suite, d-1 creates the test suite, and the rows of targeted, full and locked cite it.
+function planOf(count, suite = false) {
+  const source = (found) => (suite ? 'plan: d-1' : found);
   const rows = [
     `| d-1 | Change the hours in the saved reply. | ${CR1}; ${CR2}; ${CR3} | ` +
       '`replies/delayed-order.md` | scenario-1 |',
@@ -80,9 +82,9 @@ ${rows.join('\n')}
 
 | Kind | Command | Result file | Source |
 |---|---|---|---|
-| targeted | \`npm test --\` | \`reports/junit.xml\` | repository: \`qory.yaml\` |
-| full | \`npm test\` | \`reports/junit.xml\` | found: \`package.json:12\` |
-| locked | \`npm test -- tests/acceptance\` | \`reports/junit.xml\` | repository: \`qory.yaml\` |
+| targeted | \`npm test --\` | \`reports/junit.xml\` | ${source('repository: `qory.yaml`')} |
+| full | \`npm test\` | \`reports/junit.xml\` | ${source('found: `package.json:12`')} |
+| locked | \`npm test -- tests/acceptance\` | \`reports/junit.xml\` | ${source('repository: `qory.yaml`')} |
 | lint | none | none | The storefront has no linter. |
 | types | \`npx tsc --noEmit\` | none | module: typescript |
 | build | none | none | \`package.json\` has no build script. |
@@ -154,7 +156,7 @@ function session(count, { show = null, status = 0, raw = null, signal = null } =
 // pushed runs `push build-plan` as the push check does: in a working folder with
 // notes.json when notes is not undefined (text is written as it is), and index.json and
 // the criteria.
-function pushed(count, notes) {
+function pushed(count, notes, suite = false) {
   const root = fixture();
   const cwd = fresh('cwd');
   fs.copyFileSync(path.join(root, 'index.json'), path.join(cwd, 'index.json'));
@@ -165,7 +167,7 @@ function pushed(count, notes) {
       typeof notes === 'string' ? notes : JSON.stringify(notes));
   }
   const folder = fresh('files');
-  fs.writeFileSync(path.join(folder, 'build-plan.md'), planOf(count));
+  fs.writeFileSync(path.join(folder, 'build-plan.md'), planOf(count, suite));
   return call({ cwd, artifacts: [] }, ['push', 'build-plan', path.join(folder, 'build-plan.md')]);
 }
 
@@ -195,6 +197,11 @@ const readable = (finding) => assert.equal(finding.split('\n').length, 1, findin
 
 // Each case runs in a session and as a push check on the same notes.
 const both = (count, notes) => [session(count, { show: { notes } }), pushed(count, notes)];
+
+test('the step that creates the test suite counts in the 7: 7 pass and 8 fail', () => {
+  passes(pushed(7, undefined, true));
+  readable(limit(pushed(8, [], true), 7, 8));
+});
 
 test('9 deliverables with no answer fail with the limit 7', () => {
   for (const result of both(9, [])) readable(limit(result, 7, 9));

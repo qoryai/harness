@@ -8,6 +8,44 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
+  with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
+  `build` and `full`. `check proposal` and `push proposal` apply the rules of the Commands
+  table of a build plan: each kind once, a Command of `none` with its reason in Source, and
+  a Source of the form `repository: <file>`, `module: <name>` or `found: <file>:<line>`.
+  A kind of a build plan other than these three is a finding in a proposal. The heading
+  and the words of `## Commands` count toward no limit. A proposal with another track has
+  the five sections and no `## Commands`. `writing-proposals` lists how `proposal-writer`
+  writes the table, and `checking-proposals` lists what `proposal-reviewer` checks: each
+  command and Source against the code explorer's report and the files.
+- A `full` row of `## Commands` with a Command of `none`, or with an empty Command, is a
+  finding, because qory starts the full suite from that command. In a build plan, the
+  finding is "Write a command for full in ## Commands of build-plan.md." with the line
+  "If the repository has no full test suite, add a step that creates one, and write its
+  command in the row." In a fast-track proposal, it is "Choose the Standard track: the
+  repository has no full test suite, and its build plan adds one." The finding for a missing
+  `full` row has no line on `none`. `lint` and `build` keep `none` with a reason in Source.
+  The `full` row of a proposal has the JUnit XML file of the suite in Result file, or `none`.
+- A Source of the form `plan: d-<N>` in `## Commands` of a build plan is valid when `d-<N>` is
+  a deliverable of the same plan. Otherwise the finding is "Write a step d-<N> in the plan, or
+  cite another source for <kind>." A proposal has no such form. With no full test suite,
+  `planning-builds` and `build-planner` make `d-1` create it, which counts in the 7
+  deliverables, and the rows `full`, `targeted` and `locked` have `plan: d-1` as Source.
+  `checking-build-plans` makes a `full` row of `none`, and a row that cites a step that does
+  not add the suite, findings for `plan-reviewer`. `writing-proposals` says to write the track
+  Standard with no full test suite, `proposal-writer` never writes `none` in `full`, and
+  `checking-proposals` reports a `full` row of `none` or empty.
+- `## Track` of a proposal is read from its lines outside a code block, as the
+  section check reads it (`trackLine`): a code block before the track line no longer
+  gives the finding "Start ## Track of proposal.md with…".
+- `run lint` and `run build` read their commands from `## Commands` of the approved version
+  of `proposal` when the folder of `--artifacts` or `qory.start_artifacts` has one whose
+  `## Track` is the fast track, which has no build plan. `run targeted` and `run types`
+  exit 3 there with "Run lint or build: the fast track has no <kind> command.", and the
+  record of a run has `build_plan` set to null. A proposal that is not approved, has no file
+  in the folder, or has another track leaves the build plan as the source. The track is the
+  one in `## Track` of the approved proposal: it is still "Fast track" after a switch to
+  the standard track, until the track comes from `inputs.json`.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
