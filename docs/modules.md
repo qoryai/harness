@@ -1857,25 +1857,61 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 and `HOME` by default.
 
 Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code,
-Codex, Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets
-then loads no preload into a hook process. The path is absolute, so that no `env` earlier in
+`/usr/bin/env` with `-u` for `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`,
+`LD_LIBRARY_PATH`, `NODE_COMPILE_CACHE` and `OPENSSL_CONF`, on Claude Code, Codex, Gemini
+CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads no
+preload, no library from another folder and no cached code into `node`. `OPENSSL_CONF` is
+on the list because `node` reads the file in it, and an engine path in that file loads a
+library before the hook script runs. The path is absolute, so that no `env` earlier in
 `PATH` replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
 `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
-checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are
-the ones that Linux reads.
+checked on Darwin 25.6 with both set. So the `-u` list has no `DYLD_` name, and the `LD_`
+names are the ones that Linux reads. The shell that starts `/usr/bin/env` still reads the
+`DYLD_` names: System Integrity Protection does not cover a shell outside the system
+folders, such as `/opt/homebrew/bin/bash`.
 
-A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
-cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
-environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks
-up from the working folder to the home folder, and in each folder it takes `.gemini/.env`
-before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
-script before a hook command. So `settings/gemini/settings.json` does two things:
+On a Linux host where `node` needs `LD_LIBRARY_PATH` to start, the hooks stop, and on Claude
+Code and Codex every tool call in a run is then blocked.
 
-- It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
-  field to the environment of the hook after the other variables, and bash reads no file for
-  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it
-  is read from the source of 0.68.0.
+A shell and the loader read some variables in the shell's process, before or while it runs
+its command, so `/usr/bin/env -u` clears them only for `node`, not for the shell:
+
+- bash runs the file in `BASH_ENV`, and sh can run the file in `ENV`.
+- `SHELLOPTS` and `BASHOPTS` turn on shell options at the start. With `SHELLOPTS=xtrace`,
+  bash expands `PS4` before each command, so a `$(...)` in `PS4` runs.
+- On Linux, the loader loads the library in `LD_PRELOAD` or `LD_AUDIT` into bash, and again
+  into `/usr/bin/env`. `LD_LIBRARY_PATH` contains folders, and a library in one of them
+  replaces a library that bash or `env` loads. `GCONV_PATH` contains folders of glibc
+  modules, and glibc loads a module from them when a program calls `iconv_open`.
+- On macOS, the loader reads the `DYLD_` names when a shell outside the system folders
+  starts. `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`,
+  `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_FALLBACK_FRAMEWORK_PATH`, `DYLD_IMAGE_SUFFIX`,
+  `DYLD_VERSIONED_LIBRARY_PATH` and `DYLD_VERSIONED_FRAMEWORK_PATH` load a library from
+  another folder, or a file with a suffix in place of a library, into that shell.
+  `DYLD_SHARED_REGION`, `DYLD_SHARED_CACHE_DIR`, `DYLD_ROOT_PATH` and `DYLD_OVERLAY_PATH`
+  replace the shared cache or the root folder of the loader. `DYLD_PRINT_TO_FILE` writes a
+  file at the path in it. The effects of `DYLD_ROOT_PATH` and `DYLD_OVERLAY_PATH` are read
+  from their names in `/usr/lib/dyld` and were not tested.
+
+Gemini CLI 0.68.0 starts each hook as `bash -c <command>`, with the first `bash` on `PATH`
+and the environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment.
+It walks up from the working folder to the home folder, and in each folder it takes
+`.gemini/.env` before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in
+`.gemini/.env` ran its script before a hook command. So `settings/gemini/settings.json` does
+two things:
+
+- It sets 22 names to `""` in `env` of each hook: `BASH_ENV`, `ENV`, `SHELLOPTS`,
+  `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `GCONV_PATH` and the 13
+  `DYLD_` names.
+  Gemini CLI 0.68.0 adds that field to the environment of the hook after the other
+  variables. bash reads no file for an empty `BASH_ENV`, and turns on no option for an empty
+  `SHELLOPTS` or `BASHOPTS`. With bash 5.3.15 on macOS, on 2026-11-25, when this setting was
+  added, `bash -c true` with `SHELLOPTS=xtrace` and a `$(echo ran >> FILE)` in `PS4` wrote
+  to `FILE`, and with both set to `""` it did not write `FILE`. On 2026-11-25,
+  `/opt/homebrew/bin/bash` 5.3.15 ran a command with the 21 names of this list other than
+  `GCONV_PATH` set to `""`. The empty `LD_` names and `GCONV_PATH` were not tested on
+  Linux. The hooks reference of Gemini CLI does not list the field `env`; it is read from
+  the source of 0.68.0.
 - It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
   `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
   Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list

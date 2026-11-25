@@ -2335,18 +2335,34 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `--inputs`. Any other relative path still exits 3. `scope` and `freeze` still exit 3 with
   `start_commits: []`, which lists no checkout.
 
-- A hook process loads no preload from the environment of its session or from a `.env` file.
-  Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-  `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`. The path is
-  absolute, so that no `env` earlier in `PATH` replaces it. This holds on Claude Code,
-  Codex, Gemini CLI, Cursor and Copilot CLI. A shell reads `BASH_ENV` before `env` runs, so
-  each hook of Gemini CLI also sets `env` to `{ "BASH_ENV": "", "ENV": "" }`. The setting
-  `advanced.excludedEnvVars` of Gemini CLI lists the four names, `BASH_ENV` and `ENV`.
-  Gemini CLI applies that list to a project `.env` and not to `.gemini/.env`. So the reports
-  guard of all five runtimes also denies a write to a file named `.env` and a shell command
-  with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a
-  command with `.env`. On macOS with System Integrity Protection, `/usr/bin/env` drops
-  `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` itself, and no `DYLD_` name is on the list.
+- The `node` process of a hook loads no preload from the environment of its session or from
+  a `.env` file. Each of the 13 hook commands in `modules/core/settings/` starts `node`
+  through `/usr/bin/env` with `-u` for `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`,
+  `LD_AUDIT`, `LD_LIBRARY_PATH`, `NODE_COMPILE_CACHE` and `OPENSSL_CONF`. `node` reads the
+  file in `OPENSSL_CONF`, and an engine path in that file loads a library before the hook
+  script runs. The path is absolute, so that no `env` earlier in `PATH` replaces it. This
+  holds on Claude Code, Codex, Gemini CLI, Cursor and Copilot CLI. bash and the loader read
+  some variables before `env` runs: bash runs the file in `BASH_ENV`, and sh can run the
+  file in `ENV`. `SHELLOPTS=xtrace` runs a `$(...)` in `PS4`. On Linux, `LD_PRELOAD` and
+  `LD_AUDIT` load a library into bash and `env`, `LD_LIBRARY_PATH` contains folders, where a
+  library replaces one that bash or `env` loads, and `GCONV_PATH` contains folders of glibc
+  modules, and glibc loads one when a program calls `iconv_open`. On macOS, the `DYLD_`
+  names load a library, replace the shared cache or the root folder of the loader, or write
+  a file, in a bash outside the system folders, such as `/opt/homebrew/bin/bash`, which
+  System Integrity Protection does not cover. So the `env`
+  field of each hook of Gemini CLI sets 22 names to `""`: `BASH_ENV`, `ENV`, `SHELLOPTS`,
+  `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `GCONV_PATH`,
+  `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`,
+  `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_FALLBACK_FRAMEWORK_PATH`, `DYLD_IMAGE_SUFFIX`,
+  `DYLD_VERSIONED_LIBRARY_PATH`, `DYLD_VERSIONED_FRAMEWORK_PATH`, `DYLD_SHARED_REGION`,
+  `DYLD_SHARED_CACHE_DIR`, `DYLD_ROOT_PATH`, `DYLD_OVERLAY_PATH` and `DYLD_PRINT_TO_FILE`.
+  The setting `advanced.excludedEnvVars` of Gemini CLI lists `NODE_OPTIONS`, `NODE_PATH`,
+  `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV`. Gemini CLI applies that list to a project
+  `.env` and not to `.gemini/.env`. So the reports guard of all five runtimes also denies a
+  write to a file named `.env` and a shell command with the word `.env`. The Cursor matcher
+  of `beforeShellExecution` starts the guard for a command with `.env`. On macOS with System
+  Integrity Protection, `/usr/bin/env` drops `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH`
+  itself, and no `DYLD_` name is on the `-u` list.
   CI runs `shellcheck`, `sh -n`, `bash -n` and `node --check` on the 13 hook commands and
   the hook files.
 - The reports guard reads the first word of a command, to find out whether it is a copy of
