@@ -34,10 +34,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - A criterion that the build planner or the check writer cannot meet as approved ends the
   run with one question about it: "What do you want to do with AC-3, "…"?", with the proof
   in its `context` and the answers `Change AC-3, "…"`, `Make it met another way` and
-  `Withdraw AC-3, "…"`, and one `answer` point on it. `check points` refuses `points.json`
-  with no such point, and the check at the end stops a session that ends with such a
-  `Blocked:` line and no `points.json`. Core's registry has the member `points`, the rules of
-  `points.json`.
+  `Withdraw AC-3, "…"`, and one `answer` point on it. `check points` exits with 1 for a
+  `points.json` with no such point, and the check at the end stops a session that ends with
+  such a `Blocked:` line and no `points.json`. Core's registry has the member `points`, the
+  rules of `points.json`.
 - The review of a step's file, which `step end <id> done` needs for the plan, the checks and
   each demo script, the first script of a scenario included. `plan-reviewer` and
   `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the
@@ -368,11 +368,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   a new question in a check of a folder with a `Blocked:` line on its criterion, unless it
   has 3 options, one of each answer with the number of `about.item`, a `proposal` on the
   Change option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a
-  lower-case `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
-  run, because an agent can change the local store, and a criterion that rests on a type
-  that cannot be pulled is not verified. `matrix` counts only the newest record of `run
-  locked` for the lock and commit and the run id of the session, and only when it is a
-  full, clean run with results; `run locked` exits 3 for a commit that tracks a file under
+  lower-case `about.item`. `matrix` pulls the criteria, the demo evidence and the build
+  ledger from the run, because an agent can change the local store, and a criterion that
+  rests on a type that cannot be pulled is not verified. `matrix` counts only the newest
+  record of `run locked` for the lock and commit and the run id of the session, and only
+  when it is a full, clean run with results; `run locked` exits 3 for a commit that tracks a
+  file under
   `.reports/`. The two agents are the group role `verify-reviewers` of `software-factory`,
   with no `paths`. `workflow-verify-a-ticket` and the stack entry `verify-a-ticket`
   (`write-no-push`, `review_group: verify-reviewers`) run Verify as a review session: the

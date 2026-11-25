@@ -5881,7 +5881,7 @@ test('questions: in a check with a Blocked: line on the criterion, a new questio
     write(root, 'questions.json', data);
     return check(root, 'questions', file);
   };
-  // New, with the line of a Build agent: refused though no title is an answer.
+  // New, with the line of a Build agent: the question fails though no title is an answer.
   fails(ask(), /^Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N\. q7 has 2\.$/);
   fails(ask({ report: 'acceptance-check-writer-2.md' }),
     /^Give q7 1 option with the title "Change AC-N"\. q7 has 0\.$/);
@@ -5954,7 +5954,7 @@ test('blocked-criterion: the question quotes the criterion, has the proof and th
   exactly(points(twoOptions), missing);
   exactly(points(blockedRun({ question: blockedQuestion({ about: { type: 'acceptance-criteria',
     name: 'main', item: 'ac-2' } }) })), missing);
-  // With no question, core also refuses the point on q7.
+  // With no question, the point on q7 also fails the check of core.
   const none = points(blockedRun({ question: null }));
   fails(none, /^Set the question of point 1 to the id of an open question/);
   assert.ok(none.lines.join('\n').includes(missing), none.out);

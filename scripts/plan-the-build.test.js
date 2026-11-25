@@ -1056,7 +1056,7 @@ test('blocked-criterion: a Blocked: line of build-planner on a criterion ends wi
   assert.equal(call('report', 'build-planner', blocked).status, 0);
   // With no points.json, the check at the end stops the session, as the test of
   // blocked-criterion in checks.test.js shows: no review finds the stage unbuilt.
-  // A point with no question on the criterion is refused.
+  // A point with no question on the criterion fails.
   const points = path.join(w.artifacts, 'points.json');
   fs.writeFileSync(points, JSON.stringify([{ text: 'The run could not finish the step.',
     action: 'run_again' }]));
@@ -1080,7 +1080,7 @@ test('blocked-criterion: a Blocked: line of build-planner on a criterion ends wi
   fs.writeFileSync(file, JSON.stringify({ questions: [question] }));
   const asked = call('check', 'questions', file);
   assert.equal(asked.status, 0, asked.out);
-  // The same question with two answers is refused.
+  // The same question with two answers fails.
   fs.writeFileSync(file, JSON.stringify({ questions: [{ ...question,
     options: question.options.slice(1) }] }));
   assert.equal(call('check', 'questions', file).status, 1);

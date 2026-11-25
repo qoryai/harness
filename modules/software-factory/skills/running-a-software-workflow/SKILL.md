@@ -147,10 +147,10 @@ place of "Stops on the spec": the agent cannot meet that criterion as a member a
 
 1. Run `step end <id> failed` for the step that ran the agent, as your workflow lists.
 2. Start ${qory:agents/questions-writer} as "Points" of `running-a-workflow` lists, with one
-   "Add:" item for each such criterion that has no open question in the newest `questions`
-   with `about.item` set to its id. The item quotes the "Blocked:" line and what the agent
-   checked: the files, the command and its result. The question of each item has these
-   members:
+   "Add:" item for each such criterion that has no open question with the three answers in
+   the newest `questions`, with `about.item` set to its id. The item quotes the "Blocked:"
+   line and what the agent checked: the files, the command and its result. The question of
+   each item has these members:
    - `question`: "What do you want to do with AC-3, "<first sentence>"?"
    - `context`: a paragraph that starts with `**Why:**`, the cause, and a paragraph that
      starts with `**Checked:**`, the proof: the files, the command and its result. At most
@@ -171,6 +171,7 @@ place of "Stops on the spec": the agent cannot meet that criterion as a member a
    sentence>", cannot be met as approved: <the cause>." Then end as "Points" lists, with
    `escalate`.
 
-`check points` refuses a blocked criterion with no `answer` point on such a question, and
-the end check stops a session that ends with such a line and no `points.json`. Only the
-newest report of each agent counts: a later start that meets the criterion ends the line.
+`check points` exits with 1 for a blocked criterion with no `answer` point on such a
+question, and the end check stops a session that ends with such a line and no
+`points.json`. Only the newest report of each agent counts: a later start that meets the
+criterion ends the line.

@@ -916,9 +916,10 @@ the readers of the ids of a type that the questions check reads for the `item` o
 each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
 as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `points`, the rules
 of `points.json`, each `(run, list, context)`, which the check of points runs after the
-check of each point, and `end`, the check at the end of a session. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
-verb of the registry and the usage read the registry; `starts`, `begin` and `fixes` never
-load it. A type that two skills add stops each verb that reads the registry with exit 3. A
+check of each point, and `end`, the check at the end of a session. Only `check`, `push`,
+`report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
+`starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb that
+reads the registry with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
 the harness: the verb stops with an error that names the file and exit 3, and `end
 --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
@@ -1337,9 +1338,10 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `{line, point, item}`, as the other checks of `end` return them.
   `running-a-software-workflow` adds `lib/uncommitted.cjs`, and the end of
   `lib/blocked-criterion.cjs` that "A blocked criterion" lists. `lib/uncommitted.cjs` checks
-  a Build write session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has no `review`,
-  `review_session` or `hook_session`. For each checkout of `qory.start_commits` that the
-  session can write, a change is a path that `git status` lists: a tracked, staged or
+  a Build write session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has
+  no `review`, `review_session` or `hook_session`. For each checkout of
+  `qory.start_commits` that the session can write, a change is a path that `git status`
+  lists: a tracked, staged or
   untracked file that git does not ignore, or a submodule whose commit or files changed,
   whatever its `ignore` setting, outside `.qory/`. When a git call fails, the check finds no
   change in that checkout. The finding is `Commit these changes, then end the session: the
@@ -2552,8 +2554,8 @@ The checks:
   or, in a check, the question is new and the newest report of `build-planner` or
   `acceptance-check-writer` has the line `Blocked: needs a change to criterion
   <about.item>`. A report of `software-developer` or `software-debugger` does not count.
-  It refuses a question with other than
-  3 options, with other than one option of each of the three titles, with the number of
+  A question fails the rule with other than 3 options, with other than one option of each
+  of the three titles, with the number of
   `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on the
   change option, with a `context` that has no paragraph starting `**Why:**` or none starting
   `**Checked:**`, and with an `about.item` that is not the lower-case id, such as `ac-3`. A
@@ -3506,8 +3508,9 @@ question, else with `passed`. A point outside the kind of the fast track ends wi
 and one `run_again` point. The stack lists the workflow with `tier: thinking`, `access: write`
 and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
 yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
-`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer to a question is no
-source yet, so a run builds nothing from it; read it once each answer has an id.
+`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer
+to a question is no source yet, so a run builds nothing from it; read it once each answer
+has an id.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It
@@ -3570,13 +3573,13 @@ the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
   proof, its `about.item` is the criterion, and its options are `Change AC-3, "…"` with the
   proposed wording in `proposal`, `Make it met another way` and `Withdraw AC-3, "…"`. The
   point is "AC-3, "<first sentence>", cannot be met as approved: <the cause>." `check
-  points` refuses `points.json` with no `answer` point on such a question for each criterion
-  of such a line in the newest report of `build-planner` or `acceptance-check-writer`, and
-  the check at the end stops a session that ends with such a line and no `points.json`. A
-  line of `software-developer` or `software-debugger` needs no such point:
-  `workflow-implement-changes` ends the run as "Failures" lists, and `review-changes` finds
-  the step not built. `write-acceptance-checks` ends the same way for a line of
-  `acceptance-check-writer`.
+  points` exits with 1 for a `points.json` with no `answer` point on such a question for
+  each criterion of such a line in the newest report of `build-planner` or
+  `acceptance-check-writer`, and the check at the end stops a session that ends with such a
+  line and no `points.json`. A line of `software-developer` or `software-debugger` needs no
+  such point: `workflow-implement-changes` ends the run as "Failures" lists, and
+  `review-changes` finds the step not built. `write-acceptance-checks` ends the same way for
+  a line of `acceptance-check-writer`.
 
 `workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
 locks the acceptance checks of one ticket, after its build plan and before any step changes
