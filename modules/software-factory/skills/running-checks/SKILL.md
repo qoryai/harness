@@ -452,8 +452,10 @@ section "Scope" describes for `scope`, then run `prove` again.
 `revert-attempt --base <commit>` makes one commit whose tree is the tree of `<commit>`, the
 commit where the work branch was cut, and moves HEAD to it. The commit has HEAD as its only
 parent, so the push needs no force. The index and the files match the new commit, so nothing is
-left uncommitted: each tracked file that `<commit>` lacks is removed, and each ignored file stays.
-It exits 0 with the new commit on its last line. It exits 3, with the fix on the first line, when
-the checkout has a change that is not committed (commit or undo it first), when `<commit>` is no
-commit of the checkout, and when HEAD has the tree of `<commit>` already. It exits 2 for a `--base`
-that is not a full commit id.
+left uncommitted: each tracked file that `<commit>` lacks is removed, and an ignored file that
+`<commit>` lacks stays. It exits 0 with the new commit on its last line. It exits 3, with the fix on
+the first line, when the checkout has a change that is not committed (commit or undo it first),
+when the branch has no commit, when an untracked or ignored file stands where `<commit>` has a file
+that HEAD lacks (move the file, since the revert would overwrite it), when `<commit>` is no commit
+of the checkout, and when HEAD has the tree of `<commit>` already. It exits 2 for a `--base` that
+is not a full commit id.

@@ -1352,6 +1352,7 @@ test('revert-attempt: one commit with the tree of --base on top of HEAD, nothing
   assert.equal(sh(dir, 'log', '-1', '--format=%an <%ae>|%cn <%ce>'),
     'qory <qory@localhost>|qory <qory@localhost>');
   assert.equal(sh(dir, 'log', '-1', '--format=%s'), `Revert the attempt to commit ${start.slice(0, 12)}`);
+  assert.equal(sh(dir, 'log', '-1', '--format=%b'), `The tree is the tree of this commit:\n${start}`);
   assert.equal(sh(dir, 'status', '--porcelain'), '');
   assert.equal(fs.existsSync(path.join(dir, 'lib/new.js')), false);
   assert.equal(fs.readFileSync(path.join(dir, 'src/a.js'), 'utf8'), 'exports.add = (a, b) => a + b;\n');
@@ -1389,7 +1390,7 @@ test('revert-attempt: a pattern in .git/info/exclude stops it, and HEAD stays', 
 test('revert-attempt: a --base that is no commit of the checkout exits 3, a short id or none exits 2', () => {
   const { dir, start, head } = attempted();
   const tree = sh(dir, 'rev-parse', `${start}^{tree}`);
-  for (const base of ['abcdef1'.repeat(6).slice(0, 40), tree]) {
+  for (const base of ['abcdef1'.repeat(6).slice(0, 40), tree, sh(dir, 'rev-parse', 'HEAD:src/a.js')]) {
     const got = call(dir, ['revert-attempt', '--base', base]);
     assert.equal(got.status, 3, got.out + got.err);
     assert.equal(got.lines[0], 'Give --base a commit of this checkout, then run revert-attempt again.');
@@ -1416,6 +1417,70 @@ test('revert-attempt: a HEAD with the tree of --base already exits 3 and makes n
     assert.equal(got.lines[0], 'Leave the checkout as it is: HEAD has the tree of the base.');
     assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
   }
+});
+
+test('revert-attempt: the mode of a file and a symlink come back, and an ignored file stays', () => {
+  const dir = checkout();
+  write(dir, 'bin/run.sh', '#!/bin/sh\n');
+  fs.chmodSync(path.join(dir, 'bin/run.sh'), 0o755);
+  fs.symlinkSync('src/a.js', path.join(dir, 'link'));
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'more');
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  fs.chmodSync(path.join(dir, 'bin/run.sh'), 0o644);
+  fs.rmSync(path.join(dir, 'link'));
+  write(dir, 'link', 'a file now\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
+  write(dir, '.qory/kept.txt', 'data\n');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(fs.statSync(path.join(dir, 'bin/run.sh')).mode & 0o111, 0o111);
+  assert.equal(fs.readlinkSync(path.join(dir, 'link')), 'src/a.js');
+  assert.equal(fs.readFileSync(path.join(dir, '.qory/kept.txt'), 'utf8'), 'data\n');
+  assert.equal(sh(dir, 'status', '--porcelain'), '');
+});
+
+// ignoredBase makes a checkout whose first commit tracks the force-added file that is, and whose
+// second commit removes it, and returns the folder, the first commit and the second.
+function ignoredBase(is, ignore) {
+  const dir = checkout();
+  write(dir, '.gitignore', `.qory/\n${ignore}\n`);
+  write(dir, is, 'tracked\n');
+  sh(dir, 'add', '-f', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'base');
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  sh(dir, 'rm', '-q', is);
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
+  return { dir, start, head: sh(dir, 'rev-parse', 'HEAD') };
+}
+
+test('revert-attempt: an ignored file where the base has a file that HEAD lacks stops it, and the file stays', () => {
+  // The cases: the same path, a file where the base has a folder, a folder with a file where the
+  // base has a file.
+  for (const [is, ignore, put, text] of [['ign', 'ign', 'ign', 'mine\n'],
+    ['dir/x', 'dir', 'dir', 'mine\n'], ['out', 'out', 'out/keep', 'mine\n']]) {
+    const { dir, start, head } = ignoredBase(is, ignore);
+    write(dir, put, text);
+    assert.equal(sh(dir, 'status', '--porcelain'), '', put);
+    const got = call(dir, ['revert-attempt', '--base', start]);
+    assert.equal(got.status, 3, got.out + got.err);
+    assert.equal(got.lines[0], 'Take each untracked or ignored file that the base has out of the checkout, then run again.');
+    assert.equal(got.lines[1], `  The revert would overwrite 1 untracked or ignored path, such as "${is}".`);
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+    assert.equal(fs.readFileSync(path.join(dir, put), 'utf8'), text);
+    fs.rmSync(path.join(dir, put.split('/')[0]), { recursive: true, force: true });
+    assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0, put);
+  }
+});
+
+test('revert-attempt: a HEAD with no commit exits 3', () => {
+  const { dir, start } = attempted();
+  sh(dir, 'checkout', '-q', '--orphan', 'empty');
+  sh(dir, 'rm', '-rfq', '.');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], 'Commit once on this branch, then run revert-attempt again.');
 });
 
 // ---- run locked --------------------------------------------------------------------------

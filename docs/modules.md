@@ -4195,6 +4195,14 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
   proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
   3 for a missing input, such as a pulled artifact folder with no proposal.
+- `revert-attempt --base <commit>`: on a checkout with no change, makes one commit whose tree is
+  the tree of the base, a full commit id, with HEAD as its parent, as `qory`, and moves HEAD, the
+  index and the files to it, so that nothing is left uncommitted and a push needs no force. Each
+  tracked file that the base lacks is removed. An ignored file stays. It exits 0 with the new
+  commit on the last line, 2 for a `--base` that is no full commit id, and 3, with the fix first,
+  when the checkout has a change that is not committed, has no commit, or has an untracked or
+  ignored file where the base has a file that HEAD lacks, when the base is no commit of the
+  checkout, and when HEAD has the tree of the base already. It checks no ancestry.
 - `preflight [--inputs <path>] [--artifacts <folder>]`: before the first demo of the app,
   checks the parts of the dev container that a demo of the app needs, and for each missing
   part writes a point `run_again` with its `fix` to `points.json` of the artifact folder of

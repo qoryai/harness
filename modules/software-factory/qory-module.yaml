@@ -12,8 +12,9 @@ description: >-
   software documents and of the types of Build and Verify, and is the program of each push
   check and of the scope check of build-plan; the skill running-checks, with the verbs run,
   scope, freeze, diff, probe, prove and revert-attempt of the checks script, where prove takes
-  --inputs, --base and --artifacts and revert-attempt takes --base; the skills writing-specs and checking-specs; the agents spec-writer and
-  spec-reviewer; the workflow-write-technical-decisions skill, which orchestrates one ticket's
+  --inputs, --base and --artifacts and revert-attempt takes --base; the skills writing-specs
+  and checking-specs; the agents spec-writer and spec-reviewer; the
+  workflow-write-technical-decisions skill, which orchestrates one ticket's
   decision record; the skills writing-decisions and checking-decisions; the agents
   decision-writer and decision-reviewer; the workflow-make-mockups skill, which orchestrates
   one ticket's clickable mockup; the skills designing-mockups, which has the render script,
