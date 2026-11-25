@@ -3930,6 +3930,40 @@ function bcall(dir, argv, options = {}) {
 const outboxOf = (dir) => JSON.parse(fs.readFileSync(outboxPath(dir), 'utf8'));
 const reportOf = (dir) => fs.readFileSync(path.join(dir, '.qory/artifacts/build-report.md'), 'utf8');
 
+test('report-build: ## Replies has the reply of each done row of a fix, in the order of the ' +
+  'ledger', () => {
+  const { dir, ledger } = buildRepo();
+  ledger.steps[1].reply = { kind: 'disputed', reason: `The export is empty by design. ${
+    'x'.repeat(600)}` };
+  ledger.steps[2].reply = { kind: 'fixed', reason: 'The export writes one line per order.' };
+  ledger.steps.push({ ...ledger.steps[2], id: 'fix:f4', pass: 1, state: 'failed',
+    commit: undefined, reply: { kind: 'fixed', reason: 'Never shown.' } });
+  write(dir, '.qory/artifacts/.reports/build-ledger.json', JSON.stringify(ledger));
+  const got = bcall(dir, ['report-build']);
+  assert.equal(got.status, 0, got.out + got.err);
+  const replies = reportOf(dir).split('## Replies\n\n')[1].split('\n\n## Checks')[0]
+    .split('\n');
+  assert.equal(replies.length, 2, replies.join('\n'));
+  assert.ok(replies[0].startsWith('- f1, disputed: The export is empty by design. xxx'));
+  assert.equal([...replies[0]].length, '- f1, disputed: '.length + 500);
+  assert.equal(replies[1], '- f2, fixed: The export writes one line per order.');
+  const checked = call(dir, ['check', 'build-report', '--inputs', path.join(dir,
+    '.qory/in/inputs.json'), path.join(dir, '.qory/artifacts/build-report.md')]);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+  // The render takes rows in the order given, any id, and replaces a text that the check of
+  // the report refuses.
+  const { LIBRARY } = require(path.join(MODULES,
+    'core/skills/running-a-workflow/lib/registry.cjs'));
+  const lib = { ...LIBRARY, ...require(path.join(SKILL, 'lib/documents.cjs'))(LIBRARY) };
+  const { repliesText } = require(path.join(SKILL, 'lib/report-build.cjs'))(lib);
+  const machine = lib.machinePattern('/home/dev');
+  assert.deepEqual(repliesText([], machine), ['None.']);
+  assert.deepEqual(repliesText([{ id: 'p2, "the colour"', word: 'fixed', text: 'Blue.' },
+    { id: 'f1', word: 'disputed', text: 'See /home/dev/notes.txt.' }], machine),
+  ['- p2, "the colour", fixed: Blue.', '- f1, disputed: a reply that the report cannot ' +
+    "contain; see the row's reply in the ledger"]);
+});
+
 test('report-build: a change and two fixes write an output that lists the three commits', () => {
   const left = 'Built it.\n\nLeft out:\n- Export of dates: nobody reads them yet.\n- Retry: the call never fails.\n\n## Next\n\nDone.';
   const { dir, commits } = buildRepo(left);
@@ -3960,7 +3994,7 @@ test('report-build: a change and two fixes write an output that lists the three 
   // Counts has the replays, the rounds and the returns, and no other row.
   assert.ok(text.includes(['## Review rounds', '', 'None.', '',
     'The result of the last round is in the review in Qory Apiary, not in this report.', '',
-    '## Checks', '', '| Check | Start | Head |', '|---|---|---|',
+    '## Replies', '', 'None.', '', '## Checks', '', '| Check | Start | Head |', '|---|---|---|',
     '| ac-1: tests/ac1.test.js | red | unknown |', '| ac-2: tests/ac2.test.js | red | unknown |',
     '', 'Full suite: unknown.', '', '## Counts', '', '| Count | Value |', '|---|---|',
     '| Replayed steps | 0 |', '| Review rounds | 0 |', '| Returns | 0 |', '', '## Not run', '',
@@ -4169,7 +4203,7 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   const got = bcall(dir, ['report-build', '--inputs', inputs]);
   assert.equal(got.status, 0, got.out + got.err);
   const text = reportOf(dir);
-  const rounds = text.split('## Review rounds\n\n')[1].split('\n\n## Checks')[0];
+  const rounds = text.split('## Review rounds\n\n')[1].split('\n\n## Replies')[0];
   assert.equal(rounds, `${earlier}\n\n### Round 2\n\nReviewers: code-reviewer.\n\n| Finding | Source | Blocking | Proof |\n|---|---|---|---|\n| f1: A \\| in the point | code-reviewer | yes | Line 1 Line 2 |\n| f2: A second point | code-reviewer | no | none |\n| f3: The full suite failed. | suite | yes | none |\n\nThe result of the last round is in the review in Qory Apiary, not in this report.`);
   assert.match(text, /Review rounds: 2\. Ready/);
   assert.match(text, /\| Returns \| 2 \|/);
@@ -4293,7 +4327,7 @@ test('report-build: the closing line of an earlier version is left out of the ea
   assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
   const text = reportOf(dir);
   assert.equal(text.split(closing).length, 2);
-  assert.ok(text.includes(`### Round 1\n\nOld round 1.\n\n### Round 2\n\nNone.\n\n${closing}\n\n## Checks`), text);
+  assert.ok(text.includes(`### Round 1\n\nOld round 1.\n\n### Round 2\n\nNone.\n\n${closing}\n\n## Replies`), text);
 });
 
 test('report-build: a left-out item loses hidden characters and is cut like a point, so that check build-report passes', () => {

@@ -25,6 +25,10 @@ const REPLACED = "an item that the report cannot contain; see the row's report i
 // The item of ## Left out for a row with a list `Left out:` that leftOut cannot read.
 const UNREAD =
   "a list Left out: that the report cannot read; see the row's report in the ledger";
+// The text of a line of ## Replies that the check of the report refuses.
+const REPLY_REPLACED = "a reply that the report cannot contain; see the row's reply in the ledger";
+// The most characters of the text of a line of ## Replies.
+const REPLY_TEXT = 500;
 
 module.exports = (lib) => {
   const {
@@ -236,6 +240,17 @@ module.exports = (lib) => {
     return count > 0;
   }
 
+  // repliesText returns the lines of ## Replies, one per row { id, word, text }, in the order
+  // of rows: `- <id>, <word>: <text>`, the text cut at 500 characters and replaced when the
+  // check of the report refuses it, or "None." with no row.
+  function repliesText(rows, machine) {
+    if (!rows.length) return ['None.'];
+    return rows.map(({ id, word, text }) => {
+      const line = `- ${id}, ${word}: ${cut(plainText(text), REPLY_TEXT)}`;
+      return refused(line, machine) ? `- ${id}, ${word}: ${REPLY_REPLACED}` : line;
+    });
+  }
+
   // render returns the text of build-report.md of the standard track for what gather
   // returned.
   function render(data) {
@@ -264,6 +279,10 @@ module.exports = (lib) => {
       : ['None.']]);
     out.push(['Review rounds', [
       ...(rounds.length ? rounds.flatMap((one) => [one.text, '']) : ['None.', '']), CLOSING]]);
+    // A done row of a fix of a finding has the builder's reply, which qory posts.
+    out.push(['Replies', repliesText(rows.filter((row) => row.state === 'done' && row.reply)
+      .map((row) => ({ id: row.id.replace(/^fix:/, ''), word: row.reply.kind,
+        text: row.reply.reason })), data.machine)]);
     out.push(['Checks', [
       ...(checks.length ? [...table(['Check', 'Start', 'Head'], checks.map((check) => [
         `${check.criterion}: ${check.path}`, check.failed_with > 0 ? 'red' : 'unknown',
@@ -307,5 +326,5 @@ module.exports = (lib) => {
   }
 
   return { BUILD_REPORT_FILE: FILE, gatherReport: gather, leftOut, readLedger, readRecords,
-    renderReport: render, splitReport: split };
+    renderReport: render, repliesText, splitReport: split };
 };

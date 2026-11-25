@@ -13,8 +13,8 @@ module.exports = (lib) => {
 
   const FILE = 'build-report.md';
   // The sections of the standard track (FULL), and those of the fast track (SHORT).
-  const FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'Not run',
-    'Left out'];
+  const FULL = ['Summary', 'Steps', 'Review rounds', 'Replies', 'Checks', 'Counts',
+    'Not run', 'Left out'];
   const SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run', 'Left out'];
   // A fast-track session that escalated adds this section at the end.
   const ESCALATION = 'Escalation';

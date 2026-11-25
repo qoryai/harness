@@ -148,8 +148,8 @@ App address: \`http://localhost:3000/\`
 `;
 
 const section = (title) => `## ${title}\n\nNone.\n`;
-const REPORT_FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'Not run',
-  'Left out'].map(section).join('\n');
+const REPORT_FULL = ['Summary', 'Steps', 'Review rounds', 'Replies', 'Checks', 'Counts',
+  'Not run', 'Left out'].map(section).join('\n');
 const REPORT_SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run', 'Left out']
   .map(section).join('\n');
 
