@@ -356,8 +356,8 @@ exits with 128 until the merge ends, `git reset -q` ends it and keeps each file,
 `--abort` drops your changes to the merged files.
 
 A commit with a new repository folder, or with a new commit or changed files of a submodule,
-fails the scope check of qory's push: the check scans no file of one for keys, so it exits
-with 1, and qory pushes no commit of the run.
+fails the scope check of qory's push: the check does not scan the files of a repository
+folder or a submodule for keys, so it exits with 1, and qory pushes no commit of the run.
 
 When this session ends without `points.json`, the end check stops the end while a checkout
 of `qory.start_commits` has a change that no commit contains, because the full suite and the

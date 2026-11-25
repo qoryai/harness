@@ -1101,6 +1101,10 @@ test('no hook and no signing key of the checkout stops the commit of the session
 test('git reset ends a merge or a cherry-pick and keeps each file for the commit', () => {
   const end = section(WORKFLOW, 'The end');
   contains(end, 'When a merge or a cherry-pick is in progress, run `git reset -q` first');
+  contains(end, 'A commit with a new repository folder, or with a new commit or changed files ' +
+    'of a submodule, fails the scope check of qory\'s push: the check does not scan the files ' +
+    'of a repository folder or a submodule for keys, so it exits with 1, and qory pushes no ' +
+    'commit of the run.');
   const reset = /run `(git reset -q)` first/.exec(end)[1];
   for (const verb of ['merge', 'cherry-pick']) {
     const w = work();
