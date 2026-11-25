@@ -166,8 +166,8 @@ test('reviewing-changes repeats and closes earlier findings by id, and caps a re
   assert.deepEqual(LATER_EXAMPLE.closes.map((one) => one.state), ['fixed', 'dismissed']);
   const earlier = /## Earlier findings\n([\s\S]*?)\n## /.exec(REVIEWING)[1].replace(/\s+/g, ' ');
   for (const text of ['repeat it in `findings` with its `id`',
-    'A repeat of a closed finding opens it again, because the file has no finding that a ' +
-      'person closed.', 'close it in `closes` as `fixed`',
+    'A repeat of a closed finding opens it again. The file lists only findings that a run ' +
+      'closed, never one that a person closed.', 'close it in `closes` as `fixed`',
     'close it in `closes` as `dismissed`', 'You may dismiss a finding of yours that nobody ' +
       'disputed.', 'A finding of yours that your report neither repeats nor closes stays open.',
     'check it against the frozen state, and never take it as proof',
@@ -177,9 +177,10 @@ test('reviewing-changes repeats and closes earlier findings by id, and caps a re
   }
   // The core definition of blocking, in words of any kind of work.
   assert.ok(REVIEWING.replace(/\s+/g, ' ').includes('the finding breaks an acceptance ' +
-    'criterion, loses data, exposes a secret, or fails a required check.'));
-  // The examples of the report are in words of any kind of work too.
-  assert.ok(!/security hole|the code/.test(REVIEWING), 'reviewing-changes has software words');
+    'criterion, loses data, opens a security hole, such as an exposed secret, or fails a ' +
+    'required check.'));
+  // The examples of the report quote words or lines, not code.
+  assert.ok(!/the code/.test(REVIEWING), 'reviewing-changes has the words "the code"');
   // Each reviewer of a change caps its report as the format does.
   const cap = 'Report at most 100 findings, the blocking ones first.';
   assert.ok(REVIEWING.includes(cap));
