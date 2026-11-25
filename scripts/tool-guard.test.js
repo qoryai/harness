@@ -5498,7 +5498,7 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `sudo mv *.ts ${above}`, `cp -R src/. ${above}`, `cp -a src/ ${above}/`,
     `cp -rT src ${above}`, `cp "$f" ${above}`, `cp -R src/. ${above}/../step-abov*`,
     `install -m 644 "$f" ${above}`, `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`,
-    `rsync -a "$f" ${above}`, `find src -exec cp -R {} ${above} \;`,
+    `rsync -a "$f" ${above}`, `find src -exec cp -R {} ${above} \\;`,
     `find src -exec mv -t ${above} {} +`,
     // A file of another name moves into the artifact folder, as a copy of it does.
     `mv a ${artifacts}`, `mv a.md b.md ${artifacts}/`, `cp a ${artifacts}`]) {
