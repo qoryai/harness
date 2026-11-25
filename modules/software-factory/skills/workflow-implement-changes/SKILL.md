@@ -230,13 +230,17 @@ failed step started.
 
    When a line has no full path, such as for a key in the name of a file, a cut name or a
    name that is not UTF-8, take the path from
-   `git status --porcelain --untracked-files=all`. A path in double quotes is a C string:
-   give it to the shell as `$'<the text between the quotes>'`, with each `'` written as
-   `\'`. Bash and zsh read this form, and dash does not: Codex runs a command in `/bin/sh`
-   when the login shell is `sh`, and on Debian and Ubuntu `/bin/sh` is dash. Put a path that
-   git prints without quotes in single quotes, with each `'` written as `'\''`. A printed
-   path has no spaces at its start or end and no control or hidden characters, with no `...`
-   in their place, so take a printed path that no file has from that command too.
+   `git status --porcelain --untracked-files=all`. A path in double quotes in the output of
+   `git status` is a C string: give it to the shell as
+   `$'<the text between the quotes>'`, with each `'` written as `\'`. Bash and zsh read this
+   form, and dash does not: Codex runs a command in `/bin/sh` when the login shell is `sh`,
+   and on Debian and Ubuntu `/bin/sh` is dash. Under dash, a `$'…'` word gives no `same: 0`
+   line, so the file stays, and the run can end `push_scope_refused`. Put a path that git
+   prints without quotes in single quotes, with each `'` written as `'\''`. A path in double
+   quotes in a line of `scope` or `freeze` is the name as it is: put the text between the
+   quotes in single quotes, with each `'` written as `'\''`. A printed path has no spaces at
+   its start or end and no control or hidden characters, with no `...` in their place, so
+   take a printed path that no file has from that command too.
 
    For a key in a line that starts with `Rewrite commit <c>`, run this command, and read
    the line `same: <number>` that it prints. With `same: 0`, take the file out; otherwise

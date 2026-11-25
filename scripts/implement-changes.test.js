@@ -1126,6 +1126,10 @@ const [, SAME_TEST, SAME_RESET] =
 const bash = (w, command) => childProcess.spawnSync('bash', ['-c', command], { cwd: w.repo,
   env: { PATH: process.env.PATH, HOME: fresh('home'), GIT_CONFIG_NOSYSTEM: '1' },
   encoding: 'utf8' });
+// dash runs command in the checkout of w with dash, which reads $'...' as $ and a word.
+const dash = (w, command) => childProcess.spawnSync('dash', ['-c', command], { cwd: w.repo,
+  env: { PATH: process.env.PATH, HOME: fresh('home'), GIT_CONFIG_NOSYSTEM: '1' },
+  encoding: 'utf8' });
 
 // fill puts commit and word, a path as a shell word, in command.
 // A function as the replacement, since a $' in a replacement string inserts other text.
@@ -1163,6 +1167,13 @@ function statusPath(w, command, part) {
     : `'${name.replaceAll("'", "'\\''")}'`;
 }
 
+// scopeWord returns the path in double quotes of the line of out that contains part, as a
+// shell word: the name as it is, in single quotes, with each ' written as '\''.
+function scopeWord(out, part) {
+  const name = /"(.*)"/.exec(out.split('\n').find((one) => one.includes(part)))[1];
+  return `'${name.replaceAll("'", "'\\''")}'`;
+}
+
 // takeWord takes the path word out as "A step that fails" lists it, with bash.
 function takeWord(w, base, word) {
   const ran = bash(w, `if git cat-file -e ${base}:${word}; then git checkout ${base} -- ` +
@@ -1178,11 +1189,15 @@ test('after a step that fails, the session takes out what the check of the push 
     'when `<base>` does not have it. Both lose the other changes of the step to that file.');
   contains(fails, 'When a line has no full path, such as for a key in the name of a file, a ' +
     'cut name or a name that is not UTF-8, take the path from `git status --porcelain ' +
-    '--untracked-files=all`. A path in double quotes is a C string: give it to the shell as ' +
-    "`$'<the text between the quotes>'`, with each `'` written as `\\'`. Bash and zsh read " +
-    'this form, and dash does not: Codex runs a command in `/bin/sh` when the login shell is ' +
-    '`sh`, and on Debian and Ubuntu `/bin/sh` is dash. Put a path that git prints without ' +
-    "quotes in single quotes, with each `'` written as `'\\''`. A printed path has no spaces " +
+    '--untracked-files=all`. A path in double quotes in the output of `git status` is a C ' +
+    "string: give it to the shell as `$'<the text between the quotes>'`, with each `'` " +
+    "written as `\\'`. Bash and zsh read this form, and dash does not: Codex runs a command " +
+    'in `/bin/sh` when the login shell is `sh`, and on Debian and Ubuntu `/bin/sh` is dash. ' +
+    "Under dash, a `$'…'` word gives no `same: 0` line, so the file stays, and the run can " +
+    'end `push_scope_refused`. Put a path that git prints without quotes in single quotes, ' +
+    "with each `'` written as `'\\''`. A path in double quotes in a line of `scope` or " +
+    '`freeze` is the name as it is: put the text between the quotes in single quotes, with ' +
+    "each `'` written as `'\\''`. A printed path has no spaces " +
     'at its start or end and no control or hidden characters, with no `...` in their place, so ' +
     'take a printed path that no file has from that command too.');
   contains(fails, 'run this command, and read the line `same: <number>` that it prints. With ' +
@@ -1334,6 +1349,10 @@ test('after a step that fails, the session takes out what the check of the push 
       assert.equal(fs.existsSync(path.join(w.repo, 'tests/key.txt')), false);
       const word = statusPath(w, status, 'key.txt');
       assert.equal(word, "$'tests/key.txt '");
+      // Under dash, git add reads the path $tests/key.txt and exits 128: no same: 0 line.
+      const under = dash(w, fill(SAME, committed(red, 2), word));
+      assert.match(under.stdout, /^same: 128$/m, under.stdout + under.stderr);
+      assert.doesNotMatch(under.stdout, /^same: 0$/m);
       assert.equal(changed(w, committed(red, 2), word), 0);
       takeWord(w, base, word);
     }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt '), false, what)],
@@ -1369,6 +1388,7 @@ test('after a step that fails, the session takes out what the check of the push 
     (w, base, red) => {
       const word = statusPath(w, status, 'sk.txt');
       assert.equal(word, "'tests/it'\\''sk.txt'");
+      assert.equal(scopeWord(red.out, "it'sk"), word);
       assert.equal(bash(w, "git ls-files -o -- tests/it'sk.txt").status, 2);
       const commit = /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/it'sk/
         .exec(red.out)[1];
@@ -1388,6 +1408,22 @@ test('after a step that fails, the session takes out what the check of the push 
       assert.equal(changed(w, commit, word), 0);
       takeWord(w, base, word);
     }, (w, what) => assert.equal(tracked(w).includes('tests/k$1.txt'), false, what)],
+    // scope prints the name as it is, and git status as a C string, with \\ for the \.
+    ['a key in a file whose name has a \\', (w) => writeFile(w, 'tests/a\\b.txt', `one\n${key}\n`),
+    /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/a\\b\.txt", line 2/, 0,
+    (w, base, red) => {
+      const word = scopeWord(red.out, 'tests/a');
+      assert.equal(word, "'tests/a\\b.txt'");
+      const listed = statusPath(w, status, 'tests/a');
+      assert.equal(listed, "$'tests/a\\\\b.txt'");
+      // $'...' reads the \b of the line of scope as a backspace.
+      assert.equal(bash(w, "test -e $'tests/a\\b.txt'").status, 1);
+      for (const one of [word, listed]) assert.equal(bash(w, `test -e ${one}`).status, 0, one);
+      const commit = /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/a\\b/
+        .exec(red.out)[1];
+      assert.equal(changed(w, commit, word), 0);
+      takeWord(w, base, word);
+    }, (w, what) => assert.equal(tracked(w).includes('tests/a\\b.txt'), false, what)],
   ];
   for (const [what, leave, line, before, takeOut, then = () => {}] of cases) {
     const w = work();
