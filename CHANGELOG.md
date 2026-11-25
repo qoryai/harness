@@ -50,9 +50,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   commit, with HEAD as its parent, whose tree is the tree of the base, and moves HEAD, the index
   and the files to it, so that nothing is left uncommitted and no push needs a force. It exits 3
   with the fix first when the checkout has a change that is not committed, when the branch has
-  no commit, when an untracked or ignored file stands where the base has a file that HEAD lacks,
-  when the base is no commit of the checkout, and when HEAD has the tree of the base already.
-  Nothing calls it yet.
+  no commit, when an untracked or ignored file or a nested repository stands at a path where the
+  base has a file or a folder that HEAD lacks (also when the path differs only in case, with
+  `core.ignorecase`), when the base is no commit of the checkout, and when HEAD has the tree of
+  the base already. Nothing calls it yet.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.

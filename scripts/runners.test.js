@@ -1455,23 +1455,56 @@ function ignoredBase(is, ignore) {
   return { dir, start, head: sh(dir, 'rev-parse', 'HEAD') };
 }
 
+// stopped checks that revert-attempt stops for the ignored path put, when the base has the path
+// `is` and HEAD lacks it, and returns the checkout and the base.
+function stopped(is, ignore, put, make = (dir) => write(dir, put, 'mine\n')) {
+  const { dir, start, head } = ignoredBase(is, ignore);
+  make(dir);
+  assert.equal(sh(dir, 'status', '--porcelain'), '', put);
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], 'Take each untracked or ignored file that the base has out of the checkout, then run again.');
+  assert.equal(got.lines[1], `  The revert would overwrite 1 untracked or ignored path, such as "${is}".`);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  return { dir, start };
+}
+
 test('revert-attempt: an ignored file where the base has a file that HEAD lacks stops it, and the file stays', () => {
   // The cases: the same path, a file where the base has a folder, a folder with a file where the
   // base has a file.
-  for (const [is, ignore, put, text] of [['ign', 'ign', 'ign', 'mine\n'],
-    ['dir/x', 'dir', 'dir', 'mine\n'], ['out', 'out', 'out/keep', 'mine\n']]) {
-    const { dir, start, head } = ignoredBase(is, ignore);
-    write(dir, put, text);
-    assert.equal(sh(dir, 'status', '--porcelain'), '', put);
-    const got = call(dir, ['revert-attempt', '--base', start]);
-    assert.equal(got.status, 3, got.out + got.err);
-    assert.equal(got.lines[0], 'Take each untracked or ignored file that the base has out of the checkout, then run again.');
-    assert.equal(got.lines[1], `  The revert would overwrite 1 untracked or ignored path, such as "${is}".`);
-    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
-    assert.equal(fs.readFileSync(path.join(dir, put), 'utf8'), text);
+  for (const [is, ignore, put] of [['ign', 'ign', 'ign'], ['dir/x', 'dir', 'dir'],
+    ['out', 'out', 'out/keep']]) {
+    const { dir, start } = stopped(is, ignore, put);
+    assert.equal(fs.readFileSync(path.join(dir, put), 'utf8'), 'mine\n');
     fs.rmSync(path.join(dir, put.split('/')[0]), { recursive: true, force: true });
     assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0, put);
   }
+});
+
+// A case-sensitive file system has no such overwrite: Ign5 and ign5 are two files there.
+write(tmp, 'caseprobe', '');
+const FOLDS = fs.existsSync(path.join(tmp, 'CASEPROBE'));
+test('revert-attempt: paths that differ only in case count as one on a case-folding file system', {
+  skip: FOLDS ? false : 'this file system tells Ign5 and ign5 apart, so reset never writes through one',
+}, () => {
+  for (const [is, ignore, put] of [['Ign5', 'ign5', 'ign5'], ['IgnD/f', 'ignD', 'ignD/f'],
+    ['Ign6', 'ign6', 'ign6/f'], ['Ign7/k', 'ign7', 'ign7']]) {
+    const { dir } = stopped(is, ignore, put);
+    assert.equal(fs.readFileSync(path.join(dir, put), 'utf8'), 'mine\n');
+  }
+});
+
+test('revert-attempt: an ignored nested repository where the base has a file stops it, and the file stays', () => {
+  const { dir, start } = stopped('ign16/f', 'ign16', 'ign16/f', (made) => {
+    write(made, 'ign16/f', 'one\n');
+    sh(path.join(made, 'ign16'), 'init', '-q');
+    sh(path.join(made, 'ign16'), 'add', 'f');
+    sh(path.join(made, 'ign16'), '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'x');
+    write(made, 'ign16/f', 'mine\n');
+  });
+  assert.equal(fs.readFileSync(path.join(dir, 'ign16/f'), 'utf8'), 'mine\n');
+  fs.rmSync(path.join(dir, 'ign16'), { recursive: true, force: true });
+  assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
 });
 
 test('revert-attempt: a HEAD with no commit exits 3', () => {

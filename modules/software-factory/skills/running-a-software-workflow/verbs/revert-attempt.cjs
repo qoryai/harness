@@ -24,24 +24,34 @@ module.exports = (lib) => {
   }
 
   // overwritten returns each path that the commit has and HEAD lacks, where the checkout has an
-  // untracked or ignored file, or a file in a folder of that name, or a file where the commit has
-  // a folder. reset --hard replaces such a file without a trace.
+  // untracked or ignored file, a nested repository, or a file in a folder of that name, or a file
+  // where the commit has a folder. reset --hard replaces such a file without a trace. With
+  // core.ignorecase, paths that differ only in case count as the same: the file system writes
+  // through either.
   function overwritten(io, top, head, commit) {
     const added = git.ok(Missing, top, ['diff-tree', '-r', '--no-renames', '--diff-filter=A',
       '--name-only', '-z', head, commit], 'Run revert-attempt again', { env: io.env })
       .split('\0').filter(Boolean);
     if (!added.length) return [];
+    const folded = git.git(top, ['config', '--bool', 'core.ignorecase'], { env: io.env })
+      .stdout.trim() === 'true';
+    const key = (path) => (folded ? path.toLowerCase() : path);
     const files = new Set();
     const folders = new Set();
-    for (const file of git.ok(Missing, top, ['ls-files', '--others', '-z'],
+    // A nested repository is listed as `<folder>/`; it counts as a file at that path.
+    for (const entry of git.ok(Missing, top, ['ls-files', '--others', '-z'],
       'Run revert-attempt again', { env: io.env }).split('\0').filter(Boolean)) {
+      const file = key(entry.replace(/\/$/, ''));
       files.add(file);
       for (let at = file.indexOf('/'); at !== -1; at = file.indexOf('/', at + 1)) {
         folders.add(file.slice(0, at));
       }
     }
-    return added.filter((file) => files.has(file) || folders.has(file) ||
-      [...file.matchAll(/\//g)].some((slash) => files.has(file.slice(0, slash.index))));
+    return added.filter((one) => {
+      const file = key(one);
+      return files.has(file) || folders.has(file) ||
+        [...file.matchAll(/\//g)].some((slash) => files.has(file.slice(0, slash.index)));
+    });
   }
 
   function run(io, flag, [base]) {
