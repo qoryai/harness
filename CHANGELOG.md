@@ -104,15 +104,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   The reviewer gives each step `passed`, `failed` or `not-reached`, and sorts a failed step
   into `product`, `script` or `setup`. A scenario of the evidence `pictures` is filmed with
   `film <scenario> --film` when a step shows a change over time. A setup fault is retried
-  once, then ends the session with `changes-requested` and the scenarios with no film; a
-  cause outside the repository ends with `escalate`. A rerun films only the scenarios with
-  no `demo-evidence` for the commit and the script version, and `film todo` lists the
+  once, then records failed `demo-evidence` of the class `setup` for each scenario with no
+  evidence and ends the session with `changes-requested`: Verify reads that evidence, and the
+  matrix row of a criterion that rests on it names the scenario, the step, the class and the
+  finding. A cause outside the repository ends with `escalate`, and the script marks each
+  cause with a last line "Kind: outside" or "Kind: setup". A run that fails in a step keeps
+  its film up to that step, or its pictures, for `demo-reviewer`, and `film` exits 5. A rerun
+  films only the scenarios with no `demo-evidence` for the commit and the script version, or
+  with evidence of the class `setup`, and `film todo` lists the
   `demo-evidence`, `demo-video` and `screenshot` of removed scenarios, which the session
   withdraws. The stack entry is `capture-demos: {tier: light, access: write-no-push}`, with
   no `plan`: `film` and `preflight` read the approved `build-plan` from
   `qory.start_artifacts`, or from the artifact folder of the session when it is the empty
   string, and exit 3 with "Cause: the build plan is missing." when that folder has none.
-  The workflow never starts `demo-author`, so a stack without `browser-screens` composes
+  `film` reads the plan from `--inputs` or `--artifacts` only. The workflow never starts `demo-author`, so a stack without `browser-screens` composes
   it; `scripts/check.sh` uses a test workflow `fixture-demos` for the compose failure of a
   role with no agent.
 - One `demo-video` fits one qory version. `film` encodes with `-crf 28` and a bitrate cap
@@ -122,7 +127,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   cap and 960 x 540 px. A film that is over the limit after both encodes exits 1 with "Shorten
   the waits of <scenario> or split it in Shape.", and the session records the scenario as
   failed with the class `script`. The text of a film of random full-frame motion can be
-  unreadable at the cap. `film frames <scenario>` takes two pictures of each step for the
+  unreadable at the cap. Pass 1 took 29 s for 28,000 frames with 18 CPUs and 61 s with 2 in a
+  `debian:trixie-slim` container; a pass 1 that runs out of time keeps the frames and exits 4
+  too. `film frames <scenario>` takes two pictures of each step for the
   reviewer, `film todo` lists what to film and withdraw, and `film record <scenario>` writes
   the `demo-evidence` file.
 - The push check of `demo-script` reads the newest `build-ledger`. It fails a script that

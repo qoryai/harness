@@ -352,12 +352,16 @@ never the role `demo-author`, and loads no `scripting-demos`, so a stack without
 1. It pulls, runs `work-item show`, and runs `film todo`, which prints the scenarios to film
    and the artifacts to withdraw. A scenario is to film when the approved demo scenarios have
    it, it has a demo script that counts, and it has no `demo-evidence` for the commit of the
-   checkout and that version of the script, so a rerun films only the scenarios that lack a
-   verdict. For each artifact of a removed scenario, it runs `qory artifact push <type>
+   checkout and that version of the script, or its `demo-evidence` for this commit has the
+   class `setup`, so a rerun films only the scenarios that lack a verdict and those that a
+   setup fault stopped. For each artifact of a removed scenario, it runs `qory artifact push <type>
    --name <id> --withdraw` for `demo-evidence`, `demo-video` and `screenshot`.
 2. It runs `preflight`, then, for each scenario: `film <id>`, `film recode <id>` when the
    first call exits 4, `film frames <id>` for a film, and starts `demo-reviewer` on the
-   frames. The report has one line `Step <N>:` for each step and, for a failed step, a
+   frames. A run that fails in a step after it recorded something exits 5 and keeps the film
+   up to that step, or the pictures before it, so `demo-reviewer` sorts the failure; only a
+   run with nothing recorded, or a title with `-->`, is recorded with the class `script` and
+   no reviewer. The report has one line `Step <N>:` for each step and, for a failed step, a
    class: `product` (the app shows other than the expected result), `script` (an action of
    the script went wrong) or `setup` (the app was not in the state that the scenario starts
    from).
@@ -366,16 +370,28 @@ never the role `demo-author`, and loads no `scripting-demos`, so a stack without
    pictures` and `evidence: film`.
 4. It pushes `demo-video` or `screenshot`, takes the version that the push printed, runs
    `film record <id> --review <report> --media <version>`, checks the file and pushes
-   `demo-evidence`. A scenario that has no film, because the call failed in a step or the
-   film is over the size limit after both encodes, is recorded with `film record <id> --class
-   <class> --cause <text>`: the evidence is `none`, the verdict is `failed`, the class is
-   `script`, and the cause is the `finding` of the failed step.
-5. A setup fault, from `preflight`, a call of `film` or a report with the class `setup`, is
-   retried once in the run. When it fails again, the session records the scenario with the
-   class `setup`, runs `run verdict changes-requested` with no point and ends with a line that
-   lists the scenarios with no film, the failed step and the repair. A cause that no change
-   to the repository repairs, such as a dev container with no browser or no ffmpeg, ends
-   with `run verdict escalate` and one `run_again` point whose `fix` is the person's action.
+   `demo-evidence`; a run that failed in a step has no `--media`, because the session pushes
+   no film of it. A scenario that has no film, because the call failed before it recorded
+   anything or the film is over the size limit after both encodes, is recorded with `film
+   record <id> --class <class> --cause <text>`: the evidence is `none`, the verdict is
+   `failed`, the class is `script`, and the cause is the `finding` of the failed step.
+5. The script marks the kind of each cause that it prints with a last line "Kind: outside"
+   or "Kind: setup". A setup fault, from `preflight`, a call of `film` or a report with the
+   class `setup`, is retried once in the run; a `preflight` that passes on the retry removes
+   the points that the failed one wrote to `points.json`. When it fails again, the session
+   records failed `demo-evidence` with the class `setup` for each scenario of "To film"
+   that has none for this commit, also when `preflight` failed, runs `run verdict
+   changes-requested` with no point and ends with a line that lists the scenarios with no
+   film, the failed step and the repair. No Build session reads that line: Qory Apiary
+   starts `verify-a-ticket` after `changes-requested`, and Verify reads the evidence. The
+   matrix row of a criterion that rests on such a scenario is `not_met`, with "The demo of
+   <scenario> failed in step <N> (setup): <finding>.", which Build reads in its next round,
+   and a new run films the scenarios of the class `setup` again. A cause that no change to
+   the repository repairs ends with `run verdict escalate` and one `run_again` point whose
+   `fix` is the person's action: no browser or no ffmpeg in the dev container, ffmpeg that
+   runs out of time in `film recode`, and a variable that the workspace lacks, which the
+   script finds when a `type` action has a `variable` with no value. A `preflight` that
+   exits 1 has written its points to `points.json`, and the session uses them.
 6. Otherwise it records `passed`, also when a scenario failed with the class `product` or
    `script`: that failure is a fact of the `demo-evidence` that Verify reads.
 
@@ -397,9 +413,11 @@ waits that fill the film to 586 s, are at most 25.8 MiB encoded after pass 1 and
 pass 2, of 32 MiB. The cap lowers the quality for a long, busy film: text stays readable in
 a film of a still page, a ticker and a scroll, and can be unreadable in a film in which
 the whole frame changes at every frame, such as random full-frame motion. `shortcut:` the
-first encode runs under a budget of 35 s, measured locally at 6 to 59 s for 28,000 frames,
-and no measurement of the run image exists; replace the budget when the run image measures
-slower.
+first encode runs under a budget of 35 s. With ffmpeg 7.1.5 in a `debian:trixie-slim`
+container on an unloaded machine, pass 1 took 29 s for 28,000 frames with 18 CPUs and 61 s
+with 2 CPUs, and pass 2 took 25 s and 46 s. A pass 1 that does not finish in its time keeps
+the frames and exits 4, and `film recode` has the whole call. No measurement of the run image
+exists, so replace the budget when the run image measures slower.
 
 ## Agents
 
@@ -3937,8 +3955,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `lib/budget.cjs`): the 600 seconds of a tool call, less 15 seconds of margin, which also
   covers the stop of the app and the browser, the delete of the frames and the start of
   Node. Run the film call with a tool timeout of at least 600 s. The 585 seconds are 15
-  seconds to stop the runner, 35 seconds for the encode (`ENCODE_MS`, measured: 35 seconds
-  for about 28,000 frames; ffmpeg gets what is left of the 585 seconds, at most 90 and at
+  seconds to stop the runner, 35 seconds for the encode (`ENCODE_MS`, measured: 29 seconds
+  for about 28,000 frames with 18 CPUs, 61 seconds with 2; ffmpeg gets what is left of the 585 seconds, at most 90 and at
   least 5 seconds), and 535 seconds for the runner (`RUN_BUDGET_MS`). The runner's 535
   seconds are 120 seconds for the start of the app, the start of the browser and the
   sign-in (`START_MS`), and 415 seconds for the waits of the setup and the steps
@@ -3974,14 +3992,24 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     the start of the next; the first cue starts at `00:00:00.000`. When the film fits
     one version of qory, the call removes the frames, so the folder has the two files that the
     check of `demo-video` reads. When it is over the limit after pass 1, the call keeps the
-    frames, removes the film and exits 4 with "Run film recode <scenario>." With the
+    frames, removes the film and exits 4 with "Run film recode <scenario>." A pass 1 that
+    ffmpeg does not finish within its time also keeps the frames and exits 4. With the
     evidence `pictures`, the replay records no video, and the folder has
     `<scenario>-step-<N>.png`, the page after the last action of step N, as the check of
     `screenshot` reads them. A call that stores the files exits 0 and prints the folder. A step
-    that fails stores nothing: it exits 1 with the fix "Check step <k> against the app, then
-    run film <id> again." (for the sign-in, "the sign-in" in place of "step <k>"), the
-    failed action with no typed value, and the last line "Stored no film: it failed in step
-    <k>." ("Stored no pictures" for the evidence `pictures`). A film scenario with no ffmpeg,
+    that fails after something was recorded keeps the film of the steps up to it (the film
+    has the cues of those steps, and no size limit applies, because the session pushes none),
+    or the pictures before it, writes `failed.json` with the step and the reason, and exits 5
+    with "Start demo-reviewer on step <k> of <id>, then record it." A step that fails before
+    anything was recorded, and a sign-in that fails, store nothing: they exit 1 with the fix
+    "Check step <k> against the app, then run film <id> again." (for the sign-in, "the
+    sign-in" in place of "step <k>"), the failed action with no typed value, and the last
+    line "Stored no film: it failed in step <k>." ("Stored no pictures" for the evidence
+    `pictures`). A failed sign-in adds the line "Kind: setup", and a `type` action whose
+    variable has no value adds "Kind: outside" and the fix "Ask an owner or admin of your
+    organisation to add <name> in Workspace settings > Secrets and variables, then run film
+    <id> again." Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because
+    the build plan would come from the artifact folder of the session. A film scenario with no ffmpeg,
     a scenario with no pushed script that counts, a plan with no
     `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
     run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
@@ -3997,14 +4025,16 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     With `--film`, a scenario whose script has the evidence `pictures` is filmed too. The
     other forms of `film` take no `--film`.
   - `film recode <scenario>` runs pass 2 on the frames that `film <scenario>` kept after
-    an exit 4. It exits 3 when no frames are kept, or when under 20 s of the 585 s of the
-    call are left for ffmpeg, and then keeps the frames.
+    an exit 4. It exits 3 when no frames are kept. It gives ffmpeg what is left of the 585 s of
+    the call, so it has no least time; pass 2 that ffmpeg does not finish exits 3 with "Kind:
+    outside" and keeps the frames.
   - `film frames <scenario>` writes `.film/<scenario>/frames/step-<N>-start.png` and
     `step-<N>-reached.png` from the film, for `demo-reviewer`.
-  - `film todo` prints "To film: <ids>." and "To withdraw: <type> <id>, ....". When the
+  - `film todo` prints "To film: <ids>." and "To withdraw: <type> <id>, ....", and lists a
+    scenario whose evidence for this commit has the class `setup`. When the
     store has no approved `demo-scenarios`, it exits 3 with "Pull the artifacts again." and
     prints no list, so no artifact is withdrawn.
-  - `film record <scenario> --review <file> --media <N>` or `film record <scenario> --class
+  - `film record <scenario> --review <file> [--media <N>]` or `film record <scenario> --class
     <class> --cause <text> [--step <N>]` writes `<scenario>.json`, the demo evidence, for
     the commit of the checkout and the newest demo script that counts. The first form reads
     the lines `Step <N>: passed`, `Step <N>: failed: <finding>` and `Step <N>: not-reached`

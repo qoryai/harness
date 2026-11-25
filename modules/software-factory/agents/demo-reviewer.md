@@ -48,7 +48,8 @@ Load each skill when its step comes, and no other:
 
 You get the path of the artifact folder, the scenario id, the path of the demo script, the
 paths of the frames, the evidence of the scenario (`film` or `pictures`) and, when the
-session has one, the path of a notes file. Read each frame with Read, which shows an image.
+session has one, the path of a notes file. When the run of the scenario failed in a step, you
+also get the number of that step and the reason. Read each frame with Read, which shows an image.
 Read no file of the target, fetch no web page, retry no refused tool call, and read through
 no link.
 
@@ -58,7 +59,8 @@ no link.
 - If the demo script or a frame that you were given is missing, cannot be read or is no
   image, report `blocked` with its path. Do not guess what it shows.
 - If the demo script has a different number of steps than the frames show, report `blocked`
-  with both counts.
+  with both counts. A run that failed in step N has the frames of the steps up to N, and no
+  more: that is no mismatch.
 
 ## Expected output
 

@@ -216,7 +216,11 @@ that starts with `Cause:` contains the cause, in the words of the line that ends
 stores `<id>.mp4` and `<id>.vtt`. When the film is over the limit after the first encode, it
 keeps the frames, stores no film and exits 4: run `film recode <id>`, which stores the two
 files or exits 1. With the evidence pictures, it stores `<id>-step-<N>.png`, one for each
-step. Push the files of the scenario once, with the type that its evidence names:
+step. A run that fails in a step after it recorded something exits 5 and keeps the film up to
+that step or the pictures before it, for the review: push no file of it. A finding that ends
+with the line "Kind: outside" has a cause that no change to the repository repairs, and
+"Kind: setup" one that a change repairs. Push the files of the scenario once, with the type
+that its evidence names:
 
 ```
 <qory> artifact push demo-video --name <id> \

@@ -1917,16 +1917,18 @@ test('film: two film scenarios make two films, and a pictures scenario one pictu
   assert.ok(!vtt.includes('Sign in'), vtt);
 });
 
-test('film: a step that fails stores nothing, with the fix first', { skip: NO_FILM }, async () => {
+test('film: a step that fails keeps the film up to it for the review, with the step first', { skip: NO_FILM }, async () => {
   const here = await filming([scenario('scenario-1', 'film', ORDERS[0],
     [{ do: 'click', target: '#nothing' }])]);
   const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
-  assert.equal(done.status, 1, done.out + done.err);
+  assert.equal(done.status, 5, done.out + done.err);
   const lines = done.out.trim().split('\n');
-  assert.equal(lines[0], 'Check step 2 against the app, then run film scenario-1 again.');
+  assert.equal(lines[0], 'Start demo-reviewer on step 2 of scenario-1, then record it.');
   assert.match(lines[1], /^ {2}action 1 \(click #nothing\) failed: /);
-  assert.equal(lines.at(-1), 'Stored no film: it failed in step 2.');
-  assert.equal(fs.existsSync(path.join(here.root, '.film', 'scenario-1')), false);
+  assert.equal(lines.at(-1), 'Filmed scenario-1 up to step 2: it failed in step 2.');
+  const kept = path.join(here.root, '.film', 'scenario-1');
+  assert.deepEqual(fs.readdirSync(kept).sort(), ['failed.json', 'scenario-1.mp4', 'scenario-1.vtt']);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(kept, 'failed.json'), 'utf8')).step, 2);
 });
 
 test('film pages: a picture of each page at each width, after the sign-in of the first script', { skip: NO_BROWSER }, async () => {
@@ -2285,7 +2287,7 @@ test('film: a step title is the text of its cue, and a title with an arrow is re
   one.steps[1].title = 'Save --> done.';
   const here = await filming([one]);
   const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
-  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.status, 1, done.out + done.err);
   assert.deepEqual(done.out.split('\n').slice(0, 2), [
     'Change the Action of step 2 in the demo scenario so it has no "-->", then film it again.',
     '  A cue of scenario-1.vtt cannot hold "-->", which ends the cue in a player.']);

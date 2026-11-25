@@ -19,6 +19,12 @@ the frames and the demo script only. The app, its code and the target are out of
 - With the evidence `pictures`, one picture for each step in `.film/<id>/`:
   `<id>-step-<N>.png`, the page after the step.
 
+When the run failed in a step N, the session tells you N and the reason. The frames or
+pictures cover the steps before N, and step N has frames of the page up to the failed action,
+or none. Step N is `failed`, each later step is `not-reached`, and the class sorts why the
+action failed, by the rules below. A run that failed on its action cannot be `passed` in
+step N.
+
 A frame shows the page at one moment. It shows no motion, no sound and no text that scrolled
 out of the view.
 
@@ -32,9 +38,10 @@ out of the view.
    with the values that it lists: the same words, the same numbers, and each element in the
    place where the result puts it. A different value, a missing element or an error message
    that the `expected` result does not list makes the step `failed`.
-4. The step is `not-reached` when an earlier step failed and left the page where this step
-   cannot start, so that its frames show another screen than the one the step needs. Judge
-   a step that still starts on its screen on the frames of that step.
+4. The step is `not-reached` when the run stopped in an earlier step, or when an earlier
+   step failed and left the page where this step cannot start, so that its frames show
+   another screen than the one the step needs. Judge a step that still starts on its
+   screen on the frames of that step.
 5. Write the finding of a `failed` step as one sentence for a person who has not seen the
    frames: what the frame shows, in its words, and what the step expects. Quote no secret
    that a frame shows.

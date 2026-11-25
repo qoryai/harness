@@ -49,8 +49,10 @@ types. Start no agent that is not `demo-reviewer`.
 2. Run `<skill folder>/checks.cjs film todo`. It prints "To film: <ids>." and "To withdraw:
    <type> <id>, ...." with "none" for an empty list. A scenario is in "To film" when the
    approved demo scenarios have it, it has a demo script that counts, and it has no demo
-   evidence for the commit of the checkout and for that version of the script. With 1, 2 or
-   3, end as "Failures" lists for the checks script.
+   evidence for the commit of the checkout and for that version of the script, or its
+   evidence for this commit has the class `setup`. A scenario with evidence of the class
+   `product` or `script` for this commit stays as it is. With 1, 2 or 3, end as "Failures"
+   lists for the checks script.
 3. For each `<type> <id>` of "To withdraw", run
    `<qory> artifact push <type> --name <id> --withdraw`. When the push exits with 4, qory
    kept it: go on with the next. When it exits with any other status, end as
@@ -58,33 +60,46 @@ types. Start no agent that is not `demo-reviewer`.
    scenario."
 4. With "To film: none", go to "The end".
 5. Run `<skill folder>/checks.cjs preflight --inputs <inputs>`, as the section "Preflight"
-   of `running-checks` lists. With 0, go on. With 1 or 3, do "A setup fault" with the first
-   line of its output, or "An outside cause" when that line asks for something in the dev
-   container.
+   of `running-checks` lists. With 0, go on. With 1, `preflight` wrote `<folder>/points.json`
+   with one `run_again` point for each missing part, and the first lines of its findings
+   each end with the line "Kind: outside" or "Kind: setup":
+   - When every finding has "Kind: outside", do "An outside cause" with the points that
+     `preflight` wrote.
+   - When one has "Kind: setup", do "A setup fault" with the first line of that finding.
+   With 3, end as "Failures" lists for the checks script.
 6. Do "One scenario" for each `<id>` of "To film", in the order of the list. Stop at the
    first end that "A setup fault" or "An outside cause" lists.
 7. Do "The end".
 
 ## One scenario
 
-1. Run `<skill folder>/checks.cjs film <id> --inputs <inputs>`.
+1. Run `<skill folder>/checks.cjs film <id> --inputs <inputs>`. Sort its exit status and
+   output in this order:
    - With 0, go on to step 2.
-   - With 4, the film is over the size of one version, and `film` kept the frames. Run
-     `<skill folder>/checks.cjs film recode <id>`. With 0, go on to step 2. With 1, the film
-     does not fit even after the second encode: record it with the class `script` and the
-     first two lines of the output as the cause, as step 5 lists, push the evidence, and go
-     to the next scenario.
-   - With 1 and the last line "Stored no film: it failed in the sign-in." or "Stored no
-     pictures: it failed in the sign-in.", it is a setup fault: do "A setup fault" with the
-     first two lines of the output.
+   - With 4, the film is over the size of one version, or ffmpeg did not finish pass 1, and
+     `film` kept the frames. Run `<skill folder>/checks.cjs film recode <id>`. With 0, go on
+     to step 2. With 1, the film does not fit even after the second encode: record it with
+     the class `script` and the first two lines of the output as the cause, as step 5
+     lists, push the evidence, and go to the next scenario. With 3 and "Kind: outside" on a
+     line of the output, do "An outside cause". With another status, end as "Failures"
+     lists for the checks script.
+   - With 5, the run failed in step `<k>` after it recorded the steps before it, and `film`
+     kept them. Go on to step 2, then do "The review" with the first line of the output as
+     the failure of step `<k>`.
+   - With 1 and "Kind: outside" on a line of the output, a variable that the workspace lacks
+     failed the sign-in or a step: do "An outside cause". Take the person's action from its
+     first line.
+   - With 1 and "Kind: setup" on a line of the output, the sign-in failed: do "A setup
+     fault" with the first two lines of the output.
    - With 1 and the last line "Stored no film: it failed in step <k>." or "Stored no
-     pictures: it failed in step <k>.", record the scenario
-     with the class `script`, the first two lines of the output as the cause and `--step
-     <k>`, as step 5 lists. Push the evidence and go to the next scenario.
-   - With 3, do "A setup fault" with the first line of the output. When that line asks for
-     something in the dev container, do "An outside cause" instead.
-   - With 2, 4 after `recode`, or another status, end as "Failures" lists for the checks
-     script.
+     pictures: it failed in step <k>.", the script failed before anything was recorded, or
+     its title has "-->": record the scenario with the class `script`, the first two lines
+     of the output as the cause and `--step <k>`, as step 5 lists. Push the evidence and go
+     to the next scenario.
+   - With 3 and "Kind: outside" on a line of the output, do "An outside cause". With 3 and
+     "Kind: setup", do "A setup fault" with the first two lines of the output.
+   - With 2 or another status, or 3 with no "Kind:" line, end as "Failures" lists for the
+     checks script.
 2. With the evidence `film`, run `<skill folder>/checks.cjs film frames <id>`. With the
    evidence `pictures`, the pictures `<folder>/.film/<id>/<id>-step-<N>.png` are the frames.
 3. Review the frames, as "The review" lists. The review gives each step a verdict, and a
@@ -92,12 +107,14 @@ types. Start no agent that is not `demo-reviewer`.
 4. Push the media, once, with the type that fits the evidence, as the section "Film" of
    `running-checks` lists, and take the number that the push printed. When the push is
    still refused after the third attempt, end with "The run could not push its demo
-   evidence." and record no verdict. A scenario with no film has no media: skip this step.
+   evidence." and record no verdict. A scenario with no film has no media, and so has a run
+   that failed in a step (exit 5 of `film`): skip this step.
 5. Run `<skill folder>/checks.cjs film record <id> --review <report> --media <number>`,
-   where `<report>` is `<folder>/.reports/demo-reviewer-<n>.md` of the review. For a
-   scenario that has no film, run `film record <id> --class <class> --cause "<cause>"`,
-   with `--step <k>` for a step, and with no `--media`. Join the lines of a cause with a
-   space. It writes `<folder>/<id>.json`.
+   where `<report>` is `<folder>/.reports/demo-reviewer-<n>.md` of the review. For a run
+   that failed in a step, leave out `--media`. For a scenario that has no film, run
+   `film record <id> --class <class> --cause "<cause>"`, with `--step <k>` for a step, and
+   with no `--media`. Join the lines of a cause with a space, and leave out the line that
+   starts with "Kind:". It writes `<folder>/<id>.json`.
    With 1, fix the input that its first line points to and run it again, at most twice,
    then end as "Failures" lists.
 6. Run `<skill folder>/checks.cjs check demo-evidence <folder>/<id>.json`. With 1, do the fix
@@ -117,8 +134,9 @@ types. Start no agent that is not `demo-reviewer`.
    the scenario that counts, `<folder>/demo-script/<id>/v<V>/<id>.json`, the paths of the
    frames, the evidence of the scenario, and the path of the notes file. Take `<V>` from
    `<folder>/index.json`: the highest `number` in `versions` of the entry whose `type` is
-   `demo-script` and whose `name` is `<id>`, of those with no `cancelled` set to `true`. Read
-   no frame yourself.
+   `demo-script` and whose `name` is `<id>`, of those with no `cancelled` set to `true`. For
+   a run that failed in step `<k>`, add the line "The run failed in step <k>: <the reason
+   that `film` printed>". Read no frame yourself.
 3. Write its report to `<folder>/.reports/demo-reviewer-<n>.md` and check it, as "Check
    each report" lists. With a last word `blocked`, end as "Failures" lists, with "The
    review of the frames of <id> did not finish, because <its Blocked: line, in plain
@@ -128,7 +146,8 @@ types. Start no agent that is not `demo-reviewer`.
    again for the film, then `film frames <id>`, then this section again for the new
    frames. Use the new report. The pictures are gone, so the evidence is now `film`.
 5. When the report has a failed step with the class `setup`, do "A setup fault" with the
-   finding of the first failed step. The report is not used for the evidence of that film.
+   finding of the first failed step, and record the scenario with the step `<k>` of that
+   finding. The report is not used for the evidence of that film.
 
 Judge nothing about a frame yourself: the verdicts are those of the report.
 
@@ -140,12 +159,16 @@ cause".
 
 1. The first setup fault of the run gets one retry. Run again the call that found it, once:
    `preflight`, or `film <id>` from step 1 of "One scenario", or, for a review, `film <id>`
-   and the review again. When the call passes, go on. When it fails again, or when this is
-   the second setup fault of the run, do the next steps.
-2. Record the scenario that failed, as "One scenario" step 5 lists for a scenario with no
-   film, with the class `setup`, `--step 1` and the first two lines of the output, or the
-   finding of the review, as the cause. Push the evidence. A failure of `preflight` has no
-   scenario: record none.
+   and the review again. When the call passes, go on: a `preflight` that passes removes the
+   points that the failed one wrote. When it fails again, or when this is the second setup
+   fault of the run, do the next steps.
+2. Record the failed evidence for each scenario of "To film" that has no demo evidence for
+   this commit yet, the scenario that failed and the ones the run did not reach, and a
+   failed `preflight` included, with the class `setup`, `--step 1` (the step `<k>` of a
+   review) and the first two lines of the output, or the finding of the review, as the
+   cause. Run `film record <id> --class setup --cause "<cause>" --step 1`, check it, and
+   push it, as "One scenario" steps 5 and 6 list. A scenario that has evidence of this run
+   already keeps it.
 3. Run `<qory> run verdict changes-requested` with no point.
 4. End with one line: "Setup failed, so <k> demo scenarios have no film: <ids>. <First
    line of the cause> Repair: <the fix in the first line of the output>." Cut it
@@ -153,18 +176,27 @@ cause".
    are the scenarios of "To film" that have no film pushed, the failed one included, joined
    by ", ".
 
-The next Build session reads this line, repairs the setup and commits, and a new run of
-`capture-demos` films the scenarios again for the new commit.
+No Build session reads the verdict. Qory Apiary starts `verify-a-ticket` after
+`changes-requested`, and Verify reads the failed evidence: a criterion that rests on one of
+these scenarios is `not_met`, with the scenario, the step, the class `setup` and the cause
+in its row, and Build reads that row in its next round. A new run of `capture-demos` films
+the scenarios of the class `setup` again, also for the same commit. A failed scenario that
+no criterion rests on reaches Build only through a later round.
 
 ## An outside cause
 
 An outside cause is a failure that no change to the repository repairs: the dev container
-has no browser or no ffmpeg, or the workspace has no secret that a demo script types.
+has no browser or no ffmpeg, ffmpeg runs out of time after `film recode`, or the workspace
+lacks a secret or variable that a demo script types. The script marks it with the line
+"Kind: outside".
 
-1. Write `<folder>/points.json` as "Points" of `running-a-workflow` lists, with one
-   `run_again` point. Its `text` is "The run could not film <ids>, because <the cause in
-   plain words>." Its `fix` is the first line of the output up to the comma, such as "Add
-   ffmpeg to the dev container."
+1. For a failed `preflight`, `<folder>/points.json` has its points already: go to step 2.
+   For `film`, write `<folder>/points.json` as "Points" of `running-a-workflow` lists, with
+   one `run_again` point. Its `text` is "The run could not film <ids>, because <the cause in
+   plain words>." Its `fix` is the action of the person: the first line of the output up to
+   the comma, then ", then run another round.", such as "Add ffmpeg to the dev container,
+   then run another round." or "Ask an owner or admin of your organisation to add <name> in
+   Workspace settings > Secrets and variables, then run another round."
 2. Run `<skill folder>/checks.cjs check points <folder>/points.json`. With 1, correct the
    lines it prints, at most twice.
 3. Run `<qory> run verdict escalate --points <folder>/points.json`, and end with the text
@@ -189,4 +221,4 @@ A checks script exit of 2, 3 or 4 that this skill lists no step for, a skill tha
 load, a report that fails the check after two fixes, and a push that fails end the run as
 "Failures" of `running-a-workflow` lists, with the lines that this skill lists. Evidence
 that the run pushed before stays: a later run films only the scenarios with no evidence
-for the commit.
+for the commit, or with evidence of the class `setup`.
