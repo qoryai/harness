@@ -2653,14 +2653,14 @@ function globReach(pattern, full, fold, dots) {
 }
 
 // linked returns pattern, a full path, with its parts before the first wildcard read through
-// their links.
+// their links, and the wildcard characters and backslashes of that real path escaped.
 function linked(pattern) {
   const parts = pattern.split(path.sep);
   const at = parts.findIndex((part) => wild(part));
   if (at <= 0) return pattern;
   charge();
-  return [real(literal(parts.slice(0, at).join(path.sep)) || path.sep),
-    ...parts.slice(at)].join(path.sep);
+  const head = real(literal(parts.slice(0, at).join(path.sep)) || path.sep);
+  return [head.replace(/[\\*?[]/g, '\\$&'), ...parts.slice(at)].join(path.sep);
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists. The path is on

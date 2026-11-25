@@ -5481,9 +5481,9 @@ test('the checks script alone runs with a path of the artifact folder, and no ot
 
 // aboveSetup returns the folder above a new artifact folder, that folder, and the call of a
 // command.
-function aboveSetup() {
+function aboveSetup(name = 'step-above') {
   const { env } = stepSetup();
-  const above = next('step-above');
+  const above = next(name);
   const artifacts = path.join(above, 'qory-artifacts');
   fs.mkdirSync(path.join(artifacts, STEP_DIR), { recursive: true });
   fs.symlinkSync(path.join(artifacts, STEP_DIR), path.join(artifacts, 'link'));
@@ -5518,6 +5518,19 @@ test('a copy with the source path, or a glob through a link, reaches the step re
     `rsync -a src ${above}`, `cp -R src ${above}/`, `cp x ${link}/a.md`,
     'rsync -R src/a .qory/', `rsync -a -- -R ${above}`]) {
     assert.equal(call(command), null, command);
+  }
+});
+
+// The guard reads the folders before a wildcard through their links, and a [ in the real path
+// stays a character of the name.
+test('a glob below a folder named with [ reaches the step reports and .reports', () => {
+  const { above, artifacts, call } = aboveSetup('br[1]');
+  fs.mkdirSync(path.join(artifacts, '.reports'));
+  const escaped = above.replace(/[[\]]/g, '\\$&');
+  for (const [command, reason] of [[`rm -rf ${escaped}/qory-artifacts/.step*`, STEP_KEPT],
+    [`rm -rf '${above}'/qory-artifacts/.step*`, STEP_KEPT],
+    [`rm -rf ${escaped}/qory-artifacts/.report?`, 'Leave .reports/ to checks.cjs']]) {
+    firstLine(call(command), reason);
   }
 });
 
