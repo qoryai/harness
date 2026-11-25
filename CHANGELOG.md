@@ -58,6 +58,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - A new acceptance lock keeps the checks of each criterion that did not change, as a whole
   list, and keeps every support file of the newest lock at its path and hash. When the
   push store lacks the newest lock, the check fails closed.
+- The workflow `triage-review`, which sorts the feedback that a person gave on a change into
+  points: a fix, a change of a criterion, or a question. With it come the skills
+  `workflow-triage-review` and `sorting-feedback`, the agent `feedback-triager`, the custom type
+  `feedback` with its push check, the rule for the question of a point, and the verbs
+  `feedback open` and `feedback points`. `reply-writer` also adds the `reply` of each entry of a
+  file whose path it gets from a workflow. No process entry starts the workflow yet. A
+  criterion-change point changes no criterion yet, and an answer to a question is no source
+  yet.
 - The review of a step's file, which `step end <id> done` needs for the plan, the checks and
   each demo script, the first script of a scenario included. `plan-reviewer` and
   `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the

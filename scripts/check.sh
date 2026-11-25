@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket skills/checking-demos agents/demo-reviewer skills/workflow-capture-demos"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-triage-review skills/sorting-feedback agents/feedback-triager skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket skills/checking-demos agents/demo-reviewer skills/workflow-capture-demos"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -1443,9 +1443,9 @@ for NAME in primitives verification acceptance-criteria; do
 	pass "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
 done
 
-# process.yaml sets withdrawable: false for acceptance-lock and build-ledger. Outside a run,
-# qory reads that flag from the exported modules and exits 4 before it writes a file.
-for type in acceptance-lock build-ledger; do
+# process.yaml sets withdrawable: false for acceptance-lock, build-ledger and feedback. Outside
+# a run, qory reads that flag from the exported modules and exits 4 before it writes a file.
+for type in acceptance-lock build-ledger feedback; do
 	LOCKED="qory artifact push $type --withdraw exits 4: process.yaml sets withdrawable: false"
 	run "$ROOT" "$QORY" artifact push "$type" --name main --withdraw
 	if [ "$RC" -ne 4 ] || ! printf '%s\n' "$OUT" |
@@ -2841,6 +2841,9 @@ expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
 # The tests of Verify: the skills and agents of its reviewers, and the verb matrix on the
 # records of run locked, the demo evidence and Build's ledger.
 expect "the verify-a-ticket tests pass" 0 "$ROOT" node --test scripts/verify-a-ticket.test.js
+# The tests of triage-review: the type feedback, the question of a point, the words of a
+# person, and the verb feedback on the notes of a qory stub.
+expect "the triage-review tests pass" 0 "$ROOT" node --test scripts/triage-review.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # The tests of the preflight: the browser, the app of the serve command and the sign-in of
@@ -2912,6 +2915,7 @@ demo-evidence:software-factory:demo-script
 demo-scenarios:software-factory:acceptance-criteria
 demo-script:software-factory:demo-scenarios,build-ledger
 demo-video:software-factory:demo-script
+feedback:software-factory:acceptance-criteria,questions
 proposal:software-factory:
 pull-request:software-factory:
 questions:core:
@@ -2925,8 +2929,8 @@ walkthrough:software-factory:verification,acceptance-criteria,acceptance-lock,qu
 	fail "the core stack's push-checks.json has the checks of questions and review-comments"
 pass "the core stack's push-checks.json has the checks of questions and review-comments"
 [ "$(push_types "$TMP/software/.qory/harness/push-checks.json")" = "$SOFTWARE_CHECKS" ] ||
-	fail "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
-pass "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
+	fail "the software stack's push-checks.json has the checks of core and the 17 of software-factory"
+pass "the software stack's push-checks.json has the checks of core and the 17 of software-factory"
 # The authoring stack composes only simple-communication of core, and still gets the push
 # program of core, which lies outside every entry.
 expect "checkout extending authoring by path: harness compose --no-links --runtime claude exits 0" \

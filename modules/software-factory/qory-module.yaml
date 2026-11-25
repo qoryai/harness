@@ -23,11 +23,13 @@ description: >-
   skills writing-demo-scenarios and checking-demo-scenarios; the agents scenario-writer and
   scenario-reviewer; the workflow-shape-a-ticket skill, which orchestrates one ticket's Shape
   stage through those four workflows; the skills planning-shape and checking-shape; the agents
-  shape-planner and shape-reviewer; the workflow-plan-the-build skill, which orchestrates
-  one ticket's build plan; the skills planning-builds and checking-build-plans; the skill
-  judging-findings, which defines a blocking finding of a change; the agents build-planner and
-  plan-reviewer; the workflow-write-acceptance-checks skill, which orchestrates one ticket's
-  acceptance checks and their lock; the skills writing-acceptance-checks and
+  shape-planner and shape-reviewer; the workflow-triage-review skill, which sorts the feedback
+  of a person on one ticket's change; the skill sorting-feedback; the agent feedback-triager;
+  the workflow-plan-the-build skill, which orchestrates one ticket's build plan; the skills
+  planning-builds and checking-build-plans; the skill judging-findings, which defines a
+  blocking finding of a change; the agents build-planner and plan-reviewer; the
+  workflow-write-acceptance-checks skill, which orchestrates one ticket's acceptance checks
+  and their lock; the skills writing-acceptance-checks and
   checking-acceptance-checks; the agents acceptance-check-writer and check-reviewer; the
   workflow-review-changes skill, the review session of one ticket's Build run, which starts
   the reviewers as its agents, decides the round from their reports and the result of the
@@ -112,6 +114,9 @@ push_checks:
   - type: walkthrough
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, walkthrough]
     reads: [verification, acceptance-criteria, acceptance-lock, questions]
+  - type: feedback
+    command: [skills/running-a-software-workflow/workflow-checks.cjs, push, feedback]
+    reads: [acceptance-criteria, questions]
 # The check of what a write workflow's session may push, for `plan: build-plan`. The command
 # takes --base <start commit> --artifacts <folder> last. It checks each path of the commits since
 # the base against the Files of the build plan, and scans the commits for keys and repositories.

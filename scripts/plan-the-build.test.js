@@ -137,9 +137,11 @@ test('the example of a report file passes the reader of findings round', () => {
   }
 });
 
-test('the stack declares plan-the-build with the tier thinking, the access write and its ' +
-  'plan', () => {
+test('the stack declares triage-review and plan-the-build with the tier thinking, the access ' +
+  'write and their plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
+  assert.match(stack,
+    /\n {2}triage-review: \{tier: thinking, access: write, plan: build-plan\}\n/);
   assert.match(stack,
     /\n {2}plan-the-build: \{tier: thinking, access: write, plan: build-plan\}\n/);
   const settings = JSON.parse(read(SOFTWARE, 'settings/claude/settings.json'));
