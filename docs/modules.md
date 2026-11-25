@@ -1811,10 +1811,12 @@ tool's error. The first line of each reason starts with what to do. The guard de
   main session that writes there, or that has that folder in its text or in a word, other
   than read-only commands and `checks.cjs` alone. A copy or a move into a folder above the
   artifact folder, such as `mv a /tmp`, passes; a move or a removal of such a folder does
-  not. The guard reads a shell command as it does for `.reports/`, so a script that a later
-  call runs still reaches the folder, and so does an archive that `tar`, `unzip` or `ditto`
-  extracts into the artifact folder. On Gemini CLI, Cursor and Copilot CLI no guard protects
-  `.step-reports`, so any agent can write a report there.
+  not. A move whose source the guard cannot tell from its destination is denied too: `find
+  ... -exec mv {} /tmp \;`, `xargs -I{} mv {} /tmp`, `sh -c 'mv a /tmp'` and `git mv a
+  /tmp`. The guard reads a shell command as it does for `.reports/`, so a script that a
+  later call runs still reaches the folder, and so does an archive that `tar`, `unzip` or
+  `ditto` extracts into the artifact folder. On Gemini CLI, Cursor and Copilot CLI no guard
+  protects `.step-reports`, so any agent can write a report there.
   Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
   the guard. An agent of any other type in a session that is no reviewer's writes as it does

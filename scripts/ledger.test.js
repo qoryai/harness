@@ -1180,7 +1180,8 @@ test('ledger: a passing report through a link is no report', () => {
       assert.equal(result.status, 1, `${id}: ${part}`);
       assert.deepEqual(result.lines, [
         `Start ${reviewer} on ${name}, then run step end ${id} done again.`,
-        `  Reviewer ${reviewer} wrote no valid report: its path has a link or is no regular file.`,
+        `  Reviewer ${reviewer} wrote no valid report: its path has a link, or is not a ` +
+          'regular file.',
         `  The report of this file is .step-reports/${reviewer}/${path.basename(reported)}.`,
         `Checked the step ${id}: the ledger is unchanged.`]);
       assert.equal(JSON.stringify(stored(w).ledger), before);

@@ -221,7 +221,7 @@ module.exports = (lib) => {
     // reviewerFindings reads the last part of the path only, so place reads the folders.
     const linked = lib.lockReader.place(root, { path: report }).problem;
     const blocking = linked ? [{ proof: null, point: `Reviewer ${reviewer} wrote no valid ` +
-      'report: its path has a link or is no regular file.' }]
+      'report: its path has a link, or is not a regular file.' }]
       : reviewerFindings(path.join(root, report), reviewer)
         .filter((one) => one.severity === 'blocking');
     if (!blocking.length) return { findings: [], report, sha };

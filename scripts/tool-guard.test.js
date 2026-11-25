@@ -5499,7 +5499,13 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `cp -rT src ${above}`, `cp "$f" ${above}`, `cp -R src/. ${above}/../step-abov*`,
     `install -m 644 "$f" ${above}`, `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`,
     `rsync -a "$f" ${above}`, `find src -exec cp -R {} ${above} \\;`,
-    `find src -exec mv -t ${above} {} +`,
+    `find src -exec mv -t ${above} {} +`, `mv -f -t ${above} a`, `mv -S .b a ${above}`,
+    `mv a ${above}/../step-abov*`,
+    // A redirect is no word of the move.
+    `mv a ${above} 2>/dev/null`, `mv a ${above} 2> /dev/null || true`,
+    `mv a ${above} > /dev/null 2>&1`, `mv a ${above} &>/dev/null`, `mv a ${above} </dev/null`,
+    `mv a ${above} 2>&1 | tail -3`, `mv a ${above} > log.txt`, `mv 2>/dev/null a ${above}`,
+    `mv a ${artifacts} 2>/dev/null`,
     // A file of another name moves into the artifact folder, as a copy of it does.
     `mv a ${artifacts}`, `mv a.md b.md ${artifacts}/`, `cp a ${artifacts}`]) {
     assert.equal(call(command), null, command);
@@ -5511,6 +5517,14 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `rm -rf ${artifacts}`, `rm -rf ${above}`, `rm -rf ${above}/*`, `rm -rf ${above}/q*`,
     `find ${above} -delete`, `echo /x | xargs mv ${artifacts}`, `echo /x | xargs mv a ${above}`,
     `mv -ft /x a ${artifacts}`, `mv -t/x a ${artifacts}`, `mv --target=/x a ${artifacts}`,
+    `mv -S -t ${artifacts} /x`, `mv -- -t ${artifacts} /x`, `mv --suffix -t ${artifacts} /x`,
+    `mv ${artifacts} /x 2>/dev/null`, `mv ${artifacts} 2>/dev/null /x`,
+    `mv 2>/dev/null ${artifacts} /x`, `mv ${artifacts} /x > ${above}/l`,
+    `mv a ${above} > ${artifacts}`, `mv a ${artifacts} '>' /x`, `mv ${artifacts} > /x`,
+    // The guard splits these commands, so the words after the split are not in the move.
+    `mv a ${artifacts} 2>&1 /x`, `mv a ${artifacts} <&3 /x`,
+    `mv a ${artifacts} > "a;b" /x`, `mv a ${artifacts} <(echo) /x`, `mv a ${artifacts} \`ls\``,
+    `mv a ${artifacts} >\\; /x`,
     `mv -T a ${artifacts}`, `mv a ${artifacts} -S .b`, `sh -c 'mv ${artifacts} /x'`,
     `cp a ${artifacts}/.step-reports/x`, `mv x ${artifacts}/.step-reports/`,
     `rsync -a src/ ${artifacts}/.step-reports/`, `mv x ${artifacts}/link`,
@@ -5518,6 +5532,9 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `cp -R src/. ${above}/q*`, `mv src/. ${artifacts}`, `mv "$f" ${artifacts}`]) {
     firstLine(call(command), STEP_KEPT);
   }
+  assert.ok(call(`mv a ${artifacts} 2>"&1" /x`));
+  // The destination of a move still counts for .qory/build/.
+  firstLine(call('mv src/a .'), 'Leave .qory/build/ as it is');
 });
 
 test('an extraction into the artifact folder or above it passes', () => {

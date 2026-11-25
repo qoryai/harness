@@ -984,18 +984,22 @@ function plainRedirects(text) {
 // segments returns the simple commands of a shell command and of the text of each shell in
 // it that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the |
 // or & of a redirect, which plainRedirects reads, so that a group such as `( cp a b )` or
-// `$(cp a b)` reads as its command, each as { text, words, cwds, at, dots }. words are the
-// words that commandWords keeps; cwds the known folders that the command can run in, as
-// folders finds them from cwd; at the folder it runs in, as walk finds it, or null when
-// that is unknown; and dots whether a wildcard matches a leading dot.
+// `$(cp a b)` reads as its command, each as { text, words, cwds, at, dots, cut }. cut tells
+// that the split at a ( or a `, or at the & of a redirect such as 2>&1, can leave out words of
+// the command. words are the words that commandWords keeps; cwds the known folders that the
+// command can run in, as folders finds them from cwd; at the folder it runs in, as walk finds
+// it, or null when that is unknown; and dots whether a wildcard matches a leading dot.
 function segments(command, cwd = process.cwd(), keep = () => true) {
   const texts = commands(dropBodies(command)).map((one, index) => {
     // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
     const pieces = plainRedirects(one).replace(/\\[()]/g, ' ').split(/([;&|\n()`]+)/);
     const out = [];
     for (let at = 0; at < pieces.length; at += 2) {
-      out.push({ text: pieces[at], before: pieces[at - 1] || '', after: pieces[at + 1] || '',
-        index, ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean).flatMap(braces)) });
+      const after = pieces[at + 1] || '';
+      const cut = /^[(`]/.test(after) || (/[<>]\s*$/.test(pieces[at]) && after[0] === '&' &&
+        !/^\s*[\d-]+\s*$/.test(pieces[at + 2]));
+      out.push({ text: pieces[at], before: pieces[at - 1] || '', after, cut, index,
+        ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean).flatMap(braces)) });
     }
     return out;
   });
@@ -1017,12 +1021,12 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots in zsh in any spelling, or GLOBIGNORE, which turns dotglob on.
   const dots = optionsIn(command, all, ['dotglob', 'globdots', 'globignore']);
-  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars, blind }) => {
+  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars, blind, cut }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
     const cwds = from.map((one) => into(one, known));
     const sure = at !== null && known.length === chdirs.length;
-    return { text, words, outputs, cwds, lost, vars, blind,
+    return { text, words, outputs, cwds, lost, vars, blind, cut,
       at: sure ? into(at, known) : null, dots };
   });
 }
@@ -1812,12 +1816,21 @@ function contentsInto(words) {
 
 // movesInto reports whether words, a mv, move sources into dest, so that it removes the sources
 // only: with -t or --target-directory, or with a source and no xargs or parallel in text, which
-// add words; and with no other option for the destination, as in -ft, --target=x or -T.
+// add words; and with no other option for the destination, as in -ft, --target=x or -T. -t counts
+// only after options with no value, since it is a value in -S -t and a file in -- -t.
 function movesInto(text, words, dest, sources) {
   if (sources.includes(dest)) return false;
-  const given = (word) => /^(?:-t|--target-directory(?:=.*)?)$/s.test(word);
-  return !words.some((word) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word) && !given(word)) &&
-    (words.some(given) || (sources.length > 0 && !FED.test(text)));
+  const first = words.findIndex((word, at) => at > 0 && !/^-[^-tTS]+$/.test(word));
+  const given = /^(?:-t|--target-directory(?:=.*)?)$/s.test(words[first] || '');
+  return !words.some((word, at) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word) &&
+    !(given && at === first)) && (given || (sources.length > 0 && !FED.test(text)));
+}
+
+// unredirected returns words, as written, with no redirect and no file of one, as in 2>x or > x.
+// A word with a quote or a backslash stays, since a split can have left out a part of it.
+function unredirected(words) {
+  return words.filter((word, at) => /['"\\]/.test(word) || (!/^(?:\d*|&)[<>]/.test(word) &&
+    !(at > 0 && /^(?:\d*|&)[<>]+[&|]?$/.test(words[at - 1]))));
 }
 
 // pathHits reports whether a simple command that writes changes full, as its words read once
@@ -1857,8 +1870,10 @@ function pathHits(segment, full, folder, how, step = false) {
   // -T or --no-target-directory copies the contents of its source into that folder.
   const tool = path.basename(words[0]);
   const copies = LAST_WRITTEN.has(tool);
-  const { dest, sources } = copies || (step && tool === 'mv') ? copyParts(segment.words) : {};
-  const moves = !copies && sources !== undefined && movesInto(segment.text, words, dest, sources);
+  const args = step && tool === 'mv' ? unredirected(segment.words) : segment.words;
+  const { dest, sources } = copies || (step && tool === 'mv') ? copyParts(args) : {};
+  const moves = !copies && sources !== undefined && !segment.cut &&
+    movesInto(segment.text, plainWords(args), dest, sources);
   if (copies || moves) {
     const into = contentsInto(words);
     const named = (first) => into || sources.some((source) => vague(source) ||
