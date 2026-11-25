@@ -5,6 +5,7 @@
       "prefix": "sk-ant-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9_-",
       "min": 16,
       "max": 256
@@ -14,6 +15,7 @@
       "prefix": "ghp_",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9",
       "min": 36,
       "max": 256
@@ -23,6 +25,7 @@
       "prefix": "ghs_",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9",
       "min": 36,
       "max": 256
@@ -32,6 +35,7 @@
       "prefix": "gho_",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9",
       "min": 36,
       "max": 256
@@ -41,6 +45,7 @@
       "prefix": "ghu_",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9",
       "min": 36,
       "max": 256
@@ -50,6 +55,7 @@
       "prefix": "ghr_",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9",
       "min": 36,
       "max": 256
@@ -59,6 +65,7 @@
       "prefix": "github_pat_",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9_-",
       "min": 16,
       "max": 256
@@ -68,6 +75,7 @@
       "prefix": "AKIA",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Z0-9",
       "min": 16,
       "max": 256
@@ -77,6 +85,7 @@
       "prefix": "ASIA",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Z0-9",
       "min": 16,
       "max": 256
@@ -86,6 +95,7 @@
       "prefix": "Bearer",
       "any_case": true,
       "blank": true,
+      "word_start": false,
       "alphabet": "A-Za-z0-9._~+/=-",
       "min": 16,
       "max": 4096
@@ -95,6 +105,7 @@
       "prefix": "sk-proj-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9_-",
       "min": 20,
       "max": 256
@@ -104,6 +115,7 @@
       "prefix": "AIza",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9_-",
       "min": 35,
       "max": 256
@@ -113,6 +125,7 @@
       "prefix": "glpat-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9_-",
       "min": 20,
       "max": 256
@@ -122,6 +135,7 @@
       "prefix": "xoxa-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9-",
       "min": 10,
       "max": 256
@@ -131,6 +145,7 @@
       "prefix": "xoxb-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9-",
       "min": 10,
       "max": 256
@@ -140,6 +155,7 @@
       "prefix": "xoxp-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9-",
       "min": 10,
       "max": 256
@@ -149,6 +165,7 @@
       "prefix": "xoxr-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9-",
       "min": 10,
       "max": 256
@@ -158,6 +175,7 @@
       "prefix": "xoxs-",
       "any_case": false,
       "blank": false,
+      "word_start": false,
       "alphabet": "A-Za-z0-9-",
       "min": 10,
       "max": 256
@@ -167,6 +185,7 @@
       "prefix": "sk-",
       "any_case": false,
       "blank": false,
+      "word_start": true,
       "alphabet": "A-Za-z0-9_-",
       "min": 20,
       "max": 256

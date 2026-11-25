@@ -50,13 +50,15 @@ const hex = (code) => `\\x${code.toString(16).padStart(2, '0')}`;
 
 // compile returns { kind, pattern } of shape: the words "the <name>" and one RegExp without
 // flags. With any_case, each letter of the prefix matches in both cases, as Forager folds
-// the ASCII case of the prefix alone; the alphabet is the exact set of its bytes.
+// the ASCII case of the prefix alone; the alphabet is the exact set of its bytes. With
+// word_start, the byte before the prefix is no ASCII letter, digit or _, or there is none.
 function compile(shape) {
+  const start = shape.word_start ? '(?<![A-Za-z0-9_])' : '';
   const prefix = [...shape.prefix].map((char) => (shape.any_case && /[A-Za-z]/.test(char)
     ? `[${char.toLowerCase()}${char.toUpperCase()}]` : hex(char.charCodeAt(0)))).join('');
   const blank = shape.blank ? `[ \\t]{1,${MAX_BLANK}}` : '';
   const token = `[${alphabetOf(shape.alphabet).map(hex).join('')}]{${shape.min},${shape.max}}`;
-  return { kind: `the ${shape.name}`, pattern: new RegExp(`${prefix}${blank}${token}`) };
+  return { kind: `the ${shape.name}`, pattern: new RegExp(`${start}${prefix}${blank}${token}`) };
 }
 
 const pointer = (parts) => `#${parts.map((part) => `/${part}`).join('')}`;
@@ -86,7 +88,7 @@ function faultOf(data) {
 
 // sameKey returns the words of shape that two equal shapes share.
 const sameKey = (shape) => JSON.stringify([shape.name, shape.prefix, Boolean(shape.any_case),
-  Boolean(shape.blank), shape.alphabet, shape.min, shape.max]);
+  Boolean(shape.blank), Boolean(shape.word_start), shape.alphabet, shape.min, shape.max]);
 
 const DEFAULT_LIST = JSON.parse(fs.readFileSync(DEFAULT_FILE, 'utf8')).shapes;
 const DEFAULT_KEYS = new Set(DEFAULT_LIST.map(sameKey));

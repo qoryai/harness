@@ -450,6 +450,8 @@ module.exports = (lib) => {
   // count of findings for the summary line. Past MOST_COMMITS commits, the one line has the
   // fix and its cause, and count is 2, one for each.
   function scanHistory(io, top, base, verb) {
+    // The stop of a bad file of key shapes applies also when no commit is there to scan.
+    keyValues(io);
     const commits = git.unpushed(Missing, top, io.env, base, MOST_COMMITS);
     if (commits.length > MOST_COMMITS) {
       return { commits: commits.length, count: 2, lines: base

@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qory.dev/contracts/forager/v1/key-shapes.schema.json",
   "title": "Key shapes",
   "description": "The shapes of keys that a scan for keys looks for: a prefix, then a token of min to max characters of the alphabet. The names are unique, and min is at most max.",
   "type": "object",
@@ -29,6 +30,10 @@
           },
           "blank": {
             "description": "true requires 1 to 16 spaces or tabs between the prefix and the token.",
+            "type": "boolean"
+          },
+          "word_start": {
+            "description": "true requires that the prefix starts the text or follows a byte that is no ASCII letter, digit or _.",
             "type": "boolean"
           },
           "alphabet": {

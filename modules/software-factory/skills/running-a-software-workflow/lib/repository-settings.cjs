@@ -51,6 +51,7 @@ const TYPES = ['object', 'array', 'string', 'integer', 'boolean'];
 const isCount = (value) => Number.isInteger(value) && value >= 0;
 const FORMS = {
   $schema: [(value) => typeof value === 'string', 'text'],
+  $id: [(value) => typeof value === 'string', 'text'],
   title: [(value) => typeof value === 'string', 'text'],
   description: [(value) => typeof value === 'string', 'text'],
   type: [(value) => TYPES.includes(value), `one of ${TYPES.join(', ')}`],
