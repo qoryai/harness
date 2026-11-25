@@ -5516,7 +5516,7 @@ test('a copy with the source path, or a glob through a link, reaches the step re
   // path into .qory/, which only the step reports read so.
   for (const command of [`rsync -R ${glob} /x`, `cp --parents ${glob}/x.json /x`,
     `rsync -a src ${above}`, `cp -R src ${above}/`, `cp x ${link}/a.md`,
-    'rsync -R src/a .qory/']) {
+    'rsync -R src/a .qory/', `rsync -a -- -R ${above}`]) {
     assert.equal(call(command), null, command);
   }
 });
