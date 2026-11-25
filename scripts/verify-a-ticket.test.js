@@ -177,6 +177,8 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     assert.ok(flat.includes('The prompt contains the path of the input file.'), name);
     assert.ok(flat.includes('Write it once, as your last step, at `<reports>/' + name + '.json`'),
       name);
+    assert.ok(flat.includes("The working folder is the run's checkout, at the same commit; read " +
+      'the change in the read-only folder at `commit_folder`.'), `${name} reads commit_folder`);
   }
   for (const skill of ['checking-tampering', 'judging-criteria']) {
     const text = read('skills', skill, 'SKILL.md');
@@ -189,6 +191,8 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     assert.ok(text.replace(/\s+/g, ' ').includes("The working folder is the run's checkout, at " +
       'the same commit; read the change in the read-only folder'), skill);
     assert.ok(!text.includes('working folder is empty'), skill);
+    assert.ok(text.replace(/\s+/g, ' ').includes('The member is missing when the stage has no ' +
+      'finding of a reviewer, open or closed by a run.'), skill);
     assert.ok(!text.includes('first round'), skill);
     // The check list repeats or closes each open earlier finding.
     assert.match(text,
