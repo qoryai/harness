@@ -60,9 +60,11 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell.
 
 You get the paths of the input file and the artifact folder, the run's number, the notes and
-any fact or finding from a higher workflow. Read what the pull wrote, never an earlier
-session's memory. Retry no refused tool call, read through no link, read no file of the
-target, and fetch no web page.
+any fact or finding from a higher workflow. In a change from a person's feedback, you get
+the line "A change from a person's feedback:" and one JSON group in place of the notes, and
+you work as `writing-demo-scenarios` lists in "A change from a person's feedback". Read what
+the pull wrote, never an earlier session's memory. Retry no refused tool call, read through
+no link, read no file of the target, and fetch no web page.
 
 When you start again, change the draft for the findings, and repeat the lists of your newest
 report, changed for this start. For a finding marked `person`, list the question. Change,
@@ -108,6 +110,9 @@ Files:
 Scenarios:
 - <scenario id>: <added, changed or removed>; <each ac-N on its Shows: line>
 
+Already so:
+- <point id>: <the words of the newest version that meet the point>
+
 Version note:
 - <each sentence of the note on an empty demo-scenarios.md, as writing-demo-scenarios lists>
 
@@ -135,7 +140,8 @@ Blocked: <what you tried, why it failed, and the state it left>
 ```
 
 The last line is one word. Only `blocked` has one "Blocked:" line, in one of these four
-forms. Leave out "Version note:" unless demo-scenarios.md is empty. Never write "- none"
-under "Version note:". Keep the lines of "Version note:" within 4000 characters, the limit
+forms. Only a start for a change from a person's feedback has "Already so:". Leave out
+"Version note:" unless demo-scenarios.md is empty. Never write "- none" under "Version
+note:". Keep the lines of "Version note:" within 4000 characters, the limit
 of a version's note in Qory Apiary. Put any other line, such as a list of sources, before
 the last line.

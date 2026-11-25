@@ -19,6 +19,8 @@ Write `build-plan.md` at the top of the artifact folder. Plan from the newest ap
 `acceptance-criteria`, the `spec`, the newest `demo-scenarios` and the code explorer's
 report. The report shows which files exist and which commands the repository has. A file or
 a command that neither the report nor a file you read shows does not go into the plan.
+Where the spec and a newer criterion differ, the criterion applies: a change from a person's
+feedback changes the criteria and leaves the spec as it was.
 
 Edit in place the copy of the newest `build-plan` that the run made, as `reading-the-work`
 lists. A deliverable whose criteria did not change keeps its id.

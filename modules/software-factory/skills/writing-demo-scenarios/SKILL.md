@@ -1,6 +1,6 @@
 ---
 name: writing-demo-scenarios
-description: Load before you write demo scenarios. Contains where they start, the scenario format, scenario ids and titles, which criteria they cover, the limit of 12, questions, review comments and notes, and the empty version with its note.
+description: Load before you write demo scenarios. Contains where they start, the scenario format, scenario ids and titles, which criteria they cover, the limit of 12, questions, review comments and notes, the empty version with its note, and a change from a person's feedback.
 ---
 
 # Writing demo scenarios
@@ -139,3 +139,23 @@ If no acceptance criterion needs a demo, pick Approve. If one does, pick Request
 scenario-1, "Read the new hours": removed, because AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00", and AC-2, "The reply states that the hours apply every day, on weekends and public holidays too", are now checked by tests.
 scenario-2, "Read the closed day": removed, because the rework removes AC-3, "The reply states that support is closed on 25 December".
 ```
+
+## A change from a person's feedback
+
+When the run gives you the line "A change from a person's feedback:" and one JSON group,
+change only the scenarios of its points, in the copy of the newest demo scenarios. The
+group is the whole input of this start: read no other note, source or review comment.
+
+- Change only the `item` of each point. A point with no `item` adds one scenario at the
+  end, with the next number.
+- A point whose `id` is a criterion id, such as `ac-2`, follows a change of that criterion:
+  its `quote` has the row `before` and `after`. Make the scenario show the row after: its
+  steps, its `Shows:` line and its title. When the row after is `null` or has the check
+  `Tests`, remove the criterion from the `Shows:` line, and remove the scenario as "Ids and
+  titles" lists when it then shows no criterion.
+- Keep every other byte of `demo-scenarios.md`: the summary, each other scenario, the order,
+  the blank lines and the line ends. A removed scenario keeps its heading.
+- When the newest version already meets a point, change nothing for it, and list it under
+  "Already so:" with the words of the scenario that meet it.
+- When a point needs a criterion to change, or a new one, report the stop as
+  `scenario-writer` lists it.

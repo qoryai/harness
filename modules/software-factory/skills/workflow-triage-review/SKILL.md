@@ -1,6 +1,6 @@
 ---
 name: workflow-triage-review
-description: Orchestrate the first step of a Build run: sort the feedback that a person gave on the change into fixes, criterion changes and questions, start the feedback triager, the questions writer and the reply writer in that order, push the feedback and the questions, and end with a question to a member when a point has one. Use in a headless run of the workflow triage-review.
+description: Orchestrate the first step of a Build run: sort the feedback that a person gave on the change into fixes, criterion changes and questions, start the feedback triager, the questions writer and the reply writer in that order, push the feedback and the questions, write each criterion change as a new version of the criteria or the scenarios linked to its source, and end with a question to a member when a point has one. Use in a headless run of the workflow triage-review.
 ---
 
 # Triage the review
@@ -76,13 +76,12 @@ source.
    one line "Fix first: <id>: <change>" per fix that Build has not built, and one JSON line
    per group of criterion changes that no version has. Keep `<k>`, the number of lines that
    start with "Fix first:". With 2 or 3, end as "Failures" lists for the checks script.
-
-   `shortcut:` a criterion-change point changes no criterion; replace this when the workflow
-   gets the step that writes the criteria.
+   With a JSON line, do "Criterion changes" before step 10.
 10. Run `<skill folder>/checks.cjs feedback open` again. With a line "Not asked:", end as
     "Failures" of `running-a-workflow` lists for a step after the push. With a line "Waiting
-    for an answer:", do "Questions with no answer". A JSON line is a source that came during
-    the run: the next run of this workflow sorts it. Otherwise run
+    for an answer:", or an `answer` point that "Criterion changes" kept, do "Questions with
+    no answer", with those points too. A JSON line is a source that came during the run: the
+    next run of this workflow sorts it. Otherwise run
     `<qory> run verdict passed` as the last command, and end with "The run sorted the
     feedback: <k> to fix in Build."
 
@@ -90,15 +89,103 @@ source.
 the reply writer get one start each, besides the start with the time, the starts for a
 finding of a check, and the start for the points that the triager adds after a finding.
 
+## Criterion changes
+
+Do this section after step 9 when `feedback points` printed a JSON line, and before step 10.
+Each JSON line is a group: the points of one source for one output, which one version of
+that output makes. A group has these members:
+
+- `decision`: the id of the source, which the version links to;
+- `output`: `acceptance-criteria` or `demo-scenarios`;
+- `points`: each change, with the person's words in `quote`. A point with an `item` changes
+  that criterion or scenario, and a point with no `item` adds one at the end. In a group of
+  `demo-scenarios`, a point whose `id` is a criterion id, such as `ac-2`, follows a change of
+  that criterion in a newer version of the acceptance criteria: its `quote` has the row
+  `before` and `after`, and its `item` is the scenario that shows the criterion, or there is
+  none when a new scenario shows it;
+- `waiting`: only when a question has no answer that the group depends on: a question of
+  the source about the output, a question about a point of the group, such as one that a
+  writer of the group raised, or a question about the output with no item, asked at or after
+  the time of the source.
+
+Take the groups one at a time, in the order of the lines. `<writer>` and `<reviewer>` are
+${qory:agents/spec-writer} and ${qory:agents/spec-reviewer} for `acceptance-criteria`, and
+${qory:agents/scenario-writer} and ${qory:agents/scenario-reviewer} for `demo-scenarios`.
+`<file>` is `acceptance-criteria.json` or `demo-scenarios.md`.
+
+1. Skip a group with `waiting`: `feedback open` in step 10 prints a line "Waiting for an
+   answer:" for each of its questions, so they end the run.
+2. Start `<writer>` with the input file's path, the artifact folder, the run's number, the
+   line "A change from a person's feedback:" and the group's JSON line after it, unchanged,
+   and no other source or note. It changes the copy of the newest version, as its skill
+   lists in "A change from a person's feedback", and lists under "Already so:" each point
+   that the newest version already meets.
+3. Run `<skill folder>/checks.cjs feedback amended <output> --decision <decision>`, with
+   `--same <id>` for each point on the writer's list "Already so:". With 1, start the
+   writer again with each finding quoted, then run `feedback amended` again. Start the
+   writer at most twice for these findings. When it still exits with 1, do "A change that
+   the run could not write". With 2 or 3, end as "Failures" lists for the checks script.
+4. Run `check <output>` as "Check before each review" lists, and count the start of
+   `<reviewer>` as "Count the starts" lists, with `triage-review-<n>-<reviewer>-<decision>`
+   as `<name>`. Start `<reviewer>` with the input file's path, the artifact folder, the run's
+   number, the line "A change from a person's feedback:" and the group's JSON line after
+   it, the writer's list "Already so:" and the lines of the check. With a finding, start the
+   writer with each finding quoted, then do step 3 and this step again. When `starts`
+   exits with 1, or a finding stays after the third start, do "A change that the run could
+   not write".
+5. Push once with the link: `<qory> artifact push <output> <folder>/<file> --decision
+   <decision>`, also when the file has the same bytes as the newest version. "Push only
+   what changed" does not apply to this push, because the link ends the points. Then take
+   the next group.
+
+When the writer lists an item under "What only a person can settle", or reports
+`Blocked: needs a change to criterion` or `Blocked: needs a new criterion`, push nothing
+for the group, keep one `answer` point for it, and take the next group. Start the questions
+writer with the writer's report, then check and push the questions as steps 5 and 8 list.
+The text of the point is "The feedback "<words>" changes the approved criteria, so a member
+decides it.", or, for a group of `demo-scenarios`, "The feedback "<words>" changes the
+approved demo scenarios, so a member decides it.", with `<words>` the text after "Words of
+<decision>: ", and its `question` is the id of the question that the questions writer adds
+for the item.
+
+After the last group, run `<qory> artifact pull` and `feedback points` again. A new JSON
+line is a group that a push of this run started, such as the demo scenarios of a changed
+Demo criterion: take it as above. `feedback points` prints the group of the demo scenarios
+of a source only after the criteria version of that source, unless the group of the
+criteria has `waiting`, so that one group has the source's points on the scenarios and
+those of each changed Demo criterion. A pushed group stays pushed when a later group fails.
+After a crash, step 9 prints only the groups that no version has.
+
+### A change that the run could not write
+
+Push nothing for the group, and end as "Points" of `running-a-workflow` lists, with each
+`answer` point of this section and one `run_again` point. Its text is "The run could not
+write the change to AC-2, "<first sentence>", that you asked for.", with the id and the first
+sentence of the `item` of the group's first point that has one, as "Stops on the spec" of
+`running-a-software-workflow` reads them. With no such point, or for the demo scenarios, its
+text is "The run could not write the change to the <words> that you asked for.", with
+"acceptance criteria" or "demo scenarios" as `<words>`. Its `fix` is "Run Build again.":
+another start of the writer and the reviewer can write the change.
+
 ## Questions with no answer
 
-Write `points.json` with one `answer` point per line "Waiting for an answer:", as "Points" of
-`running-a-workflow` lists, then end as that section lists. The `question` of the point is
-the id of the question on that line. Read the question in `<folder>/questions.json`, else in
-the newest version, with the file tool of your runtime. `<words>` is what the context has in
-its first double quotes, unchanged, and `<criterion text>` what it has in its second double
-quotes. The text of the point is one of these, by the words that
-follow in the context:
+Write `points.json` with one `answer` point per question on a line "Waiting for an answer:",
+as "Points" of `running-a-workflow` lists, then end as that section lists. The `question` of
+the point is the id of the question on that line. An `answer` point that "Criterion changes"
+kept on the same question is that point. A line followed by "Words of <id>: <words>" is a
+question that a group of criterion changes waits for. `<id>` is the point of the group that
+the question is about: a point of the feedback, or, for a ripple point, a criterion id such
+as `ac-2`, with the words of the point of the source that changed that criterion, else of
+the first criterion change of the source with no item, else the text of the source. The
+text of its point is "The feedback "<words>" changes the approved criteria, so a member
+decides it.", with `<words>` the text after "Words of <id>: ", or "The feedback "<words>"
+changes the approved demo scenarios, so a member decides it." when the group is of
+`demo-scenarios`: the `output` of the JSON line, in the newest output of `feedback points`,
+that has the point `<id>`. For any other line, read the question in
+`<folder>/questions.json`, else in the newest version, with the file tool of your runtime.
+`<words>` is what the context has in its first double quotes, unchanged, and `<criterion
+text>` what it has in its second double quotes. The text of the point is one of these, by
+the words that follow in the context:
 
 - "can mean": "The feedback "<words>" can be read 2 ways, and a user sees a different result
   for each." With 3 or 4 readings, write that number.
