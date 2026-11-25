@@ -128,7 +128,8 @@ agents and the settings for a run of those workflows:
   its name, summary and description, the workspace type `qory.software`, the stack
   `software`, the process, and the artifact types that its workspaces use. The process
   has the stages Explore, Shape, Build, Verify and Release. Explore runs
-  `explore-a-ticket` once per run, with no loop, and needs a `proposal`. Shape runs
+  `explore-a-ticket` once per run, with no loop, and needs a `proposal`. Explore's gate
+  offers the track `standard`, which `tracks` of the process declares. Shape runs
   `shape-a-ticket` once per run, with no loop, and needs a `spec` and
   `acceptance-criteria`. Build, Verify and Release run no workflow. Every workflow runs on
   `machine: default`, the instance's default machine type.
