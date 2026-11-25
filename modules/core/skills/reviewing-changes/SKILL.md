@@ -120,9 +120,9 @@ apply. Each finding has these members, and no "Marks:" line:
 
 ## Severity
 
-- `blocking`: the finding breaks an acceptance criterion, loses data, opens a security hole,
-  such as an exposed secret, or fails a required check. The skill for your kind of work may
-  add to this list. A blocking finding needs a proof of the form `failing check` or
+- `blocking`: the finding breaks what the work item asks for, loses data, opens a security
+  hole, such as an exposed secret, or fails a required check. The skill for your kind of
+  work may add to this list. A blocking finding needs a proof of the form `failing check` or
   `failing input`. Each blocking finding gets a round of fixes.
 - `non-blocking`: every other finding. A round with only these passes, and the run does not
   fix them.

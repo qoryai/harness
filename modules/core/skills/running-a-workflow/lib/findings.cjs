@@ -48,7 +48,7 @@ const REQUIRED_TEXT = ['quote', 'problem', 'fix', 'proof', 'point'];
 const SHOWS = /[^\s\u0000-\u001F\u007F-\u009F\p{Default_Ignorable_Code_Point}\p{Cf}\uFFFC]/u;
 // A character that the line rule of the review report format ($defs line) does not allow in a
 // point or a file: a control character, U+2028, U+2029, or a format character (Cf) other
-// than the joiners U+200C and U+200D. scripts/findings.test.js compares it with the contract.
+// than the joiners U+200C and U+200D. A script under scripts/ compares it with the contract.
 const OFF_LINE = /[\p{Cc}\u2028\u2029]|(?![\u200C\u200D])\p{Cf}/u;
 
 // closeProblem returns what breaks the review report format in the close at place, or null.

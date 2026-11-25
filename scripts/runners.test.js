@@ -4204,7 +4204,15 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   assert.equal(got.status, 0, got.out + got.err);
   const text = reportOf(dir);
   const rounds = text.split('## Review rounds\n\n')[1].split('\n\n## Replies')[0];
-  assert.equal(rounds, `${earlier}\n\n### Round 2\n\nReviewers: code-reviewer.\n\n| Finding | Source | Blocking | Proof |\n|---|---|---|---|\n| f1: A \\| in the point | code-reviewer | yes | Line 1 Line 2 |\n| f2: A second point | code-reviewer | no | none |\n| f3: The full suite failed. | suite | yes | none |\n\nThe result of the last round is in the review in Qory Apiary, not in this report.`);
+  assert.equal(rounds, [
+    `${earlier}\n\n### Round 2\n\nReviewers: code-reviewer.\n`,
+    '| Finding | Source | Blocking | Proof |',
+    '|---|---|---|---|',
+    '| f1: A \\| in the point | code-reviewer | yes | Line 1 Line 2 |',
+    '| f2: A second point | code-reviewer | no | none |',
+    '| f3: The full suite failed. | suite | yes | none |',
+    '\nThe result of the last round is in the review in Qory Apiary, not in this report.',
+  ].join('\n'));
   assert.match(text, /Review rounds: 2\. Ready/);
   assert.match(text, /\| Returns \| 2 \|/);
   // A later session with no open-findings.json keeps every round of the previous version.
@@ -4348,7 +4356,8 @@ test('report-build: the closing line of an earlier version is left out of the ea
   assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
   const text = reportOf(dir);
   assert.equal(text.split(closing).length, 2);
-  assert.ok(text.includes(`### Round 1\n\nOld round 1.\n\n### Round 2\n\nNone.\n\n${closing}\n\n## Replies`), text);
+  assert.ok(text.includes('### Round 1\n\nOld round 1.\n\n### Round 2\n\nNone.\n\n' +
+    `${closing}\n\n## Replies`), text);
 });
 
 test('report-build: a left-out item loses hidden characters and is cut like a point, so that check build-report passes', () => {

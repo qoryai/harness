@@ -176,8 +176,8 @@ test('reviewing-changes repeats and closes earlier findings by id, and caps a re
     assert.ok(earlier.includes(text), text);
   }
   // The core definition of blocking, in words of any kind of work.
-  assert.ok(REVIEWING.replace(/\s+/g, ' ').includes('the finding breaks an acceptance ' +
-    'criterion, loses data, opens a security hole, such as an exposed secret, or fails a ' +
+  assert.ok(REVIEWING.replace(/\s+/g, ' ').includes('the finding breaks what the work item ' +
+    'asks for, loses data, opens a security hole, such as an exposed secret, or fails a ' +
     'required check.'));
   // The examples of the report quote words or lines, not code.
   assert.ok(!/the code/.test(REVIEWING), 'reviewing-changes has the words "the code"');
