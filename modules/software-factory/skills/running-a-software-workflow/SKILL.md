@@ -127,8 +127,9 @@ exists:
   the workflow ends as its section "No criterion changed" lists. A build plan that is
   newer than the lock stays as it is.
 - "Changes since acceptance-lock version <N>: <a> changed, <b> added, <c> removed." The
-  lines before it list the ids as "Changed: ac-2, ac-4.", "Added: ac-5.", "Removed: ac-3."
-  and "Checks to write: ac-2, ac-5.", each only when it has an id. Quote these lines when
-  your workflow says to pass the ids to an agent.
+  lines before it list the ids as "Changed: ac-2, ac-4.", "Added: ac-5.", "Removed: ac-3.",
+  "Checks to write: ac-2, ac-5." and "Checks to drop: ac-3.", each only when it has an id.
+  A check to drop is the check of a criterion that is removed or no longer planned as
+  `Tests`. Quote these lines when your workflow says to pass the ids to an agent.
 
 When `changes` exits with 1, 2 or 3, end as "Failures" lists for the checks script.

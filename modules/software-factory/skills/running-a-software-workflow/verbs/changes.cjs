@@ -95,8 +95,8 @@ module.exports = (lib) => {
     const words = `acceptance-lock version ${lock.number}`;
     if (none) return done(record, [], `No criterion changed since ${words}.`);
     const lines = [['Changed', diff.changed], ['Added', diff.added],
-      ['Removed', diff.removed], ['Checks to write', tests]]
-      .filter(([, ids]) => ids.length).map(([name, ids]) => `${name}: ${ids.join(', ')}.`);
+      ['Removed', diff.removed], ['Checks to write', tests],
+      ['Checks to drop', leaves]].filter(([, ids]) => ids.length).map(([name, ids]) => `${name}: ${ids.join(', ')}.`);
     return done(record, lines, `Changes since ${words}: ${diff.changed.length} changed, ` +
       `${diff.added.length} added, ${diff.removed.length} removed.`);
   }

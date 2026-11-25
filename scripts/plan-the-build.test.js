@@ -517,6 +517,21 @@ test('a session on a test work item stores build-plan and ends passed', () => {
     ['code-explorer', 'build-planner', 'plan-reviewer']);
 });
 
+test('with no criterion changed since the lock, the skill starts no agent and keeps a newer plan', () => {
+  const flat = (text) => text.replace(/\s+/g, ' ').trim();
+  const text = skill('workflow-plan-the-build');
+  const first = flat(section(text, 'The order of the run'));
+  const head = first.slice(0, first.indexOf(' 2. Run `step begin`'));
+  assert.ok(head.includes('`<skill folder>/checks.cjs changes` once'), head);
+  assert.ok(head.includes('With the line "No criterion changed since", do "No criterion ' +
+    'changed" and go no further in this list.'), head);
+  const none = flat(section(text, 'No criterion changed'));
+  assert.ok(none.includes('run no `step begin`, start no agent, and push nothing. The build ' +
+    'plan stays as it is, also when it is newer than the lock.'), none);
+  assert.ok(none.includes('"No criterion changed since acceptance-lock version <N>, so the ' +
+    'run changed no plan and wrote no checks."'), none);
+});
+
 // ---- The check of a plan in change mode -----------------------------------------------------
 
 // changed writes the record of `checks.cjs changes` in the checkout of w, as that verb does.

@@ -2077,7 +2077,7 @@ test('changes lists the added, changed and removed criteria, and the paths of th
   const result = changes(planned(twoRoot(MIXED)));
   exitsWith(result, 0);
   assert.deepEqual(result.lines, ['Changed: ac-4.', 'Added: ac-5.', 'Removed: ac-2.',
-    'Checks to write: ac-4, ac-5.',
+    'Checks to write: ac-4, ac-5.', 'Checks to drop: ac-2.',
     'Changes since acceptance-lock version 1: 1 changed, 1 added, 1 removed.']);
   assert.deepEqual(result.record, { mode: 'changes', lock: 1, criteria: 1, target: 2,
     changed: ['ac-4'], added: ['ac-5'], removed: ['ac-2'], unchanged: ['ac-1', 'ac-3'],

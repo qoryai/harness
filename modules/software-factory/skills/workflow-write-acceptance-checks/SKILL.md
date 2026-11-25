@@ -28,7 +28,10 @@ run no other command in the same call.
 
 1. Pull, then run `<qory> work-item show`. Run the `find` of "Further repositories" of
    `running-a-software-workflow`. Then run `<skill folder>/checks.cjs resume` once, as "The
-   build ledger" of that skill lists.
+   build ledger" of that skill lists, and `<skill folder>/checks.cjs changes` once, as
+   "Change mode" of that skill lists. With the line "No criterion changed since", do "No
+   criterion changed" and go no further in this list: read no build plan and run no later
+   step.
 2. Read the newest build plan and the newest acceptance criteria:
    - The plan: take `<N>`, the `newest_version` of `build-plan` in `index.json`, and read
      `<folder>/build-plan/main/v<N>/build-plan.md` with `grep -a -n -- '' <path>`, as
@@ -53,6 +56,11 @@ run no other command in the same call.
      check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
      `check-reviewer` reports a write there to code under test. Its other Files are not in
      it, and `check-reviewer` reports a write to code under test.
+
+   In change mode (`changes` printed "Changes since"), the Tests criteria that need a check
+   are the ids of its line "Checks to write:", and the stops below that name a Tests
+   criterion apply to those ids only. Each other live Tests criterion keeps the check that
+   the newest lock has.
 
    Then decide, in this order, and go no further in this list when a case ends the run:
    - When `index.json` lists no version of `build-plan`, start no agent, push nothing, and
@@ -86,6 +94,16 @@ run no other command in the same call.
    repositories" line, the paths of the checks, and any finding or line to fix. It writes
    the checks and their support files in the working folder, runs each check on the start
    commit, and drafts `acceptance-lock.json` at the top of the artifact folder.
+
+   In change mode, give the writer only the criteria of "Checks to write:" and the check
+   paths of their rows, and the lines "Changed:", "Added:", "Removed:" and "Checks to
+   drop:" of `changes`, quoted. The writer drafts `acceptance-lock.json` as a copy of the
+   newest lock, with `criteria.version` set to the criteria version that `changes` read as
+   the target: each check of an unchanged criterion stays whole, with its hashes, the
+   check of each criterion on "Checks to drop:" leaves the draft, and each criterion on
+   "Checks to write:" gets a new check at a new path or at a path that the tool guard
+   lifts. Write to `acceptance-check-writer-files.txt` only the Files of the rows that list
+   a criterion of "Checks to write:".
 5. Run `<skill folder>/checks.cjs scope checks --inputs <inputs>`. When it exits with 1,
    start the writer with every line that it printed, quoted, at most twice, and run `scope`
    again. When it still exits with 1, end as "Failures" lists.
@@ -124,8 +142,12 @@ run no other command in the same call.
 Each locked check must fail on the start commit: the code of the run's start, with only the
 checks added. This section runs only after a `lock` of this run stored the lock.
 
-1. Run `<skill folder>/checks.cjs run locked --inputs <inputs>`. It runs every locked
-   check once and prints one finding for each check that is red. A check fails right only
+1. Run `<skill folder>/checks.cjs run locked --inputs <inputs>`. In change mode, run
+   `<skill folder>/checks.cjs run locked <criterion>... --inputs <inputs>` with the criteria
+   of "Checks to write:" instead, and when that line is absent, go to "The end": no new
+   check exists, and the checks of the other criteria already failed in the run that locked
+   them. The command runs every locked check once and prints one finding for each check
+   that is red. A check fails right only
    when its finding starts with "Fix the code until the locked check of <criterion>
    passes.": the check ran, and a test of it failed. Every other result is wrong: a check
    that is green, and a check with any other finding, such as a missing tool or zero tests.
@@ -141,8 +163,8 @@ checks added. This section runs only after a `lock` of this run stored the lock.
 
 ## A locked check that does not fail
 
-The check is locked, so the run cannot change it: only a person's upload of the acceptance
-criteria opens a new lock.
+The check is locked, so the run cannot change it: only a person's change of the acceptance
+criteria, written in a request for changes, opens a new lock.
 
 1. Start ${qory:agents/questions-writer} as "Points" of `running-a-workflow` lists, for one
    `answer` point per such check, with `none` as the list "Decided", and this item per check
@@ -154,10 +176,10 @@ criteria opens a new lock.
    Context: The locked check `<path>` of <criterion> must fail before the build changes
    code, and in two runs it did not fail with a failed test. The first run: <run 1>. The
    second run: <run 2>. Build does not start until you pick.
-   Option 1 (recommended): Upload the acceptance criteria you accept as a new version, so
-   that the next round writes a new check for this criterion. Explanation: Only your upload
-   of the criteria opens a new lock. A check that does not fail before the change cannot
-   show that the change meets the criterion.
+   Option 1 (recommended): Write the change of this criterion in a request for changes, so
+   that the next round writes a new check for it. Explanation: Only your request for changes
+   opens a new lock. A check that does not fail before the change cannot show that the
+   change meets the criterion.
    Option 2: Keep the locked check, and let the build go on with it. Explanation: The build
    changes the code with this check as it is, and the check shows nothing about this
    criterion.
@@ -185,6 +207,15 @@ criteria opens a new lock.
    lists. The text of each point is "The locked check of <criterion> does not fail before
    the build changes code.", its action is `answer`, and its `question` is the id that the
    questions writer lists under "Added:" for that check. Then end as "Points" lists.
+
+## No criterion changed
+
+When `changes` prints "No criterion changed since acceptance-lock version <N>.", read no
+build plan, run no `step begin`, start no agent, and push nothing: the lock stays as it is,
+also when the build plan is newer than the lock. When the run is alone, run
+`<qory> run verdict passed`, and end with "No criterion changed since acceptance-lock
+version <N>, so the run changed no plan and wrote no checks." Under a higher workflow,
+return that line as the report.
 
 ## No check to write
 
