@@ -2,10 +2,10 @@
 // running-a-software-workflow adds to the checks script. scripts/check.sh runs them. Each type
 // has a version that passes, and each rule a test that breaks it and watches the check fail.
 // scripts/testdata/build-verify-samples.json has 58 documents of five JSON types, and
-// MORE_SAMPLES has documents of acceptance-criteria and verification, each valid or invalid
-// against the type's JSON Schema. A push runs on a store with the files that
-// qory mounts for a push check: index.json and the newest version of the type and of each type
-// that its entry in qory-module.yaml reads.
+// MORE_SAMPLES has documents of acceptance-criteria, verification and feedback, each valid or
+// invalid against the type's JSON Schema. A push runs on a store with the files that qory
+// mounts for a push check: index.json and the newest version of the type and of each type that
+// its entry in qory-module.yaml reads.
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -29,7 +29,7 @@ const { main } = require(SCRIPT);
 const { watch } = require('./first-line.js');
 
 const JSON_TYPES = ['pull-request', 'build-ledger', 'acceptance-lock', 'demo-script',
-  'demo-evidence', 'verification'];
+  'demo-evidence', 'feedback', 'verification'];
 const DOCUMENT_TYPES = ['build-plan', 'build-report'];
 // The JSON types that process.yaml defines with a json_schema: every JSON type but verification,
 // a standard type of Qory Apiary.
@@ -174,6 +174,19 @@ function verified(change = () => {}) {
   return doc;
 }
 
+// FEEDBACK has one source and one point, and feedbackDoc returns it after change.
+const FEEDBACK = {
+  sources: [{ kind: 'note', id: 'gd_01jc4t9v2m6x8p3q', at: T, by: 'Sam Example',
+    text: 'Show the hours in bold.' }],
+  points: [{ id: 'p1', source: 'gd_01jc4t9v2m6x8p3q', quote: 'Show the hours in bold.',
+    sort: 'fix', change: 'Show the hours in bold.', reply: 'The run shows the hours in bold.' }],
+};
+function feedbackDoc(change) {
+  const doc = clone(FEEDBACK);
+  change(doc);
+  return doc;
+}
+
 // MORE_SAMPLES has valid and invalid documents of the types whose samples are not in
 // scripts/testdata/build-verify-samples.json, in its form.
 const MORE_SAMPLES = {
@@ -192,6 +205,28 @@ const MORE_SAMPLES = {
         doc: criteriaDoc((list) => { list[2].removed = {}; }) },
       { why: 'a member the schema does not define',
         doc: { ...CRITERIA, version: 1 } },
+    ],
+  },
+  feedback: {
+    valid: [
+      { why: 'a fix', doc: FEEDBACK },
+      { why: 'a source with no point', doc: feedbackDoc((doc) => { doc.points = []; }) },
+      ...['es_01jc4t9v2m6x8p3q', 'rc_01jc4t9v2m6x8p3q', 'an_01jc4t9v2m6x8p3q',
+        'cm_0123456789abcdef'].map((id) => ({ why: `the source ${id}`,
+        doc: feedbackDoc((doc) => { doc.sources[0].id = id; }) })),
+    ],
+    invalid: [
+      { why: 'no source', doc: feedbackDoc((doc) => { doc.sources = []; }) },
+      { why: 'a source of an unknown kind',
+        doc: feedbackDoc((doc) => { doc.sources[0].kind = 'check'; }) },
+      { why: 'an id of another object',
+        doc: feedbackDoc((doc) => { doc.sources[0].id = 'av_01jc4t9v2m6x8p3q'; }) },
+      { why: 'a source with no text', doc: feedbackDoc((doc) => { doc.sources[0].text = ''; }) },
+      { why: 'a fourth sort', doc: feedbackDoc((doc) => { doc.points[0].sort = 'dispute'; }) },
+      { why: 'a state', doc: feedbackDoc((doc) => { doc.points[0].state = 'open'; }) },
+      { why: 'a point with no quote', doc: feedbackDoc((doc) => { delete doc.points[0].quote; }) },
+      { why: 'a change on two lines',
+        doc: feedbackDoc((doc) => { doc.points[0].change = 'a\nb'; }) },
     ],
   },
   verification: {
@@ -524,10 +559,11 @@ function templateEntries() {
   return entries.slice(entries.findIndex((entry) => entry.name === 'demo-scenarios') + 1);
 }
 
-test('process.yaml lists the seven custom types of Build and Verify last, with their limits', () => {
+test('process.yaml lists the eight custom types of Build and Verify last, with their limits', () => {
   const entries = templateEntries();
   assert.deepEqual(entries.map((entry) => entry.name), ['pull-request', 'build-plan',
-    'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence']);
+    'build-report', 'build-ledger', 'acceptance-lock', 'demo-script', 'demo-evidence',
+    'feedback']);
   for (const entry of entries) {
     const structured = CUSTOM_JSON_TYPES.includes(entry.name);
     assert.equal(entry.base_view, structured ? 'structured' : 'document', entry.name);
@@ -624,7 +660,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
     'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
-    walkthrough: 'verification, acceptance-criteria',
+    walkthrough: 'verification, acceptance-criteria', feedback: null,
   };
   for (const [type, read] of Object.entries(reads)) {
     const entry = `  - type: ${type}\n    command: [${program}, push, ${type}]\n` +
@@ -685,7 +721,7 @@ test('the 58 samples: each valid one passes its schema, each invalid one fails i
   assert.equal(count, 58);
 });
 
-test('the samples of acceptance-criteria and verification pass or fail their schema', () => {
+test('the samples of acceptance-criteria, verification and feedback pass or fail their schema', () => {
   for (const [type, kinds] of Object.entries(MORE_SAMPLES)) {
     const loaded = schema.load(type);
     for (const sample of kinds.valid) {
@@ -3644,7 +3680,7 @@ test('no schema decodes to a control character, but tab, line feed and carriage 
   };
   const files = [...fs.readdirSync(path.join(SKILL, 'schemas')).map((name) => `schemas/${name}`),
     'extensions.schema.json'].filter((name) => name.endsWith('.json'));
-  assert.equal(files.length, 9, files.join(' '));
+  assert.equal(files.length, 10, files.join(' '));
   for (const name of files) {
     const doc = JSON.parse(fs.readFileSync(path.join(SKILL, name), 'utf8'));
     assert.deepEqual(hold(doc), [], name);

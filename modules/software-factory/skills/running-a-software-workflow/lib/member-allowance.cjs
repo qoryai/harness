@@ -134,21 +134,25 @@ module.exports = (lib) => {
     return Array.isArray(data) ? { notes: data } : { why: 'notes.json is no list' };
   }
 
+  // workItemNotes returns { notes }, the list notes[] of the work item, for a check of context,
+  // or { why }. A push check reads notes.json in its working folder, and a check in a session
+  // reads `<qory> work-item show`. end --offline runs no command, so it reads none.
+  function workItemNotes(context) {
+    if (context.mode === 'push') return fromFile(context.workingFolder);
+    if (context.offline) return { why: 'end --offline reads no notes' };
+    return fromShow();
+  }
+
   // memberLimit returns { limit, why } for a check of context: the number of deliverables
   // that a member's answer allows, and, when the notes could not be read, why that is, so
-  // that the limit is 7. A push check reads notes.json in its working folder, and a check
-  // in a session reads `<qory> work-item show`. end --offline runs no command, so there
-  // the limit is 7.
+  // that the limit is 7.
   function memberLimit(context) {
-    let read;
-    if (context.mode === 'push') read = fromFile(context.workingFolder);
-    else if (context.offline) read = { why: 'end --offline reads no notes' };
-    else read = fromShow();
+    const read = workItemNotes(context);
     if (read.why !== undefined) {
       return { limit: MAX_DELIVERABLES, why: plainLine(read.why).replace(/\.+$/, '') };
     }
     return { limit: limitOf(read.notes), why: null };
   }
 
-  return { MAX_DELIVERABLES, MEMBER_OPTIONS: OPTIONS, memberLimit, limitOf };
+  return { MAX_DELIVERABLES, MEMBER_OPTIONS: OPTIONS, memberLimit, limitOf, workItemNotes };
 };

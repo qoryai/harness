@@ -2839,6 +2839,9 @@ expect "the lock tests pass" 0 "$ROOT" node --test scripts/lock.test.js
 # The tests of Verify: the skills and agents of its reviewers, and the verb matrix on the
 # records of run locked, the demo evidence and Build's ledger.
 expect "the verify-a-ticket tests pass" 0 "$ROOT" node --test scripts/verify-a-ticket.test.js
+# The tests of triage-review: the type feedback, the question of a point, the words of a
+# person, and the verb feedback on the notes of a qory stub.
+expect "the triage-review tests pass" 0 "$ROOT" node --test scripts/triage-review.test.js
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # The tests of the preflight: the browser, the app of the serve command and the sign-in of
@@ -2906,6 +2909,7 @@ demo-evidence:software-factory:demo-script
 demo-scenarios:software-factory:acceptance-criteria
 demo-script:software-factory:demo-scenarios
 demo-video:software-factory:demo-script
+feedback:software-factory:
 proposal:software-factory:
 pull-request:software-factory:
 questions:core:
@@ -2919,8 +2923,8 @@ walkthrough:software-factory:verification,acceptance-criteria'
 	fail "the core stack's push-checks.json has the checks of questions and review-comments"
 pass "the core stack's push-checks.json has the checks of questions and review-comments"
 [ "$(push_types "$TMP/software/.qory/harness/push-checks.json")" = "$SOFTWARE_CHECKS" ] ||
-	fail "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
-pass "the software stack's push-checks.json has the checks of core and the 16 of software-factory"
+	fail "the software stack's push-checks.json has the checks of core and the 17 of software-factory"
+pass "the software stack's push-checks.json has the checks of core and the 17 of software-factory"
 # The authoring stack composes only simple-communication of core, and still gets the push
 # program of core, which lies outside every entry.
 expect "checkout extending authoring by path: harness compose --no-links --runtime claude exits 0" \
