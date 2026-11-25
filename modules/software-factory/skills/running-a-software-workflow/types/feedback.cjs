@@ -11,8 +11,8 @@ const { isDeepStrictEqual } = require('node:util');
 const { sizeLimit } = require('../lib/template.cjs');
 
 module.exports = (lib) => {
-  const { commentKey, criterionItems, jsonFile, kindOf, lists, readableFeedback, sentences,
-    short, sourcesOf, storedFeedback, workItemNotes } = lib;
+  const { commentKey, criterionItems, jsonFile, kindOf, lists, pointQuestion, readableFeedback,
+    sentences, short, sourcesOf, storedFeedback, workItemNotes } = lib;
 
   const FILE = 'feedback.json';
   const POINT_ID = /^p[1-9][0-9]{0,2}$/;
@@ -166,19 +166,28 @@ module.exports = (lib) => {
         run.find(`Add the reply of ${which}: what the run does with it, in 1 to 3 sentences.`);
       }
     });
-    questions(run, data);
+    questions(run, data, old);
   }
 
-  // questions finds, in a check, each point whose question the draft questions.json lacks.
-  function questions(run, data) {
+  // questions finds, in a check, each point whose question the draft questions.json lacks, and
+  // runs the rule of the question of a point on each draft question of a point that old, the
+  // ids of the newest questions, lacks, whatever its about. The questions check runs that rule
+  // only for an about of the type feedback or acceptance-criteria.
+  function questions(run, data, old) {
     const { context } = run;
     if (context.mode !== 'check' ||
       !fs.existsSync(path.join(context.root, 'questions.json'))) return;
     run.did('questions of points');
-    const ids = new Set(context.questions().map((question) => question.id));
+    const drafts = new Map(context.questions().map((question) => [question.id, question]));
     for (const point of data.points) {
-      if (point.question !== undefined && !ids.has(point.question)) {
+      if (point.question === undefined) continue;
+      const question = drafts.get(point.question);
+      if (!question) {
         run.find(`Add the question ${point.question} of point ${point.id} to questions.json.`);
+      } else if (point.sort === 'question' && typeof point.quote === 'string' &&
+        !old.has(point.question)) {
+        // The schema gives the id the form q<N>.
+        for (const text of pointQuestion(question, point.question, point)) run.find(text);
       }
     }
   }

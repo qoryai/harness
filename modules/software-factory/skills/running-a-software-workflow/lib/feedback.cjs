@@ -132,5 +132,47 @@ module.exports = (lib) => {
       : list.join(' ') || '\u2026';
   }
 
-  return { commentKey, kindOf, lists, readableFeedback, sourcesOf, storedFeedback, wordsOf };
+  // FORMS are the words that follow the quoted words: the readings, the proof, or the change
+  // of a criterion that a comment asks for.
+  const FORMS =
+    /^ (?:can mean \S.* or \S|cannot be built as written: \S|(?:adds|changes|removes) \S)/;
+
+  // aboutOf returns the about of the question of point.
+  const aboutOf = (point) => (point.item === undefined
+    ? { type: 'feedback', name: 'main', item: point.id }
+    : { type: 'acceptance-criteria', name: 'main', item: point.item });
+
+  // pointQuestion returns the findings of the rule for question, named who, the question of
+  // point: 2 to 4 options, a context with the words of point in double quotes, each reading or
+  // the proof after them, and the about of point. With no point, any words in double quotes
+  // count, and the about is not compared.
+  function pointQuestion(question, who, point) {
+    const finds = [];
+    const count = Array.isArray(question.options) ? question.options.length : 0;
+    if (count < 2 || count > 4) {
+      finds.push(`Give ${who} 2 to 4 options.\n${who} has ${count}.`);
+    }
+    const text = (typeof question.context === 'string' ? question.context : '')
+      .replace(/\s+/g, ' ');
+    const words = point ? wordsOf(point.quote) : null;
+    const parts = words === null ? text.split(/"[^"]+"/) : text.split(`"${words}"`);
+    if (parts.length < 2) {
+      finds.push(`Quote the person's words in the context of ${who}.\n` +
+        (words === null ? 'Put them in double quotes.' : `The words are "${words}".`));
+    } else if (!parts.slice(1).some((part) => FORMS.test(part))) {
+      finds.push(`Write each reading or the proof after the words in the context of ${who}.\n` +
+        'The forms are "<words>" can mean <reading> or <reading>, "<words>" cannot be built ' +
+        'as written: <cause>, and "<words>" changes <criterion>.');
+    }
+    const about = isObject(question.about) ? question.about : {};
+    const want = point ? aboutOf(point) : about;
+    if (['type', 'name', 'item'].some((key) => about[key] !== want[key])) {
+      finds.push(`Set about of ${who} to ${want.item} of ${want.type} main.\nThe question is ` +
+        `of ${point.id}.`);
+    }
+    return finds;
+  }
+
+  return { commentKey, kindOf, lists, pointQuestion, readableFeedback, sourcesOf, storedFeedback,
+    wordsOf };
 };

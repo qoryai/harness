@@ -54,8 +54,9 @@ note of a person, a comment or a reply. A point is one thing that a source asks 
 6. With sources, start ${qory:agents/reply-writer} with the input file's path, the artifact
    folder, the run's number, the path `<folder>/feedback.json`, the ids of its new points,
    and the ids of the questions. It adds the `reply` of each new point. Then run the check
-   of step 4 again. A finding on a `reply` goes to the reply writer, as "Check before each
-   push" lists, and any other finding to the triager, as step 4 lists.
+   of step 4 again. A finding on a `reply` goes to the reply writer, and a finding on a
+   question, such as "Give q5 2 to 4 options.", to the questions writer, as "Check before
+   each push" lists. Any other finding goes to the triager, as step 4 lists.
 7. With sources, push the feedback:
    `<qory> artifact push feedback <folder>/feedback.json`. Then take the time, as "The time
    of a version" of `run-artifacts` lists. With no source, the time is the largest `at` in

@@ -2612,7 +2612,9 @@ find:
   criterion that the criteria do not have; a `criterion-change` whose source has a `cm_` key,
   or in a work item with no acceptance criteria; a question of two points, or one that the
   newest questions have; in a check with a draft `questions.json`, a point whose question it
-  lacks; a `reply` of more than 3 sentences; and, in a push, a new point with no `reply`;
+  lacks, and a new question of a point that breaks the rule for the question of a point,
+  whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point with
+  no `reply`;
 - `walkthrough`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
   number, with the id in any case and the criterion's words in quotes, then
   `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a

@@ -317,6 +317,23 @@ test('each question point has a new question in the draft questions.json', () =>
     'Set the question of point p3 to an id that no question has.');
 });
 
+test('the check of feedback runs the rule of the question of a point for any about', () => {
+  const notes = [GD1, GD2];
+  const other = { ...clone(Q5), about: { work_item: true }, context: 'It is not clear.' };
+  const file = (root) => path.join(root, 'questions.json');
+  const root = store();
+  write(path.join(root, 'feedback.json'), ASKED);
+  write(file(root), { questions: [other] });
+  passes(run(root, notes, ['check', 'questions', file(root)]));
+  const result = check(ASKED, { notes, questions: [other] });
+  fails(result, 'Set about of q5 to p3 of feedback main.');
+  fails(result, 'Quote the person\'s words in the context of q5.');
+  // The question of a point of the newest version, in the newest questions, is not checked
+  // again.
+  passes(check(ASKED, { notes, questions: [other],
+    types: { feedback: [{ data: ASKED }], questions: [{ data: { questions: [other] } }] } }));
+});
+
 test('a push checks the items and the questions of new points against the types it reads', () => {
   fails(push(changed((d) => { d.points[1].item = 'ac-99'; })),
     'Set the item of point p2 to a criterion that the criteria have.');
