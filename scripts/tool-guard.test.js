@@ -651,7 +651,7 @@ test('the guard denies a write to a hard link of a locked file, also after the l
   // The lift is on for the check of ac-4: the writer links it, and writes it.
   assert.equal(one.call(writeOf(one.a)), null);
   childProcess.execFileSync('ln', [one.a, notes]);
-  // Another file with its own links, and a name that does not exist yet, stay open.
+  // Another file that has a second link, and a name that does not exist yet, stay open.
   const pair = path.join(one.dir, 'pair-1.txt');
   fs.writeFileSync(pair, 'x');
   fs.linkSync(pair, path.join(one.dir, 'pair-2.txt'));
@@ -715,7 +715,7 @@ test('the guard denies a write when it cannot tell whether the path is a locked 
 });
 
 test('the guard denies a redirect to a brace list of more than one word, as zsh writes each word', () => {
-  const start = 'Write each file with its own redirect.';
+  const start = 'Write each file with a separate redirect.';
   for (const command of ['echo y > checks/{b,}.check.ts', 'echo y >> notes/{a,b}.txt',
     'echo y 2> notes/{a,b}.txt', 'echo y > notes/{1..3}.txt', "sh -c 'echo y > notes/{a,b}.txt'",
     'echo y | tee notes/x > notes/{a,b}.txt']) {
@@ -727,6 +727,22 @@ test('the guard denies a redirect to a brace list of more than one word, as zsh 
     'echo {a,b}']) {
     assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
   }
+  // The body of a here-document is text for cat and tee, quoted or not, up to a line that could
+  // run a command; the redirect of the command line and a command in the body are read.
+  const body = 'run: x > notes/{a,b}.txt';
+  for (const command of [`cat <<EOF > out.md\n${body}\nEOF`, `cat <<'EOF' > out.md\n${body}\nEOF`,
+    `cat > out.md <<EOF\n${body}\nEOF`, `tee out.md <<EOF\n${body}\nEOF`]) {
+    assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
+  }
+  for (const command of ['cat <<EOF > notes/{a,b}.txt\nx\nEOF',
+    `cat <<EOF > out.md\n$(echo y > notes/{a,b}.txt)\nEOF`,
+    `cat <<EOF > out.md\nfirst\n$(\n${body.replace('run: x', 'echo y')}\n)\nEOF`,
+    `bash <<EOF\n${body.replace('run: x', 'echo y')}\nEOF`]) {
+    firstLine(guard(claude('Bash', { command }, 'implementer')), start);
+  }
+  // The rule is for an agent: the main session passes it, and another rule reads the call.
+  const main = guard(claude('Bash', { command: 'echo y > notes/{a,b}.txt' }));
+  assert.ok(main === null || !main.startsWith(start), main);
 });
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {

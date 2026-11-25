@@ -629,7 +629,7 @@ module.exports = (lib) => {
       .map((one) => [one.id, { hash: criterionHash(one), tests: one.check === 'Tests' }])) };
   }
 
-  // writable returns the files that the agent may write while the lock holds them: the `file`
+  // writable returns the files that the agent may write although the lock lists them: the `file`
   // of the entries of checks that lockedFiles lists, each { file, criterion, hash, version }
   // as lockedFiles makes it (`criterion` is the id of the criterion of the check, `hash` its
   // criterion_sha256 and `version` the criteria version that the lock locks; a support file has

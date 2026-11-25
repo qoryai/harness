@@ -1345,7 +1345,10 @@ const PLAIN = new Set(['echo', 'ls', 'mkdir', 'true']);
 // null, when another command of the lines outside the bodies is not one of PLAIN or a cat or
 // tee that reads, because it could run a file that cat or tee writes, or when those lines
 // define a function, which can be named cat.
-function dropBodies(command) {
+// With loose true, the body of a here-document whose end word is not quoted is dropped too,
+// up to the first line that could run a command or hide one: a line with $(, a backtick, a
+// backslash, or a $ at its end. That line and each line after it in the body stay.
+function dropBodies(command, loose = false) {
   if (!command.includes('<<')) return command;
   const kept = [];
   // The here-documents whose bodies come next, from pending[head] on.
@@ -1355,9 +1358,11 @@ function dropBodies(command) {
   let dropped = false;
   for (const line of command.split('\n')) {
     if (head < pending.length) {
-      const { end, dash, drop } = pending[head];
+      const one = pending[head];
+      const { end, dash } = one;
       if ((dash ? line.replace(/^\t+/, '') : line) === end) head += 1;
-      if (drop) dropped = true;
+      if (loose && one.loose && !one.runs && /`|\$\(|\\|\$$/.test(line)) one.runs = true;
+      if (one.drop || (loose && one.loose && !one.runs)) dropped = true;
       else kept.push(line);
       continue;
     }
@@ -1416,7 +1421,9 @@ function heredocs() {
   const close = (after) => {
     const reader = !/[|(`]/.test(after) && reads(text);
     if (!reader && !plain(text)) other = true;
-    for (const one of found) out.push({ ...one, drop: one.quoted && reader });
+    for (const one of found) {
+      out.push({ ...one, drop: one.quoted && reader, loose: reader && !one.quoted });
+    }
     text = '';
     found = [];
   };
@@ -2058,13 +2065,13 @@ function pathHits(segment, full, folder, how, step = false) {
 }
 
 // The reason for a redirect to a brace list of more than one word.
-const MULTI = 'Write each file with its own redirect.\n';
+const MULTI = 'Write each file with a separate redirect.\n';
 
 // multiRedirect returns the target of the first redirect of a simple command of command whose
 // word has a brace list of more than one word, as in `> checks/{a,b}.ts`, or null. zsh with
 // MULTIOS writes to each word of such a target, and the guard reads the redirect as one path.
 function multiRedirect(command, cwd) {
-  for (const one of segments(command, cwd)) {
+  for (const one of segments(dropBodies(command, true), cwd)) {
     const found = redirectWords(one.text).find((word) => braceGroups(word)
       .some((group) => group.parts.length > 1));
     if (found !== undefined) return found;
@@ -3783,8 +3790,8 @@ function run({ runtime, before } = {}) {
 }
 
 // The fixed texts that start a deny, for the check of their first lines.
-const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
-  OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
+const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, MULTI, NO_ROOT,
+  TOO_MUCH, OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
   SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT, STEP_KEPT, STEP_ONLY };
 
 module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
