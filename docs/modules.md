@@ -3421,21 +3421,22 @@ id.
   ledger, keeps each file and takes the step's commits off the branch, and the session takes
   out of the checkout what makes `scope --plan` exit 1: a file with a key, a path outside
   the plan, a new repository folder, a changed submodule and a file that `freeze` cannot
-  scan. It sets such a file back to its version at `base`, or removes it when `base` does
-  not have it, because the scan finds a private key by its `BEGIN` line only. The session
-  leaves a file as it is when a line names a commit of the failed step and the file changed
-  after that commit; when the file still has the key, the next `scope --plan` finds it in
-  the commit of step 3. A new repository folder inside the Files loses only its `.git`, and
-  so does each repository folder inside it, so that its files are in the commit; a new
-  repository folder with files outside the Files also loses those files. After the commit,
-  the session runs `scope --plan`, and with a finding does the same again, at most twice.
-  With no finding left, qory pushes the commits of the done steps. When a finding stays
-  after the second repeat, the scope check of qory's push stops the push, qory pushes no
-  commit, and the run ends `push_scope_refused`. The session then does "The submission",
-  writes no `points.json`, runs no verdict command, starts no later step, and ends with that
-  line. `review-changes` runs next and reports the open step as `blocking`, and the limit of
-  3 rounds of Qory Apiary passes it to a member. `step end` takes at most 3 `--attempt`, so
-  a step has no fourth attempt.
+  scan. It sets a file with a key, a path outside the plan and a file that `freeze` cannot
+  scan back to its version at `base`, or removes it when `base` does not have it, because
+  the scan finds a private key by its `BEGIN` line only. The session leaves a file as it is
+  when a line names a commit of the failed step and the file changed after that commit; when
+  the file still has the key, the next `scope --plan` finds it in the commit of step 3. A
+  new repository folder inside the Files loses only its `.git`, and so does each repository
+  folder inside it, so that its files are in the commit; a new repository folder with files
+  outside the Files also loses those files. After the commit, the session runs
+  `scope --plan`, and with a finding does the same again, at most twice. With no finding
+  left, qory pushes the commits of the done steps. When a finding stays after the second
+  repeat, the scope check of qory's push stops the push, qory pushes no commit, and the run
+  ends `push_scope_refused`. The session then does "The submission", writes no
+  `points.json`, runs no verdict command, starts no later step, and ends with that line.
+  `review-changes` runs next and reports the open step as `blocking`, and the limit of 3
+  rounds of Qory Apiary passes it to a member. `step end` takes at most 3 `--attempt`, so a
+  step has no fourth attempt.
 - **The writers.** `software-developer` and `software-debugger` change only the paths that
   the build plan lists for the deliverable, run only `checks.cjs run` and the read forms of
   `run-artifacts`, and commit nothing. Both load `making-small-changes` before they change

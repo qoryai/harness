@@ -153,7 +153,7 @@ test('the session starts the developer twice and the debugger once per step, the
     'lists for it. - A file with a key, a path outside the Files of every deliverable, or a ' +
     'file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path ' +
     'when `<base>` does not have it.', 'When a line has no full path,',
-    'For a key in a line that starts with `Rewrite commit <c>`, run these two commands.',
+    'For a key in a line that starts with `Rewrite commit <c>`, run these two commands,',
     '3. When the checkout has a change, commit it with the two commands of "The end".',
     '4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4 ' +
     'again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures" ' +
@@ -1115,28 +1115,49 @@ test('after one step done and one step failed, the session does "The submission"
 });
 
 // The two commands of "A step that fails" that check whether the file of a key in a commit
-// changed after that commit.
+// changed after that commit, and take the path out of the index again.
 const SAME = section(WORKFLOW, 'A step that fails').split('\n   ```\n')
-  .find((one) => one.trimStart().startsWith('git add -- ')).split('\n')
-  .map((one) => one.replace(/^ {3}/, ''));
+  .find((one) => one.trimStart().startsWith('git add -- ')).replace(/ \\\n +/g, ' ')
+  .split('\n').map((one) => one.replace(/^ {3}/, ''));
 
-// changed runs the two commands for file and commit in w, and returns the exit of the second,
-// or 1 when git add exits with 128 for a path that does not exist.
-function changed(w, commit, file) {
-  const [add, compare] = SAME.map((one) => one.replaceAll('<c>', commit)
-    .replaceAll('<path>', file));
-  const added = shell(w, add);
-  if (added.status === 128 && !fs.existsSync(path.join(w.repo, file))) return 1;
-  assert.equal(added.status, 0, added.stderr);
-  return shell(w, compare).status;
+// bash runs command in the checkout of w with bash, which reads a word $'...' as sh may not.
+const bash = (w, command) => childProcess.spawnSync('bash', ['-c', command], { cwd: w.repo,
+  env: { PATH: process.env.PATH, HOME: fresh('home'), GIT_CONFIG_NOSYSTEM: '1' },
+  encoding: 'utf8' });
+
+// check runs the two commands for word, a path as a shell word, and commit in w. It returns
+// the exits of both.
+function check(w, commit, word) {
+  // A function as the replacement, since a $' in a replacement string inserts other text.
+  return SAME.map((one) => bash(w, one.replaceAll('<c>', commit).replaceAll('<path>', () => word))
+    .status);
 }
 
-// statusPath returns the path of the checkout of w whose name contains part, from the output
-// of command, the git status of "A step that fails".
+// changed returns 0 when the check finds the file of commit, and 1 when it leaves the file.
+// The second command takes the path out of the index, so the index is as it was.
+function changed(w, commit, word) {
+  const before = git(w.repo, w.env, 'ls-files', '-s');
+  const [first, second] = check(w, commit, word);
+  assert.equal(second, 0);
+  assert.equal(git(w.repo, w.env, 'ls-files', '-s'), before);
+  return first === 0 ? 0 : 1;
+}
+
+// statusPath returns the path of the checkout of w whose name contains part, as a shell word,
+// from the output of command, the git status of "A step that fails": a name in double quotes
+// is a C string, which bash reads in $'...'.
 function statusPath(w, command, part) {
   const listed = shell(w, command);
   assert.equal(listed.status, 0, listed.stderr);
-  return listed.stdout.split('\0').find((one) => one.includes(part)).slice(3);
+  const name = listed.stdout.split('\n').find((one) => one.includes(part)).slice(3);
+  return /^".*"$/.test(name) ? `$'${name.slice(1, -1)}'` : name;
+}
+
+// takeWord takes the path word out as "A step that fails" lists it, with bash.
+function takeWord(w, base, word) {
+  const ran = bash(w, `if git cat-file -e ${base}:${word}; then git checkout ${base} -- ` +
+    `${word}; else rm -- ${word}; fi`);
+  assert.equal(ran.status, 0, ran.stderr);
 }
 
 test('after a step that fails, the session takes out what the check of the push finds', () => {
@@ -1146,13 +1167,15 @@ test('after a step that fails, the session takes out what the check of the push 
     'file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path ' +
     'when `<base>` does not have it. Both lose the other changes of the step to that file.');
   contains(fails, 'When a line has no full path, such as for a key in the name of a file, a ' +
-    'cut name or a name that is not UTF-8, take the path from `git status --porcelain -z ' +
-    '--untracked-files=all`. A printed path has no spaces at its start or end and no control ' +
-    'or hidden characters, with no `...` in their place, so take a printed path that no file ' +
-    'has from that command too.');
-  contains(fails, 'When `git add` exits with 128 for a path that does not exist, or `test` ' +
-    'exits with a status other than 0, the file changed after that commit: leave it. When the ' +
-    'file still has the key, step 4 prints a line for the key in the commit of step 3.');
+    'cut name or a name that is not UTF-8, take the path from `git status --porcelain ' +
+    '--untracked-files=all`. A path in double quotes is a C string: give it to the shell as ' +
+    "`$'<the text between the quotes>'`. A printed path has no spaces at its start or end " +
+    'and no control or hidden characters, with no `...` in their place, so take a printed ' +
+    'path that no file has from that command too.');
+  contains(fails, 'When `git add` or `test` exits with a status other than 0, the file ' +
+    'changed after that commit, or git cannot stage it, such as an ignored path or a path in ' +
+    'a submodule: leave it. The second command takes the path out of the index again. When ' +
+    'the file still has the key, step 4 prints a line for the key in the commit of step 3.');
   // The docs and the CHANGELOG state the same rules.
   contains(read(ROOT, 'docs/modules.md'), 'The session leaves a file as it is when a line names ' +
     'a commit of the failed step and the file changed after that commit; when the file still ' +
@@ -1286,16 +1309,29 @@ test('after a step that fails, the session takes out what the check of the push 
       assert.equal(changed(w, committed(again, 3), 'tests/key.txt'), 0);
       takeKey(w, base, 'tests/key.txt');
     }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt'), false, what)],
-    // scope prints the name without its last space, and git status without -z quotes it.
+    // scope prints the name without its last space, and git status quotes it as a C string.
     ['a key in a file whose name ends with a space', (w) => writeFile(w, 'tests/key.txt ',
       `one\n${key}\n`),
     /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 0,
-    (w, base) => {
+    (w, base, red) => {
       assert.equal(fs.existsSync(path.join(w.repo, 'tests/key.txt')), false);
-      const file = statusPath(w, status, 'key.txt');
-      assert.equal(file, 'tests/key.txt ');
-      takeKey(w, base, file);
+      const word = statusPath(w, status, 'key.txt');
+      assert.equal(word, "$'tests/key.txt '");
+      assert.equal(changed(w, committed(red, 2), word), 0);
+      takeWord(w, base, word);
     }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt '), false, what)],
+    // scope prints the tab as a space, and git status quotes it as \t.
+    ['a key in a file whose name has a tab', (w) => writeFile(w, 'tests/key\t.txt',
+      `one\n${key}\n`),
+    /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/key \.txt", line 2/, 0,
+    (w, base, red) => {
+      const word = statusPath(w, status, 'key');
+      assert.equal(word, "$'tests/key\\t.txt'");
+      const commit = /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/key \.txt"/
+        .exec(red.out)[1];
+      assert.equal(changed(w, commit, word), 0);
+      takeWord(w, base, word);
+    }, (w, what) => assert.equal(tracked(w).includes('tests/key\t.txt'), false, what)],
   ];
   for (const [what, leave, line, before, takeOut, then = () => {}] of cases) {
     const w = work();
@@ -1410,6 +1446,74 @@ test('the check of a key in a commit compares the file as git add stages it', ()
   contains(section(WORKFLOW, 'A step that fails'), 'A key in a commit from before `<base>` ' +
     'stays after step 2, and the run ends `push_scope_refused`.');
 });
+
+test('the check of a key in a commit stages nothing, and leaves a path that git cannot stage',
+  () => {
+    const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+    const commit = (w) => git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m',
+      'Key');
+    // The commit of the step adds only tests/k.txt, which the base does not have: after the
+    // check and the removal, the checkout has no change, so step 3 makes no commit.
+    const w = work();
+    const base = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    writeFile(w, 'tests/k.txt', `${key}\n`);
+    git(w.repo, w.env, 'add', '-A');
+    commit(w);
+    const keyed = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    assert.equal(shell(w, RESET.replace('<base>', base)).status, 0);
+    assert.equal(changed(w, keyed, 'tests/k.txt'), 0);
+    fs.rmSync(path.join(w.repo, 'tests/k.txt'));
+    assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--', ':!.qory'), '');
+    // Without the second command, the path stays staged, and git commit exits 1.
+    writeFile(w, 'tests/k.txt', `${key}\n`);
+    assert.equal(bash(w, SAME[0].replaceAll('<c>', keyed).replaceAll('<path>', 'tests/k.txt'))
+      .status, 0);
+    fs.rmSync(path.join(w.repo, 'tests/k.txt'));
+    assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--', 'tests'), 'AD tests/k.txt');
+    assert.equal(commitChanges(w, 'Keep the files of the failed step').status, 1);
+    // An ignored path makes git add exit 1, and a path in a submodule or outside the checkout
+    // 128: test would compare two empty strings and exit 0.
+    const cases = [
+      ['an ignored path', (one) => {
+        writeFile(one, 'tests/k.txt', `${key}\n`);
+        git(one.repo, one.env, 'add', '-A');
+        commit(one);
+        writeFile(one, '.gitignore', 'reports/\ntests/k.txt\n');
+        return 'tests/k.txt';
+      }, 1],
+      ['a path in a submodule', (one) => {
+        const sub = fresh('sub');
+        git(sub, one.env, 'init', '-q');
+        fs.writeFileSync(path.join(sub, 'f.txt'), 'f\n');
+        git(sub, one.env, 'add', '-A');
+        git(sub, one.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'One');
+        git(one.repo, one.env, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q',
+          sub, 'lib/sub');
+        commit(one);
+        writeFile(one, 'lib/sub/k.txt', `${key}\n`);
+        return 'lib/sub/k.txt';
+      }, 128],
+      ['a path outside the checkout', (one) => {
+        writeFile(one, 'tests/k.txt', `${key}\n`);
+        git(one.repo, one.env, 'add', '-A');
+        commit(one);
+        return '../k.txt';
+      }, 128],
+    ];
+    for (const [what, make, exit] of cases) {
+      const one = work();
+      const start = git(one.repo, one.env, 'rev-parse', 'HEAD');
+      const file = make(one);
+      const head = git(one.repo, one.env, 'rev-parse', 'HEAD');
+      if (what !== 'a path in a submodule') {
+        assert.equal(shell(one, RESET.replace('<base>', start)).status, 0, what);
+      }
+      assert.equal(check(one, head, file)[0], exit, what);
+      const apart = bash(one, `git add -- ${file}; ${SAME[0].split(' && ')[1]
+        .replaceAll('<c>', head).replaceAll('<path>', file)}`);
+      assert.equal(apart.status, what === 'an ignored path' ? 1 : 0, what);
+    }
+  });
 
 // A commit before the base of the failed step, such as one that an earlier session made, is no
 // commit of that step: step 2 sets the file back to the base, which has the key.
