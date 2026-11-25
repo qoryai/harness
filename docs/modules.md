@@ -338,13 +338,14 @@ records the verdict.
 `workflow-capture-demos` films the demo scripts of the approved demo scenarios on the
 checkout of the work, with the access `write-no-push` and no `plan`: the stack entry is
 `capture-demos: {tier: light, access: write-no-push}`. qory rejects a stack entry with a
-`plan` and an access other than `write`, so `film` and `preflight` read the build plan from
-the folder of `qory.start_artifacts` of the input file, whose `build-plan` is the approved
-version; with no `build-plan` there, `preflight` exits 3 with the cause "the build plan is
-missing". When `qory.start_artifacts` is the empty string, the run pulled no build plans at
-the start, and `film` and `preflight` read the build plan from the artifact folder of the
-session, as without `--inputs`; with no `build-plan` in that folder they exit 3 with "Cause:
-the build plan is missing." The session pushes `demo-video`, `screenshot` and
+`plan` and an access other than `write`, so `film`, `preflight` and `demo run` read the build
+plan from the folder of `qory.start_artifacts` of the input file, whose `build-plan` is the
+approved version; with no `build-plan` there, `preflight` exits 3 with the cause "the build
+plan is missing". In a run, where `QORY_RUN_ID` is set, these verbs read no other folder: they
+exit 3 without `--inputs`, when `qory.start_artifacts` is the empty string (the run pulled no
+build plans at the start), and when `--artifacts` is another folder than
+`qory.start_artifacts`. The demo scripts come from the artifact folder of the session, as
+before. The session pushes `demo-video`, `screenshot` and
 `demo-evidence`, and writes no outbox file and no commit. It starts only `demo-reviewer`,
 never the role `demo-author`, and loads no `scripting-demos`, so a stack without
 `browser-screens` composes it. Its steps, in order:
@@ -3956,11 +3957,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   covers the stop of the app and the browser, the delete of the frames and the start of
   Node. Run the film call with a tool timeout of at least 600 s. The 585 seconds are 15
   seconds to stop the runner, 35 seconds for the encode (`ENCODE_MS`, measured: 29 seconds
-  for about 28,000 frames with 18 CPUs, 61 seconds with 2; ffmpeg gets what is left of the 585 seconds, at most 90 and at
-  least 5 seconds), and 535 seconds for the runner (`RUN_BUDGET_MS`). The runner's 535
-  seconds are 120 seconds for the start of the app, the start of the browser and the
-  sign-in (`START_MS`), and 415 seconds for the waits of the setup and the steps
-  (`WAITS_MS`). The waits of a setup count against both the 415 seconds and the 120
+  for about 28,000 frames with 18 CPUs, 61 seconds with 2; ffmpeg gets what is left of the
+  585 seconds, at most 90 and at least 5 seconds), and 535 seconds for the runner
+  (`RUN_BUDGET_MS`). The runner's 535 seconds are 120 seconds for the start of the app, the
+  start of the browser and the sign-in (`START_MS`), and 415 seconds for the waits of the
+  setup and the steps (`WAITS_MS`). The waits of a setup count against both the 415 seconds and the 120
   seconds, and `demo check` refuses a setup whose waits add up to more than 120 seconds.
   When the 120 seconds run out before the browser starts, or during the sign-in, `film`
   exits 3 with the fix
@@ -4005,12 +4006,17 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     "Check step <k> against the app, then run film <id> again." (for the sign-in, "the
     sign-in" in place of "step <k>"), the failed action with no typed value, and the last
     line "Stored no film: it failed in step <k>." ("Stored no pictures" for the evidence
-    `pictures`). A failed sign-in adds the line "Kind: setup", and a `type` action whose
-    variable has no value adds "Kind: outside" and the fix "Ask an owner or admin of your
-    organisation to add <name> in Workspace settings > Secrets and variables, then run film
+    `pictures`). A sign-in that fails with every variable set adds the line "Kind: setup",
+    and a `type` action whose variable has no value adds "Kind: outside" and the fix "Add
+    <name> in Workspace settings > Secrets and variables." Its second line is "Then run film
     <id> again." Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because
-    the build plan would come from the artifact folder of the session. A film scenario with no ffmpeg,
-    a scenario with no pushed script that counts, a plan with no
+    the build plan would come from the artifact folder of the session. A run that fails in a
+    step, when the runner cannot finish the capture, exits 3 with "Kind: outside" and the fix
+    "Give the dev container more CPU or disk space, then run film <id> again." When ffmpeg
+    runs out of time on the film up to the failed step, `film` exits 3 with "Kind: outside",
+    the fix "Give the dev container more CPU, then run film <id> again." and keeps the frames
+    and `failed.json`. A film scenario with no ffmpeg, a scenario with no pushed script that
+    counts, a plan with no
     `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
     run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
     `.film/<scenario>/` removes that folder, and a call with no browser exits before it
@@ -4476,7 +4482,9 @@ writes before the session, set the base and the build plan that the checks use i
   `--artifacts` when `--artifacts` is not given; both, with different real paths, exit 3.
   An empty string is a run that pulled no build plans at the start: the build plan then
   comes from the artifact folder of the session, as without `--inputs`. Any other relative
-  path exits 3.
+  path exits 3. In a run, where `QORY_RUN_ID` is set, `preflight`, `demo run` and `film` read
+  the build plan from `start_artifacts` only: without `--inputs`, with an empty string, or
+  with another `--artifacts` they exit 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with

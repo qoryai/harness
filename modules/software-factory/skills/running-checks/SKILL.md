@@ -215,12 +215,15 @@ that starts with `Cause:` contains the cause, in the words of the line that ends
 `<folder>/.film/<id>/`. With the evidence film and a film that fits one version of qory, it
 stores `<id>.mp4` and `<id>.vtt`. When the film is over the limit after the first encode, it
 keeps the frames, stores no film and exits 4: run `film recode <id>`, which stores the two
-files or exits 1. With the evidence pictures, it stores `<id>-step-<N>.png`, one for each
+files, exits 1 when the film is still over the limit, or exits 3 with "Kind: outside" when
+ffmpeg runs out of time. With the evidence pictures, it stores `<id>-step-<N>.png`, one for each
 step. A run that fails in a step after it recorded something exits 5 and keeps the film up to
-that step or the pictures before it, for the review: push no file of it. A finding that ends
+that step or the pictures before it, for the review: push no file of it. When ffmpeg runs out
+of time on that film, or the runner cannot finish the capture, it exits 3 with "Kind:
+outside". A finding that ends
 with the line "Kind: outside" has a cause that no change to the repository repairs, and
 "Kind: setup" one that a change repairs. Push the files of the scenario once, with the type
-that its evidence names:
+that fits its evidence:
 
 ```
 <qory> artifact push demo-video --name <id> \

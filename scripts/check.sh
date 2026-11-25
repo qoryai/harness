@@ -2847,8 +2847,8 @@ expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.te
 # when the machine has none; the tests of a film also skip with no ffmpeg and ffprobe.
 expect "the preflight tests pass" 0 "$ROOT" node --test scripts/preflight.test.js
 # The tests of the workflow capture-demos: the verbs film, recode, todo and record on a fake
-# ffmpeg, the push check of demo-script on the build ledger, and the verdict of a run. They
-# frames skip with no ffmpeg and ffprobe.
+# ffmpeg, the push check of demo-script on the build ledger, and the verdict of a run. The
+# tests that need frames skip when ffmpeg or ffprobe is missing.
 expect "the capture-demos tests pass" 0 "$ROOT" node --test scripts/capture-demos.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
