@@ -2875,8 +2875,8 @@ push_checks:
     reads: [acceptance-criteria]
 ```
 
-`decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
-`[questions]`, `build-plan`, `acceptance-lock` and `verification` read
+`decision-record` and `feedback` read `[acceptance-criteria, questions]`, `review-comments`
+reads `[questions]`, `build-plan`, `acceptance-lock` and `verification` read
 `[acceptance-criteria]`, `demo-script` reads `[demo-scenarios]`, `demo-evidence`,
 `demo-video` and `screenshot` read `[demo-script]`, `walkthrough` reads
 `[verification, acceptance-criteria]`, and the other types read nothing. A module without

@@ -678,7 +678,8 @@ test('qory-module.yaml has a push check per type, with the types that each check
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
     'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
-    walkthrough: 'verification, acceptance-criteria', feedback: null,
+    walkthrough: 'verification, acceptance-criteria',
+    feedback: 'acceptance-criteria, questions',
   };
   for (const [type, read] of Object.entries(reads)) {
     const entry = `  - type: ${type}\n    command: [${program}, push, ${type}]\n` +

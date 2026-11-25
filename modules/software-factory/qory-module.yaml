@@ -112,6 +112,7 @@ push_checks:
     reads: [verification, acceptance-criteria]
   - type: feedback
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, feedback]
+    reads: [acceptance-criteria, questions]
 # The check of what a write workflow's session may push, for `plan: build-plan`. The command
 # takes --base <start commit> --artifacts <folder> last. It checks each path of the commits since
 # the base against the Files of the build plan, and scans the commits for keys and repositories.

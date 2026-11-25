@@ -2909,7 +2909,7 @@ demo-evidence:software-factory:demo-script
 demo-scenarios:software-factory:acceptance-criteria
 demo-script:software-factory:demo-scenarios
 demo-video:software-factory:demo-script
-feedback:software-factory:
+feedback:software-factory:acceptance-criteria,questions
 proposal:software-factory:
 pull-request:software-factory:
 questions:core:

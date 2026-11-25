@@ -110,9 +110,10 @@ function check(data, { notes = [GD1], types = {}, questions } = {}) {
   if (questions) write(path.join(root, 'questions.json'), { questions });
   return run(root, notes, ['check', 'feedback', path.join(root, 'feedback.json')]);
 }
-// push runs the push check, which has the newest version of feedback and notes.json.
-function push(data, { notes = [GD1], before } = {}) {
-  const cwd = store(before ? { feedback: [{ data: before }] } : {});
+// push runs the push check, which has the newest version of feedback, the types of types and
+// notes.json.
+function push(data, { notes = [GD1], before, types = {} } = {}) {
+  const cwd = store({ ...(before ? { feedback: [{ data: before }] } : {}), ...types });
   if (notes) write(path.join(cwd, 'notes.json'), notes);
   const file = path.join(fresh('files'), 'feedback.json');
   write(file, data);
@@ -313,6 +314,17 @@ test('each question point has a new question in the draft questions.json', () =>
   fails(check(ASKED, { notes, questions: [] }),
     'Add the question q5 of point p3 to questions.json.');
   fails(check(ASKED, { notes, types: { questions: [{ data: { questions: [Q5] } }] } }),
+    'Set the question of point p3 to an id that no question has.');
+});
+
+test('a push checks the items and the questions of new points against the types it reads', () => {
+  fails(push(changed((d) => { d.points[1].item = 'ac-99'; })),
+    'Set the item of point p2 to a criterion that the criteria have.');
+  const data = clone(ASKED);
+  data.points[2].reply = 'The run asks which reading you mean.';
+  const notes = [GD1, GD2];
+  passes(push(data, { notes }));
+  fails(push(data, { notes, types: { questions: [{ data: { questions: [Q5] } }] } }),
     'Set the question of point p3 to an id that no question has.');
 });
 
