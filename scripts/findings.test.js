@@ -165,8 +165,9 @@ test('reviewing-changes repeats and closes earlier findings by id, and caps a re
   }
   // The core definition of blocking, in words of any kind of work.
   assert.ok(REVIEWING.replace(/\s+/g, ' ').includes('the finding breaks an acceptance ' +
-    'criterion, loses data, opens a security hole, such as an exposed secret, or fails a ' +
-    'required check.'));
+    'criterion, loses data, exposes a secret, or fails a required check.'));
+  // The examples of the report are in words of any kind of work too.
+  assert.ok(!/security hole|the code/.test(REVIEWING), 'reviewing-changes has software words');
   // Each reviewer of a change caps its report as the format does.
   const cap = 'Report at most 100 findings, the blocking ones first.';
   assert.ok(REVIEWING.includes(cap));

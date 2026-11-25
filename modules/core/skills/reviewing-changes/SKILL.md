@@ -120,10 +120,10 @@ apply. Each finding has these members, and no "Marks:" line:
 
 ## Severity
 
-- `blocking`: the finding breaks an acceptance criterion, loses data, opens a security hole,
-  such as an exposed secret, or fails a required check. The skill for your kind of work may
-  add to this list. A blocking finding needs a proof of the form `failing check` or
-  `failing input`. Each blocking finding gets a round of fixes.
+- `blocking`: the finding breaks an acceptance criterion, loses data, exposes a secret, or
+  fails a required check. The skill for your kind of work may add to this list. A blocking
+  finding needs a proof of the form `failing check` or `failing input`. Each blocking
+  finding gets a round of fixes.
 - `non-blocking`: every other finding. A round with only these passes, and the run does not
   fix them.
 
@@ -178,7 +178,7 @@ this shape:
   "findings": [
     {
       "severity": "blocking",
-      "quote": "<the code or text that is wrong>",
+      "quote": "<the words or lines that are wrong>",
       "problem": "<what is wrong, and what it costs the people who asked for the work>",
       "fix": "<the change that makes it right>",
       "proof": "failing input: <the input, the step that takes it and the result it returns>",
@@ -188,7 +188,7 @@ this shape:
     },
     {
       "severity": "non-blocking",
-      "quote": "<the code or text that is wrong>",
+      "quote": "<the words or lines that are wrong>",
       "problem": "<what is wrong>",
       "fix": "<the change that makes it right>",
       "proof": "broken rule: <the rule, where it is written and the lines that break it>",
@@ -207,7 +207,7 @@ In a later round, a report repeats and closes earlier findings, as in this examp
     {
       "id": "f3",
       "severity": "blocking",
-      "quote": "<the code that is still wrong>",
+      "quote": "<the words or lines that are still wrong>",
       "problem": "<what is still wrong>",
       "fix": "<the change that makes it right>",
       "proof": "failing input: <the input, done again on the frozen state>",
@@ -215,7 +215,7 @@ In a later round, a report repeats and closes earlier findings, as in this examp
     }
   ],
   "closes": [
-    { "id": "f4", "state": "fixed", "reason": "<what the code at commit does>" },
+    { "id": "f4", "state": "fixed", "reason": "<what the frozen state shows>" },
     { "id": "f5", "state": "dismissed", "reason": "<why the finding is not true>" }
   ]
 }
