@@ -8,6 +8,32 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `checks.cjs changes` lists the acceptance criteria that changed since the newest
+  acceptance lock and writes `.qory/build/changes.json`. The workflows `plan-the-build` and
+  `write-acceptance-checks` run it after `resume`. With no changed criterion they start no
+  agent, push nothing and end `passed`, also when a build plan is newer than the lock. With
+  changes, the build planner changes only the deliverables that list a changed criterion,
+  and `check build-plan` finds any other changed deliverable. The acceptance check writer
+  writes checks for the changed and added Tests criteria only, starts its draft from the
+  newest lock, and keeps each check of an unchanged criterion whole. `run locked
+  <criterion>...` runs only the new checks. With no lock, no build plan or no approved
+  criteria, the run is full, as before.
+- The tool guard lifts a locked check file for the acceptance check writer when
+  `changes.json` lists the file, was made from the lock that counts, and every check at that
+  file is a check of a changed criterion. A support file, a file with a check of an
+  unchanged criterion, every other agent and the main session stay denied.
+- Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
+  check of its criterion in the criteria version that the lock locks. `lock` fills it, and
+  the push check recomputes it. A new lock keeps `sha256`, `path`, `command` and
+  `failed_with` of the check of each criterion with the same `criterion_sha256`, and a
+  support file that changes gets a new path.
+- A criteria version that a person's note links, with a `decision` and a `decision_at`,
+  opens a new acceptance lock when `decision_at` is later than the newest lock. The
+  prefixes `gd_`, `es_` and `rc_` are free text, `an_` is the answer to a question, and any
+  other prefix is refused. For an answer, each criterion that the version changes or removes
+  needs an answered question about it after the lock; a free-text note binds to no
+  criterion, a known gap. `criteriaTarget` counts such a version too.
+
 - A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
   with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
   `build` and `full`. `check proposal` and `push proposal` apply the rules of the Commands
@@ -1269,6 +1295,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the notes cannot be read, a later line says why and the limit stays 7.
 
 ### Changed
+
+- The first line of a lock finding that no lock of the target can pass is "Ask a member to
+  write the change in a request for changes.", where it was "Ask a member to upload the
+  acceptance criteria they accept as a new version." The question of a locked check that
+  does not fail has the same wording in its first option. `acceptance-lock` reads
+  `questions` besides `acceptance-criteria`.
 
 - The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,
   which Forager does not pass to a session. The end check reads it from the file of

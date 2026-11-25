@@ -48,7 +48,7 @@ module.exports = (lib) => {
   //   gd_, es_ and rc_ are free text, which the check cannot bind to a criterion;
   //   an_ is the answer to a question, which the question rule binds to each criterion that
   //   the version changes or removes;
-  //   any other kind refuses.
+  //   any other kind is refused.
   // criteriaTarget computes the lock's target. A version's `note` never counts, because the
   // run that stores a version writes the note.
 
