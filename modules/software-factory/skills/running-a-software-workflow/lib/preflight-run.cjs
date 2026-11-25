@@ -40,7 +40,7 @@ const http = require('node:http');
 const https = require('node:https');
 
 const { BROWSER_START_MS, Browser } = require('./browser.cjs');
-const { FILM_HEIGHT, capture } = require('./capture.cjs');
+const { FILM_HEIGHT, capture, diskFault } = require('./capture.cjs');
 const { replay, signIn } = require('./replay.cjs');
 const { runKey } = require('./secrets.cjs');
 const { MARK, marker } = require('./supervise.cjs');
@@ -275,7 +275,10 @@ const signIns = (spec) => inBrowser(spec, spec.setups, (page, setup, env) =>
 
 // runs replays each script of spec.runs, { setup, steps, names, capture }: its setup as a
 // sign-in, then the actions of each step in order, and resolves to { ok, step, why, outside,
-// capture } for each. step is the number of the step that failed, 0 for the setup, or null.
+// capture, variable } for each. step is the number of the step that failed, 0 for the setup, or
+// null. variable is the name of a variable with no value that failed the run. capture of a run
+// that failed in a step is what the steps before it and the failed one stored, and lost, with
+// the reason, replaces it when the capture could not finish.
 // With capture, { kind, dir, name, widths } of lib/capture.cjs, the page has the window of a
 // film, the setup is no part of what is stored, and capture of the result is what finish of
 // lib/capture.cjs returns.
@@ -292,8 +295,23 @@ const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
       if (taken) await taken.begin(place);
       const done = await replay(page, step, { ...options, origin });
       if (done.failure) {
-        return { ok: false, step: place + 1, why: done.failure.words,
-          outside: done.failure.outside };
+        const failed = { ok: false, step: place + 1, why: done.failure.words,
+          outside: done.failure.outside,
+          ...(done.failure.variable ? { variable: done.failure.variable } : {}) };
+        // A film keeps its frames up to the failed step, and pictures the pictures of the steps
+        // before it, for the reviewer. A capture that cannot finish leaves the failure
+        // as it is, except for a full disk.
+        if (taken) {
+          try {
+            failed.capture = await taken.finish();
+          } catch (error) {
+            // A write that failed for the disk is a cause outside the repository, which film
+            // reports from lost. Any other error leaves the failure as it is.
+            const lost = diskFault(error);
+            if (lost) failed.lost = lost;
+          }
+        }
+        return failed;
       }
       if (taken) await taken.end(place);
     }

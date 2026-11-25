@@ -392,13 +392,16 @@ test('matrix: a green locked check is met, and a demo with film or pictures name
 
 test('matrix: a failed locked check or a failed demo is not met, and the draft passes check', () => {
   const wk = work({ records: [{ state: 'red', checks: [check('ac-4', 'red')] }],
-    evidence: { ...DEMO_1, 'scenario-2': { title: 'Read the closed day', verdict: 'failed' } } });
+    evidence: { ...DEMO_1, 'scenario-2': { title: 'Read the closed day', verdict: 'failed',
+      class: 'setup', steps: [{ step: 1, verdict: 'passed' },
+        { step: 2, verdict: 'failed', finding: 'The app did not start.\u200b ' }] } } });
   assert.equal(matrix(wk).status, 0);
   const doc = verification(wk);
   assert.deepEqual(rows(doc).map(([id, state]) => [id, state]),
     [['ac-1', 'met'], ['ac-2', 'met'], ['ac-3', 'not_met'], ['ac-4', 'not_met']]);
-  assert.equal(doc.matrix[2].evidence, 'The demo of scenario-2 failed, so the criterion is not ' +
-    'shown.');
+  // The row has the step, the class and the finding that Build reads, with no hidden character.
+  assert.equal(doc.matrix[2].evidence,
+    'The demo of scenario-2 failed in step 2 (setup): The app did not start.');
   assert.equal(doc.matrix[3].evidence,
     'Locked check `tests/ac-4.test.js` failed: exit 1, 1 of 2 tests failed.');
   // The draft and its record pass the check that the session runs before the push.
