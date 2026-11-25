@@ -5478,32 +5478,62 @@ test('the checks script alone runs with a path of the artifact folder, and no ot
   }
 });
 
-test('an extraction into the artifact folder is denied for .step-reports', () => {
-  const { env, runFolder, call } = stepSetup();
-  for (const command of [`tar -xf a.tar -C ${runFolder}`, `tar -xf a.tar -C${runFolder}`,
-    `tar xzf a.tgz --directory=${runFolder}`, `cd ${runFolder} && tar -xf a.tar`,
-    `unzip -o a.zip -d ${runFolder}`, `cd ${runFolder} && unzip -o a.zip`,
-    `ditto -x -k a.zip ${runFolder}`, `ditto /tmp/out ${runFolder}`]) {
-    for (const type of [undefined, 'implementer', 'harness:spec-reviewer']) {
-      const reason = firstLine(call(bashAs(command, type)), STEP_KEPT);
-      assert.ok(reason.endsWith('The command extracts into a folder above it.'), command);
-    }
-  }
-  // An extraction beside the folder, into the working folder, a list and a new archive pass.
-  const other = next('step-other');
-  for (const command of [`tar -xf a.tar -C ${other}`, `unzip -o a.zip -d ${other}`,
-    `ditto -x -k a.zip ${other}`, 'tar -xf a.tar', 'unzip a.zip', 'ditto -x -k a.zip .',
-    `tar -tf ${runFolder}/a.tar`, `tar -cf ${other}/a.tar ${runFolder}`]) {
-    assert.equal(call(bashAs(command)), null, command);
-  }
-  // So is one into a folder above the artifact folder, but for the working folder and those above.
+// aboveSetup returns the folder above a new artifact folder, that folder, and the call of a
+// command.
+function aboveSetup() {
+  const { env } = stepSetup();
   const above = next('step-above');
-  fs.mkdirSync(path.join(above, 'artifacts'), { recursive: true });
-  const nested = (command) => decide({ input: bashAs(command), env, locked, root: WORK,
-    runFolder: path.join(above, 'artifacts'), script: SESSION_SCRIPT, runtime: 'claude' });
-  firstLine(nested(`tar -xf a.tar -C ${above}`), STEP_KEPT);
-  firstLine(nested(`ditto -x -k a.zip ${above}`), STEP_KEPT);
-  assert.equal(nested(`tar -xf a.tar -C ${path.dirname(WORK)}`), null);
+  const artifacts = path.join(above, 'qory-artifacts');
+  fs.mkdirSync(path.join(artifacts, STEP_DIR), { recursive: true });
+  fs.symlinkSync(path.join(artifacts, STEP_DIR), path.join(artifacts, 'link'));
+  const call = (command) => decide({ input: bashAs(command, 'implementer'), env, locked,
+    root: WORK, runFolder: artifacts, script: SESSION_SCRIPT, runtime: 'claude' });
+  return { above, artifacts, call };
+}
+
+test('a copy or a move into a folder above the artifact folder passes', () => {
+  const { above, artifacts, call } = aboveSetup();
+  for (const command of [`mv a ${above}`, `mv a b ${above}/`, `mv -f -- "$f" ${above}`,
+    `mv -t ${above} a`, `mv --target-directory=${above} a`, `ls | xargs mv -t ${above}`,
+    `sudo mv *.ts ${above}`, `cp -R src/. ${above}`, `cp -a src/ ${above}/`,
+    `cp -rT src ${above}`, `cp "$f" ${above}`, `cp -R src/. ${above}/../step-abov*`,
+    `install -m 644 "$f" ${above}`, `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`,
+    `rsync -a "$f" ${above}`, `find src -exec cp -R {} ${above} \;`,
+    // A file of another name moves into the artifact folder, as a copy of it does.
+    `mv a ${artifacts}`, `mv a.md b.md ${artifacts}/`, `cp a ${artifacts}`]) {
+    assert.equal(call(command), null, command);
+  }
+  // A move or a removal of the folder or of one above it, and a write in .step-reports.
+  for (const command of [`mv ${artifacts} /x`, `mv -t /x ${artifacts}`, `mv ${above} /x`,
+    `mv ${above}/* /x`, `mv ${artifacts} ${above}/z`, `mv ${artifacts} ${artifacts}`,
+    `rm -rf ${artifacts}`, `rm -rf ${above}`, `rm -rf ${above}/*`, `rm -rf ${above}/q*`,
+    `find ${above} -delete`, `echo /x | xargs mv ${artifacts}`, `echo /x | xargs mv a ${above}`,
+    `mv -ft /x a ${artifacts}`, `mv -t/x a ${artifacts}`, `mv --target=/x a ${artifacts}`,
+    `mv -T a ${artifacts}`, `mv a ${artifacts} -S .b`, `sh -c 'mv ${artifacts} /x'`,
+    `cp a ${artifacts}/.step-reports/x`, `mv x ${artifacts}/.step-reports/`,
+    `rsync -a src/ ${artifacts}/.step-reports/`, `mv x ${artifacts}/link`,
+    `cp x ${artifacts}/link/`, `mv x ${artifacts}/.step*`, `cp -R src/. ${artifacts}`,
+    `cp -R src/. ${above}/q*`, `mv src/. ${artifacts}`, `mv "$f" ${artifacts}`]) {
+    firstLine(call(command), STEP_KEPT);
+  }
+});
+
+test('an extraction into the artifact folder or above it passes', () => {
+  const { above, artifacts, call } = aboveSetup();
+  for (const command of [`tar -xf a.tar -C ${above}`, `tar -xf a.tar -C${above}`,
+    `curl -s https://example.com/a.tgz | tar -xz -C ${above}`, `unzip a.zip -d ${above}`,
+    `ditto -x -k a.zip ${above}`, `tar -xf a.tar -C ${artifacts}`, `unzip a.zip -d ${artifacts}`,
+    `ditto -x -k a.zip ${artifacts}`, `cd ${artifacts} && tar -xf a.tar`]) {
+    assert.equal(call(command), null, command);
+  }
+  // So does one in a session with no run folder, whose artifact folder is in the working folder.
+  for (const command of ['tar -xf a.tar -C .qory/artifacts', 'unzip a.zip -d .qory/artifacts',
+    'ditto -x -k a.zip .qory/artifacts']) {
+    assert.equal(guard(bashAs(command, 'implementer')), null, command);
+  }
+  // A command that has the name .step-reports is denied, and another script that reaches it.
+  firstLine(call(`tar -xf a.tar -C ${artifacts}/.step-reports`), STEP_KEPT);
+  firstLine(call(`node x.js ${artifacts}/link`), STEP_KEPT);
 });
 
 test('a review session keeps the lock, .qory/build/ and the guard of .reports/', () => {

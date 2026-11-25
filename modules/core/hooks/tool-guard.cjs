@@ -1665,8 +1665,8 @@ function shown(full, folder, listed) {
 // entries, each as written, or null when the guard cannot tell them:
 // - cp that cpKeepsLinks finds, mv, rsync, ln, link and install: the folder of -t, else the
 //   last path; for ln or link with one path, the name of that path; another cp makes none;
-// - tar that extracts: the folder of -C, also as -C<folder>, or --directory, else .; a tar that
-//   creates makes only its archive, a file that is no link;
+// - tar that extracts: the folder of -C or --directory, else .; a tar that creates makes
+//   only its archive, a file that is no link;
 // - unzip: the folder of -d, else .;
 // - an opaque command: each word of its text after the first, as reaches reads the text.
 // mklink, a lost folder, and a vague destination or one with a wildcard are unknown.
@@ -1685,8 +1685,8 @@ function madeAt(segment) {
     if (!extracts && vague(segment.words[1] || '')) return null;
     if (!extracts) return [];
     const at = words.findIndex((word) => word === '-C' || word === '--directory');
-    const dir = words.find((word) => /^(?:-C|--directory=)./.test(word));
-    made = [at > 0 ? segment.words[at + 1] : dir ? dir.replace(/^(?:-C|--directory=)/, '') : '.'];
+    const dir = words.find((word) => word.startsWith('--directory='));
+    made = [at > 0 ? segment.words[at + 1] : dir ? dir.slice(12) : '.'];
   } else if (tool === 'unzip') {
     const at = words.indexOf('-d');
     const dir = words.find((word) => /^-d./.test(word));
@@ -1810,13 +1810,25 @@ function contentsInto(words) {
   return has('rRa', ['--recursive', '--archive']) && has('T', ['--no-target-directory']);
 }
 
+// movesInto reports whether words, a mv, move sources into dest, so that it removes the sources
+// only: with -t or --target-directory, or with a source and no xargs or parallel in text, which
+// add words; and with no other option for the destination, as in -ft, --target=x or -T.
+function movesInto(text, words, dest, sources) {
+  if (sources.includes(dest)) return false;
+  const given = (word) => /^(?:-t|--target-directory(?:=.*)?)$/s.test(word);
+  return !words.some((word) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word) && !given(word)) &&
+    (words.some(given) || (sources.length > 0 && !FED.test(text)));
+}
+
 // pathHits reports whether a simple command that writes changes full, as its words read once
 // each is resolved from a folder of the command's cwds: a word that is full, or below full
 // when folder is true, or a folder above full for a command of REMOVERS or, when full is a
 // file, a restore or a checkout of a path. A checkout with no `--` reads a word as a path only
 // when it exists, so `checkout .` is one and `checkout <name>` of a name that is no path is
-// not. fold and realOf compare and resolve paths.
-function pathHits(segment, full, folder, how) {
+// not. fold and realOf compare and resolve paths. With step, full is the folder of the step
+// reports: the destination of a copy or a move counts only when it is full, in it or the folder
+// that has it, not a folder above that one.
+function pathHits(segment, full, folder, how, step = false) {
   const { fold, realOf, spend } = how;
   const words = plainWords(segment.words);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
@@ -1830,7 +1842,7 @@ function pathHits(segment, full, folder, how) {
     // find writes the paths below each start that its -name options match.
     // The redirects of the text are find's, so an -exec command is read by its words.
     return find.exec.some((exec) => pathHits({ ...segment, words: exec, text: exec.join(' '),
-      outputs: [] }, full, folder, how)) ||
+      outputs: [] }, full, folder, how, step)) ||
       segment.cwds.some((cwd) => find.starts.some((start) => {
         spend();
         const at = fold(realOf(joined(cwd, start)));
@@ -1843,8 +1855,11 @@ function pathHits(segment, full, folder, how) {
   // A copy into a folder above full writes full when a source has the name of the part of
   // full's path below that folder, or a source is vague or ends with /. A recursive cp with
   // -T or --no-target-directory copies the contents of its source into that folder.
-  if (LAST_WRITTEN.has(path.basename(words[0]))) {
-    const { dest, sources } = copyParts(segment.words);
+  const tool = path.basename(words[0]);
+  const copies = LAST_WRITTEN.has(tool);
+  const { dest, sources } = copies || (step && tool === 'mv') ? copyParts(segment.words) : {};
+  const moves = !copies && sources !== undefined && movesInto(segment.text, words, dest, sources);
+  if (copies || moves) {
     const into = contentsInto(words);
     const named = (first) => into || sources.some((source) => vague(source) ||
       /\/\.?$/.test(source) ||
@@ -1852,9 +1867,10 @@ function pathHits(segment, full, folder, how) {
     if (dest && !vague(dest) && wild(dest) && segment.cwds.some((cwd) => {
       spend();
       const pattern = path.resolve(cwd, dest);
+      const parts = target.split(path.sep).filter(Boolean)
+        .slice(pattern.split(path.sep).filter(Boolean).length);
       return globReach(pattern, target, fold, segment.dots) === 'above' &&
-        named(target.split(path.sep).filter(Boolean)[pattern.split(path.sep).filter(Boolean)
-          .length]);
+        !(step && parts.length > 1) && named(parts[0]);
     })) return true;
     if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
       spend();
@@ -1863,17 +1879,19 @@ function pathHits(segment, full, folder, how) {
       if (at === target || !under(target, at)) return false;
       const stat = disk.stat(resolved);
       if (!dest.endsWith('/') && !(stat && stat.isDirectory())) return false;
-      return named(path.relative(at, target).split(path.sep)[0]);
+      const parts = path.relative(at, target).split(path.sep);
+      return !(step && parts.length > 1) && named(parts[0]);
     })) return true;
   }
   return pathWords(segment).some((shown) => segment.cwds.some((cwd) => {
     spend(1 + (shown.length >> 8));
+    const removes = remover && !(moves && shown === dest);
     if (wild(shown)) {
       // A glob writes each path it matches: full, a folder above it for a remover or a
       // restore, or a path below full when full is a folder.
       const reach = globReach(path.resolve(cwd, shown), target, fold, segment.dots);
       return reach === 'equal' || (reach === 'below' && folder) ||
-        (reach === 'above' && (remover || (!folder && restorer)));
+        (reach === 'above' && (removes || (!folder && restorer)));
     }
     const word = literal(shown);
     const resolved = realOf(joined(cwd, word));
@@ -1881,7 +1899,7 @@ function pathHits(segment, full, folder, how) {
     if (exact === target || (folder && under(exact, target))) return true;
     if (!under(target, exact)) return false;
     // A restore writes only tracked files, and .qory/build/ holds none.
-    return remover || (!folder && restorer && (named || disk.exists(resolved)));
+    return removes || (!folder && restorer && (named || disk.exists(resolved)));
   }));
 }
 
@@ -2357,7 +2375,8 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   };
   const how = { realOf, spend, cwd, listed: new Map(),
     fold: (full) => (nocase ? full.toLowerCase() : full) };
-  const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
+  const hit = (full, folder, step) => parts.some((one) => pathHits(one, full, folder, how,
+    step)) ||
     names(full, cwds, root).some((name) => parts.some((one) => {
       spend(1 + (one.text.length >> 12));
       return writes(one, name, nocase);
@@ -2378,7 +2397,7 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   }
   if (home && hit(home, true)) return `${HOMED}${home}; the command writes in it.`;
   for (const one of kept.filter((each) => !each.deep)) {
-    const target = (one.shell || [one.full]).find((full) => hit(full, one.folder));
+    const target = (one.shell || [one.full]).find((full) => hit(full, one.folder, one.step));
     if (target) return `${one.head}The command writes ${one.folder ? 'in ' : ''}${target}.`;
   }
   const { files = [], what, problem, type } = lockOf();
@@ -2397,11 +2416,14 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   }
   // A command whose writes the guard does not read, other than one of sessionExempt, writes
   // no word that reaches the report folder of a review session.
-  // Nor does it, other than the checks script alone, reach .step-reports of the artifact folder.
+  // Nor does it, other than the checks script alone, reach .step-reports of the artifact folder;
+  // the guard does not read what tar, unzip and ditto extract, as a script that writes there.
+  const scripts = all.filter((one) => !/^(?:tar|unzip|ditto)$/
+    .test(path.basename(plainWords(one.words)[0] || '')));
   for (const one of dark ? kept.filter((each) => (each.folder && !each.home && !each.deep &&
     !(each.step ? alone : exempt)) ||
     (each.matrix && !checked)) : []) {
-    const found = reaches(all, [], one.full, root, how);
+    const found = reaches(one.step ? scripts : all, [], one.full, root, how);
     if (found) {
       return `${one.head}The guard cannot tell what ${path.basename(dark.words[0])} writes, ` +
         `and the call contains ${found.word}.`;
@@ -2450,24 +2472,17 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
       }));
     if (word !== undefined) return `${UNSURE}The command writes ${word}.`;
   }
-  // tar, unzip or ditto, whose last word is its folder, that extracts into a folder above full
-  // writes the files of its archive there. A folder that is skip or above it counts for nothing.
-  const unpacked = (full, skip) => all.some((one) => {
-    const tool = path.basename(plainWords(one.words)[0] || '');
-    if (!/^(?:tar|unzip|ditto)$/.test(tool)) return false;
-    const last = one.words.at(-1);
-    const into = tool !== 'ditto' ? madeAt(one)
-      : vague(last) || wild(last) ? null : [literal(patternOf(last))];
+  // tar or unzip that extracts into a folder above full writes the files of its archive there.
+  const unpacked = (full) => all.some((one) => {
+    if (!/^(?:tar|unzip)$/.test(path.basename(plainWords(one.words)[0] || ''))) return false;
+    const into = madeAt(one);
     return Array.isArray(into) && into.some((dir) => one.cwds.some((from) => {
       spend();
-      const at = fold(realOf(joined(from, dir)));
-      return under(fold(full), at) && !(skip && under(fold(skip), at));
+      return under(fold(full), fold(realOf(joined(from, dir))));
     }));
   });
-  // For .step-reports, the working folder and the folders above it pass, as for an opaque command.
-  const above = kept.find((one) => one.matrix && unpacked(one.full)) ||
-    kept.find((one) => one.step && unpacked(one.full, root));
-  if (above) return `${above.head}The command extracts into a folder above it.`;
+  const matrixFile = kept.find((one) => one.matrix && unpacked(one.full));
+  if (matrixFile) return `${matrixFile.head}The command extracts into a folder above it.`;
   return null;
 }
 
