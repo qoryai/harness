@@ -39,9 +39,9 @@ module.exports = (lib) => {
 
   // quoteOf returns the words of the person for point of group: its quote, or, for a ripple
   // point, the quote of the criterion change of the source of the group on that criterion.
-  // shortcut: an added criterion has no point with its id, so its ripple point takes the quote
-  // of the first point of the source with no item, and the text of the source when there is
-  // none; replace when a ripple point records the point that made it.
+  // shortcut: a ripple point with no such change, such as that of an added criterion, takes
+  // the quote of the first criterion change of the source with no item, and the text of the
+  // source when there is none; replace when a ripple point records the point that made it.
   function quoteOf(group, point, data) {
     if (typeof point.quote === 'string') return point.quote;
     const changes = data.points.filter((one) => one.sort === 'criterion-change' &&
@@ -57,8 +57,8 @@ module.exports = (lib) => {
   // criterion changes waits for and no `question` point has, such as one that a writer of the
   // group raised: point is the point of the group that the question is about, and words those
   // of quoteOf.
-  // shortcut: a question has no source, so when the groups of two sources have the item of
-  // its about, it is listed once, under the point of the older source; record the source of
+  // shortcut: a question has no source, so when the groups of two sources match its about, it
+  // is listed once, under the first group that `feedback points` prints; record the source of
   // the question when a run shows two.
   function groupQuestions(context, data, questions, asked) {
     const known = new Set(asked.map(({ point }) => point.question));

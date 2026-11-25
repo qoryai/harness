@@ -21,10 +21,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the end for a point with no item, and keeps every other byte, the order and the line ends.
   `feedback points` prints the groups of the criteria before those of the scenarios, and the
   group of the scenarios of a source only after its criteria version, unless the criteria
-  wait. It prints as `waiting` the questions of a source that wait for an answer and the open
-  questions about a point of the group, and a ripple point for each criterion checked by
+  wait. It prints as `waiting` the questions of a source that wait for an answer, the open
+  questions about a point of the group, and the open questions about the output with no item
+  asked at or after the time of the source, and a ripple point for each criterion checked by
   `Demo` that a linked criteria version changed, until a later linked scenario version.
-  `feedback open` also lists each open question about a point of a group as "Waiting for an
+  `feedback open` also lists each open question that a group waits for as "Waiting for an
   answer:", so the run ends with an `answer` point on it.
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or

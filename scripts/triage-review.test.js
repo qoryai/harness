@@ -823,6 +823,13 @@ test('a group waits for an open question about one of its points, such as one of
     item: 'ac-2' }, { type: 'feedback', name: 'main', item: 'p1' }]) {
     assert.equal('waiting' in groupOf({ id: 'q1', state: 'open', about }), false);
   }
+  // A question about the criteria with no item counts only when it was asked at or after the
+  // note, at AT: a question of another stage before the note makes no group wait.
+  const whole = { type: 'acceptance-criteria', name: 'main' };
+  const at = (time) => ({ id: 'q3', state: 'open', about: whole, asked: { run: 2, at: time } });
+  assert.deepEqual(groupOf(at(AT)).waiting, ['q3']);
+  assert.equal('waiting' in groupOf(at('2026-11-24T09:00:00Z')), false);
+  assert.equal('waiting' in groupOf({ id: 'q3', state: 'open', about: whole }), false);
 });
 
 test('feedback open lists a question of a writer that a group waits for, so the run does not pass', () => {
@@ -846,6 +853,16 @@ test('feedback open lists a question of a writer that a group waits for, so the 
   assert.deepEqual(once.filter((line) => line.startsWith('Waiting')),
     ['Waiting for an answer: p3, q1']);
   assert.ok(!once.some((line) => line.startsWith('Words of p')), once.join('\n'));
+  // A question about a criterion that the groups of two sources change is listed once, under
+  // the first group that feedback points prints: es_2, the older source.
+  const two = changed((d) => {
+    d.sources.push(sourceOf('es_2', 'note', 'Raise the limit.', '2026-11-24T09:00:00Z'));
+    d.points.push({ ...P2, id: 'p3', source: 'es_2', quote: 'Raise the limit.' });
+  });
+  const shared = open(store({ feedback: [{ data: two }], questions: [{ data: { questions: [
+    { id: 'q1', state: 'open', about }] } }] }), [GD1]).lines;
+  assert.deepEqual(shared.filter((line) => /^(Waiting|Words)/.test(line)),
+    ['Waiting for an answer: p3, q1', `Words of p3: ${wordsOf('Raise the limit.')}`]);
 });
 
 test('feedback open lists a question about a scenario that only a ripple point of the group has', () => {
@@ -867,12 +884,15 @@ test('feedback open lists a question about a scenario that only a ripple point o
   // A question about the criterion of the ripple point, or about the group with no item.
   assert.deepEqual(waitsOf(CASE, { id: 'q1', state: 'open', about: { type:
     'acceptance-criteria', name: 'main', item: 'ac-2' } })[2], onAc2);
-  assert.deepEqual(waitsOf(CASE, { id: 'q1', state: 'open', about: { type: 'demo-scenarios',
-    name: 'main' } })[2], onAc2);
-  // An answered question, or a question about a scenario that no point of the group has, makes
-  // no group wait and prints no line.
+  const whole = (time) => ({ id: 'q1', state: 'open', about: { type: 'demo-scenarios',
+    name: 'main' }, asked: { run: 2, at: time } });
+  assert.deepEqual(waitsOf(CASE, whole('2026-11-25T10:30:00Z'))[2], onAc2);
+  // An answered question, a question about a scenario or a criterion that no point of the
+  // group has, and a question with no item asked before the note make no group wait and print
+  // no line.
   for (const question of [{ ...on('scenario-1'), state: 'answered' }, on('scenario-3'),
-    { ...on('ac-2'), about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } }]) {
+    { ...on('ac-2'), about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } },
+    whole('2026-11-24T09:00:00Z')]) {
     assert.deepEqual(waitsOf(CASE, question), ['demo-scenarios', undefined, []]);
   }
   // A mixed group: a question about the scenario of the ripple point, or of the note's point.
@@ -883,6 +903,14 @@ test('feedback open lists a question about a scenario that only a ripple point o
   assert.deepEqual(waitsOf(mixed, on('scenario-1'))[2], onAc2);
   assert.deepEqual(waitsOf(mixed, on('scenario-2'))[2],
     ['Waiting for an answer: p3, q1', `Words of p3: ${wordsOf('Raise the row limit')}`]);
+  // The change of the criterion comes before a change with no item, and with neither the
+  // words are those of the source: ON_AC4 changes ac-4, and its version also changes ac-2.
+  const both = changed((d) => {
+    d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit to 100.', item: undefined });
+  });
+  assert.deepEqual(waitsOf(both, on('scenario-1'))[2], onAc2);
+  assert.deepEqual(waitsOf(ON_AC4, on('scenario-1'))[2],
+    ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(TEXT)}`]);
   // An added Demo criterion has no point with its id: the words are those of the point of the
   // source that adds a criterion.
   const added = { sources: [S1], points: [P1, { ...P2, quote: 'Raise the row limit to 100.',

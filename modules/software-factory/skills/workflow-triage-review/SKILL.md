@@ -104,8 +104,9 @@ that output makes. A group has these members:
   `before` and `after`, and its `item` is the scenario that shows the criterion, or there is
   none when a new scenario shows it;
 - `waiting`: only when a question has no answer that the group depends on: a question of
-  the source about the output, or a question about a point of the group, such as one that a
-  writer of the group raised.
+  the source about the output, a question about a point of the group, such as one that a
+  writer of the group raised, or a question about the output with no item, asked at or after
+  the time of the source.
 
 Take the groups one at a time, in the order of the lines. `<writer>` and `<reviewer>` are
 ${qory:agents/spec-writer} and ${qory:agents/spec-reviewer} for `acceptance-criteria`, and
@@ -174,12 +175,13 @@ the point is the id of the question on that line. An `answer` point that "Criter
 kept on the same question is that point. A line followed by "Words of <id>: <words>" is a
 question that a group of criterion changes waits for. `<id>` is the point of the group that
 the question is about: a point of the feedback, or, for a ripple point, a criterion id such
-as `ac-2`, with the words of the point of the source that changed that criterion. The text of
-its point is "The feedback "<words>" changes the approved criteria, so a member decides
-it.", with `<words>` the text after "Words of <id>: ", or "The feedback "<words>" changes the
-approved demo scenarios, so a member decides it." for a group of `demo-scenarios`. Read the
-output of the group in `output` of the JSON line, in the newest output of `feedback points`,
-whose `points` have the id `<id>`. For any other line, read the question in
+as `ac-2`, with the words of the point of the source that changed that criterion, else of
+the first criterion change of the source with no item, else the text of the source. The
+text of its point is "The feedback "<words>" changes the approved criteria, so a member
+decides it.", with `<words>` the text after "Words of <id>: ", or "The feedback "<words>"
+changes the approved demo scenarios, so a member decides it." when the group is of
+`demo-scenarios`: the `output` of the JSON line, in the newest output of `feedback points`,
+that has the point `<id>`. For any other line, read the question in
 `<folder>/questions.json`, else in the newest version, with the file tool of your runtime.
 `<words>` is what the context has in its first double quotes, unchanged, and `<criterion
 text>` what it has in its second double quotes. The text of the point is one of these, by

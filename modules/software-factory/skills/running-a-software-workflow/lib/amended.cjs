@@ -7,8 +7,9 @@
 // item }: a Demo criterion that a criteria version linked to the source added, changed or
 // removed, with its id, its row before and after ({ text, check }, or null), and the scenario
 // that shows it, or no item when a new scenario must show it. waiting lists the questions with
-// no answer of the source about the output, and the open questions about a point of the
-// group: the run changes nothing of such a group.
+// no answer of the source about the output, the open questions about a point of the group,
+// and the open questions about the output with no item that were asked at or after the time
+// of the source: the run changes nothing of such a group.
 'use strict';
 
 const fs = require('node:fs');
@@ -50,14 +51,19 @@ module.exports = (lib) => {
   }
 
   // aboutPoint returns the first point of group that question is about, or undefined: with no
-  // item in the about, the first point of a group of that output; else a point whose item, a
-  // ripple point's included, is the about's item in the output of the group, a point of the
-  // feedback whose id is the about's item in the feedback, or a ripple point whose criterion
-  // is the about's item in the acceptance criteria.
+  // item in the about, the first point of a group of that output when asked.at is at or after
+  // the time of the source, so that a question of another stage before the note does not
+  // count; else a point whose item, a ripple point's included, is the about's item in the
+  // output of the group, a point of the feedback whose id is the about's item in the
+  // feedback, or a ripple point whose criterion is the about's item in the acceptance
+  // criteria. A question has no member for the agent or the step that asked it.
   function aboutPoint(group, question) {
     if (!isObject(question.about)) return undefined;
     const { type, item } = question.about;
-    if (item === undefined) return type === group.output ? group.points[0] : undefined;
+    if (item === undefined) {
+      const at = isObject(question.asked) ? Date.parse(question.asked.at) : NaN;
+      return type === group.output && at >= Date.parse(group.at) ? group.points[0] : undefined;
+    }
     if (typeof item !== 'string') return undefined;
     const ripple = (point) => typeof point.quote !== 'string';
     return group.points.find((point) => (type === group.output && point.item === item) ||

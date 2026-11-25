@@ -4659,10 +4659,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   each open question that a group of `feedback points` waits for and no `question` point has,
   such as one that a writer raised, with the point of the group that the question is about,
   a ripple point's included, and "Words of <point>: <words>" after it. For a ripple point,
-  the words are those of the criterion change of the source on that criterion, or, for an
-  added criterion, of the first such change with no item. A question with no item in its
-  `about` is about the first point of a group of that output, and a question about a
-  criterion is also about a ripple point of that criterion. The session then ends with an
+  the words are those of the criterion change of the source on that criterion; with no such
+  change, as for an added criterion, those of the first criterion change of the source with
+  no item; else the text of the source. A question with no item in its `about`, asked at or
+  after the time of the source (`asked.at`), is about the first point of a group of that
+  output, and a question about a criterion is also about a ripple point of that criterion.
+  A question has no member for the agent that asked it. The session then ends with an
   `answer` point on it, not with `passed`. The notes are those of the kinds
   `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id has the
   key of its time and text, and an answer to a question is left out. It exits with 1 for a
