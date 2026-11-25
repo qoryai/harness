@@ -146,7 +146,7 @@ starts with `needs a change to criterion <ac-N>` ends the run as this section li
 place of "Stops on the spec": the agent cannot meet that criterion as a member approved it.
 
 1. Run `step end <id> failed` for the step that ran the agent, as your workflow lists.
-2. Start ${qory:agents/questions-writer} as "Points" of `running-a-workflow` lists, with one
+2. Start `questions-writer` as "Points" of `running-a-workflow` lists, with one
    "Add:" item for each such criterion that has no open question with the three answers in
    the newest `questions`, with `about.item` set to its id. The item quotes the "Blocked:"
    line and what the agent checked: the files, the command and its result. The question of
