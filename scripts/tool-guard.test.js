@@ -5336,7 +5336,8 @@ test('a reviewer of a step writes only its report, named by a SHA-256', () => {
     const both = (target) => [writeAs(target, type), codex('apply_patch',
       { command: add(target) }, name)];
     for (const input of both(file)) assert.equal(call(input), null);
-    // A report that exists is written again, also by a relative path.
+    // A report that exists is written again, also by a relative path. A second Add File writes
+    // over it on Codex, as codex-rs/apply-patch/src/lib.rs:473-499 at d3ca5182 shows.
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, '{}');
     for (const input of both(file)) assert.equal(call(input), null);

@@ -383,6 +383,8 @@ const PATCH_ADD = new RegExp(`^\\*\\*\\* Add File: ([^${PATCH_SPACE}](?:[^]*[^${
 // compared as it is, with no white space trimmed. <path> is absolute, has no . or .. part, no
 // empty part and no trailing slash, and has at most PATH_MAX characters. A second header, an
 // update, a delete, a move and any other line make it null.
+// Codex writes an Add File over a file that exists, so a second Add File rewrites a report:
+// apply_hunks_to_files in codex-rs/apply-patch/src/lib.rs:473-499 of openai/codex at d3ca5182.
 function reportPatch(patch) {
   if (typeof patch !== 'string' || patch.includes('\r') || patch.includes('\0')) return null;
   const lines = patch.split('\n');
