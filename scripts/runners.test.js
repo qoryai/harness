@@ -1481,11 +1481,16 @@ test('revert-attempt: an ignored file where the base has a file that HEAD lacks 
   }
 });
 
-// A case-sensitive file system has no such overwrite: Ign5 and ign5 are two files there.
-write(tmp, 'caseprobe', '');
-const FOLDS = fs.existsSync(path.join(tmp, 'CASEPROBE'));
-test('revert-attempt: paths that differ only in case count as one on a case-folding file system', {
-  skip: FOLDS ? false : 'this file system tells Ign5 and ign5 apart, so reset never writes through one',
+// foldsNames reports whether the file system of the tests treats the names a and b as one file.
+function foldsNames(a, b) {
+  const probe = fs.mkdtempSync(path.join(tmp, 'fold-'));
+  fs.writeFileSync(path.join(probe, a), '');
+  return fs.existsSync(path.join(probe, b));
+}
+const NO_FOLD = 'this file system keeps the two names as two files, so reset never writes through one';
+
+test('revert-attempt: names that differ only in case are one path where the file system folds case', {
+  skip: foldsNames('caseprobe', 'CASEPROBE') ? false : NO_FOLD,
 }, () => {
   for (const [is, ignore, put] of [['Ign5', 'ign5', 'ign5'], ['IgnD/f', 'ignD', 'ignD/f'],
     ['Ign6', 'ign6', 'ign6/f'], ['Ign7/k', 'ign7', 'ign7']]) {
@@ -1494,17 +1499,102 @@ test('revert-attempt: paths that differ only in case count as one on a case-fold
   }
 });
 
-test('revert-attempt: an ignored nested repository where the base has a file stops it, and the file stays', () => {
-  const { dir, start } = stopped('ign16/f', 'ign16', 'ign16/f', (made) => {
-    write(made, 'ign16/f', 'one\n');
-    sh(path.join(made, 'ign16'), 'init', '-q');
-    sh(path.join(made, 'ign16'), 'add', 'f');
-    sh(path.join(made, 'ign16'), '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'x');
-    write(made, 'ign16/f', 'mine\n');
+test('revert-attempt: a setting core.ignorecase of false changes nothing on such a file system', {
+  skip: foldsNames('caseprobe', 'CASEPROBE') ? false : NO_FOLD,
+}, () => {
+  for (const [is, ignore, put] of [['Ign5', 'ign5', 'ign5'], ['Ign7/k', 'ign7', 'ign7']]) {
+    const { dir } = stopped(is, ignore, put, (made) => {
+      sh(made, 'config', 'core.ignorecase', 'false');
+      write(made, put, 'mine\n');
+    });
+    assert.equal(fs.readFileSync(path.join(dir, put), 'utf8'), 'mine\n');
+  }
+});
+
+// Names that the file system may fold although toLowerCase keeps them apart: the file on disk has
+// the first name, and the base tracks the second.
+for (const [on, tracks] of [['n_ſ', 'n_s'], ['n_s', 'n_ſ'], ['n_ς', 'n_σ'],
+  ['n_σ', 'n_ς'], ['n_ß', 'n_ss'], ['n_ss', 'n_ß'], ['n_µ', 'n_μ'],
+  ['n_μ', 'n_µ']]) {
+  test(`revert-attempt: ${JSON.stringify(on)} on disk and ${JSON.stringify(tracks)} in the base are one path where the file system folds them`, {
+    skip: foldsNames(on, tracks) ? false : NO_FOLD,
+  }, () => {
+    const { dir } = stopped(tracks, 'n_*', on);
+    assert.equal(fs.readFileSync(path.join(dir, on), 'utf8'), 'mine\n');
   });
-  assert.equal(fs.readFileSync(path.join(dir, 'ign16/f'), 'utf8'), 'mine\n');
+}
+
+test('revert-attempt: a folder with tracked files only and a tracked file in the way do not stop it', () => {
+  // The base has the file box, where HEAD has the tracked file box/a.txt, and the file leaf/k,
+  // where HEAD has the tracked file leaf.
+  const dir = checkout();
+  write(dir, 'box', 'file\n');
+  write(dir, 'leaf/k', 'k\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'base');
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  sh(dir, 'rm', '-q', 'box', 'leaf/k');
+  write(dir, 'box/a.txt', 'a\n');
+  write(dir, 'leaf', 'now a file\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(fs.readFileSync(path.join(dir, 'box'), 'utf8'), 'file\n');
+  assert.equal(fs.readFileSync(path.join(dir, 'leaf/k'), 'utf8'), 'k\n');
+  assert.equal(sh(dir, 'status', '--porcelain'), '');
+});
+
+test('revert-attempt: a tracked file that HEAD has in another case does not stop it', {
+  skip: foldsNames('caseprobe', 'CASEPROBE') ? false : NO_FOLD,
+}, () => {
+  const dir = checkout();
+  write(dir, 'foo', 'file\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'base');
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  sh(dir, 'rm', '-q', 'foo');
+  write(dir, 'Foo', 'file\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.ok(fs.readdirSync(dir).includes('foo'));
+  assert.ok(!fs.readdirSync(dir).includes('Foo'));
+});
+
+test('revert-attempt: a nested repository at a parent of an added path stops it, and its files stay', () => {
+  const { dir, start } = stopped('ign16/f', 'ign16', 'ign16/g', (made) => {
+    write(made, 'ign16/g', 'one\n');
+    sh(path.join(made, 'ign16'), 'init', '-q');
+    sh(path.join(made, 'ign16'), 'add', 'g');
+    sh(path.join(made, 'ign16'), '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'x');
+    write(made, 'ign16/g', 'mine\n');
+  });
+  assert.equal(fs.readFileSync(path.join(dir, 'ign16/g'), 'utf8'), 'mine\n');
   fs.rmSync(path.join(dir, 'ign16'), { recursive: true, force: true });
   assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
+});
+
+test('revert-attempt: a name that is not UTF-8 counts as taken', (t) => {
+  const dir = checkout();
+  const name = Buffer.from([0x62, 0xff, 0x63]);
+  try {
+    fs.writeFileSync(Buffer.concat([Buffer.from(`${dir}/`), name]), 'tracked\n');
+  } catch {
+    t.skip('this file system accepts no name that is not UTF-8');
+    return;
+  }
+  write(dir, '.gitignore', '.qory/\nb*\n');
+  sh(dir, 'add', '-f', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'base');
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  sh(dir, 'rm', '-q', '--', 'b*');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
+  fs.writeFileSync(Buffer.concat([Buffer.from(`${dir}/`), name]), 'mine\n');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], 'Take each untracked or ignored file that the base has out of the checkout, then run again.');
 });
 
 test('revert-attempt: a HEAD with no commit exits 3', () => {

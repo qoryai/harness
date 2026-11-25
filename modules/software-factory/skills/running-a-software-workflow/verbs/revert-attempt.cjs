@@ -4,10 +4,13 @@
 // checkout must be clean, since the revert replaces every tracked file. The call moves HEAD to the
 // new commit and makes the index and the files the same, so that nothing is left uncommitted. It
 // checks no ancestry: a checkout with the base at depth one has no history to check it against.
-// It stops when an untracked or ignored file stands where the base has a file or a folder that
-// HEAD lacks, because the reset would overwrite it.
+// It stops when the checkout already has a path that the base adds, whatever the case or the
+// normalisation rules of the file system, because the reset would overwrite it.
 // shortcut: submodule working trees are not updated, replace it when a run has a submodule.
 'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
 
 const git = require('../lib/git.cjs');
 const secrets = require('../lib/secrets.cjs');
@@ -23,35 +26,52 @@ module.exports = (lib) => {
     return flag === '--base' && rest.length === 1 && git.COMMIT.test(rest[0]) ? null : USAGE;
   }
 
-  // overwritten returns each path that the commit has and HEAD lacks, where the checkout has an
-  // untracked or ignored file, a nested repository, or a file in a folder of that name, or a file
-  // where the commit has a folder. reset --hard replaces such a file without a trace. With
-  // core.ignorecase, paths that differ only in case count as the same: the file system writes
-  // through either.
+  // overwritten returns each path that the commit has and HEAD lacks, where the checkout already
+  // has a file, a link or a folder with an untracked or ignored entry, under a name that the file
+  // system treats as that path, or a parent of it that is no folder or is a nested repository.
+  // The file system answers, not the spelling of the path: it may fold case or normalise names.
+  // The checkout is clean, so what exists there and that HEAD lacks is not tracked, unless reset
+  // removes it: a tracked file that the commit lacks, found by its device and inode. A path whose
+  // name is not UTF-8 counts as taken, since no call here can look it up.
   function overwritten(io, top, head, commit) {
-    const added = git.ok(Missing, top, ['diff-tree', '-r', '--no-renames', '--diff-filter=A',
-      '--name-only', '-z', head, commit], 'Run revert-attempt again', { env: io.env })
-      .split('\0').filter(Boolean);
-    if (!added.length) return [];
-    const folded = git.git(top, ['config', '--bool', 'core.ignorecase'], { env: io.env })
-      .stdout.trim() === 'true';
-    const key = (path) => (folded ? path.toLowerCase() : path);
-    const files = new Set();
-    const folders = new Set();
-    // A nested repository is listed as `<folder>/`; it counts as a file at that path.
-    for (const entry of git.ok(Missing, top, ['ls-files', '--others', '-z'],
-      'Run revert-attempt again', { env: io.env }).split('\0').filter(Boolean)) {
-      const file = key(entry.replace(/\/$/, ''));
-      files.add(file);
-      for (let at = file.indexOf('/'); at !== -1; at = file.indexOf('/', at + 1)) {
-        folders.add(file.slice(0, at));
-      }
+    const fix = 'Run revert-attempt again';
+    const listed = git.names(git.ok(Missing, top, ['diff-tree', '-r', '--no-renames',
+      '--diff-filter=AD', '--name-status', '-z', head, commit], fix, { env: io.env, raw: true }));
+    const added = [];
+    const removed = [];
+    for (let at = 0; at + 1 < listed.length; at += 2) {
+      (listed[at].text === 'A' ? added : removed).push(listed[at + 1]);
     }
-    return added.filter((one) => {
-      const file = key(one);
-      return files.has(file) || folders.has(file) ||
-        [...file.matchAll(/\//g)].some((slash) => files.has(file.slice(0, slash.index)));
+    if (!added.length) return [];
+    const look = (file) => {
+      try {
+        return fs.lstatSync(path.join(top, file), { bigint: true });
+      } catch (error) {
+        if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
+        throw error;
+      }
+    };
+    const id = (stat) => `${stat.dev}:${stat.ino}`;
+    const tracked = new Set(removed.filter((one) => one.utf8).map((one) => look(one.text))
+      .filter(Boolean).map(id));
+    const holds = (folder) => fs.readdirSync(path.join(top, folder)).some((name) => {
+      const stat = look(`${folder}/${name}`);
+      return stat.isDirectory() ? holds(`${folder}/${name}`) : !tracked.has(id(stat));
     });
+    const taken = (file) => {
+      const parts = file.split('/');
+      for (let at = 1; at < parts.length; at += 1) {
+        const parent = parts.slice(0, at).join('/');
+        const stat = look(parent);
+        if (!stat) return false;
+        if (!stat.isDirectory()) return !tracked.has(id(stat));
+        if (look(`${parent}/.git`)) return true;
+      }
+      const stat = look(file);
+      if (!stat) return false;
+      return stat.isDirectory() ? holds(file) : !tracked.has(id(stat));
+    };
+    return added.filter((one) => !one.utf8 || taken(one.text)).map((one) => one.text);
   }
 
   function run(io, flag, [base]) {

@@ -4201,10 +4201,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   tracked file that the base lacks is removed, and an untracked ignored file that the base lacks
   stays. It exits 0 with the new commit on the last line, 2 for a `--base` that is no full commit
   id, and 3, with the fix first, when the checkout has a change that is not committed, has no
-  commit, or has an untracked or ignored file, or a nested repository, at a path where the base
-  has a file or a folder that HEAD lacks (a path that differs only in case counts as the same
-  where `core.ignorecase` is set), when the base is no commit of the checkout, and when HEAD has
-  the tree of the base already. It checks no ancestry.
+  commit, or already has a path that the base adds: an untracked or ignored file, link or folder
+  with such an entry, or a nested repository, found by the file system, whatever its case or
+  normalisation rules; when the base is no commit of the checkout, and when HEAD has the tree of
+  the base already. It checks no ancestry.
 - `preflight [--inputs <path>] [--artifacts <folder>]`: before the first demo of the app,
   checks the parts of the dev container that a demo of the app needs, and for each missing
   part writes a point `run_again` with its `fix` to `points.json` of the artifact folder of

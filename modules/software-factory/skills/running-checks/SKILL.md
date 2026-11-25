@@ -455,9 +455,9 @@ parent, so the push needs no force. The index and the files match the new commit
 left uncommitted: each tracked file that `<commit>` lacks is removed, and an untracked ignored file
 that `<commit>` lacks stays. It exits 0 with the new commit on its last line. It exits 3, with the
 fix on the first line, when the checkout has a change that is not committed (commit or undo it
-first), when the branch has no commit, when an untracked or ignored file or a nested repository
-stands at a path where `<commit>` has a file or a folder that HEAD lacks (take it out of the
-checkout, since the revert would overwrite it; where `core.ignorecase` is set, a path that
-differs only in case counts as the same), when `<commit>` is no commit of the checkout, and when
-HEAD has the tree of `<commit>` already. It exits 2 for a `--base` that
+first), when the branch has no commit, when the checkout already has a path that `<commit>` adds
+(an untracked or ignored file, link or folder with such an entry, or a nested repository: take it
+out of the checkout, since the revert would overwrite it; the file system decides, whatever its
+case or normalisation rules), when `<commit>` is no commit of the checkout, and when HEAD has the
+tree of `<commit>` already. It exits 2 for a `--base` that
 is not a full commit id.
