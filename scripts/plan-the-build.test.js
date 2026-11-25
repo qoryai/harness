@@ -699,6 +699,34 @@ test('in change mode, the check of a plan reads no record that has a second link
   assert.equal(call('check', 'build-plan', file).status, 0);
 });
 
+test('in change mode, the check of a plan reads no record that is a link or lies below a link', () => {
+  const w = work();
+  withPlan(w);
+  withLock(w);
+  const call = session(w);
+  const file = path.join(w.artifacts, 'build-plan.md');
+  const record = path.join(w.repo, '.qory', 'build', 'changes.json');
+  changed(w, { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  assert.equal(call('check', 'build-plan', file).status, 1);
+  // The record moves to a file outside the folder, and changes.json links to it.
+  const elsewhere = path.join(w.repo, 'elsewhere');
+  fs.mkdirSync(elsewhere);
+  fs.renameSync(record, path.join(elsewhere, 'changes.json'));
+  fs.symlinkSync(path.join(elsewhere, 'changes.json'), record);
+  assert.equal(call('check', 'build-plan', file).status, 0);
+  // The folder .qory/build is a link to a folder that has the record.
+  fs.rmSync(record);
+  const build = path.dirname(record);
+  const moved = path.join(w.repo, 'build-moved');
+  fs.renameSync(build, moved);
+  fs.copyFileSync(path.join(elsewhere, 'changes.json'), path.join(moved, 'changes.json'));
+  fs.symlinkSync(moved, build);
+  assert.equal(call('check', 'build-plan', file).status, 0);
+});
+
 test('in change mode, a withdrawn acceptance-lock leaves the lock of the record in place', () => {
   const w = work();
   withPlan(w);
