@@ -421,6 +421,15 @@ const COMMAND_ROWS = ['| lint | `node tool/lint.js` | none | repository: package
   '| build | none | none | The repository has no build. |',
   '| full | `node tool/runner.js` | `out/junit.xml` | repository: package.json:14 |'];
 
+test('the writer of a proposal gives full the JUnit file that qory counts the tests from', () => {
+  // qory reads the tests of the suite from the Result file of the full row.
+  const skill = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/writing-proposals/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.ok(skill.includes('**Result file:** for `full`, the JUnit XML file that it writes, or ' +
+    '`none`.'), 'the Result file of full');
+  assert.ok(!skill.includes('and `none` in Result file'), 'no none for every row');
+});
+
 // proposed returns the path of an inputs.json whose qory.start_artifacts is a copy of the
 // artifact folder of dir with proposal version 1 added, approved unless approved is null, and
 // with its file unless file is false.

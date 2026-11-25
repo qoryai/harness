@@ -270,7 +270,8 @@ test('proposal: ## Commands has a row for lint, build and full, each with a Sour
   // A command of none has its reason in Source.
   passes(push(withCommands(LINT, '| build | none | none | The repository has no build. |', FULL), 'proposal'));
   fails(push(withCommands(LINT, BUILD), 'proposal'),
-    /^Add the kind full to ## Commands of proposal\.md\. With no command, write none in Command and the reason in Source\.$/);
+    /^Add the kind full to ## Commands of proposal\.md\.$/);
+  fails(push(withCommands(LINT, BUILD), 'proposal'), /^Add the kind full /);
   fails(push(withCommands(LINT, BUILD, FULL, LINT), 'proposal'),
     /^Give the kind lint one row in ## Commands of proposal\.md\.$/);
   // The kinds of a build plan beyond these three are no kinds of a proposal.
@@ -284,6 +285,32 @@ test('proposal: ## Commands has a row for lint, build and full, each with a Sour
     `## Track\n\n${FAST_LINE}\n${FAST_REASON}\n\n## Commands\n\nNone.\n`], FAST_SOURCE));
   fails(push(noTable, 'proposal'),
     /^Put a table with the columns Kind, Command, Result file, Source in ## Commands of proposal\.md\.$/);
+});
+
+test('proposal: a full row with no command returns the finding to choose the Standard track', () => {
+  const standard = /^Choose the Standard track: the repository has no full test suite, and its build plan adds one\.$/;
+  fails(push(withCommands(LINT, BUILD, '| full | none | none | The repository has no tests. |'),
+    'proposal'), standard);
+  fails(push(withCommands(LINT, BUILD, '| full | `none` | none | The repository has no tests. |'),
+    'proposal'), standard);
+  // An empty Command cell is no command either, also with a Source of a valid form.
+  fails(push(withCommands(LINT, BUILD, '| full |  | none | repository: package.json:14 |'),
+    'proposal'), standard);
+  // The finding is the only one for the row, and lint and build keep none with a reason.
+  const got = push(withCommands(LINT, '| build | none | none | The repository has no build. |',
+    '| full | none | none | The repository has no tests. |'), 'proposal');
+  assert.equal(got.findings.length, 2, got.out);
+  // A full row with a command, and a Result file, passes.
+  passes(push(withCommands(LINT, BUILD,
+    '| full | `npm test` | `reports/junit.xml` | found: `package.json:14` |'), 'proposal'));
+});
+
+test('proposal: a fenced line is no line of ## Track, as for the sections', () => {
+  // The code block comes first: the track is the first line outside it.
+  const track = `\`\`\`text\nStandard track.\n\`\`\`\n\n${FAST_LINE}\n${FAST_REASON}`;
+  const root = fastSource(fixture(['proposal.md', '## Track\n\nStandard track.\n',
+    `## Track\n\n${track}\n\n## Commands\n\n${COMMANDS}\n`], FAST_SOURCE));
+  passes(push(root, 'proposal'));
 });
 
 test('proposal: a standard proposal with ## Commands has the section finding and no other', () => {

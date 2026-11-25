@@ -340,8 +340,10 @@ track has no build plan, so the run reads the commands of the lint, the build an
 suite from the approved proposal. The standard track has no such section.
 
 Write one table with the columns `Kind`, `Command`, `Result file` and `Source`, with one row
-for each of the kinds `lint`, `build` and `full`, and `none` in Result file.
+for each of the kinds `lint`, `build` and `full`.
 
+- **Result file:** for `full`, the JUnit XML file that it writes, or `none`. For `lint` and
+  `build`, `none`.
 - **Command:** a command that the code explorer's report or a file shows. With no such
   command, write `none` in Command, and in Source the reason, such as "The repository has no
   linter." Never write a command that no report and no file shows.

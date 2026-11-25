@@ -120,7 +120,9 @@ module.exports = (lib) => {
   // commands checks ## Commands as commandsTable of lib/build.cjs does, and adds the serve
   // kind for a criterion planned as Demo. It returns the kinds whose Command is not none.
   function commands(run, part, live) {
-    const found = commandsTable(run, part, { file: FILE, kinds: KINDS, required: REQUIRED });
+    const found = commandsTable(run, part, { file: FILE, kinds: KINDS, required: REQUIRED,
+      noSuite: `Write a command for full in ## Commands of ${FILE}.\nIf the repository has no ` +
+        'full test suite, add a step that creates one, and write its command in the row.' });
     if (!found) return;
     if (live.some((criterion) => criterion.check.startsWith('Demo: ')) &&
       !found.seen.has('serve')) {

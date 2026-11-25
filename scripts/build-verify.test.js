@@ -1261,10 +1261,27 @@ test('build-plan: a plan with a serve row has the address of the app in its Summ
 test('build-plan: a row for each of targeted, lint, types, build, full and locked', () => {
   for (const kind of ['targeted', 'lint', 'types', 'build', 'full', 'locked']) {
     const md = PLAN.replace(new RegExp(`\\| ${kind} \\|.*\\n`), '');
+    // A full row has no line on none: it gets a command, never a none.
+    const none = kind === 'full' ? '' : ' With no command, write none in Command and the ' +
+      'reason in Source.';
     fails(push(fixture(), 'build-plan', planFile(md)),
-      new RegExp(`^Add the kind ${kind} to ## Commands of build-plan.md\\. With no command, ` +
-        'write none in Command and the reason in Source\\.$'));
+      new RegExp(`^Add the kind ${kind} to ## Commands of build-plan\\.md\\.${none.replace(/\./g, '\\.')}$`));
   }
+});
+
+test('build-plan: a full row with no command returns the finding to add a step', () => {
+  const finding = /^Write a command for full in ## Commands of build-plan\.md\. If the repository has no full test suite, add a step that creates one, and write its command in the row\.$/;
+  const row = '| full | `npm test` | `reports/junit.xml` | found: `package.json:12` |';
+  assert.ok(PLAN.includes(row));
+  for (const cell of ['none', '`none`', '']) {
+    fails(push(fixture(), 'build-plan', planFile(PLAN.replace(row,
+      `| full | ${cell} | none | The repository has no tests. |`))), finding);
+  }
+  // An empty Command cell fails also with a Source of a valid form.
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(row,
+    '| full |  | `reports/junit.xml` | found: `package.json:12` |'))), finding);
+  // A plan with a command passes; lint and build keep none with a reason.
+  passes(push(fixture(), 'build-plan', planFile(PLAN)), 'build-plan');
 });
 
 test('build-plan: the columns of both tables', () => {

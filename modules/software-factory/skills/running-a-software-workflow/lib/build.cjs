@@ -158,10 +158,12 @@ module.exports = (lib) => {
 
   // commandsTable checks the table of ## Commands in part, a section of file, whose columns
   // are Kind, Command, Result file and Source. Each row has a kind of kinds once, and a
-  // Command that is none with the reason in Source, or a Source of one of three forms. Each
-  // kind of required has a row. It returns { given, seen }: the kinds whose Command is not
-  // none, and the kinds with a row, or null after the finding of a missing table.
-  function commandsTable(run, part, { file, kinds, required }) {
+  // Command that is none with the reason in Source, or a Source of one of three forms. The
+  // kind full has a command, as qory starts the suite from it: a Command of none or an empty
+  // Command gets the finding noSuite, the text that the caller gives. Each kind of required
+  // has a row. It returns { given, seen }: the kinds whose Command is not none, and the kinds
+  // with a row, or null after the finding of a missing table.
+  function commandsTable(run, part, { file, kinds, required, noSuite }) {
     const found = sectionTable(run, file, part, ['Kind', 'Command', 'Result file', 'Source']);
     if (!found) return null;
     run.did('commands');
@@ -177,6 +179,10 @@ module.exports = (lib) => {
       }
       if (seen.has(name)) run.find(`Give the kind ${name} one row in ## Commands of ${file}.`);
       seen.add(name);
+      if (name === 'full' && ['none', ''].includes(plain(command))) {
+        run.find(noSuite);
+        continue;
+      }
       if (plain(command) === 'none') {
         if (!source.trim()) run.find(`Write in Source why ${name} has no command in ${file}.`);
         continue;
@@ -190,8 +196,8 @@ module.exports = (lib) => {
       }
     }
     for (const kind of required.filter((one) => !seen.has(one))) {
-      run.find(`Add the kind ${kind} to ## Commands of ${file}.\nWith no command, write none in ` +
-        'Command and the reason in Source.');
+      run.find(`Add the kind ${kind} to ## Commands of ${file}.` + (kind === 'full' ? '' :
+        '\nWith no command, write none in Command and the reason in Source.'));
     }
     return { given, seen };
   }

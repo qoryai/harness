@@ -18,6 +18,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the five sections and no `## Commands`. `writing-proposals` lists how `proposal-writer`
   writes the table, and `checking-proposals` lists what `proposal-reviewer` checks: each
   command and Source against the code explorer's report and the files.
+- A `full` row of `## Commands` with a Command of `none`, or with an empty Command, is a
+  finding, because qory starts the full suite from that command. In a build plan, the
+  finding is "Write a command for full in ## Commands of build-plan.md." with the line
+  "If the repository has no full test suite, add a step that creates one, and write its
+  command in the row." In a fast-track proposal, it is "Choose the Standard track: the
+  repository has no full test suite, and its build plan adds one." The finding for a missing
+  `full` row has no line on `none`. `lint` and `build` keep `none` with a reason in Source.
+  The `full` row of a proposal has the JUnit XML file of the suite in Result file, or `none`.
+- `## Track` of a proposal is read from its lines outside a code block, as the check of the
+  track on the fast track reads it: a code block before the track line no longer gives the
+  finding "Start ## Track of proposal.md with…".
 - `run lint` and `run build` read their commands from `## Commands` of the approved version
   of `proposal` when the folder of `--artifacts` or `qory.start_artifacts` has one whose
   `## Track` is the fast track, which has no build plan. `run targeted` and `run types`

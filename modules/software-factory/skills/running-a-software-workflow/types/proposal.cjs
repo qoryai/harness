@@ -67,8 +67,9 @@ module.exports = (lib) => {
     run.did('## Track');
     const part = sections(list, 2).slice(1).find((one) => one.title === 'Track');
     if (!part) return null;
-    const body = part.lines.filter((line) => !blank(line));
-    const first = body.length && !body[0].fenced ? body[0].text.trim() : '';
+    // The lines of a code block are no line of ## Track, as trackLine reads them.
+    const body = part.lines.filter((line) => !blank(line) && !line.fenced);
+    const first = body.length ? body[0].text.trim() : '';
     const named = /^([A-Za-z][A-Za-z0-9-]*) track(?=[.:])/.exec(first);
     if (!named) {
       run.find('Start ## Track of proposal.md with "Standard track." or "Fast track: <kind>. ' +
@@ -616,7 +617,8 @@ module.exports = (lib) => {
     const commands = wanted === FAST_SECTIONS && parts.find((part) => part.title === 'Commands');
     if (commands) {
       commandsTable(run, commands, { file: 'proposal.md', kinds: COMMAND_KINDS,
-        required: COMMAND_KINDS });
+        required: COMMAND_KINDS, noSuite: 'Choose the Standard track: the repository has no ' +
+          'full test suite, and its build plan adds one.' });
     }
     const fast = trackForm(run, list);
     proposalLimits(run, list);
