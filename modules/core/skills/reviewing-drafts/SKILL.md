@@ -195,8 +195,8 @@ Put any other line, such as a list of sources, before the last line.
 
 Only an agent whose file refers to this section writes a report file, besides its text
 report. The run gives you its path, which ends in a SHA-256 of what you review.
-Write it as your last step before the text report, also when you have no finding. With the
-last word `blocked`, write no report file.
+Write it as your last step before the text report, also when you have no finding. When the
+file exists, read it, then write it. With the last word `blocked`, write no report file.
 
 The file is one JSON object: `reviewer` is your agent's name, and `findings` has one item
 for each finding of your text report, and is empty with none. An item has these members and

@@ -123,6 +123,9 @@ test('the example of a report file passes the reader of findings round', () => {
   const { reportProblem } = require(
     path.join(CORE, 'skills/running-a-workflow/lib/findings.cjs'));
   assert.equal(reportProblem(report, 'plan-reviewer'), null);
+  // On Claude Code, Write fails on a file that the agent has not read, as in a second review.
+  assert.ok(section(text, 'The report file').replace(/\s+/g, ' ')
+    .includes('When the file exists, read it, then write it.'));
   for (const proof of ['failing check: ', 'failing input: ', 'broken rule: ']) {
     assert.ok(text.includes(`\`${proof}\``), proof);
   }
