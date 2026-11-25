@@ -223,8 +223,9 @@ function panel(io, options) {
   const withInput = listed.filter((member) => member.files.length > 0 || member.open > 0);
   const onlyOpen = withInput.some((member) => member.files.length === 0);
   if (after > withInput.length) {
-    throw new Missing(`Pass --after a count of at most ${withInput.length}, the members with a ` +
-      `file of the change: it is ${after}.`);
+    throw new Missing(`Pass --after a count of at most ${withInput.length}: it is ${after}.`,
+      [`${plural(withInput.length, 'member')} of the group ${group} ` +
+        `${withInput.length === 1 ? 'has' : 'have'} a file of the change or an open finding.`]);
   }
   const remaining = withInput.slice(after);
   const count = `${plural(rows.length, 'member')}, ${withInput.length} with a file of the change` +

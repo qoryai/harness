@@ -5043,6 +5043,12 @@ test('panel --previous: a member with an open finding starts whatever its paths'
   const plain = panelCall(deps, ['code-reviewer', 'security-reviewer', 'data-reviewer',
     'rust-reviewer']);
   assert.match(plain.out, /Skip: security-reviewer: no file of the change matches its paths\./);
+  // --after counts security-reviewer, a member with only an open finding.
+  const names = ['code-reviewer', 'security-reviewer', 'data-reviewer', 'rust-reviewer'];
+  assert.equal(panelCall(deps, names, '--previous', previous, '--after', '2').status, 0);
+  const over = panelCall(deps, names, '--previous', previous, '--after', '3');
+  assert.equal(over.status, 3, over.out);
+  assert.match(over.out + over.err, /Pass --after a count of at most 2: it is 3\.\n  2 members /);
   // A --previous file that cannot be read stops the panel.
   const missing = panelCall(deps, ['code-reviewer', 'security-reviewer', 'data-reviewer',
     'rust-reviewer'], '--previous', path.join(work, 'absent.json'));
@@ -5182,8 +5188,9 @@ test('panel: an input that is missing or does not fit exits 3', () => {
   broken.deps.freeBytes = () => { throw new Error('a fault'); };
   assert.throws(() => panelCall(broken.deps, ['a-reviewer']), { message: 'a fault' });
   const two = panelSetup({ members: [['a-reviewer'], ['b-reviewer']] });
-  expect3(two.deps, ['a-reviewer', 'b-reviewer'],
-    /^Pass --after a count of at most 2, the members with a file of the change: it is 3\.$/, '--after', '3');
+  expect3(two.deps, ['a-reviewer', 'b-reviewer'], [/^Pass --after a count of at most 2: it is 3\.$/,
+    /^ {2}2 members of the group \S+ have a file of the change or an open finding\.$/],
+    '--after', '3');
 });
 
 test('panel: a line of the file of the change may end in CR LF', () => {

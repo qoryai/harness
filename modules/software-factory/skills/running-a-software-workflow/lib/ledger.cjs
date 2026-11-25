@@ -59,13 +59,18 @@ module.exports = (lib) => {
 
   // reply returns the reply of the report of the step id, { kind, reason }, or the finding of a
   // report that has no line Reply: with a reason, or more than one.
-  function reply(id, report) {
-    const found = report.replace(/\r\n?/g, '\n').split('\n')
+  // A report of null is a call with no --report, or, when reported, a report that is too long
+  // for the ledger, as the other finding of the call shows.
+  function reply(id, report, reported) {
+    const found = (report || '').replace(/\r\n?/g, '\n').split('\n')
       .map((line) => REPLY.exec(line.trimEnd())).filter(Boolean);
     const reason = found.length === 1 ? lib.cut(lib.plainText(found[0][2]), REASON) : '';
     if (reason) return { reply: { kind: found[0][1], reason } };
-    const cause = found.length > 1 ? `The report has ${found.length} lines Reply:.`
-      : (found.length ? 'The line Reply: has no reason.' : 'The report has no line Reply:.');
+    const none = reported ? 'The report is too long for the ledger, so the line Reply: is not ' +
+      'read.' : 'The call has no --report.';
+    const cause = report === null ? none : (found.length > 1
+      ? `The report has ${found.length} lines Reply:.`
+      : (found.length ? 'The line Reply: has no reason.' : 'The report has no line Reply:.'));
     return { finding: 'Add one line Reply: fixed: <what changed> or Reply: disputed: <why> to ' +
       `the report of ${id}.\n${cause}` };
   }
@@ -265,7 +270,7 @@ module.exports = (lib) => {
     const { problems } = typeof report === 'string' ? lib.leftOut(report) : { problems: [] };
     if (problems.length) findings.push(['Fix the list Left out: of your report.', ...problems]
       .join('\n'));
-    const answer = FINDING_STEP.test(row.id) ? reply(row.id, report || '') : {};
+    const answer = FINDING_STEP.test(row.id) ? reply(row.id, report ?? null, reported) : {};
     if (answer.finding) findings.push(answer.finding);
     const files = changed(io);
     if (files.length) {

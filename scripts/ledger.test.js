@@ -1329,6 +1329,17 @@ test('ledger: step end done of a fix of a finding needs one line Reply:, and rec
     assert.equal(refused.lines.at(-1), 'Checked the step fix:f3: the ledger is unchanged.');
     assert.deepEqual(stored(w).ledger.steps.map((row) => row.state), ['running'], text);
   }
+  // With no --report, or a report too long for the ledger, the cause is that report.
+  const none = call('step', 'end', 'fix:f3', 'done');
+  assert.equal(none.status, 1, none.out);
+  assert.deepEqual(none.lines.slice(0, 2), [fix, '  The call has no --report.']);
+  const big = call('step', 'end', 'fix:f3', 'done', '--report', report(call,
+    'software-developer-fix-f3', `Reply: fixed: the limit.\n${'x'.repeat(9000)}\n`));
+  assert.equal(big.status, 1, big.out);
+  assert.deepEqual(big.lines.slice(0, 2), [fix, '  The report is too long for the ledger, so ' +
+    'the line Reply: is not read.']);
+  assert.ok(big.lines.some((line) => line.startsWith('Cut the report ')), big.out);
+  assert.deepEqual(stored(w).ledger.steps.map((row) => row.state), ['running']);
   const long = `Export the first limit rows. ${'x'.repeat(2100)}`;
   const done = call('step', 'end', 'fix:f3', 'done', '--report',
     report(call, 'software-developer-fix-f3', `Files:\n- none\n\n**Reply:** disputed: ${long}\n` +
@@ -1339,14 +1350,14 @@ test('ledger: step end done of a fix of a finding needs one line Reply:, and rec
   assert.equal([...row.reply.reason].length, 2000);
   assert.ok(row.reply.reason.startsWith('Export the first limit rows. x'));
   // A fix of a step whose id is not a finding of the work item needs no reply, and a failed fix
-  // records none.
+  // records none, also with a line Reply: in its report.
   assert.equal(begin(call, w, 'fix:p1').status, 0);
   const other = call('step', 'end', 'fix:p1', 'done', '--report',
     report(call, 'software-developer-fix-p1', 'done\n'));
   assert.equal(other.status, 0, other.out);
   assert.equal(begin(call, w, 'fix:f4').status, 0);
   const failed = call('step', 'end', 'fix:f4', 'failed', '--report',
-    report(call, 'software-developer-fix-f4', 'blocked\n'));
+    report(call, 'software-developer-fix-f4', 'Reply: fixed: the limit.\nblocked\n'));
   assert.equal(failed.status, 0, failed.out);
   const rows = stored(w).ledger.steps;
   assert.deepEqual(rows.map((one) => [one.id, one.reply === undefined]),
