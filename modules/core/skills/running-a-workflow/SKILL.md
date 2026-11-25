@@ -411,7 +411,9 @@ hook adds one `run_again` point for each kind of problem to `points.json`, runs
 `points.json` and runs `<qory> run verdict escalate --points` too, so the run gets the
 verdict even when the session recorded none. When the run has `points.json` and a verdict
 already, the hook checks nothing and runs no verdict. When that command fails, the session
-still ends. A runtime with no such hook ends the session with no check.
+still ends. A runtime with no such hook ends the session with no check. A module of the
+stack can add one more check to the end check, such as a check that the session recorded
+each change; its findings and points count as the others do.
 
 The end check also checks each output that the stage declares, for a type of any module.
 qory lists them in `qory.outputs` of the `inputs.json` of the session: one entry
