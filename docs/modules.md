@@ -4022,9 +4022,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     and `failed.json`. A full disk or an ffmpeg timeout gets one retry in the session, then
     the session escalates. A film scenario with no ffmpeg, a scenario with no pushed script
     that counts, a plan with no `serve` row, no browser, a `.film` that is a link, an app or
-    a browser that does not run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
-    `.film/<scenario>/` removes that folder, and a call with no browser exits before it
-    makes the folder, so the film of an earlier call stays. The text of a cue in the
+    a browser that does not run, and an ffmpeg that fails exit 3 with the fix first. A call
+    that fails after it made `.film/<scenario>/` removes that folder, and a call with no
+    browser exits before it makes the folder, so the film of an earlier call stays. The text of a cue in the
     captions is the title of its step, and a title with `-->` exits 3 before the film, with
     the fix "Change the Action of step <N> in the demo scenario so it has no "-->", then film
     it again." The first frame of the film is at 0 ms.
