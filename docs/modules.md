@@ -216,25 +216,26 @@ and `security-reviewer`, `data-reviewer` and `failure-reviewer`, with paths. The
 `findings` of at most 100, the blocking ones first, and a list `closes` of at most 100. Each
 finding has a `severity` of `blocking` or `non-blocking`, `quote`, `problem`, `fix`,
 `proof`, `point`, and `file` and `line` when they apply. A finding with an `id`, such as
-`f4`, repeats an earlier finding of that reviewer, and a repeat of a closed finding opens it
-again. Each close is `{id, state, reason}`, with the state `fixed` or `dismissed` and a
-reason of 1 to 1,000 characters. Each reviewer repeats or closes each earlier finding of its
-role in `previous_findings`, and one that its report neither repeats nor closes stays open.
-The report has no result word and no list of unverified claims. `reviewing-changes` defines
-`blocking` for any kind of work, and the skill `judging-findings` of `software-factory` adds
-the definition for software and lists the values of the review from both places: `core`
-cannot contain the words of software work, as rule 11 of `scripts/check.sh` lists. A
-reviewer that cannot finish stops and writes no file. qory reads each report against its
-schema. In a review session, `checks.cjs findings round` reads the reports too, with the
-rules of that schema, as the section on `findings` lists. The test of the example report in
-`reviewing-changes` reads `contracts/harness/v1/review-report.schema.json` of qory at the
-commit `QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder
-`QORY_SOURCE`. `scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the
-example reports of the eight reviewers. `scripts/check.sh` compares the three copies
-`primitives`, `verification` and `acceptance-criteria` in `schemas/` of `software-factory`
-byte for byte with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`.
-After a review session, qory posts the reports to the findings of the work item. While a
-finding of the work item is open, qory writes `open-findings.json` for the next session of
+`f4`, repeats an earlier finding of that reviewer, keeps the severity that the finding has
+in `previous_findings`, and opens it again when a run closed it. Each close is `{id, state,
+reason}`, with the state `fixed` or `dismissed` and a reason of 1 to 1,000 characters. Each
+reviewer repeats or closes each earlier finding of its role in `previous_findings`, and one
+that its report neither repeats nor closes stays open. The report has no result word and no
+list of unverified claims. `reviewing-changes` defines `blocking` for any kind of work, and
+the skill `judging-findings` of `software-factory` adds the definition for software and
+lists the values of the review from both places: `core` cannot contain the words of software
+work, as rule 11 of `scripts/check.sh` lists. A reviewer that cannot finish stops and writes
+no file. qory reads each report against its schema. In a review session, `checks.cjs
+findings round` reads the reports too, with the rules of that schema, as the section on
+`findings` lists. The test of the example report in `reviewing-changes` reads
+`contracts/harness/v1/review-report.schema.json` of qory at the commit
+`QORY_CONTRACTS_COMMIT` of `.github/workflows/check.yml`, from the folder `QORY_SOURCE`.
+`scripts/checks.test.js` reads the same file from `QORY_SOURCE`, for the example reports of
+the eight reviewers. `scripts/check.sh` compares the three copies `primitives`,
+`verification` and `acceptance-criteria` in `schemas/` of `software-factory` byte for byte
+with the files of the same names in `contracts/harness/v1/` at `QORY_SOURCE`. After a review
+session, qory posts the reports to the findings of the work item. While a finding of the
+work item is open, qory writes `open-findings.json` for the next session of
 `implement-changes`, with the open findings of every stage and the replies to each, which
 `checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
 workflows" lists. The report of each fix has a reply to the finding, `fixed` or `disputed`,
@@ -1235,7 +1236,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   the next line when it has one. A new finding has no id, and `, open and not in its report`
   marks an earlier finding that the report neither repeats nor closes. The last line is
   `Checked <n> reports[ and the suite result]: <b> blocking, <k> non-blocking open findings;
-  <c> closed.`, where `<c>` counts the closes of the valid reports. It exits with 1 while a
+  <c> closed.`, where `<c>` counts the closes of open findings in the valid reports, and a
+  repeat counts with the severity that the file of `--previous` has. It exits with 1 while a
   finding is blocking and with 0 otherwise, 2 for a wrong argument and 3 when the report
   folder is a link or no folder, or the file of `--previous` cannot be read. The exit
   records no verdict: after `review-changes`, qory sends the verdict, and Verify records its

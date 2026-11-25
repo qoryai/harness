@@ -245,10 +245,15 @@ function reviewerFindings(file, name, mine = []) {
   }
   const closes = (data.closes || []).map((one) => one.id);
   const repeats = data.findings.filter((one) => one.id !== undefined).map((one) => one.id);
+  // A repeat keeps the severity that the finding has in --previous, as Qory Apiary keeps it,
+  // and a close of a finding that a run closed before closes nothing.
+  const stored = new Map(mine.map((one) => [one.id, one]));
   const reported = data.findings.map((one) => ({ reviewer: name, id: one.id ?? null,
-    severity: one.severity, point: plain(one.point), proof: plain(one.proof),
+    severity: one.id === undefined ? one.severity : stored.get(one.id).severity,
+    point: plain(one.point), proof: plain(one.proof),
     file: one.file === undefined ? null : plain(one.file), line: one.line ?? null }));
-  return { found: [...reported, ...left([...closes, ...repeats])], closed: closes.length };
+  const closed = closes.filter((id) => stored.get(id).state === 'open').length;
+  return { found: [...reported, ...left([...closes, ...repeats])], closed };
 }
 
 // suiteFindings returns the finding of the result of the full suite at file, read once, by

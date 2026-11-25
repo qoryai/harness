@@ -134,11 +134,14 @@ Your judgement alone makes no `blocking` finding.
 stage: the open ones and those that a run closed, each with its `id`, `source`, `state`,
 `disputed` and `replies`. Your findings are those whose `source` has the kind `reviewer` and
 your agent name. Read them, with their replies, and re-read the lines that each one quotes.
-Then put each of your findings in your report in one of these ways:
+Then put each of your open findings in your report in one of these ways, and repeat each
+closed one that is true again:
 
 - Still true, or true again after a run closed it: repeat it in `findings` with its `id`,
-  and do its proof again on the frozen state. A repeat of a closed finding opens it again.
-- No longer true on the frozen state: close it in `closes` as `fixed`, with the reason.
+  and do its proof again on the frozen state. A repeat of a closed finding opens it again. A
+  repeat keeps the severity that the finding has in the file.
+- No longer true on the frozen state: close it in `closes` as `fixed`, with the reason. A
+  finding that a run closed and that is still fixed needs no entry.
 - Not true, as a `disputed` reply of the builder shows, or wrong from the start: close it in
   `closes` as `dismissed`, with the reason. You may dismiss a finding of yours that nobody
   disputed.

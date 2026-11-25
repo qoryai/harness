@@ -972,6 +972,31 @@ test('findings round --previous: an id of another reviewer or repeated and close
     'finding of that reviewer.');
 });
 
+test('findings round --previous: a repeat keeps the stored severity, and a close of a closed ' +
+  'finding closes nothing', () => {
+  // f7 is blocking and f8 non-blocking in the file; the report repeats each with the other
+  // severity, and closes f5, which a run closed before.
+  const previous = previousFile([['f7', 'code-reviewer', 'open'],
+    ['f8', 'code-reviewer', 'open', LATER], ['f5', 'code-reviewer', 'fixed']]);
+  const report = { reviewer: 'code-reviewer', findings: [{ ...LATER, id: 'f7' },
+    { ...REVIEWED, id: 'f8' }], closes: [{ id: 'f5', state: 'fixed', reason: 'Still fixed.' }] };
+  assert.deepEqual(problems(report), []);
+  const { dir, suite } = sessionFolder({ 'code-reviewer': report });
+  const got = withPrevious(dir, suite, ['code-reviewer'], previous);
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.filter((line) => !line.startsWith('  Proof')), [
+    `Blocking finding f7 of code-reviewer, src/export.js:42: ${LATER.point}`,
+    `Non-blocking finding f8 of code-reviewer, src/export.js:42: ${REVIEWED.point}`,
+    'Checked 1 report and the suite result: 1 blocking, 1 non-blocking open findings; 0 closed.',
+  ]);
+  // A close of an open finding counts.
+  const open = previousFile([['f7', 'code-reviewer', 'open']]);
+  const closing = sessionFolder({ 'code-reviewer': { reviewer: 'code-reviewer', findings: [],
+    closes: [{ id: 'f7', state: 'fixed', reason: 'Fixed.' }] } });
+  assert.match(withPrevious(closing.dir, closing.suite, ['code-reviewer'], open).lines.at(-1),
+    /: 0 blocking, 0 non-blocking open findings; 1 closed\.$/);
+});
+
 test('findings round: more than 100 findings or closes, and a bad close, are invalid', () => {
   const name = 'code-reviewer';
   const close = { id: 'f1', state: 'fixed', reason: 'Fixed.' };
