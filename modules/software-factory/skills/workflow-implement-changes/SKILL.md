@@ -206,11 +206,28 @@ submission", do no later step, and end as "Points" of `running-a-workflow` lists
 it skips "The submission" although the run has commits; count from `qory.start_commits`
 once qory writes it. -->
 
-Otherwise, when the checkout has a change, commit it with the two commands of "The end":
-the files of the failed step go into that commit. Then do "The submission". When a case of
-"The submission" ends the run, end as that case lists. Otherwise write no `points.json`,
-run no verdict command, and do no later step. `review-changes` runs next and reports the
-open step as `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member.
+Otherwise commit the files of the failed step with steps 1 to 4. `<base>` is the commit that
+the failed step's row in `<folder>/.reports/build-ledger.json` lists as `base`, on which the
+step started.
+
+1. Run `git reset -q <base>`, never with `--hard`, so that no file is lost. The commits of
+   the done steps stay, and a commit that the failed step made leaves the branch.
+2. Take out of the checkout each thing of this list that the last `scope` or `freeze` of the
+   step printed. A commit with one of them fails the scope check of qory's push, and then
+   qory pushes no commit of the run, those of the done steps included.
+   - A key: remove it from the file.
+   - A new repository folder or a changed submodule: do what "The end" lists for it.
+   - A path outside the Files of every deliverable, or a file that `freeze` cannot scan: run
+     `git checkout <base> -- <path>`, or remove the path when `<base>` does not have it.
+3. When the checkout has a change, commit it with the two commands of "The end".
+4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4
+   again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures"
+   lists for the checks script.
+
+Then do "The submission". When a case of "The submission" ends the run, end as that case
+lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
+`review-changes` runs next and reports the open step as `blocking`, and the limit of 3
+rounds of Qory Apiary passes it to a member.
 
 End with "The run stopped, because the checks still fail after 3 changes to <the step>."
 
@@ -323,12 +340,28 @@ with what changed as the message:
 
 ```
 git add -A -- ':/' ':!/[.]qory' ':!/[.]qory/*'
-git -c user.name=qory -c user.email=qory@localhost commit -m "<what changed>" \
-  -- ':/' ':!/[.]qory' ':!/[.]qory/*'
+git -c user.name=qory -c user.email=qory@localhost -c core.hooksPath=/dev/null \
+  -c commit.gpgSign=false commit -m "<what changed>" -- ':/' ':!/[.]qory' ':!/[.]qory/*'
 ```
 
-The commit needs the two `-c` options where git has no identity. Both commands leave out
-`.qory` at the top of the checkout, also when it is a link.
+The commit needs the first two `-c` options where git has no identity. With the other two,
+which `freeze` sets too, no hook and no signing key of the checkout stops the commit. Both
+commands leave out `.qory` at the top of the checkout, also when it is a link.
+
+When a merge or a cherry-pick is in progress, run `git reset -q` first: a commit of paths
+exits with 128 until the merge ends, `git reset -q` ends it and keeps each file, and
+`--abort` drops your changes to the merged files.
+
+No commit of the run can contain a new repository folder or a changed submodule: the scope
+check of qory's push scans no file of one for keys, so it exits with 1, and qory pushes no
+commit of the run. Before the two commands, remove a new repository folder, and set a
+changed submodule back to the commit that the checkout lists:
+
+```
+git reset -q -- <path>
+git -C <path> checkout --force --detach "$(git rev-parse HEAD:<path>)"
+git -C <path> clean -ffd
+```
 
 When this session ends without `points.json`, the end check stops the end while a checkout
 of `qory.start_commits` has a change that no commit contains, because the full suite and the

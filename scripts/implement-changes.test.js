@@ -144,8 +144,20 @@ test('the session starts the developer twice and the debugger once per step, the
   contains(failed, 'When this session ran no `step end <id> done`, the run has no commit: skip ' +
     '"The submission", do no later step, and end as "Points" of `running-a-workflow` lists, ' +
     'with one `run_again` point whose text is the line after "End with" in this section.');
-  contains(failed, 'Otherwise, when the checkout has a change, commit it with the two commands ' +
-    'of "The end": the files of the failed step go into that commit. Then do "The ' +
+  inOrder(failed, 'Otherwise commit the files of the failed step with steps 1 to 4.',
+    '`<base>` is the commit that the failed step\'s row in ' +
+    '`<folder>/.reports/build-ledger.json` lists as `base`',
+    '1. Run `git reset -q <base>`, never with `--hard`, so that no file is lost.',
+    '2. Take out of the checkout each thing of this list that the last `scope` or `freeze` of ' +
+    'the step printed.', '- A key: remove it from the file. - A new repository folder or a ' +
+    'changed submodule: do what "The end" lists for it. - A path outside the Files of every ' +
+    'deliverable, or a file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or ' +
+    'remove the path when `<base>` does not have it.',
+    '3. When the checkout has a change, commit it with the two commands of "The end".',
+    '4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4 ' +
+    'again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures" ' +
+    'lists for the checks script.');
+  contains(failed, 'Then do "The ' +
     'submission". When a case of "The submission" ends the run, end as that case lists. ' +
     'Otherwise write no `points.json`, run no verdict command, and do no later step. ' +
     '`review-changes` runs next and reports the open step as ' +
@@ -959,19 +971,47 @@ function buildInputs(w, extra = {}) {
   return inputs;
 }
 
-// commitChanges runs the two commands of "The end" of the skill in the checkout of w, with
-// message, no git identity in the environment and the empty folder home as HOME. It returns
-// the result of the second, with the exit status of the first as added.
-function commitChanges(w, message) {
-  const block = /\n```\n(git add [^`]+)```\n/.exec(section(WORKFLOW, 'The end'));
-  assert.ok(block, '"The end" lists no command');
-  const [add, commit] = block[1].replace(/ \\\n +/g, ' ').trim().split('\n');
-  const home = fresh('home');
-  const run = (command) => childProcess.spawnSync('/bin/sh', ['-c', command], { cwd: w.repo,
-    env: { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1' }, encoding: 'utf8' });
-  const added = run(add);
-  return { ...run(commit.replace('"<what changed>"', `"${message}"`)), added: added.status };
+// shell runs command in the checkout of w with no git identity in the environment and an
+// empty folder as HOME.
+const shell = (w, command) => childProcess.spawnSync('/bin/sh', ['-c', command], { cwd: w.repo,
+  env: { PATH: process.env.PATH, HOME: fresh('home'), GIT_CONFIG_NOSYSTEM: '1' },
+  encoding: 'utf8' });
+
+// endCommands returns the commands of the code block of "The end" that starts with first.
+function endCommands(first) {
+  const block = section(WORKFLOW, 'The end').split('\n```\n').find((one) => one.startsWith(first));
+  assert.ok(block, `"The end" lists no ${first}`);
+  return block.replace(/ \\\n +/g, ' ').trim().split('\n');
 }
+
+// commitChanges runs the two commands of "The end" of the skill in the checkout of w, with
+// message. It returns the result of the second, with the exit status of the first as added.
+function commitChanges(w, message) {
+  const [add, commit] = endCommands('git add ');
+  const added = shell(w, add);
+  return { ...shell(w, commit.replace('"<what changed>"', `"${message}"`)), added: added.status };
+}
+
+// setBack runs the commands of "The end" that set the submodule at file back.
+function setBack(w, file) {
+  for (const command of endCommands('git reset -q -- ')) {
+    const ran = shell(w, command.replaceAll('<path>', file));
+    assert.equal(ran.status, 0, `${command}: ${ran.stderr}`);
+  }
+}
+
+// repository makes a repository with one commit in the folder of the checkout of w.
+function repository(w, folder) {
+  writeFile(w, `${folder}/a.txt`, 'a\n');
+  const top = path.join(w.repo, folder);
+  git(top, w.env, 'init', '-q');
+  git(top, w.env, 'add', '-A');
+  git(top, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'One');
+}
+
+// repositoryOf returns whether the path file of the commit at the head of w is a repository.
+const repositoryOf = (w, file) => git(w.repo, w.env, 'ls-tree', 'HEAD', '--', file)
+  .startsWith('160000 ');
 
 test('after one step done and one step failed, the session does "The submission"', () => {
   const w = work();
@@ -1011,6 +1051,133 @@ test('after one step done and one step failed, the session does "The submission"
   const ended = call('end', w.artifacts, '--inputs', withOutput(w));
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
+});
+
+test('after a step that fails, the session takes out what the check of the push finds', () => {
+  const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  const failed = section(WORKFLOW, 'A step that fails');
+  const command = (pattern) => {
+    const found = pattern.exec(failed);
+    assert.ok(found, `"A step that fails" lists no ${pattern}`);
+    return found[1];
+  };
+  const reset = command(/Run `(git reset [^`]+)`/);
+  const restore = command(/run\s+`(git checkout [^`]+)`/);
+  const scope = command(/checks\.cjs (scope --plan[^`]+)`/).split(' ');
+  // Each case leaves something in the checkout, with a line of scope --plan on its commit,
+  // and whether scope --plan prints a line for it before a commit has it.
+  const cases = [
+    ['a nested repository in a planned folder', (w) => repository(w, 'tests/nested'),
+      /Rewrite commit [0-9a-f]{12} without the repository "tests\/nested"/, 0,
+      (w) => fs.rmSync(path.join(w.repo, 'tests/nested'), { recursive: true })],
+    ['a new path and a changed path outside the plan', (w) => {
+      writeFile(w, 'notes/new.txt', 'new\n');
+      writeFile(w, 'README.md', 'A changed line.\n');
+    }, /Take "notes\/new\.txt" out of the commits since the base/, 1, (w, base) => {
+      fs.rmSync(path.join(w.repo, 'notes/new.txt'));
+      const ran = shell(w, restore.replace('<base>', base).replace('<path>', 'README.md'));
+      assert.equal(ran.status, 0, ran.stderr);
+    }],
+    ['a key', (w) => writeFile(w, 'tests/key.txt', `one\n${key}\n`),
+      /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 0,
+      (w) => writeFile(w, 'tests/key.txt', 'one\n')],
+    ['a commit of the failed step with a key', (w) => {
+      writeFile(w, 'tests/key.txt', `one\n${key}\n`);
+      assert.equal(commitChanges(w, 'Write the header').status, 0);
+      writeFile(w, 'tests/key.txt', 'one\n');
+    }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1, () => {}],
+  ];
+  for (const [what, leave, line, before, takeOut] of cases) {
+    const w = work();
+    const call = session(w);
+    lockFirst(w, call);
+    assert.equal(qory(w, call, 'artifact', 'pull').status, 0);
+    assert.equal(call('resume').status, 0);
+    const done = doneStep(w, call, 'deliverable:d-1', 'src/orders.cjs', LINES, [], LOCKED_1);
+    failStep(w, call, 'deliverable:d-2', D2_RED, TARGETED_2);
+    leave(w);
+    const { steps } = JSON.parse(read(w.artifacts, '.reports/build-ledger.json'));
+    const { base, state } = steps.at(-1);
+    assert.deepEqual([base, state], [done, 'failed'], what);
+    const plan = () => call(...scope.map((one) => (one === '<inputs>' ? w.inputs : one)));
+    assert.equal(plan().status, before, what);
+    // Without step 2, the commit of step 3 fails the scope check of the push.
+    const left = commitChanges(w, 'Keep the files of the failed step');
+    assert.equal(left.status, 0, `${what}: ${left.stderr}`);
+    const red = plan();
+    assert.equal(red.status, 1, what);
+    assert.match(red.out, line, what);
+    // The repeat: the reset drops no commit of a done step and no file.
+    const files = () => git(w.repo, w.env, 'ls-files', '--cached', '--others',
+      '--exclude-standard').split('\n').filter((one) => !one.startsWith('.qory')).sort();
+    const kept = files();
+    const ran = shell(w, reset.replace('<base>', base));
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD'), done, what);
+    assert.deepEqual(files().map((one) => one.replace(/\/$/, '')), kept, what);
+    takeOut(w, base);
+    const again = commitChanges(w, 'Keep the files of the failed step');
+    assert.equal(again.status, 0, `${what}: ${again.stderr}`);
+    const green = plan();
+    assert.equal(green.status, 0, `${what}: ${green.out}`);
+    assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD~1'), done, what);
+    assert.equal(git(w.repo, w.env, 'show', `${done}:src/orders.cjs`), LINES.trim(), what);
+    assert.equal(git(w.repo, w.env, 'show', 'HEAD:tests/header.test.cjs'), HEADER_TEST.trim(),
+      what);
+    assert.equal(call('end', w.artifacts, '--inputs', buildInputs(w)).status, 0, what);
+  }
+});
+
+test('no hook and no signing key of the checkout stops the commit of the session', () => {
+  const w = work();
+  const hooks = path.join(w.repo, '.git/hooks');
+  fs.mkdirSync(hooks, { recursive: true });
+  for (const name of ['pre-commit', 'commit-msg']) {
+    fs.writeFileSync(path.join(hooks, name), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  }
+  git(w.repo, w.env, 'config', 'commit.gpgsign', 'true');
+  git(w.repo, w.env, 'config', 'gpg.program', 'false');
+  writeFile(w, 'src/orders.cjs', LINES);
+  // Without the two options, the hook stops the commit, and with no hook, the signature does.
+  const bare = 'git -c user.name=qory -c user.email=qory@localhost';
+  assert.equal(shell(w, `${bare} commit -qam One`).status, 1);
+  assert.equal(shell(w, `${bare} -c core.hooksPath=/dev/null commit -qam One`).status, 128);
+  const done = commitChanges(w, 'Write one line per order');
+  assert.equal(done.status, 0, done.stderr);
+  assert.equal(git(w.repo, w.env, 'log', '-1', '--format=%s %G?'), 'Write one line per order N');
+});
+
+test('git reset ends a merge or a cherry-pick and keeps each file for the commit', () => {
+  const end = section(WORKFLOW, 'The end');
+  contains(end, 'When a merge or a cherry-pick is in progress, run `git reset -q` first');
+  const reset = /run `(git reset -q)` first/.exec(end)[1];
+  for (const verb of ['merge', 'cherry-pick']) {
+    const w = work();
+    const commit = (message) => git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
+      '-a', '-m', message);
+    const first = git(w.repo, w.env, 'rev-parse', '--abbrev-ref', 'HEAD');
+    git(w.repo, w.env, 'checkout', '-q', '-b', 'other');
+    writeFile(w, 'src/orders.cjs', HEADER);
+    writeFile(w, 'tests/added.txt', 'added\n');
+    git(w.repo, w.env, 'add', '-A');
+    commit('Other');
+    git(w.repo, w.env, 'checkout', '-q', first);
+    writeFile(w, 'src/orders.cjs', WRONG);
+    commit('Ours');
+    assert.equal(shell(w, `git -c user.name=a -c user.email=a@b ${verb} other`).status, 1, verb);
+    writeFile(w, 'src/orders.cjs', LINES);
+    writeFile(w, 'tests/new.txt', 'new\n');
+    const stopped = commitChanges(w, 'Write one line per order');
+    assert.equal(stopped.status, 128, verb);
+    const ran = shell(w, reset);
+    assert.equal(ran.status, 0, ran.stderr);
+    const done = commitChanges(w, 'Write one line per order');
+    assert.equal(done.status, 0, `${verb}: ${done.stderr}`);
+    assert.deepEqual(git(w.repo, w.env, 'show', '--format=', '--name-status', 'HEAD').split('\n'),
+      ['M\tsrc/orders.cjs', 'A\ttests/added.txt', 'A\ttests/new.txt'], verb);
+    assert.equal(git(w.repo, w.env, 'show', 'HEAD:src/orders.cjs'), LINES.trim(), verb);
+    assert.equal(git(w.repo, w.env, 'log', '-1', '--format=%P').split(' ').length, 1, verb);
+  }
 });
 
 test('the session commits its changes with no git identity set, and nothing of .qory', () => {
@@ -1585,10 +1752,24 @@ test('the end check lists a submodule whatever its ignore setting', () => {
     git(path.join(w.repo, 'lib/sub'), w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m',
       'Two');
     assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)), line, file);
-    // The commands of the skill commit the new commit of the submodule.
-    const done = commitChanges(w, 'Take the new commit of lib/sub');
-    assert.equal(done.status, 0, done.stderr);
+    // No commit can contain the new commit, so "The end" sets the submodule back: also when
+    // the index has the new commit, and with changed and untracked files in it.
+    const start = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    const plan = () => call('scope', '--plan', '--inputs', buildInputs(w, { start_commits: [
+      { path: w.repo, commit: start }] }));
+    git(w.repo, w.env, 'add', '-f', 'lib/sub');
+    writeFile(w, 'lib/sub/new.txt', 'changed\n');
+    writeFile(w, 'lib/sub/more.txt', 'more\n');
+    assert.equal(plan().status, 1, file);
+    setBack(w, 'lib/sub');
     assert.equal(call('end', w.artifacts, '--inputs', inputs).status, 0, file);
+    const green = plan();
+    assert.equal(green.status, 0, green.out);
+    // A commit with a new repository fails the scope check.
+    repository(w, 'tests/nested');
+    assert.equal(commitChanges(w, 'Add a repository').status, 0);
+    assert.equal(repositoryOf(w, 'tests/nested'), true);
+    assert.equal(plan().status, 1, file);
   }
 });
 
