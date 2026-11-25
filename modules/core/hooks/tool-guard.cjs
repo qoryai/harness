@@ -2059,7 +2059,7 @@ function pathHits(segment, full, folder, how, step = false) {
     if (exact === target || (folder && under(exact, target))) return true;
     if (!folder && sameFile(resolved, full)) return true;
     if (!under(target, exact)) return false;
-    // A restore writes only tracked files, and .qory/build/ holds none.
+    // A restore writes only tracked files, and .qory/build/ has none.
     return removes || (!folder && restorer && (named || disk.exists(resolved)));
   }));
 }

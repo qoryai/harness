@@ -41,7 +41,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   read does, so a file in `.qory/artifacts` changes nothing; outside a run it reads the artifact
   folder, which an agent can write. A check of a criterion that left Tests stays locked. A
   forged `.qory/build/changes.json` can steer what `plan-the-build` plans: `keptFiles` and
-  `lock --verify` refuse a wrong result. The check of a build plan reads no `changes.json`
+  `lock --verify` reject a wrong result. The check of a build plan reads no `changes.json`
   that is a link or has more than one link.
 - Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
   check of its criterion in the criteria version that the lock locks. `lock` fills it, and

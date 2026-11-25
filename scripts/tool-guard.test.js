@@ -508,7 +508,7 @@ test('the guard reads each locked file once, so many locked files and many words
   const run = (command) => decide({ input: { ...claude('Bash', { command }, 'implementer'),
     cwd: dir }, env: RUN, runtime: 'claude', root: dir,
     locked: () => ({ what: 'acceptance-lock version 1', files, number: 1 }) });
-  // 300 words that name no locked file: 150000 comparisons, none of which reads the disk again.
+  // 300 words that are no locked file: 150000 comparisons, none of which reads the disk again.
   const words = Array.from({ length: 300 }, (_, i) => `tmp/w${i}.txt`).join(' ');
   assert.equal(run(`rm ${words}`), null);
   // A locked file and a hard link to one are still found among them.

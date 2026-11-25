@@ -650,7 +650,7 @@ module.exports = (lib) => {
   // lock documents that criteriaTarget compares it with; replace it when a pull is known to
   // have them.
   // shortcut: a forged .qory/build/changes.json can steer what plan-the-build plans, and the
-  // guard no longer reads it; keptFiles and lock --verify refuse a wrong result, replace it
+  // guard no longer reads it; keptFiles and lock --verify reject a wrong result, replace it
   // when the record is written where no agent call can write.
   function writable({ io, agent, checks, fold }) {
     if (agent !== WRITER || !Array.isArray(checks) || !checks.length) return [];
