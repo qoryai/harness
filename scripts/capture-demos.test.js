@@ -479,8 +479,8 @@ test('film record: a failed step needs its finding and a class, and the evidence
   const noClass = call(['film', 'record', 'scenario-1', '--review', here.review(...lines),
     '--media', '1'], here.deps);
   assert.equal(noClass.status, 1, noClass.out);
-  assert.equal(noClass.out.split('\n')[0], 'Give each failed step a finding and the report the ' +
-    'line "Class: product", "Class: script" or "Class: setup".');
+  assert.equal(noClass.out.split('\n')[0],
+    'Give each failed step a finding and the report a class line.');
   const done = call(['film', 'record', 'scenario-1', '--review',
     here.review(...lines, 'Class: product'), '--media', '1'], here.deps);
   assert.equal(done.status, 0, done.out);
@@ -491,7 +491,7 @@ test('film record: a failed step needs its finding and a class, and the evidence
   const short = call(['film', 'record', 'scenario-1', '--review', here.review('Step 1: passed'),
     '--media', '1'], here.deps);
   assert.equal(short.status, 1);
-  assert.match(short.out, /The script has 2 steps, and the report has 1 such lines\./);
+  assert.match(short.out, /The script has 2 steps, and the report has 1 such line\./);
 });
 
 test('film record: a scenario with no film is a failed evidence of class script, with the cause in the last step', () => {
@@ -778,4 +778,49 @@ test('preflight and film on a snapshot with no build plan exit 3 with the cause 
   const filmed = call(['film', 'scenario-1', '--inputs', inputs], here.deps);
   assert.equal(filmed.status, 3, filmed.out + filmed.err);
   assert.equal(ffmpeg.calls().length, 0);
+});
+
+test('film todo: with no approved demo scenarios it exits 3 and lists nothing to withdraw', () => {
+  const here = checkout([]);
+  committed(here.dir);
+  const entries = [
+    stored(here.root, 'demo-evidence', 'scenario-3', { 'scenario-3.json': '{}' }),
+    stored(here.root, 'demo-video', 'scenario-3', { 'scenario-3.vtt': 'WEBVTT\n' }),
+  ];
+  fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify({ artifacts: entries }));
+  const done = call(['film', 'todo'], here.deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0], 'Pull the artifacts again.');
+  assert.doesNotMatch(done.out, /To withdraw/);
+});
+
+test('film record: a step past the last, a missing report and a scenario with no film are refused', () => {
+  const here = filmed();
+  const past = call(['film', 'record', 'scenario-1', '--class', 'script', '--cause', 'x',
+    '--step', '3'], here.deps);
+  assert.equal(past.status, 1, past.out + past.err);
+  assert.equal(past.out.split('\n')[0], 'Give --step a step of scenario-1.');
+  assert.equal(fs.existsSync(path.join(here.root, 'scenario-1.json')), false);
+  const missing = call(['film', 'record', 'scenario-1', '--review', path.join(here.dir, 'none.md'),
+    '--media', '1'], here.deps);
+  assert.equal(missing.status, 1, missing.out + missing.err);
+  assert.match(missing.out.split('\n')[0], /^Save the report of demo-reviewer in a file/);
+  fs.rmSync(path.join(here.root, '.film'), { recursive: true });
+  const none = call(['film', 'record', 'scenario-1', '--review',
+    here.review('Step 1: passed', 'Step 2: passed'), '--media', '1'], here.deps);
+  assert.equal(none.status, 3, none.out + none.err);
+  assert.equal(none.out.split('\n')[0],
+    'Run film scenario-1, then run film record scenario-1 again.');
+});
+
+test('demo-evidence check: a version that index.json counts and the store lacks exits 3 with the pull line', () => {
+  const here = checkout([script('scenario-1')]);
+  const file = path.join(here.root, 'scenario-1.json');
+  fs.writeFileSync(file, JSON.stringify(evidence('scenario-1', 'a'.repeat(40))));
+  const index = JSON.parse(fs.readFileSync(path.join(here.root, 'index.json'), 'utf8'));
+  index.artifacts[0] = artifact('demo-script', 'scenario-1', [1, 2]);
+  fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify(index));
+  const got = call(['check', 'demo-evidence', file], here.deps);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.match(got.out, /demo-script version 2/);
 });

@@ -67,8 +67,9 @@ should reach is `setup`.
 With the evidence `pictures`, a step whose `expected` result is a change over time, such
 as a bar that fills, a message that disappears, a value that changes after a click or a page
 that loads after a delay, cannot be judged from one picture. List its number in "Needs film:"
-and give the step the line `not-reached`. The session films the scenario again and starts
-you again with the film. With the evidence `film`, leave out "Needs film:".
+and give that step the line `not-reached` in this report only. The session films the
+scenario again and starts you again with the film. With the evidence `film`, leave out
+"Needs film:".
 
 ## The report
 

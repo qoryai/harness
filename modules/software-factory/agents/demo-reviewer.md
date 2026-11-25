@@ -48,10 +48,9 @@ Load each skill when its step comes, and no other:
 
 You get the path of the artifact folder, the scenario id, the path of the demo script, the
 paths of the frames, the evidence of the scenario (`film` or `pictures`) and, when the
-session has one, the path of a notes file. The demo script is the file
-`demo-script/<id>/v<N>/<id>.json` with the largest `<N>` under the artifact folder, or the
-path that you get. Read each frame with Read, which shows an image. Read no file of the
-target, fetch no web page, retry no refused tool call, and read through no link.
+session has one, the path of a notes file. Read each frame with Read, which shows an image.
+Read no file of the target, fetch no web page, retry no refused tool call, and read through
+no link.
 
 ## Stop conditions
 

@@ -53,7 +53,7 @@ types. Start no agent that is not `demo-reviewer`.
    3, end as "Failures" lists for the checks script.
 3. For each `<type> <id>` of "To withdraw", run
    `<qory> artifact push <type> --name <id> --withdraw`. When the push exits with 4, qory
-   kept it: go on with the next. When it exits with another status other than 0, end as
+   kept it: go on with the next. When it exits with any other status, end as
    "Failures" lists, with "The run could not withdraw the evidence of a removed demo
    scenario."
 4. With "To film: none", go to "The end".
@@ -74,9 +74,11 @@ types. Start no agent that is not `demo-reviewer`.
      does not fit even after the second encode: record it with the class `script` and the
      first two lines of the output as the cause, as step 5 lists, push the evidence, and go
      to the next scenario.
-   - With 1 and the last line "Stored no film: it failed in the sign-in.", it is a setup
-     fault: do "A setup fault" with the first two lines of the output.
-   - With 1 and the last line "Stored no film: it failed in step <k>.", record the scenario
+   - With 1 and the last line "Stored no film: it failed in the sign-in." or "Stored no
+     pictures: it failed in the sign-in.", it is a setup fault: do "A setup fault" with the
+     first two lines of the output.
+   - With 1 and the last line "Stored no film: it failed in step <k>." or "Stored no
+     pictures: it failed in step <k>.", record the scenario
      with the class `script`, the first two lines of the output as the cause and `--step
      <k>`, as step 5 lists. Push the evidence and go to the next scenario.
    - With 3, do "A setup fault" with the first line of the output. When that line asks for
@@ -113,8 +115,10 @@ types. Start no agent that is not `demo-reviewer`.
 2. Start ${qory:agents/demo-reviewer} in the foreground. Pass it the input file's path
    `<inputs>`, `<folder>`, the scenario id, the path of the newest `demo-script` version of
    the scenario that counts, `<folder>/demo-script/<id>/v<V>/<id>.json`, the paths of the
-   frames, the evidence of the scenario, and the path of the notes file. Read no frame
-   yourself.
+   frames, the evidence of the scenario, and the path of the notes file. Take `<V>` from
+   `<folder>/index.json`: the highest `number` in `versions` of the entry whose `type` is
+   `demo-script` and whose `name` is `<id>`, of those with no `cancelled` set to `true`. Read
+   no frame yourself.
 3. Write its report to `<folder>/.reports/demo-reviewer-<n>.md` and check it, as "Check
    each report" lists. With a last word `blocked`, end as "Failures" lists, with "The
    review of the frames of <id> did not finish, because <its Blocked: line, in plain
@@ -146,7 +150,8 @@ cause".
 4. End with one line: "Setup failed, so <k> demo scenarios have no film: <ids>. <First
    line of the cause> Repair: <the fix in the first line of the output>." Cut it
    to 500 characters. With one scenario, write "1 demo scenario has no film". The `<ids>`
-   are the scenarios of "To film" that have no evidence pushed, joined by ", ".
+   are the scenarios of "To film" that have no film pushed, the failed one included, joined
+   by ", ".
 
 The next Build session reads this line, repairs the setup and commits, and a new run of
 `capture-demos` films the scenarios again for the new commit.

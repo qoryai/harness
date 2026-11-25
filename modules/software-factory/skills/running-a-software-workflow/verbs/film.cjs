@@ -13,11 +13,11 @@
 //                         after step N. It exits 0, and prints a line that names the files. A
 //                         failed step stores nothing, and exits 1 with the fix first. With
 //                         --film, a scenario whose script has the evidence pictures is filmed
-//                         too, for a step that a picture cannot show. The
-//                         first encode (pass 1) caps the bitrate so that the film fits one
-//                         version of qory. When the film is still over the limit, the call
-//                         keeps .film/<scenario>/ with the frames and exits 4 with the line
-//                         "Run film recode <scenario>.".
+//                         too, for a step that a picture cannot show. The first encode (pass
+//                         1) caps the bitrate so that the film fits one version of qory. When
+//                         the film is still over the limit, the call keeps .film/<scenario>/
+//                         with the frames and exits 4 with the line "Run film recode
+//                         <scenario>.".
 //   film recode <scenario>
 //                         encodes the kept frames again (pass 2), at 960 x 540 px, with a
 //                         lower quality and half the cap. A film that fits replaces the first
@@ -56,10 +56,11 @@
 // film recode is a separate call, with the same CALL_MS for ffmpeg alone; it exits 3 when
 // fewer than 20 s of it are left. The size is that of qory's rule for one version: the MP4 and
 // the WebVTT file, each as base64, and an envelope of 16 KiB, at most 32 MiB.
-// The verb stores nothing in Qory Apiary, writes no demo evidence and no ledger row: the
-// session pushes the files. Exit 3 means that an input is missing, that ffmpeg or the browser
-// is missing, or that the app, the browser or ffmpeg did not run. Exit 4 means that pass 1 left
-// a film over the limit and kept its frames.
+// film <scenario> and film pages store nothing in Qory Apiary, write no demo evidence and no
+// ledger row: the session pushes the files. Only film record writes demo evidence, to a file.
+// Exit 3 means that an input is missing, that ffmpeg or the browser is missing, or that the
+// app, the browser or ffmpeg did not run. Exit 4 means that pass 1 left a film over the limit
+// and kept its frames.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -79,8 +80,8 @@ const FOLDER = '.film';
 const WIDTHS = [360, 768, 1280];
 const ID = /^scenario-[1-9][0-9]?$/;
 const FRAME = /^f[0-9]{6}\.jpg$/;
-const USAGE = 'Give film, film recode or film frames with a scenario id, film todo, or film pages ' +
-  'with one path or more.';
+const USAGE = 'Give film a scenario id, or recode, frames, todo, record or pages with their ' +
+  'arguments.';
 // The path of ffmpeg in the image of qory, which apt installs, and the name for the PATH.
 const FFMPEG = ['/usr/bin/ffmpeg', 'ffmpeg'];
 // The most time of ffmpeg, and the least: ffmpegLimitMs gives it what is left of CALL_MS.
@@ -104,8 +105,8 @@ const RECODE_LEAST_MS = 20000;
 // The file that keeps the frames of a film between film and film recode.
 const CAPTURE_FILE = 'capture.json';
 const CLASSES = ['product', 'script', 'setup'];
-const RECORD_USAGE = 'Give film record a scenario id and --review <file> --media <N>, or ' +
-  '--class product, script or setup with --cause <text> and, if you like, --step <N>.';
+const RECORD_USAGE = 'Give film record a scenario id, then --review and --media, or --class ' +
+  'and --cause.';
 
 // rateCap returns the cap of pass 1 in kbit/s for a film of seconds: the rate at which the
 // film takes SHARE of FILES_BYTES, at most MOST_KBIT.
@@ -351,6 +352,9 @@ module.exports = (lib) => {
 
   // over keeps the frames of capture in dir, without the film that is over the limit, and prints
   // the line that asks for pass 2. It returns 4.
+  // shortcut: the frames of the film stay on disk between film and film recode, about 3.5 GB for
+  // 35,000 frames, so a film over the limit needs that space in the artifact folder; replace it
+  // with a lower rate in pass 1 when a run image has less space.
   function over(io, dir, capture, id, size) {
     fs.writeFileSync(path.join(dir, CAPTURE_FILE), JSON.stringify({ end: capture.end,
       frames: capture.frames.map(({ file, at }) => ({ file, at })) }));
@@ -505,11 +509,11 @@ module.exports = (lib) => {
   }
 
   // liveScenarios returns the ids of the scenarios of the approved demo scenarios that are not
-  // removed, or [] with no version.
+  // removed, or null when the artifact folder has no approved version.
   function liveScenarios(context) {
     const version = approved(context, 'demo-scenarios', 'demo-scenarios.md');
     return version ? scenarios(version.text).filter((one) => one.id && !one.removed)
-      .map((one) => one.id) : [];
+      .map((one) => one.id) : null;
   }
 
   // evidenceOf returns the data of the newest demo evidence of scenario id, or null for none, a
@@ -534,6 +538,10 @@ module.exports = (lib) => {
     }
     const context = new Context(root, 'check', io.home);
     const live = liveScenarios(context);
+    if (!live) {
+      throw new Missing('Pull the artifacts again.\nThe artifact folder has no approved demo ' +
+        'scenarios.');
+    }
     const film = live.filter((id) => {
       const version = context.counted('demo-script', id);
       if (version === null || context.withdrawn('demo-script', id)) return false;
@@ -594,13 +602,15 @@ module.exports = (lib) => {
     }
     const failed = steps.filter((one) => one.verdict === 'failed');
     if (steps.length !== count) {
-      return { problem: `Give the report one line "Step <N>: passed", "Step <N>: failed: <the ` +
-        `finding>" or "Step <N>: not-reached" for each step, in order.\nThe script has ` +
-        `${plural(count, 'step')}, and the report has ${steps.length} such lines.` };
+      return { problem: 'Give the report one line for each step, in order.\nThe forms are ' +
+        '"Step <N>: passed", "Step <N>: failed: <the finding>" and "Step <N>: not-reached". ' +
+        `The script has ${plural(count, 'step')}, and the report has ` +
+        `${plural(steps.length, 'such line')}.` };
     }
     if (failed.some((one) => !one.finding) || (failed.length && !klass)) {
-      return { problem: 'Give each failed step a finding and the report the line "Class: ' +
-        'product", "Class: script" or "Class: setup".\nThe report lacks one of them.' };
+      return { problem: 'Give each failed step a finding and the report a class line.\n' +
+        'The forms are "Class: product", "Class: script" and "Class: setup". The report lacks ' +
+        'one of them.' };
     }
     return { steps, klass };
   }

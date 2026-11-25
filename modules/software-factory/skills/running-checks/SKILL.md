@@ -209,9 +209,11 @@ that starts with `Cause:` contains the cause, in the words of the line that ends
 ## Film
 
 `<skill folder>/checks.cjs film <id> --inputs <inputs>` stores the evidence of one scenario in
-`<folder>/.film/<id>/`. With the evidence film, it stores `<id>.mp4` and `<id>.vtt`; with
-the evidence pictures, it stores `<id>-step-<N>.png`, one for each step. Push the files of
-the scenario once, with the type that its evidence names:
+`<folder>/.film/<id>/`. With the evidence film and a film that fits one version of qory, it
+stores `<id>.mp4` and `<id>.vtt`. When the film is over the limit after the first encode, it
+keeps the frames, stores no film and exits 4: run `film recode <id>`, which stores the two
+files or exits 1. With the evidence pictures, it stores `<id>-step-<N>.png`, one for each
+step. Push the files of the scenario once, with the type that its evidence names:
 
 ```
 <qory> artifact push demo-video --name <id> \

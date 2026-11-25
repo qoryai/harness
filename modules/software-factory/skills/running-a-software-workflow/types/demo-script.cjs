@@ -23,6 +23,9 @@ module.exports = (lib) => {
   // done step script:<id> has another sha256, and the ledger has no step for the next
   // correction yet, or the scenario has had its 2 corrections. A scenario with no done step is
   // unfrozen.
+  // shortcut: the next correction is taken as #<done rows + 1>, which assumes the done rows are
+  // contiguous from the first pass; replace it with the highest id of the ledger when a row can
+  // be missing.
   function frozen(run, file, data, text) {
     const ledger = ledgerOf(run.context);
     const rows = doneRows(ledger, data.scenario);

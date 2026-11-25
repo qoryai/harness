@@ -1565,8 +1565,9 @@ pass "$NOSCOPE"
 # qory fails the compose of a stack whose workflow starts the role with no agent to fill it.
 # The workflow capture-demos of software-factory starts no demo-author, so the module
 # fixture-demos ships a skill workflow-fixture-demos that starts agents/demo-author, as qory's
-# check of a workflow reads it, for a stack with the workflow fixture-demos. Each case composes a copy of this repository with the stack of the case, from a checkout
-# that extends the software stack of that copy by path:
+# check of a workflow reads it, for a stack with the workflow fixture-demos. Each case
+# composes a copy of this repository with the stack of the case, from a checkout that extends
+# the software stack of that copy by path:
 # - plain: no browser-screens and no fixture-demos;
 # - bare-demos: no browser-screens and fixture-demos, which fails;
 # - screen-demos: browser-screens and fixture-demos.
