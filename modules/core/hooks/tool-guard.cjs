@@ -446,21 +446,40 @@ const LINKS = 40;
 // Spent is the error that a budget throws when a call needs more work than the guard does.
 class Spent extends Error {}
 
+// The most time, in ms, that spend.waiting adds to a deadline in all: the runtime ends a hook at
+// 120 s, and TIME_LIMIT plus this is below it.
+const WAIT_LIMIT = 60000;
+
 // budget returns spend(units, clock), which counts units of work of one call and throws Spent
 // past WORK_LIMIT units or past deadline, a time in ms. It reads the clock when clock is true,
-// as before each read of the disk, and after each 64 units.
+// as before each read of the disk, and after each 64 units. spend.waiting(fn) returns fn(),
+// which waits on a program that the guard starts: the clock is not read while fn runs, and the
+// time of fn moves deadline later, up to WAIT_LIMIT in all.
 function budget(deadline = Date.now() + TIME_LIMIT) {
   let left = WORK_LIMIT;
   let since = 0;
-  return (units = 1, clock = false) => {
+  let moved = 0;
+  let inside = 0;
+  const spend = (units = 1, clock = false) => {
     left -= units;
     since += units;
     if (left < 0) throw new Spent();
     if (clock || since >= 64) {
       since = 0;
-      if (Date.now() > deadline) throw new Spent();
+      if (!inside && Date.now() > deadline + moved) throw new Spent();
     }
   };
+  spend.waiting = (fn) => {
+    const began = Date.now();
+    inside += 1;
+    try {
+      return fn();
+    } finally {
+      inside -= 1;
+      moved = Math.min(WAIT_LIMIT, moved + Date.now() - began);
+    }
+  };
+  return spend;
 }
 
 // The spend of the budget of the call that the guard reads, or null outside one.
@@ -504,20 +523,35 @@ const disk = {
   readdir: (full) => read(full, () => fs.readdirSync(full, { withFileTypes: true }), []),
 };
 
+// The stat of each locked file that sameFile read in the call that runs: the stat, false for a
+// file that is gone or has one link, or null for a read that failed. decide clears it.
+let lockedStats = new Map();
+
+function lockedStat(locked) {
+  if (!lockedStats.has(locked)) {
+    charge(1 + (locked.length >> 6), true);
+    let found;
+    try {
+      const mine = fs.statSync(locked, { throwIfNoEntry: false });
+      found = mine && mine.nlink >= 2 ? mine : false;
+    } catch {
+      found = null;
+    }
+    lockedStats.set(locked, found);
+  }
+  return lockedStats.get(locked);
+}
+
 // sameFile reports whether target is the file that locked is: they have one device and one
 // inode, so a hard link to a locked file is that file. Only a locked file with more than one
 // link has such a target, and a target that does not exist yet is no locked file. A read of
 // either file that fails for another reason than a missing entry counts as the same file, so
-// that the guard fails closed.
+// that the guard fails closed. It reads each locked file once in a call.
 function sameFile(target, locked) {
+  const mine = lockedStat(locked);
+  if (mine === null) return true;
+  if (mine === false) return false;
   charge(1 + (target.length >> 6), true);
-  let mine;
-  try {
-    mine = fs.statSync(locked, { throwIfNoEntry: false });
-  } catch {
-    return true;
-  }
-  if (!mine || mine.nlink < 2) return false;
   try {
     const theirs = fs.statSync(target, { throwIfNoEntry: false });
     return Boolean(theirs) && theirs.dev === mine.dev && theirs.ino === mine.ino;
@@ -2143,6 +2177,7 @@ function names(full, cwds, root) {
 // work than a budget allows, to deadline, a time in ms, is denied.
 function decide(args) {
   const spend = budget(args.deadline);
+  lockedStats = new Map();
   setHome((args.env || process.env).HOME);
   try {
     return metered(spend, () => decideCall({ ...args, spend }));
@@ -2212,10 +2247,16 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   let lock = null;
   const lockOf = () => {
     if (lock === null) {
-      lock = (locked || ((args) => lockedFiles(args)))({ root, env, script });
-      lock = liftedLock(lock, { io: () => lockSetup({ root, env, script }).io, fold,
-        type: agent ? typeOf() : null,
-        name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
+      // The reads of the lock and of the lift run `qory artifact pull`, whose time is no work of
+      // the guard.
+      const read = () => {
+        lock = (locked || ((args) => lockedFiles(args)))({ root, env, script });
+        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script }).io, fold,
+          type: agent ? typeOf() : null,
+          name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
+      };
+      if (spend && spend.waiting) spend.waiting(read);
+      else read();
     }
     return lock;
   };

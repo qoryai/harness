@@ -499,6 +499,35 @@ test('the guard reads the criteria that a run pulls, not the artifact folder tha
   assert.equal(hidden.call(writeOf(hidden.a)), null);
 });
 
+test('the guard reads each locked file once, so many locked files and many words stay within its work limit', () => {
+  const dir = working();
+  fs.mkdirSync(path.join(dir, 'many'));
+  const files = Array.from({ length: 500 }, (_, i) => path.join(dir, 'many', `c${i}.check.ts`));
+  for (const file of files) fs.writeFileSync(file, CHECK_TEXT);
+  fs.linkSync(files[7], path.join(dir, 'alias.txt'));
+  const run = (command) => decide({ input: { ...claude('Bash', { command }, 'implementer'),
+    cwd: dir }, env: RUN, runtime: 'claude', root: dir,
+    locked: () => ({ what: 'acceptance-lock version 1', files, number: 1 }) });
+  // 300 words that name no locked file: 150000 comparisons, none of which reads the disk again.
+  const words = Array.from({ length: 300 }, (_, i) => `tmp/w${i}.txt`).join(' ');
+  assert.equal(run(`rm ${words}`), null);
+  // A locked file and a hard link to one are still found among them.
+  firstLine(run(`rm ${words} many/c9.check.ts`), LOCKED_START);
+  firstLine(run(`rm ${words} alias.txt`), LOCKED_START);
+});
+
+test('the guard does not count the time of a pull against its time limit', () => {
+  // Each of the four pulls of a write by the writer takes 0.2 s: 0.8 s in all, past a deadline
+  // of 0.4 s after the start of the call. The time of the pulls moves the deadline.
+  const slow = liftCase({}, { pause: 0.2 });
+  assert.equal(slow.call(writeOf(slow.a), 'claude', {}, { deadline: Date.now() + 400 }), null);
+  firstLine(slow.call(writeOf(slow.b), 'claude', {}, { deadline: Date.now() + 400 }),
+    LOCKED_START);
+  // A deadline that was over 3 s before the call stays over: the move is the time of the pulls.
+  firstLine(slow.call(writeOf(slow.a), 'claude', {}, { deadline: Date.now() - 3000 }),
+    'Split this command into smaller calls');
+});
+
 test('the guard keeps a check locked when the lock locks the target version', () => {
   // The lock locks version 2 and records the old hash of ac-4: the target is not newer.
   const same = liftCase({ locked: 2, hashFrom: [AC1, AC4] });
