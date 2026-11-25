@@ -70,6 +70,30 @@ module.exports = (lib) => {
     return text;
   }
 
+  // The calls of the scan that printed the warning of scanValues of lib/secrets.cjs.
+  const warned = new WeakSet();
+
+  // keyValues returns the values of scanValues of lib/secrets.cjs for io, with the key shapes,
+  // for the scan for keys of scope and freeze. It prints the warning of scanValues once for
+  // io, and throws the Missing of a qory.key_shapes whose file cannot be used: no scan runs
+  // without the shapes that the deployment adds.
+  function keyValues(io) {
+    const got = secrets.scanValues(io.env);
+    if (got.problem) throw new Missing(got.problem[0], [got.problem[1]]);
+    if (got.warning && !warned.has(io)) {
+      warned.add(io);
+      io.err.write(`${got.warning}\n`);
+    }
+    return got.values;
+  }
+
+  // withKind returns line(kind) when it has at most 100 characters, else line('a key') with the
+  // kind on the line after it, since the name of a shape has up to 48 characters.
+  function withKind(line, kind) {
+    const text = line(kind);
+    return text.length <= 100 ? text : `${line('a key')}\nThe key has the form of ${kind}.`;
+  }
+
   // options returns { step, plan, base, inputs, artifacts } of the arguments of scope or
   // freeze, each option undefined when it is not given, or { problem }, the line of wrong
   // arguments.
@@ -335,19 +359,22 @@ module.exports = (lib) => {
   // commit, when set, is the commit that tree belongs to, for the words of a line, and verb
   // the verb that the fix runs again.
   function scan(io, top, from, tree, commit, verb = 'freeze') {
-    const values = secrets.secretValues(io.env);
+    const values = keyValues(io);
     const files = treeChanges(io, top, from, tree).filter((one) => !/^0+$/.test(one.mode));
     const size = sizes(io, top, files.filter((one) => one.mode !== GITLINK)
       .map((one) => one.blob));
     const empty = files.length ? git.emptyBlob(Missing, top, io.env) : null;
     const lines = [];
     const short = commit && commit.slice(0, 12);
-    // Each line is the fix alone: qory pushes every commit, and a key in a commit leaks, as
+    // Each line is the fix alone, with the kind of key on the line after it when the fix would
+    // pass 100 characters: qory pushes every commit, and a key in a commit leaks, as
     // running-checks (SKILL.md) states.
-    const fix = (kind, where) => (commit ? `Rewrite commit ${short} without ${kind} in ${where}.`
+    const line = (kind, where) => (commit ? `Rewrite commit ${short} without ${kind} in ${where}.`
       : `Remove ${kind} from ${where}, then ${verb} again.`);
-    const fixAt = (kind, name, line) => fitted(name, (quoted) => fix(kind,
-      `${quoted}, line ${line}`));
+    const fix = (kind, where) => withKind((one) => line(one, where), kind);
+    // The name is cut so that the line keeps the kind, down to 6 characters of the name.
+    const fixAt = (kind, name, at) => withKind((one) => fitted(name, (quoted) => line(one,
+      `${quoted}, line ${at}`)), kind);
     for (const { file: name, utf8, mode, blob, oldMode, oldBlob } of files) {
       const kind = secrets.scanLine(name, values);
       if (kind) {
@@ -399,7 +426,7 @@ module.exports = (lib) => {
   // encoding header other than UTF-8, such as UTF-16, is a line too: the scan reads UTF-8,
   // and a key in another encoding has other bytes. verb is the verb that the fix runs again.
   function scanCommit(io, top, commit, verb) {
-    const values = secrets.secretValues(io.env);
+    const values = keyValues(io);
     const bytes = git.ok(Missing, top, ['cat-file', 'commit', commit], `Run ${verb} again`,
       { env: io.env, raw: true });
     const text = bytes.toString('utf8');
@@ -413,8 +440,8 @@ module.exports = (lib) => {
     // A key in two headers, such as the author and the committer, results in one line.
     return [...new Set(text.split('\n').flatMap((line) => {
       const kind = secrets.scanLine(line, values);
-      return kind ? [`Rewrite the message and headers of commit ${commit.slice(0, 12)} without ` +
-        `${kind}.`] : [];
+      return kind ? [withKind((one) => 'Rewrite the message and headers of commit ' +
+        `${commit.slice(0, 12)} without ${one}.`, kind)] : [];
     }))];
   }
 
