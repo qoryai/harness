@@ -1,9 +1,9 @@
 // A criterion that build-planner or acceptance-check-writer cannot meet as approved: the
 // report of the agent has the line "Blocked: needs a change to criterion <ac-N>: <the
-// change>". Each such criterion needs
-// one question with the three answers that lib/ac-question.cjs checks, and an `answer` point on
-// it. The rule of points.json checks that point, and the check at the end finds a session that
-// ends with such a line and no points.json.
+// change>". Each such criterion needs one question with the three answers that
+// lib/ac-question.cjs checks, and an `answer` point on it. The rule of points.json checks that
+// point, and the check at the end finds a session that ends with such a line and no
+// points.json.
 'use strict';
 
 const fs = require('node:fs');
