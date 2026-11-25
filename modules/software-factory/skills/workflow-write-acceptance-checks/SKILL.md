@@ -41,7 +41,7 @@ run no other command in the same call.
    has an extension, such as `tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a
    scenario id are none. Take these facts:
    - the Tests criteria: each entry of `criteria` in the JSON whose `check` is `Tests` and
-     that has no `removed` member set to `true`;
+     that has no `removed` member (an object `{reason}`);
    - the check paths: each Check cell of `## Deliverables` that is a check path. The
      criteria of that row are the ones of its Criteria cell, and its Files are the Files of
      that row;

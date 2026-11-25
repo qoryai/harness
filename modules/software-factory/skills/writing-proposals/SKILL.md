@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, track, sources and targets, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, track, commands, sources and targets, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -49,6 +49,8 @@ Edit those files in place, as `reading-the-work` lists.
 
 The proposal is Markdown with five sections, in this order and with these headings:
 `## Summary`, `## Background`, `## Proposed solution`, `## Track` and `## Sources`.
+On the fast track it has six: `## Commands` comes after `## Track`, as the section "The
+commands" lists.
 
 The proposal is a Markdown document and follows the section "Markdown documents" of
 `artifact-text`, with its parts under `## Proposed solution`. For a proposal, this skill
@@ -143,9 +145,10 @@ A Today/After table is a table with the columns "Today" and "After".
   for having no picture.
 - Every table cell has at most 12 words, except a "Why not" cell, which has at most 15.
 - The whole proposal has at most 450 words.
-- Count every word except those of Mermaid blocks, wireframe image links and `## Sources`.
+- Count every word except those of Mermaid blocks, wireframe image links, `## Commands`
+  and `## Sources`.
 - Tables, the whole background and code blocks count toward the 450 words.
-- `## Sources` counts toward no limit.
+- `## Commands` and `## Sources` count toward no limit.
 - The reason of every decided question in the questions counts toward the 450 words.
 - The member reads those reasons in the **Decisions** section right under the proposal on
   the work item page.
@@ -327,7 +330,41 @@ to a file with no extension takes the standard track. Write nothing else under
 
 When a finding on the track stays open, write "Standard track.". `check proposal` refuses
 the fast track unless the newest review read exactly that `## Track` and found nothing wrong
-with it, as `checking-proposals` lists. When it refuses, write "Standard track.".
+with it, as `checking-proposals` lists. When it refuses, write "Standard track.". On
+the standard track, write no `## Commands`.
+
+## The commands
+
+On the fast track, write `## Commands` after `## Track` and before `## Sources`. The fast
+track has no build plan, so the run reads the commands of the lint, the build and the full
+suite from the approved proposal. The standard track has no such section.
+
+Write one table with the columns `Kind`, `Command`, `Result file` and `Source`, with one row
+for each of the kinds `lint`, `build` and `full`.
+
+- **Result file:** for `full`, the JUnit XML file that it writes, or `none`. For `lint` and
+  `build`, `none`.
+- **Command:** a command that the code explorer's report or a file shows. For `lint` and
+  `build` with no such command, write `none` in Command, and in Source the reason, such as
+  "The repository has no linter." Never write `none` in `full`. Never write a command that no
+  report and no file shows.
+- **Source:** where the command comes from, in one of three forms: `repository: <file>`,
+  when a file of the repository declares it; `module: <name>`, when a technology module
+  provides it; or `found: <file>:<line>`, the file and line that state it.
+
+With no full test suite, write the track Standard.
+
+For example:
+
+```markdown
+## Commands
+
+| Kind | Command | Result file | Source |
+|---|---|---|---|
+| lint | `npm run lint` | none | found: `package.json:12` |
+| build | none | none | `package.json` has no build script. |
+| full | `npm test` | none | found: `package.json:14` |
+```
 
 ## The sources
 
