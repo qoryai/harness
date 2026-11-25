@@ -1048,6 +1048,22 @@ test('findings round: the line rule of a point and a file is the $defs line of t
     `Node's Unicode ${process.versions.unicode}`);
 });
 
+test('findings round --previous: a finding of a check with the name of a reviewer is not its ' +
+  'finding', () => {
+  const previous = previousFile([['f1', 'code-reviewer', 'open',
+    { source: { kind: 'check', name: 'code-reviewer' } }]]);
+  const left = sessionFolder({ 'code-reviewer': { reviewer: 'code-reviewer', findings: [] } });
+  const got = withPrevious(left.dir, left.suite, ['code-reviewer'], previous);
+  assert.equal(got.status, 0, got.out);
+  assert.deepEqual(got.lines, ['Checked 1 report and the suite result: 0 blocking, 0 ' +
+    'non-blocking open findings; 0 closed.']);
+  const repeated = sessionFolder({ 'code-reviewer': { reviewer: 'code-reviewer',
+    findings: [{ ...REVIEWED, id: 'f1' }] } });
+  assert.equal(withPrevious(repeated.dir, repeated.suite, ['code-reviewer'], previous).lines[0],
+    "Blocking finding of code-reviewer: Remove f1 from the repeated findings in code-reviewer's " +
+    'report: f1 is not a finding of that reviewer.');
+});
+
 test('findings round: more than 100 findings or closes, and a bad close, are invalid', () => {
   const name = 'code-reviewer';
   const close = { id: 'f1', state: 'fixed', reason: 'Fixed.' };
@@ -1095,7 +1111,14 @@ test('findings round --previous: a file that is missing, broken or of two stages
     ['f2', 'code-reviewer', 'open', { stage: 'verify' }]]);
   const broken = path.join(tmp, `previous-${++files}.json`);
   fs.writeFileSync(broken, JSON.stringify({ round: 1, reviewers: [] }));
+  // A file over 256 KB, and a link to a file that can be read.
+  const large = path.join(tmp, `previous-${++files}.json`);
+  fs.writeFileSync(large, JSON.stringify({ round: 1, findings: [], pad: 'x'.repeat(262144) }));
+  const link = path.join(tmp, `previous-${++files}.json`);
+  fs.symlinkSync(previousFile([['f1', 'code-reviewer', 'open']]), link);
   for (const [file, cause] of [[path.join(tmp, 'absent-previous.json'), /is not a regular file/],
+    [large, /is not a regular file of at most 256 KB\./],
+    [link, /is not a regular file of at most 256 KB\./],
     [broken, /has no list findings/], [two, /has findings of 2 stages\./]]) {
     const got = withPrevious(dir, suite, ['code-reviewer'], file);
     assert.equal(got.status, 3, got.out);

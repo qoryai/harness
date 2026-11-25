@@ -1027,6 +1027,15 @@ test('ledger: step end done needs a passing report of the reviewer for the file'
       stopped(start, problem ? `  Reviewer ${reviewer} wrote a report that ${problem}.`
         : `  Reviewer ${reviewer} wrote a report for the reviewer spec-reviewer.`, missing[2]);
     }
+    // A step has no earlier finding, so a report that repeats or closes an id is invalid.
+    const later = { ...finding('non-blocking', 'broken rule: rule 7.'), id: 'f1' };
+    for (const [broken, what, id] of [[{ findings: [later] }, 'repeated', 'f1'],
+      [{ findings: [], closes: [{ id: 'f2', state: 'fixed', reason: 'Fixed.' }] }, 'closed',
+        'f2']]) {
+      fs.writeFileSync(reported, JSON.stringify({ reviewer, ...broken }));
+      stopped(start, `  Remove ${id} from the ${what} findings in ${reviewer}'s report: ${id} ` +
+        'is not a finding of that reviewer.', missing[2]);
+    }
     // A blocking finding stops the step, and a report with other findings alone passes.
     const low = finding('non-blocking', 'broken rule: rule 7.');
     fs.writeFileSync(reported, JSON.stringify({ reviewer, findings: [low,
