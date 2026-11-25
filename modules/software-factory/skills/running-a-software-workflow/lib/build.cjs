@@ -333,8 +333,8 @@ module.exports = (lib) => {
   const ANSWER = /^an_/;
 
   // lockDoc returns the parsed acceptance-lock.json of lock version number in the store, or
-  // null when the store has no such file, no pull returned it (context.pulled), or it is no
-  // JSON object.
+  // null when the store has no such file, no pull returned it (context.pulled), the entry of
+  // the version in index.json does not list the file, or it is no JSON object.
   function lockDoc(context, number) {
     if (context.has && (!context.has('acceptance-lock', 'main', number) ||
       !context.listed('acceptance-lock', 'main', number, 'acceptance-lock.json'))) return null;
@@ -551,7 +551,8 @@ module.exports = (lib) => {
   }
 
   // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
-  // the store, or null when the store has no such file or no pull returned it (context.pulled).
+  // the store, or null when the store has no such file, no pull returned it (context.pulled),
+  // or the entry of the version in index.json does not list the file.
   function criteriaFile(context, number) {
     if (context.has && (!context.has('acceptance-criteria', 'main', number) ||
       !context.listed('acceptance-criteria', 'main', number, 'acceptance-criteria.json'))) {

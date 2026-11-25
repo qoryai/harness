@@ -614,10 +614,10 @@ module.exports = (lib) => {
   // the folder of its type, and the folders of earlier pulls and of agents stay. So it pulls,
   // each by number, what criteriaTarget reads (criteriaReads): the questions, each lock, each
   // criteria version that an answer links, and then the target version. The Context reads only
-  // the versions that these pulls returned (context.pulled), never a folder on disk. After the
-  // last pull it reads index.json again: when that list needs a version that no pull returned,
-  // or the target differs, nothing lifts. A pull that fails throws. Outside a run, the artifact
-  // folder is the store.
+  // the versions that these pulls returned (context.pulled), and in them only the files that
+  // index.json lists, never a folder on disk. After the last pull it reads index.json again:
+  // when that list needs a version that no pull returned, or the target differs, nothing
+  // lifts. A pull that fails throws. Outside a run, the artifact folder is the store.
   function targetOf(io) {
     const inRun = Boolean(io.env && io.env.QORY_RUN_ID);
     const pulled = new Set();
