@@ -151,7 +151,13 @@ test('the session starts the developer twice and the debugger once per step, the
     '2. When the checkout has a change, commit it with the two commands of "The end".',
     'When the commit has a file with a key, a path outside the Files of every deliverable, a ' +
     'new repository folder or a changed submodule, the scope check of qory\'s push stops the ' +
-    'push, and qory pushes no commit of the run, those of the done steps included.');
+    'push, and qory pushes no commit of the run, those of the done steps included. When ' +
+    '`git add -A` exits with 128, as for a new repository folder with no commit or a file that ' +
+    'git cannot read, the commit has only the changes to files that git tracks, and no new ' +
+    'file; when git cannot read a tracked file, `git commit` exits with 128 too and makes no ' +
+    'commit. When a submodule or a new repository folder has changed files, those files stay ' +
+    'out of the commit. In both cases the end check stops each end, and its third stop ends ' +
+    'the run with its point.');
   assert.doesNotMatch(oneLine(failed), /git checkout|rm -rf|scope --plan|same: /);
   contains(failed, 'Then do "The ' +
     'submission". When a case of "The submission" ends the run, end as that case lists. ' +
@@ -1220,6 +1226,26 @@ test('the session commits its changes with no git identity set, and nothing of .
       GIT_CONFIG_NOSYSTEM: '1' } });
   assert.equal(bare.status, 128, bare.stderr);
   assert.match(bare.stderr, /Author identity unknown/);
+});
+
+// A new repository folder with no commit makes git add exit 128, so the commit takes only the
+// change to a tracked file, and the end check stops the end on what stays.
+test('with a new repository folder with no commit, the commit has no new file', () => {
+  const w = work();
+  writeFile(w, 'src/orders.cjs', LINES);
+  writeFile(w, 'tests/new.txt', 'new\n');
+  writeFile(w, 'tests/nested/a.txt', 'a\n');
+  git(path.join(w.repo, 'tests/nested'), w.env, 'init', '-q');
+  const before = git(w.repo, w.env, 'rev-parse', 'HEAD');
+  const done = commitChanges(w, 'Keep the files of the failed step');
+  assert.equal(done.added, 128);
+  assert.equal(done.status, 0, done.stderr);
+  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD~1'), before);
+  assert.equal(git(w.repo, w.env, 'show', '--format=', '--name-only', 'HEAD'), 'src/orders.cjs');
+  const ended = session(w)('end', w.artifacts, '--inputs', buildInputs(w));
+  assert.equal(ended.status, 1, ended.out + ended.err);
+  assert.equal(ended.out.split('\n')[0], COMMIT_FIX);
+  assert.match(notCommitted(ended), /tests\/nested.*tests\/new\.txt \(2 in all\)$/);
 });
 
 test('a later run whose first new step fails ends with a point, though an earlier run built ' +

@@ -224,7 +224,12 @@ failed step started.
 
 When the commit has a file with a key, a path outside the Files of every deliverable, a new
 repository folder or a changed submodule, the scope check of qory's push stops the push, and
-qory pushes no commit of the run, those of the done steps included.
+qory pushes no commit of the run, those of the done steps included. When `git add -A` exits
+with 128, as for a new repository folder with no commit or a file that git cannot read, the
+commit has only the changes to files that git tracks, and no new file; when git cannot read
+a tracked file, `git commit` exits with 128 too and makes no commit. When a submodule or a
+new repository folder has changed files, those files stay out of the commit. In both cases
+the end check stops each end, and its third stop ends the run with its point.
 
 Then do "The submission". When a case of "The submission" ends the run, end as that case
 lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
