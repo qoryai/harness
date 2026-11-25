@@ -5792,7 +5792,7 @@ test('questions: a proposal is text of 1 to 2000 characters', () => {
 
 const AC3 = 'The reply states that support is closed on 25 December';
 
-// acQuestion returns a new question about the criterion ac-3 that Verify asks, with changes.
+// acQuestion returns a new question about the blocked criterion ac-3, with changes.
 function acQuestion(changes = {}) {
   return q7({
     question: 'How should the criterion about 25 December be met?',
@@ -5809,7 +5809,7 @@ function acQuestion(changes = {}) {
   });
 }
 
-test('questions: a question about a criterion with the answers of Verify has the whole form', () => {
+test('questions: a question about a criterion with the three answers has the whole form', () => {
   const add = (changes) => questionsAfter((byId, data) => { data.questions.push(acQuestion(changes)); });
   passes(add());
   const options = acQuestion().options;
@@ -5885,11 +5885,12 @@ test('questions: in a check with a Blocked: line on the criterion, a new questio
   fails(ask(), /^Give q7 3 options: Change AC-N, Make it met another way and Withdraw AC-N\. q7 has 2\.$/);
   fails(ask({ report: 'acceptance-check-writer-2.md' }),
     /^Give q7 1 option with the title "Change AC-N"\. q7 has 0\.$/);
-  // No line, the line of another agent, a line on another criterion, and a kept question are
-  // not read.
+  // No line, the line of another agent, a line on another criterion, the record of matrix of
+  // Verify, which asks no question, and a kept question are not read.
   passes(ask({ report: null }));
   passes(ask({ report: 'decision-writer-1.md' }));
   passes(ask({ text: BLOCKED.replace('ac-3', 'ac-2') }));
+  passes(ask({ report: 'matrix-record.json', text: '{"commit": "c", "matrix": []}' }));
   passes(ask({ stored: true }));
   // A full question passes with the line.
   passes(ask({ question: acQuestion() }));

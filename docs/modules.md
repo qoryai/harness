@@ -290,7 +290,7 @@ the workflow.
 ### The workflow of Verify
 
 `workflow-verify-a-ticket` is a review session with the access `write-no-push`: it pushes
-the matrix and its questions, and no code. Its steps, in order:
+the matrix and the walkthrough, and no code. Its steps, in order:
 
 1. It pulls, runs `work-item show` and `resume`, and ends with "Failures" when the run has
    no `run.id` or the input file has no `qory.review_session`.
@@ -313,20 +313,18 @@ the matrix and its questions, and no code. Its steps, in order:
    the input file only, and runs `findings round <reports> --reviewers
    tamper-reviewer,verification-reviewer`, with `--suite` only when
    `qory.review_session.suite_result` exists.
-6. It pushes `verification` with either verdict, and takes the time of the version. A run
-   that ends before this step pushes nothing: each `run_again` end, the `changes-requested`
-   end of step 3 and each end as "Failures" lists.
+6. It pushes `verification` with either verdict. A run that ends before this step pushes
+   nothing: each `run_again` end, the `changes-requested` end of step 3 and each end as
+   "Failures" lists.
 7. It makes the walkthrough, as the section "The walkthrough of Verify" lists, and pushes
    `walkthrough` when the check script passes. A walkthrough that fails blocks nothing.
-8. For each row of `verification.json` with the state `not_met`, it writes one question
-   about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
-   and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
-   `questions`.
-9. It records `passed` when the lock verified, the matrix has no `not_met` and no
+8. It records `passed` when the lock verified, the matrix has no `not_met` and no
    `not_verified` row, no scenario of the commit under review has a `verdict` other than
    `passed`, and no finding is blocking. Otherwise it records `changes-requested` with no
    point, and qory writes the findings for the next session of `implement-changes` from the
-   reports.
+   reports. It asks no question: a criterion that is not met makes the verdict
+   `changes-requested`, and Build fixes it, or asks about it as "A blocked criterion" of
+   `running-a-software-workflow` lists.
 
 A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
 rule 13 read `review_group` of the stack entry.
@@ -2550,18 +2548,17 @@ The checks:
   the run and the same question in the newest questions, and the check reads nothing of
   what a rule tests. The same skill adds the rule for `acceptance-criteria`, which reads a
   question in two cases: it has an option titled `Change AC-N`, `Make it met another way`
-  or `Withdraw AC-N`, the three answers that Verify writes for a criterion that cannot be
-  met; or, in a check, the question is new and the artifact folder has
-  `.reports/matrix-record.json`, which only Verify writes, or the newest report of
-  `build-planner`, `acceptance-check-writer`, `software-developer` or `software-debugger`
-  has the line `Blocked: needs a change to criterion <about.item>`. It refuses a question with other
-  than 3 options, with other than one option of each of the three titles, with the number
-  of `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on
-  the change option, with a `context` that has no paragraph starting `**Why:**` or none
-  starting `**Checked:**`, and with an `about.item` that is not the lower-case id, such as
-  `ac-3`. A push cannot tell the workflow, so a question of Verify with none of the three
-  titles passes a push. In a push, and in a folder with no such record, a question about a
-  criterion with none of those titles, such as a question of the spec, has no such rule. The
+  or `Withdraw AC-N`, the three answers of a criterion that Build cannot meet as approved;
+  or, in a check, the question is new and the newest report of `build-planner`,
+  `acceptance-check-writer`, `software-developer` or `software-debugger` has the line
+  `Blocked: needs a change to criterion <about.item>`. It refuses a question with other than
+  3 options, with other than one option of each of the three titles, with the number of
+  `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on the
+  change option, with a `context` that has no paragraph starting `**Why:**` or none starting
+  `**Checked:**`, and with an `about.item` that is not the lower-case id, such as `ac-3`. A
+  push reads no report, so such a question with none of the three titles passes a push. In
+  a push, and in a folder with no such line, a question about a criterion with none of
+  those titles, such as a question of the spec, has no such rule. The
   same skill adds the reader of `feedback`, whose items are the ids of its points, and the
   rule for the question of a point, for an `about` of the type `feedback` or
   `acceptance-criteria`. The rule reads a new question whose id a point of the feedback has as

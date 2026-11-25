@@ -364,10 +364,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   The registry of the checks gains `questionRules`, rules for the questions about an output
   of a type; `software-factory` registers one for `acceptance-criteria` that refuses a
   question with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, or
-  a new question in a check of a folder with the record of `matrix`, unless it has 3
-  options, one of each answer with the number of `about.item`, a `proposal` on the Change
-  option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a lower-case
-  `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
+  a new question in a check of a folder with a `Blocked:` line on its criterion, unless it
+  has 3 options, one of each answer with the number of `about.item`, a `proposal` on the
+  Change option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a
+  lower-case `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
   run, because an agent can change the local store, and a criterion that rests on a type
   that cannot be pulled is not verified. `matrix` counts only the newest record of `run
   locked` for the lock and commit and the run id of the session, and only when it is a
@@ -376,7 +376,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with no `paths`. `workflow-verify-a-ticket` and the stack entry `verify-a-ticket`
   (`write-no-push`, `review_group: verify-reviewers`) run Verify as a review session: the
   lock at the approved version, `run locked`, `matrix`, both reviewers, the round, the push
-  of the verification, one question for each criterion that is not met, and the verdict. It
+  of the verification, and the verdict, with no question: a criterion that is not met makes
+  the verdict `changes-requested`. It
   records `passed` only when every criterion is met, no scenario of the commit has a failed
   verdict and no finding is blocking. `judging-criteria` and `verification-reviewer` read
   the draft `verification.json` at the top of the artifact folder, not a `verification`
