@@ -100,12 +100,14 @@ types. Start no agent that is not `demo-reviewer`.
      of the output as the cause and `--step <k>`, as step 5 lists. Push the evidence and go
      to the next scenario.
    - With 3 and "Kind: outside" on a line of the output, do "An outside cause": this is a
-     browser or ffmpeg that is missing, or an ffmpeg or a capture that did not finish. With
-     3 and "Kind: setup", do "A setup fault" with the first two lines of the output.
+     browser or ffmpeg that is missing, an ffmpeg that did not finish, or a disk that is
+     full. With 3 and "Kind: setup", do "A setup fault" with the first two lines of the
+     output.
    - With 2 or another status, or 3 with no "Kind:" line, end as "Failures" lists for the
      checks script.
-2. With the evidence `film`, run `<skill folder>/checks.cjs film frames <id>`. With the
-   evidence `pictures`, the pictures `<folder>/.film/<id>/<id>-step-<N>.png` are the frames.
+2. With the evidence `film`, run `<skill folder>/checks.cjs film frames <id>`. With 3 and
+   "Kind: outside" (no ffmpeg on the machine), do "An outside cause". With the evidence
+   `pictures`, the pictures `<folder>/.film/<id>/<id>-step-<N>.png` are the frames.
 3. Review the frames, as "The review" lists. The review gives each step a verdict, and a
    class for a failed step.
 4. Push the media, once, with the type that fits the evidence, as the section "Film" of
@@ -192,7 +194,7 @@ no criterion rests on reaches Build only through a later round.
 ## An outside cause
 
 An outside cause is a failure that no change to the repository repairs: the dev container
-has no browser or no ffmpeg, ffmpeg runs out of time, the runner cannot finish a capture,
+has no browser or no ffmpeg, ffmpeg runs out of time, the disk is full,
 or the workspace lacks a secret or variable that a demo script types. The script marks it
 with the line "Kind: outside".
 
@@ -205,7 +207,7 @@ it passes, go on. When it fails again, do the steps below.
    one `run_again` point. Its `text` is "The run could not film <ids>, because <the cause in
    plain words>." Its `fix` is the action of the person: the first line of the output up to
    the comma or its final period, then ", then run another round.", such as "Add ffmpeg to
-   the dev container, then run another round." or "Add <name> in Workspace settings >
+   the dev container, then run another round." or "Add "<name>" in Workspace settings >
    Secrets and variables, then run another round."
 2. Run `<skill folder>/checks.cjs check points <folder>/points.json`. With 1, correct the
    lines it prints, at most twice.

@@ -26,11 +26,13 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
     [--artifacts <folder>]
 <skill folder>/checks.cjs prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]
 <skill folder>/checks.cjs preflight [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.cjs film <id> [--inputs <path>] [--artifacts <folder>]
+<skill folder>/checks.cjs demo run <id> [--inputs <path>] [--artifacts <folder>]
 ```
 
 In a run, the prompt contains the path of the run's inputs, a file that ends in
 `/in/inputs.json`. Pass that path as `--inputs <path>` to each call of `run`, `scope`,
-`freeze`, `probe` and `preflight`. The script reads these from it:
+`freeze`, `probe`, `preflight`, `film` and `demo run`. The script reads these from it:
 
 - the time limits, when the file has them;
 - `qory.start_commits`, which `scope` and `freeze` use as the base, so that they check
@@ -38,6 +40,9 @@ In a run, the prompt contains the path of the run's inputs, a file that ends in
   with its commit at the start; a read-only repository has no entry;
 - `qory.start_artifacts`, the folder of the build plans that qory pulled at the start of
   the run, which every verb reads the build plan from, in place of the artifact folder.
+  `preflight`, `film` and `demo run` read no other folder in a run: each exits 3 without
+  `--inputs`, with an empty `qory.start_artifacts`, and with an `--artifacts` that is another
+  folder.
   When it is `""`, the run pulled no build plans at the start, and every verb reads the
   build plan from the artifact folder of the session.
 
@@ -216,13 +221,12 @@ that starts with `Cause:` contains the cause, in the words of the line that ends
 stores `<id>.mp4` and `<id>.vtt`. When the film is over the limit after the first encode, it
 keeps the frames, stores no film and exits 4: run `film recode <id>`, which stores the two
 files, exits 1 when the film is still over the limit, or exits 3 with "Kind: outside" when
-ffmpeg runs out of time. With the evidence pictures, it stores `<id>-step-<N>.png`, one for each
-step. A run that fails in a step after it recorded something exits 5 and keeps the film up to
-that step or the pictures before it, for the review: push no file of it. When ffmpeg runs out
-of time on that film, or the runner cannot finish the capture, it exits 3 with "Kind:
-outside". A finding that ends
-with the line "Kind: outside" has a cause that no change to the repository repairs, and
-"Kind: setup" one that a change repairs. Push the files of the scenario once, with the type
+ffmpeg runs out of time. With the evidence pictures, it stores `<id>-step-<N>.png`, one for
+each step. A run that fails in a step after it recorded something exits 5 and keeps the film
+up to that step or the pictures before it, for the review: push no file of it. When ffmpeg
+runs out of time on that film, or the disk is full while the runner writes it, it exits 3 with
+"Kind: outside". A finding that ends with the line "Kind: outside" has a cause that no change
+to the repository repairs, and "Kind: setup" one that a change repairs. Push the files of the scenario once, with the type
 that fits its evidence:
 
 ```

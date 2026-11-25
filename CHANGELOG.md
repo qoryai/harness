@@ -8,33 +8,32 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
-  a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
-  the `App address:` of the build plan, signs in with the replay of `preflight`, and runs
-  the steps in a page of 1280 x 720 px. A `film` scenario gets `<scenario>.mp4`, which
-  ffmpeg makes from the frames of the page from the start of step 1 at real speed, and
-  `<scenario>.vtt` with one cue per step. A `pictures` scenario runs with video off and
-  gets `<scenario>-step-<N>.png`, one picture per step. `film pages <path>...` takes
-  pictures of pages at 360, 768 and 1280 px, for the screen reviewers. A call ends within
-  585 s, so run the film call with a tool timeout of at least 600 s: 15 s to stop the runner,
-  35 s for the encode (measured: 29 s for 28,000 frames with 18 CPUs, 61 s with 2) and 535 s
-  for the runner. The
-  runner's 535 s are 120 s for the start of the app, the browser and the sign-in, which share
-  one deadline, and 415 s for the waits of the setup and the steps. A run past its limit exits
-  3 with "Shorten the waits or the steps of <scenario>.json, then film it again." and "The film
-  ran past its limit of <n> s." A step `open` outside the App address fails. The waits of a
-  setup count against the 415 s and also against the 120 s deadline, and `demo check` refuses
-  a setup whose waits add up to more than 120 s. `demo check` refuses a step `open` outside
-  the App address, as the run does. When the 120 s run out before the browser starts or
-  during the sign-in, `film` exits 3 with "Shorten the sign-in steps of <scenario>.json, or make
-  the app start faster, then film it again." and "The 120 s for the app start, the sign-in and
-  the browser ran out before the browser started." ffmpeg gets what is left of the 585 s, at
-  most 90 s and at least 5 s. A film keeps each frame that the page paints, so every cue of
-  `<scenario>.vtt` lies within the film, and the runner returns its frames in a file, so the
-  number of frames is no limit. The first frame is at 0 s, and the cue of a step is its title.
-  A title with `-->` is refused before the film: "Change the Action of step <N> in the demo
-  scenario so it has no "-->", then film it again." A call that fails after it
-  made the folder `.film/<scenario>` removes it, and a missing browser keeps the folder.
+- The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of a
+  demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at the
+  `App address:` of the build plan, signs in with the replay of `preflight`, and runs the steps
+  in a page of 1280 x 720 px. A `film` scenario gets `<scenario>.mp4`, which ffmpeg makes from
+  the frames of the page from the start of step 1 at real speed, and `<scenario>.vtt` with one
+  cue per step. A `pictures` scenario runs with video off and gets `<scenario>-step-<N>.png`,
+  one picture per step. `film pages <path>...` takes pictures of pages at 360, 768 and 1280 px,
+  for the screen reviewers. A call ends within 585 s, so run the film call with a tool timeout
+  of at least 600 s: 15 s to stop the runner, 35 s for the encode (measured: 29 s for 28,000
+  frames with 18 CPUs, 61 s with 2) and 535 s for the runner. The runner's 535 s are 120 s for
+  the start of the app, the browser and the sign-in, which share one deadline, and 415 s for the
+  waits of the setup and the steps. A run past its limit exits 3 with "Shorten the waits or the
+  steps of <scenario>.json, then film it again." and "The film ran past its limit of <n> s." A
+  step `open` outside the App address fails. The waits of a setup count against the 415 s and
+  also against the 120 s deadline, and `demo check` refuses a setup whose waits add up to more
+  than 120 s. `demo check` refuses a step `open` outside the App address, as the run does. When
+  the 120 s run out before the browser starts or during the sign-in, `film` exits 3 with
+  "Shorten the sign-in steps of <scenario>.json, or make the app start faster, then film it
+  again." and "The 120 s for the app start, the sign-in and the browser ran out before the
+  browser started." ffmpeg gets what is left of the 585 s, at most 90 s and at least 5 s. A film
+  keeps each frame that the page paints, so every cue of `<scenario>.vtt` lies within the film,
+  and the runner returns its frames in a file, so the number of frames is no limit. The first
+  frame is at 0 s, and the cue of a step is its title. A title with `-->` is refused before the
+  film: "Change the Action of step <N> in the demo scenario so it has no "-->", then film it
+  again." A call that fails after it made the folder `.film/<scenario>` removes it, and a
+  missing browser keeps the folder.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a
@@ -97,36 +96,34 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   mount of the home in a walled run is the main control. Every other rule follows the
   access of the session, as before. In every other session the guard denies the write tools
   to a `-reviewer` agent, as before.
-- The workflow `capture-demos` of `software-factory`, which films each approved demo
-  scenario that has no `demo-evidence` for the commit of the work. The session runs
-  `preflight`, then `film <scenario>` for each scenario, starts the agent `demo-reviewer`
-  (tier `balanced`, skill `checking-demos`) on two frames of each step, pushes the
-  `demo-video` or `screenshot`, and writes and pushes the `demo-evidence` with `film record`.
-  The reviewer gives each step `passed`, `failed` or `not-reached`, and sorts a failed step
-  into `product`, `script` or `setup`. A scenario of the evidence `pictures` is filmed with
-  `film <scenario> --film` when a step shows a change over time. A setup fault is retried
-  once, then records failed `demo-evidence` of the class `setup` for each scenario with no
-  evidence and ends the session with `changes-requested`: Verify reads that evidence, and the
-  matrix row of a criterion that rests on it shows the scenario, the step, the class and the
-  finding. A cause outside the repository ends with `escalate`, and the script marks each
-  cause with a last line "Kind: outside" or "Kind: setup": a variable that the workspace
-  lacks, a browser or ffmpeg that is missing, and ffmpeg or the capture that does not finish
-  are outside, and a sign-in that fails with every variable set is setup. A timeout of
-  ffmpeg or the capture gets one retry before the session escalates. A run that fails in a
-  step keeps its film up to that step, or its pictures, for `demo-reviewer`, and `film`
-  exits 5. A rerun
-  films only the scenarios with no `demo-evidence` for the commit and the script version, or
-  with evidence of the class `setup`, and `film todo` lists the
-  `demo-evidence`, `demo-video` and `screenshot` of removed scenarios, which the session
-  withdraws. The stack entry is `capture-demos: {tier: light, access: write-no-push}`, with
-  no `plan`: `film`, `preflight` and `demo run` read the approved `build-plan` from
+- The workflow `capture-demos` of `software-factory`, which films each approved demo scenario
+  that has no `demo-evidence` for the commit of the work. The session runs `preflight`, then
+  `film <scenario>` for each scenario, starts the agent `demo-reviewer` (tier `balanced`, skill
+  `checking-demos`) on two frames of each step, pushes the `demo-video` or `screenshot`, and
+  writes and pushes the `demo-evidence` with `film record`. The reviewer gives each step
+  `passed`, `failed` or `not-reached`, and sorts a failed step into `product`, `script` or
+  `setup`. A scenario of the evidence `pictures` is filmed with `film <scenario> --film` when a
+  step shows a change over time. A setup fault is retried once, then records failed
+  `demo-evidence` of the class `setup` for each scenario with no evidence and ends the session
+  with `changes-requested`: Verify reads that evidence, and the matrix row of a criterion that
+  rests on it shows the scenario, the step, the class and the finding. A cause outside the
+  repository ends with `escalate`, and the script marks each cause with a last line "Kind:
+  outside" or "Kind: setup": a variable that the workspace lacks, a missing browser or ffmpeg,
+  an ffmpeg that does not finish and a full disk are outside, and a sign-in that fails with
+  every variable set is setup. A timeout of ffmpeg gets one retry before the session escalates.
+  A run that fails in a step keeps its film up to that step, or its pictures, for
+  `demo-reviewer`, and `film` exits 5. A rerun films only the scenarios with no `demo-evidence`
+  for the commit and the script version, or with evidence of the class `setup`, and `film todo`
+  lists the `demo-evidence`, `demo-video` and `screenshot` of removed scenarios, which the
+  session withdraws. The stack entry is `capture-demos: {tier: light, access: write-no-push}`,
+  with no `plan`: `film`, `preflight` and `demo run` read the approved `build-plan` from
   `qory.start_artifacts` only in a run, where `QORY_RUN_ID` is set. They exit 3 without
   `--inputs`, with an empty `qory.start_artifacts`, or with an `--artifacts` that is another
   folder. Outside a run, `preflight` reads the artifact folder of the session when it has
   neither flag, and `film` reads the plan from `--inputs` or `--artifacts` only. The workflow
   never starts `demo-author`, so a stack without `browser-screens` composes it;
-  `scripts/check.sh` uses a test workflow `fixture-demos` for the compose failure of a role
-  with no agent.
+  `scripts/check.sh` uses a test workflow `fixture-demos` for the compose failure of a role with
+  no agent.
 - One `demo-video` fits one qory version. `film` encodes with `-crf 28` and a bitrate cap
   `min(1500, floor(0.8 x 25,153,536 x 8 / 1000 / seconds))` kbit/s, 300 for a film of 535 s.
   A film that is still over 32 MiB as qory counts it (base64 of the files and 16 KiB) exits 4

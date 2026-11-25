@@ -3961,8 +3961,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   585 seconds, at most 90 and at least 5 seconds), and 535 seconds for the runner
   (`RUN_BUDGET_MS`). The runner's 535 seconds are 120 seconds for the start of the app, the
   start of the browser and the sign-in (`START_MS`), and 415 seconds for the waits of the
-  setup and the steps (`WAITS_MS`). The waits of a setup count against both the 415 seconds and the 120
-  seconds, and `demo check` refuses a setup whose waits add up to more than 120 seconds.
+  setup and the steps (`WAITS_MS`). The waits of a setup count against both the 415 seconds
+  and the 120 seconds, and `demo check` refuses a setup whose waits add up to more than 120
+  seconds.
   When the 120 seconds run out before the browser starts, or during the sign-in, `film`
   exits 3 with the fix
   "Shorten the sign-in steps of <scenario>.json, or make the app start faster, then film it
@@ -4011,8 +4012,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     <name> in Workspace settings > Secrets and variables." Its second line is "Then run film
     <id> again." Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because
     the build plan would come from the artifact folder of the session. A run that fails in a
-    step, when the runner cannot finish the capture, exits 3 with "Kind: outside" and the fix
-    "Give the dev container more CPU or disk space, then run film <id> again." When ffmpeg
+    step, when the runner cannot write the capture because the disk is full or fails (`ENOSPC`,
+    `EIO`, `EDQUOT`, `EROFS`, `EFBIG`), exits 3 with "Kind: outside" and the fix "Give the
+    dev container more disk space, then run film <id> again." Any other error of the capture,
+    such as a page that is closed, leaves the failure as it is. When ffmpeg
     runs out of time on the film up to the failed step, `film` exits 3 with "Kind: outside",
     the fix "Give the dev container more CPU, then run film <id> again." and keeps the frames
     and `failed.json`. A film scenario with no ffmpeg, a scenario with no pushed script that
