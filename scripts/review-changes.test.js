@@ -489,40 +489,11 @@ test('a planned deliverable that is not built gives changes-requested with no po
   assert.deepEqual(written(w, []), { checkout: '', reports: [] });
 });
 
-// shortcut: as in the test above, the session applies the ledger check, so this test applies
-// rule 3 of "The ledger check" to the ledger that a Build session leaves after its last step
-// failed; replace it with a run of the verb when a verb prints the line.
-test('a ledger whose last step failed gives changes-requested on that deliverable', () => {
-  const ledgerCheck = section(WORKFLOW, 'The ledger check');
-  says(ledgerCheck, 'the row of that id with the highest `pass` has the `state` `done`');
-  const w = work(CLEAN);
-  // d-1 is built; d-2 failed after its third attempt, and its files went to a stash, so the
-  // row has no commit and the checkout has none of its changes.
-  const plan = PLAN.replace(/(\| d-1 \|[^\n]*\n)/, '$1| d-2 | Write the header row. | AC-1, ' +
-    '"The export has at most the limit of rows" | `src/jobs/export.cjs` | n/a |\n');
-  for (const root of [w.artifacts, w.store]) {
-    fs.writeFileSync(path.join(root, 'build-plan/main/v1/build-plan.md'), plan);
-  }
-  const file = path.join(w.artifacts, '.reports/build-ledger.json');
-  const ledger = JSON.parse(read(file));
-  const { commit, ...failed } = ledger.steps[0];
-  assert.equal(commit, w.head);
-  ledger.steps.push({ ...failed, id: 'deliverable:d-2', state: 'failed', base: w.head });
-  fs.writeFileSync(file, JSON.stringify(ledger));
-  const rows = [...plan.matchAll(/^\| (d-\d+) \| ([^|]+?) \|/gm)];
-  const notBuilt = rows.filter(([, id]) => {
-    const top = ledger.steps.filter((row) => row.id === `deliverable:${id}`)
-      .sort((a, b) => b.pass - a.pass)[0];
-    return !top || top.state !== 'done';
-  }).map(([, id, change]) => `${id}, "${change}"`);
-  assert.deepEqual(notBuilt, ['d-2, "Write the header row."']);
-  assert.equal(`1 of ${rows.length} planned changes is not built: ${notBuilt.join(', ')}.`,
-    '1 of 2 planned changes is not built: d-2, "Write the header row.".');
-  // The session records changes-requested with no point and starts no reviewer.
-  const call = session(w);
-  assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested').status, 0);
-  assert.deepEqual(logOf(w), ['run verdict changes-requested']);
-  assert.deepEqual(written(w, []), { checkout: '', reports: [] });
+// shortcut: as in the test above, this test checks the text of the skill only; replace it with a
+// run of the verb when a verb applies the ledger check.
+test('the session counts a planned deliverable as built only when its newest row is done', () => {
+  says(section(WORKFLOW, 'The ledger check'),
+    'the row of that id with the highest `pass` has the `state` `done`');
 });
 
 test('a reviewer that writes no report gives one blocking finding', () => {

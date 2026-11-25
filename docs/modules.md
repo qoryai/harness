@@ -783,11 +783,10 @@ lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`,
 the readers of the ids of a type that the questions check reads for the `item` of an
 `about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
 each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
-as lines of two lines, `verbs`, and `ledger`, the rules of the build ledger. Only `check`,
-`push`,
-`report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
-`starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb
-that reads the registry with exit 3. A
+as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, and `end`, the
+check at the end of a session. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
+verb of the registry and the usage read the registry; `starts`, `begin` and `fixes` never
+load it. A type that two skills add stops each verb that reads the registry with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
 the harness: the verb stops with an error that names the file and exit 3, and `end
 --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
@@ -796,9 +795,10 @@ the harness: the verb stops with an error that names the file and exit 3, and `e
 `proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
 types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
 new criterion` or `needs a change to the spec`, the line `needs a change to the build plan:
-<the change>` of the writers of `implement-changes`, and the rules of the build ledger that
-the verbs `step` and `resume` apply. A stack without that module, such as `core`, checks
-`questions` and `review-comments`, and `report` accepts only `needs <type>`.
+<the change>` of the writers of `implement-changes`, the rules of the build ledger that the
+verbs `step` and `resume` apply, and the check at the end of a Build write session. A stack
+without that module, such as `core`, checks `questions` and `review-comments`, and `report`
+accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -1200,24 +1200,25 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
 - The check of a module at the end of `checks.cjs end <folder>`: the member `end(io)` that a
   `workflow-checks.cjs` adds to the registry, one at most. `end` calls it with its io and
   `root`, the artifact folder, and `failed`, the count of failed checks before this one,
-  beside the checks of drafts, reports and outputs. An early return of `end` and
-  `end --offline` skip it. Each result is `{line, point, item}`, as the
-  other checks of `end` return them. `running-a-software-workflow` adds
-  `lib/uncommitted.cjs`, which checks a Build write session: `qory.outputs` of
-  `inputs.json` has `pull-request`, and `qory` has no `review`, `review_session` or
-  `hook_session`. For each checkout of `qory.start_commits` that the session can write, a
-  change is a path that `git status` lists: a tracked, staged or untracked file that git
-  does not ignore, or a submodule whose commit or files changed, outside `.qory/`. When a
-  git call fails, the check finds no change in that checkout. The finding is `Commit these
-  changes, then end the session: the suite and the review read only committed work.`, then
-  `Not committed:` with at most 20 paths, sorted, fewer when the line would pass 200
-  characters, with a path that has a key shown as words, and `(<n> in all)`. It counts in
-  `.reports/uncommitted.json` the checks that found a change, and starts again at the first
-  check after one that passed. At the third failed check, its point is "The Build session
-  ended <n> times with changes it did not commit, so the suite and the review could not
-  check them.", with that count. With no `inputs.json`, another stage, or a stack of core
-  alone, it finds nothing. The Build stage runs `implement-changes`, `plan-the-build` and
-  `write-acceptance-checks` in such sessions.
+  beside the checks of drafts, reports and outputs. An early return of `end`, such as the
+  end through a `points.json` that passes, and `end --offline` skip it. Each result is
+  `{line, point, item}`, as the other checks of `end` return them.
+  `running-a-software-workflow` adds `lib/uncommitted.cjs`, which checks a Build write
+  session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has no `review`,
+  `review_session` or `hook_session`. For each checkout of `qory.start_commits` that the
+  session can write, a change is a path that `git status` lists: a tracked, staged or
+  untracked file that git does not ignore, or a submodule whose commit or files changed,
+  whatever its `ignore` setting, outside `.qory/`. When a git call fails, the check finds no
+  change in that checkout. The finding is `Commit these changes, then end the session: the
+  suite and the review read only committed work.`, then `Not committed:` with at most 20
+  paths, sorted, fewer when the line would pass 200 characters, with a path that has a key
+  shown as words, and `(<n> in all)`. It counts in `.reports/uncommitted.json` the checks
+  that found a change, and starts again at the first check after one that passed. The count
+  is at most the failed checks since then. At the third failed check, its point is "The
+  Build session ended <n> times with changes it did not commit, so the suite and the review
+  could not check them.", with that count. With no `inputs.json`, another stage, or a stack
+  of core alone, it finds nothing. The Build stage runs `implement-changes`,
+  `plan-the-build` and `write-acceptance-checks` in such sessions.
 - The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
@@ -3884,12 +3885,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   line, and the scan result is the line before "Checked ...". git runs with full stat
   checks, no untracked cache, no global excludes file, no global or system git config (git
   2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in
-  `.git/info/exclude` is red. An ignored path is no change, but an untracked `.gitignore`
-  file is one, also when it ignores itself; one inside an ignored folder is none. git
-  compares change times by the second, so a tracked file whose times or size differ from its
-  index entry by a nanosecond or a byte is hashed, and counts when its content differs. Stat
-  data that an agent writes into the index file is not checked. With a base, it also scans
-  each commit since the base for keys, as `freeze` does.
+  `.git/info/exclude` is red. `git status` runs with `--ignore-submodules=none`, so a
+  changed submodule counts whatever its `ignore` setting. An ignored path is no change, but
+  an untracked `.gitignore` file is one, also when it ignores itself; one inside an ignored
+  folder is none. git compares change times by the second, so a tracked file whose times or
+  size differ from its index entry by a nanosecond or a byte is hashed, and counts when its
+  content differs. Stat data that an agent writes into the index file is not checked. With a
+  base, it also scans each commit since the base for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
   `scope`, stages the change in a temporary index, checks every path of the tree to commit
   against the scope, scans the names and added lines of the change and of the commits that

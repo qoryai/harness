@@ -8,18 +8,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- The end check of a Build write session stops the end while a checkout of
-  `qory.start_commits` has a change that no commit contains, so that the full suite and the
-  review run on committed work. A session counts when `qory.outputs` has `pull-request`,
-  its checkout is writable, and it has no `qory.review`, `qory.review_session` or
-  `qory.hook_session`. A change is a tracked, staged or untracked file that git does not
-  ignore, or a changed submodule, outside `.qory/`. The finding is `Commit these changes,
-  then end the session: the suite and the review read only committed work.`, then `Not
-  committed:` with at most 20 paths and their count. At the third failed check, the point is
-  "The Build session ended <n> times with changes it did not commit, so the suite and the
-  review could not check them.", where `<n>` counts the checks that found a change. The
-  check is the new registry member `end(io)`, which `running-a-software-workflow` adds;
-  other stacks are unchanged.
+- The end check of a Build write session that ends without `points.json` stops the end while
+  a checkout of `qory.start_commits` has a change that no commit contains, so that the full
+  suite and the review run on committed work. A session counts when `qory.outputs` has
+  `pull-request`, its checkout is writable, and it has no `qory.review`,
+  `qory.review_session` or `qory.hook_session`. A change is a tracked, staged or untracked
+  file that git does not ignore, or a changed submodule, outside `.qory/`. The finding is
+  `Commit these changes, then end the session: the suite and the review read only committed
+  work.`, then `Not committed:` with at most 20 paths and their count. At the third failed
+  check, the point is "The Build session ended <n> times with changes it did not commit, so
+  the suite and the review could not check them.", where `<n>` counts the checks that found
+  a change. The check is the new registry member `end(io)`, which
+  `running-a-software-workflow` adds; other stacks are unchanged.
 - After a step that fails in a session with a step done, the Build session commits the files
   that the failed step left, before it writes the text of the change. The skill
   `workflow-implement-changes` lists the two commands for a commit: with the identity `qory`
@@ -1160,6 +1160,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `scope`, `freeze`, `run`, `probe` and `diff` of `running-a-software-workflow` count a
+  changed submodule whatever its `ignore` setting in `.gitmodules` and `.git/config`: their
+  `git status` runs with `--ignore-submodules=none`.
 - `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
   `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
   verdict against, and no `plan`, which qory refuses on a workflow that cannot write. The
