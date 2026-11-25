@@ -30,9 +30,12 @@ note of a person, a comment or a reply. A point is one thing that a source asks 
    <question>" is a question that an earlier run did not push. A line "Waiting for an answer:
    <point>, <question>" is a question with no answer. Its last line starts with "Open
    feedback:".
-   - With 0 and no line "Waiting for an answer:", nothing is open. Start no agent, push
-     nothing, run `<qory> run verdict passed`, and end with "The run found no new feedback,
-     so it changed nothing."
+   - With 0 and no line "Waiting for an answer:", when the `writer.run_id` of the newest
+     `feedback` in `index.json` is the `run.id` of `work-item show`, an earlier session of
+     this run pushed it: start no agent, and go to step 9.
+   - With 0 and no line "Waiting for an answer:", in any other case, nothing is open. Start
+     no agent, push nothing, run `<qory> run verdict passed`, and end with "The run found no
+     new feedback, so it changed nothing."
    - With 0 and a line "Waiting for an answer:", start no agent, and do "Questions with no
      answer".
    - With 1, go on. The run has sources when a JSON line was printed.

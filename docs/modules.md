@@ -3230,7 +3230,9 @@ as a stage's one entry.
 
 `workflow-triage-review`, process entry `triage-review`, sorts the feedback that a person gave
 on the change. The session pulls and runs `checks.cjs feedback open`. With nothing open, it
-starts no agent, pushes nothing and records `passed`. Otherwise it starts `feedback-triager`,
+starts no agent, pushes nothing and records `passed`. When an earlier session of the run
+pushed the newest `feedback` before it stopped, the session goes on with `feedback points`
+instead. Otherwise it starts `feedback-triager`,
 which sorts each source into points by `sorting-feedback`: a `fix` inside the approved
 criteria, a `criterion-change`, or a `question`. `check feedback` runs after it, at most 3
 times. Then `questions-writer` writes one question per `question` point, and `reply-writer`
