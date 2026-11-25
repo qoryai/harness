@@ -5499,6 +5499,7 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `cp -rT src ${above}`, `cp "$f" ${above}`, `cp -R src/. ${above}/../step-abov*`,
     `install -m 644 "$f" ${above}`, `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`,
     `rsync -a "$f" ${above}`, `find src -exec cp -R {} ${above} \;`,
+    `find src -exec mv -t ${above} {} +`,
     // A file of another name moves into the artifact folder, as a copy of it does.
     `mv a ${artifacts}`, `mv a.md b.md ${artifacts}/`, `cp a ${artifacts}`]) {
     assert.equal(call(command), null, command);
@@ -5506,6 +5507,7 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
   // A move or a removal of the folder or of one above it, and a write in .step-reports.
   for (const command of [`mv ${artifacts} /x`, `mv -t /x ${artifacts}`, `mv ${above} /x`,
     `mv ${above}/* /x`, `mv ${artifacts} ${above}/z`, `mv ${artifacts} ${artifacts}`,
+    `mv {${artifacts},/x}`, `mv ${artifacts}`,
     `rm -rf ${artifacts}`, `rm -rf ${above}`, `rm -rf ${above}/*`, `rm -rf ${above}/q*`,
     `find ${above} -delete`, `echo /x | xargs mv ${artifacts}`, `echo /x | xargs mv a ${above}`,
     `mv -ft /x a ${artifacts}`, `mv -t/x a ${artifacts}`, `mv --target=/x a ${artifacts}`,
