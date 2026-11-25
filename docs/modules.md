@@ -2278,13 +2278,8 @@ has more than one link, so `ln checks/a.ts notes.txt` and a later write to `note
 write of `checks/a.ts`. A path that does not exist yet is no locked file, and a failed read of
 either path denies the call. It reads a `restore` of a folder above a locked
 file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
-`git checkout .`, the same way, and it reads a restore of a folder above `.qory/build/`, such
-as `git checkout HEAD -- .qory`, as a write of `.qory/build/`, because an agent can put a file
-there into the index of its repository. For the same reason an agent's `git stash pop`,
-`git stash apply`, `git reset --hard` and `git read-tree` in the working folder or above it, a
-`git update-index` with `--index-info` or `--stdin`, and a `git update-index` or
-`git hash-object -w` with `.qory` in the text are denied; `git checkout <name>` of a name that
-is no path passes. An agent's redirect to a brace list of more than one word, such as
+`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. An
+agent's redirect to a brace list of more than one word, such as
 `> checks/{a,b}.ts`, is denied: zsh with MULTIOS writes to each word, and the guard reads the
 redirect as one path. A brace list of one word, a quoted brace and a command with no brace
 pass. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so

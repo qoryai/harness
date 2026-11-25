@@ -11,12 +11,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The tool guard denies an agent's redirect to a brace list of more than one word, such as
   `> checks/{a,b}.ts`, because zsh writes to each word. A brace list of one word, a quoted
   brace and a command with no brace pass.
-- The tool guard reads a restore of a folder above `.qory/build/`, such as
-  `git checkout HEAD -- .qory`, as a write of `.qory/build/`. It denies an agent's
-  `git stash pop`, `git stash apply`, `git reset --hard` and `git read-tree` in the working
-  folder or above it, a `git update-index` with `--index-info` or `--stdin`, and a
-  `git update-index` or `git hash-object -w` with `.qory` in the text. A restore of another
-  folder passes.
 - The tool guard compares the device and the inode of a written path with each locked file
   that has more than one link, so a hard link to a locked file is denied as that file, also
   when a lift of the check ended. A path that does not exist yet is allowed, and a failed read

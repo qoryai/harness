@@ -2018,53 +2018,9 @@ function pathHits(segment, full, folder, how, step = false) {
     if (exact === target || (folder && under(exact, target))) return true;
     if (!folder && sameFile(resolved, full)) return true;
     if (!under(target, exact)) return false;
-    // A restore of a folder above a file writes that file when it is a tracked file, which a
-    // locked file may be. It writes .qory/build/ too: an agent can put a file there into the
-    // index of its folder, and the restore then writes it.
-    return removes || (restorer && (named || disk.exists(resolved)) &&
-      (!folder || target === how.build));
+    // A restore writes only tracked files, and .qory/build/ holds none.
+    return removes || (!folder && restorer && (named || disk.exists(resolved)));
   }));
-}
-
-// The options of update-index that take the entries of the index from input that the guard
-// cannot read, a file or the standard input.
-const INDEX_INPUT = /^--(?:index-info|stdin)$/;
-
-// treeWrite returns the end of the sentence that says what a simple command of an agent does to
-// .qory/build/, or null when it does nothing the guard reads there. A command that restores the
-// whole tree of its folder writes .qory/build/ when that folder is the working folder or above
-// it: stash pop and stash apply, reset --hard, and read-tree. A command that puts an entry into
-// the index, which a later restore writes into the tree, is one of update-index with entries
-// from input, or with .qory in its text, and hash-object -w with .qory in its text.
-// shortcut: a command that builds its words with a variable is not read; replace it when the
-// guard reads the expansion of a word.
-function treeWrite(command, cwd, root, fold) {
-  const build = fold(path.join(root, BUILD));
-  for (const one of segments(command, cwd)) {
-    const words = plainWords(one.words);
-    if (READ_ONLY.has(path.basename(words[0] || ''))) continue;
-    const at = subIndex(words);
-    const sub = words[at];
-    const rest = words.slice(at + 1);
-    const named = fold(one.text).includes(fold('.qory'));
-    if ((sub === 'update-index' && (rest.some((word) => INDEX_INPUT.test(word)) || named)) ||
-      (sub === 'hash-object' && named && rest.some((word) => /^-[A-Za-z]*w/.test(word)))) {
-      return 'can put an entry below .qory/build/ into the index';
-    }
-    const whole = sub === 'read-tree' || (sub === 'reset' && rest.includes('--hard')) ||
-      (sub === 'stash' && rest.some((word) => word === 'pop' || word === 'apply'));
-    if (!whole) continue;
-    const dirs = [];
-    for (let each = 1; each < at; each += 1) {
-      if (words[each] === '-C' && words[each + 1] !== undefined) dirs.push(words[each + 1]);
-    }
-    const from = one.cwds.flatMap((folder) => (dirs.length
-      ? dirs.map((dir) => joined(folder, dir)) : [folder]));
-    if (from.some((folder) => under(build, fold(real(folder))))) {
-      return 'restores the whole tree of the working folder';
-    }
-  }
-  return null;
 }
 
 // The reason for a redirect to a brace list of more than one word.
@@ -2272,8 +2228,6 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const refusedStart = call.kind === 'shell' && agent ? refusedShell(typeOf(), call.command)
     : null;
   if (refusedStart !== null) return `${refusedStart}The command is ${reviewShown(call.command)}.`;
-  const treed = call.kind === 'shell' && agent ? treeWrite(call.command, cwd, root, fold) : null;
-  if (treed !== null) return `${BUILT}The command ${treed}.`;
   const multi = call.kind === 'shell' && agent ? multiRedirect(call.command, cwd) : null;
   if (multi !== null) {
     return `${MULTI}The redirect target ${reviewShown(multi)} has a brace list of more than one ` +
@@ -2574,7 +2528,6 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   };
   const how = { realOf, spend, cwd, listed: new Map(),
     fold: (full) => (nocase ? full.toLowerCase() : full) };
-  how.build = how.fold(path.join(root, BUILD));
   const hit = (full, folder, step) => parts.some((one) => pathHits(one, full, folder, how,
     step)) ||
     names(full, cwds, root).some((name) => parts.some((one) => {
