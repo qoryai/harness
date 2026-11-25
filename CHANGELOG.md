@@ -1203,10 +1203,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   which Forager does not pass to a session. The end check reads it from the file of
   `--inputs`, and so does `report-build`, which takes `--inputs` in both forms:
   `report-build --inputs <path>` and `report-build --drop --inputs <path>`. With outputs
-  declared and no usable `qory.outbox`, the end check finds "Set qory.outbox in the inputs
-  file to the absolute path of the outbox folder."; `report-build` exits 3 with that fix,
-  or with "Give --inputs the inputs.json that qory wrote for the run." when it has no
-  `inputs.json`. Findings and skills write the outbox path as `<outbox>`.
+  declared and a `qory.outbox` that is not an absolute path, the end check finds "Set
+  qory.outbox in the inputs file to the absolute path of the outbox folder.";
+  `report-build` exits 3 with that fix, also with no `qory.outbox`, or with "Give --inputs
+  the inputs.json that qory wrote for the run." when it has no `inputs.json`. Findings and
+  skills write the outbox path as `<outbox>`.
 
 - `review-changes` is read-only: the `software` stack lists it with `tier: thinking`,
   `access: read` and `review_group: reviewers`, the group role whose reports qory checks the
@@ -1264,14 +1265,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     searches for no `.git` and no `.qory`. With no `qory.outputs`, it finds nothing.
   - A `qory.outputs` that is present and malformed is a finding: it is no list, an entry is
     no object, a `type` is no name of lower-case letters, digits and hyphens, a `required`
-    is not `true` or `false`, or a `schema` is no object. Only an absent list passes.
-  - When the stage declares an output and `qory.outbox` is missing or is not an absolute
-    path, the finding is "Set qory.outbox in the inputs file to the absolute path of the
-    outbox folder."
-  - A required output with no file is a finding. So is a link in the outbox folder, in the
-    folder above it, or in the folder of the type, and a file that is a link, is no regular
-    file, or has more than 1 MiB. So is a member that qory sets or fills after the push,
-    such as `target`, and a schema that the check cannot run, such as a leftover `$ref`.
+    is not `true` or `false`, or a `schema` is neither an object nor null. Only an absent
+    list passes. When a `schema` is null, the type has no JSON Schema, and the check applies
+    none to its file and finds no member that qory sets or fills.
+  - With no `qory.outbox`, the run has no outbox, and the check reads no output file. When
+    the stage declares an output and `qory.outbox` is present and is not an absolute path,
+    the finding is "Set qory.outbox in the inputs file to the absolute path of the outbox
+    folder."
+  - A missing file is no finding, also for a required output. A link in the outbox folder,
+    in the folder above it, or in the folder of the type is a finding, and so is a file that
+    is a link, is no regular file, has more than 1 MiB, or has a path that cannot be read.
+    So is a member that qory sets or fills after the push, such as `target`, and a schema
+    that the check cannot run, such as a leftover `$ref`.
   - A pattern check that runs longer than 10 seconds in all is stopped in a child process,
     and the finding names the type and the member.
   - For each member whose schema type is `integer`, core refuses a fraction or an exponent

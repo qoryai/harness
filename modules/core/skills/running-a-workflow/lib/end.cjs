@@ -62,16 +62,13 @@ const REPORT_CHANGED = (agents) => (agents.length === 1
   `, so the run could not use that work, ${AGAIN} checks ` +
   `${agents.length === 1 ? 'the report' : 'them'} again.`;
 
-// The points of end on the outputs that the stage declares, each of a list of types, which
-// named() writes in plain words.
+// The point of end on the outputs that the stage declares, of a list of types, which named()
+// writes in plain words.
 const OUTBOX_BROKEN = (types) => (types.length === 1
   ? `${capital(named(types))} output breaks its format rules`
   : `The outputs ${named(types)} break their format rules`) +
   `, so the run could not deliver ${them(types)}, ${AGAIN} writes ${types.length === 1 ? 'it' :
     'them'} again.`;
-
-const OUTBOX_NONE = (types) => `The stage needs ${named(types)}, which the run did not ` +
-  `write, ${AGAIN} writes ${types.length === 1 ? 'it' : 'them'} again.`;
 
 // The point of end when the setup of the run gave the outbox check no usable inputs file or
 // qory.outbox in it: the session cannot fix that.
@@ -329,6 +326,6 @@ function endList(kept, found) {
 
 module.exports = {
   END_POINT, REPORT_BROKEN, REPORT_NONE, REPORT_UNCHECKED, REPORT_CHANGED, RECORDS_UNREAD,
-  REVIEW_NONE, DRAFT_BROKEN, POINTS_BROKEN, OUTBOX_BROKEN, OUTBOX_NONE, OUTBOX_SETUP, REPORT_FILE,
+  REVIEW_NONE, DRAFT_BROKEN, POINTS_BROKEN, OUTBOX_BROKEN, OUTBOX_SETUP, REPORT_FILE,
   VERDICT_UNREAD, unchanged, endDrafts, endList, leftLine, verdictDrafts,
 };
