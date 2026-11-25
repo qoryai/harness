@@ -1769,7 +1769,7 @@ test('a note that is not later than the newest lock opens no lock, and the line 
   const make = () => stored(linkedRoot(), 2, docFor(2), { at: AFTER_ALL });
   refused(make, { ...docFor(2), checks: [{ ...docFor(2).checks[0], failed_with: 2 }] },
     'acceptance-lock version 2 already locks criteria version 2.');
-  // A time that does not parse refuses, in the note and in the lock.
+  // A time that does not parse is refused, in the note and in the lock.
   refused(() => linkedRoot({ decisionAt: 'not a time', lockAt: LATEST }), docFor(2),
     'the run stored version 2 after the approved version 1.');
   refused(() => linkedRoot({ lockAt: 'not a time' }), docFor(2),
@@ -1906,7 +1906,7 @@ test('a lock without hashes counts each check as changed, and free text needs no
     { at: LATER, decision: 'an_1', decision_at: LATEST });
   refused(unhashed, docFor(2), 'Version 2 changes ac-4, and no question about ac-4 has an ' +
     'answer after acceptance-lock version 1.');
-  // A free-text note carries any change, and binds no criterion.
+  // A free-text note can contain any change, and binds no criterion.
   for (const result of both(() => linkedRoot({ decision: 'gd_1', edit: REWORDED }),
     docFor(2, REWORDED))) {
     assert.equal(result.status, 0, result.out);
@@ -1915,7 +1915,7 @@ test('a lock without hashes counts each check as changed, and free text needs no
 
 test('a free-text note above the lock frees the answer after it from the question rule', () => {
   // Version 2 is linked to a free-text note after the lock; version 3, to an answer that
-  // changes ac-4 with no question. The check cannot tell which change the note carries.
+  // changes ac-4 with no question. The check cannot tell which change the note contains.
   const make = () => criteriaVersion(linkedRoot({ edit: REWORDED }), 3,
     { at: AFTER_ALL, decision: 'an_1', decision_at: AFTER_ALL },
     (doc) => REWORDED(doc));

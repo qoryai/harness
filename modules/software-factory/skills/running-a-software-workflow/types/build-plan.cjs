@@ -126,7 +126,7 @@ module.exports = (lib) => {
   // a plan changes only the rows that a changed criterion touches. A push has no such record,
   // so only a check of a session reads it.
   // shortcut: a row that lists a changed criterion may change in any cell, and a deliverable
-  // that the planner removes is not found; replace it when a row of the plan names its reason.
+  // that the planner removes is not found; replace it when a row of the plan has its reason.
   function changedRows(run, rows) {
     const { context } = run;
     const record = context.mode === 'check' && !context.offline && context.workingFolder

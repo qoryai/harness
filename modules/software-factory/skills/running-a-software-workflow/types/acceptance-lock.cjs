@@ -205,7 +205,7 @@ module.exports = (lib) => {
       return times.some(Number.isNaN) ? Infinity : Math.max(...times);
     };
 
-    // bound returns the reason that the question rule refuses the answer that links version,
+    // bound returns the reason that the question rule does not pass the answer that links version,
     // or null when the rule passes. Each criterion that the version changes or removes since
     // the newest lock of list needs an answered question about it, with an answer later than
     // that lock. The rule does not apply when a counted version above the locked one is

@@ -563,7 +563,7 @@ function caseless(dir) {
 // lockedFiles returns { what, files, number, checks } of the lock that counts: files are the
 // real paths of the files it lists under root, the working folder, number is the version of
 // the lock, and checks lists each file as { file, criterion }, with criterion the id that the
-// lock gives the check at that file, or null for a support file. It returns { files: [] }
+// lock lists for the check at that file, or null for a support file. It returns { files: [] }
 // when no type of the registry has a lock, or no version of it counts, and { type, problem }
 // when the lock of type cannot be read. It reads the lock with checks.cjs's reader: in a run, it
 // pulls the lock.

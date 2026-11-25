@@ -605,7 +605,7 @@ test('with no criterion changed since the lock, the skill ends before any plan s
   assert.equal(record.mode, 'none');
 });
 
-test('in change mode, the skill gives the writer the changed Tests criteria only and runs only their checks', () => {
+test('in change mode, the skill passes the writer the changed Tests criteria only and runs only their checks', () => {
   const order = oneLine(section(WORKFLOW, 'The order of the run'));
   says(order, 'In change mode (`changes` printed "Changes since"), the Tests criteria that ' +
     'need a check are the ids of its line "Checks to write:"');
