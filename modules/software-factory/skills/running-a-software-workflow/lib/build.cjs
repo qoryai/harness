@@ -333,8 +333,10 @@ module.exports = (lib) => {
   const ANSWER = /^an_/;
 
   // lockDoc returns the parsed acceptance-lock.json of lock version number in the store, or
-  // null when the store has no such file or it is no JSON object.
+  // null when the store has no such file, no pull returned it (context.pulled), or it is no
+  // JSON object.
   function lockDoc(context, number) {
+    if (context.has && !context.has('acceptance-lock', 'main', number)) return null;
     const file = path.join(context.store, 'acceptance-lock', 'main', `v${number}`,
       'acceptance-lock.json');
     try {
@@ -521,14 +523,15 @@ module.exports = (lib) => {
 
   // criteriaReads returns { questions, locks, criteria }: what criteriaTarget reads of the store
   // besides index.json, for the criteria versions that a note links and no person wrote.
-  // questions is true when index.json lists a version of the questions that counts. locks lists
-  // the numbers of the acceptance-lock versions it reads: the newest one older than each such
-  // version, as lockBefore picks it, and the newest one when a version is linked to an answer.
-  // criteria lists the numbers of the versions linked to an answer, whose files the question
-  // rule reads. A run pulls each of them before it calls criteriaTarget.
+  // questions is the number of the newest version of the questions that counts in index.json,
+  // as newest reads it, or null for none. locks lists the numbers of the acceptance-lock
+  // versions it reads: the newest one older than each such version, as lockBefore picks it, and
+  // the newest one when a version is linked to an answer. criteria lists the numbers of the
+  // versions linked to an answer, whose files the question rule reads. A run pulls each of
+  // them, by number, before it calls criteriaTarget.
   function criteriaReads(context) {
     const locks = liveLocks(context);
-    const found = { questions: countedOf(context, 'questions').length > 0, locks: new Set(),
+    const found = { questions: context.counted('questions'), locks: new Set(),
       criteria: new Set() };
     for (const one of countedOf(context, 'acceptance-criteria')) {
       if (byPerson(one) || !linked(one)) continue;
@@ -544,8 +547,9 @@ module.exports = (lib) => {
   }
 
   // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
-  // the store, or null when the store has no such file.
+  // the store, or null when the store has no such file or no pull returned it (context.pulled).
   function criteriaFile(context, number) {
+    if (context.has && !context.has('acceptance-criteria', 'main', number)) return null;
     const file = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`,
       'acceptance-criteria.json');
     return fs.existsSync(file) ? file : null;

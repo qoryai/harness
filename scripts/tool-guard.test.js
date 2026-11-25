@@ -352,9 +352,13 @@ const AC4_NEW = crit('ac-4', 'A customer gets a corrected reply with the new hou
 // member answered a question about, after the lock. `recorded` puts the hash of each criterion
 // of the locked version in the lock, as `criteria.sha256`, which the question rule compares.
 // v3Linked false leaves version 3 with no link; lock2 adds a newer lock that locks version 2.
+// v3By is the kind of the writer of version 3, `run` or `person`.
+// answers2 adds a version 2 of the questions that a cancelled run wrote, with those answers;
+// questionsWithdrawn adds a withdrawal of the questions as version 2.
 function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', approved = 1,
   locked = 1, unhashed = [], support = [], hashFrom = null, v3 = null, answers = null,
-  link = null, recorded = false, v3Linked = true, lock2 = false,
+  link = null, recorded = false, v3Linked = true, lock2 = false, answers2 = null,
+  questionsWithdrawn = false, v3By = 'run',
   checks = [['ac-4', CHECK_PATH], ['ac-1', OTHER_PATH]] } = {}) {
   const root = next('server');
   fs.cpSync(TESTDATA, root, { recursive: true });
@@ -377,20 +381,25 @@ function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', appr
   Object.assign(index.artifacts.find((one) => one.type === 'acceptance-criteria'),
     { versions: [version(1, 'run', v1), version(2, v2By, v2, link === null ? {}
       : { at: '2026-11-16T09:00:00Z', decision: link, decision_at: '2026-11-16T10:00:00Z' }),
-    ...(v3 === null ? [] : [version(3, 'run', v3, { at: '2026-11-16T11:00:00Z',
+    ...(v3 === null ? [] : [version(3, v3By, v3, { at: '2026-11-16T11:00:00Z',
       ...(v3Linked ? { decision: link, decision_at: '2026-11-16T12:00:00Z' } : {}) })])],
     newest_version: v3 === null ? 2 : 3,
     approved_version: `av_ac${approved}` });
   if (answers !== null) {
-    const text = JSON.stringify({ questions: answers.map((item, at) => ({ id: `q-${at}`,
+    const doc = (list) => JSON.stringify({ questions: list.map((item, at) => ({ id: `q-${at}`,
       question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main', item },
       state: 'answered', answer: { option: 'A', by: { kind: 'person', user_id: 'u_1' },
         at: '2026-11-16T09:30:00Z' } })) });
+    const question = (number, list, more = {}) => ({ id: `av_q${number}`, number,
+      writer: { kind: 'person', user_id: 'u_1' }, cancelled: false, stage_id: 'st_p9w5cvh311',
+      note: null, at: '2026-11-16T09:30:00Z', approvals: [], ...more,
+      files: list === null ? [] : [put('questions', number, 'questions.json', doc(list))] });
+    const versions = [question(1, answers)];
+    if (answers2 !== null) versions.push(question(2, answers2, { cancelled: true }));
+    if (questionsWithdrawn) versions.push(question(2, null, { withdrawn: true }));
     index.artifacts.push({ type: 'questions', name: 'main', stage_id: 'st_p9w5cvh311',
-      approved_version: null, newest_version: 1, changed_after_approval: false,
-      versions: [{ id: 'av_q1', number: 1, writer: { kind: 'person', user_id: 'u_1' },
-        cancelled: false, stage_id: 'st_p9w5cvh311', note: null, at: '2026-11-16T09:30:00Z',
-        approvals: [], files: [put('questions', 1, 'questions.json', text)] }] });
+      approved_version: null, newest_version: versions.length, changed_after_approval: false,
+      versions });
   }
   const of = hashFrom || (locked === 1 ? v1 : v2);
   const entry = ([id, file]) => ({ criterion: id, path: file, command: `npm test -- ${file}`,
@@ -426,7 +435,8 @@ function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', appr
 }
 
 // liftCase returns { dir, a, b, helper, call } for a new working folder, with the files of the
-// checks and the store of liftStore, which qory pulls and which .qory/artifacts has too.
+// checks and the store of liftStore, which qory pulls into .qory/artifacts, as qory does; that
+// folder has a copy of the whole store first, as earlier pulls and an agent can leave it.
 // call(input, runtime, env) runs the guard with the lock read from that store, as in a run, and
 // no file of change mode exists.
 function liftCase(options = {}, pulls = {}) {
@@ -436,7 +446,8 @@ function liftCase(options = {}, pulls = {}) {
   }
   const from = liftStore(options);
   fs.cpSync(from, path.join(dir, '.qory', 'artifacts'), { recursive: true });
-  const env = { ...RUN, ...fakeQory(from, 0, { typed: true, ...pulls }) };
+  const env = { ...RUN, ...fakeQory(from, 0, { typed: true,
+    into: path.join(dir, '.qory', 'artifacts'), ...pulls }) };
   const call = (input, runtime = 'claude', extra = {}, more = {}) => decide({
     input: { ...input, cwd: dir }, env: { ...env, ...extra }, runtime, root: dir, ...more });
   return { dir, a: path.join(dir, CHECK_PATH), b: path.join(dir, OTHER_PATH),
@@ -613,6 +624,85 @@ test('the guard lifts the checks of a version that follows an answer, from the p
   // A pull of the questions that fails lifts nothing.
   const failed = liftCase(options, { failing: ['questions'] });
   firstLine(failed.call(writeOf(failed.a)), LOCKED_START);
+});
+
+// plant writes the JSON doc at path below the artifact folder of one, where qory pulls to.
+function plant(one, file, doc) {
+  const full = path.join(one.dir, '.qory', 'artifacts', file);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, JSON.stringify(doc));
+}
+
+// Answers about ac-1 and ac-4, in the questions that a member answered.
+const BOTH_ANSWERED = { questions: ['ac-1', 'ac-4'].map((item, at) => ({ id: `q-${at}`,
+  question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main', item },
+  state: 'answered', answer: { option: 'A', by: { kind: 'person', user_id: 'u_1' },
+    at: '2026-11-16T09:30:00Z' } })) };
+
+// Version 2 of the criteria changes ac-1 and ac-4 and is linked to an answer.
+const LINKED_BOTH = { v2: THIRD, v2By: 'run', link: 'an_1', recorded: true };
+
+test('the guard reads no answers that index.json does not list, in a folder that qory pulls to', () => {
+  // index.json lists no questions: a folder of them that an agent planted has answers about ac-1
+  // and ac-4. Version 2 has no answer, so it does not count, and nothing lifts.
+  const absent = liftCase(LINKED_BOTH);
+  plant(absent, 'questions/main/v1/questions.json', BOTH_ANSWERED);
+  firstLine(absent.call(writeOf(absent.a)), LOCKED_START);
+  firstLine(absent.call(writeOf(absent.b)), LOCKED_START);
+  // The questions are withdrawn: a folder under another name, which index.json does not list,
+  // counts for nothing either.
+  const withdrawn = liftCase({ ...LINKED_BOTH, answers: ['ac-4'], questionsWithdrawn: true });
+  plant(withdrawn, 'questions/x/v1/questions.json', BOTH_ANSWERED);
+  firstLine(withdrawn.call(writeOf(withdrawn.a)), LOCKED_START);
+  firstLine(withdrawn.call(writeOf(withdrawn.b)), LOCKED_START);
+});
+
+test('the guard pulls the version of the questions that index.json counts, not the newest', () => {
+  // Version 2 of the questions is from a cancelled run and answers ac-1 and ac-4; version 1
+  // counts and answers ac-4. A plain pull returns version 2. Version 2 of the criteria changes
+  // ac-4 only, so its check lifts, and ac-1 stays locked.
+  const options = { v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'],
+    answers2: ['ac-1', 'ac-4'] };
+  const one = liftCase(options);
+  assert.equal(one.call(writeOf(one.a)), null);
+  firstLine(one.call(writeOf(one.b)), LOCKED_START);
+  // A version 2 of the criteria that changes both needs an answer about ac-1, which only the
+  // cancelled version has: nothing lifts.
+  const both = liftCase({ ...options, v2: THIRD });
+  firstLine(both.call(writeOf(both.a)), LOCKED_START);
+  firstLine(both.call(writeOf(both.b)), LOCKED_START);
+});
+
+test('the guard reads no file that a pull did not return, beside the files that it did', () => {
+  // The pulled questions answer ac-4 only, and version 2 changes both criteria. Beside them an
+  // agent planted a version 7 of the questions, another name, and a lock, with answers about
+  // ac-1; none of them counts.
+  const one = liftCase(LINKED_BOTH);
+  const asked = liftCase({ ...LINKED_BOTH, answers: ['ac-4'] });
+  for (const planted of [one, asked]) {
+    plant(planted, 'questions/main/v7/questions.json', BOTH_ANSWERED);
+    plant(planted, 'questions/x/v1/questions.json', BOTH_ANSWERED);
+    plant(planted, 'acceptance-lock/main/v9/acceptance-lock.json', { criteria: { version: 1 },
+      checks: [] });
+    firstLine(planted.call(writeOf(planted.a)), LOCKED_START);
+    firstLine(planted.call(writeOf(planted.b)), LOCKED_START);
+  }
+});
+
+test('the guard lifts nothing when the index that the last pull wrote needs a version that no pull returned', () => {
+  // Version 2 is written by a person, so the first index needs no questions. The last pull
+  // writes an index that lists questions that count: the guard reads them from no pull.
+  const later = liftStore({ answers: ['ac-4'] });
+  const swap = (at) => ({ swap: { at, index: path.join(later, 'index.json') } });
+  const late = liftCase({}, swap(4));
+  firstLine(late.call(writeOf(late.a)), LOCKED_START);
+  // The last pull writes an index with a version 3 by a person: the target is another version.
+  const other = liftStore({ v3: THIRD, v3By: 'person', v3Linked: false });
+  const moved = liftCase({}, { swap: { at: 4, index: path.join(other, 'index.json') } });
+  firstLine(moved.call(writeOf(moved.a)), LOCKED_START);
+  // With the same swap at a pull that comes after no read, the lift is as before.
+  const never = liftCase({}, swap(9));
+  assert.equal(never.call(writeOf(never.a)), null);
 });
 
 test('the guard pulls the lock that a linked version is compared with, and the version itself', () => {
@@ -1325,11 +1415,13 @@ function server({ support } = {}) {
 // fakeQory returns an environment of a run whose qory pulls from into a new store. A pull of
 // a type in failing exits with status, each pull waits for pause seconds first, and a pull of
 // a type in hang waits that many seconds for it. With typed, all pulls write into one store,
-// as qory does: index.json, and the folder of the pulled version of the type, the newest with
-// none named, and nothing else.
-function fakeQory(from, status = 0, { failing = [], pause = 0, hang = {}, typed = false } = {}) {
+// the folder `into` when it is set, as qory does: index.json, and the folder of the pulled
+// version of the type, the newest with none named, and nothing else. With swap, { at, index },
+// the pull number `at` ends with the index.json file `index` in the store.
+function fakeQory(from, status = 0, { failing = [], pause = 0, hang = {}, typed = false,
+  into = null, swap = null } = {}) {
   const bin = next('bin');
-  const store = next('store');
+  const store = into || next('store');
   fs.mkdirSync(bin);
   const copy = typed ? `mkdir -p '${store}'
 cp '${from}/index.json' '${store}/index.json'
@@ -1345,10 +1437,14 @@ cp -R '${from}/.' '${store}/'
   const hung = Object.entries(hang).map(([type, seconds]) =>
     `[ "$3" != '${type}' ] || sleep ${seconds}\n`).join('');
   const failed = failing.map((type) => `[ "$3" != '${type}' ] || exit 3\n`).join('');
+  const count = swap ? `n=$(cat '${bin}/count' 2>/dev/null || echo 0); n=$((n + 1))
+echo $n > '${bin}/count'
+` : '';
+  const later = swap ? `[ $n -ne ${swap.at} ] || cp '${swap.index}' '${store}/index.json'\n` : '';
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 [ "$1 $2" = 'artifact pull' ] || exit 9
 [ ${status} -eq 0 ] || exit ${status}
-${pause ? `sleep ${pause}\n` : ''}${hung}${failed}${copy}echo '${store}'
+${count}${pause ? `sleep ${pause}\n` : ''}${hung}${failed}${copy}${later}echo '${store}'
 `, { mode: 0o755 });
   return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`,
     QORY_RUN_ID: 'run-1', QORY_RUN_REPOSITORIES: 'example-org/shop' };

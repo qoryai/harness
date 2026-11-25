@@ -40,6 +40,9 @@ class Context {
     this.inputs = null;
     this.extensionsRead = null;
     this.destinationsRead = undefined;
+    // With a set of "<type>/<name>/<number>", the versions that the pulls of one call returned,
+    // newest and has read those versions only, and no folder on disk.
+    this.pulled = null;
     this.index = null;
     const file = path.join(store, 'index.json');
     if (fs.existsSync(file)) {
@@ -165,6 +168,7 @@ class Context {
   // that no check passes on an older version or on none. Only with no index.json, or one
   // that does not list the name, the highest version folder is the newest version.
   newest(type, name) {
+    if (this.pulled) return this.newestPulled(type, name);
     let names;
     try {
       names = fs
@@ -206,6 +210,28 @@ class Context {
       text: readFile(file, `${type} version ${number}`).replace(/\r\n?/g, '\n'),
       name: folder,
     };
+  }
+
+  // has reports whether a read may use version number of name of type: always, or with
+  // this.pulled, only when a pull returned that version.
+  has(type, name, number) {
+    return !this.pulled || this.pulled.has(`${type}/${name}/${number}`);
+  }
+
+  // newestPulled returns what newest returns when this.pulled is set: the newest version of
+  // main that counts in index.json, read only when a pull returned it; null when index.json has
+  // no such version. A version that no pull returned exits 3 with the pull line. A folder or a
+  // name on disk that index.json does not list, or that no pull returned, is no version.
+  newestPulled(type, name) {
+    const top = this.counted(type, 'main');
+    if (top === null) return null;
+    if (!this.has(type, 'main', top)) throw lacks(type, top);
+    const file = path.join(this.store, type, 'main', `v${top}`, name);
+    if (!fs.existsSync(file)) {
+      throw new Missing(`Pull the artifacts again.\n${type}/main/v${top} has no ${name}.`);
+    }
+    return { number: top,
+      text: readFile(file, `${type} version ${top}`).replace(/\r\n?/g, '\n'), name: 'main' };
   }
 
   // history returns what newest returns, for a check that guards the history of type: the ids

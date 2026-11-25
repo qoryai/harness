@@ -610,25 +610,48 @@ module.exports = (lib) => {
 
   // targetOf returns { number, live } of the criteria version that criteriaTarget returns, with
   // live the map of each live criterion by id to { hash, tests }, or null when no version is
-  // approved, the version has no file, or no criterion. In a run, a pull of a type writes
-  // index.json and the folder of that type only, so it pulls first what criteriaTarget reads
-  // (criteriaReads): the criteria, the questions, each lock, each criteria version that an
-  // answer links, and then the target version. The folder that the last pull prints is the
-  // store. A pull that fails throws. Outside a run, the artifact folder is the store.
+  // approved, the version has no file, or no criterion. In a run, a pull writes index.json and
+  // the folder of its type, and the folders of earlier pulls and of agents stay. So it pulls,
+  // each by number, what criteriaTarget reads (criteriaReads): the questions, each lock, each
+  // criteria version that an answer links, and then the target version. The Context reads only
+  // the versions that these pulls returned (context.pulled), never a folder on disk. After the
+  // last pull it reads index.json again: when that list needs a version that no pull returned,
+  // or the target differs, nothing lifts. A pull that fails throws. Outside a run, the artifact
+  // folder is the store.
   function targetOf(io) {
     const inRun = Boolean(io.env && io.env.QORY_RUN_ID);
-    const pull = (type, number) => lockReader.pull(io, type, number, 'write');
+    const pulled = new Set();
+    const pull = (type, number) => {
+      const dir = lockReader.pull(io, type, number, 'write');
+      if (number !== null) pulled.add(`${type}/main/${number}`);
+      return dir;
+    };
     let store = inRun ? pull('acceptance-criteria', null) : artifactFolder(io);
-    const reads = criteriaReads(new Context(store, 'check', io.home));
+    const read = () => {
+      const context = new Context(store, 'check', io.home);
+      if (inRun) context.pulled = pulled;
+      return context;
+    };
     if (inRun) {
-      if (reads.questions) store = pull('questions', null);
+      const reads = criteriaReads(read());
+      if (reads.questions !== null) store = pull('questions', reads.questions);
       for (const number of reads.locks) store = pull('acceptance-lock', number);
       for (const number of reads.criteria) store = pull('acceptance-criteria', number);
     }
-    const number = criteriaTarget(new Context(store, 'check', io.home), 'the lock');
+    const number = criteriaTarget(read(), 'the lock');
     if (number === null) return null;
-    if (inRun && !reads.criteria.includes(number)) store = pull('acceptance-criteria', number);
-    const file = criteriaFile({ store }, number);
+    if (inRun && !pulled.has(`acceptance-criteria/main/${number}`)) {
+      store = pull('acceptance-criteria', number);
+    }
+    const context = read();
+    if (inRun) {
+      const again = criteriaReads(context);
+      const missing = (type, list) => list.some((one) => !pulled.has(`${type}/main/${one}`));
+      if ((again.questions !== null && missing('questions', [again.questions])) ||
+        missing('acceptance-lock', again.locks) || missing('acceptance-criteria', again.criteria) ||
+        criteriaTarget(context, 'the lock') !== number) return null;
+    }
+    const file = criteriaFile(context, number);
     if (file === null) return null;
     const text = readFile(file, `acceptance-criteria version ${number}`).replace(/\r\n?/g, '\n');
     if (!criteria(text).length) return null;
@@ -653,9 +676,9 @@ module.exports = (lib) => {
   // of a call has the workflow.
   // shortcut: outside a run, the lift reads the artifact folder, which an agent can write;
   // replace it when the guard reads a store that no agent call can write.
-  // shortcut: a pull refreshes the files of its type, and an agent that writes another type's
-  // file between two pulls of one call is not stopped; replace it when the pulls make one
-  // folder that no agent call can write.
+  // shortcut: a pull returns files, and an agent call that rewrites one of them after the pull
+  // and before the read is not stopped; replace it when the read checks each file against the
+  // SHA-256 of index.json or the pulls make a folder that no agent call can write.
   // shortcut: a forged .qory/build/changes.json can steer what plan-the-build plans, and the
   // guard no longer reads it; keptFiles and lock --verify reject a wrong result, replace it
   // when the record is written where no agent call can write.
