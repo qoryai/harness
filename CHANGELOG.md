@@ -21,22 +21,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   a change. The check is the new registry member `end(io)`, which
   `running-a-software-workflow` adds; other stacks are unchanged.
 - After a step that fails in a session with a step done, the Build session commits the files
-  that the failed step left, before it writes the text of the change. The skill
-  `workflow-implement-changes` lists the two commands for a commit: with the identity `qory`
-  and `qory@localhost`, as `freeze` sets it, because `git commit` exits with 128 where no
-  identity is set, with no hook and no signature, and with no path under `.qory`. Before
-  that commit, the session takes out of the checkout what makes `scope --plan` exit 1: a
-  file with a key, a path outside the plan, a new repository folder, a changed submodule and
-  a file that `freeze` cannot scan. It sets a file with a key, a path outside the plan and a
-  file that `freeze` cannot scan back to the base of the step, or removes it when the base
-  does not have it, because the scan finds a private key by its `BEGIN` line only. A new
-  repository folder inside the Files loses only its `.git`, and so does each repository
-  folder inside it; one with files both inside and outside the Files also loses the files
-  outside. After that commit, the session runs `scope --plan`, and repeats both at most
-  twice. While `scope --plan` prints no finding, qory pushes the commits of the done steps.
-  When a finding stays, the scope check of qory's push stops the push, qory pushes no
-  commit, and the run ends `push_scope_refused`. `git reset -q` ends a merge or a
-  cherry-pick in progress, and the session sets a changed submodule back.
+  that the failed step left, before it writes the text of the change. `git reset -q <base>`,
+  with the `base` of the last row of the build ledger, keeps each file and takes the commits
+  of the failed step off the branch. The skill `workflow-implement-changes` lists the two
+  commands for a commit: with the identity `qory` and `qory@localhost`, as `freeze` sets it,
+  because `git commit` exits with 128 where no identity is set, with no hook and no
+  signature, and with no path under `.qory`. `git reset -q` ends a merge or a cherry-pick in
+  progress. The session takes no file out and sets no file back: when the commit has a file
+  with a key, a path outside the plan, a new repository folder or a changed submodule, the
+  scope check of qory's push stops the push, qory pushes no commit, and the run ends
+  `push_scope_refused`.
 - A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
   with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
   `build` and `full`. `check proposal` and `push proposal` apply the rules of the Commands
