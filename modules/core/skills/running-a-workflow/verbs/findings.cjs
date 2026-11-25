@@ -186,6 +186,35 @@ function previousFindings(io, file) {
 const mineOf = (previous, name) => previous.filter((one) => one.source.kind === 'reviewer' &&
   one.source.name === name);
 
+// twiceOrLone returns whether text, valid JSON, has a member twice in one object or a string
+// with an unpaired surrogate escape, which qory's Go reader of a report does not accept.
+function twiceOrLone(text) {
+  const stack = [];
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at];
+    const top = stack.at(-1);
+    if (char === '"') {
+      let end = at + 1;
+      while (text[end] !== '"') end += text[end] === '\\' ? 2 : 1;
+      const value = JSON.parse(text.slice(at, end + 1));
+      if (/[\uD800-\uDFFF]/u.test(value)) return true;
+      if (top && top.keys && top.key) {
+        if (top.keys.has(value)) return true;
+        top.keys.add(value);
+        top.key = false;
+      }
+      at = end;
+    } else if (char === '{' || char === '[') {
+      stack.push({ keys: char === '{' ? new Set() : null, key: true });
+    } else if (char === '}' || char === ']') {
+      stack.pop();
+    } else if (char === ',' && top) {
+      top.key = true;
+    }
+  }
+  return false;
+}
+
 // reviewerFindings returns { found, closed } for the report of the reviewer name at file:
 // found is the open findings after the report, and closed counts the closes of a valid report.
 // mine is the reviewer's findings in --previous: those open stay open unless the report closes
@@ -220,8 +249,12 @@ function reviewerFindings(file, name, mine = []) {
   }
   let text;
   try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    // A byte order mark is no part of UTF-8 text for qory, so the decoder keeps it.
+    text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   } catch {
+    text = null;
+  }
+  if (text === null || text.startsWith('\uFEFF')) {
     return missing(`Reviewer ${name} wrote a report that is not UTF-8 text.`);
   }
   let data;
@@ -229,6 +262,10 @@ function reviewerFindings(file, name, mine = []) {
     data = JSON.parse(text);
   } catch {
     return missing(`Reviewer ${name} wrote a report that is not one JSON object: it is no JSON.`);
+  }
+  if (twiceOrLone(text)) {
+    return missing(`Reviewer ${name} wrote a report with a member twice in one object, or with ` +
+      'an unpaired surrogate escape.');
   }
   if (!isObject(data)) {
     return missing(`Reviewer ${name} wrote a report that is not one JSON object.`);

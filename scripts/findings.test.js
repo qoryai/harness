@@ -1031,6 +1031,41 @@ test('findings round: a point or a file off one line, or a file over 300, is inv
   assert.doesNotMatch(round(dir, suite, [name]).out, /does not match/);
 });
 
+test('findings round: a NUL in a text, a BOM, a member twice and an unpaired surrogate ' +
+  'are invalid, as qory reads them', () => {
+  const name = 'code-reviewer';
+  const lead = `Blocking finding of code-reviewer: Reviewer ${name} wrote a report `;
+  const format = `${lead}that does not match the report format: `;
+  const first = (report) => {
+    const { dir, suite } = sessionFolder({ [name]: report });
+    return round(dir, suite, [name]).lines[0];
+  };
+  for (const key of ['quote', 'problem', 'fix', 'proof']) {
+    const value = key === 'proof' ? 'failing input: 11 rows\u0000 give 9.' : 'a\u0000b';
+    const data = { reviewer: name, findings: [{ ...REVIEWED, [key]: value }] };
+    assert.equal(first(data), `${format}finding 1 has a ${key} with the character U+0000.`);
+    assert.notDeepEqual(problems(data), [], key);
+  }
+  const reason = { reviewer: name, findings: [], closes: [{ id: 'f1', state: 'fixed',
+    reason: 'Fixed\u0000.' }] };
+  assert.equal(first(reason), `${format}close 1 has a reason with the character U+0000.`);
+  assert.notDeepEqual(problems(reason), []);
+  const text = JSON.stringify({ reviewer: name, findings: [REVIEWED] });
+  assert.equal(first(`\uFEFF${text}`), `${lead}that is not UTF-8 text.`);
+  const twice = `${lead}with a member twice in one object, or with an unpaired surrogate escape.`;
+  assert.equal(first(`{"reviewer":"${name}","reviewer":"${name}","findings":[]}`), twice);
+  assert.equal(first(text.replace('"severity":', '"line":3,"severity":')), twice);
+  assert.equal(first(text.replace('"quote":"', '"quote":"\\udc00')), twice);
+  // An escaped pair is one character, and the same name in two objects is no member twice.
+  assert.doesNotMatch(first(text.replace('"quote":"', '"quote":"\\ud83d\\ude00')), /twice/);
+  assert.doesNotMatch(first(JSON.stringify({ reviewer: name, findings: [REVIEWED, REVIEWED] })),
+    /twice/);
+  // The steps of a proof start with a character that is not an ASCII space, as in Go.
+  const spaced = (proof) => first({ reviewer: name, findings: [{ ...REVIEWED, proof }] });
+  assert.doesNotMatch(spaced('failing input: \u00a011 rows give 9.'), /does not match/);
+  assert.match(spaced('failing input: \t11 rows give 9.'), /a proof that starts with none of/);
+});
+
 test('findings round: the line rule of a point and a file is the $defs line of the contract, ' +
   'for each code point', () => {
   // The pattern is read from qory's contract at QORY_SOURCE, not from a copy.

@@ -1217,10 +1217,12 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `open-findings.json`, with the findings of the reviewers of one stage: the open ones and
   those that a run closed. A file that is not a regular file of at most 256 KB, is not JSON,
   is in another form, or has findings of two stages or more exits 3. A report that is
-  missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, outside the review
-  report format or of another reviewer is one blocking finding of that reviewer, such as
-  `Reviewer code-reviewer wrote no report.`. So is a report with more than 100 findings or
-  100 closes, a report that repeats or closes an id that is not a finding of that reviewer
+  missing, a link, no regular file, over 1 MiB, no UTF-8 or with a byte order mark, no JSON
+  object, with a member twice in one object or an unpaired surrogate escape, with U+0000 in
+  a text, outside the review report format or of another reviewer is one blocking finding
+  of that reviewer, such as `Reviewer code-reviewer wrote no report.`. So is a report with
+  more than 100 findings or 100 closes, a report that repeats or closes an id that is not a
+  finding of that reviewer
   in the file of `--previous`, open or closed, one that repeats and closes one id, and one
   that lists one id twice. After such a report, the earlier open findings of that reviewer
   stay open. After a valid report, the open findings are those of the report and each

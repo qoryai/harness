@@ -30,8 +30,9 @@ const CLOSE_STATES = ['fixed', 'dismissed'];
 const REASON = [1, 1000];
 const FINDING_MEMBERS = ['id', 'severity', 'quote', 'problem', 'fix', 'proof', 'point', 'file',
   'line'];
-// The forms of a proof; a blocking finding has one of the first two.
-const PROOF = /^(failing check|failing input|broken rule): \S/u;
+// The forms of a proof; a blocking finding has one of the first two. The character after the
+// colon and space is not an ASCII space, as \s of the format's Go pattern matches only those.
+const PROOF = /^(failing check|failing input|broken rule): [^\t\n\f\r ]/u;
 const BLOCKING_PROOF = /^(failing check|failing input): /u;
 // The members of a finding that are text, with their least and most characters.
 const TEXTS = { quote: [1, 2000], problem: [1, 2000], fix: [1, 2000], proof: [0, 1000],
@@ -63,6 +64,7 @@ function closeProblem(close, place) {
   if (size < REASON[0] || size > REASON[1]) {
     return `${which} has a reason of ${size} characters, not ${REASON[0]} to ${REASON[1]}`;
   }
+  if (close.reason.includes('\u0000')) return `${which} has a reason with the character U+0000`;
   return null;
 }
 
@@ -119,6 +121,7 @@ function reportProblem(data, name, known) {
       if (size < least || size > most) {
         return `${which} has a ${key} of ${size} characters, not ${least} to ${most}`;
       }
+      if (value.includes('\u0000')) return `${which} has a ${key} with the character U+0000`;
     }
     if (!PROOF.test(finding.proof)) {
       return `${which} has a proof that starts with none of failing check, failing input and ` +
