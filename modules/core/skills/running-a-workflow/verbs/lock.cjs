@@ -239,10 +239,16 @@ function hashes(root, files, lines) {
   return { found, problems };
 }
 
-// qory runs `<qory> <args>` with the environment of io and returns what spawnSync returns.
+// qory runs `<qory> <args>` with the environment of io and returns what spawnSync returns. It
+// runs the call for at most QORY_TIME ms, and when io.until, a time in ms, is set, only for the
+// time up to it, as the tool guard sets it so that all calls of one hook share one budget. With no
+// time left it starts nothing and returns { late: true }.
 function qory(io, args) {
+  const left = typeof io.until === 'number' ? Math.min(QORY_TIME, io.until - Date.now())
+    : QORY_TIME;
+  if (left <= 0) return { late: true, status: null, stdout: '', stderr: '' };
   return childProcess.spawnSync(qoryPath(), args,
-    { env: io.env, encoding: 'utf8', timeout: QORY_TIME });
+    { env: io.env, encoding: 'utf8', timeout: left });
 }
 
 // outputLines returns the lines of what a call of qory printed, stdout first.
@@ -272,8 +278,12 @@ function refusalFindings(ran) {
 function pull(io, type, number, verb = 'verify') {
   const args = ['artifact', 'pull', type, ...(number === null ? [] : ['--version', `${number}`])];
   const ran = qory(io, args);
-  const why = ran.error ? 'could not start' : `exited with ${ran.status}`;
-  if (ran.error || ran.status !== 0) {
+  let why = `exited with ${ran.status}`;
+  if (ran.late) why = 'had no time left, because the calls of one hook share a budget';
+  else if (ran.error) {
+    why = ran.error.code === 'ETIMEDOUT' ? 'did not finish in time' : 'could not start';
+  }
+  if (ran.late || ran.error || ran.status !== 0) {
     throw new Missing(`Run \`qory ${args.join(' ')}\`, then ${verb} again.\nThe pull ${why}.`);
   }
   const dir = (ran.stdout || '').trim().split('\n').at(-1).trim();

@@ -11,9 +11,9 @@ const { isDeepStrictEqual } = require('node:util');
 module.exports = (lib) => {
   const {
     Context, Missing, approvedNumber, artifactFolder, askAbove, byPerson, criteria, criteriaFile,
-    criteriaTarget, criterionHash, criterionHashes, CRITERIA_HASHES, hashOf, isObject, jsonFile,
-    liveIn, linked, linkProblem, countedOf, lockReader, newestCriteria, noCriteria, num,
-    parseJson, plural, pullCriteria, readFile, short, timeOf, versionsOf,
+    criteriaReads, criteriaTarget, criterionHash, criterionHashes, CRITERIA_HASHES, hashOf,
+    isObject, jsonFile, liveIn, linked, linkProblem, countedOf, lockReader, newestCriteria,
+    noCriteria, num, parseJson, plural, pullCriteria, readFile, short, timeOf, versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -608,19 +608,26 @@ module.exports = (lib) => {
   // The agent that writes the checks of a lock in change mode.
   const WRITER = 'acceptance-check-writer';
 
-  // targetOf returns { number, live } of the criteria version that criteriaTarget returns for
-  // the index.json of the criteria, with live the map of each live criterion by id to
-  // { hash, tests }, or null when no version is approved, the version has no file, or no
-  // criterion. In a run, index.json and the version are pulled, as readLock pulls the lock, so
-  // a file that an agent wrote in the artifact folder counts for nothing; outside a run, the
-  // artifact folder is the store. A fault throws.
+  // targetOf returns { number, live } of the criteria version that criteriaTarget returns, with
+  // live the map of each live criterion by id to { hash, tests }, or null when no version is
+  // approved, the version has no file, or no criterion. In a run, a pull of a type writes
+  // index.json and the folder of that type only, so it pulls first what criteriaTarget reads
+  // (criteriaReads): the criteria, the questions, each lock, each criteria version that an
+  // answer links, and then the target version. The folder that the last pull prints is the
+  // store. A pull that fails throws. Outside a run, the artifact folder is the store.
   function targetOf(io) {
     const inRun = Boolean(io.env && io.env.QORY_RUN_ID);
-    const first = inRun ? lockReader.pull(io, 'acceptance-criteria', null, 'write')
-      : artifactFolder(io);
-    const number = criteriaTarget(new Context(first, 'check', io.home), 'the lock');
+    const pull = (type, number) => lockReader.pull(io, type, number, 'write');
+    let store = inRun ? pull('acceptance-criteria', null) : artifactFolder(io);
+    const reads = criteriaReads(new Context(store, 'check', io.home));
+    if (inRun) {
+      if (reads.questions) store = pull('questions', null);
+      for (const number of reads.locks) store = pull('acceptance-lock', number);
+      for (const number of reads.criteria) store = pull('acceptance-criteria', number);
+    }
+    const number = criteriaTarget(new Context(store, 'check', io.home), 'the lock');
     if (number === null) return null;
-    const store = inRun ? lockReader.pull(io, 'acceptance-criteria', number, 'write') : first;
+    if (inRun && !reads.criteria.includes(number)) store = pull('acceptance-criteria', number);
     const file = criteriaFile({ store }, number);
     if (file === null) return null;
     const text = readFile(file, `acceptance-criteria version ${number}`).replace(/\r\n?/g, '\n');
@@ -644,11 +651,11 @@ module.exports = (lib) => {
   // shortcut: the guard has no source for the name of the workflow, so this keys on the agent:
   // the writer of the checks starts only in write-acceptance-checks; replace it when the input
   // of a call has the workflow.
-  // shortcut: outside a run, the lift reads the artifact folder, which an agent can write; in a
-  // run it reads pulled copies only, so replace it when a store outside a run is no source.
-  // shortcut: a version that is linked to a decision counts only when the criteria pull has the
-  // lock documents that criteriaTarget compares it with; replace it when a pull is known to
-  // have them.
+  // shortcut: outside a run, the lift reads the artifact folder, which an agent can write;
+  // replace it when the guard reads a store that no agent call can write.
+  // shortcut: a pull refreshes the files of its type, and an agent that writes another type's
+  // file between two pulls of one call is not stopped; replace it when the pulls make one
+  // folder that no agent call can write.
   // shortcut: a forged .qory/build/changes.json can steer what plan-the-build plans, and the
   // guard no longer reads it; keptFiles and lock --verify reject a wrong result, replace it
   // when the record is written where no agent call can write.

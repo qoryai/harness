@@ -446,16 +446,19 @@ const LINKS = 40;
 // Spent is the error that a budget throws when a call needs more work than the guard does.
 class Spent extends Error {}
 
-// The most time, in ms, that spend.waiting adds to a deadline in all: the runtime ends a hook at
-// 120 s, and TIME_LIMIT plus this is below it.
+// The most time, in ms, that the guard waits on `qory artifact pull` in one call. The pulls of
+// the call share one budget: each gets only the time up to its deadline plus this, as io.until
+// of the lock reader, so all end 80 s after the call started at the latest (TIME_LIMIT of 20 s
+// and this of 60 s), before the runtime ends a hook at 120 s. spend.waiting moves the deadline
+// of the work by the time of the pulls, up to this.
 const WAIT_LIMIT = 60000;
 
 // budget returns spend(units, clock), which counts units of work of one call and throws Spent
 // past WORK_LIMIT units or past deadline, a time in ms. It reads the clock when clock is true,
 // as before each read of the disk, and after each 64 units. spend.waiting(fn) returns fn(),
 // which waits on a program that the guard starts: the clock is not read while fn runs, and the
-// time of fn moves deadline later, up to WAIT_LIMIT in all.
-function budget(deadline = Date.now() + TIME_LIMIT) {
+// time of fn moves deadline later, up to wait in all.
+function budget(deadline = Date.now() + TIME_LIMIT, wait = WAIT_LIMIT) {
   let left = WORK_LIMIT;
   let since = 0;
   let moved = 0;
@@ -476,7 +479,7 @@ function budget(deadline = Date.now() + TIME_LIMIT) {
       return fn();
     } finally {
       inside -= 1;
-      moved = Math.min(WAIT_LIMIT, moved + Date.now() - began);
+      moved = Math.min(wait, moved + Date.now() - began);
     }
   };
   return spend;
@@ -631,8 +634,9 @@ function caseless(dir) {
 }
 
 // lockSetup returns { base, io, lockType, readLock }: the reader of the lock of checks.cjs, and
-// the io that it takes, for root, the working folder.
-function lockSetup({ root, env, script = process.argv[1], plugin, artifacts }) {
+// the io that it takes, for root, the working folder. until is the time in ms after which no
+// pull starts, and by which each pull ends; with none, a pull takes at most 100 s.
+function lockSetup({ root, env, script = process.argv[1], plugin, artifacts, until }) {
   const home = path.resolve(path.dirname(script), '..');
   const dir = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow');
   const base = require(path.join(dir, 'lib', 'base.cjs'));
@@ -640,7 +644,7 @@ function lockSetup({ root, env, script = process.argv[1], plugin, artifacts }) {
   const { pluginFolder } = require(path.join(dir, 'lib', 'plugin.cjs'));
   const { lockType, readLock } = require(path.join(dir, 'verbs', 'lock.cjs')).lockReader;
   const io = { artifacts: artifacts || base.ARTIFACTS, cwd: root, home: env.HOME, env,
-    plugin: plugin || pluginFolder(path.join(dir, 'checks.cjs')) };
+    plugin: plugin || pluginFolder(path.join(dir, 'checks.cjs')), until };
   let registry = null;
   io.registry = () => {
     if (!registry) registry = loadRegistry(io.plugin);
@@ -2068,8 +2072,11 @@ function pathHits(segment, full, folder, how, step = false) {
 const MULTI = 'Write each file with a separate redirect.\n';
 
 // multiRedirect returns the target of the first redirect of a simple command of command whose
-// word has a brace list of more than one word, as in `> checks/{a,b}.ts`, or null. zsh with
+// word has a brace list of more than one word, as in `> checks/{a,b}.check`, or null. zsh with
 // MULTIOS writes to each word of such a target, and the guard reads the redirect as one path.
+// shortcut: a brace range of one word, such as {b..b}, writes the file it expands to, and the
+// rule skips the main session; the same boundary as the hard link outside the root, replace it
+// when ranges are expanded like lists and the main session is read.
 function multiRedirect(command, cwd) {
   for (const one of segments(dropBodies(command, true), cwd)) {
     const found = redirectWords(one.text).find((word) => braceGroups(word)
@@ -2181,13 +2188,16 @@ function names(full, cwds, root) {
 // lock, as lockedFiles does; it runs only for a write below root. lockKind returns the type of
 // the lock, as lockTypeOf does. runFolder is the artifact
 // folder of a run, as end-gate.cjs has it, unless the caller sets another. A call that needs more
-// work than a budget allows, to deadline, a time in ms, is denied.
+// work than a budget allows, to deadline, a time in ms, is denied. wait is the most time in ms
+// that the pulls of the call take beyond deadline; WAIT_LIMIT with none.
 function decide(args) {
-  const spend = budget(args.deadline);
+  const deadline = args.deadline === undefined ? Date.now() + TIME_LIMIT : args.deadline;
+  const wait = args.wait === undefined ? WAIT_LIMIT : args.wait;
+  const spend = budget(deadline, wait);
   lockedStats = new Map();
   setHome((args.env || process.env).HOME);
   try {
-    return metered(spend, () => decideCall({ ...args, spend }));
+    return metered(spend, () => decideCall({ ...args, spend, until: deadline + wait }));
   } catch (error) {
     if (error instanceof Spent) return TOO_MUCH;
     throw error;
@@ -2196,7 +2206,7 @@ function decide(args) {
 
 // decideCall returns the answer of decide, and spends from spend.
 function decideCall({ input, env = process.env, script = process.argv[1], locked, lockKind,
-  root: start, spend, runFolder, runtime }) {
+  root: start, spend, until, runFolder, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   const session = reviewSession(env);
@@ -2257,8 +2267,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
       // The reads of the lock and of the lift run `qory artifact pull`, whose time is no work of
       // the guard.
       const read = () => {
-        lock = (locked || ((args) => lockedFiles(args)))({ root, env, script });
-        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script }).io, fold,
+        lock = (locked || ((args) => lockedFiles(args)))({ root, env, script, until });
+        lock = liftedLock(lock, { io: () => lockSetup({ root, env, script, until }).io, fold,
           type: agent ? typeOf() : null,
           name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
       };
@@ -2330,6 +2340,9 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const built = paths.find((full) => inside(full, build) ||
     fold(full).includes(fold(`${path.sep}${BUILD}${path.sep}`)));
   if (built) return `${BUILT}The call writes ${built}.`;
+  // shortcut: the lock check, sameFile included, applies to paths inside the root only, so a hard
+  // link outside the root to a locked file passes the file tools; keptFiles, the push check and
+  // lock --verify catch it, replace it when every written path is compared by device and inode.
   if (paths.some((full) => inside(full, root))) {
     const { files = [], what, problem, type } = lockOf();
     if (problem) return unread({ type, problem });
@@ -3794,5 +3807,5 @@ const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, MULTI,
   TOO_MUCH, OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
   SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT, STEP_KEPT, STEP_ONLY };
 
-module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
+module.exports = { decide, budget, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
   REASONS };

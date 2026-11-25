@@ -519,6 +519,30 @@ module.exports = (lib) => {
     return Math.max(approvedVersion, ...counted);
   }
 
+  // criteriaReads returns { questions, locks, criteria }: what criteriaTarget reads of the store
+  // besides index.json, for the criteria versions that a note links and no person wrote.
+  // questions is true when index.json lists a version of the questions that counts. locks lists
+  // the numbers of the acceptance-lock versions it reads: the newest one older than each such
+  // version, as lockBefore picks it, and the newest one when a version is linked to an answer.
+  // criteria lists the numbers of the versions linked to an answer, whose files the question
+  // rule reads. A run pulls each of them before it calls criteriaTarget.
+  function criteriaReads(context) {
+    const locks = liveLocks(context);
+    const found = { questions: countedOf(context, 'questions').length > 0, locks: new Set(),
+      criteria: new Set() };
+    for (const one of countedOf(context, 'acceptance-criteria')) {
+      if (byPerson(one) || !linked(one)) continue;
+      const { last } = lockBefore(context, locks, one);
+      if (last !== null) found.locks.add(last.number);
+      if (!ANSWER.test(one.decision)) continue;
+      found.criteria.add(one.number);
+      if (locks.length && !context.withdrawn('acceptance-lock')) {
+        found.locks.add(locks.reduce((a, b) => (b.number > a.number ? b : a)).number);
+      }
+    }
+    return { questions: found.questions, locks: [...found.locks], criteria: [...found.criteria] };
+  }
+
   // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
   // the store, or null when the store has no such file.
   function criteriaFile(context, number) {
@@ -780,7 +804,7 @@ module.exports = (lib) => {
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, timeOf, linked, criterionHash, criterionHashes, CRITERIA_HASHES,
-    hashOf, liveLocks, pullAgain, criteriaTarget, criteriaFile,
+    hashOf, liveLocks, pullAgain, criteriaTarget, criteriaReads, criteriaFile,
     newestCriteria, askAbove, noCriteria, linkProblem, lockDoc,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,
