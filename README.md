@@ -116,10 +116,10 @@ extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
 with `access: read`, the workflows `triage-review` and `plan-the-build`, each with `tier:
-thinking` and `access: write`, the workflow `write-acceptance-checks`, with `tier: balanced` and `access: write`,
-the workflow `implement-changes`, with `tier: balanced` and `access: write`, the
-workflow `review-changes`, with `tier: thinking`, `access: read` and `review_group:
-reviewers`, and the workflow `verify-a-ticket`, with `tier: thinking`, `access:
+thinking` and `access: write`, the workflow `write-acceptance-checks`, with `tier: balanced`
+and `access: write`, the workflow `implement-changes`, with `tier: balanced` and `access:
+write`, the workflow `review-changes`, with `tier: thinking`, `access: read` and
+`review_group: reviewers`, and the workflow `verify-a-ticket`, with `tier: thinking`, `access:
 write-no-push` and `review_group: verify-reviewers`. The `software-factory` module ships
 the process template, twelve workflows' skills, thirty-three other skills, twenty-nine
 agents and the settings for a run of those workflows:
@@ -303,7 +303,9 @@ agents and the settings for a run of those workflows:
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
 - `workflow-triage-review`: orchestrate the first step of a Build run after feedback. When no
-  note is open, the session ends with `passed` and starts no agent. Otherwise it starts
+  note is open and no question waits for an answer, the session ends with `passed` and starts
+  no agent. When only questions wait for an answer, it ends with `qory run verdict escalate`
+  and starts no agent. Otherwise it starts
   `feedback-triager`, `questions-writer` and `reply-writer` in that order, checks and pushes
   `feedback`, then the questions. A point that only a member can settle ends the run with
   `qory run verdict escalate`. Build's `sequence` in `process.yaml` is empty, so no run

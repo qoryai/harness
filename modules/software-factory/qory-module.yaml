@@ -24,10 +24,11 @@ description: >-
   stage through those four workflows; the skills planning-shape and checking-shape; the agents
   shape-planner and shape-reviewer; the workflow-triage-review skill, which sorts the feedback
   of a person on one ticket's change; the skill sorting-feedback; the agent feedback-triager;
-  the workflow-plan-the-build skill, which orchestrates one ticket's build plan; the skills planning-builds and checking-build-plans; the skill
-  judging-findings, which defines a blocking finding of a change; the agents build-planner and
-  plan-reviewer; the workflow-write-acceptance-checks skill, which orchestrates one ticket's
-  acceptance checks and their lock; the skills writing-acceptance-checks and
+  the workflow-plan-the-build skill, which orchestrates one ticket's build plan; the skills
+  planning-builds and checking-build-plans; the skill judging-findings, which defines a
+  blocking finding of a change; the agents build-planner and plan-reviewer; the
+  workflow-write-acceptance-checks skill, which orchestrates one ticket's acceptance checks
+  and their lock; the skills writing-acceptance-checks and
   checking-acceptance-checks; the agents acceptance-check-writer and check-reviewer; the
   workflow-review-changes skill, the review session of one ticket's Build run, which starts
   the reviewers as its agents, decides the round from their reports and the result of the

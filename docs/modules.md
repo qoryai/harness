@@ -2412,8 +2412,8 @@ The checks:
 
 The types of Build and Verify are `pull-request`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
-`screenshot`, `verification`, `walkthrough` and `feedback`. The check of each JSON type checks the file
-against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`.
+`screenshot`, `verification`, `walkthrough` and `feedback`. The check of each JSON type checks
+the file against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`.
 For a custom type, `process.yaml` has the same schema as the type's `json_schema`, and
 Qory Apiary reads it there. `verification` is a standard type: its schema is the
 verification format of qory's contract. A schema finding shows each member as its JSON
@@ -3232,18 +3232,19 @@ as a stage's one entry.
 on the change. The session pulls and runs `checks.cjs feedback open`. With nothing open, it
 starts no agent, pushes nothing and records `passed`. When an earlier session of the run
 pushed the newest `feedback` before it stopped, the session goes on with `feedback points`
-instead. Otherwise it starts `feedback-triager`,
-which sorts each source into points by `sorting-feedback`: a `fix` inside the approved
-criteria, a `criterion-change`, or a `question`. `check feedback` runs after it, at most 3
-times. Then `questions-writer` writes one question per `question` point, and `reply-writer`
-adds the `reply` of each point. The session pushes `feedback`, then `questions`, and ends with
+instead. When only questions wait for an answer, it starts no agent and ends with `escalate`
+and one `answer` point per question. Otherwise it starts `feedback-triager`, which sorts each
+source into points by `sorting-feedback`: a `fix` inside the approved criteria, a
+`criterion-change`, or a `question`. `check feedback` runs after it, at most 3 times. Then
+`questions-writer` writes one question per `question` point, and `reply-writer` adds the
+`reply` of each new point. The session pushes `feedback`, then `questions`, and ends with
 `escalate` and one `answer` point per open question, else with `passed`. A point outside the
 kind of the fast track ends with `escalate` and one `run_again` point. The stack lists the
 workflow with `tier: thinking`, `access: write` and `plan: build-plan`. Build's `sequence` in
 `process.yaml` is empty, so no run starts it yet. `shortcut:` a criterion-change point changes
 no criterion; replace this when the workflow gets the step that writes the criteria. Until
-then, such a point stays in `feedback points`. `shortcut:` an answer to a question is no source yet, so a run builds nothing from
-it; read it once each answer has an id.
+then, such a point stays in `feedback points`. `shortcut:` an answer to a question is no
+source yet, so a run builds nothing from it; read it once each answer has an id.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It

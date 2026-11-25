@@ -211,8 +211,8 @@ const MORE_SAMPLES = {
     valid: [
       { why: 'a fix', doc: FEEDBACK },
       { why: 'a source with no point', doc: feedbackDoc((doc) => { doc.points = []; }) },
-      ...['es_01jc4t9v2m6x8p3q', 'an_01jc4t9v2m6x8p3q', 'cm_0123456789abcdef'].map((id) => ({ why: `the source ${id}`,
-        doc: feedbackDoc((doc) => { doc.sources[0].id = id; }) })),
+      ...['es_01jc4t9v2m6x8p3q', 'an_01jc4t9v2m6x8p3q', 'cm_0123456789abcdef'].map((id) =>
+        ({ why: `the source ${id}`, doc: feedbackDoc((doc) => { doc.sources[0].id = id; }) })),
     ],
     invalid: [
       { why: 'no source', doc: feedbackDoc((doc) => { doc.sources = []; }) },
