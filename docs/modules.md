@@ -4985,11 +4985,13 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   runs `demo check <id>`, starts the agent again with the printed lines at most twice,
   starts `check-reviewer` on the script, once for the first review of the first script of a
   scenario, at most 12 times for those reviews in a run together, and 3 times in a follow
-  for the later reviews of first scripts and the corrections of all scenarios together, runs
-  `check demo-script`, runs `preflight` once for the session, runs `demo run <id>`, reads
-  the report of the script again with `step end`, pushes the script with `qory artifact push
-  demo-script --name <scenario> <folder>/.demo/<scenario>.json`, and ends the step with
-  `--script-sha256` of the script that passed.
+  for the later reviews of first scripts and the corrections of all scenarios together,
+  keeps the script as it was reviewed when a review after the last of those 3 starts has
+  only non-blocking findings, runs `check demo-script`, runs `preflight` once for the
+  session, runs `demo run <id>`, reads the report of the script again with `step end`,
+  pushes the script with `qory artifact push demo-script --name <scenario>
+  <folder>/.demo/<scenario>.json`, and ends the step with `--script-sha256` of the script
+  that passed.
 
 The check and the freeze of a script:
 

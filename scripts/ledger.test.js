@@ -1240,6 +1240,40 @@ test('ledger: a first script with a finding ends done after a review of the fixe
   assert.deepEqual([row.id, row.state, row.script_sha256], [id, 'done', sha(fixed)]);
 });
 
+// After the last of the 3 shared starts, a review with only non-blocking findings gets no fix:
+// the step ends done on the reviewed script, and its report keeps the findings.
+test('ledger: a third later review with only non-blocking findings ends the step done', () => {
+  const w = work();
+  const call = resumed(w);
+  const id = 'script:scenario-1';
+  const count = (name, limit) => call('starts', call.run, name, String(limit));
+  assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
+  assert.equal(count('implement-changes-check-reviewer-scenario-1', 1).status, 0);
+  assert.equal(count('implement-changes-first-scripts', 12).status, 0);
+  const lines = [];
+  for (let at = 1; at <= 3; at += 1) {
+    const started = count('implement-changes-1-check-reviewer', 3);
+    assert.equal(started.status, 0, started.out);
+    lines.push(started.lines[0]);
+  }
+  // The third start prints that it is the last, so the session needs no fourth to know.
+  assert.deepEqual(lines.map((line) => line.endsWith('This is the last start.')),
+    [false, false, true]);
+  const text = '{"steps":3}\n';
+  const low = finding('non-blocking', 'broken rule: rule 7.');
+  const { reported } = reviewedFile(call, id, { text, findings: [low] });
+  const checked = call('step', 'end', id, 'done');
+  assert.equal(checked.status, 1, checked.out);
+  assert.ok(!checked.lines.some((line) => /^(?:Start check-reviewer|Fix the blocking)/.test(line)),
+    checked.out);
+  const ended = call('step', 'end', id, 'done', '--script-sha256', sha(text));
+  assert.equal(ended.status, 0, ended.out);
+  const row = stored(w).ledger.steps.at(-1);
+  assert.deepEqual([row.id, row.state, row.script_sha256], [id, 'done', sha(text)]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(reported, 'utf8')).findings, [low]);
+  assert.equal(count('implement-changes-1-check-reviewer', 3).status, 1);
+});
+
 test('ledger: the first scripts of a run have 12 starts of check-reviewer together', () => {
   const call = resumed(work());
   for (let at = 1; at <= 12; at += 1) {

@@ -1064,9 +1064,16 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
       'exits with 1, run `step end <step> failed`',
     'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
-      'script that passed', 'With `changes-needed`, do "Start the author again", with each ' +
-      'finding quoted; the review of the fixed script has the 3 starts of the corrections. ' +
-      'A non-blocking finding needs a fix and a later review too.',
+      'script that passed',
+    // A review with only non-blocking findings after the last of the 3 starts gets no fix.
+    'With `changes-needed` and only non-blocking findings, after a `starts` of ' +
+      '`implement-changes-<n>-check-reviewer 3` in this follow printed "This is the last ' +
+      'start.", no start of the 3 is left: start no author, and go on to step 6 with the ' +
+      'script as it was reviewed. Step 10 then ends the step `done` with the sha256 of that ' +
+      'script, and the report of that sha256 has those findings.',
+    'With any other `changes-needed`, do "Start the author again", with each finding quoted; ' +
+      'the review of the fixed script has the 3 starts of the corrections. While a start of ' +
+      'the 3 is left, a non-blocking finding needs a fix and a later review too.',
     'review a script that changes after its review again');
   // The report file is read after each review, before the run and the push of the script.
   inText(SCRIPTING, 'With `blocked`, run `step end <step> failed`, and end as "Failures" lists. ' +
