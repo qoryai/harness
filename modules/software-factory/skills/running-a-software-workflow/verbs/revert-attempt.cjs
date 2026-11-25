@@ -82,7 +82,7 @@ module.exports = (lib) => {
       .map((one) => look(one.parts)).filter(Boolean).map(id));
     const holds = (parts) => fs.readdirSync(abs(parts), { encoding: 'buffer' }).some((name) => {
       const stat = look([...parts, name]);
-      // No stat: the name is too long to look up, so the revert cannot judge what is there.
+      // No stat: the name is too long to look up, so the check cannot find out what is there.
       if (!stat) return true;
       return stat.isDirectory() ? holds([...parts, name]) : !tracked.has(id(stat));
     });
