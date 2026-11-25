@@ -3241,8 +3241,8 @@ adds the `reply` of each point. The session pushes `feedback`, then `questions`,
 kind of the fast track ends with `escalate` and one `run_again` point. The stack lists the
 workflow with `tier: thinking`, `access: write` and `plan: build-plan`. Build's `sequence` in
 `process.yaml` is empty, so no run starts it yet. `shortcut:` a criterion-change point changes
-no criterion; the next workflow step adds it. Until then, such a point stays in `feedback
-points`. `shortcut:` an answer to a question is no source yet, so a run builds nothing from
+no criterion; replace this when the workflow gets the step that writes the criteria. Until
+then, such a point stays in `feedback points`. `shortcut:` an answer to a question is no source yet, so a run builds nothing from
 it; read it once each answer has an id.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one

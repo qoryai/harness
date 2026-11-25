@@ -10,6 +10,9 @@
 module.exports = (lib) => {
   const { isObject, pointQuestion, readableFeedback } = lib;
 
+  // shortcut: a question is of a point by its id alone, so a new question that another
+  // workflow asks under the id of a question that a crash left unasked gets the rule of the
+  // point; compare the about when a run shows this.
   function check(question, who, info) {
     const { context, earlier } = info || {};
     const data = context ? readableFeedback(context) : null;

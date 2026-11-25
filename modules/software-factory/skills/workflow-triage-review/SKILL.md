@@ -76,7 +76,8 @@ note of a person, a comment or a reply. A point is one thing that a source asks 
    per group of criterion changes that no version has. Keep `<k>`, the number of lines that
    start with "Fix first:". With 2 or 3, end as "Failures" lists for the checks script.
 
-   `shortcut:` a criterion-change point changes no criterion; the next workflow step adds it.
+   `shortcut:` a criterion-change point changes no criterion; replace this when the workflow
+   gets the step that writes the criteria.
 10. Run `<skill folder>/checks.cjs feedback open` again. With a line "Not asked:", end as
     "Failures" of `running-a-workflow` lists for a step after the push. With a line "Waiting
     for an answer:", do "Questions with no answer". A JSON line is a source that came during
